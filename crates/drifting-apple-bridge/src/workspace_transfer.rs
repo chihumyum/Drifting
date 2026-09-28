@@ -59,77 +59,87 @@ impl LabSession {
     /// paragraph per block, then applies heading levels; saved as the
     /// author's input.
     pub(super) fn import_blocks(&mut self, blocks: &[ImportBlock]) -> Result<(), String> {
-        let lines: Vec<String> = blocks
-            .iter()
-            .map(|block| block.text.replace(['\n', '\r', '\u{2029}'], " "))
-            .collect();
-        let view = self.document.native_projection()?;
-        if !view.text.is_empty() || view.blocks.len() != 1 {
-            return Err("Imported bodies must start empty".into());
-        }
-        self.document.replace_native(NativeReplacement {
-            revision: view.revision,
-            range: NativeRange {
-                location: 0,
-                length: 0,
-            },
-            text: lines.join("\n"),
-        })?;
-        for (index, block) in blocks.iter().enumerate() {
-            let units = block.text.encode_utf16().count() as u32;
-            for mark in &block.marks {
-                let action = match mark.mark.as_str() {
-                    "bold" => NativeFormatAction::Bold,
-                    "italic" => NativeFormatAction::Italic,
-                    other => return Err(format!("不支持导入 {other} 格式")),
-                };
-                if mark.length == 0 || mark.location + mark.length > units {
-                    return Err("导入的格式范围超出段落".into());
-                }
-                let view = self.document.native_projection()?;
-                let start = view
-                    .blocks
-                    .get(index)
-                    .ok_or("Imported block is missing")?
-                    .range
-                    .location;
-                self.document.format_native(NativeFormatting {
-                    revision: view.revision,
-                    range: NativeRange {
-                        location: start + mark.location,
-                        length: mark.length,
-                    },
-                    action,
-                })?;
-            }
-            let action = match (block.kind.as_str(), block.level) {
-                ("heading", Some(1)) => NativeFormatAction::Heading1,
-                ("heading", Some(2)) => NativeFormatAction::Heading2,
-                ("heading", _) => NativeFormatAction::Heading3,
-                _ => continue,
-            };
-            let view = self.document.native_projection()?;
-            let range = view
-                .blocks
-                .get(index)
-                .ok_or("Imported block is missing")?
-                .range
-                .clone();
-            if range.length == 0 {
-                continue;
-            }
-            self.document.format_native(NativeFormatting {
-                revision: view.revision,
-                range,
-                action,
-            })?;
-        }
+        fill_blocks(&mut self.document, blocks)?;
         self.persist();
         match &self.save_error {
             Some(error) => Err(format!("导入的正文尚未保存：{error}")),
             None => Ok(()),
         }
     }
+}
+
+/// Replaces an empty document's seed paragraph with the blocks, one
+/// paragraph per block, then applies their marks and heading levels.
+pub(super) fn fill_blocks(
+    document: &mut DocumentSession,
+    blocks: &[ImportBlock],
+) -> Result<(), String> {
+    let lines: Vec<String> = blocks
+        .iter()
+        .map(|block| block.text.replace(['\n', '\r', '\u{2029}'], " "))
+        .collect();
+    let view = document.native_projection()?;
+    if !view.text.is_empty() || view.blocks.len() != 1 {
+        return Err("Imported bodies must start empty".into());
+    }
+    document.replace_native(NativeReplacement {
+        revision: view.revision,
+        range: NativeRange {
+            location: 0,
+            length: 0,
+        },
+        text: lines.join("\n"),
+    })?;
+    for (index, block) in blocks.iter().enumerate() {
+        let units = block.text.encode_utf16().count() as u32;
+        for mark in &block.marks {
+            let action = match mark.mark.as_str() {
+                "bold" => NativeFormatAction::Bold,
+                "italic" => NativeFormatAction::Italic,
+                other => return Err(format!("不支持导入 {other} 格式")),
+            };
+            if mark.length == 0 || mark.location + mark.length > units {
+                return Err("导入的格式范围超出段落".into());
+            }
+            let view = document.native_projection()?;
+            let start = view
+                .blocks
+                .get(index)
+                .ok_or("Imported block is missing")?
+                .range
+                .location;
+            document.format_native(NativeFormatting {
+                revision: view.revision,
+                range: NativeRange {
+                    location: start + mark.location,
+                    length: mark.length,
+                },
+                action,
+            })?;
+        }
+        let action = match (block.kind.as_str(), block.level) {
+            ("heading", Some(1)) => NativeFormatAction::Heading1,
+            ("heading", Some(2)) => NativeFormatAction::Heading2,
+            ("heading", _) => NativeFormatAction::Heading3,
+            _ => continue,
+        };
+        let view = document.native_projection()?;
+        let range = view
+            .blocks
+            .get(index)
+            .ok_or("Imported block is missing")?
+            .range
+            .clone();
+        if range.length == 0 {
+            continue;
+        }
+        document.format_native(NativeFormatting {
+            revision: view.revision,
+            range,
+            action,
+        })?;
+    }
+    Ok(())
 }
 
 impl WorkspaceSession {

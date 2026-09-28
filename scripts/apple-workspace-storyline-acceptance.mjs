@@ -69,6 +69,7 @@ const specs = [
     'fractional::tests::matches_the_javascript_package',
   ] },
   { name: 'bridge-storylines', crate: 'drifting-apple-bridge', filter: 'workspace_tests::storylines::', required: [
+    'workspace_tests::storylines::storyline_chapter_template_seeds_new_chapters_of_that_storyline',
     'workspace_tests::storylines::workspace_storylines_create_assign_order_and_cold_reopen',
     'workspace_tests::storylines::workspace_storylines_trash_restore_and_chapter_membership_restore',
     'workspace_tests::storylines::workspace_storylines_failures_roll_back_and_retry',

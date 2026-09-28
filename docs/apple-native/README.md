@@ -121,7 +121,10 @@ an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with
 library ordering, act colours, project deletion, a bottom timeline dock with
 a draggable act rail,
-chapter tabs with a two-pane split, formatting (bold, italic, underline,
+chapter tabs with a two-pane split (tab menus to close, move, open on the
+other side and merge the panes, ⌥⌘←/⌥⌘→, ⌘W, drag to reorder, 后退/前进 with
+⌘[ ⌘], and each project's tabs saved and restored when it opens, the last
+project at launch), formatting (bold, italic, underline,
 strike, headings, alignment, Tab indent and URL links from the 格式 menu, the
 toolbar and the context menu), a slash menu, find in the editor (⌘F, no
 replace), an @ picker that inserts and links names, project search over chapters,

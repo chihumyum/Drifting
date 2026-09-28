@@ -38,6 +38,14 @@ pub(crate) enum StorylineCommand {
         #[serde(default, deserialize_with = "super::elements::present")]
         primary: Option<Option<String>>,
     },
+    /// The 章节模版 as editable blocks.
+    ChapterTemplate {
+        storyline_id: String,
+    },
+    SetChapterTemplate {
+        storyline_id: String,
+        blocks: Vec<super::transfer::ImportBlock>,
+    },
     TrashStoryline {
         storyline_id: String,
     },
@@ -63,6 +71,19 @@ impl WorkspaceSession {
         let store = WorkspaceStore::new(&self.gateway, CLIENT);
         let result = match command {
             StorylineCommand::Library => Value::Null,
+            StorylineCommand::ChapterTemplate { storyline_id } => {
+                super::transfer::blocks_value(&super::transfer::template_blocks(
+                    &store.storyline_chapter_template(project_id, storyline_id)?,
+                )?)
+            }
+            StorylineCommand::SetChapterTemplate {
+                storyline_id,
+                blocks,
+            } => json!(store.set_storyline_chapter_template(
+                &self.context(&project)?,
+                storyline_id,
+                &super::transfer::template_json(blocks)?,
+            )?),
             StorylineCommand::CreateStoryline { name } => json!(store.create_storyline(
                 &self.context(&project)?,
                 NewStoryline {

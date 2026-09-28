@@ -104,7 +104,8 @@ before any panel closes or sheet is cancelled, so a note or TODO being
 composed keeps its draft. Only then do the panels that show the project
 close; panels of other projects stay. Every refusal names its reason in
 Chinese and nothing is deleted; a Rust refusal is shown the same way. On
-success the lab forgets the project's writing plan and 设定总览 viewport,
+success the lab forgets the project's writing plan, 设定总览 viewport and
+saved tabs (and no longer opens it at launch),
 stops the writing assistant's turn in it and removes
 `<data>/agent/<projectId>/` (conversations with their memory, plans and
 usage, and 作者规则) on the queue the conversation store writes on, after
@@ -116,7 +117,9 @@ remaining project, or creates an empty “未命名项目” when none remain. T
 
 项目 › 项目书架… (⇧⌘P) and the project list's menu open a window listing every
 project with its name, summary, live chapters, chapter words and last edit,
-newest edit first; it also opens at launch, while no project is chosen. Each
+newest edit first; it also opens at launch when no project was selected last
+or that project is gone (otherwise it opens with its tabs,
+[restoring tabs](tabs-and-split.md#restoring-tabs)). Each
 row is read with `workspaceProjects`, then `workspaceMetadata` `project` and
 `nodes` (the last edit is the latest `updated_at` of the project and its
 live chapters and drifts, which editor saves stamp) and `workspaceMetrics`
@@ -195,7 +198,10 @@ stay open; this local workflow does not certify general remote convergence.
 No push or release is part of this batch.
 
 The current [tabs and split record](tabs-and-split.md) adds retained per-chapter
-owners, two visible Mac panes, guarded close/reopen and explicit UIKit release.
+owners, two visible Mac panes, guarded close/reopen and explicit UIKit release,
+tab context menus, 后退/前进 and each project's tabs restored when it shows:
+switching projects saves and closes the shown project's tabs through the close
+path before the other's come back.
 It records the latest attended Mac workflow and links the current generated
 source, AppKit and platform results; the earlier observations above remain
 historical evidence for their own batches.

@@ -19,6 +19,12 @@ pub(crate) enum HistoryCommand {
         target: ProseTarget,
         snapshot_id: String,
     },
+    /// The version as a projection (blocks with runs and attributes), for a
+    /// read-only preview that shows its formatting. Writes nothing.
+    Preview {
+        target: ProseTarget,
+        snapshot_id: String,
+    },
 }
 
 fn snapshot_kind(target: &ProseTarget) -> &'static str {
@@ -60,6 +66,21 @@ impl WorkspaceSession {
                     })
                     .collect();
                 Ok(json!({"entries": entries}))
+            }
+            HistoryCommand::Preview {
+                target,
+                snapshot_id,
+            } => {
+                let (kind, id, state) = store.snapshot_state(project_id, snapshot_id)?;
+                if kind != snapshot_kind(target) || id != target.id {
+                    return Err("这个历史版本不属于当前文档".into());
+                }
+                let mut past = DocumentSession::new();
+                past.apply_remote(&state, 1)?;
+                if past.has_pending() {
+                    return Err("这个历史版本不完整".into());
+                }
+                Ok(json!({"projection": past.native_projection()?}))
             }
             HistoryCommand::Restore {
                 target,

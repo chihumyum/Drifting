@@ -165,6 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var shortcuts: MacShortcutApplier?
     /// Opens the workspace, or shows 恢复 instead when it does not open.
     private lazy var recovery = DatabaseRecoveryCoordinator(workspace: workspace)
+    /// Each project's tabs in settings.json, restored when it opens, and the
+    /// project that opens at launch.
+    private lazy var tabSession = MacTabSession(host: chapterWorkspace, store: settingsStore, workspace: workspace)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -194,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let actions: [MacMenuCommand: MacMainMenu.Action] = [
             .settings: .init(#selector(showSettings), self),
             .save: .init(#selector(saveDocument), self),
+            .closeTab: .init(#selector(closeTabOrWindow), self),
             .fileProfile: .init(#selector(showProjectProfile), self),
             .fileDeleteProject: .init(#selector(deleteSelectedProject), self),
             .importFile: .init(#selector(importFile), self),
@@ -225,6 +229,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             .trash: .init(#selector(showTrashMenu), self),
             .diagnostics: .init(#selector(showDiagnostics), self),
             .projectHome: .init(#selector(showProjectHomeMenu), self),
+            .back: .init(#selector(goBack), self),
+            .forward: .init(#selector(goForward), self),
+            .previousTab: .init(#selector(showPreviousTab), self),
+            .nextTab: .init(#selector(showNextTab), self),
         ]
         let menu = MacMainMenu.build(actions)
         agentMenuItem = MacMainMenu.item(.agent, in: menu)
@@ -360,6 +368,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // 项目主页 tabs read the plan, 今日字数 and 最近; opened pages join 最近.
         chapterWorkspace.homeSettings = settingsStore
         chapterWorkspace.onEditProjectProfile = { [weak self] project in self?.presentProjectProfile(for: project) }
+        // Tabs are saved per project as they change, from the first one on.
+        _ = tabSession
         chapterWorkspace.onPurged = { [weak self] projectID, _ in
             // Notes and TODOs written on purged content went with it.
             self?.reviewModels[projectID]?.load()
@@ -957,8 +967,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // A chosen font that could not be used says so once at launch.
         status.stringValue = settingsStore.fontFallback ?? "选择项目，或新建一个项目。"
         showWorkspaceWindow()
-        // No project is chosen yet: the 项目书架 offers them all.
-        if selectedProject == nil { showShelf() }
+        guard selectedProject == nil else { return }
+        // The project selected last opens with its tabs; without one (or
+        // once it is gone) the 项目书架 offers them all.
+        if let last = tabSession.launchProject(in: projects), let index = projects.firstIndex(where: { $0.id == last.id }) {
+            updatingSelection = true
+            projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            updatingSelection = false
+            selectProject(last)
+        } else {
+            showShelf()
+        }
     }
 
     private func showWorkspaceWindow() {
@@ -973,7 +992,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         window.orderOut(nil)
     }
 
-    private func selectProject(_ project: WorkspaceProject, message: String? = nil) {
+    /// Shows the project: panels of other projects close, the tabs of the
+    /// project shown before are saved and closed (one that cannot close
+    /// keeps it shown, naming the tab), its chapters are listed and its own
+    /// tabs come back; `then` runs once they have.
+    private func selectProject(_ project: WorkspaceProject, message: String? = nil, then: (() -> Void)? = nil) {
         guard canLeaveDocument() else { return }
         // The 全书长卷 shows one project; typing there must settle first.
         if wholeBookController.map({ $0.project.id != project.id }) == true, !closeWholeBook() { return }
@@ -989,43 +1012,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if reviewController?.model.projectID != project.id { closeReview() }
         if boardController?.review.projectID != project.id { closeBoard() }
         if trashController?.model.projectID != project.id { closeTrash() }
-        setLoading(true)
-        workspace.chapters(projectID: project.id) { [weak self] result in
+        tabSession.leave(for: project) { [weak self] left in
             guard let self else { return }
-            self.setLoading(false)
-            switch result {
-            case .success(let chapters):
-                self.selectedProject = project
-                self.showingTrash = false
-                self.chapterTable.setAccessibilityIdentifier("chapter-list")
-                self.trashedChapters = []
-                self.chapters = chapters
-                self.updatingSelection = true
-                self.chapterTable.reloadData()
-                self.chapterTable.deselectAll(nil)
-                self.updatingSelection = false
-                self.chapterEmpty.stringValue = "还没有章节，点击“新建章节”开始写作。"
-                self.chapterEmpty.isHidden = !chapters.isEmpty
-                self.status.stringValue = message ?? "\(project.name) · \(chapters.count) 个章节"
-                self.ensureStorylineModel(project)
-                self.ensureDriftModel(project)
-                self.ensureAgent(project)
-                self.timelineDock.follow(project)
-                self.updateTimelineMenu()
-                // Opening a project reconciles its counts once per session.
-                self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
-                self.updateWordStatus()
-                self.updateControls()
-            case .failure(let error):
+            if case .failure(let error) = left {
                 self.status.stringValue = error.localizedDescription
-                self.updatingSelection = true
-                if let selected = self.selectedProject,
-                   let index = self.projects.firstIndex(where: { $0.id == selected.id }) {
-                    self.projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-                } else { self.projectTable.deselectAll(nil) }
-                self.updatingSelection = false
+                self.reselectShownProject()
+                return
+            }
+            self.setLoading(true)
+            self.workspace.chapters(projectID: project.id) { [weak self] result in
+                guard let self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let chapters):
+                    self.selectedProject = project
+                    self.showingTrash = false
+                    self.chapterTable.setAccessibilityIdentifier("chapter-list")
+                    self.trashedChapters = []
+                    self.chapters = chapters
+                    self.updatingSelection = true
+                    self.chapterTable.reloadData()
+                    self.chapterTable.deselectAll(nil)
+                    self.updatingSelection = false
+                    self.chapterEmpty.stringValue = "还没有章节，点击“新建章节”开始写作。"
+                    self.chapterEmpty.isHidden = !chapters.isEmpty
+                    self.status.stringValue = message ?? "\(project.name) · \(chapters.count) 个章节"
+                    self.ensureStorylineModel(project)
+                    self.ensureDriftModel(project)
+                    self.ensureAgent(project)
+                    self.timelineDock.follow(project)
+                    self.updateTimelineMenu()
+                    // Opening a project reconciles its counts once per session.
+                    self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
+                    self.updateWordStatus()
+                    self.updateControls()
+                    // Its tabs come back as they were left; 后退 starts again.
+                    self.tabSession.enter(project) { [weak self] error in
+                        guard let self else { return }
+                        if let error { self.status.stringValue = error.localizedDescription }
+                        self.activeChapterChanged()
+                        then?()
+                    }
+                case .failure(let error):
+                    self.status.stringValue = error.localizedDescription
+                    self.reselectShownProject()
+                }
             }
         }
+    }
+
+    /// The project list selects the project shown again after a refusal.
+    private func reselectShownProject() {
+        updatingSelection = true
+        if let selected = selectedProject, let index = projects.firstIndex(where: { $0.id == selected.id }) {
+            projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        } else { projectTable.deselectAll(nil) }
+        updatingSelection = false
     }
 
     private func openChapter(_ chapter: WorkspaceChapter, project: WorkspaceProject, revealBlockID: String? = nil) {
@@ -2005,7 +2047,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             item.state = chapterWorkspace.isActivePlotPlannerShown ? .on : .off
             return chapterWorkspace.canTogglePlotPlanner
         }
+        if item.action == #selector(goBack) { return chapterWorkspace.canGoBack }
+        if item.action == #selector(goForward) { return chapterWorkspace.canGoForward }
+        if item.action == #selector(showPreviousTab) || item.action == #selector(showNextTab) {
+            return chapterWorkspace.canSelectAdjacentTab
+        }
+        if item.action == #selector(closeTabOrWindow) { return NSApp.keyWindow != nil }
         return true
+    }
+
+    // MARK: 标签与导航
+
+    /// ⌘W: the tab the main window's active pane shows, through the close
+    /// path; otherwise the key window closes (a panel, 设置, the shelf, or
+    /// the main window without a tab).
+    @objc private func closeTabOrWindow() {
+        guard let key = NSApp.keyWindow else { return }
+        if key === window, chapterWorkspace.canCloseActiveTab {
+            guard canLeaveDocument(waitingForPlotGrids: true) else { return }
+            chapterWorkspace.closeActiveTab()
+            return
+        }
+        key.performClose(nil)
+    }
+
+    /// 视图 › 后退 (⌘[) and 前进 (⌘]).
+    @objc private func goBack() {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.goBack()
+    }
+    @objc private func goForward() {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.goForward()
+    }
+
+    /// 视图 › 上一个标签 (⌥⌘←) and 下一个标签 (⌥⌘→) in the active pane.
+    @objc private func showPreviousTab() {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.selectAdjacentTab(-1)
+    }
+    @objc private func showNextTab() {
+        guard canLeaveDocument() else { return }
+        chapterWorkspace.selectAdjacentTab(1)
     }
 
     private func updateTimelineMenu() {
@@ -2252,6 +2335,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         projectDeletion.forgetSettings = { [weak self] projectID in
             guard let self else { return }
             self.dailyWords.forget(projectID: projectID)
+            // Its tabs are forgotten; it no longer opens at launch.
+            self.tabSession.forget(projectID: projectID)
             // MCP secrets leave the Keychain with the project's servers.
             for config in self.settingsStore.mcpServers(projectID: projectID) {
                 AgentMcpSecrets.remove(projectID: projectID, config: config, from: self.agentCredentials)
@@ -2441,8 +2526,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         controller.canAct = { [weak self] in self?.loading == false && self?.chapterWorkspace.canNavigate == true }
         controller.onOpen = { [weak self] project in self?.openFromShelf(project) }
         controller.onOpenHome = { [weak self] project in
-            self?.openFromShelf(project)
-            if self?.shelf == nil { self?.openHome(project) }
+            self?.openFromShelf(project) { self?.openHome(project) }
         }
         controller.onCreated = { [weak self] project in
             guard let self else { return }
@@ -2468,19 +2552,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         model.load()
     }
 
-    /// 打开 on the shelf: the project shows in the main window.
-    private func openFromShelf(_ project: WorkspaceProject) {
+    /// 打开 on the shelf: the project shows in the main window with its
+    /// tabs; `then` runs once it does.
+    private func openFromShelf(_ project: WorkspaceProject, then: (() -> Void)? = nil) {
         guard canLeaveDocument() else { shelf?.model.showStatus("请先完成输入，并等待正文保存后再打开项目。"); return }
         guard let index = projects.firstIndex(where: { $0.id == project.id }) else {
             shelf?.model.showStatus("这个项目已不可用，请刷新项目列表。"); reloadProjects(); return
         }
         shelf?.close()
         window.makeKeyAndOrderFront(nil)
-        guard selectedProject?.id != project.id else { return }
+        guard selectedProject?.id != project.id else { then?(); return }
         updatingSelection = true
         projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         updatingSelection = false
-        selectProject(projects[index])
+        selectProject(projects[index], then: then)
     }
 
     // MARK: 项目主页
@@ -2498,7 +2583,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             updatingSelection = true
             projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
             updatingSelection = false
-            selectProject(projects[index])
+            selectProject(projects[index]) { [weak self] in self?.openHome(project) }
+            return
         }
         openHome(project)
     }
@@ -3092,9 +3178,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func closeWorkspaceOwners(completion: @escaping (Bool) -> Void) {
+        // The tabs are kept as they are; closing them to quit saves nothing.
+        tabSession.suspend()
         chapterWorkspace.close { [weak self] result in
             guard let self else { return }
             self.closingWorkspace = false
+            if case .failure = result { self.tabSession.resume() }
             switch result {
             case .success:
                 self.agentController?.stop()

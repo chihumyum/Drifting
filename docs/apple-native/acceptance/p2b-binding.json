@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T15:21:26.065Z",
+  "generatedAt": "2026-09-28T16:29:00.973Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "a6a1db34eefd38918fca10f67e7291e2b2553a5b",
+    "commit": "dd217788ab05ed11b4f89ffa896e3bf6420ac0c4",
     "dirty": true,
-    "fingerprint": "d7703b041362d6e0e8deb36fb4f4fe18482716d0039e9eddf614d85f515c0abf"
+    "fingerprint": "9c76ae28a985a000d3788ed5c497e0a21af145ea83be02548293409869299b61"
   },
   "cases": [
     {
@@ -996,6 +996,22 @@
     },
     {
       "name": "AppKit 打印 of a page sets its paragraph alignment, block indent, underline and URL links from the live projection, and the printed PDF centres and shifts those lines",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 后退 and 前进 (⌘[ ⌘]) step through the chapter, element, drift, category, storyline and 项目主页 pages the window showed in the panes that showed them, reopen a closed tab in its pane or in the active pane once that pane is gone, skip a trashed and a purged page, drop the pages ahead after a new visit, hold while input is queued or composing or a 情节规划格 edit is on its way, start a new history on a project switch and write nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit tab context menus 关闭, 关闭其他, 关闭右侧全部, 全部关闭, 在另一侧打开, 移到另一侧 and 解除分屏 go through the close path, keep the views, selections and history of moved tabs and one owner per page, and 全部关闭 stops at a 情节规划格 refusal in the middle naming the tab while the tabs before it stay closed; ⌥⌘← and ⌥⌘→ cycle the active pane's tabs, ⌘W closes the shown tab and then the window, and a dragged tab reorders within its pane",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit tabs of both panes, each pane's shown tab, the 项目主页 tab and the split are kept per project in settings.json as they change, coalesced and not while typing, and a cold relaunch opens the last selected project with only each pane's shown tab owning its body while the others open in place when selected, leaving out trashed and purged pages, unreadable entries and a deleted project, and opens no project without a last one",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit switching projects saves and closes the shown project's tabs through the close path, a tab that cannot close keeping the project and naming the tab, restores the other project's tabs with their split and text and back again with a new 后退 history, writes nothing to the journal, and 设置 › 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进, 上一个标签 and 下一个标签",
       "status": "passed"
     }
   ],

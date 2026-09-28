@@ -417,3 +417,78 @@ fn workspace_storylines_failures_roll_back_and_retry() {
     unchanged(&db, &before);
     fixture.close();
 }
+
+#[test]
+fn storyline_chapter_template_seeds_new_chapters_of_that_storyline() {
+    let mut fixture = Fixture::new();
+    let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
+    let lines = |command: Value| {
+        success(
+            json!({"operation":"workspaceStorylines","handle":fixture.workspace,
+            "projectId":fixture.project,"command":command}),
+        )
+    };
+    let storyline = lines(json!({"action":"createStoryline","name":"主线"}))["result"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let blocks = json!([
+        {"kind":"heading","level":2,"text":"开场","marks":[]},
+        {"kind":"paragraph","level":null,"text":"要点：","marks":[{"mark":"bold","location":0,"length":2}]}
+    ]);
+    let changes = || query(&db, "SELECT COUNT(*) FROM sync_change_set");
+    let before = changes();
+    lines(json!({"action":"setChapterTemplate","storylineId":storyline,"blocks":blocks}));
+    assert_ne!(changes(), before);
+    assert_eq!(
+        lines(json!({"action":"chapterTemplate","storylineId":storyline}))["result"],
+        blocks
+    );
+    // The same template again writes nothing.
+    let before = changes();
+    lines(json!({"action":"setChapterTemplate","storylineId":storyline,"blocks":blocks}));
+    assert_eq!(changes(), before);
+    // A chapter created in the storyline starts from it and joins it as primary.
+    let chapter = success(
+        json!({"operation":"workspaceCreateChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"title":"第三章","storylineId":storyline}),
+    );
+    let id = chapter["id"].as_str().unwrap().to_string();
+    let read = success(
+        json!({"operation":"workspaceAgent","handle":fixture.workspace,
+        "projectId":fixture.project,"command":{"action":"readProse","target":{"kind":"chapter","id":id}}}),
+    );
+    assert_eq!(read["text"], "开场\n要点：");
+    let memberships = lines(json!({"action":"library"}))["library"]["memberships"].clone();
+    let membership = memberships
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["chapterId"] == json!(id))
+        .unwrap()
+        .clone();
+    assert_eq!(membership["primary"], json!(storyline));
+    // Without a storyline the chapter starts empty; a missing one refuses first.
+    let plain = success(
+        json!({"operation":"workspaceCreateChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"title":"第四章"}),
+    );
+    let read = success(
+        json!({"operation":"workspaceAgent","handle":fixture.workspace,
+        "projectId":fixture.project,"command":{"action":"readProse","target":{"kind":"chapter","id":plain["id"]}}}),
+    );
+    assert_eq!(read["text"], "");
+    let before = rows(&db);
+    rejected(
+        json!({"operation":"workspaceCreateChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"title":"第五章","storylineId":"missing"}),
+    );
+    unchanged(&db, &before);
+    // An empty template clears it.
+    lines(json!({"action":"setChapterTemplate","storylineId":storyline,"blocks":[]}));
+    assert_eq!(
+        lines(json!({"action":"chapterTemplate","storylineId":storyline}))["result"],
+        json!([])
+    );
+    fixture.close();
+}

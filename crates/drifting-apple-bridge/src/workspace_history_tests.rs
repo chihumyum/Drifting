@@ -96,3 +96,41 @@ fn workspace_history_captures_lists_and_restores_versions() {
     .contains("不存在"));
     fixture.close();
 }
+
+#[test]
+fn workspace_history_preview_projects_a_version_with_its_formatting() {
+    let fixture = Fixture::new();
+    let chapter = fixture.chapters[0].clone();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    edit(handle, "灯塔在北岸。");
+    for (action, range) in [
+        ("bold", json!({"location":0,"length":2})),
+        ("alignCenter", json!({"location":0,"length":0})),
+    ] {
+        let current = state(handle);
+        success(json!({"operation":"documentFormat","handle":handle,"edit":{
+            "revision":current["projection"]["revision"],"range":range,"action":action}}));
+    }
+    success(
+        json!({"operation":"workspaceCloseChapter","handle":fixture.workspace,
+        "projectId":fixture.project,"chapterId":chapter}),
+    );
+    let newest = entries(&fixture, &chapter)[0]["id"].clone();
+    let preview = success(history(
+        &fixture,
+        json!({"action":"preview","target":{"kind":"chapter","id":chapter},"snapshotId":newest}),
+    ))["projection"]
+        .clone();
+    assert_eq!(preview["text"], "灯塔在北岸。");
+    let block = &preview["blocks"][0];
+    assert_eq!(block["attributes"]["textAlign"], "center");
+    assert!(block["runs"][0]["attributes"].get("bold").is_some());
+    assert!(block["runs"][1]["attributes"].get("bold").is_none());
+    // Another body's version is refused.
+    assert!(rejected(history(
+        &fixture,
+        json!({"action":"preview","target":{"kind":"chapter","id":fixture.chapters[1]},"snapshotId":newest})
+    ))
+    .contains("不属于"));
+    fixture.close();
+}

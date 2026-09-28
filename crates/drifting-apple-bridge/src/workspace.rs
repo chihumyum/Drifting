@@ -842,18 +842,29 @@ pub(super) fn dispatch(
             handle,
             project_id,
             title,
+            storyline_id,
         } => {
             let workspace = workspaces
                 .get(handle)
                 .ok_or("Unknown or closed workspace")?;
             let project = workspace.project(project_id)?;
+            let store = WorkspaceStore::new(&workspace.gateway, CLIENT);
+            // The storyline's 章节模版, read first so a missing storyline
+            // refuses before anything is written.
+            let template = match storyline_id {
+                Some(id) => {
+                    transfer::template_blocks(&store.storyline_chapter_template(project_id, id)?)?
+                }
+                None => Vec::new(),
+            };
             let mut seed = DocumentSession::new();
             seed.edit(Edit::AppendParagraph {
                 id: identifier("paragraph")?,
                 text: String::new(),
             })?;
-            let chapter = WorkspaceStore::new(&workspace.gateway, CLIENT).create_chapter(
-                &workspace.context(&project)?,
+            let context = workspace.context(&project)?;
+            let chapter = store.create_chapter(
+                &context,
                 CreateChapter {
                     id: identifier("chapter")?,
                     title: title.clone(),
@@ -864,6 +875,42 @@ pub(super) fn dispatch(
                     },
                 },
             )?;
+            if let Some(id) = storyline_id {
+                store
+                    .set_chapter_storylines(
+                        &context,
+                        &chapter.id,
+                        std::slice::from_ref(id),
+                        Some(Some(id)),
+                    )
+                    .map_err(|error| {
+                        format!("章节「{}」已创建，但未能加入故事线：{error}", chapter.title)
+                    })?;
+            }
+            // The template fills the new body through a short-lived owner,
+            // as the author's input.
+            if !template.is_empty() {
+                let filled = store
+                    .chapter_scope(project_id, &chapter.id)
+                    .and_then(|scope| {
+                        let mut owner = LabSession::open_chapter(
+                            workspace.directory.clone(),
+                            workspace.gateway.clone(),
+                            scope,
+                            chapter.id.clone(),
+                            workspace.installation_id.clone(),
+                        )?;
+                        let filled = owner.import_blocks(&template);
+                        let released = owner.prepare_to_release();
+                        filled.and(released)
+                    });
+                filled.map_err(|error| {
+                    format!(
+                        "章节「{}」已创建，但章节模版未能填入：{error}",
+                        chapter.title
+                    )
+                })?;
+            }
             json!(chapter)
         }
         Request::WorkspaceOpenChapter {

@@ -1,10 +1,10 @@
 # Native chapter tabs and split editing
 
-This batch connects the existing shared document binding to the Mac writing
-workspace. It follows whole-book outline navigation (`94a9e6f9`). The bounded
-scope is retained chapter tabs and at most two editor panes in one window;
-UIKit keeps its single-editor navigation. Saved window layouts, additional
-windows and an expanded iPad workspace remain later work.
+Retained tabs and at most two editor panes in one window, first delivered in
+`791cbb62`; tab management, 后退/前进 and per-project restore on relaunch
+followed. UIKit keeps its single-editor navigation. Additional windows, the
+divider position across launches and an expanded iPad workspace remain later
+work. Native only; no Tauri interoperability is kept.
 
 ## Ownership and transitions
 
@@ -43,6 +43,59 @@ Input submission guards are distinct from TextKit editability. While native
 marked text exists, a recovery-state change must not toggle `isEditable` and
 cancel that composition. The shared binding continues to guard submission and
 retain the draft until recovery or an explicit native commit.
+
+## Tab management
+
+A pane's strip shows its 项目主页 tabs, then its body tabs. A tab's context
+menu (right-click or ⌃-click on it) offers 关闭, 关闭其他, 关闭右侧全部 and 全部关闭,
+then 移到另一侧 and 解除分屏 with two panes, or 在另一侧打开 with one. Every close
+goes through the close path above (header edits saved, 情节规划格 gestures
+answered, owners saved before they close); a batch closes left to right and
+stops at the first tab that cannot, saying “标题”无法关闭：… with the
+reason, while the tabs already closed stay closed. Closing the shown tab (×,
+关闭, ⌘W) shows the tab after it, or before it when it was last.
+
+- 在另一侧打开 opens the page in a new second pane on the same owner.
+- 移到另一侧 moves the tab with its view (selection, scroll, local history);
+  when the other pane already has the page, that pane's tab shows it and this
+  one goes. 解除分屏 moves the second pane's tabs after the first's the same
+  way, keeps the page the active pane showed and closes no owner. 关闭分栏
+  still closes the second pane's tabs.
+- 视图 › 上一个标签 (⌥⌘←) and 下一个标签 (⌥⌘→) cycle the active pane's tabs.
+  文件 › 关闭标签 (⌘W) closes the shown tab of the main window's active pane,
+  otherwise the key window (a panel, 设置, the shelf, or the main window when
+  it has no tab).
+- Dragging a body tab along its strip drops it before the first tab whose
+  middle is right of the pointer; owners, views and the shown tab stay.
+
+## 后退 and 前进
+
+视图 › 后退 (⌘[) and 前进 (⌘]) step through the pages the window showed
+(chapter, drift, element, category, storyline, 项目主页), each in the pane
+that showed it, like a browser: opening or switching to a page, or to the
+other pane, records it; a new visit after 后退 drops the pages ahead; at most
+100 are kept. A page whose tab was closed opens again in its pane, or in the
+active pane once that pane is gone. Pages that were trashed or purged, and
+the page already shown, are skipped; a page that no longer opens leaves the
+history. The usual guards apply (queued or marked input, 情节规划格 gestures
+on their way). Showing another project starts a new history.
+
+## Restoring tabs
+
+Each project's tabs are kept in `settings.json` (`tabSessions`, identities
+only): each pane's body tabs in order, the one it shows, its 项目主页 tab and
+whether the split is shown. They are saved half a second after tabs, their
+order, the shown tab, the split or the active pane change (typing changes
+none); quitting saves them as they are and closing them to quit saves
+nothing. Showing a project (the project list, the 项目书架, creating or
+deleting a project) first saves and closes the tabs of the project shown
+before through the close path; a tab that cannot close keeps that project
+shown and is named. Its own tabs then come back: every tab in its place,
+while only each pane's shown tab opens its body; the others open theirs, in
+place, when selected. Pages that no longer exist (trashed, purged, a deleted
+project's) are left out silently; restoring records no 最近 and writes
+nothing to the journal. At launch the project selected last (`lastProject`)
+opens with its tabs; without one, or once it is gone, the 项目书架 opens.
 
 ## Bounded acceptance
 
@@ -84,3 +137,15 @@ after quitting and relaunching. The ignored
 `.local-data/apple-native/tabs-split/macos-observation.json` records the runtime
 and complete bundle fingerprints, including the Debug dylib. This is targeted
 desktop interaction, not desktop XCTest or physical keyboard/IME evidence.
+
+Four `--tabs-nav-only` cases in `native/apple/Tests/TabsNavigationAcceptance.swift`
+([binding report](acceptance/p2b-binding.json)) drive the real tab host,
+panes, tab buttons, menu layout, settings store and tab session: 后退 and 前进
+across kinds and panes (also by ⌘[ and ⌘]), a closed tab and a gone pane, a
+trashed and a purged page skipped, the guards, a new history per project;
+every context-menu command with a 情节规划格 refusal in the middle of 全部关闭,
+⌥⌘← ⌥⌘→ and ⌘W through the menu, drag reorder by synthesized mouse events;
+saving (coalesced, not while typing), a cold relaunch with only the shown
+tabs opened, dropped pages, unreadable entries, a deleted project and the
+last project; switching projects and back with a refusal naming the tab; no
+journal rows from navigation, restore or switching.

@@ -38,7 +38,39 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         var storyline: WorkspaceStoryline? { if case .storyline(let storyline) = target { return storyline }; return nil }
         var drift: WorkspaceDrift? { if case .drift(let drift) = target { return drift }; return nil }
         var category: WorkspaceElementCategory? { if case .category(let category) = target { return category }; return nil }
-        var title: String { chapter?.title ?? element?.name ?? storyline?.name ?? drift?.title ?? category?.name ?? "" }
+        var title: String { Tab.title(of: target) }
+        /// The page's own name: a chapter's or drift's title, an element's,
+        /// storyline's or category's name.
+        static func title(of target: WorkspaceTabTarget) -> String {
+            switch target {
+            case .chapter(let chapter): return chapter.title
+            case .element(let element): return element.name
+            case .storyline(let storyline): return storyline.name
+            case .drift(let drift): return drift.title
+            case .category(let category): return category.name
+            }
+        }
+        /// What the tab button shows (“设定 · 林雾”), with the kind and
+        /// identity its accessibility identifiers use.
+        static func label(of target: WorkspaceTabTarget) -> (kind: String, id: String, title: String) {
+            switch target {
+            case .chapter(let chapter): return ("chapter", chapter.id, chapter.title)
+            case .element(let element): return ("element", element.id, "设定 · \(element.name)")
+            case .storyline(let storyline): return ("storyline", storyline.id, "故事线 · \(storyline.name)")
+            case .drift(let drift): return ("drift", drift.id, "漂流 · \(drift.title)")
+            case .category(let category): return ("category", category.id, "分类 · \(category.name)")
+            }
+        }
+        /// The page by identity, as `settings.json` keeps it.
+        static func page(of target: WorkspaceTabTarget) -> RecentPage {
+            switch target {
+            case .chapter(let chapter): return RecentPage(kind: .chapter, id: chapter.id)
+            case .drift(let drift): return RecentPage(kind: .drift, id: drift.id)
+            case .element(let element): return RecentPage(kind: .element, id: element.id)
+            case .category(let category): return RecentPage(kind: .category, id: category.id)
+            case .storyline(let storyline): return RecentPage(kind: .storyline, id: storyline.id)
+            }
+        }
         /// Every page kind shows 关系.
         var relationsView: RelationsSectionView? {
             page?.relationsView ?? storylinePage?.relationsView ?? driftPage?.relationsView ?? chapterPage?.relationsView
@@ -92,6 +124,27 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             plotDock?.canvas.commitEditing()
         }
     }
+    /// A restored tab whose body has not been opened: it shows its title and
+    /// opens its owner, in its place, when it is first selected.
+    private final class DormantTab {
+        var project: WorkspaceProject
+        var target: WorkspaceTabTarget
+        init(project: WorkspaceProject, target: WorkspaceTabTarget) { self.project = project; self.target = target }
+    }
+    /// A pane's body tab: open (a view on its owner) or not opened yet.
+    private enum PaneItem {
+        case open(Tab)
+        case dormant(DormantTab)
+        var tab: Tab? { if case .open(let tab) = self { return tab }; return nil }
+        var dormant: DormantTab? { if case .dormant(let dormant) = self { return dormant }; return nil }
+        var project: WorkspaceProject {
+            switch self { case .open(let tab): return tab.project; case .dormant(let dormant): return dormant.project }
+        }
+        var target: WorkspaceTabTarget {
+            switch self { case .open(let tab): return tab.target; case .dormant(let dormant): return dormant.target }
+        }
+        var scope: DocumentScope { Tab.scope(of: target, projectID: project.id) }
+    }
     /// 项目主页: a page without a body, one per project.
     private final class HomeTab {
         var project: WorkspaceProject
@@ -111,7 +164,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let historyButton = NSButton(title: "历史版本…", target: nil, action: nil)
         /// Copilot's quiet status, in the active pane only.
         let copilotLabel = NSTextField(labelWithString: "")
-        var tabs: [Tab] = []
+        /// Body tabs in display order, after the 项目主页 tabs.
+        var items: [PaneItem] = []
+        /// The open body tabs, in display order.
+        var tabs: [Tab] { items.compactMap(\.tab) }
+        /// Never a dormant tab: selecting one opens it.
         var selected: DocumentScope?
         /// 项目主页 tabs, shown before the body tabs.
         var homes: [HomeTab] = []
@@ -121,6 +178,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         /// The body tab shown; nil while a 项目主页 is.
         var active: Tab? { shownHome == nil ? tabs.first { $0.scope == selected } : nil }
         var content: NSView? { home?.page ?? active?.content }
+        /// Every tab in display order: 项目主页 tabs, then body tabs.
+        var keys: [TabKey] { homes.map { .home($0.project.id) } + items.map { .body($0.scope) } }
+        /// The tab shown, if any.
+        var shownKey: TabKey? {
+            if let home { return .home(home.project.id) }
+            return active.map { .body($0.scope) }
+        }
+    }
+    /// A tab of a pane: a project's 项目主页 or a body.
+    enum TabKey: Hashable {
+        case home(String)
+        case body(DocumentScope)
     }
 
     private let workspace: LabWorkspaceCore
@@ -371,9 +440,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard panes.indices.contains(pane) else { return nil }
         return panes[pane].tabs.first { $0.scope == .category(scope) }?.categoryPage
     }
-    /// Tab titles in display order, for accessibility checks and acceptance.
+    /// Body tab titles in display order, opened or not, for accessibility
+    /// checks and acceptance.
     func tabTitles(pane: Int) -> [String] {
-        panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
+        panes.indices.contains(pane) ? panes[pane].items.map { Tab.title(of: $0.target) } : []
     }
     /// The projects whose 项目主页 the pane has as tabs, in display order.
     func homeProjects(pane: Int) -> [WorkspaceProject] {
@@ -385,7 +455,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         guard activePane != pane else { return }
         activePane = pane
         refreshTabs()
+        recordVisit()
         onChange?()
+    }
+
+    /// The pane that holds the tab becomes active (a click into its page).
+    private func activate(tab: Tab?) {
+        guard let tab, let index = pane(of: tab) else { return }
+        activate(pane: index)
     }
 
     func open(project: WorkspaceProject, chapter: WorkspaceChapter, in pane: Int? = nil,
@@ -447,7 +524,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             case .success(let core):
                 let (tab, isNew) = self.install(core, project: project, target: target, in: index)
                 self.setBusy(false)
-                self.recordRecent(tab.target, projectID: project.id)
+                // A restored tab was opened before, not now.
+                if !self.restoring { self.recordRecent(tab.target, projectID: project.id) }
+                self.recordVisit()
                 self.onChange?()
                 self.focusWhenReady()
                 if isNew { self.prepare(tab) }
@@ -476,8 +555,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             let current = allTabs.first { $0.scope == scope }?.target ?? target
             tab = Tab(project: project, target: current, core: core, categories: elementCategories[project.id] ?? [],
                       drifts: linkSources[project.id]?.drifts)
-            panes[index].tabs.append(tab)
-            connect(tab, pane: index)
+            // A restored tab opens in its place.
+            if let at = panes[index].items.firstIndex(where: { $0.dormant != nil && $0.scope == scope }) {
+                panes[index].items[at] = .open(tab)
+            } else {
+                panes[index].items.append(.open(tab))
+            }
+            connect(tab)
         }
         panes[index].selected = scope
         panes[index].shownHome = nil
@@ -538,6 +622,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     func closeTab(pane: Int, scope: DocumentScope, completion: @escaping (Result<Bool, Error>) -> Void) {
+        // A tab not opened yet holds no owner: it goes at once.
+        if canNavigateAfterPlotGrids, panes.indices.contains(pane),
+           let at = panes[pane].items.firstIndex(where: { $0.dormant != nil && $0.scope == scope }) {
+            panes[pane].items.remove(at: at)
+            refreshTabs(); onChange?()
+            completion(.success(true)); return
+        }
         guard canNavigateAfterPlotGrids, panes.indices.contains(pane),
               let tab = panes[pane].tabs.first(where: { $0.scope == scope }) else { completion(.failure(blocked())); return }
         // A header edit in progress is saved; it needs no document owner.
@@ -712,8 +803,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func removeAll(_ scope: DocumentScope) {
         countedRevisions.removeValue(forKey: scope)
         for index in panes.indices {
+            panes[index].items.removeAll { $0.dormant != nil && $0.scope == scope }
             for tab in panes[index].tabs.filter({ $0.scope == scope }) { remove(tab, from: index, commitHeader: false) }
         }
+        refreshTabs()
     }
 
     func closeSecondPane(completion: @escaping (Result<Bool, Error>) -> Void) {
@@ -747,8 +840,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 let tab = Tab(project: old.project, target: old.target, core: core,
                               categories: self.elementCategories[old.project.id] ?? [], drifts: self.linkSources[old.project.id]?.drifts)
                 self.disconnect(old)
-                if let at = self.panes[pane].tabs.firstIndex(where: { $0 === old }) { self.panes[pane].tabs[at] = tab }
-                self.connect(tab, pane: pane)
+                if let at = self.panes[pane].items.firstIndex(where: { $0.tab === old }) { self.panes[pane].items[at] = .open(tab) }
+                self.connect(tab)
                 self.showSelected(in: pane)
                 self.pendingFocus = tab.view
                 tab.view.binding.load()
@@ -787,10 +880,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.externalViews.removeAll()
                 for pane in self.panes {
                     for tab in pane.tabs { self.disconnect(tab) }
-                    pane.tabs.removeAll(); pane.selected = nil
+                    pane.items.removeAll(); pane.selected = nil
                     pane.homes.forEach { $0.page.removeFromSuperview() }
                     pane.homes.removeAll(); pane.shownHome = nil
                 }
+                self.history.reset()
+                self.refreshTabs()
             }
             self.setBusy(false); self.onChange?(); completion(result)
         }
@@ -798,13 +893,22 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     func rename(project: WorkspaceProject) {
         for tab in allTabs where tab.project.id == project.id { tab.project = project }
+        for dormant in allDormant where dormant.project.id == project.id { dormant.project = project }
         for home in homes(projectID: project.id) { home.project = project; home.model.rename(project.name) }
+        history.update { visit in
+            var renamed = visit
+            if visit.project.id == project.id { renamed.project = project }
+            return renamed
+        }
         refreshTabs(); onChange?()
     }
     func rename(chapter: WorkspaceChapter, projectID: String) {
         for tab in allTabs where tab.project.id == projectID && tab.chapter?.id == chapter.id {
             tab.target = .chapter(chapter)
             tab.chapterPage?.apply(chapter: chapter)
+        }
+        for dormant in allDormant where dormant.project.id == projectID {
+            if case .chapter(let stored) = dormant.target, stored.id == chapter.id { dormant.target = .chapter(chapter) }
         }
         refreshTabs(); onChange?()
         chaptersChanged(projectID: projectID)
@@ -968,6 +1072,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             }
             showChapters(of: page, projectID: projectID)
         }
+        refreshDormant(projectID: projectID)
         refreshTabs(); onChange?()
     }
 
@@ -1029,6 +1134,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         refreshTabs(); onChange?()
         let previous = linkSources[projectID]?.drifts
         linkSources[projectID, default: LinkSources()].drifts = library
+        if refreshDormant(projectID: projectID) { refreshTabs() }
         updateLinkDirectory(projectID: projectID)
         // Rust links drift titles in every pass; a first read with drifts, or
         // changed titles, link open bodies again (retroactive linking).
@@ -1137,6 +1243,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         refreshTabs(); onChange?()
         let previous = linkSources[projectID]?.library
         linkSources[projectID, default: LinkSources()].library = library
+        if refreshDormant(projectID: projectID) { refreshTabs() }
         updateLinkDirectory(projectID: projectID)
         if previous.map(EntityLinkDirectory.linkNames) != EntityLinkDirectory.linkNames(library) {
             requestEntityLinks(projectID: projectID)
@@ -1851,7 +1958,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private struct TabPlace { let pane: Int; let index: Int; let selected: Bool }
     private func places(of scope: DocumentScope) -> [TabPlace] {
         panes.indices.compactMap { index in
-            panes[index].tabs.firstIndex { $0.scope == scope }.map {
+            panes[index].items.firstIndex { $0.scope == scope }.map {
                 TabPlace(pane: index, index: $0, selected: panes[index].selected == scope && panes[index].shownHome == nil)
             }
         }
@@ -2034,9 +2141,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 let previous = pane.selected, previousHome = pane.shownHome
                 let (tab, isNew) = self.install(core, project: project, target: target, in: place.pane)
                 if isNew { created.append(tab) }
-                if let from = pane.tabs.firstIndex(where: { $0 === tab }) {
-                    pane.tabs.remove(at: from)
-                    pane.tabs.insert(tab, at: min(place.index, pane.tabs.count))
+                if let from = pane.items.firstIndex(where: { $0.tab === tab }) {
+                    let item = pane.items.remove(at: from)
+                    pane.items.insert(item, at: min(place.index, pane.items.count))
                 }
                 if !place.selected, let previous, pane.tabs.contains(where: { $0.scope == previous }) {
                     pane.selected = previous
@@ -2051,6 +2158,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.pendingFocus = self.activeView
             self.refreshTabs()
             self.setBusy(false)
+            self.recordVisit()
             self.onChange?()
             self.focusWhenReady()
             created.forEach { self.prepare($0) }
@@ -2101,8 +2209,18 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // Counts come from the host's model; everything else is read now.
         if let counts = wordCounts(projectID: project.id).library { home.model.applyWordCounts(counts) }
         home.model.load()
+        recordVisit()
         onChange?()
         return home.page
+    }
+
+    /// A 项目主页 tab of the project in the pane, not shown and not read
+    /// until it is (restoring a session). One per project.
+    private func addHome(project: WorkspaceProject, in index: Int) {
+        guard let settings = homeSettings, panes.indices.contains(index), homes(projectID: project.id).isEmpty else { return }
+        let home = HomeTab(project: project, model: ProjectHomeModel(workspace: workspace, settings: settings, project: project))
+        connect(home)
+        panes[index].homes.append(home)
     }
 
     /// Closes a 项目主页; the pane shows its selected body tab again.
@@ -2144,15 +2262,560 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     /// Every page opened in a tab joins the project's 最近.
     private func recordRecent(_ target: WorkspaceTabTarget, projectID: String) {
-        let page: RecentPage
-        switch target {
-        case .chapter(let chapter): page = RecentPage(kind: .chapter, id: chapter.id)
-        case .drift(let drift): page = RecentPage(kind: .drift, id: drift.id)
-        case .element(let element): page = RecentPage(kind: .element, id: element.id)
-        case .category(let category): page = RecentPage(kind: .category, id: category.id)
-        case .storyline(let storyline): page = RecentPage(kind: .storyline, id: storyline.id)
+        homeSettings?.recordRecentPage(Tab.page(of: target), projectID: projectID)
+    }
+
+    // MARK: Tab management
+
+    /// Tabs not opened yet, in every pane.
+    private var allDormant: [DormantTab] { panes.flatMap { $0.items.compactMap(\.dormant) } }
+
+    /// The tab strips changed: tabs, their order, the shown tab, the split
+    /// or the active pane (never typing).
+    var onLayoutChange: (() -> Void)?
+
+    /// The pane's tabs in display order, 项目主页 tabs first.
+    func tabKeys(pane: Int) -> [TabKey] { panes.indices.contains(pane) ? panes[pane].keys : [] }
+    /// The tab the pane shows, if any.
+    func shownTab(pane: Int) -> TabKey? { panes.indices.contains(pane) ? panes[pane].shownKey : nil }
+    /// Whether the pane's body tab has its view and owner; a restored tab
+    /// opens them when it is first selected.
+    func isTabOpen(pane: Int, scope: DocumentScope) -> Bool {
+        panes.indices.contains(pane) && panes[pane].tabs.contains { $0.scope == scope }
+    }
+    /// The tabs' select buttons in display order, e.g. for acceptance.
+    func tabButtons(pane: Int) -> [ChapterTabButton] {
+        guard panes.indices.contains(pane) else { return [] }
+        return panes[pane].tabsBar.arrangedSubviews.compactMap { ($0 as? NSStackView)?.arrangedSubviews.first as? ChapterTabButton }
+    }
+
+    /// Shows a tab of the pane: a 项目主页, an open tab, or a restored tab,
+    /// whose body opens now in its place.
+    func selectTab(pane index: Int, key: TabKey, completion: ((Error?) -> Void)? = nil) {
+        guard panes.indices.contains(index) else { completion?(nil); return }
+        switch key {
+        case .home(let projectID):
+            guard let home = panes[index].homes.first(where: { $0.project.id == projectID }) else { completion?(nil); return }
+            guard canNavigate else { let error = blocked(); onError?(error); completion?(error); return }
+            openHome(project: home.project, in: index)
+            completion?(nil)
+        case .body(let scope):
+            guard let item = panes[index].items.first(where: { $0.scope == scope }) else { completion?(nil); return }
+            open(project: item.project, target: item.target, in: index) { [weak self] result in
+                guard let self else { return }
+                if case .failure(let error) = result {
+                    // A restored page that left the book meanwhile goes.
+                    if let dormant = item.dormant, self.liveTarget(dormant.target, projectID: dormant.project.id) == nil {
+                        self.panes.forEach { $0.items.removeAll { $0.dormant === dormant } }
+                        self.refreshTabs()
+                    }
+                    self.onError?(error)
+                }
+                completion?(result.error)
+            }
         }
-        homeSettings?.recordRecentPage(page, projectID: projectID)
+    }
+
+    /// 关闭 (a tab's ×, its menu and ⌘W) through the close path. Closing
+    /// the shown tab shows the one after it, or before it when it was last;
+    /// a restored neighbour opens.
+    func closeTab(pane index: Int, key: TabKey, completion: ((Result<Bool, Error>) -> Void)? = nil) {
+        guard panes.indices.contains(index) else { completion?(.failure(blocked())); return }
+        let keys = panes[index].keys
+        var neighbour: TabKey?
+        if panes[index].shownKey == key, let position = keys.firstIndex(of: key) {
+            neighbour = keys.indices.contains(position + 1) ? keys[position + 1] : position > 0 ? keys[position - 1] : nil
+        }
+        // The neighbour is shown next rather than the pane's last open tab.
+        closingSelection = neighbour.map { (index, $0) }
+        closeKey(pane: index, key: key) { [weak self] result in
+            guard let self else { return }
+            self.closingSelection = nil
+            switch result {
+            case .success:
+                if let neighbour, self.panes.indices.contains(index), self.panes[index].keys.contains(neighbour),
+                   self.panes[index].shownKey != neighbour {
+                    self.selectTab(pane: index, key: neighbour)
+                }
+            case .failure(let error): self.onError?(error)
+            }
+            completion?(result)
+        }
+    }
+
+    /// While `closeTab(pane:key:)` closes the shown tab: what shows next.
+    private var closingSelection: (pane: Int, key: TabKey)?
+
+    private func closeKey(pane index: Int, key: TabKey, completion: @escaping (Result<Bool, Error>) -> Void) {
+        switch key {
+        case .home(let projectID):
+            guard canNavigateAfterPlotGrids, panes.indices.contains(index) else { completion(.failure(blocked())); return }
+            closeHome(projectID: projectID, pane: index)
+            completion(.success(true))
+        case .body(let scope):
+            closeTab(pane: index, scope: scope, completion: completion)
+        }
+    }
+
+    /// ⌘W: the tab the active pane shows; false when it shows none.
+    var canCloseActiveTab: Bool { panes[activePane].shownKey != nil }
+    func closeActiveTab(completion: ((Result<Bool, Error>) -> Void)? = nil) {
+        guard let key = panes[activePane].shownKey else { completion?(.success(false)); return }
+        closeTab(pane: activePane, key: key, completion: completion)
+    }
+
+    /// 关闭其他: every other tab of the pane; the tab stays and is shown.
+    func closeOtherTabs(pane index: Int, key: TabKey, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        guard panes.indices.contains(index) else { completion?(.success(())); return }
+        closeBatch(pane: index, keys: panes[index].keys.filter { $0 != key }, keep: key, completion: completion)
+    }
+
+    /// 关闭右侧全部: the pane's tabs after this one.
+    func closeTabsToRight(pane index: Int, key: TabKey, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        guard panes.indices.contains(index), let position = panes[index].keys.firstIndex(of: key) else {
+            completion?(.success(())); return
+        }
+        closeBatch(pane: index, keys: Array(panes[index].keys.dropFirst(position + 1)), keep: key, completion: completion)
+    }
+
+    /// 全部关闭: every tab of the pane.
+    func closeAllTabs(pane index: Int, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        guard panes.indices.contains(index) else { completion?(.success(())); return }
+        closeBatch(pane: index, keys: panes[index].keys, keep: nil, completion: completion)
+    }
+
+    /// Closes the tabs one by one, left to right, through the close path.
+    /// The first that cannot close stops it and says which; tabs already
+    /// closed stay closed. `keep` is shown if the pane then shows nothing.
+    private func closeBatch(pane index: Int, keys: [TabKey], keep: TabKey?, completion: ((Result<Void, Error>) -> Void)?) {
+        func finish(_ result: Result<Void, Error>) {
+            if case .success = result, let keep, panes.indices.contains(index), panes[index].shownKey == nil, panes[index].keys.contains(keep) {
+                selectTab(pane: index, key: keep)
+            }
+            if case .failure(let error) = result { onError?(error) }
+            completion?(result)
+        }
+        func next(_ remaining: ArraySlice<TabKey>, first: Bool) {
+            guard let key = remaining.first else { finish(.success(())); return }
+            guard panes.indices.contains(index), panes[index].keys.contains(key) else { next(remaining.dropFirst(), first: first); return }
+            let title = self.title(of: key, pane: index)
+            let close = { [weak self] in
+                guard let self else { return }
+                self.closeKey(pane: index, key: key) { result in
+                    switch result {
+                    case .success: next(remaining.dropFirst(), first: false)
+                    case .failure(let error): finish(.failure(LabError.message("“\(title)”无法关闭：\(error.localizedDescription)")))
+                    }
+                }
+            }
+            // The first close meets the usual guards at once; later ones wait
+            // for the close before them to settle.
+            if first { close() } else { whenNavigable(ignoringPlotGrids: true, close) }
+        }
+        next(keys[...], first: true)
+    }
+
+    private func title(of key: TabKey, pane index: Int) -> String {
+        switch key {
+        case .home(let projectID):
+            return "项目主页 · \(panes[index].homes.first { $0.project.id == projectID }?.project.name ?? "")"
+        case .body(let scope):
+            return panes[index].items.first { $0.scope == scope }.map { Tab.title(of: $0.target) } ?? ""
+        }
+    }
+
+    /// How long a batch close or a restore waits for the step before it to
+    /// settle (a closing owner, an opened body loading) before going on,
+    /// when the step's own guard refuses.
+    static var navigationWait: TimeInterval = 5
+
+    private func whenNavigable(ignoringPlotGrids: Bool, _ body: @escaping () -> Void) {
+        let deadline = Date().addingTimeInterval(Self.navigationWait)
+        func check() {
+            if (ignoringPlotGrids ? canNavigateAfterPlotGrids : canNavigate) || Date() >= deadline { body(); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { check() }
+        }
+        check()
+    }
+
+    /// A tab's context menu: 关闭, 关闭其他, 关闭右侧全部 and 全部关闭, then
+    /// 移到另一侧 and 解除分屏 with two panes, or 在另一侧打开 with one.
+    func tabMenu(pane index: Int, key: TabKey) -> NSMenu? {
+        guard panes.indices.contains(index), let position = panes[index].keys.firstIndex(of: key) else { return nil }
+        let count = panes[index].keys.count
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let enabled = canNavigate
+        func add(_ title: String, _ identifier: String, _ available: Bool = true, _ run: @escaping () -> Void) {
+            let item = LibraryMenuItem(title: title, identifier: identifier, onPress: run)
+            item.isEnabled = enabled && available
+            menu.addItem(item)
+        }
+        add("关闭", "tab-menu-close") { [weak self] in self?.closeTab(pane: index, key: key) }
+        add("关闭其他", "tab-menu-close-others", count > 1) { [weak self] in self?.closeOtherTabs(pane: index, key: key) }
+        add("关闭右侧全部", "tab-menu-close-right", position < count - 1) { [weak self] in self?.closeTabsToRight(pane: index, key: key) }
+        add("全部关闭", "tab-menu-close-all") { [weak self] in self?.closeAllTabs(pane: index) }
+        menu.addItem(.separator())
+        if panes.count == 1 {
+            // A 项目主页 is one per project: it can move, not open twice.
+            var isBody = false
+            if case .body = key { isBody = true }
+            add("在另一侧打开", "tab-menu-open-other-side", isBody) { [weak self] in self?.openOnOtherSide(pane: index, key: key) }
+        } else {
+            add("移到另一侧", "tab-menu-move-other-side") { [weak self] in self?.moveToOtherSide(pane: index, key: key) }
+            add("解除分屏", "tab-menu-unsplit") { [weak self] in self?.mergePanes() }
+        }
+        return menu
+    }
+
+    /// 在另一侧打开 with one pane: a second pane opens with this page, on
+    /// the same owner; the tab stays where it is.
+    func openOnOtherSide(pane index: Int, key: TabKey, completion: ((Error?) -> Void)? = nil) {
+        guard case .body(let scope) = key, panes.count == 1, panes.indices.contains(index), canNavigate,
+              let item = panes[index].items.first(where: { $0.scope == scope }) else {
+            let error = blocked(); onError?(error); completion?(error); return
+        }
+        addPane()
+        open(project: item.project, target: item.target, in: 1) { [weak self] result in
+            guard let self else { return }
+            if case .failure(let error) = result {
+                if self.panes.count == 2, self.panes[1].items.isEmpty, self.panes[1].homes.isEmpty { self.removeSecondPane() }
+                self.onError?(error)
+            }
+            completion?(result.error)
+        }
+    }
+
+    /// 移到另一侧 with two panes: the tab leaves this pane with its view
+    /// (selection and history kept) and is shown in the other. When the
+    /// other pane already has the page, its tab shows it and this one goes.
+    func moveToOtherSide(pane from: Int, key: TabKey, completion: ((Error?) -> Void)? = nil) {
+        guard panes.count == 2, panes.indices.contains(from), canNavigate else {
+            let error = blocked(); onError?(error); completion?(error); return
+        }
+        let to = 1 - from
+        switch key {
+        case .home(let projectID):
+            guard let home = panes[from].homes.first(where: { $0.project.id == projectID }) else { completion?(nil); return }
+            panes[from].homes.removeAll { $0 === home }
+            if panes[from].shownHome == projectID { panes[from].shownHome = nil; showSelected(in: from) }
+            panes[to].homes.append(home)
+            openHome(project: home.project, in: to)
+            completion?(nil)
+        case .body(let scope):
+            guard let at = panes[from].items.firstIndex(where: { $0.scope == scope }) else { completion?(nil); return }
+            let item = panes[from].items[at]
+            item.tab?.endEditing()
+            let wasShown = panes[from].shownKey == key
+            panes[from].items.remove(at: at)
+            if panes[from].selected == scope { panes[from].selected = panes[from].tabs.last?.scope }
+            if let existing = panes[to].items.firstIndex(where: { $0.scope == scope }) {
+                if let moving = item.tab {
+                    // The other pane's own tab of it shows it; the owner stays.
+                    if panes[to].items[existing].dormant != nil { panes[to].items[existing] = .open(moving) } else { disconnect(moving) }
+                }
+            } else {
+                panes[to].items.append(item)
+            }
+            if wasShown { showSelected(in: from) }
+            refreshTabs()
+            open(project: item.project, target: item.target, in: to) { [weak self] result in
+                guard let self else { return }
+                if case .failure(let error) = result { self.refreshTabs(); self.onError?(error) }
+                completion?(result.error)
+            }
+        }
+    }
+
+    /// 解除分屏: the second pane's tabs join the first after its own, with
+    /// their views; a page both panes had keeps the first pane's tab. The
+    /// page the active pane showed stays shown. No owner closes.
+    func mergePanes(completion: ((Error?) -> Void)? = nil) {
+        guard panes.count == 2, canNavigate else { let error = blocked(); onError?(error); completion?(error); return }
+        let first = panes[0], second = panes[1]
+        let shown = panes[activePane].shownKey ?? first.shownKey
+        for item in second.items {
+            if let existing = first.items.firstIndex(where: { $0.scope == item.scope }) {
+                if let moving = item.tab {
+                    if first.items[existing].dormant != nil { first.items[existing] = .open(moving) } else { disconnect(moving) }
+                }
+            } else {
+                first.items.append(item)
+            }
+        }
+        second.items.removeAll(); second.selected = nil
+        for home in second.homes where !first.homes.contains(where: { $0.project.id == home.project.id }) { first.homes.append(home) }
+        second.homes.removeAll(); second.shownHome = nil
+        removeSecondPane()
+        switch shown {
+        case .home(let projectID)?: first.shownHome = projectID
+        case .body(let scope)?: first.shownHome = nil; first.selected = scope
+        case nil: break
+        }
+        showSelected(in: 0)
+        pendingFocus = activeView
+        focusWhenReady()
+        recordVisit()
+        onChange?()
+        completion?(nil)
+    }
+
+    /// ⌥⌘← and ⌥⌘→: the tab before or after the shown one in the active
+    /// pane, wrapping around; a restored tab opens.
+    var canSelectAdjacentTab: Bool { panes[activePane].keys.count > 1 }
+    func selectAdjacentTab(_ offset: Int, completion: ((Error?) -> Void)? = nil) {
+        let keys = panes[activePane].keys
+        guard keys.count > 1 else { completion?(nil); return }
+        guard canNavigate else { let error = blocked(); onError?(error); completion?(error); return }
+        let current = panes[activePane].shownKey.flatMap { keys.firstIndex(of: $0) } ?? (offset > 0 ? -1 : 0)
+        let next = ((current + offset) % keys.count + keys.count) % keys.count
+        selectTab(pane: activePane, key: keys[next], completion: completion)
+    }
+
+    /// Moves a body tab to `index` among the pane's body tabs (dragging it).
+    /// Owners, views and the shown tab are untouched.
+    func moveTab(pane: Int, scope: DocumentScope, to index: Int) {
+        guard panes.indices.contains(pane), !isBusy, !externallyLocked,
+              let from = panes[pane].items.firstIndex(where: { $0.scope == scope }) else { return }
+        let target = min(max(index, 0), panes[pane].items.count - 1)
+        guard target != from else { return }
+        let item = panes[pane].items.remove(at: from)
+        panes[pane].items.insert(item, at: target)
+        refreshTabs(); onChange?()
+    }
+
+    /// A tab button dragged and let go over its pane's tab strip moves
+    /// before the first body tab whose middle is right of the drop point.
+    private func dropTab(pane index: Int, scope: DocumentScope, at point: NSPoint) {
+        guard panes.indices.contains(index), let from = panes[index].items.firstIndex(where: { $0.scope == scope }) else { return }
+        let bar = panes[index].tabsBar
+        let local = bar.convert(point, from: nil)
+        guard local.y >= bar.bounds.minY - 24, local.y <= bar.bounds.maxY + 24 else { return }
+        let groups = Array(bar.arrangedSubviews.dropFirst(panes[index].homes.count))
+        let insertion = groups.firstIndex { local.x < $0.frame.midX } ?? groups.count
+        moveTab(pane: index, scope: scope, to: insertion > from ? insertion - 1 : insertion)
+    }
+
+    /// The page as the project's lists now have it: nil once it left them
+    /// (trashed or purged), as given while its list has not been read.
+    private func liveTarget(_ target: WorkspaceTabTarget, projectID: String) -> WorkspaceTabTarget? {
+        let sources = linkSources[projectID]
+        switch target {
+        case .chapter(let chapter):
+            guard let chapters = sources?.chapters else { return target }
+            return chapters.first { $0.id == chapter.id }.map { .chapter($0) }
+        case .element(let element):
+            guard let library = sources?.library else { return target }
+            return library.elements.first { $0.id == element.id }.map { .element($0) }
+        case .category(let category):
+            guard let library = sources?.library else { return target }
+            return library.categories.first { $0.id == category.id }.map { .category($0) }
+        case .drift(let drift):
+            guard let library = sources?.drifts else { return target }
+            return library.drift(id: drift.id).map { .drift($0) }
+        case .storyline(let storyline):
+            guard let library = storylineLibraries[projectID] else { return target }
+            return library.storyline(id: storyline.id).map { .storyline($0) }
+        }
+    }
+
+    /// Tabs not opened yet follow renames; one whose page left the book
+    /// (trashed or purged) goes. Whether any changed.
+    @discardableResult
+    private func refreshDormant(projectID: String) -> Bool {
+        var changed = false
+        for pane in panes {
+            pane.items = pane.items.compactMap { item in
+                guard let dormant = item.dormant, dormant.project.id == projectID else { return item }
+                guard let current = liveTarget(dormant.target, projectID: projectID) else { changed = true; return nil }
+                if Tab.label(of: current) != Tab.label(of: dormant.target) { changed = true }
+                dormant.target = current
+                return item
+            }
+        }
+        return changed
+    }
+
+    // MARK: 后退 and 前进
+
+    /// A page the window showed, in the pane that showed it.
+    private struct Visit: Equatable {
+        var project: WorkspaceProject
+        /// Nil for the project's 项目主页.
+        var target: WorkspaceTabTarget?
+        var pane: Int
+        var key: TabKey { target.map { .body(Tab.scope(of: $0, projectID: project.id)) } ?? .home(project.id) }
+        static func == (lhs: Visit, rhs: Visit) -> Bool { lhs.key == rhs.key && lhs.pane == rhs.pane }
+    }
+    private var history = NavigationHistory<Visit>()
+    /// Restoring or stepping through the history records nothing.
+    private var historyPaused = 0
+    /// Restoring tabs: shown pages do not join 最近.
+    private var restoring = false
+
+    /// What the active pane shows now joins the history.
+    private func recordVisit() {
+        guard historyPaused == 0, let visit = currentVisit else { return }
+        history.record(visit)
+    }
+
+    private var currentVisit: Visit? {
+        guard panes.indices.contains(activePane) else { return nil }
+        let pane = panes[activePane]
+        if let home = pane.home { return Visit(project: home.project, target: nil, pane: activePane) }
+        if let tab = pane.active { return Visit(project: tab.project, target: tab.target, pane: activePane) }
+        return nil
+    }
+
+    var canGoBack: Bool { history.canGoBack }
+    var canGoForward: Bool { history.canGoForward }
+    /// The pages visited so far and the one 后退 and 前进 start from, for acceptance.
+    var historyTitles: (titles: [String], current: Int) {
+        (history.entries.map { $0.target.map(Tab.title(of:)) ?? "项目主页 · \($0.project.name)" }, history.index)
+    }
+
+    /// A new history (another project): the page shown now starts it.
+    func resetHistory() {
+        history.reset()
+        recordVisit()
+    }
+
+    /// 后退 (⌘[): the page shown before, opened or selected in the pane it
+    /// was in (the active pane once that pane is gone). Pages that were
+    /// trashed or purged, and the page shown now, are skipped.
+    func goBack(completion: ((Error?) -> Void)? = nil) { stepHistory(by: -1, completion) }
+    /// 前进 (⌘]): the page 后退 left.
+    func goForward(completion: ((Error?) -> Void)? = nil) { stepHistory(by: 1, completion) }
+
+    private func stepHistory(by direction: Int, _ completion: ((Error?) -> Void)?) {
+        guard canNavigate else { let error = blocked(); onError?(error); completion?(error); return }
+        let current = currentVisit
+        var index = history.index + direction
+        while history.entries.indices.contains(index) {
+            let visit = history.entries[index]
+            let pane = panes.indices.contains(visit.pane) ? visit.pane : activePane
+            let isCurrent = current.map { $0.key == visit.key && activePane == pane } ?? false
+            guard !isCurrent else { index += direction; continue }
+            guard let stored = visit.target else {
+                // A 项目主页 shows where its tab is, else in the pane.
+                historyPaused += 1
+                let shown = openHome(project: visit.project, in: pane) != nil
+                historyPaused -= 1
+                if shown { history.move(to: index) }
+                completion?(shown ? nil : blocked())
+                return
+            }
+            guard let target = liveTarget(stored, projectID: visit.project.id) else { index += direction; continue }
+            historyPaused += 1
+            let position = index
+            open(project: visit.project, target: target, in: pane) { [weak self] result in
+                guard let self else { return }
+                self.historyPaused -= 1
+                switch result {
+                case .success: self.history.move(to: position)
+                case .failure(let error):
+                    // It no longer opens: it leaves the history.
+                    self.history.remove(at: position)
+                    self.onError?(error)
+                }
+                completion?(result.error)
+            }
+            return
+        }
+        completion?(nil)
+    }
+
+    // MARK: Restoring tabs
+
+    /// One pane of a restored session: its body tabs in order, the one it
+    /// showed and whether it had, and showed, the project's 项目主页.
+    struct RestoredPane {
+        var targets: [WorkspaceTabTarget]
+        var active: WorkspaceTabTarget?
+        var home = false
+        var homeShown = false
+    }
+
+    /// Puts back a project's tabs: each pane's tabs in order, not opened,
+    /// then each pane's shown tab opens its body (or shows the 项目主页);
+    /// the others open when selected. A shown tab that does not open goes
+    /// and is reported. Nothing joins 最近, and the page shown in the active
+    /// pane starts the history.
+    func restoreTabs(project: WorkspaceProject, panes layout: [RestoredPane], activePane wanted: Int,
+                     completion: @escaping (Error?) -> Void) {
+        guard canNavigate else { completion(blocked()); return }
+        let layout = Array(layout.prefix(2))
+        if layout.count == 2, panes.count == 1 { addPane() }
+        if layout.count < 2, panes.count == 2, panes[1].items.isEmpty, panes[1].homes.isEmpty { removeSecondPane() }
+        for (index, restored) in layout.enumerated() where panes.indices.contains(index) {
+            for target in restored.targets {
+                let scope = Tab.scope(of: target, projectID: project.id)
+                guard !panes[index].items.contains(where: { $0.scope == scope }) else { continue }
+                panes[index].items.append(.dormant(DormantTab(project: project, target: target)))
+            }
+            if restored.home { addHome(project: project, in: index) }
+        }
+        refreshTabs()
+        restoring = true
+        historyPaused += 1
+        var firstError: Error?
+        let steps = layout.enumerated().filter { panes.indices.contains($0.offset) }.map { ($0.offset, $0.element) }
+        func finish() {
+            restoring = false
+            historyPaused -= 1
+            activePane = min(max(wanted, 0), panes.count - 1)
+            pendingFocus = activeView
+            refreshTabs()
+            focusWhenReady()
+            recordVisit()
+            onChange?()
+            completion(firstError)
+        }
+        func step(_ position: Int) {
+            guard position < steps.count else { finish(); return }
+            let (index, restored) = steps[position]
+            if restored.homeShown, panes[index].homes.contains(where: { $0.project.id == project.id }) {
+                whenNavigable(ignoringPlotGrids: false) { [weak self] in
+                    self?.openHome(project: project, in: index)
+                    step(position + 1)
+                }
+                return
+            }
+            guard let active = restored.active else { step(position + 1); return }
+            whenNavigable(ignoringPlotGrids: false) { [weak self] in
+                guard let self else { return }
+                self.open(project: project, target: active, in: index) { [weak self] result in
+                    guard let self else { return }
+                    if case .failure(let error) = result {
+                        firstError = firstError ?? error
+                        let scope = Tab.scope(of: active, projectID: project.id)
+                        self.panes[index].items.removeAll { $0.dormant != nil && $0.scope == scope }
+                        self.refreshTabs()
+                    }
+                    step(position + 1)
+                }
+            }
+        }
+        step(0)
+    }
+
+    /// A second pane left without tabs goes (showing a project that kept no
+    /// split).
+    func removeEmptySecondPane() {
+        guard panes.count == 2, panes[1].items.isEmpty, panes[1].homes.isEmpty, !isBusy else { return }
+        removeSecondPane()
+    }
+
+    /// The project's tabs as `settings.json` keeps them: each pane's body
+    /// tabs of the project in order, the one shown, its 项目主页 and the
+    /// active pane; two panes are the split.
+    func tabSession(projectID: String) -> TabSession {
+        TabSession(panes: panes.map { pane in
+            let shown = pane.shownHome == nil ? pane.active.flatMap { $0.project.id == projectID ? Tab.page(of: $0.target) : nil } : nil
+            return TabSession.Pane(tabs: pane.items.filter { $0.project.id == projectID }.map { Tab.page(of: $0.target) },
+                                   active: shown, home: pane.homes.contains { $0.project.id == projectID },
+                                   homeShown: pane.shownHome == projectID)
+        }, activePane: activePane)
     }
 
     // MARK: Project deletion
@@ -2164,6 +2827,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // A 项目主页 holds no body: it closes at once.
         for index in panes.indices where panes[index].homes.contains(where: { $0.project.id == projectID }) {
             closeHome(projectID: projectID, pane: index)
+        }
+        // Tabs not opened yet hold no owner: they go at once.
+        if allDormant.contains(where: { $0.project.id == projectID }) {
+            for pane in panes { pane.items.removeAll { $0.dormant?.project.id == projectID } }
+            refreshTabs(); onChange?()
         }
         guard let (index, tab) = panes.enumerated().lazy.compactMap({ entry in
             entry.element.tabs.first { $0.project.id == projectID }.map { (entry.offset, $0) }
@@ -2180,9 +2848,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
-    /// Whether any tab shows a page of the project.
+    /// Whether any tab, opened or not, shows a page of the project.
     func hasTabs(projectID: String) -> Bool {
-        allTabs.contains { $0.project.id == projectID } || !homes(projectID: projectID).isEmpty
+        panes.contains { $0.items.contains { $0.project.id == projectID } } || !homes(projectID: projectID).isEmpty
+    }
+
+    /// The projects that have tabs, in no particular order.
+    var projectsWithTabs: Set<String> {
+        Set(panes.flatMap { pane in pane.items.map(\.project.id) + pane.homes.map(\.project.id) })
     }
 
     /// Drops everything read for a deleted project.
@@ -2235,6 +2908,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // A created, trashed or restored chapter changes the book total.
         if previous?.map(\.id) != chapters.map(\.id) { wordCountModels[projectID]?.scheduleRefresh() }
         linkSources[projectID, default: LinkSources()].chapters = chapters
+        if refreshDormant(projectID: projectID) { refreshTabs() }
         for home in homes(projectID: projectID) { home.model.applyChapters(chapters) }
         if let trashed {
             linkSources[projectID]?.trashedChapters = trashed
@@ -2635,12 +3309,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     private func blocked() -> LabError { .message("请先完成所有标签中的输入，并保存或处理待恢复草稿。") }
-    private func connect(_ tab: Tab, pane: Int) {
+    /// Callbacks find the tab's pane when they run: a tab can move to the
+    /// other pane (移到另一侧, 解除分屏) with its view.
+    private func connect(_ tab: Tab) {
         if let section = tab.relationsView {
             relations.attach(section, projectID: tab.project.id, endpoint: tab.relationEndpoint)
         }
         tab.view.isInteractionLocked = isBusy || externallyLocked
-        tab.view.onFocus = { [weak self] in self?.activate(pane: pane) }
+        tab.view.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
         tab.view.linkDirectory = linkDirectories[tab.project.id]
         tab.view.onOpenLink = { [weak self, weak tab] target in
             if let self, let tab { self.openLink(target, from: tab) }
@@ -2697,7 +3373,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 guard let self, let tab, let element = tab.element else { return }
                 self.openBacklink(source, elementID: element.id, from: tab)
             }
-            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             page.onCommit = { [weak self, weak tab] changes, done in
                 guard let self, let tab else { done(.failure(LabError.message("设定页面已关闭，修改未保存。"))); return }
                 self.commitElement(tab, completion: done) {
@@ -2715,7 +3391,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 self.setPortrait(tab, file: url, completion: done)
             }
         } else if let page = tab.storylinePage {
-            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             page.onOpenChapter = { [weak self, weak tab] chapter in
                 guard let self, let tab, let index = self.pane(of: tab) else { return }
                 self.open(project: tab.project, chapter: chapter, in: index) { [weak self] result in
@@ -2735,7 +3411,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 }
             }
         } else if let page = tab.driftPage {
-            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             page.onCommit = { [weak self, weak tab] changes, done in
                 guard let self, let tab else { done(.failure(LabError.message("漂流页面已关闭，修改未保存。"))); return }
                 self.commitDrift(tab, changes: changes, completion: done)
@@ -2753,7 +3429,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 }
             }
         } else if let page = tab.categoryPage {
-            page.onFocus = { [weak self] in self?.activate(pane: pane) }
+            page.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             page.onCommit = { [weak self, weak tab] changes, done in
                 guard let self, let tab else { done(.failure(LabError.message("分类页面已关闭，修改未保存。"))); return }
                 self.commitCategory(tab, completion: done) {
@@ -2774,7 +3450,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if let self, let tab { self.createElement(from: tab) }
             }
         } else {
-            tab.chapterPage?.metadataEditor.onFocus = { [weak self] in self?.activate(pane: pane) }
+            tab.chapterPage?.metadataEditor.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
             tab.view.onComments = { [weak self, weak view = tab.view] in
                 if let self, let view { self.onComments?(view) }
             }
@@ -2784,7 +3460,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
         tab.plotToggle?.onToggle = { [weak self, weak tab] in
             guard let self, let tab, let nodeID = tab.nodeID else { return }
-            self.activate(pane: pane)
+            self.activate(tab: tab)
             let shown = self.plotPlannerSetting(projectID: tab.project.id, nodeID: nodeID).shown
             self.setPlotPlanner(shown: !shown, projectID: tab.project.id, nodeID: nodeID)
         }
@@ -2928,10 +3604,22 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if commitHeader { tab.endEditing() }
         disconnect(tab)
         let pane = panes[index]
-        pane.tabs.removeAll { $0 === tab }
-        if pane.selected == tab.scope { pane.selected = pane.tabs.last?.scope }
-        showSelected(in: index)
-        if index == activePane { pendingFocus = activeView; focusWhenReady() }
+        let shown = pane.content === tab.content
+        pane.items.removeAll { $0.tab === tab }
+        if pane.selected == tab.scope {
+            switch closingSelection {
+            case (index, .body(let scope))? where pane.tabs.contains(where: { $0.scope == scope }): pane.selected = scope
+            // A restored tab or a 项目主页 beside it opens next.
+            case (index, _)?: pane.selected = nil
+            default: pane.selected = pane.tabs.last?.scope
+            }
+        }
+        // Closing a tab in the background leaves the shown page, its
+        // keyboard focus and a cell being edited alone.
+        if shown || pane.content == nil {
+            showSelected(in: index)
+            if index == activePane { pendingFocus = activeView; focusWhenReady() }
+        }
         refreshTabs(); onChange?()
     }
     private func showSelected(in index: Int) {
@@ -2944,13 +3632,17 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             (child as? MacChapterPageView)?.endEditing()
             (child as? MacCategoryPageView)?.endEditing()
         }
-        for child in pane.body.subviews { child.removeFromSuperview() }
-        if let view = pane.content {
-            view.translatesAutoresizingMaskIntoConstraints = false; pane.body.addSubview(view)
-            NSLayoutConstraint.activate([
-                view.leadingAnchor.constraint(equalTo: pane.body.leadingAnchor), view.trailingAnchor.constraint(equalTo: pane.body.trailingAnchor),
-                view.topAnchor.constraint(equalTo: pane.body.topAnchor), view.bottomAnchor.constraint(equalTo: pane.body.bottomAnchor),
-            ])
+        // The page already shown stays in place (no focus churn).
+        let alreadyShown = pane.content.map { pane.body.subviews.count == 1 && pane.body.subviews[0] === $0 } ?? false
+        if !alreadyShown {
+            for child in pane.body.subviews { child.removeFromSuperview() }
+            if let view = pane.content {
+                view.translatesAutoresizingMaskIntoConstraints = false; pane.body.addSubview(view)
+                NSLayoutConstraint.activate([
+                    view.leadingAnchor.constraint(equalTo: pane.body.leadingAnchor), view.trailingAnchor.constraint(equalTo: pane.body.trailingAnchor),
+                    view.topAnchor.constraint(equalTo: pane.body.topAnchor), view.bottomAnchor.constraint(equalTo: pane.body.bottomAnchor),
+                ])
+            }
         }
         // An element page reads 被引用 each time it is shown, a 情节规划格 its grid.
         pane.active?.page?.reloadBacklinks()
@@ -2977,46 +3669,40 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
             for home in pane.homes {
                 let projectID = home.project.id
+                let key = TabKey.home(projectID)
                 let select = ChapterTabButton(title: "项目主页 · \(home.project.name)") { [weak self] in
-                    self?.openHome(project: home.project, in: index)
+                    self?.selectTab(pane: index, key: key)
                 }
                 select.setAccessibilityIdentifier("home-tab-\(projectID)")
                 select.state = pane.shownHome == projectID ? .on : .off
                 select.contentTintColor = pane.shownHome == projectID ? MacEditorPreferences.accentColor : nil
                 select.isEnabled = canNavigate
-                let close = ChapterTabButton(title: "×") { [weak self] in self?.closeHome(projectID: projectID, pane: index) }
+                select.menuSource = { [weak self] in self?.tabMenu(pane: index, key: key) }
+                let close = ChapterTabButton(title: "×") { [weak self] in self?.closeTab(pane: index, key: key) }
                 close.setAccessibilityIdentifier("close-home-tab-\(projectID)")
                 close.setAccessibilityLabel("关闭 项目主页 · \(home.project.name)")
                 close.isEnabled = canNavigate
                 pane.tabsBar.addArrangedSubview(NSStackView(views: [select, close]))
             }
-            for tab in pane.tabs {
-                let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift"
-                    : tab.category != nil ? "category" : "chapter"
-                let id = tab.chapter?.id ?? tab.element?.id ?? tab.storyline?.id ?? tab.drift?.id ?? tab.category?.id ?? ""
-                let title = tab.element != nil ? "设定 · \(tab.title)" : tab.storyline != nil ? "故事线 · \(tab.title)"
-                    : tab.drift != nil ? "漂流 · \(tab.title)" : tab.category != nil ? "分类 · \(tab.title)" : tab.title
-                let select = ChapterTabButton(title: title) { [weak self] in
-                    guard let self else { return }
-                    self.open(project: tab.project, target: tab.target, in: index) { result in
-                        if case .failure(let error) = result { self.onError?(error) }
-                    }
-                }
+            for item in pane.items {
+                let (kind, id, title) = Tab.label(of: item.target)
+                let scope = item.scope, key = TabKey.body(scope)
+                let select = ChapterTabButton(title: title) { [weak self] in self?.selectTab(pane: index, key: key) }
                 select.setAccessibilityIdentifier("\(kind)-tab-\(id)")
-                select.state = pane.selected == tab.scope ? .on : .off
-                select.contentTintColor = pane.selected == tab.scope ? MacEditorPreferences.accentColor : nil
+                select.state = pane.selected == scope && pane.shownHome == nil ? .on : .off
+                select.contentTintColor = select.state == .on ? MacEditorPreferences.accentColor : nil
                 select.isEnabled = canNavigate
-                let close = ChapterTabButton(title: "×") { [weak self] in
-                    self?.closeTab(pane: index, scope: tab.scope) { result in
-                        if case .failure(let error) = result { self?.onError?(error) }
-                    }
-                }
+                select.menuSource = { [weak self] in self?.tabMenu(pane: index, key: key) }
+                // Dragging reorders the pane's body tabs.
+                select.onDrop = { [weak self] point in self?.dropTab(pane: index, scope: scope, at: point) }
+                let close = ChapterTabButton(title: "×") { [weak self] in self?.closeTab(pane: index, key: key) }
                 close.setAccessibilityIdentifier("close-\(kind)-tab-\(id)")
-                close.setAccessibilityLabel("关闭 \(tab.title)")
+                close.setAccessibilityLabel("关闭 \(Tab.title(of: item.target))")
                 close.isEnabled = canNavigate
                 pane.tabsBar.addArrangedSubview(NSStackView(views: [select, close]))
             }
         }
+        onLayoutChange?()
     }
 }
 
@@ -3032,8 +3718,18 @@ extension NativeProjection {
     }
 }
 
-private final class ChapterTabButton: NSButton {
+/// A tab strip button. Pressing it acts; a tab's select button also has
+/// the tab's context menu (right-click or ⌃-click) and reports where a drag
+/// of it was dropped, so the tab can move within its pane.
+final class ChapterTabButton: NSButton {
     private let pressed: () -> Void
+    /// The tab's context menu, built when it is asked for.
+    var menuSource: (() -> NSMenu?)?
+    /// Where a drag of this button ended, in window coordinates.
+    var onDrop: ((NSPoint) -> Void)?
+    private var dragStart: NSPoint?
+    private var dragging = false
+
     init(title: String, pressed: @escaping () -> Void) {
         self.pressed = pressed
         super.init(frame: .zero)
@@ -3042,6 +3738,43 @@ private final class ChapterTabButton: NSButton {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     @objc private func press() { pressed() }
+
+    override func menu(for event: NSEvent) -> NSMenu? { menuSource?() ?? super.menu(for: event) }
+
+    override func mouseDown(with event: NSEvent) {
+        guard onDrop != nil || event.modifierFlags.contains(.control) else { super.mouseDown(with: event); return }
+        if event.modifierFlags.contains(.control) {
+            if let menu = menu(for: event) { NSMenu.popUpContextMenu(menu, with: event, for: self) }
+            return
+        }
+        guard isEnabled else { return }
+        // Tracked here rather than by NSButton, so a drag can move the tab.
+        dragStart = event.locationInWindow
+        dragging = false
+        highlight(true)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = dragStart else { super.mouseDragged(with: event); return }
+        if !dragging, hypot(event.locationInWindow.x - start.x, event.locationInWindow.y - start.y) > 4 {
+            dragging = true
+            highlight(false)
+            NSCursor.closedHand.push()
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard dragStart != nil else { super.mouseUp(with: event); return }
+        let wasDragging = dragging
+        dragStart = nil; dragging = false
+        highlight(false)
+        if wasDragging {
+            NSCursor.pop()
+            onDrop?(event.locationInWindow)
+        } else if bounds.contains(convert(event.locationInWindow, from: nil)) {
+            pressed()
+        }
+    }
 }
 
 /// A chapter or drift of a project, for its 情节规划格.

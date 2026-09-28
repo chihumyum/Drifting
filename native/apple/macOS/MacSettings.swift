@@ -85,6 +85,11 @@ struct LabSettings: Codable, Equatable {
     /// 项目主页 › 最近: per project, the last pages this device opened,
     /// newest first (identities only; titles are read live).
     var recentPages: [String: [RecentPage]] = [:]
+    /// Per project, the tabs of both panes in order, each pane's shown tab
+    /// and whether the split is shown, restored when the project opens.
+    var tabSessions: [String: TabSession] = [:]
+    /// The project selected last; it opens with its tabs at launch.
+    var lastProject: String?
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -98,7 +103,7 @@ struct LabSettings: Codable, Equatable {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
-        case recentPages, dailyStreaks
+        case recentPages, dailyStreaks, tabSessions, lastProject
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -130,6 +135,10 @@ struct LabSettings: Codable, Equatable {
         // An unreadable entry drops alone; the list keeps its order.
         let recentValues = (try? values.decodeIfPresent([String: [LenientRecentPage]].self, forKey: .recentPages)) ?? [:]
         recentPages = recentValues.mapValues { $0.compactMap(\.value) }.filter { !$0.value.isEmpty }
+        // One project's unreadable tabs do not take the others with them.
+        let sessionValues = (try? values.decodeIfPresent([String: LenientTabSession].self, forKey: .tabSessions)) ?? [:]
+        tabSessions = sessionValues.compactMapValues(\.value).filter { !$0.value.isEmpty }
+        lastProject = (try? values.decodeIfPresent(String.self, forKey: .lastProject)) ?? nil
         self = normalized()
     }
 
@@ -158,6 +167,10 @@ struct LabSettings: Codable, Equatable {
         let value: RecentPage?
         init(from decoder: Decoder) throws { value = try? RecentPage(from: decoder) }
     }
+    private struct LenientTabSession: Decodable {
+        let value: TabSession?
+        init(from decoder: Decoder) throws { value = try? TabSession(from: decoder) }
+    }
 
     /// The manuscript language as a BCP 47 tag for CoreText.
     var languageTag: String {
@@ -175,6 +188,67 @@ struct RecentPage: Codable, Hashable {
     enum Kind: String, Codable, CaseIterable { case chapter, drift, element, category, storyline }
     let kind: Kind
     let id: String
+}
+
+/// A project's tabs as they were left: each pane's body tabs in order (by
+/// identity; titles are read live), the one it showed and whether it had,
+/// and showed, the project's 项目主页. Two panes mean the split was shown.
+/// Read leniently: an unreadable tab drops alone, an unknown shown tab is
+/// forgotten and more than two panes keep the first two.
+struct TabSession: Codable, Equatable {
+    struct Pane: Codable, Equatable {
+        var tabs: [RecentPage] = []
+        var active: RecentPage?
+        var home = false
+        var homeShown = false
+
+        init(tabs: [RecentPage] = [], active: RecentPage? = nil, home: Bool = false, homeShown: Bool = false) {
+            self.tabs = tabs; self.active = active; self.home = home; self.homeShown = homeShown
+        }
+        private enum CodingKeys: String, CodingKey { case tabs, active, home, homeShown }
+        private struct LenientPage: Decodable {
+            let value: RecentPage?
+            init(from decoder: Decoder) throws { value = try? RecentPage(from: decoder) }
+        }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            tabs = ((try? values.decodeIfPresent([LenientPage].self, forKey: .tabs)) ?? []).compactMap(\.value)
+            active = (try? values.decodeIfPresent(RecentPage.self, forKey: .active)) ?? nil
+            home = (try? values.decodeIfPresent(Bool.self, forKey: .home)) ?? false
+            homeShown = (try? values.decodeIfPresent(Bool.self, forKey: .homeShown)) ?? false
+            self = normalized()
+        }
+        /// Each page once, a shown tab that is one of them, a shown 项目主页 it has.
+        func normalized() -> Pane {
+            var seen = Set<RecentPage>()
+            let unique = tabs.filter { seen.insert($0).inserted }
+            return Pane(tabs: unique, active: active.flatMap { unique.contains($0) ? $0 : nil }, home: home, homeShown: home && homeShown)
+        }
+        var isEmpty: Bool { tabs.isEmpty && !home }
+    }
+    var panes: [Pane]
+    var activePane: Int
+
+    init(panes: [Pane], activePane: Int) {
+        self.panes = panes; self.activePane = activePane
+        self = normalized()
+    }
+    private enum CodingKeys: String, CodingKey { case panes, activePane }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        panes = try values.decode([Pane].self, forKey: .panes)
+        activePane = (try? values.decodeIfPresent(Int.self, forKey: .activePane)) ?? 0
+        self = normalized()
+    }
+    func normalized() -> TabSession {
+        var next = self
+        next.panes = Array(panes.prefix(2)).map { $0.normalized() }
+        if next.panes.isEmpty { next.panes = [Pane()] }
+        next.activePane = min(max(activePane, 0), next.panes.count - 1)
+        return next
+    }
+    var isEmpty: Bool { panes.allSatisfy(\.isEmpty) }
+    var isSplit: Bool { panes.count == 2 }
 }
 
 /// A project's 底部时间轴 below the editor. Unknown modes read as 阅读顺序.
@@ -621,17 +695,44 @@ final class LabSettingsStore {
         NotificationCenter.default.post(name: Self.recentPagesDidChange, object: self, userInfo: ["projectID": projectID])
     }
 
+    // MARK: Tabs
+
+    /// The project's tabs as they were left, if any.
+    func tabSession(projectID: String) -> TabSession? { settings.tabSessions[projectID] }
+
+    /// Saves the project's tabs; an empty session removes the entry and an
+    /// unchanged one writes nothing. Editors and the settings window are not told.
+    func setTabSession(_ session: TabSession?, projectID: String) {
+        let next = session.flatMap { $0.isEmpty ? nil : $0.normalized() }
+        guard settings.tabSessions[projectID] != next else { return }
+        settings.tabSessions[projectID] = next
+        save()
+    }
+
+    /// The project selected last, which opens at launch.
+    var lastProject: String? { settings.lastProject }
+
+    func setLastProject(_ projectID: String?) {
+        guard settings.lastProject != projectID else { return }
+        settings.lastProject = projectID
+        save()
+    }
+
     // MARK: Deleted projects
 
     /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
-    /// 底部时间轴 or 情节规划格 state, recent pages or MCP servers behind
-    /// (their Keychain secrets are removed by the caller).
+    /// 底部时间轴 or 情节规划格 state, recent pages, tabs or MCP servers
+    /// behind, nor stays the project that opens at launch (their Keychain
+    /// secrets are removed by the caller).
     func forgetProject(_ projectID: String) {
         guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
             || settings.dailyWords[projectID] != nil || settings.dailyStreaks[projectID] != nil
             || settings.bottomTimelines[projectID] != nil
             || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil
-            || settings.recentPages[projectID] != nil else { return }
+            || settings.recentPages[projectID] != nil || settings.tabSessions[projectID] != nil
+            || settings.lastProject == projectID else { return }
+        settings.tabSessions.removeValue(forKey: projectID)
+        if settings.lastProject == projectID { settings.lastProject = nil }
         settings.recentPages.removeValue(forKey: projectID)
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)

@@ -22,6 +22,11 @@ interoperability is kept.
 - 今日字数 days are under `dailyWords` ([whole book](whole-book.md)), and each
   project's last ten opened pages under `recentPages` as `{kind, id}`
   ([project home](project-home.md)); an unreadable entry is dropped alone.
+- Each project's tabs are under `tabSessions` (per pane: `tabs` as
+  `{kind, id}`, the shown `active` tab, `home` and `homeShown`, then
+  `activePane`; two panes are the split) and the project selected last under
+  `lastProject` ([tabs and split](tabs-and-split.md#restoring-tabs)); an
+  unreadable tab or project entry is dropped alone.
 - Copilot's choices are under `copilot`, read value by value like the rest
   (an unknown model is the provider's first, the delay is clamped to
   5–300 seconds); saving them applies nothing else.
@@ -86,18 +91,20 @@ interoperability is kept.
   for [格式](formatting.md) ⌘U 下划线, ⌘K 链接… and the macOS ⌘{ ⌘| ⌘} for
   左对齐, 居中 and 右对齐, pressed and shown with ⇧ (⇧⌘{). 故事图谱 is ⌃⌘G, so
   ⇧⌘G finds as in every Mac app. 删除线, 正文, 标题 1–3, 增加缩进, 减少缩进 and
-  移除链接 start without one: indent is Tab and ⇧Tab in the prose, and ⌘[ ⌘]
-  stay free for back and forward. Clicking a shortcut records the next key press, which the
+  移除链接 start without one: indent is Tab and ⇧Tab in the prose. For
+  [tabs](tabs-and-split.md) 视图 has ⌘[ 后退, ⌘] 前进, ⌥⌘← 上一个标签 and ⌥⌘→
+  下一个标签, and 文件 › 关闭标签 is ⌘W. Clicking a shortcut records the next key press, which the
   menus do not see; Esc cancels and ⌫ removes it. A combination the system
   reserves (⌘Q, ⌘W, ⌘H, ⌥⌘H, ⌘M, ⌘Tab, ⌘`, ⌘Space, ⌃⌘F, the screenshots
   ⇧⌘3–5, which arrive as the shifted characters and are also compared on
   the key, the input sources ⌃Space and ⌃⌥Space, Mission Control and Spaces
-  on ⌃ with an arrow, and others), one the text editor uses (⌘ or ⌥ with an
+  on ⌃ with an arrow, and others), one the text editor uses (⌘ or ⌥ alone with an
   arrow, with or without ⇧, ⌘⌫, ⌥⌫ and the Emacs keys ⌃A, ⌃E, ⌃K, ⌃B, ⌃F,
   ⌃N, ⌃P, ⌃D, ⌃H, ⌃T, ⌃O, ⌃Y and ⌃V), one without ⌘ or ⌃, or one another
   command uses is refused in Chinese naming why (由系统保留 / 由文本编辑使用 and
   what for), and recording continues. The system's text-editing commands
-  (撤销, 重做, 剪切, 复制, 粘贴, 全选) and 退出 are listed but fixed. 还原 returns a
+  (撤销, 重做, 剪切, 复制, 粘贴, 全选), 退出 and 关闭标签 (⌘W, which closes the
+  window when no tab is open) are listed but fixed. 还原 returns a
   command to its default unless another command now uses it; 全部还原 returns
   all. A change applies to the menu items at once; at launch the stored
   shortcuts apply as the menu is installed. A shifted letter is set as an
@@ -139,6 +146,9 @@ default in use, resets one and all, and relaunches the store, a new menu and
 the settings window with the shortcuts applied; a hand-edited file falls back
 entry by entry, also for values the rules now refuse. Physical key presses
 are not covered.
+`--tabs-nav-only` checks that 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进,
+上一个标签 and 下一个标签 with their defaults and refuses ⌘[ for another command,
+and covers `tabSessions` and `lastProject` ([tabs](tabs-and-split.md)).
 The Copilot pane, its storage and relaunch are covered by the
 [Copilot cases](copilot.md#acceptance). `--editor-extras-only` checks
 打字机滚动: the caret line at 40% after typing at the end and in the middle of

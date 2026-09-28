@@ -85,7 +85,8 @@ struct MenuShortcut: Codable, Hashable {
 /// menu's items by these identifiers. System commands keep their shortcuts.
 enum MacMenuCommand: String, CaseIterable {
     case settings = "app.settings", quit = "app.quit"
-    case save = "file.save", fileProfile = "file.projectProfile", fileDeleteProject = "file.deleteProject"
+    case save = "file.save", closeTab = "file.closeTab"
+    case fileProfile = "file.projectProfile", fileDeleteProject = "file.deleteProject"
     case importFile = "file.import", exportBook = "file.exportBook", exportMarkdownFolder = "file.exportMarkdownFolder"
     case exportPDF = "file.exportPDF", pageSetup = "file.pageSetup", print = "file.print"
     case shelf = "project.shelf", projectTrash = "project.trash", projectProfile = "project.profile", projectDelete = "project.delete"
@@ -100,6 +101,7 @@ enum MacMenuCommand: String, CaseIterable {
     case indentIncrease = "format.indentIncrease", indentDecrease = "format.indentDecrease"
     case link = "format.link", removeLink = "format.removeLink"
     case projectHome = "view.projectHome"
+    case back = "view.back", forward = "view.forward", previousTab = "view.previousTab", nextTab = "view.nextTab"
     case agent = "view.agent", materials = "view.materials", review = "view.review", board = "view.board"
     case storyGraph = "view.storyGraph", wholeBook = "view.wholeBook", elementOverview = "view.elementOverview"
     case bottomTimeline = "view.bottomTimeline", plotPlanner = "view.plotPlanner", trash = "view.trash"
@@ -110,6 +112,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .settings: return "设置…"
         case .quit: return "退出 Drifting Native Lab"
         case .save: return "保存正文"
+        case .closeTab: return "关闭标签"
         case .fileProfile, .projectProfile: return "项目资料…"
         case .fileDeleteProject, .projectDelete: return "删除项目…"
         case .importFile: return "导入…"
@@ -155,6 +158,10 @@ enum MacMenuCommand: String, CaseIterable {
         case .link: return "链接…"
         case .removeLink: return "移除链接"
         case .projectHome: return "项目主页"
+        case .back: return "后退"
+        case .forward: return "前进"
+        case .previousTab: return "上一个标签"
+        case .nextTab: return "下一个标签"
         case .agent: return "写作助手"
         case .materials: return "素材库"
         case .review: return "审阅"
@@ -172,7 +179,8 @@ enum MacMenuCommand: String, CaseIterable {
     /// Copilot 分析 and ⌥⌘I 项目资料, as in the renderer; ⇧⌘P is the 项目书架,
     /// so 页面设置… starts without one. Find and alignment keep the macOS
     /// standard (⌘F, ⌘G, ⇧⌘G, ⌘E; ⌘{ ⌘| ⌘}), so 故事图谱 is ⌃⌘G; indent has
-    /// Tab and ⇧Tab in the editor, leaving ⌘[ and ⌘] for back and forward.
+    /// Tab and ⇧Tab in the editor, leaving ⌘[ and ⌘] for 后退 and 前进;
+    /// ⌥⌘← and ⌥⌘→ move between tabs and ⌘W closes the tab, as in Safari.
     var defaultShortcut: MenuShortcut {
         let command: NSEvent.ModifierFlags = .command, shift: NSEvent.ModifierFlags = [.command, .shift]
         let option: NSEvent.ModifierFlags = [.command, .option]
@@ -180,6 +188,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .settings: return MenuShortcut(key: ",", flags: command)
         case .quit: return MenuShortcut(key: "q", flags: command)
         case .save: return MenuShortcut(key: "s", flags: command)
+        case .closeTab: return MenuShortcut(key: "w", flags: command)
         case .fileProfile: return MenuShortcut(key: "i", flags: option)
         case .importFile: return MenuShortcut(key: "o", flags: shift)
         case .print: return MenuShortcut(key: "p", flags: command)
@@ -210,6 +219,10 @@ enum MacMenuCommand: String, CaseIterable {
         case .alignCenter: return MenuShortcut(key: "|", flags: shift)
         case .alignRight: return MenuShortcut(key: "}", flags: shift)
         case .link: return MenuShortcut(key: "k", flags: command)
+        case .back: return MenuShortcut(key: "[", flags: command)
+        case .forward: return MenuShortcut(key: "]", flags: command)
+        case .previousTab: return MenuShortcut(key: arrowKey(NSLeftArrowFunctionKey), flags: option)
+        case .nextTab: return MenuShortcut(key: arrowKey(NSRightArrowFunctionKey), flags: option)
         case .agent: return MenuShortcut(key: "a", flags: option)
         case .materials: return MenuShortcut(key: "m", flags: shift)
         case .review: return MenuShortcut(key: "r", flags: option)
@@ -223,8 +236,11 @@ enum MacMenuCommand: String, CaseIterable {
         }
     }
 
-    /// The system's text-editing commands and 退出 keep their shortcuts.
-    var isSystem: Bool { [.quit, .undo, .redo, .cut, .copy, .paste, .selectAll].contains(self) }
+    private func arrowKey(_ key: Int) -> String { String(Character(UnicodeScalar(UInt32(key))!)) }
+
+    /// The system's text-editing commands, 退出 and 关闭标签 (⌘W, which closes
+    /// the window when no tab is open) keep their shortcuts.
+    var isSystem: Bool { [.quit, .closeTab, .undo, .redo, .cut, .copy, .paste, .selectAll].contains(self) }
 
     /// Commands that act on the focused editor through the responder chain.
     var responderAction: Selector? {
@@ -308,14 +324,14 @@ enum MacMainMenu {
     /// Menus in order; nil is a separator. The app menu's title is empty.
     static let layout: [(title: String, items: [MacMenuCommand?])] = [
         ("", [.settings, nil, .quit]),
-        ("文件", [.save, nil, .fileProfile, .fileDeleteProject, nil, .importFile, .exportBook, .exportMarkdownFolder, .exportPDF,
+        ("文件", [.save, .closeTab, nil, .fileProfile, .fileDeleteProject, nil, .importFile, .exportBook, .exportMarkdownFolder, .exportPDF,
                 nil, .pageSetup, .print]),
         ("项目", [.shelf, .projectTrash, nil, .projectProfile, .projectDelete]),
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, nil, .find, .findNext, .findPrevious, .findSelection, nil,
                 .search, .elements, .storylines, .drifts, .relationTypes, nil, .addComment, .comments, .copilot, nil, .history]),
         ("格式", [.bold, .italic, .underline, .strike, nil, .bodyText, .heading1, .heading2, .heading3, nil,
                 .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
-        ("视图", [.projectHome, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
+        ("视图", [.projectHome, nil, .back, .forward, .previousTab, .nextTab, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
                 .trash]),
         ("帮助", [.diagnostics]),
     ]
@@ -385,7 +401,7 @@ enum MacShortcuts {
     /// Taken by macOS or by standard window and application commands.
     static let reserved: [(MenuShortcut, String)] = [
         (MenuShortcut(key: "q", flags: .command), "退出应用"),
-        (MenuShortcut(key: "w", flags: .command), "关闭窗口"),
+        (MenuShortcut(key: "w", flags: .command), "关闭标签或窗口"),
         (MenuShortcut(key: "h", flags: .command), "隐藏应用"),
         (MenuShortcut(key: "h", flags: [.command, .option]), "隐藏其他应用"),
         (MenuShortcut(key: "m", flags: .command), "最小化窗口"),

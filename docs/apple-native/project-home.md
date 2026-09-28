@@ -13,7 +13,9 @@ There is one per project: opening it again shows the open tab, in whichever
 pane holds it, and reads everything again. The tab has no body, so body
 commands (保存, 历史版本…, 在另一栏打开) are off while it shows; any body tab
 replaces it in the pane, and closing it shows the pane's body tab again.
-Closing the workspace and deleting the project close it.
+Closing the workspace and deleting the project close it. It is kept with
+the project's tabs and comes back with them, unread until it is shown
+([restoring tabs](tabs-and-split.md#restoring-tabs)).
 
 ## Content
 

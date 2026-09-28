@@ -205,6 +205,52 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// The 章节模版 new chapters whose primary storyline this is start from
+    /// (`nodeContentTemplateJson`); `{}` for none.
+    pub fn storyline_chapter_template(
+        &self,
+        project_id: &str,
+        storyline_id: &str,
+    ) -> Result<String, String> {
+        let rows = self.query(None, "SELECT node_content_template_json FROM storylines WHERE id=? AND project_id=? AND deleted_at IS NULL",
+            vec![text(storyline_id), text(project_id)])?;
+        let row = rows.first().ok_or("故事线不存在或已在回收站")?;
+        string(row, 0)
+    }
+
+    /// Replaces the storyline's 章节模版; `{}` clears it. Unchanged templates
+    /// write nothing.
+    pub fn set_storyline_chapter_template(
+        &self,
+        context: &AuthoredProseContext,
+        storyline_id: &str,
+        template_json: &str,
+    ) -> Result<WorkspaceStoryline, String> {
+        validate_context(context)?;
+        if template_json != "{}" {
+            let document: Value = serde_json::from_str(template_json)
+                .map_err(|e| format!("Invalid template: {e}"))?;
+            if document.get("type").and_then(Value::as_str) != Some("doc")
+                || !document.get("content").is_some_and(Value::is_array)
+            {
+                return Err("Invalid template document".into());
+            }
+        }
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            let incarnation = self.live_storyline(tx, context, storyline_id)?;
+            let current = self.query(Some(tx), "SELECT node_content_template_json FROM storylines WHERE id=?",
+                vec![text(storyline_id)])?;
+            if string(&current[0], 0)? != template_json {
+                self.execute(tx, "UPDATE storylines SET node_content_template_json=?,updated_at=? WHERE id=? AND project_id=?",
+                    vec![text(template_json), text(&context.now_iso), text(storyline_id), text(&context.project_id)])?;
+                self.commit_changes(tx, context, &[journal::Mutation::field("storyline", storyline_id, incarnation,
+                    "nodeContentTemplateJson", json!(template_json))], None)?;
+            }
+            self.storyline(tx, &context.project_id, storyline_id)
+        })
+    }
+
     /// Place a storyline before another (or last), as a drag in the renderer.
     pub fn move_storyline(
         &self,

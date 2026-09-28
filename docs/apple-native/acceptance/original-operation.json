@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "7fd52b583b6b51df223de67a4e4cdde1fdedd7e7e2238aabe965f46819bd0446",
+    "fingerprint": "604caae5e0c82f147437880bd09ccf6f9c7168cf209a590020de2fd629b34e2b",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -248,7 +248,7 @@
       },
       {
         "path": "crates/drifting-core/src/workspace/storylines.rs",
-        "sha256": "392c6a23d57170d8bedaefa809bae787d984170ce838498c28ff2cc501ddd253"
+        "sha256": "925190207ba980b7b3849462b26045bd6c4cb218e23ed6d518aea060dc26450f"
       },
       {
         "path": "crates/drifting-core/src/workspace/storylines/tests.rs",
@@ -991,7 +991,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "a88e9ab093a4c1b04c5bd983d55cb57504052065a60f8f2abf3541de85310823"
+    "logSha256": "39bf1548c1a400cbe9f675909673d4f2763ad5641e1074b746821fc4a9c74a11"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

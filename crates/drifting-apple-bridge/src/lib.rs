@@ -683,6 +683,9 @@ enum Request {
         #[serde(rename = "projectId")]
         project_id: String,
         title: String,
+        /// The primary storyline; the chapter starts from its 章节模版.
+        #[serde(default, rename = "storylineId")]
+        storyline_id: Option<String>,
     },
     WorkspaceOpenChapter {
         handle: u64,
