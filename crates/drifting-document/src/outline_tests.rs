@@ -171,3 +171,53 @@ fn native_outline_tracks_format_text_history_and_cold_yjs_replay() {
     );
     assert!(log.is_empty());
 }
+
+#[test]
+fn native_blocks_carry_their_containers_and_ordered_numbers() {
+    let mut doc = DocumentSession::new();
+    {
+        let mut txn = doc.doc.transact_mut_with(REMOTE);
+        let paragraph = |parent: &XmlElementRef, txn: &mut yrs::TransactionMut, text: &str| {
+            let block = parent.push_back(txn, XmlElementPrelim::empty("paragraph"));
+            block.push_back(txn, XmlTextPrelim::new(text));
+        };
+        let quote = doc
+            .root
+            .push_back(&mut txn, XmlElementPrelim::empty("blockquote"));
+        paragraph(&quote, &mut txn, "引");
+        let bullets = doc
+            .root
+            .push_back(&mut txn, XmlElementPrelim::empty("bulletList"));
+        let item = bullets.push_back(&mut txn, XmlElementPrelim::empty("listItem"));
+        paragraph(&item, &mut txn, "点");
+        let ordered = doc
+            .root
+            .push_back(&mut txn, XmlElementPrelim::empty("orderedList"));
+        ordered.insert_attribute(&mut txn, "start", 3);
+        for text in ["三", "四"] {
+            let item = ordered.push_back(&mut txn, XmlElementPrelim::empty("listItem"));
+            paragraph(&item, &mut txn, text);
+        }
+        let plain = doc
+            .root
+            .push_back(&mut txn, XmlElementPrelim::empty("paragraph"));
+        plain.push_back(&mut txn, XmlTextPrelim::new("正文"));
+    }
+    let view = doc.native_projection().unwrap();
+    let shape: Vec<(Vec<String>, Option<u32>)> = view
+        .blocks
+        .iter()
+        .map(|block| (block.containers.clone(), block.list_number))
+        .collect();
+    let tags = |tags: &[&str]| tags.iter().map(|tag| tag.to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        shape,
+        vec![
+            (tags(&["blockquote"]), None),
+            (tags(&["bulletList", "listItem"]), None),
+            (tags(&["orderedList", "listItem"]), Some(3)),
+            (tags(&["orderedList", "listItem"]), Some(4)),
+            (Vec::new(), None),
+        ]
+    );
+}

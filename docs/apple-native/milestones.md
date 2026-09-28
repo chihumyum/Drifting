@@ -93,9 +93,8 @@ architectural redesign.
 
 ## Next batch
 
-Projection containers and ordered-list numbers for printing and PDF; then
-the open gates that need the author (attended performance certification,
-physical IME, signing and distribution).
+The open gates that need the author: attended performance certification,
+physical IME, signing and distribution.
 
 ## Open gates
 

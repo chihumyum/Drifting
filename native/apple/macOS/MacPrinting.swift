@@ -121,10 +121,11 @@ final class PrintTypesetter {
         return result
     }
 
-    /// A quote's blocks sit at odd depths, a list item's at even ones (a
-    /// list and its item are two levels). The projection names no container
-    /// kind, so a quote inside a list item and a list inside a quote are
-    /// told apart by depth alone, and every list is bulleted.
+    /// Quotes and lists come from the block's enclosing containers: each
+    /// quote indents both sides in the muted colour, each list item level
+    /// hangs its marker (the item's number in an ordered list, a bullet
+    /// otherwise). Without containers, odd depths read as quotes and even
+    /// ones as bulleted items.
     private func block(_ block: WorkspaceBodyProjection.Block, text: String, continues: Bool) -> NSAttributedString? {
         let isText = ["paragraph", "heading", "codeBlock"].contains(block.kind)
         var content = text
@@ -146,24 +147,39 @@ final class PrintTypesetter {
         if block.depth == 0 {
             if block.kind == "paragraph" { paragraph.firstLineHeadIndent = typography.paragraphIndent }
             if mono { paragraph.headIndent = typography.size; paragraph.firstLineHeadIndent = typography.size }
-        } else if block.depth % 2 == 1 {
-            // A quote: indented on both sides, in the muted colour.
-            let indent = CGFloat((block.depth + 1) / 2) * typography.size * 2
-            paragraph.headIndent = indent; paragraph.firstLineHeadIndent = indent; paragraph.tailIndent = -typography.size * 2
-            color = Self.muted
         } else {
-            // A list item: the bullet hangs before the text; further
-            // paragraphs of the same item align with it.
-            let level = block.depth / 2
-            let indent = CGFloat(level) * typography.size * 1.6
-            paragraph.headIndent = indent
-            paragraph.tabStops = [NSTextTab(textAlignment: .natural, location: indent)]
-            paragraph.defaultTabInterval = indent
-            if continues {
-                paragraph.firstLineHeadIndent = indent
+            let quotes: Int, level: Int, ordered: Bool
+            if block.containers.isEmpty {
+                quotes = block.depth % 2 == 1 ? (block.depth + 1) / 2 : 0
+                level = block.depth % 2 == 1 ? 0 : block.depth / 2
+                ordered = false
             } else {
-                paragraph.firstLineHeadIndent = max(0, indent - typography.size * 1.1)
-                prefix = (level % 2 == 1 ? "•" : "◦") + "\t"
+                quotes = block.containers.filter { $0 == "blockquote" }.count
+                level = block.containers.filter { $0 == "listItem" }.count
+                ordered = block.containers.last { $0 == "bulletList" || $0 == "orderedList" } == "orderedList"
+            }
+            let quoteIndent = CGFloat(quotes) * typography.size * 2
+            if quotes > 0 {
+                // A quote: indented on both sides, in the muted colour.
+                paragraph.tailIndent = -typography.size * 2
+                color = Self.muted
+            }
+            if level > 0 {
+                // A list item: the marker hangs before the text; further
+                // paragraphs of the same item align with it.
+                let indent = quoteIndent + CGFloat(level) * typography.size * (ordered ? 2.0 : 1.6)
+                paragraph.headIndent = indent
+                paragraph.tabStops = [NSTextTab(textAlignment: .natural, location: indent)]
+                paragraph.defaultTabInterval = indent
+                if continues {
+                    paragraph.firstLineHeadIndent = indent
+                } else {
+                    paragraph.firstLineHeadIndent = max(quoteIndent, indent - typography.size * (ordered ? 1.8 : 1.1))
+                    let marker = ordered ? "\(block.listNumber ?? 1)." : (level % 2 == 1 ? "•" : "◦")
+                    prefix = marker + "\t"
+                }
+            } else {
+                paragraph.headIndent = quoteIndent; paragraph.firstLineHeadIndent = quoteIndent
             }
         }
         let result = NSMutableAttributedString(string: prefix + content, attributes: base(paragraph, font: bodyFont, color: color))

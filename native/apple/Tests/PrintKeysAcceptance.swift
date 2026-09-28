@@ -222,6 +222,24 @@ extension BindingAcceptance {
         let string = result.string as NSString
         try require(result.string == "雾中港口\n粗体与斜体混排的一段。\n引用的一句话\n•\t第一项\n第一项的续段\n•\t第二项\nlet tide = 1\n＊　＊　＊\n删去 网址 灯塔守人 行内码",
                     "Typeset text was \(result.string.debugDescription)")
+        // Containers name the structure: an ordered list numbers from its
+        // start, a list inside a quote keeps the quote's indent.
+        let orderedJSON: [String: Any] = ["text": "三\n四\n引中的点", "blocks": [
+            ["kind": "paragraph", "depth": 2, "container": "a", "range": ["location": 0, "length": 1], "runs": [],
+             "containers": ["orderedList", "listItem"], "listNumber": 3],
+            ["kind": "paragraph", "depth": 2, "container": "b", "range": ["location": 2, "length": 1], "runs": [],
+             "containers": ["orderedList", "listItem"], "listNumber": 4],
+            ["kind": "paragraph", "depth": 3, "container": "c", "range": ["location": 4, "length": 4], "runs": [],
+             "containers": ["blockquote", "bulletList", "listItem"]],
+        ]]
+        let ordered = try JSONDecoder().decode(WorkspaceBodyProjection.Projection.self,
+                                               from: JSONSerialization.data(withJSONObject: orderedJSON))
+        let numbered = PrintTypesetter(typography: typography, headingShift: 1).body(ordered)
+        try require(numbered.string == "3.\t三\n4.\t四\n•\t引中的点", "Ordered and quoted lists typeset as \(numbered.string.debugDescription)")
+        let quotedStyle = numbered.attribute(.paragraphStyle, at: (numbered.string as NSString).range(of: "引中").location,
+                                             effectiveRange: nil) as! NSParagraphStyle
+        try require(quotedStyle.headIndent > typography.size * 2 && quotedStyle.tailIndent < 0,
+                    "A list inside a quote lost the quote's indent: \(quotedStyle)")
         func at(_ piece: String) throws -> [NSAttributedString.Key: Any] {
             let found = string.range(of: piece)
             try require(found.location != NSNotFound, "“\(piece)” was not typeset")

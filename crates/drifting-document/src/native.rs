@@ -22,6 +22,13 @@ pub struct NativeBlock {
     pub kind: String,
     pub depth: u32,
     pub container: String,
+    /// Enclosing structures, outermost first: `blockquote`, `bulletList`,
+    /// `orderedList` and `listItem` tags, for printing and export.
+    pub containers: Vec<String>,
+    /// The number of the nearest enclosing ordered-list item (its list's
+    /// `start` plus the item's position), if any.
+    #[serde(rename = "listNumber", skip_serializing_if = "Option::is_none")]
+    pub list_number: Option<u32>,
     #[serde(rename = "structuralAttributes")]
     pub structural_attributes: std::collections::BTreeMap<String, String>,
     pub range: NativeRange,
@@ -87,7 +94,7 @@ impl DocumentSession {
             comments: Vec::new(),
             selections: Vec::new(),
         };
-        project_native(&self.root, &txn, 0, &mut view)?;
+        project_native(&self.root, &txn, 0, &mut Vec::new(), None, None, &mut view)?;
         // Missing or ambiguous identity is renderable, but never writable.
         let mut counts = HashMap::new();
         for node in self.root.successors(&txn) {
@@ -246,16 +253,40 @@ fn project_native<T: ReadTxn>(
     parent: &impl XmlFragment,
     txn: &T,
     depth: u32,
+    containers: &mut Vec<String>,
+    list_number: Option<u32>,
+    ordered_start: Option<u32>,
     view: &mut NativeProjection,
 ) -> Result<(), String> {
+    // Items of an ordered list are numbered from its `start` (default 1).
+    let mut item_number: Option<u32> = None;
     for child in parent.children(txn) {
         if let XmlOut::Element(element) = &child {
+            let tag = element.tag().to_string();
             if matches!(
-                element.tag().as_ref(),
+                tag.as_str(),
                 "blockquote" | "bulletList" | "orderedList" | "listItem"
             ) && element.len(txn) > 0
             {
-                project_native(element, txn, depth + 1, view)?;
+                let start = (tag == "orderedList").then(|| {
+                    element
+                        .get_attribute(txn, "start")
+                        .and_then(|value| value.to_string(txn).parse::<u32>().ok())
+                        .unwrap_or(1)
+                });
+                let number = match (tag.as_str(), ordered_start) {
+                    ("listItem", Some(start)) => {
+                        let next = item_number.map_or(start, |n| n + 1);
+                        item_number = Some(next);
+                        Some(next)
+                    }
+                    _ => list_number,
+                };
+                containers.push(tag);
+                let result =
+                    project_native(element, txn, depth + 1, containers, number, start, view);
+                containers.pop();
+                result?;
                 continue;
             }
         }
@@ -271,6 +302,8 @@ fn project_native<T: ReadTxn>(
             kind: "unsupported".into(),
             depth,
             container: String::new(),
+            containers: containers.clone(),
+            list_number,
             structural_attributes: std::collections::BTreeMap::new(),
             range: NativeRange {
                 location,

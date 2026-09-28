@@ -143,10 +143,11 @@ written, with 取消. The PDF is written in a temporary folder and moved to the
 destination only when complete, so cancelling or failing leaves no file and
 an existing file untouched.
 
-Limits: the projection names no container kind, so blocks at an odd depth
-are set as quotes and at an even depth as bulleted list items (ordered lists
-are bulleted, and a quote inside a list item is told from a list inside a
-quote by depth alone). Quartz's PDF text extraction reads some CJK glyphs as
+Each projected block names its enclosing containers (`blockquote`,
+`bulletList`, `orderedList`, `listItem`, outermost first) and an ordered
+item's number (`listNumber`, from the list's `start`), so quotes indent,
+ordered items print their numbers and a list inside a quote keeps the
+quote's indent. Limits: Quartz's PDF text extraction reads some CJK glyphs as
 Kangxi radicals when text is copied or searched (Songti's 口 as ⼜); the
 pages render correctly. Links are styled but not clickable.
 

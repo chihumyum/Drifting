@@ -202,8 +202,8 @@
     "sha256": "29e67886e7d5f8d755c6aaa29ab7c82d74f511d7a9b83d74bf0d1f211895fd57"
   },
   "source": {
-    "fingerprint": "c0594349c55406827c2b397c222cdbb4369a2926341c4f23121fb77aaeb788b4",
-    "runtimeFingerprint": "e3873de3c4aec0e9cbc7c6193f2c26127a546f77184143a3501d5d7acca0aaab",
+    "fingerprint": "d98a066817e54c629d0804e05f3ba57cc15003d7396b4acf6ab6b1a0516a0b48",
+    "runtimeFingerprint": "0386a587d5873632dc2b4adf990e76e5d058454467d4b5e378d3676ebe85fdfb",
     "files": [
       {
         "path": ".github/workflows/ci.yml",
@@ -795,7 +795,7 @@
       },
       {
         "path": "crates/drifting-document/src/native.rs",
-        "sha256": "ca8a1864d4e22af078212349919b5e046d5bdf9b8f000c4b239b0eb0df9571bd"
+        "sha256": "e7b7eeeac13675cfac7f70c88f8c5014eb00f6c5e0dde271f8be9d42e4d2e516"
       },
       {
         "path": "crates/drifting-document/src/native_command.rs",
@@ -807,7 +807,7 @@
       },
       {
         "path": "crates/drifting-document/src/outline_tests.rs",
-        "sha256": "6ebaf5c9da9920453bc93e7c649d300fef9edbc31af1891a11f999af30aef123"
+        "sha256": "e97454568ff46ef594a318bf432962bfcf604d1ddefcb1dab8c99c79b083332b"
       },
       {
         "path": "crates/drifting-document/src/prose_export.rs",
@@ -1043,7 +1043,7 @@
       },
       {
         "path": "docs/apple-native/library.md",
-        "sha256": "272406524f45f6ef55ec5e99d84b6bfd720563195834bfc8ca2579d127ea97c7"
+        "sha256": "bfeb6f2e729c46bd075b449742e88c801106acd8346e1871d5cc2c622816cce7"
       },
       {
         "path": "docs/apple-native/metadata.md",
@@ -1051,7 +1051,7 @@
       },
       {
         "path": "docs/apple-native/milestones.md",
-        "sha256": "800f75d7c54055bfe07f7b1b15923ca44ff3a1bfdef4e10df5d07567ff67f1e5"
+        "sha256": "955c16d604cceff0c614c11ac7c5faff69d0a9e5e503a2848831c71d3163934d"
       },
       {
         "path": "docs/apple-native/native-authoring.md",
@@ -1275,7 +1275,7 @@
       },
       {
         "path": "native/apple/Shared/LabCore.swift",
-        "sha256": "2cd8cfe845cbb68f033360b1c0ff0d93db11ca0294824548afbc110ccfa7eb65"
+        "sha256": "e8ee866eb7bf186cad2f223f7d5a95e70a185d9f001b49999ca20b33fcfeb3dd"
       },
       {
         "path": "native/apple/Shared/WorkspaceArchive.swift",
@@ -1479,7 +1479,7 @@
       },
       {
         "path": "native/apple/Tests/PrintKeysAcceptance.swift",
-        "sha256": "24f41b7aa152ba662f784fad4606239f10981704f2eb45079526d2cff1ad921a"
+        "sha256": "3171567b70feaa53d412938d4e353ed93f69a64f2ff67740da0b954c7ad10fe1"
       },
       {
         "path": "native/apple/Tests/RelationAcceptance.swift",
@@ -1731,7 +1731,7 @@
       },
       {
         "path": "native/apple/macOS/MacPrinting.swift",
-        "sha256": "bee340824d48c53859c659384edf24a4a5c0d82f82ec62f2ba3fbc66519e3c78"
+        "sha256": "d681e0066b677704c8324cf089301ad4b6b5beaa6caa8ddd2557394fc8d97f9a"
       },
       {
         "path": "native/apple/macOS/MacProjectDeletion.swift",

@@ -921,7 +921,12 @@ struct WorkspaceBodyProjection: Decodable {
         let runs: [Run]
         /// A heading's level.
         let level: Int?
-        private enum CodingKeys: String, CodingKey { case kind, depth, container, range, runs, attributes }
+        /// Enclosing `blockquote` / `bulletList` / `orderedList` / `listItem`
+        /// tags, outermost first.
+        let containers: [String]
+        /// The number of the nearest enclosing ordered-list item.
+        let listNumber: Int?
+        private enum CodingKeys: String, CodingKey { case kind, depth, container, range, runs, attributes, containers, listNumber }
         private struct Attributes: Decodable {
             let level: Double?
             private enum CodingKeys: String, CodingKey { case level }
@@ -929,8 +934,10 @@ struct WorkspaceBodyProjection: Decodable {
                 level = try? decoder.container(keyedBy: CodingKeys.self).decode(Double.self, forKey: .level)
             }
         }
-        init(kind: String, depth: Int = 0, container: String = "", range: NativeRange, runs: [Run] = [], level: Int? = nil) {
+        init(kind: String, depth: Int = 0, container: String = "", range: NativeRange, runs: [Run] = [], level: Int? = nil,
+             containers: [String] = [], listNumber: Int? = nil) {
             self.kind = kind; self.depth = depth; self.container = container; self.range = range; self.runs = runs; self.level = level
+            self.containers = containers; self.listNumber = listNumber
         }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -940,6 +947,8 @@ struct WorkspaceBodyProjection: Decodable {
             range = try values.decode(NativeRange.self, forKey: .range)
             runs = (try? values.decode([Run].self, forKey: .runs)) ?? []
             level = (try? values.decode(Attributes.self, forKey: .attributes))?.level.map { Int($0) }
+            containers = (try? values.decode([String].self, forKey: .containers)) ?? []
+            listNumber = try? values.decode(Int.self, forKey: .listNumber)
         }
     }
     struct Projection: Decodable {
