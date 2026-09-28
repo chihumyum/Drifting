@@ -191,4 +191,6 @@ and an open chapter's text whose save failed; no journal row and no new owner.
 It cancels while reading and while typesetting (no file at or beside the
 destination, an earlier file untouched), checks the progress reported, and
 waits for queued input before reading. The print panel, a printer and the
-progress sheet on screen are not covered.
+progress sheet on screen are not covered. The same run drives 设置 › 快捷键:
+recording, the reserved and text-editing refusals and stored values the
+rules now refuse ([settings](settings.md)).

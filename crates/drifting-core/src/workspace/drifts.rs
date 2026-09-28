@@ -48,6 +48,16 @@ pub struct NewDrift {
     pub seed: ChapterSeed,
 }
 
+/// What 转为设定 carried onto the element.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftCarry {
+    pub relations: usize,
+    /// Relations whose type does not allow an element endpoint.
+    pub skipped_relations: usize,
+    pub comments: usize,
+}
+
 struct LiveDrift {
     drift: WorkspaceDrift,
     incarnation: u64,
@@ -360,6 +370,49 @@ impl WorkspaceStore<'_> {
                 .into_iter()
                 .find(|chapter| chapter.id == drift_id)
                 .ok_or_else(|| "The converted chapter is missing".into())
+        })
+    }
+
+    /// 转为设定 carries what can follow the drift onto the new element in one
+    /// original: its relations where each type allows an element endpoint,
+    /// and notes and TODOs on the whole drift. Notes anchored in its text,
+    /// version history, patch sources and the plot planner stay with the
+    /// drift.
+    pub fn carry_drift_links_to_element(
+        &self,
+        context: &AuthoredProseContext,
+        drift_id: &str,
+        element_id: &str,
+        new_relation_id: &mut dyn FnMut() -> Result<String, String>,
+    ) -> Result<DriftCarry, String> {
+        validate_context(context)?;
+        self.transaction(TransactionBehavior::Immediate, |tx| {
+            self.guard_project(tx, context)?;
+            self.live_drift(tx, context, drift_id)?;
+            if self.query(Some(tx), "SELECT 1 FROM element WHERE id=? AND project_id=? AND deleted_at IS NULL",
+                vec![text(element_id), text(&context.project_id)])?.is_empty() {
+                return Err("设定不存在或已在回收站".into());
+            }
+            let mut mutations = Vec::new();
+            let (relations, skipped_relations) = self.copy_relations_to(tx, context, ("node", drift_id),
+                ("element", element_id), new_relation_id, &mut mutations)?;
+            let mut comments = 0;
+            for row in self.query(Some(tx), r#"
+                SELECT id FROM comment WHERE project_id=? AND target_kind='node' AND target_id=?
+                    AND target_block_id IS NULL ORDER BY created_at,rowid
+            "#, vec![text(&context.project_id), text(drift_id)])? {
+                let id = string(&row, 0)?;
+                let incarnation = self.lifecycle_of(tx, context, "comment", &id)?;
+                self.execute(tx, "UPDATE comment SET target_kind='element',target_id=?,updated_at=? WHERE id=? AND project_id=?",
+                    vec![text(element_id), text(&context.now_iso), text(&id), text(&context.project_id)])?;
+                mutations.push(journal::Mutation::field("comment", &id, incarnation, "targetId", json!(element_id)));
+                mutations.push(journal::Mutation::field("comment", &id, incarnation, "targetKind", json!("element")));
+                comments += 1;
+            }
+            if !mutations.is_empty() {
+                self.commit_changes(tx, context, &mutations, None)?;
+            }
+            Ok(DriftCarry { relations, skipped_relations, comments })
         })
     }
 

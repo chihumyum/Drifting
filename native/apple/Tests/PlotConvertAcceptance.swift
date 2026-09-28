@@ -14,6 +14,8 @@ extension BindingAcceptance {
         try plotPanesAndRelaunch()
         try convertToChapterFollows()
         try convertToElementAndConflict()
+        try plotLoadingAndWaits()
+        try convertToElementCarries()
         return [
             "AppKit 情节规划格 toggles below a chapter's prose from the page header and 视图 › 情节规划格, remembered per page in settings.json, starts from an unsaved 3×3 template written by the first edit as one original, edits cells by click and Return with Tab, ⇧Tab and arrows moving, ⌥Return for a new line, Esc cancelling and Delete clearing, writes nothing for unchanged edits, and never touches the Yjs body, its undo history or word counts",
             "AppKit 情节规划格 rows and columns are added after the selection or at the end with their header then edited, renamed by double-click, moved by the header menu and by dragging a header with one order original each (a drop in place writes nothing), and deleted at once when empty or after confirmation when they hold text, with 取消 writing nothing",
@@ -21,8 +23,14 @@ extension BindingAcceptance {
             "AppKit 情节规划格 in two panes of one chapter shares one grid so each follows the other's edits, 隐藏 hides it for the page in both panes, a grid written elsewhere is read again, a drift page has its own planner, the dock height drags and is remembered, docks, heights and grids survive a cold relaunch, and 彻底删除 of a drift takes its grid and remembered dock",
             "AppKit 转为章节… from the drift page and the 漂流 panel asks for the primary storyline or none and converts in one original: the drift's tab becomes the chapter's tab with the same body and 情节规划格, and the chapter list, 整书大纲, 全书长卷, story graph, 底部时间轴 and 漂流 panel follow with its act notes and timeline marker released; 取消 writes nothing",
             "AppKit 转为设定… from the drift page and the 漂流 panel creates the element with the drift's title, summary and body in the chosen category, moves the drift to the trash, closes its tab and opens the element page, while a title already used by an element is refused in Chinese before anything is written and the drift page stays open",
+            plotConvertReviewCases[0], plotConvertReviewCases[1],
         ]
     }
+
+    static let plotConvertReviewCases = [
+        "AppKit 情节规划格 accepts no edit before its first read replies (the dock reads 正在读取… and edits then change the stored grid, never a template over it), shows the blank template again when Rust answers a write with no grid, holds navigation while a gesture is queued, and closing a tab or the workspace, trashing and converting commit the cell being edited and wait for queued gestures, while a refused gesture keeps the page with Rust's reason and a wait that runs out refuses in Chinese",
+        "AppKit 转为设定… says what moves and what stays, carries relations whose type allows an element and notes on the whole drift to the element and reports the counts, the element's and chapter's 关系 sections, the 设定总览 and 审阅 follow, a note anchored in the drift's text stays with it in the trash and returns on restore, and a conversion that stopped after the element was created shows Rust's message, reads the lists again and keeps the drift's tab (reopening a released body) unless the drift is in the trash",
+    ]
 
     // MARK: Harness
 
@@ -40,6 +48,8 @@ extension BindingAcceptance {
         /// Answers the next alerts; nil cancels.
         var answer: ((NSAlert) -> NSApplication.ModalResponse)?
         private(set) var alerts: [String] = []
+        /// Each alert's informative text, in the same order.
+        private(set) var details: [String] = []
 
         init(titles: [String], name: String = "情节规划合成项目") throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -65,6 +75,7 @@ extension BindingAcceptance {
             host.presentAlert = { [weak self] alert, _, done in
                 alert.layout()
                 self?.alerts.append(alert.messageText)
+                self?.details.append(alert.informativeText)
                 done(self?.answer?(alert) ?? .alertSecondButtonReturn)
             }
         }
@@ -166,6 +177,12 @@ extension BindingAcceptance {
 
         func coldReopen() throws {
             try close()
+            try reopen()
+        }
+
+        /// A new workspace, tab host and store over the same files, after the
+        /// old host was closed.
+        func reopen() throws {
             let reopened = LabWorkspaceCore(directory: directory)
             workspace = reopened
             let projects: [WorkspaceProject] = try BindingAcceptance.elementResult { reopened.projects(completion: $0) }
@@ -644,6 +661,9 @@ extension BindingAcceptance {
         let book: WholeBookModel
         let graph: StoryGraphModel
         let dock: BottomTimelineModel
+        /// 审阅 and the 设定总览, as AppDelegate keeps them.
+        let review: ReviewModel
+        let overview: ElementOverviewModel
         let host: MacChapterWorkspace
         /// The sidebar's chapter list, kept as AppDelegate keeps it.
         var chapterList: [WorkspaceChapter]
@@ -661,7 +681,12 @@ extension BindingAcceptance {
             book = WholeBookModel(workspace: workspace, projectID: projectID)
             graph = StoryGraphModel(workspace: workspace, projectID: projectID)
             dock = BottomTimelineModel(workspace: workspace, projectID: projectID)
+            review = ReviewModel(workspace: workspace, projectID: projectID, associations: host.relations.associations(projectID: projectID))
+            overview = ElementOverviewModel(workspace: workspace, projectID: projectID, relations: host.relations.model(projectID: projectID))
             let (panelModel, outline, graph, book, dock) = (self.panelModel, self.outline, self.graph, self.book, self.dock)
+            let (review, overview) = (self.review, self.overview)
+            host.onElementLibrary = { id, library in if id == projectID { overview.applyElementLibrary(library) } }
+            host.onDriftConversionStopped = { id in if id == projectID { review.load() } }
             panelModel.onLibrary = { library in
                 host.applyDriftLibrary(projectID: projectID, library: library)
                 outline.applyDrifts(library); graph.applyDrifts(library); dock.graph.applyDrifts(library)
@@ -669,7 +694,7 @@ extension BindingAcceptance {
             host.onDriftLibrary = { id, library in
                 guard id == projectID else { return }
                 panelModel.apply(library, message: nil)
-                outline.applyDrifts(library); graph.applyDrifts(library); dock.graph.applyDrifts(library)
+                outline.applyDrifts(library); graph.applyDrifts(library); dock.graph.applyDrifts(library); overview.applyDrifts(library)
             }
             host.onStorylineLibrary = { id, library in
                 guard id == projectID else { return }
@@ -684,6 +709,8 @@ extension BindingAcceptance {
                     self?.chapterList.append(chapter)
                 }
                 graph.refresh(); dock.refresh(); book.load(); outline.load()
+                if case .element = outcome { review.load() }
+                panelModel.showStatus(outcome.message)
             }
             panel.canNavigate = { host.canNavigate }
             panel.presentAlert = { alert, done in host.presentAlert?(alert, nil, done) }
@@ -691,7 +718,7 @@ extension BindingAcceptance {
             panel.onConvert = { [weak self] drift, kind in
                 host.beginConversion(kind, driftID: drift.id, project: project, from: nil) { self?.panelResults.append($0) }
             }
-            panelModel.load(); outline.load(); book.load(); graph.load(); dock.load()
+            panelModel.load(); outline.load(); book.load(); graph.load(); dock.load(); review.load(); overview.load()
             host.actsChanged(projectID: projectID)
             try settled()
         }
@@ -699,7 +726,8 @@ extension BindingAcceptance {
         func settled() throws {
             try BindingAcceptance.wait {
                 self.panelModel.loaded && !self.panelModel.busy && !self.outline.busy && self.book.loaded && !self.book.loading
-                    && self.graph.loaded && !self.graph.busy && self.dock.loaded && !self.dock.busy
+                    && self.graph.loaded && !self.graph.busy && self.dock.loaded && !self.dock.busy && self.review.loaded && !self.review.isReading
+                    && self.overview.loaded
             }
         }
 
@@ -900,7 +928,7 @@ extension BindingAcceptance {
         harness.answer = plotChoice(place.id)
         page.conversionItem(.element)?.press()
         try wait { followers.outcomes.count == 1 && !host.isBusy }
-        guard case .element(let element, _)? = followers.outcomes.last else { throw LabError.message("The page conversion reported \(followers.outcomes)") }
+        guard case .element(let element, _, _)? = followers.outcomes.last else { throw LabError.message("The page conversion reported \(followers.outcomes)") }
         try followers.settled()
         try plotRequire(harness.alerts.last == "将漂流“灯塔”转为设定？", "The picker read \(harness.alerts)")
         try plotRequire(element.name == "灯塔" && element.summary == "海边的灯塔" && element.categoryId == place.id, "The element is \(element)")
@@ -925,7 +953,7 @@ extension BindingAcceptance {
         harness.answer = plotChoice(things.id)
         try followers.press(.element, on: shore.id)
         try wait { followers.outcomes.count == 2 && !host.isBusy }
-        guard case .element(let second, _)? = followers.outcomes.last else { throw LabError.message("The panel conversion reported nothing") }
+        guard case .element(let second, _, _)? = followers.outcomes.last else { throw LabError.message("The panel conversion reported nothing") }
         try plotRequire(second.name == "北岸" && second.categoryId == things.id && host.activeElement?.id == second.id
                         && followers.panelResults.count == 1, "The panel conversion is \(second)")
         try wait { host.elementLibrary(projectID: projectID)?.elements.count == 2 }
@@ -958,6 +986,340 @@ extension BindingAcceptance {
         guard case .failure(let refusal)?? = followers.panelResults.last else { throw LabError.message("The panel refusal was not reported") }
         try plotRequire(refusal.localizedDescription.contains("已被设定“灯塔”使用"), "The panel refusal read \(refusal.localizedDescription)")
         try harness.journal.expect([], since: mark, "The refused panel conversion")
+        try harness.close()
+    }
+
+    // MARK: Review fixes: loading, empty replies and waits
+
+    private static func plotLoadingAndWaits() throws {
+        let harness = try PlotHarness(titles: ["启程", "雨夜", "归途"], name: "规划等待合成项目")
+        defer { harness.remove() }
+        let host = harness.host, workspace = harness.workspace, projectID = harness.projectID, project = harness.project
+        let start = try harness.chapter("启程"), rainy = try harness.chapter("雨夜"), home = try harness.chapter("归途")
+
+        // A grid written elsewhere before the dock reads it.
+        let (row, column) = (WorkspacePlotGrid.newID(.row), WorkspacePlotGrid.newID(.column))
+        let _: WorkspacePlotGridReply = try elementResult {
+            workspace.plotGrid(projectID: projectID, nodeID: rainy.id, ops: [.addAxis(.row, id: row, label: "人物", after: nil),
+                .addAxis(.column, id: column, label: "场景", after: nil), .setCell(row: row, column: column, value: "林岚")], completion: $0)
+        }
+        let existing = try harness.stored(rainy.id)
+        var mark = try harness.journal.mark()
+        // No gesture before the first read: it could only be built on the template.
+        let early = host.plotGridModel(projectID: projectID, nodeID: rainy.id)
+        try plotRequire(!early.loaded && !early.perform([.setSize(width: 200, height: 100)]) && early.sentBatches.isEmpty
+                        && early.grid.rows.isEmpty, "A gesture before the first read was accepted")
+        try harness.open(rainy)
+        host.setPlotPlanner(shown: true, projectID: projectID, nodeID: rainy.id)
+        guard let loading = host.retainedPlotDock(pane: 0, nodeID: rainy.id) else { throw LabError.message("No dock for 雨夜") }
+        try plotRequire(loading.model === early && !early.loaded && loading.hintText == "正在读取…" && !loading.addRowButton.isEnabled
+                        && !loading.addColumnButton.isEnabled && !loading.widthSlider.isEnabled && loading.canvas.grid.rows.isEmpty,
+                        "The dock did not read as loading: \(loading.hintText)")
+        loading.addRowButton.performClick(nil)
+        harness.key(loading.canvas, 0, "a")
+        loading.canvas.beginEditing(.cell(row: row, column: column))
+        try plotRequire(loading.canvas.editing == nil && early.sentBatches.isEmpty, "The loading dock accepted an edit")
+        let dock = try harness.dock(rainy.id)
+        try plotRequire(dock.canvas.grid == existing && dock.hintText.isEmpty && dock.addRowButton.isEnabled,
+                        "The dock did not show the stored grid: \(dock.canvas.grid)")
+        try harness.journal.expect([], since: mark, "Reading the grid")
+        // The first edit changes the stored grid, not a template over it.
+        harness.click(dock.canvas, .cell(row: row, column: column))
+        harness.type(dock.canvas, "与沈舟")
+        harness.command(dock.canvas, #selector(NSResponder.insertNewline(_:)))
+        try harness.gridSettled(early)
+        try harness.journal.expect([["field.set plot-grid-cell"]], since: mark, "The first edit after the read")
+        try plotRequire(try harness.stored(rainy.id)?.rows.map(\.id) == [row] && early.stored?.value(row: row, column: column) == "林岚与沈舟",
+                        "The first edit replaced the stored grid")
+
+        // A write Rust answers with no grid: nothing stored, the template again.
+        try harness.open(start)
+        host.setPlotPlanner(shown: true, projectID: projectID, nodeID: start.id)
+        let blank = try harness.dock(start.id), model = blank.model
+        let template = blank.canvas.grid
+        mark = try harness.journal.mark()
+        model.sendUnchecked([.setSize(width: WorkspacePlotGrid.defaultWidth, height: WorkspacePlotGrid.defaultHeight)])
+        try harness.gridSettled(model)
+        try plotRequire(model.sentBatches.count == 1 && model.stored == nil && model.message == nil && blank.errorMessage == nil
+                        && blank.canvas.grid == template && blank.hintText.contains("空白规划格"), "An empty reply did not show the template again")
+        try plotRequire(try harness.stored(start.id) == nil, "Rust stored a grid for a write that changed nothing")
+        try harness.journal.expect([], since: mark, "A write that changed nothing")
+
+        // A queued gesture holds navigation like queued input.
+        try plotRequire(model.perform([.setCell(row: template.rows[0].id, column: template.columns[0].id, value: "序")]), "The edit was not sent")
+        try plotRequire(host.plotGridsWriting(projectID: projectID) && !host.canNavigate && host.canNavigateAfterPlotGrids,
+                        "A queued gesture did not hold navigation")
+        try harness.gridSettled(model)
+        let templateWrite = try harness.written(since: mark)
+        try plotRequire(host.canNavigate && templateWrite.count == 1 && templateWrite[0].filter { $0 == "entity.create plot-grid-row" }.count == 3,
+                        "The template was not written after the empty reply: \(templateWrite)")
+
+        // Closing a tab commits the cell being edited and waits for queued gestures.
+        let rows = model.grid.rows.map(\.id), columns = model.grid.columns.map(\.id)
+        harness.click(blank.canvas, .cell(row: rows[1], column: columns[1]))
+        harness.type(blank.canvas, "关前")
+        _ = model.perform([.setCell(row: rows[2], column: columns[2], value: "排队一")])
+        _ = model.perform([.setCell(row: rows[2], column: columns[0], value: "排队二")])
+        let closed: Bool = try elementResult {
+            host.closeTab(pane: 0, scope: .chapter(ChapterScope(projectID: projectID, chapterID: start.id)), completion: $0)
+        }
+        let afterClose = try harness.stored(start.id)
+        try plotRequire(closed && !host.tabTitles(pane: 0).contains("启程") && afterClose?.value(row: rows[1], column: columns[1]) == "关前"
+                        && afterClose?.value(row: rows[2], column: columns[2]) == "排队一" && afterClose?.value(row: rows[2], column: columns[0]) == "排队二",
+                        "Closing the tab lost gestures: \(String(describing: afterClose?.cells))")
+
+        // Trash commits the cell being edited first; a refused one keeps the chapter.
+        try harness.open(rainy)
+        let rainyDock = try harness.dock(rainy.id)
+        harness.click(rainyDock.canvas, .cell(row: row, column: column))
+        harness.type(rainyDock.canvas, "回收前")
+        mark = try harness.journal.mark()
+        let _: WorkspaceChapterTrashReply = try elementResult { host.trash(projectID: projectID, chapterID: rainy.id, completion: $0) }
+        var written = try harness.written(since: mark)
+        try plotRequire(written.count == 2 && written[0] == ["field.set plot-grid-cell"] && written[1].contains("entity.trash node"),
+                        "Trash did not write the cell first: \(written)")
+        try plotRequire(host.retainedPlotDock(pane: 0, nodeID: rainy.id) == nil, "The trashed chapter kept its dock")
+        let _: Void = try elementResult { host.restore(WorkspaceTrashItem(kind: .chapter, id: rainy.id, title: "雨夜", trashedAt: ""), projectID: projectID, completion: $0) }
+        try plotRequire(try harness.stored(rainy.id)?.value(row: row, column: column) == "林岚与沈舟回收前", "The committed cell is not stored")
+        try harness.open(home)
+        host.setPlotPlanner(shown: true, projectID: projectID, nodeID: home.id)
+        let homeDock = try harness.dock(home.id)
+        let homeGrid = homeDock.canvas.grid
+        harness.click(homeDock.canvas, .cell(row: homeGrid.rows[0].id, column: homeGrid.columns[0].id))
+        harness.type(homeDock.canvas, String(repeating: "长", count: 10_001))
+        mark = try harness.journal.mark()
+        var refused: Result<WorkspaceChapterTrashReply, Error>?
+        host.trash(projectID: projectID, chapterID: home.id) { refused = $0 }
+        try wait { refused != nil }
+        guard case .failure(let refusal)? = refused else { throw LabError.message("Trash went ahead after a refused 情节规划格 write") }
+        try plotRequire(refusal.localizedDescription.contains("最多 10000 字") && refusal.localizedDescription.contains("没有移到回收站")
+                        && homeDock.errorMessage?.contains("最多 10000 字") == true, "The refusal read \(refusal.localizedDescription)")
+        try harness.journal.expect([], since: mark, "A trash after a refused 情节规划格 write")
+        let live: [WorkspaceChapter] = try elementResult { workspace.chapters(projectID: projectID, completion: $0) }
+        try plotRequire(live.contains { $0.id == home.id } && host.retainedPlotDock(pane: 0, nodeID: home.id) != nil, "The refused trash lost the chapter")
+
+        // 转为章节 and 转为设定 wait for the drift's gestures.
+        let letterReply: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
+            workspace.createDrift(projectID: projectID, title: "旧信", groupID: nil, completion: $0)
+        }
+        let lampReply: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
+            workspace.createDrift(projectID: projectID, title: "油灯", groupID: nil, completion: $0)
+        }
+        guard let letter = letterReply.result, let lamp = lampReply.result else { throw LabError.message("No drifts") }
+        host.applyDriftLibrary(projectID: projectID, library: lampReply.library)
+        let categoryReply: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
+            workspace.createElementCategory(projectID: projectID, name: "物件", completion: $0)
+        }
+        guard let things = categoryReply.result else { throw LabError.message("No category") }
+        for drift in [letter, lamp] {
+            let view: NativeDocumentView = try elementResult { host.open(project: project, drift: drift, in: 0, completion: $0) }
+            try harness.settled(view)
+            host.setPlotPlanner(shown: true, projectID: projectID, nodeID: drift.id)
+        }
+        let letterDock = try harness.dock(letter.id)
+        harness.click(letterDock.canvas, .cell(row: letterDock.canvas.grid.rows[0].id, column: letterDock.canvas.grid.columns[0].id))
+        harness.type(letterDock.canvas, "寄信人")
+        mark = try harness.journal.mark()
+        let chapter: WorkspaceChapter = try elementResult {
+            host.convertDriftToChapter(project: project, driftID: letter.id, storylineID: nil, completion: $0)
+        }
+        written = try harness.written(since: mark)
+        try plotRequire(chapter.id == letter.id && written.count == 2 && onlyPlotGrid([written[0]]) && written[1].contains("field.set node"),
+                        "转为章节 did not write the cell first: \(written)")
+        try plotRequire(try harness.stored(letter.id)?.cells.map(\.value) == ["寄信人"], "The converted chapter lost the cell")
+        let lampDock = try harness.dock(lamp.id), lampGrid = lampDock.canvas.grid
+        mark = try harness.journal.mark()
+        _ = lampDock.model.perform([.setCell(row: lampGrid.rows[0].id, column: lampGrid.columns[0].id, value: "灯芯")])
+        _ = lampDock.model.perform([.setCell(row: lampGrid.rows[1].id, column: lampGrid.columns[0].id, value: "灯油")])
+        let conversion: WorkspaceDriftElementConversion = try elementResult {
+            host.convertDriftToElement(project: project, driftID: lamp.id, categoryID: things.id, completion: $0)
+        }
+        written = try harness.written(since: mark)
+        try plotRequire(conversion.element.name == "油灯" && written.count >= 4 && onlyPlotGrid(Array(written.prefix(2)))
+                        && written[2].contains("entity.create element") && written.contains { $0.contains("entity.trash node") },
+                        "转为设定 did not write the gestures first: \(written)")
+
+        // A wait that runs out refuses in Chinese; closing then waits and keeps every gesture.
+        try wait { host.canNavigate }
+        try harness.open(home)
+        let saved = MacChapterWorkspace.plotGridWait
+        MacChapterWorkspace.plotGridWait = 0
+        _ = homeDock.model.perform([.setCell(row: homeGrid.rows[1].id, column: homeGrid.columns[1].id, value: "限时")])
+        var timedOut: Result<Bool, Error>?
+        host.close { timedOut = $0 }
+        MacChapterWorkspace.plotGridWait = saved
+        try wait { timedOut != nil }
+        guard case .failure(let wait)? = timedOut else { throw LabError.message("Closing did not refuse while a gesture was out") }
+        try plotRequire(wait.localizedDescription == "情节规划格还在保存，没有关闭。请稍后再试。", "The timeout read \(wait.localizedDescription)")
+        try harness.gridSettled(homeDock.model)
+        harness.click(homeDock.canvas, .cell(row: homeGrid.rows[2].id, column: homeGrid.columns[2].id))
+        harness.type(homeDock.canvas, "退出前")
+        _ = homeDock.model.perform([.setCell(row: homeGrid.rows[1].id, column: homeGrid.columns[2].id, value: "排队")])
+        let quit: Bool = try elementResult { host.close(completion: $0) }
+        try plotRequire(quit, "Closing with queued gestures failed")
+        harness.window.close()
+        try harness.reopen()
+        let reopened = try harness.stored(home.id)
+        try plotRequire(reopened?.value(row: homeGrid.rows[1].id, column: homeGrid.columns[1].id) == "限时"
+                        && reopened?.value(row: homeGrid.rows[2].id, column: homeGrid.columns[2].id) == "退出前"
+                        && reopened?.value(row: homeGrid.rows[1].id, column: homeGrid.columns[2].id) == "排队",
+                        "Closing lost gestures: \(String(describing: reopened?.cells))")
+        try harness.close()
+    }
+
+    // MARK: Review fixes: what 转为设定 carries
+
+    private static func convertToElementCarries() throws {
+        let harness = try PlotHarness(titles: ["启程"], name: "转为设定携带合成项目")
+        defer { harness.remove() }
+        let host = harness.host, workspace = harness.workspace, projectID = harness.projectID, project = harness.project
+        let start = try harness.chapter("启程")
+        let placeReply: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
+            workspace.createElementCategory(projectID: projectID, name: "地点", completion: $0)
+        }
+        guard let place = placeReply.result else { throw LabError.message("No category") }
+        let harbourReply: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+            workspace.createElement(projectID: projectID, categoryID: place.id, name: "港口", completion: $0)
+        }
+        guard let harbour = harbourReply.result else { throw LabError.message("No element") }
+        let driftReply: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
+            workspace.createDrift(projectID: projectID, title: "灯塔", groupID: nil, completion: $0)
+        }
+        guard let lighthouse = driftReply.result else { throw LabError.message("No drift") }
+        func type(_ name: String, _ kinds: [String]) throws -> WorkspaceRelationType {
+            let reply: WorkspaceRelationReply<WorkspaceRelationType> = try elementResult {
+                workspace.createRelationType(projectID: projectID, definition: RelationTypeDefinition(name: name, orientation: "directed",
+                    sourceRole: "源", targetRole: "目标", sourceKinds: kinds, targetKinds: kinds), completion: $0)
+            }
+            guard let type = reply.result else { throw LabError.message("No relation type \(name)") }
+            return type
+        }
+        let near = try type("邻近", ["node", "element"]), follows = try type("承接", ["node"])
+        let driftEnd = RelationEndpoint(kind: "node", id: lighthouse.id), chapterEnd = RelationEndpoint(kind: "node", id: start.id)
+        for (from, to, kind) in [(driftEnd, RelationEndpoint(kind: "element", id: harbour.id), near), (chapterEnd, driftEnd, near),
+                                 (driftEnd, chapterEnd, follows)] {
+            let _: WorkspaceRelationReply<WorkspaceRelation> = try elementResult {
+                workspace.addRelation(projectID: projectID, from: from, to: to, relationTypeID: kind.id, completion: $0)
+            }
+        }
+        let wholeReply: WorkspaceCommentsReply = try elementResult {
+            workspace.createComment(projectID: projectID, kind: "todo", target: driftEnd, body: "查证灯塔年代", priority: nil, completion: $0)
+        }
+        guard let whole = wholeReply.result else { throw LabError.message("No whole-drift TODO") }
+        let followers = try Followers(harness)
+
+        // The chapter and the drift open, the drift with a note in its text.
+        try harness.open(start)
+        let view: NativeDocumentView = try elementResult { host.open(project: project, drift: lighthouse, in: 0, completion: $0) }
+        try harness.settled(view)
+        try typeBody(view, "灯塔在北岸。", harness)
+        let revision = view.binding.state!.projection.revision
+        let passage: WorkspaceComment = try elementResult {
+            view.binding.store.createComment(range: NSRange(location: 3, length: 2), revision: revision, body: "北岸是哪一岸", completion: $0)
+        }
+        try harness.settled(view)
+        guard let page = host.retainedDriftPage(pane: 0, scope: DriftScope(projectID: projectID, driftID: lighthouse.id)) else {
+            throw LabError.message("No drift page")
+        }
+        followers.review.load()
+        try followers.settled()
+
+        // The dialog says what moves and what stays; the report counts it.
+        var mark = try harness.journal.mark()
+        harness.answer = plotChoice(place.id)
+        page.conversionItem(.element)?.press()
+        try wait { followers.outcomes.count == 1 && !host.isBusy }
+        guard case .element(let element, let driftID, let carried)? = followers.outcomes.last, driftID == lighthouse.id else {
+            throw LabError.message("The conversion reported \(followers.outcomes)")
+        }
+        let detail = harness.details.last ?? ""
+        try plotRequire(detail.contains("关系类型允许设定的关系、整篇漂流上的批注和待办会转到新设定上，其余关系会删除")
+                        && detail.contains("正文里锚定的批注、历史版本、情节规划格和补丁来源留在漂流上，恢复漂流时一起回来"), "The dialog read \(detail)")
+        let report = "已转为设定「灯塔」：转移了 2 条关系、1 条批注和待办；1 条关系的类型不允许设定，已随漂流删除。"
+        try plotRequire(carried == WorkspaceDriftCarry(relations: 2, skippedRelations: 1, comments: 1)
+                        && followers.outcomes.last?.message == report,
+                        "The report read \(String(describing: followers.outcomes.last?.message)) for \(carried)")
+        try plotRequire(WorkspaceDriftCarry(relations: 0, skippedRelations: 0, comments: 0).report(elementName: "北岸") == "已转为设定「北岸」，原漂流已移到回收站。"
+                        && WorkspaceDriftCarry(relations: 0, skippedRelations: 2, comments: 0).report(elementName: "北岸")
+                            == "已转为设定「北岸」：2 条关系的类型不允许设定，已随漂流删除。", "Zero parts were not left out")
+        let written = try harness.written(since: mark)
+        try plotRequire(written.count >= 4 && written[2] == ["entity.create entity-relation", "entity.create entity-relation", "field.set comment", "field.set comment"]
+                        && written[3].last == "entity.trash node" && written[3].filter { $0 == "entity.purge entity-relation" }.count == 3,
+                        "The conversion wrote \(written)")
+        // The 关系 sections, the 设定总览 and 审阅 follow.
+        guard let elementPage = host.retainedElementPage(pane: 0, scope: ElementScope(projectID: projectID, elementID: element.id)) else {
+            throw LabError.message("No element page")
+        }
+        let elementEnd = RelationEndpoint(kind: "element", id: element.id)
+        try eventually({ Set(elementPage.relationsView.entries.map(\.other)) == [RelationEndpoint(kind: "element", id: harbour.id), chapterEnd] },
+                       "The element's 关系 read \(elementPage.relationsView.entries.map(\.text))")
+        try eventually({ try harness.chapterPage(start.id).relationsView.entries.map(\.other) == [elementEnd] },
+                       "The chapter's 关系 read \((try? harness.chapterPage(start.id).relationsView.entries.map(\.text)) ?? [])")
+        try eventually({ followers.overview.scene.edges.filter { $0.relation.from == elementEnd || $0.relation.to == elementEnd }.count == 2 },
+                       "The 设定总览 shows \(followers.overview.scene.edges.map { "\($0.fromName)→\($0.toName)" })")
+        try eventually({ followers.review.comment(id: whole.id)?.target == elementEnd && followers.review.comment(id: passage.id)?.target == driftEnd },
+                       "审阅 did not follow: \(String(describing: followers.review.comment(id: whole.id)?.target))")
+        followers.review.setFocus(ReviewFocus(endpoint: elementEnd, label: "设定「灯塔」"))
+        try plotRequire(followers.review.items.filter { $0.rank == 0 }.map(\.comment.id) == [whole.id], "The element's notes are \(followers.review.items)")
+
+        // Restoring the drift brings the note in its text back.
+        let _: Void = try elementResult {
+            host.restore(WorkspaceTrashItem(kind: .drift, id: lighthouse.id, title: "灯塔", trashedAt: ""), projectID: projectID, completion: $0)
+        }
+        let restored: NativeDocumentView = try elementResult { host.open(project: project, drift: lighthouse, in: 0, completion: $0) }
+        try harness.settled(restored)
+        try plotRequire(restored.binding.state?.projection.comments.contains { $0.id == passage.id && $0.anchorStatus == .anchored } == true
+                        && restored.textView.string == "灯塔在北岸。", "The restored drift lost its passage note")
+        guard let restoredPage = host.retainedDriftPage(pane: 0, scope: DriftScope(projectID: projectID, driftID: lighthouse.id)) else {
+            throw LabError.message("No restored drift page")
+        }
+
+        // Stopped after the element was created: Rust's message as it is, lists read again, the tab kept.
+        func elementCreated(_ name: String) throws {
+            let _: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+                workspace.createElement(projectID: projectID, categoryID: place.id, name: name, completion: $0)
+            }
+        }
+        try elementCreated("灯塔二号")
+        let moved = "设定「灯塔二号」已创建并复制了正文，但关系和批注未能转移：合成的转移失败"
+        host.injectedElementConversionFailure = { _ in LabError.driftUnavailable(reason: moved) }
+        mark = try harness.journal.mark()
+        restoredPage.conversionItem(.element)?.press()
+        try wait { restoredPage.errorMessage != nil && !host.isBusy }
+        try plotRequire(restoredPage.errorMessage == moved && followers.outcomes.count == 1, "The page read \(String(describing: restoredPage.errorMessage))")
+        try eventually({ host.elementLibrary(projectID: projectID)?.elements.contains { $0.name == "灯塔二号" } == true }, "The 设定库 was not read again")
+        try plotRequire(host.retainedDriftPage(pane: 0, scope: DriftScope(projectID: projectID, driftID: lighthouse.id)) === restoredPage
+                        && restored.binding.canEdit && followers.panelModel.library.drift(id: lighthouse.id) != nil, "The drift's tab did not stay")
+        try harness.journal.expect([], since: mark, "The injected failure")
+        try followers.press(.element, on: lighthouse.id)
+        try wait { followers.panelResults.count == 1 && !host.isBusy }
+        guard case .failure(let panelFailure)?? = followers.panelResults.last else { throw LabError.message("The panel reported no failure") }
+        try plotRequire(panelFailure.localizedDescription == moved, "The panel read \(panelFailure.localizedDescription)")
+
+        // A failed trash after Rust released the body: the tab shows the drift again.
+        try elementCreated("灯塔三号")
+        let _: Bool = try elementResult { workspace.closeDrift(projectID: projectID, driftID: lighthouse.id, completion: $0) }
+        let trashFailed = "设定「灯塔三号」已创建并复制了正文，但灵感未能移入回收站：合成的回收站失败"
+        host.injectedElementConversionFailure = { _ in LabError.driftUnavailable(reason: trashFailed) }
+        restoredPage.conversionItem(.element)?.press()
+        try wait { !host.isBusy && host.retainedDriftPage(pane: 0, scope: DriftScope(projectID: projectID, driftID: lighthouse.id)).map { $0 !== restoredPage } == true }
+        guard let reopenedPage = host.retainedDriftPage(pane: 0, scope: DriftScope(projectID: projectID, driftID: lighthouse.id)) else {
+            throw LabError.message("The drift's tab closed after a failed trash")
+        }
+        try harness.settled(reopenedPage.documentView)
+        try plotRequire(reopenedPage.errorMessage == trashFailed && reopenedPage.documentView.textView.string == "灯塔在北岸。"
+                        && reopenedPage.documentView.binding.canEdit && host.activeDrift?.id == lighthouse.id,
+                        "The reopened drift page read \(String(describing: reopenedPage.errorMessage))")
+        try eventually({ host.elementLibrary(projectID: projectID)?.elements.contains { $0.name == "灯塔三号" } == true }, "The 设定库 was not read again")
+
+        // The drift already in the trash: its tabs go.
+        try elementCreated("灯塔四号")
+        let _: WorkspaceDriftReply<WorkspaceDrift> = try elementResult { workspace.trashDrift(projectID: projectID, driftID: lighthouse.id, completion: $0) }
+        host.injectedElementConversionFailure = { _ in LabError.driftUnavailable(reason: "设定「灯塔四号」已创建并复制了正文，但灵感未能移入回收站：合成的失败") }
+        reopenedPage.conversionItem(.element)?.press()
+        try wait { !host.isBusy && host.retainedDriftPage(pane: 0, scope: DriftScope(projectID: projectID, driftID: lighthouse.id)) == nil }
+        try eventually({ followers.panelModel.library.trashedDrifts.contains { $0.id == lighthouse.id } }, "The 漂流 panel did not read the trash")
+        host.injectedElementConversionFailure = nil
         try harness.close()
     }
 }

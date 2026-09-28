@@ -199,7 +199,7 @@ impl WorkspaceStore<'_> {
         context: &AuthoredProseContext,
         node_id: &str,
         ops: &[PlotGridOp],
-    ) -> Result<PlotGrid, String> {
+    ) -> Result<Option<PlotGrid>, String> {
         validate_context(context)?;
         if ops.is_empty() {
             return Err("Plot grid write requires at least one operation".into());
@@ -216,18 +216,26 @@ impl WorkspaceStore<'_> {
                 return Err("章节或灵感不存在或已在回收站".into());
             }
             let document = plot_grid_document_id(node_id);
-            self.execute(tx, "INSERT OR IGNORE INTO plot_grid_document(id,node_id,cell_width,cell_height) VALUES (?,?,?,?)",
-                vec![text(&document), text(node_id), V::Real(DEFAULT_CELL_W), V::Real(DEFAULT_CELL_H)])?;
+            let existed = !self.query(Some(tx), "SELECT 1 FROM plot_grid_document WHERE id=?", vec![text(&document)])?.is_empty();
+            if !existed {
+                self.execute(tx, "INSERT INTO plot_grid_document(id,node_id,cell_width,cell_height) VALUES (?,?,?,?)",
+                    vec![text(&document), text(node_id), V::Real(DEFAULT_CELL_W), V::Real(DEFAULT_CELL_H)])?;
+            }
             let mut mutations = Vec::new();
             for op in ops {
                 self.plot_grid_op(tx, &document, node_id, op, &mut mutations)?;
             }
-            let grid = self.plot_grid_in(Some(tx), &context.project_id, node_id)?.ok_or("Plot grid document disappeared")?;
-            if !mutations.is_empty() {
-                self.project_plot_grid(tx, context, &grid)?;
-                self.commit_changes(tx, context, &mutations, None)?;
+            if mutations.is_empty() {
+                // A batch that changes nothing leaves no grid behind either.
+                if !existed {
+                    self.execute(tx, "DELETE FROM plot_grid_document WHERE id=?", vec![text(&document)])?;
+                }
+                return self.plot_grid_in(Some(tx), &context.project_id, node_id);
             }
-            Ok(grid)
+            let grid = self.plot_grid_in(Some(tx), &context.project_id, node_id)?.ok_or("Plot grid document disappeared")?;
+            self.project_plot_grid(tx, context, &grid)?;
+            self.commit_changes(tx, context, &mutations, None)?;
+            Ok(Some(grid))
         })
     }
 

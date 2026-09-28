@@ -317,10 +317,55 @@ enum MacShortcuts {
         (MenuShortcut(key: "3", flags: [.command, .shift]), "截屏"),
         (MenuShortcut(key: "4", flags: [.command, .shift]), "截屏"),
         (MenuShortcut(key: "5", flags: [.command, .shift]), "截屏"),
+        (MenuShortcut(key: "3", flags: [.command, .shift, .control]), "拷贝截屏"),
+        (MenuShortcut(key: "4", flags: [.command, .shift, .control]), "拷贝截屏"),
         (MenuShortcut(key: "/", flags: [.command, .shift]), "帮助搜索"),
         (MenuShortcut(key: "?", flags: [.command, .shift]), "帮助搜索"),
         (MenuShortcut(key: ".", flags: .command), "取消"),
+        (MenuShortcut(key: " ", flags: .control), "切换输入法"),
+        (MenuShortcut(key: " ", flags: [.control, .option]), "切换输入法"),
+        (MenuShortcut(key: arrow(NSUpArrowFunctionKey), flags: .control), "调度中心"),
+        (MenuShortcut(key: arrow(NSDownArrowFunctionKey), flags: .control), "应用程序窗口"),
+        (MenuShortcut(key: arrow(NSLeftArrowFunctionKey), flags: .control), "切换桌面空间"),
+        (MenuShortcut(key: arrow(NSRightArrowFunctionKey), flags: .control), "切换桌面空间"),
     ]
+
+    /// The prose editor's own bindings (NSTextView's standard key bindings):
+    /// moving and selecting by line, word and document, deleting, and the
+    /// Emacs control keys it honours.
+    static let textEditing: [(MenuShortcut, String)] = {
+        var bindings: [(MenuShortcut, String)] = []
+        let arrows = [(NSUpArrowFunctionKey, "上"), (NSDownArrowFunctionKey, "下"), (NSLeftArrowFunctionKey, "左"), (NSRightArrowFunctionKey, "右")]
+        for (flags, name) in [(NSEvent.ModifierFlags.command, "移到行首、行尾或文首、文末"), ([.command, .shift], "选到行首、行尾或文首、文末"),
+                              (.option, "按词或段落移动"), ([.option, .shift], "按词或段落选择")] {
+            for (key, _) in arrows { bindings.append((MenuShortcut(key: arrow(key), flags: flags), name)) }
+        }
+        bindings.append((MenuShortcut(key: "\u{7f}", flags: .command), "删除到行首"))
+        bindings.append((MenuShortcut(key: "\u{7f}", flags: .option), "删除前一个词"))
+        let emacs: [(String, String)] = [
+            ("a", "移到段首"), ("e", "移到段尾"), ("k", "删除到段尾"), ("b", "左移一个字"), ("f", "右移一个字"), ("n", "移到下一行"),
+            ("p", "移到上一行"), ("d", "删除后一个字"), ("h", "删除前一个字"), ("t", "交换前后两个字"), ("o", "在插入点后换行"),
+            ("y", "粘贴删除的文字"), ("v", "向下翻页"),
+        ]
+        bindings += emacs.map { (MenuShortcut(key: $0.0, flags: .control), $0.1) }
+        return bindings
+    }()
+
+    private static func arrow(_ key: Int) -> String { String(Character(UnicodeScalar(UInt32(key))!)) }
+
+    /// A shifted digit or punctuation key arrives as the character it types
+    /// with ⇧ (⇧⌘3 as “#”); reserved combinations are compared on the key
+    /// itself too. The US layout's pairs, plus the key code when a press is
+    /// at hand (digit keys whatever the layout).
+    static func unshifted(_ shortcut: MenuShortcut, keyCode: UInt16? = nil) -> MenuShortcut? {
+        guard shortcut.modifiers.contains("shift") else { return nil }
+        let digitKeys: [UInt16: String] = [18: "1", 19: "2", 20: "3", 21: "4", 23: "5", 22: "6", 26: "7", 28: "8", 25: "9", 29: "0"]
+        let pairs: [String: String] = ["!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
+                                       "_": "-", "+": "=", "{": "[", "}": "]", "|": "\\", ":": ";", "\"": "'", "<": ",", ">": ".",
+                                       "?": "/", "~": "`"]
+        guard let base = keyCode.flatMap({ digitKeys[$0] }) ?? pairs[shortcut.key], base != shortcut.key else { return nil }
+        return MenuShortcut(key: base, flags: shortcut.flags)
+    }
 
     /// Every command's shortcut: its override, else its default. System
     /// commands always keep their own. A shortcut two commands would share
@@ -339,21 +384,28 @@ enum MacShortcuts {
         return result
     }
 
-    /// Why a shortcut cannot be used at all, whichever command asks.
-    static func refusal(_ shortcut: MenuShortcut) -> String? {
+    /// Why a shortcut cannot be used at all, whichever command asks: taken
+    /// by macOS, used by the text editor, or without ⌘ or ⌃. `keyCode` is
+    /// the recorded press's, when there is one.
+    static func refusal(_ shortcut: MenuShortcut, keyCode: UInt16? = nil) -> String? {
         guard !shortcut.isNone else { return nil }
-        let flags = shortcut.flags
-        guard flags.contains(.command) || flags.contains(.control) else { return "快捷键需要包含 ⌘ 或 ⌃。" }
-        if let name = reserved.first(where: { $0.0 == shortcut })?.1 {
+        let candidates = [shortcut] + [unshifted(shortcut, keyCode: keyCode)].compactMap { $0 }
+        if let name = reserved.first(where: { candidates.contains($0.0) })?.1 {
             return "“\(shortcut.display)”由系统保留（\(name)），不能用于应用命令。"
         }
+        if let name = textEditing.first(where: { $0.0 == shortcut })?.1 {
+            return "“\(shortcut.display)”由文本编辑使用（\(name)），不能用于应用命令。"
+        }
+        let flags = shortcut.flags
+        guard flags.contains(.command) || flags.contains(.control) else { return "快捷键需要包含 ⌘ 或 ⌃。" }
         return nil
     }
 
     /// Why `command` cannot take `shortcut` given the current overrides, or nil.
-    static func refusal(_ shortcut: MenuShortcut, for command: MacMenuCommand, overrides: [String: MenuShortcut]) -> String? {
+    static func refusal(_ shortcut: MenuShortcut, for command: MacMenuCommand, overrides: [String: MenuShortcut],
+                        keyCode: UInt16? = nil) -> String? {
         if command.isSystem { return "“\(command.title)”是系统命令，快捷键不能更改。" }
-        if let refusal = refusal(shortcut) { return refusal }
+        if let refusal = refusal(shortcut, keyCode: keyCode) { return refusal }
         guard !shortcut.isNone else { return nil }
         let current = effective(overrides)
         for other in MacMainMenu.layout.flatMap({ $0.items.compactMap { $0 } }) where other != command && current[other] == shortcut {

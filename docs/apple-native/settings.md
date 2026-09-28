@@ -24,9 +24,10 @@ interoperability is kept.
   5–300 seconds); saving them applies nothing else.
 - 快捷键 are under `shortcuts`, keyed by menu command (`file.print`) as
   `{key, modifiers}`; an empty key removes the default and a command without
-  an entry keeps its default. An unreadable or reserved entry is dropped
-  alone; a shortcut two entries claim stays with the first command in menu
-  order; entries of unknown commands are kept.
+  an entry keeps its default. An unreadable entry, or one the rules below
+  now refuse, is dropped alone and the command keeps its default; a
+  shortcut two entries claim stays with the first command in menu order;
+  entries of unknown commands are kept.
 - An imported font is copied to `fonts/<uuid>.ttf|otf` in the same directory and
   registered with CTFontManager for this process only; nothing is installed.
   Prose is set from the copy's own descriptor, so a re-registered font never
@@ -79,10 +80,15 @@ interoperability is kept.
   编辑, 格式, 视图, 帮助) with their shortcuts; one layout builds the menu and
   this list (defaults include ⌘P 打印…, ⇧⌘P 项目书架…, ⇧⌘I Copilot 分析 and
   ⌥⌘I 项目资料…). Clicking a shortcut records the next key press, which the
-  menus do not see; Esc cancels and ⌫ removes it. A combination without ⌘ or
-  ⌃, one the system reserves (⌘Q, ⌘W, ⌘H, ⌥⌘H, ⌘M, ⌘Tab, ⌘`, ⌘Space,
-  ⌃⌘F, ⇧⌘3–5 and others) or one another command uses is refused in Chinese,
-  naming it, and recording continues. The system's text-editing commands
+  menus do not see; Esc cancels and ⌫ removes it. A combination the system
+  reserves (⌘Q, ⌘W, ⌘H, ⌥⌘H, ⌘M, ⌘Tab, ⌘`, ⌘Space, ⌃⌘F, the screenshots
+  ⇧⌘3–5, which arrive as the shifted characters and are also compared on
+  the key, the input sources ⌃Space and ⌃⌥Space, Mission Control and Spaces
+  on ⌃ with an arrow, and others), one the text editor uses (⌘ or ⌥ with an
+  arrow, with or without ⇧, ⌘⌫, ⌥⌫ and the Emacs keys ⌃A, ⌃E, ⌃K, ⌃B, ⌃F,
+  ⌃N, ⌃P, ⌃D, ⌃H, ⌃T, ⌃O, ⌃Y and ⌃V), one without ⌘ or ⌃, or one another
+  command uses is refused in Chinese naming why (由系统保留 / 由文本编辑使用 and
+  what for), and recording continues. The system's text-editing commands
   (撤销, 重做, 剪切, 复制, 粘贴, 全选) and 退出 are listed but fixed. 还原 returns a
   command to its default unless another command now uses it; 全部还原 returns
   all. A change applies to the menu items at once; at launch the stored
@@ -117,11 +123,14 @@ panels, physical input and the menu shortcut are not covered.
 and drives the real 快捷键 pane: it lists the menu by group, records ⌥⌘P for
 打印… from a synthesized key press into the item's key equivalent (the menu
 performs it, ⌘P no longer does and ⇧⌘P stays 项目书架), refuses a conflict,
-reserved and text-editing shortcuts and ones without ⌘ or ⌃ while
+reserved and text-editing shortcuts (⇧⌘3–5 as “#$%” and on another layout's
+character, ⌃⇧⌘3, ⌃Space, ⌃⌥Space, ⌃ arrows, ⌘ and ⌥ arrows with and without
+⇧, ⌘⌫, ⌥⌫ and the thirteen Emacs keys) and ones without ⌘ or ⌃ while
 recording continues, cancels with Esc, removes with ⌫, refuses a reset onto a
 default in use, resets one and all, and relaunches the store, a new menu and
 the settings window with the shortcuts applied; a hand-edited file falls back
-entry by entry. Physical key presses are not covered.
+entry by entry, also for values the rules now refuse. Physical key presses
+are not covered.
 The Copilot pane, its storage and relaunch are covered by the
 [Copilot cases](copilot.md#acceptance). `--editor-extras-only` checks
 打字机滚动: the caret line at 40% after typing at the end and in the middle of

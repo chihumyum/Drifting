@@ -216,6 +216,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// replaced and the drift, chapter, storyline and element lists read;
     /// views outside the tabs follow.
     var onDriftConverted: ((String, DriftConversionOutcome) -> Void)?
+    /// 转为设定 stopped after the element was created: the drift, element and
+    /// relation lists were read again here; notes and TODOs outside the tabs
+    /// may have moved to the element.
+    var onDriftConversionStopped: ((String) -> Void)?
     var paneCount: Int { panes.count }
     var activeView: NativeDocumentView? { panes[activePane].active?.view }
     var activeCore: LabCore? { panes[activePane].active?.core }
@@ -233,7 +237,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// The active view only when it shows a chapter; comments bind to this.
     var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
     var activeProject: WorkspaceProject? { panes[activePane].active?.project }
-    var canNavigate: Bool {
+    /// No body input in flight and no 情节规划格 gesture queued or sent.
+    var canNavigate: Bool { canNavigateAfterPlotGrids && !plotGridsWriting() }
+    /// Everything `canNavigate` asks except 情节规划格 gestures: closing,
+    /// quitting, converting and trashing check this, then wait for the
+    /// gestures (`settlePlotGrids`).
+    var canNavigateAfterPlotGrids: Bool {
         !isBusy && !externallyLocked && !workspace.isChangingOwners && allTabs.allSatisfy {
             !$0.view.binding.hasPendingWork && !$0.view.textView.hasMarkedText()
         }
@@ -504,10 +513,25 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     func closeTab(pane: Int, scope: DocumentScope, completion: @escaping (Result<Bool, Error>) -> Void) {
-        guard canNavigate, panes.indices.contains(pane),
+        guard canNavigateAfterPlotGrids, panes.indices.contains(pane),
               let tab = panes[pane].tabs.first(where: { $0.scope == scope }) else { completion(.failure(blocked())); return }
         // A header edit in progress is saved; it needs no document owner.
         tab.endEditing()
+        // The page's 情节规划格 gestures are written before its tab goes.
+        guard let nodeID = tab.nodeID else { closeTab(tab, pane: pane, completion: completion); return }
+        settlePlotGrids(projectID: tab.project.id, nodeID: nodeID, purpose: "关闭") { [weak self, weak tab] error in
+            guard let self else { return }
+            if let error { completion(.failure(error)); return }
+            guard let tab, self.panes.indices.contains(pane), self.panes[pane].tabs.contains(where: { $0 === tab }),
+                  self.canNavigateAfterPlotGrids else {
+                completion(.failure(self.blocked())); return
+            }
+            self.closeTab(tab, pane: pane, completion: completion)
+        }
+    }
+
+    private func closeTab(_ tab: Tab, pane: Int, completion: @escaping (Result<Bool, Error>) -> Void) {
+        let scope = tab.scope
         // Another tab or the 全书长卷 still shows this body: keep its owner.
         if allTabs.filter({ $0.scope == scope }).count > 1 || holdsExternally(scope) {
             remove(tab, from: pane)
@@ -532,9 +556,21 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    /// A 情节规划格 cell being edited on the chapter is committed and its
+    /// gestures answered first; a refused one keeps the chapter.
     func trash(projectID: String, chapterID: String,
                completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
-        guard canNavigate else { completion(.failure(blocked())); return }
+        guard canNavigateAfterPlotGrids else { completion(.failure(blocked())); return }
+        settlePlotGrids(projectID: projectID, nodeID: chapterID, purpose: "移到回收站") { [weak self] error in
+            guard let self else { return }
+            if let error { completion(.failure(error)); return }
+            guard self.canNavigateAfterPlotGrids else { completion(.failure(self.blocked())); return }
+            self.trashNow(projectID: projectID, chapterID: chapterID, completion: completion)
+        }
+    }
+
+    private func trashNow(projectID: String, chapterID: String,
+                          completion: @escaping (Result<WorkspaceChapterTrashReply, Error>) -> Void) {
         setBusy(true)
         let scope = DocumentScope.chapter(ChapterScope(projectID: projectID, chapterID: chapterID))
         workspace.trashChapter(projectID: projectID, chapterID: chapterID) { [weak self] result in
@@ -593,10 +629,20 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     /// Trash commits first (Rust unbinds its act); only then are this drift's
-    /// tabs removed.
+    /// tabs removed. Its 情节规划格 gestures are answered before, as for chapters.
     func trashDrift(projectID: String, driftID: String,
                     completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
-        guard canNavigate else { completion(.failure(blocked())); return }
+        guard canNavigateAfterPlotGrids else { completion(.failure(blocked())); return }
+        settlePlotGrids(projectID: projectID, nodeID: driftID, purpose: "移到回收站") { [weak self] error in
+            guard let self else { return }
+            if let error { completion(.failure(error)); return }
+            guard self.canNavigateAfterPlotGrids else { completion(.failure(self.blocked())); return }
+            self.trashDriftNow(projectID: projectID, driftID: driftID, completion: completion)
+        }
+    }
+
+    private func trashDriftNow(projectID: String, driftID: String,
+                               completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDrift>, Error>) -> Void) {
         setBusy(true)
         let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
         workspace.trashDrift(projectID: projectID, driftID: driftID) { [weak self] result in
@@ -646,7 +692,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     func closeSecondPane(completion: @escaping (Result<Bool, Error>) -> Void) {
-        guard canNavigate, panes.count == 2 else { completion(.failure(blocked())); return }
+        // Each tab's close waits for its 情节规划格 gestures.
+        guard canNavigateAfterPlotGrids, panes.count == 2 else { completion(.failure(blocked())); return }
         // Each successful close is durable. A later failure keeps that tab and
         // the pane visible for retry; no unsubmitted view is discarded.
         func next() {
@@ -692,9 +739,20 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    /// Closes every owner once header edits are saved and every
+    /// 情节规划格 gesture was answered (quitting and closing the window).
     func close(completion: @escaping (Result<Bool, Error>) -> Void) {
-        guard canNavigate else { completion(.failure(blocked())); return }
+        guard canNavigateAfterPlotGrids else { completion(.failure(blocked())); return }
         for tab in allTabs { tab.endEditing() }
+        settlePlotGrids(purpose: "关闭") { [weak self] error in
+            guard let self else { return }
+            if let error { completion(.failure(error)); return }
+            guard self.canNavigate else { completion(.failure(self.blocked())); return }
+            self.closeNow(completion: completion)
+        }
+    }
+
+    private func closeNow(completion: @escaping (Result<Bool, Error>) -> Void) {
         setBusy(true)
         workspace.close { [weak self] result in
             guard let self else { return }
@@ -1557,7 +1615,52 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if let model = plotGridModels[key] { return model }
         let model = PlotGridModel(workspace: workspace, projectID: projectID, nodeID: nodeID)
         plotGridModels[key] = model
+        // Queued gestures hold navigation as queued input does.
+        model.observe(self) { [weak self] in self?.plotGridActivity() }
         return model
+    }
+
+    /// How long queued 情节规划格 gestures may take before an action that
+    /// waits for them refuses, as printing waits for queued input.
+    static var plotGridWait: TimeInterval = 3
+    private var plotGridsWereWriting = false
+
+    /// Whether a 情节规划格 gesture of the project (or node) is queued or
+    /// on its way to Rust.
+    func plotGridsWriting(projectID: String? = nil, nodeID: String? = nil) -> Bool {
+        plotGridModels.values.contains { ($0.projectID == projectID || projectID == nil) && ($0.nodeID == nodeID || nodeID == nil) && $0.writing }
+    }
+
+    private func plotGridActivity() {
+        let writing = plotGridsWriting()
+        guard writing != plotGridsWereWriting else { return }
+        plotGridsWereWriting = writing
+        updateTabAvailability()
+        onActivity?(!canNavigate)
+    }
+
+    /// Commits the 情节规划格 cells being edited on the matching pages and
+    /// calls `run` once their gestures were answered: nil when all were
+    /// written, a Chinese refusal naming Rust's reason when one was refused,
+    /// or one when they are still unanswered after `plotGridWait`. With
+    /// nothing queued it runs at once.
+    func settlePlotGrids(projectID: String? = nil, nodeID: String? = nil, purpose: String, _ run: @escaping (Error?) -> Void) {
+        for tab in allTabs where (projectID == nil || tab.project.id == projectID) && (nodeID == nil || tab.nodeID == nodeID) {
+            tab.plotDock?.canvas.commitEditing()
+        }
+        let models = plotGridModels.values.filter { ($0.projectID == projectID || projectID == nil) && ($0.nodeID == nodeID || nodeID == nil) }
+        let refusals = models.map(\.refusals)
+        let deadline = Date().addingTimeInterval(Self.plotGridWait)
+        func check() {
+            if let refused = models.indices.first(where: { models[$0].refusals != refusals[$0] }) {
+                let reason = models[refused].message ?? "情节规划格未能保存。"
+                run(LabError.message("情节规划格的修改没有保存：\(reason) 没有\(purpose)，请处理后再试。")); return
+            }
+            guard models.contains(where: \.writing) else { run(nil); return }
+            guard Date() < deadline else { run(LabError.message("情节规划格还在保存，没有\(purpose)。请稍后再试。")); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { check() }
+        }
+        check()
     }
 
     /// Whether the page's dock was left shown, and its height.
@@ -1647,7 +1750,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Completes with nil when the author cancels.
     func beginConversion(_ kind: DriftConversionKind, driftID: String, project: WorkspaceProject, from window: NSWindow?,
                          completion: @escaping (Result<DriftConversionOutcome, Error>?) -> Void) {
-        guard canNavigate else { completion(.failure(blocked())); return }
+        guard canNavigateAfterPlotGrids else { completion(.failure(blocked())); return }
         let projectID = project.id
         let ask: (WorkspaceDrift) -> Void = { [weak self] drift in
             guard let self else { return }
@@ -1674,7 +1777,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                             completion(nil); return
                         }
                         self.convertDriftToElement(project: project, driftID: drift.id, categoryID: category) { result in
-                            completion(result.map { element in DriftConversionOutcome.element(element, driftID: drift.id) })
+                            completion(result.map { DriftConversionOutcome.element($0.element, driftID: drift.id, carried: $0.carried) })
                         }
                     }
                 }
@@ -1722,11 +1825,24 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// drift, chapter and storyline lists and act names are read again.
     func convertDriftToChapter(project: WorkspaceProject, driftID: String, storylineID: String?,
                                completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
-        guard canNavigate else { completion(.failure(blocked())); return }
+        guard canNavigateAfterPlotGrids else { completion(.failure(blocked())); return }
         let projectID = project.id
         let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
         // A title being typed is saved first; it is ahead on the queue.
         for tab in allTabs where tab.scope == scope { tab.endEditing() }
+        // So are the drift's 情节规划格 gestures, answered before it converts.
+        settlePlotGrids(projectID: projectID, nodeID: driftID, purpose: "转换") { [weak self] error in
+            guard let self else { return }
+            if let error { completion(.failure(error)); return }
+            guard self.canNavigateAfterPlotGrids else { completion(.failure(self.blocked())); return }
+            self.convertToChapterNow(project: project, driftID: driftID, storylineID: storylineID, completion: completion)
+        }
+    }
+
+    private func convertToChapterNow(project: WorkspaceProject, driftID: String, storylineID: String?,
+                                     completion: @escaping (Result<WorkspaceChapter, Error>) -> Void) {
+        let projectID = project.id
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
         let places = self.places(of: scope), active = activePane
         setBusy(true)
         workspace.convertDriftToChapter(projectID: projectID, driftID: driftID, storylineID: storylineID) { [weak self] result in
@@ -1758,48 +1874,106 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    /// Acceptance only: an error standing in for Rust's 转为设定 reply, sent
+    /// instead of the command. Rust's failures after the element was created
+    /// cannot be provoked from the app, so their handling is driven this way.
+    var injectedElementConversionFailure: ((String) -> Error?)?
+
     /// 转为设定: Rust creates the element from the drift's title, summary
-    /// and body and trashes the drift. The drift's tabs close and the element
-    /// opens where the drift was shown. After a partial failure the lists are
-    /// read again, and tabs whose owner Rust released close.
+    /// and body, carries its relations and whole-drift notes over and
+    /// trashes the drift. The drift's tabs close and the element opens where
+    /// the drift was shown. The drift's 情节规划格 gestures are answered first.
     func convertDriftToElement(project: WorkspaceProject, driftID: String, categoryID: String,
-                               completion: @escaping (Result<WorkspaceElement, Error>) -> Void) {
-        guard canNavigate else { completion(.failure(blocked())); return }
+                               completion: @escaping (Result<WorkspaceDriftElementConversion, Error>) -> Void) {
+        guard canNavigateAfterPlotGrids else { completion(.failure(blocked())); return }
         let projectID = project.id
         let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
         for tab in allTabs where tab.scope == scope { tab.endEditing() }
-        let place = places(of: scope).first { $0.selected } ?? places(of: scope).first
+        settlePlotGrids(projectID: projectID, nodeID: driftID, purpose: "转换") { [weak self] error in
+            guard let self else { return }
+            if let error { completion(.failure(error)); return }
+            guard self.canNavigateAfterPlotGrids else { completion(.failure(self.blocked())); return }
+            self.convertToElementNow(project: project, driftID: driftID, categoryID: categoryID, completion: completion)
+        }
+    }
+
+    private func convertToElementNow(project: WorkspaceProject, driftID: String, categoryID: String,
+                                     completion: @escaping (Result<WorkspaceDriftElementConversion, Error>) -> Void) {
+        let projectID = project.id
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
+        let places = self.places(of: scope)
+        let place = places.first { $0.selected } ?? places.first
         let active = activePane
         setBusy(true)
-        workspace.convertDriftToElement(projectID: projectID, driftID: driftID, categoryID: categoryID) { [weak self] result in
+        let adopt: (Result<WorkspaceDriftReply<WorkspaceDriftElementConversion>, Error>) -> Void = { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let error):
-                if !self.workspace.hasOpenDocument(scope) { self.removeAll(scope) }
-                if (error as? LabError)?.diagnosticDescription.contains("已创建") == true {
-                    self.elementsChanged(projectID: projectID)
-                    self.driftsChanged(projectID: projectID)
-                    self.relations.reload(projectID: projectID)
+                self.adoptFailedElementConversion(error, project: project, driftID: driftID, places: places, active: active) {
+                    completion(.failure(error))
                 }
-                self.setBusy(false); self.onChange?(); completion(.failure(error))
             case .success(let reply):
-                guard let element = reply.result?.element else {
+                guard let conversion = reply.result else {
                     self.setBusy(false); completion(.failure(LabError.message("转换结果缺失，请刷新设定库。"))); return
                 }
+                let element = conversion.element
                 self.removeAll(scope)
                 self.applyDriftLibrary(projectID: projectID, library: reply.library)
                 self.onDriftLibrary?(projectID, reply.library)
                 self.elementsChanged(projectID: projectID)
                 self.actsChanged(projectID: projectID)
+                // Carried relations: every 关系 section and the 设定总览 read them.
                 self.relations.reload(projectID: projectID)
                 self.setBusy(false)
                 let target = WorkspaceTabTarget.element(element)
                 let placed = [TabPlace(pane: place?.pane ?? active, index: place?.index ?? .max, selected: true)]
                 self.replaceTabs(at: placed, with: target, project: project, active: place?.pane ?? active) { error in
-                    self.onDriftConverted?(projectID, .element(element, driftID: driftID))
+                    self.onDriftConverted?(projectID, .element(element, driftID: driftID, carried: conversion.carried))
                     if let error { self.onError?(error) }
-                    completion(.success(element))
+                    completion(.success(conversion))
                 }
+            }
+        }
+        if let injected = injectedElementConversionFailure?(driftID) {
+            DispatchQueue.main.async { adopt(.failure(injected)) }
+            return
+        }
+        workspace.convertDriftToElement(projectID: projectID, driftID: driftID, categoryID: categoryID, completion: adopt)
+    }
+
+    /// A refused 转为设定 changed nothing. One that stopped after Rust
+    /// created the element (“设定「…」已创建…”) did: the element, drift,
+    /// trash and relation lists are read again, and whoever asked shows
+    /// Rust's message as it is. The drift's tabs stay unless the drift is in
+    /// the trash; when Rust already released its body (a failed trash), they
+    /// show a freshly opened body in the same places.
+    private func adoptFailedElementConversion(_ error: Error, project: WorkspaceProject, driftID: String, places: [TabPlace], active: Int,
+                                              completion: @escaping () -> Void) {
+        let projectID = project.id
+        let scope = DocumentScope.drift(DriftScope(projectID: projectID, driftID: driftID))
+        let partial = LabError.isPartialElementConversion(error)
+        if partial {
+            elementsChanged(projectID: projectID)
+            relations.reload(projectID: projectID)
+            onDriftConversionStopped?(projectID)
+        }
+        guard partial || !workspace.hasOpenDocument(scope) else {
+            setBusy(false); onChange?(); completion(); return
+        }
+        workspace.driftLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            let library = try? result.get()
+            if let library {
+                self.applyDriftLibrary(projectID: projectID, library: library)
+                self.onDriftLibrary?(projectID, library)
+            }
+            guard !self.workspace.hasOpenDocument(scope) else { self.setBusy(false); self.onChange?(); completion(); return }
+            self.removeAll(scope)
+            guard let drift = library?.drift(id: driftID), !places.isEmpty else { self.setBusy(false); self.onChange?(); completion(); return }
+            self.setBusy(false)
+            self.replaceTabs(at: places, with: .drift(drift), project: project, active: active) { reopenError in
+                if let reopenError { self.onError?(reopenError) }
+                completion()
             }
         }
     }
@@ -2379,8 +2553,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             page.onConvert = { [weak self, weak tab, weak page] kind in
                 guard let self, let tab, let drift = tab.drift else { return }
                 page?.showMessage(nil)
-                self.beginConversion(kind, driftID: drift.id, project: tab.project, from: self.window) { result in
-                    if case .failure(let error)? = result { page?.showMessage(error.localizedDescription); self.onError?(error) }
+                let projectID = tab.project.id
+                self.beginConversion(kind, driftID: drift.id, project: tab.project, from: self.window) { [weak self] result in
+                    guard let self, case .failure(let error)? = result else { return }
+                    // The drift's pages say why; after a failed trash they are new pages of a reopened body.
+                    let pages = self.allTabs.filter { $0.project.id == projectID && $0.drift?.id == drift.id }.compactMap(\.driftPage)
+                    for shown in pages.isEmpty ? [page].compactMap({ $0 }) : pages { shown.showMessage(error.localizedDescription) }
+                    self.onError?(error)
                 }
             }
         } else if let page = tab.categoryPage {
@@ -2665,5 +2844,13 @@ struct PlotNodeKey: Hashable {
 /// What a drift became.
 enum DriftConversionOutcome {
     case chapter(WorkspaceChapter, driftID: String)
-    case element(WorkspaceElement, driftID: String)
+    case element(WorkspaceElement, driftID: String, carried: WorkspaceDriftCarry)
+
+    /// What the status line and the 漂流 panel say.
+    var message: String {
+        switch self {
+        case .chapter(let chapter, _): return "漂流已转为章节《\(chapter.title)》，加在全书最后。"
+        case .element(let element, _, let carried): return carried.report(elementName: element.name)
+        }
+    }
 }

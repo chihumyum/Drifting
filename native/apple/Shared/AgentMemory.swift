@@ -98,14 +98,17 @@ struct AgentMemoryChange: Codable, Equatable {
     }
 }
 
-/// A rule or working-memory write asked for in a turn that has already
-/// received an MCP tool result. External content may be steering it, so it
-/// waits as a card for 允许 or 拒绝 instead of applying at once; 停止, or a
-/// turn that ended first, leaves it 未执行. Kept on a notice row, never
-/// sent to the model.
+/// A rule, working-memory or task-plan write asked for in a turn that has
+/// already received an MCP tool result. External content may be steering
+/// it, so it waits as a card for 允许 or 拒绝 instead of applying at once;
+/// 停止, or a turn that ended first, leaves it 未执行. Kept on a notice row,
+/// never sent to the model.
 struct AgentMemoryApproval: Codable, Equatable {
     /// The memory tools that ask after an MCP result in the same turn.
-    static let guarded: Set<String> = ["create_author_rule", "update_author_rule", "delete_author_rule", "checkpoint_working_memory"]
+    static let guarded: Set<String> = ["create_author_rule", "update_author_rule", "delete_author_rule", "checkpoint_working_memory",
+                                       "update_task_plan", "update_task_step", "update_task_constraint"]
+    static let ruleTools: Set<String> = ["list_author_rules", "create_author_rule", "update_author_rule", "delete_author_rule"]
+    static let planTools: Set<String> = ["update_task_plan", "update_task_step", "update_task_constraint"]
 
     var callID: String
     var tool: String
@@ -124,8 +127,14 @@ struct AgentMemoryApproval: Codable, Equatable {
         }
     }
 
-    /// What the call would do to the rules or the note as they are now.
-    static func describe(_ call: AgentToolCall, _ a: [String: Any], rules: [AgentAuthorRule], workingMemory: String) -> (action: String, detail: String) {
+    /// What the call would do to the rules, the note or the task plan as
+    /// they are now: the rule, the whole new note, or the plan, step or
+    /// constraint as it would read. Nil for a plan call that would be
+    /// refused: it changes nothing, so it runs (and fails) without asking.
+    static func describe(_ call: AgentToolCall, _ a: [String: Any], rules: [AgentAuthorRule],
+                         conversation: AgentConversation) -> (action: String, detail: String)? {
+        if planTools.contains(call.name) { return describePlan(call, a, rules: rules, conversation: conversation) }
+        let workingMemory = conversation.workingMemory
         let id = (a["ruleId"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
         let rule = rules.first { $0.id == id }
         let kind = (a["kind"] as? String).flatMap(AgentAuthorRule.Kind.init(rawValue:))
@@ -142,6 +151,39 @@ struct AgentMemoryApproval: Codable, Equatable {
             let note = AgentWorkingMemory.normalized(a["text"] as? String ?? "")
             let before = workingMemory.isEmpty ? "" : "（替换现有的 \(workingMemory.count) 字）"
             return note.isEmpty ? ("清空工作记忆", "（清空）\(before)") : ("替换工作记忆（\(note.count) 字）", note)
+        }
+    }
+
+    /// The plan after the call, worked out on copies by the tool itself.
+    private static func describePlan(_ call: AgentToolCall, _ a: [String: Any], rules: [AgentAuthorRule],
+                                     conversation: AgentConversation) -> (action: String, detail: String)? {
+        var copyRules = rules, copy = conversation
+        guard AgentMemoryTools.run(call, a, rules: &copyRules, conversation: &copy).outcome.ok, let after = copy.plan else { return nil }
+        let before = conversation.plan
+        switch call.name {
+        case "update_task_plan":
+            return ("\(before == nil ? "设定" : "替换")任务计划（\(after.steps.count) 步）", after.promptLines.joined(separator: "\n"))
+        case "update_task_step":
+            let number = (a["step"] as? NSNumber)?.intValue ?? 0
+            let index = number - 1
+            guard after.steps.indices.contains(index) else { return nil }
+            let was = before.flatMap { $0.steps.indices.contains(index) ? $0.stepLine(index) : nil }
+            return ("更新任务计划第 \(number) 步", [was.map { "原来：\($0)" }, "改为：\(after.stepLine(index))"].compactMap { $0 }.joined(separator: "\n"))
+        default:
+            let operation = a["operation"] as? String ?? ""
+            let id = (a["constraintId"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            let old = before?.constraints.first { $0.id == id }
+            switch operation {
+            case "add":
+                guard let added = after.constraints.last else { return nil }
+                return ("增加任务限制", AgentTaskPlan.constraintLine(added))
+            case "remove":
+                return ("删除任务限制 \(id)", old.map(AgentTaskPlan.constraintLine) ?? id)
+            default:
+                guard let replaced = after.constraints.first(where: { $0.id == id }) else { return nil }
+                return ("修改任务限制 \(id)", [old.map { "原来：\(AgentTaskPlan.constraintLine($0))" }, "改为：\(AgentTaskPlan.constraintLine(replaced))"]
+                    .compactMap { $0 }.joined(separator: "\n"))
+            }
         }
     }
 }
@@ -229,16 +271,23 @@ struct AgentTaskPlan: Codable, Equatable {
     /// Lines for the system prompt.
     var promptLines: [String] {
         var lines = ["目标：\(goal)"]
-        for (index, step) in steps.enumerated() {
-            let note = step.note.map { $0.isEmpty ? "" : "（备注：\($0)）" } ?? ""
-            lines.append("\(index + 1). [\(step.status.label)] \(step.title)\(note)")
-        }
+        lines += steps.indices.map(stepLine)
         if !constraints.isEmpty {
             lines.append("限制：")
-            lines += constraints.map { "- \($0.id)：\($0.text)" }
+            lines += constraints.map(Self.constraintLine)
         }
         return lines
     }
+
+    /// 2. [完成] 查资料（备注：…）
+    func stepLine(_ index: Int) -> String {
+        let step = steps[index]
+        let note = step.note.map { $0.isEmpty ? "" : "（备注：\($0)）" } ?? ""
+        return "\(index + 1). [\(step.status.label)] \(step.title)\(note)"
+    }
+
+    /// - c1：只用中文资料
+    static func constraintLine(_ constraint: Constraint) -> String { "- \(constraint.id)：\(constraint.text)" }
 }
 
 // MARK: - Tool definitions

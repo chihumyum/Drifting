@@ -3,8 +3,10 @@ import AppKit
 /// 设置 › 快捷键 (renderer: KeysPanel): the installed main menu's commands
 /// grouped by menu with their shortcuts. Clicking a shortcut records the
 /// next key press; Esc cancels and ⌫ removes it. A conflict with another
-/// command, a system-reserved combination or one without ⌘ or ⌃ is refused
-/// in Chinese while recording continues. The system's text-editing
+/// command, a combination macOS reserves (screenshots, input sources,
+/// Mission Control) or the text editor uses (⌘/⌥ arrows, ⌘⌫, ⌥⌫, ⌃A/⌃E/⌃K
+/// and the other Emacs keys) or one without ⌘ or ⌃ is refused in Chinese
+/// while recording continues. The system's text-editing
 /// commands and 退出 are listed but cannot change. Every change saves at
 /// once and the menu follows through `MacShortcutApplier`.
 final class MacShortcutSettingsViewController: NSViewController {
@@ -62,7 +64,7 @@ final class MacShortcutSettingsViewController: NSViewController {
         ])
         view = SettingsLayout.page([
             SettingsLayout.heading("菜单命令"),
-            SettingsLayout.detail("点按快捷键后按下新的组合即可更改，Esc 取消，⌫ 移除。与其他命令冲突或由系统保留的组合不会被接受。系统的文本编辑快捷键（撤销、复制、粘贴等）和“退出”不能在这里更改。"),
+            SettingsLayout.detail("点按快捷键后按下新的组合即可更改，Esc 取消，⌫ 移除。与其他命令冲突、由系统保留（截屏、切换输入法、调度中心等）或由文本编辑使用（⌘/⌥ 加方向键、⌘⌫、⌥⌫、⌃A、⌃E、⌃K 等）的组合不会被接受。系统的文本编辑快捷键（撤销、复制、粘贴等）和“退出”不能在这里更改。"),
             message, scroll, SettingsLayout.line([resetAllButton]), storageMessage,
         ], spacing: [1: 12])
         refresh()
@@ -171,14 +173,16 @@ final class MacShortcutSettingsViewController: NSViewController {
         if flags.isEmpty, [0x08, 0x7F].contains(shortcut.key.unicodeScalars.first.map { Int($0.value) } ?? 0) {
             return set(.unassigned, for: command)
         }
-        return set(shortcut, for: command)
+        return set(shortcut, for: command, keyCode: event.keyCode)
     }
 
     /// Sets a command's shortcut through the rules; a refusal keeps
     /// recording and says why. `.unassigned` removes the shortcut.
+    /// `keyCode` is the pressed key's, which reserved combinations also
+    /// compare on (⇧⌘3 types “#”).
     @discardableResult
-    func set(_ shortcut: MenuShortcut, for command: MacMenuCommand) -> Bool {
-        if let refusal = MacShortcuts.refusal(shortcut, for: command, overrides: store.settings.shortcuts) {
+    func set(_ shortcut: MenuShortcut, for command: MacMenuCommand, keyCode: UInt16? = nil) -> Bool {
+        if let refusal = MacShortcuts.refusal(shortcut, for: command, overrides: store.settings.shortcuts, keyCode: keyCode) {
             show(refusal, error: true); return true
         }
         recording = nil

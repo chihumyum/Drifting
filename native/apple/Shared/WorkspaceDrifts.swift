@@ -89,10 +89,35 @@ struct WorkspaceDriftReply<Value: Decodable>: Decodable {
     let library: WorkspaceDriftLibrary
 }
 
-/// 转为设定's result: the new element and the drift now in the trash.
+/// 转为设定's result: the new element, the drift now in the trash and what
+/// was carried over to the element.
 struct WorkspaceDriftElementConversion: Decodable {
     let element: WorkspaceElement
     let driftId: String
+    let carried: WorkspaceDriftCarry
+}
+
+/// What 转为设定 moved from the drift to the new element: relations whose
+/// type allows an element end, and notes and TODOs on the whole drift.
+/// Relations whose type does not (`skippedRelations`) go with the drift's
+/// trash, which purges its relations; notes anchored in its text stay with
+/// the drift in the trash.
+struct WorkspaceDriftCarry: Decodable, Equatable {
+    let relations: Int
+    let skippedRelations: Int
+    let comments: Int
+
+    /// 已转为设定「灯塔」：转移了 2 条关系、1 条批注和待办；1 条关系的类型不允许设定，已随漂流删除。
+    func report(elementName name: String) -> String {
+        var moved: [String] = []
+        if relations > 0 { moved.append("\(relations) 条关系") }
+        if comments > 0 { moved.append("\(comments) 条批注和待办") }
+        var parts: [String] = []
+        if !moved.isEmpty { parts.append("转移了 " + moved.joined(separator: "、")) }
+        if skippedRelations > 0 { parts.append("\(skippedRelations) 条关系的类型不允许设定，已随漂流删除") }
+        guard !parts.isEmpty else { return "已转为设定「\(name)」，原漂流已移到回收站。" }
+        return "已转为设定「\(name)」：" + parts.joined(separator: "；") + "。"
+    }
 }
 
 /// 转为章节 or 转为设定.

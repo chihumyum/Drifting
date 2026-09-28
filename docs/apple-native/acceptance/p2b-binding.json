@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T09:38:53.104Z",
+  "generatedAt": "2026-09-28T11:08:38.811Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "f1ff2b90ec1e61b69e8049fd3dd076e43a7e1128",
+    "commit": "1866145c14d514766b918ead125f3e84314dedb8",
     "dirty": true,
-    "fingerprint": "06f72b26388d3f66419c0d8142cbf84c93f416feb7f00f242f254ef1af52a868"
+    "fingerprint": "6d37e990b9bf3a2194c9ee6a9d6c381e877af52f499a5d1bb120b06514f7746a"
   },
   "cases": [
     {
@@ -843,6 +843,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit Copilot 拒绝 after a 接受 whose decision failed is refused with guidance while the element or patch it created is live, writing nothing and keeping what was created, and once that element is in the trash records the rejection and forgets it",
+      "status": "passed"
+    },
+    {
       "name": "AppKit MCP 扩展 adds a local-command server through the settings sheet, refuses invalid commands, folders, variable names and URLs in Chinese, runs the initialize and notifications/initialized handshake and paginated tools/list, shows 可用 N 个工具 with each tool's 允许/每次询问/禁用 policy (每次询问 by default) and skips a $ref schema with its reason, offers valid tools to the model as mcp__<server>__<tool> with their schemas, and keeps the secret environment value only in the Keychain store, never in settings.json",
       "status": "passed"
     },
@@ -879,7 +883,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 rule and working-memory writes in a turn that has received an MCP result wait as 允许/拒绝 cards showing the complete change: 允许 applies it once, 拒绝 and 停止 write nothing and tell the model, plan tools still apply at once, and the next turn without MCP results writes rules at once again",
+      "name": "AppKit 写作助手 rule, working-memory and task-plan writes in a turn that has received an MCP result wait as 允许/拒绝 cards showing the complete change (the rule, the note, or the plan, step or constraint as it would read): 允许 applies it once, 拒绝 and 停止 write nothing and tell the model, a plan call that would be refused asks nothing, and the next turn without MCP results writes rules at once again",
       "status": "passed"
     },
     {
@@ -907,6 +911,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit 设置 › 快捷键 refuses ⇧⌘3, ⇧⌘4 and ⇧⌘5 as they arrive (shifted characters, compared on the key too), ⌃Space and ⌃⌥Space, ⌃ with an arrow, and the text editor's own ⌘ and ⌥ arrows with or without ⇧, ⌘⌫, ⌥⌫ and ⌃A, ⌃E, ⌃K, ⌃B, ⌃F, ⌃N, ⌃P, ⌃D, ⌃H, ⌃T, ⌃O, ⌃Y and ⌃V in Chinese naming 系统保留 or 文本编辑使用, and ignores such a value in settings.json keeping the default",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 情节规划格 toggles below a chapter's prose from the page header and 视图 › 情节规划格, remembered per page in settings.json, starts from an unsaved 3×3 template written by the first edit as one original, edits cells by click and Return with Tab, ⇧Tab and arrows moving, ⌥Return for a new line, Esc cancelling and Delete clearing, writes nothing for unchanged edits, and never touches the Yjs body, its undo history or word counts",
       "status": "passed"
     },
@@ -928,6 +936,14 @@
     },
     {
       "name": "AppKit 转为设定… from the drift page and the 漂流 panel creates the element with the drift's title, summary and body in the chosen category, moves the drift to the trash, closes its tab and opens the element page, while a title already used by an element is refused in Chinese before anything is written and the drift page stays open",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 情节规划格 accepts no edit before its first read replies (the dock reads 正在读取… and edits then change the stored grid, never a template over it), shows the blank template again when Rust answers a write with no grid, holds navigation while a gesture is queued, and closing a tab or the workspace, trashing and converting commit the cell being edited and wait for queued gestures, while a refused gesture keeps the page with Rust's reason and a wait that runs out refuses in Chinese",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 转为设定… says what moves and what stays, carries relations whose type allows an element and notes on the whole drift to the element and reports the counts, the element's and chapter's 关系 sections, the 设定总览 and 审阅 follow, a note anchored in the drift's text stays with it in the trash and returns on restore, and a conversion that stopped after the element was created shows Rust's message, reads the lists again and keeps the drift's tab (reopening a released body) unless the drift is in the trash",
       "status": "passed"
     }
   ],

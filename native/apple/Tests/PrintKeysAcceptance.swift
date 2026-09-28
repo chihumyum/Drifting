@@ -7,6 +7,8 @@ import PDFKit
 /// print panel is not shown and nothing reaches a printer. Every name, title
 /// and body is synthetic.
 extension BindingAcceptance {
+    static let printKeysReviewCase = "AppKit 设置 › 快捷键 refuses ⇧⌘3, ⇧⌘4 and ⇧⌘5 as they arrive (shifted characters, compared on the key too), ⌃Space and ⌃⌥Space, ⌃ with an arrow, and the text editor's own ⌘ and ⌥ arrows with or without ⇧, ⌘⌫, ⌥⌫ and ⌃A, ⌃E, ⌃K, ⌃B, ⌃F, ⌃N, ⌃P, ⌃D, ⌃H, ⌃T, ⌃O, ⌃Y and ⌃V in Chinese naming 系统保留 or 文本编辑使用, and ignores such a value in settings.json keeping the default"
+
     static func printKeysAcceptance() throws -> [String] {
         let saved = (DocumentStore.entityLinkDelay, MacChapterWorkspace.backlinkDelay)
         defer {
@@ -28,6 +30,7 @@ extension BindingAcceptance {
             "AppKit 导出 PDF reports reading and typesetting progress, waits for queued input and includes it, 取消 while reading or typesetting leaves no file at or beside the destination and keeps an existing file untouched, and a finished export replaces it",
             "AppKit 设置 › 快捷键 lists the installed menu's commands by menu with ⇧⌘I for Copilot 分析 and ⌥⌘I for 项目资料, records a pressed combination into the menu item's key equivalent at once so the menu performs it, refuses a conflict, system-reserved and text-editing shortcuts and one without ⌘ or ⌃ while recording continues, cancels with Esc, removes with ⌫, and resets one (refusing a default another command now uses) and all",
             "AppKit 快捷键 persist in settings.json and apply to a new menu and the settings window at relaunch, while a hand-edited file's reserved, unreadable and conflicting entries fall back without losing the others or an unknown command's entry",
+            printKeysReviewCase,
         ]
     }
 
@@ -613,7 +616,22 @@ extension BindingAcceptance {
             (key("c", .command, code: 8), "文本编辑快捷键（复制）"), (key("z", [.command, .shift], code: 6), "文本编辑快捷键（重做）"),
             (key("k", [], code: 40), "需要包含 ⌘ 或 ⌃"), (key("k", [.option], code: 40, typed: "˚"), "需要包含 ⌘ 或 ⌃"),
             (key("p", [.command, .option], code: 35), "文件 › 打印…"),
-        ] {
+            // Screenshots arrive as the shifted characters; input sources, Mission Control and Spaces.
+            (key("#", [.command, .shift], code: 20), "由系统保留（截屏）"), (key("$", [.command, .shift], code: 21), "由系统保留（截屏）"),
+            (key("%", [.command, .shift], code: 23), "由系统保留（截屏）"), (key("£", [.command, .shift], code: 20), "由系统保留（截屏）"),
+            (key("#", [.command, .shift, .control], code: 20), "由系统保留（拷贝截屏）"),
+            (key(" ", .control, code: 49), "由系统保留（切换输入法）"), (key(" ", [.control, .option], code: 49), "由系统保留（切换输入法）"),
+            (key("\u{F700}", .control, code: 126), "由系统保留（调度中心）"), (key("\u{F701}", .control, code: 125), "由系统保留（应用程序窗口）"),
+            (key("\u{F702}", .control, code: 123), "由系统保留（切换桌面空间）"), (key("\u{F703}", .control, code: 124), "由系统保留（切换桌面空间）"),
+            // The text editor's own bindings.
+            (key("\u{F702}", .command, code: 123), "由文本编辑使用"), (key("\u{F703}", [.command, .shift], code: 124), "由文本编辑使用"),
+            (key("\u{F700}", .command, code: 126), "由文本编辑使用"), (key("\u{F701}", [.command, .shift], code: 125), "由文本编辑使用"),
+            (key("\u{F702}", .option, code: 123), "由文本编辑使用（按词或段落移动）"),
+            (key("\u{F703}", [.option, .shift], code: 124), "由文本编辑使用（按词或段落选择）"),
+            (key("\u{7f}", .command, code: 51), "由文本编辑使用（删除到行首）"), (key("\u{7f}", .option, code: 51), "由文本编辑使用（删除前一个词）"),
+        ] + [("a", 0, "移到段首"), ("e", 14, "移到段尾"), ("k", 40, "删除到段尾"), ("b", 11, "左移一个字"), ("f", 3, "右移一个字"),
+             ("n", 45, "移到下一行"), ("p", 35, "移到上一行"), ("d", 2, "删除后一个字"), ("h", 4, "删除前一个字"), ("t", 17, "交换前后两个字"),
+             ("o", 31, "在插入点后换行"), ("y", 16, "粘贴删除的文字"), ("v", 9, "向下翻页")].map { (key($0.0, .control, code: UInt16($0.1)), "由文本编辑使用（\($0.2)）") } {
             try require(pane.record(event) && pane.recording == .fileProfile && pane.message.stringValue.contains(expected)
                         && pane.message.textColor == .systemRed, "Refusal “\(expected)” read “\(pane.message.stringValue)”")
         }
@@ -692,6 +710,11 @@ extension BindingAcceptance {
             "view.review": ["key": "b", "modifiers": ["shift", "command"]],
             "view.agent": ["key": "j", "modifiers": ["command", "control"]],
             "future.command": ["key": "j", "modifiers": ["command", "option"]],
+            // Accepted before, refused now: a screenshot as recorded, Spaces, the editor's own keys.
+            "view.board": ["key": "#", "modifiers": ["shift", "command"]],
+            "view.materials": ["key": "a", "modifiers": ["control"]],
+            "view.storyGraph": ["key": "\u{F702}", "modifiers": ["control"]],
+            "view.elementOverview": ["key": "\u{7f}", "modifiers": ["option"]],
         ]
         try JSONSerialization.data(withJSONObject: json).write(to: second.fileURL)
         let edited = LabSettingsStore(directory: root)
@@ -704,6 +727,10 @@ extension BindingAcceptance {
         try requireMenu(editedMenu, .agent, "j", [.command, .control], "Valid entry")
         try requireMenu(editedMenu, .review, "b", [.command, .shift], "Conflicting entry")
         try requireMenu(editedMenu, .wholeBook, "", [], "Conflicting default")
+        try requireMenu(editedMenu, .board, "t", [.command, .option], "Screenshot entry")
+        try requireMenu(editedMenu, .materials, "m", [.command, .shift], "Emacs entry")
+        try requireMenu(editedMenu, .storyGraph, "g", [.command, .shift], "Spaces entry")
+        try requireMenu(editedMenu, .elementOverview, "e", [.command, .option], "Delete-word entry")
         edited.setShortcut(MenuShortcut(key: "k", flags: [.command, .control]), for: .agent)
         let saved = try String(contentsOf: edited.fileURL, encoding: .utf8)
         try require(saved.contains("future.command") && !saved.contains("edit.search"), "Saving lost an unknown command's entry")

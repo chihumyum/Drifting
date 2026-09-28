@@ -49,12 +49,21 @@ original; restore does not bring them back. No SQLite migration is added.
   saved and released first; the chapter opens its own owner. Word-count reads
   bracket it, so it never counts as today's writing.
 - `workspaceDrifts {"action":"convertToElement","driftId","categoryId"}` →
-  `{element, driftId}`: creates the element (name and summary from the drift,
-  the category's template facts), copies the drift's full body into it as the
-  author's input, then trashes the drift (unbinding markers and acts, purging
-  its relations). An element name or alias conflict is refused before
-  anything is written. If a later step fails Rust says what was done
-  (“设定「…」已创建，但…”); the host reads the lists again.
+  `{element, driftId, carried: {relations, skippedRelations, comments}}`:
+  creates the element (name and summary from the drift, the category's
+  template facts) and copies the drift's full body into it as the author's
+  input. One more original then re-creates each relation touching the drift
+  on the element where the relation type allows an element end (an
+  identical edge counts as carried) and moves notes and TODOs on the whole
+  drift to `element:<id>` (`field.set`). Last the drift is trashed
+  (unbinding markers and acts, purging its relations, so the
+  `skippedRelations` are deleted). Notes anchored in the drift's text, its
+  version history, 情节规划格 and patch sources stay with the trashed drift
+  and come back when it is restored. An element name or alias conflict is
+  refused before anything is written. Every failure after the element exists
+  starts with “设定「名称」已创建”: `，但灵感正文未能复制：…`,
+  `并复制了正文，但关系和批注未能转移：…` or `并复制了正文，但灵感未能移入回收站：…`;
+  only the last comes after Rust released the drift's open body.
 
 ## Native interaction
 
@@ -77,7 +86,9 @@ title is refused locally; Rust's unique title is shown after the commit) and
 分组 (a popup), and names the bound act under 幕笔记. The body is an ordinary
 durable owner with its own history and no comments; reopening from disk is
 disabled because `openDrift` has no reopen flag. Trash commits before the
-drift's tabs close, so queued input refuses it and keeps everything.
+drift's tabs close, so queued input refuses it and keeps everything; a
+情节规划格 cell being edited is committed and its gestures answered first
+([plot planner](plot-planner.md)).
 
 In the whole-book outline an act row names its bound notes after the act name;
 clicking them opens the drift page. The act's 操作 menu adds 绑定幕笔记… (更换幕笔记…
@@ -96,11 +107,23 @@ names what is released; 取消 writes nothing. The drift's tabs become the
 chapter's in the same places with the same body and planner (a drift not
 open opens as a chapter in the active pane); the chapter list, 整书大纲,
 全书长卷, story graph, 底部时间轴, storylines and the 漂流 panel follow.
-转为设定… asks for the category (refused in Chinese when there is none); the
-drift's tabs close and the element page opens where it was shown, and the
-设定库, 回收站 and act notes follow. Refusals, including Rust's name conflict
-(“灯塔”已被设定“灯塔”使用…) and partial-failure messages as Rust words them,
-show on the page or in the panel with the drift and its page unchanged.
+转为设定… asks for the category (refused in Chinese when there is none) and
+says what moves (标题、摘要、正文、关系类型允许设定的关系、整篇漂流上的批注和待办;
+other relations are deleted) and what stays with the drift in the trash
+(正文里锚定的批注、历史版本、情节规划格、补丁来源, back on restore). The drift's
+tabs close, the element page opens where it was shown, and the status line
+and the panel report what was carried, leaving out zero parts
+(已转为设定「灯塔」：转移了 2 条关系、1 条批注和待办；1 条关系的类型不允许设定，已随漂流删除。).
+The 设定库, 回收站, act notes, every 关系 section, the 设定总览's relation
+edges, 审阅 and the board follow (the story graph shows no relations).
+Refusals, including Rust's name conflict (“灯塔”已被设定“灯塔”使用…), show on
+the page or in the panel with nothing written. A conversion that stopped
+after the element was created shows Rust's message as it is, reads the
+设定库, the drifts and their trash, the relations and 审阅 again, and keeps
+the drift's tabs unless the drift is in the trash; when Rust already
+released the body (a failed trash) the tabs show it opened again in the same
+places. Both conversions commit a 情节规划格 cell being edited and wait for
+the drift's queued gestures first.
 
 ## Acceptance
 
@@ -118,8 +141,15 @@ opening the page and a trashed drift's link dimming until restore; act notes bou
 from the outline picker on the act row and page following an act rename, a stale
 bind refused, queued input blocking the trash, trash unbinding and closing the tab
 only after commit, restore returning it unbound, and unbinding or removing an act
-keeping the drift. Two more cases in `native/apple/Tests/PlotConvertAcceptance.swift`
+keeping the drift. Three more cases in `native/apple/Tests/PlotConvertAcceptance.swift`
 (`--plot-convert-only`) convert from the page and the panel with every view
 following and the journal pinned (one original for 转为章节; element, body
 copy and trash for 转为设定), 取消, and the name-conflict refusal with nothing
-written. Physical input, desktop XCTest and devices are not covered.
+written; and convert a drift with an element-capable relation, a node-only
+one, a whole-drift TODO and a passage note: the dialog, the carried counts
+and report, the carry original, the element's and chapter's 关系 sections,
+the 设定总览 and 审阅 following, and the passage note back on restore. Rust's
+failures after the element was created cannot be provoked from the app, so
+an injected message drives their handling: the tab kept, a released body
+reopened in place and a trashed drift's tabs closed, with the lists read
+again. Physical input, desktop XCTest and devices are not covered.

@@ -26,7 +26,7 @@ pub use comments::{
     WorkspaceComment, WorkspaceCommentAction,
 };
 pub use deletion::ProjectDeletion;
-pub use drifts::{NewDrift, WorkspaceDrift, WorkspaceDriftGroup};
+pub use drifts::{DriftCarry, NewDrift, WorkspaceDrift, WorkspaceDriftGroup};
 pub use elements::{
     CategoryLayout, ElementChanges, NewElement, NewElementCategory, WorkspaceElement,
     WorkspaceElementCategory,

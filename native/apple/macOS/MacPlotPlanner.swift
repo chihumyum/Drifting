@@ -112,7 +112,10 @@ final class MacPlotPlannerDock: NSView {
         canvas.show(grid)
         message.stringValue = model.message ?? ""
         message.isHidden = model.message == nil
-        hint.stringValue = model.stored == nil ? (model.loaded ? "空白规划格，写下内容后保存" : "正在读取…") : ""
+        // Nothing is edited until the first read replies.
+        if !model.loaded { hint.stringValue = model.message == nil ? "正在读取…" : "" }
+        else { hint.stringValue = model.stored == nil ? "空白规划格，写下内容后保存" : "" }
+        for control in [addRowButton, addColumnButton, widthSlider, heightSlider] as [NSControl] { control.isEnabled = model.loaded }
         if widthSlider.doubleValue != grid.cellWidth { widthSlider.doubleValue = grid.cellWidth }
         if heightSlider.doubleValue != grid.cellHeight { heightSlider.doubleValue = grid.cellHeight }
         sizeLabel.stringValue = "\(Int(grid.cellWidth.rounded())) × \(Int(grid.cellHeight.rounded()))"
@@ -405,7 +408,7 @@ final class PlotGridCanvas: NSView, NSTextViewDelegate, NSMenuDelegate, NSMenuIt
     /// Opens the editor over a cell or header with its text (or `replacing`
     /// it), caret at the end. An edit elsewhere is committed first.
     func beginEditing(_ target: Target, replacing text: String? = nil) {
-        guard exists(target) else { return }
+        guard model.loaded, exists(target) else { return }
         if let editing, editing != target { commitEditing() }
         selection = target
         editing = target

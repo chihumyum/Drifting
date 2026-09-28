@@ -346,6 +346,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.plotPlannerSettings = settingsStore
         chapterWorkspace.onPlotPlanner = { [weak self] in self?.updatePlotPlannerMenu() }
         chapterWorkspace.onDriftConverted = { [weak self] projectID, outcome in self?.adoptDriftConversion(projectID: projectID, outcome: outcome) }
+        // A 转为设定 that stopped part way may have moved notes to the element.
+        chapterWorkspace.onDriftConversionStopped = { [weak self] projectID in self?.reviewModels[projectID]?.load() }
         chapterWorkspace.copilot = { [weak self] projectID in self?.copilot(for: projectID) }
         NotificationCenter.default.addObserver(self, selector: #selector(copilotSettingsChanged), name: LabSettingsStore.copilotDidChange,
                                                object: settingsStore)
@@ -897,10 +899,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closePaneButton.isEnabled = ready && chapterWorkspace.paneCount == 2
     }
 
-    private func canLeaveDocument() -> Bool {
+    /// Input on its way to Rust, like a 情节规划格 gesture, holds navigation.
+    /// Closing, quitting, converting and trashing pass `waitingForPlotGrids`:
+    /// the tab host waits for the gestures (bounded) and refuses if they do
+    /// not finish.
+    private func canLeaveDocument(waitingForPlotGrids: Bool = false) -> Bool {
         guard !loading else { return false }
-        guard chapterWorkspace.canNavigate else {
-            status.stringValue = "请先完成输入，并等待正文保存。保存失败时可在编辑器中重试。"
+        guard waitingForPlotGrids ? chapterWorkspace.canNavigateAfterPlotGrids : chapterWorkspace.canNavigate else {
+            status.stringValue = chapterWorkspace.canNavigateAfterPlotGrids ? "情节规划格还在保存，请稍候再试。"
+                : "请先完成输入，并等待正文保存。保存失败时可在编辑器中重试。"
             return false
         }
         return true
@@ -1468,7 +1475,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         driftsPanel = panel; driftsController = controller
         panel.onClose = { [weak self] in self?.driftsPanel = nil; self?.driftsController = nil }
         controller.onClose = { [weak self] in self?.closeDrifts() }
-        controller.canNavigate = { [weak self] in self?.canLeaveDocument() == true }
+        controller.canNavigate = { [weak self] in self?.canLeaveDocument(waitingForPlotGrids: true) == true }
         controller.onOpen = { [weak self] drift in self?.openDrift(drift, project: project, focusTitle: false) }
         controller.onCreated = { [weak self] drift in self?.openDrift(drift, project: project, focusTitle: true) }
         controller.onTrash = { [weak self] drift in self?.trashDrift(drift, project: project) }
@@ -1509,7 +1516,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func trashDrift(_ drift: WorkspaceDrift, project: WorkspaceProject) {
-        guard canLeaveDocument() else { return }
+        guard canLeaveDocument(waitingForPlotGrids: true) else { return }
         chapterWorkspace.trashDrift(projectID: project.id, driftID: drift.id) { [weak self] result in
             guard let self else { return }
             switch result {
@@ -1529,7 +1536,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// 转为章节… / 转为设定… from the 漂流 panel: the picker is a sheet on
     /// the panel; the tab host converts and reports to `adoptDriftConversion`.
     private func convertDrift(_ drift: WorkspaceDrift, _ kind: DriftConversionKind, project: WorkspaceProject, from panel: NSWindow?) {
-        guard canLeaveDocument() else {
+        guard canLeaveDocument(waitingForPlotGrids: true) else {
             driftsController?.model.showStatus("请先完成输入，并等待正文保存后再转换漂流。"); return
         }
         chapterWorkspace.beginConversion(kind, driftID: drift.id, project: project, from: panel) { [weak self] result in
@@ -1541,11 +1548,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     /// A drift became a chapter (appended to the book; the chapter list, the
     /// 整书大纲, 全书长卷, story graph and 底部时间轴 follow) or an element
-    /// (the drift went to the trash; released acts and markers follow). The
+    /// (the drift went to the trash; released acts and markers follow, and
+    /// 审阅 and the board read the notes and TODOs that moved to it). The
     /// tab host already replaced the tabs and read the drift, chapter,
-    /// storyline and element lists.
+    /// storyline, element and relation lists.
     private func adoptDriftConversion(projectID: String, outcome: DriftConversionOutcome) {
-        let message: String
+        let message = outcome.message
         switch outcome {
         case .chapter(let chapter, _):
             if selectedProject?.id == projectID, !chapters.contains(where: { $0.id == chapter.id }) {
@@ -1553,9 +1561,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 if !showingTrash { reloadChapterRows() }
                 chapterEmpty.isHidden = !displayedChapters.isEmpty
             }
-            message = "漂流已转为章节《\(chapter.title)》，加在全书最后。"
-        case .element(let element, _):
-            message = "漂流已转为设定“\(element.name)”，原漂流已移到回收站。"
+        case .element:
+            reviewModels[projectID]?.load()
         }
         graphChaptersChanged(projectID: projectID)
         if let outline = outlineController?.model, outline.projectID == projectID { outline.load() }
@@ -2867,7 +2874,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     @objc private func changeChapterTrash() {
-        guard canLeaveDocument(), let project = selectedProject,
+        guard canLeaveDocument(waitingForPlotGrids: true), let project = selectedProject,
               displayedChapters.indices.contains(chapterTable.selectedRow) else { return }
         let chapter = displayedChapters[chapterTable.selectedRow]
         let restoring = showingTrash
@@ -2996,7 +3003,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func closeWorkspace(completion: @escaping (Bool) -> Void) {
-        guard !closingWorkspace, canLeaveDocument() else { completion(false); return }
+        guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { completion(false); return }
         closingWorkspace = true
         // The 全书长卷 lets go of its owners before the workspace closes.
         guard closeWholeBook(completion: { [weak self] _ in self?.closeWorkspaceOwners(completion: completion) }) else {
@@ -3058,7 +3065,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if workspaceClosed { return .terminateNow }
-        guard !closingWorkspace, canLeaveDocument() else { return .terminateCancel }
+        guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { return .terminateCancel }
         closeWorkspace { success in sender.reply(toApplicationShouldTerminate: success) }
         return .terminateLater
     }

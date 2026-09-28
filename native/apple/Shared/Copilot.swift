@@ -1109,13 +1109,47 @@ final class CopilotController {
     }
 
     /// 拒绝: recorded as the author's decision; Copilot leaves the name (or
-    /// the element's change) alone afterwards.
+    /// the element's change) alone afterwards. After a 接受 whose decision
+    /// could not be recorded, the element or patch it created is still in
+    /// the book: while it is live, 拒绝 is refused with guidance (a
+    /// rejection would forget what was created); once it is trashed or
+    /// deleted, 拒绝 records the rejection and forgets it.
     func reject(_ comment: WorkspaceComment, completion: ((Result<Void, Error>) -> Void)? = nil) {
         guard !deciding.contains(comment.id) else { completion?(.failure(LabError.message("正在处理这条建议。"))); return }
         guard comment.isOpenSuggestion else { completion?(.failure(LabError.message("这条建议已经处理过了。"))); return }
         deciding.insert(comment.id); failures[comment.id] = nil
         onReviewChange?(.deciding(commentID: comment.id))
-        resolve(comment, accepted: false, result: nil, message: "已拒绝这条建议，Copilot 不会再提出它。", created: nil, completion: completion)
+        let rejected = "已拒绝这条建议，Copilot 不会再提出它。"
+        guard let done = created[comment.id] else {
+            resolve(comment, accepted: false, result: nil, message: rejected, created: nil, completion: completion); return
+        }
+        isLive(done, of: comment) { [weak self] live in
+            guard let self else { return }
+            switch live {
+            case .failure(let error): self.decisionFailed(comment, error.localizedDescription, completion)
+            case .success(true):
+                self.decisionFailed(comment, "\(done.label)已创建。再点“接受”记录这条建议；如果不需要它，请先删除它再拒绝。", completion)
+            case .success(false):
+                self.resolve(comment, accepted: false, result: nil, message: rejected, created: nil, completion: completion)
+            }
+        }
+    }
+
+    /// Whether the element or patch a 接受 created is still live: the
+    /// element in the library (not in its trash), the patch among its
+    /// element's patches while that element is live.
+    private func isLive(_ done: CopilotCreated, of comment: WorkspaceComment, completion: @escaping (Result<Bool, Error>) -> Void) {
+        workspace.elementLibrary(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            let library: WorkspaceElementLibrary
+            do { library = try result.get() } catch { completion(.failure(error)); return }
+            if let elementID = done.elementID { completion(.success(library.elements.contains { $0.id == elementID })); return }
+            guard let patchID = done.patchID, case .patch(let candidate)? = CopilotProposal(comment),
+                  library.elements.contains(where: { $0.id == candidate.elementID }) else { completion(.success(false)); return }
+            self.workspace.elementPatches(projectID: self.projectID, elementID: candidate.elementID) { patches in
+                completion(patches.map { $0.contains { $0.id == patchID } })
+            }
+        }
     }
 
     private func resolve(_ comment: WorkspaceComment, accepted: Bool, result: [String: Any]?, message: String, created done: CopilotCreated?,

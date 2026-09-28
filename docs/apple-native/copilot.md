@@ -85,7 +85,12 @@ the chapter's 批注 panel, with 定位, 接受 and 拒绝 ([review](review.md))
   更新…, and 接受 again (also after a relaunch) only records the decision with
   that identity; it never creates a second element or patch.
 - 拒绝 records `resolveSuggestion accepted:false`; later runs send and drop the
-  rejected name or change.
+  rejected name or change. After a 接受 whose decision was not recorded, 拒绝
+  is refused while the element or patch it created is live (设定「…」已创建。
+  再点“接受”记录这条建议；如果不需要它，请先删除它再拒绝。) and writes nothing;
+  once the element is in the trash or deleted (for a patch: the patch
+  deleted or its element trashed), 拒绝 records the rejection and forgets
+  what was created.
 - A refused create (a name taken meanwhile, a trashed element) leaves the
   suggestion open with the reason on its card and writes nothing.
 - Decided suggestions are `converted` and leave the open lists; the 批注 panel
@@ -99,7 +104,7 @@ notes and suggestions on any live chapter or drift body.
 
 ## Acceptance
 
-Seven programmatic AppKit cases in `native/apple/Tests/CopilotAcceptance.swift`
+Eight programmatic AppKit cases in `native/apple/Tests/CopilotAcceptance.swift`
 (`--copilot-only`; [binding report](acceptance/p2b-binding.json)) drive the real
 tab host, editors, 审阅 and 批注 panels, settings pane and store, Rust
 workspace and SQLite with a `URLProtocol` stub of synthetic JSON replies and
@@ -107,6 +112,7 @@ in-memory synthetic keys: off by default, settings and relaunch, the idle and
 manual triggers, changed-paragraph requests, exclusions, evidence anchoring
 and drops, element and patch acceptance with journal assertions, rejection,
 refused creates, a failed decision retried (also after a relaunch) without a
-second create, typing during a request, cancellation on close, retries and
-errors, the privacy note's list and the drift switch. Live providers,
-physical input and panels on screen are not covered.
+second create, 拒绝 refused while what that 接受 created is live and
+recorded once it is in the trash, typing during a request, cancellation on
+close, retries and errors, the privacy note's list and the drift switch.
+Live providers, physical input and panels on screen are not covered.

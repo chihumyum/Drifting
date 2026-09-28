@@ -26,8 +26,11 @@ extension BindingAcceptance {
             "AppKit Copilot never holds typing while a request is out, runs one request at a time per project, stops its request when the chapter's tab closes without adding anything, retries 503 with the assistant's policy, does not retry 401, and reports a missing key in its quiet status",
             "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent and the suggestion is anchored in the drift body; turning it off stops a drift run",
             "AppKit Copilot 接受 remembers the element or patch it created when recording the decision fails and says so on the card; 接受 again, also after a relaunch, only records the decision with that identity and never creates twice",
+            copilotRejectCase,
         ]
     }
+
+    static let copilotRejectCase = "AppKit Copilot 拒绝 after a 接受 whose decision failed is refused with guidance while the element or patch it created is live, writing nothing and keeping what was created, and once that element is in the trash records the rejection and forgets it"
 
     // MARK: Harness
 
@@ -570,12 +573,13 @@ extension BindingAcceptance {
         try harness.type(view, "林岚被落石砸伤了左臂，沈舟把她背下了楼。")
         try harness.settle(view)
         AgentStubProtocol.reset([
-            copilotElements([["name": "沈舟", "category": "人物", "summary": "渡口的船夫。", "evidence": "沈舟把她背下了楼"]]),
+            copilotElements([["name": "沈舟", "category": "人物", "summary": "渡口的船夫。", "evidence": "沈舟把她背下了楼"],
+                             ["name": "落石", "category": "人物", "summary": "山上滚下的石头。", "evidence": "被落石砸伤"]]),
             copilotPatches([["elementId": lan.id, "title": "左臂受伤", "body": "被落石砸伤了左臂。", "evidence": "被落石砸伤了左臂"]]),
         ])
         view.textView.copilotAnalyze(nil)
         try harness.waitRun()
-        let ferryman = try harness.suggestion("沈舟"), injury = try harness.suggestion("左臂受伤")
+        let ferryman = try harness.suggestion("沈舟"), injury = try harness.suggestion("左臂受伤"), rockfall = try harness.suggestion("落石")
         let failure = "合成的记录失败"
         harness.controller.injectedDecisionFailure = { _ in LabError.message(failure) }
 
@@ -591,8 +595,17 @@ extension BindingAcceptance {
             && harness.controller.created[ferryman.id]?.elementID == shen.id && harness.controller.failures[ferryman.id] == shenMessage
             && harness.reviewController.card(commentID: ferryman.id)?.suggestionMessage.stringValue == shenMessage,
             "A failed decision after the create differs: \(written) \(harness.controller.failures[ferryman.id] ?? "")")
-        // 接受 again only records the decision for the element already created.
+        // 拒绝 while that element is live would forget it: refused with guidance, nothing written.
         harness.controller.injectedDecisionFailure = nil
+        let keepMessage = "设定「沈舟」已创建。再点“接受”记录这条建议；如果不需要它，请先删除它再拒绝。"
+        mark = try harness.journal.mark()
+        harness.reviewController.card(commentID: ferryman.id)?.rejectButton.performClick(nil)
+        try wait { harness.controller.deciding.isEmpty }
+        try harness.journal.expect([], since: mark, "拒绝 while the created element is live")
+        try require(harness.controller.failures[ferryman.id] == keepMessage && harness.controller.created[ferryman.id]?.elementID == shen.id
+            && (try harness.suggestion("沈舟")).review == .open && harness.reviewController.card(commentID: ferryman.id)?.suggestionMessage.stringValue == keepMessage,
+            "拒绝 after a half-failed 接受 read \(harness.controller.failures[ferryman.id] ?? "")")
+        // 接受 again only records the decision for the element already created.
         mark = try harness.journal.mark()
         harness.reviewController.card(commentID: ferryman.id)?.acceptButton.performClick(nil)
         try wait { harness.controller.deciding.isEmpty }
@@ -615,6 +628,15 @@ extension BindingAcceptance {
             && harness.controller.created[injury.id]?.patchID == created[0].id && (try harness.suggestion("左臂受伤")).review == .open
             && harness.controller.failures[injury.id]?.hasPrefix("设定「林岚」的补丁「左臂受伤」已创建") == true,
             "A failed patch decision differs: \(written) \(harness.controller.failures[injury.id] ?? "")")
+        // The patch is live too: 拒绝 is refused the same way.
+        harness.controller.injectedDecisionFailure = nil
+        mark = try harness.journal.mark()
+        var rejected: Result<Void, Error>?
+        harness.controller.reject(try harness.suggestion("左臂受伤")) { rejected = $0 }
+        try wait { rejected != nil }
+        try harness.journal.expect([], since: mark, "拒绝 while the created patch is live")
+        try require(harness.controller.failures[injury.id] == "设定「林岚」的补丁「左臂受伤」已创建。再点“接受”记录这条建议；如果不需要它，请先删除它再拒绝。"
+            && harness.controller.created[injury.id]?.patchID == created[0].id, "拒绝 of the patch read \(harness.controller.failures[injury.id] ?? "")")
         harness.controller.store.flush()
         harness.makeController()
         try require(harness.controller.created[injury.id]?.patchID == created[0].id && harness.controller.failures[injury.id] == nil,
@@ -634,6 +656,31 @@ extension BindingAcceptance {
         try require(CopilotController(workspace: harness.workspace, projectID: harness.project.id, credentials: harness.credentials).created.isEmpty
             && (try? Data(contentsOf: file)).map { !String(decoding: $0, as: UTF8.self).contains(injury.id) } ?? true,
             "The recorded decision stayed remembered")
+
+        // Once the created element is in the trash, 拒绝 records the rejection and forgets it.
+        harness.controller.injectedDecisionFailure = { _ in LabError.message(failure) }
+        var accepted2: Result<Void, Error>?
+        harness.controller.accept(rockfall) { accepted2 = $0 }
+        try wait { accepted2 != nil }
+        harness.controller.injectedDecisionFailure = nil
+        guard let rock = try harness.library().elements.first(where: { $0.name == "落石" }),
+              harness.controller.created[rockfall.id]?.elementID == rock.id else { throw LabError.message("落石 was not created and remembered") }
+        rejected = nil
+        harness.controller.reject(try harness.suggestion("落石")) { rejected = $0 }
+        try wait { rejected != nil }
+        try require(harness.controller.failures[rockfall.id]?.hasPrefix("设定「落石」已创建。") == true, "拒绝 of a live element was not refused")
+        let workspace = harness.workspace, projectID = harness.project.id
+        let _: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+            workspace.trashElement(projectID: projectID, elementID: rock.id, completion: $0)
+        }
+        mark = try harness.journal.mark()
+        harness.reviewController.card(commentID: rockfall.id)?.rejectButton.performClick(nil)
+        try wait { harness.controller.deciding.isEmpty }
+        try harness.journal.expect([resolveOriginal], since: mark, "拒绝 once the created element is in the trash")
+        decisions = try harness.actions()
+        try require((try harness.suggestion("落石")).review == .converted && decisions.last?.commentId == rockfall.id
+            && decisions.last?.kind == "reject_suggestion" && harness.controller.created[rockfall.id] == nil
+            && harness.controller.failures[rockfall.id] == nil, "拒绝 after the trash did not record and forget: \(String(describing: decisions.last))")
         try harness.close()
     }
 

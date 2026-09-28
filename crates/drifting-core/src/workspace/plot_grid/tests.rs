@@ -77,6 +77,19 @@ fn plot_grid_batches_orders_projects_and_refuses_atomically() {
         .unwrap();
     assert_eq!(store.plot_grid(&c.project_id, "chapter").unwrap(), None);
     let before = changes(&g);
+    // A batch that changes nothing on a page without a grid leaves none.
+    let default_size = PlotGridOp::SetSize {
+        width: DEFAULT_CELL_W,
+        height: DEFAULT_CELL_H,
+    };
+    assert_eq!(
+        store
+            .apply_plot_grid(&c, "chapter", &[default_size])
+            .unwrap(),
+        None
+    );
+    assert_eq!(store.plot_grid(&c.project_id, "chapter").unwrap(), None);
+    assert_eq!(changes(&g), before);
     let grid = store
         .apply_plot_grid(
             &c,
@@ -96,7 +109,8 @@ fn plot_grid_batches_orders_projects_and_refuses_atomically() {
                 },
             ],
         )
-        .unwrap();
+        .unwrap()
+        .expect("grid");
     assert_eq!(
         changes(&g).parse::<u64>().unwrap(),
         before.parse::<u64>().unwrap() + 1
@@ -121,7 +135,8 @@ fn plot_grid_batches_orders_projects_and_refuses_atomically() {
                 after: None,
             }],
         )
-        .unwrap();
+        .unwrap()
+        .expect("grid");
     assert_eq!(ids(&moved.rows), ["r2", "r1"]);
     // Operations that change nothing write nothing.
     let quiet = changes(&g);
@@ -150,7 +165,8 @@ fn plot_grid_batches_orders_projects_and_refuses_atomically() {
                 },
             ],
         )
-        .unwrap();
+        .unwrap()
+        .expect("grid");
     assert_eq!(changes(&g), quiet);
     // A refusal anywhere rolls the whole batch back.
     for ops in [
@@ -198,7 +214,8 @@ fn plot_grid_batches_orders_projects_and_refuses_atomically() {
                 },
             ],
         )
-        .unwrap();
+        .unwrap()
+        .expect("grid");
     assert!(removed.cells.is_empty());
     assert_eq!((removed.cell_width, removed.cell_height), (240.0, 120.0));
     let purges = g

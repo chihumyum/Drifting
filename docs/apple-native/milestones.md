@@ -90,7 +90,8 @@ architectural redesign.
 | MCP extensions and assistant memory fixes | `ab4e6a8a` | [agent](agent.md), [settings](settings.md), [whole book](whole-book.md), [trash](trash.md) |
 | Printing, PDF export and custom shortcuts | `507f67ad` | [library](library.md), [settings](settings.md) |
 | MCP and Copilot hardening | `ec4bf6f2` | [agent](agent.md), [copilot](copilot.md), [settings](settings.md) |
-| Plot planner and drift conversions | this batch | [plot planner](plot-planner.md), [drifts](drifts.md), [trash](trash.md) |
+| Plot planner and drift conversions | `1866145c` | [plot planner](plot-planner.md), [drifts](drifts.md), [trash](trash.md) |
+| Review fixes for printing, planner and conversions | this batch | [drifts](drifts.md), [plot planner](plot-planner.md), [settings](settings.md), [agent](agent.md), [copilot](copilot.md) |
 
 ## Next batch
 

@@ -535,6 +535,87 @@ impl WorkspaceStore<'_> {
         })
     }
 
+    /// Re-creates every relation touching `from` on `to` instead, where the
+    /// relation type still allows the new endpoint; an identical edge counts
+    /// as carried. Returns (carried, skipped). The originals stay for the
+    /// caller to purge.
+    pub(super) fn copy_relations_to(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        from: (&str, &str),
+        to: (&str, &str),
+        new_id: &mut dyn FnMut() -> Result<String, String>,
+        mutations: &mut Vec<journal::Mutation>,
+    ) -> Result<(usize, usize), String> {
+        let rows = self.relation_rows(
+            tx,
+            context,
+            "(from_kind=? AND from_id=?) OR (to_kind=? AND to_id=?)",
+            vec![text(from.0), text(from.1), text(from.0), text(from.1)],
+        )?;
+        let (mut carried, mut skipped) = (0, 0);
+        for relation in rows {
+            let mut edge = Endpoints {
+                from_kind: relation.from_kind.clone(),
+                from_id: relation.from_id.clone(),
+                to_kind: relation.to_kind.clone(),
+                to_id: relation.to_id.clone(),
+            };
+            if edge.from_kind == from.0 && edge.from_id == from.1 {
+                edge.from_kind = to.0.into();
+                edge.from_id = to.1.into();
+            }
+            if edge.to_kind == from.0 && edge.to_id == from.1 {
+                edge.to_kind = to.0.into();
+                edge.to_id = to.1.into();
+            }
+            let Ok(kind) = self.relation_type(tx, context, &relation.relation_type_id) else {
+                skipped += 1;
+                continue;
+            };
+            let Ok(checked) = validate(&kind, edge) else {
+                skipped += 1;
+                continue;
+            };
+            if refuse_self_edge(&checked).is_err() {
+                skipped += 1;
+                continue;
+            }
+            if self
+                .same_edge(tx, context, &checked, &relation.relation_type_id, None)?
+                .is_some()
+            {
+                carried += 1;
+                continue;
+            }
+            let id = new_id()?;
+            self.execute(
+                tx,
+                &format!(
+                    "INSERT INTO entity_relation({RELATION_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?)"
+                ),
+                vec![
+                    text(&id),
+                    text(&context.project_id),
+                    text(&checked.from_kind),
+                    text(&checked.from_id),
+                    text(&checked.to_kind),
+                    text(&checked.to_id),
+                    text(&relation.relation_type_id),
+                    text(&context.now_iso),
+                    text(&context.now_iso),
+                ],
+            )?;
+            mutations.push(journal::Mutation::create("entity-relation", &id, json!({
+                "fromKind": checked.from_kind, "fromId": checked.from_id, "toKind": checked.to_kind,
+                "toId": checked.to_id, "relationTypeId": relation.relation_type_id,
+            })));
+            carried += 1;
+        }
+        Ok((carried, skipped))
+    }
+
     /// deleteEntityRelationsInTransaction: every curated relation touching an
     /// entity is removed with its purge original, ahead of the entity's own
     /// trash mutation; restore does not bring relations back.

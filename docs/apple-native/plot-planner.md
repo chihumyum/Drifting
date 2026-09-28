@@ -12,7 +12,8 @@ history or word counts. Native only; no Tauri interoperability is kept.
   columns:[{id,label}], cells:[{rowId,columnId,value}]}, created: []}`;
   `null` means the node has never been edited. With `ops` it applies them in
   order in one original and replies the same shape; any refusal rolls the
-  whole batch back.
+  whole batch back. A batch that changes nothing writes nothing, and on a
+  node without a grid leaves none behind (`grid: null`).
 - Operations (`op`): `setSize {width 120–440, height 56–380}`, `addRow {id?,
   label, after?}`, `setRowLabel`, `moveRow {rowId, after?}`, `removeRow`
   (purges its cells), the same four for columns, and `setCell {rowId,
@@ -35,8 +36,12 @@ top edge drags to resize it (140–640 points).
 
 The dock header has 添加行, 添加列 (after the selected row or column, else at
 the end; the new header is then edited), the cell width and height sliders
-within Rust's limits, and 隐藏. A node without a grid shows an unsaved blank
-3×3 template; the first edit writes it, as it then looks, in one original.
+within Rust's limits, and 隐藏. Until the grid's first read replies the dock
+reads 正在读取… and accepts no edit (its buttons and sliders are disabled),
+so every gesture is computed against the stored grid. A node without a grid
+then shows an unsaved blank 3×3 template; the first edit writes it, as it
+then looks, in one original. A write Rust answers with no grid shows the
+blank template again, with nothing stored.
 
 - **Cells.** A click or Return edits a cell in place; Return commits, ⌥Return
   starts a new line, Tab and ⇧Tab commit and edit the next or previous cell
@@ -60,9 +65,17 @@ grid again. Every dock of the same page shares one model, so two panes follow
 each other; the grids are read again when a dock is shown, when the window
 becomes key and after a received original.
 
+A gesture queued or on its way to Rust counts as input in flight: opening
+pages, switching tabs or projects is refused meanwhile, as for queued body
+input. Closing a tab, a pane, the window or the app, 移到回收站 of the chapter
+or drift and 转为章节/转为设定 commit the cell being edited and wait for the
+gestures (at most 3 seconds). A gesture Rust refuses cancels the action with
+its reason (情节规划格的修改没有保存：… 没有移到回收站，请处理后再试。), and a
+wait that runs out refuses (情节规划格还在保存，没有关闭。请稍后再试。).
+
 ## Acceptance
 
-Four programmatic AppKit cases in `native/apple/Tests/PlotConvertAcceptance.swift`
+Five programmatic AppKit cases in `native/apple/Tests/PlotConvertAcceptance.swift`
 (`--plot-convert-only`; [binding report](acceptance/p2b-binding.json)) drive
 the real tab host, pages, dock and grid canvas with synthesized clicks, key
 presses and header drags over the Rust workspace, SQLite and `settings.json`:
@@ -74,6 +87,11 @@ original; a pasted block as one original; sizes within the limits and the
 refusals of an out-of-range size and an over-long cell restoring the grid;
 two panes following; a grid written elsewhere read again; a drift's own
 planner; the dock height; the prose's text, revision, undo history and word
-counts unchanged; a cold relaunch; and 彻底删除 of a drift. Rust suites cover
-the ABI in `workspace_plot_grid_tests.rs`. A dock on screen, physical input
+counts unchanged; a cold relaunch; and 彻底删除 of a drift. The fifth
+covers the loading dock refusing edits and the first edit changing a grid
+written elsewhere, a write answered with no grid, navigation held while a
+gesture is out, and tab close, trash (a refused over-long cell keeping the
+chapter), both conversions and workspace close waiting for queued gestures
+and the cell being edited, with the bounded wait's refusal and a cold
+reopen. Rust suites cover the ABI in `workspace_plot_grid_tests.rs`. A dock on screen, physical input
 and desktop XCTest are not covered.

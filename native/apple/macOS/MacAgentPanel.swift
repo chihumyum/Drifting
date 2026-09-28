@@ -842,8 +842,9 @@ final class AgentMcpApprovalCard: NSView, AgentTranscriptRow {
     }
 }
 
-/// A rule or working-memory write asked for after an MCP result in the same
-/// turn: what it would change in full, and 允许 / 拒绝 while the turn waits.
+/// A rule, working-memory or task-plan write asked for after an MCP result
+/// in the same turn: what it would change in full, and 允许 / 拒绝 while the
+/// turn waits.
 final class AgentMemoryApprovalCard: NSView, AgentTranscriptRow {
     let allowButton = NSButton(title: "允许", target: nil, action: nil)
     let denyButton = NSButton(title: "拒绝", target: nil, action: nil)
@@ -855,7 +856,7 @@ final class AgentMemoryApprovalCard: NSView, AgentTranscriptRow {
     private let deny: () -> Void
     private(set) var plainText = ""
 
-    static let reason = "本轮已收到 MCP 工具的结果。为防止外部内容借写作助手改动作者规则或工作记忆，这次修改要你确认。"
+    static let reason = "本轮已收到 MCP 工具的结果。为防止外部内容借写作助手改动作者规则、工作记忆或任务计划，这次修改要你确认。"
 
     init(messageID: String, request: AgentMemoryApproval, answerable: Bool, allow: @escaping () -> Void, deny: @escaping () -> Void) {
         self.request = request; self.allow = allow; self.deny = deny

@@ -93,6 +93,13 @@ enum LabError: LocalizedError {
         return "情节规划格未能保存。已有内容未改变，可以稍后重试。"
     }
 
+    /// 转为设定 stopped after Rust created the element; Rust's message says
+    /// what was done (“设定「灯塔」已创建并复制了正文，但…”).
+    static func isPartialElementConversion(_ reason: String) -> Bool { reason.hasPrefix("设定「") && reason.contains("已创建") }
+    static func isPartialElementConversion(_ error: Error) -> Bool {
+        (error as? LabError).map { isPartialElementConversion($0.diagnosticDescription) } ?? false
+    }
+
     /// “名称”已被设定“名称”使用: an element name or alias conflict, from
     /// `Name "x" is already used by element "y"`.
     static func elementNameConflict(_ reason: String) -> String? {
@@ -302,7 +309,7 @@ enum LabError: LocalizedError {
         if let conflict = elementNameConflict(reason) {
             return conflict.replacingOccurrences(of: "请换一个名称或别名。", with: "请先给漂流或那个设定改名，再转为设定。")
         }
-        if reason.contains("已创建") { return reason }
+        if isPartialElementConversion(reason) { return reason }
         let known: [(String, String)] = [
             ("灵感不存在或已在回收站", "这条漂流已不可用，请刷新漂流列表。"),
             ("Storyline is not available", "这条故事线已不可用，请刷新故事线列表后再转为章节。"),
@@ -1537,10 +1544,12 @@ final class LabWorkspaceCore {
     }
 
     /// 转为设定: a new element in the category with the drift's title,
-    /// summary and body, then the drift goes to the trash. A name conflict
-    /// is refused before anything is written. The drift's open body is
-    /// released on success, and when Rust reports that the element and its
-    /// body were made but the trash failed; the library reply is the drifts'.
+    /// summary and body; relations whose type allows an element and notes on
+    /// the whole drift move to it (`carried`), then the drift goes to the
+    /// trash. A name conflict is refused before anything is written. The
+    /// drift's open body is released on success, and when Rust reports that
+    /// the element was made but the trash failed; the library reply is the
+    /// drifts'.
     func convertDriftToElement(projectID: String, driftID: String, categoryID: String,
                                completion: @escaping (Result<WorkspaceDriftReply<WorkspaceDriftElementConversion>, Error>) -> Void) {
         precondition(Thread.isMainThread)
@@ -1553,7 +1562,8 @@ final class LabWorkspaceCore {
             switch result {
             case .success: released = true
             case .failure(let error):
-                released = ((error as? LabError)?.diagnosticDescription ?? "").contains("已创建并复制了正文")
+                // Only a failed trash comes after Rust released the drift's body.
+                released = ((error as? LabError)?.diagnosticDescription ?? "").contains("但灵感未能移入回收站")
             }
             if released { self.owners.removeValue(forKey: scope)?.core.invalidate() }
             self.endOwnerChange()

@@ -168,8 +168,10 @@ enum PlotGridOp: Equatable {
 /// nothing writes nothing. Gestures run one at a time in order; docks show
 /// the stored grid with the queued gestures applied. A refusal keeps its
 /// Chinese reason in `message`, drops the gestures queued behind it and
-/// reads the stored grid again. Before the first edit a blank 3×3 template
-/// is shown; the first gesture writes it as it then looks.
+/// reads the stored grid again. No gesture is accepted before the first
+/// read has replied, so ops are always computed against the stored grid.
+/// Without one a blank 3×3 template is shown; the first gesture writes it
+/// as it then looks.
 final class PlotGridModel {
     let projectID: String
     let nodeID: String
@@ -181,6 +183,8 @@ final class PlotGridModel {
     private(set) var message: String?
     /// Every call sent, in order, for acceptance.
     private(set) var sentBatches: [[PlotGridOp]] = []
+    /// How many sent gestures Rust refused; a waiter compares it before and after.
+    private(set) var refusals = 0
     /// The blank template, and what it looks like once a gesture wrote it.
     private let blank: WorkspacePlotGrid
     private var template: WorkspacePlotGrid
@@ -201,11 +205,18 @@ final class PlotGridModel {
     }
 
     /// What the docks show: the stored grid (or the template) with every
-    /// gesture not yet answered applied.
+    /// gesture not yet answered applied; nothing while the first read is out.
     var grid: WorkspacePlotGrid {
-        ((sending.map { [$0] } ?? []) + queue).joined().reduce(stored ?? template) { $0.applying($1) }
+        guard loaded || stored != nil else {
+            return WorkspacePlotGrid(nodeId: nodeID, cellWidth: WorkspacePlotGrid.defaultWidth, cellHeight: WorkspacePlotGrid.defaultHeight,
+                                     rows: [], columns: [], cells: [])
+        }
+        return ((sending.map { [$0] } ?? []) + queue).joined().reduce(stored ?? template) { $0.applying($1) }
     }
-    var busy: Bool { sending != nil || !queue.isEmpty || reading }
+    var busy: Bool { writing || reading }
+    /// A gesture is queued or on its way to Rust: like queued body input,
+    /// closing, quitting, converting or trashing the page waits for it.
+    var writing: Bool { sending != nil || !queue.isEmpty }
 
     /// Calls `block` after every change while `owner` lives.
     func observe(_ owner: AnyObject, _ block: @escaping () -> Void) {
@@ -237,9 +248,12 @@ final class PlotGridModel {
         }
     }
 
-    /// One gesture. Returns false when nothing changes (nothing is sent).
+    /// One gesture. Returns false when nothing changes (nothing is sent),
+    /// and before the first read has replied: a gesture built on the blank
+    /// template could otherwise overwrite a grid not yet read.
     @discardableResult
     func perform(_ ops: [PlotGridOp]) -> Bool {
+        guard loaded else { return false }
         var base = grid, needed: [PlotGridOp] = []
         for op in ops {
             let next = base.applying(op)
@@ -272,16 +286,33 @@ final class PlotGridModel {
                 self.stored = reply.grid
                 self.loaded = true
                 self.message = nil
+                if reply.grid == nil {
+                    // The batch changed nothing on a page without a grid, so
+                    // Rust stored none: the blank template shows again and
+                    // gestures built on the vanished grid have nothing to change.
+                    self.queue.removeAll()
+                    self.creating = false; self.template = self.blank
+                }
                 self.changed()
                 self.sendNext()
             case .failure(let error):
                 // Rust rolled the whole batch back; later gestures were built on it.
                 self.queue.removeAll()
                 if self.stored == nil { self.creating = false; self.template = self.blank }
+                self.refusals += 1
                 self.message = error.localizedDescription
                 self.changed()
                 self.load()
             }
         }
+    }
+
+    /// Acceptance only: sends `batch` as it is, without dropping operations
+    /// that change nothing or writing the template first, e.g. to see Rust
+    /// answer a batch that changes nothing on a page without a grid.
+    func sendUnchecked(_ batch: [PlotGridOp]) {
+        queue.append(batch)
+        changed()
+        sendNext()
     }
 }

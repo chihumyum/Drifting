@@ -261,3 +261,145 @@ fn workspace_drift_converts_to_chapter_and_element() {
     assert_eq!(changes(&db), before);
     fixture.close();
 }
+
+#[test]
+fn drift_to_element_carries_relations_and_whole_drift_notes() {
+    let mut fixture = Fixture::new();
+    let chapter = fixture.chapters[0].clone();
+    let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
+    let category = op(
+        &fixture,
+        "workspaceElements",
+        json!({"action":"createCategory","name":"地点"}),
+    )["result"]["id"]
+        .clone();
+    let harbour = op(
+        &fixture,
+        "workspaceElements",
+        json!({"action":"createElement","categoryId":category,"name":"港口"}),
+    )["result"]["id"]
+        .clone();
+    let drift = op(
+        &fixture,
+        "workspaceDrifts",
+        json!({"action":"createDrift","title":"灯塔"}),
+    )["result"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let relation_type = |name: &str, kinds: Value| {
+        op(
+            &fixture,
+            "workspaceRelations",
+            json!({"action":"createType","definition":{"name":name,"orientation":"directed",
+                "sourceRole":"源","targetRole":"目标","sourceKinds":kinds,"targetKinds":kinds}}),
+        )["result"]["id"]
+            .clone()
+    };
+    let near = relation_type("邻近", json!(["node", "element"]));
+    let nodes_only = relation_type("承接", json!(["node"]));
+    let relate = |from: (&str, &Value), to: (&str, &Value), kind: &Value| {
+        op(
+            &fixture,
+            "workspaceRelations",
+            json!({"action":"addRelation","fromKind":from.0,"fromId":from.1,
+                "toKind":to.0,"toId":to.1,"relationTypeId":kind}),
+        )
+    };
+    let drift_id = json!(drift);
+    relate(("node", &drift_id), ("element", &harbour), &near);
+    relate(("node", &json!(chapter)), ("node", &drift_id), &near);
+    relate(("node", &drift_id), ("node", &json!(chapter)), &nodes_only);
+    let note = |target: Option<(&str, &str)>, body: &str| {
+        let mut command = json!({"action":"create","kind":"note","body":body});
+        if let Some((kind, id)) = target {
+            command["targetKind"] = json!(kind);
+            command["targetId"] = json!(id);
+        }
+        op(&fixture, "workspaceComments", command)["result"]["id"].clone()
+    };
+    let whole = note(Some(("node", &drift)), "查证灯塔年代");
+    let elsewhere = note(Some(("node", &chapter)), "别处的批注");
+    let before = changes(&db);
+    let converted = op(
+        &fixture,
+        "workspaceDrifts",
+        json!({"action":"convertToElement","driftId":drift,"categoryId":category}),
+    )["result"]
+        .clone();
+    let element = converted["element"]["id"].clone();
+    assert_eq!(
+        converted["carried"],
+        json!({"relations":2,"skippedRelations":1,"comments":1})
+    );
+    // Element creation, the body, the carried links and the trash: four originals.
+    assert_eq!(changes(&db), before + 4);
+    let library = op(&fixture, "workspaceRelations", json!({"action":"library"}))["library"]
+        ["relations"]
+        .clone();
+    let edges: Vec<(Value, Value, Value, Value, Value)> = library
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["fromKind"].clone(),
+                r["fromId"].clone(),
+                r["toKind"].clone(),
+                r["toId"].clone(),
+                r["relationTypeId"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        edges,
+        vec![
+            (
+                json!("element"),
+                element.clone(),
+                json!("element"),
+                harbour.clone(),
+                near.clone()
+            ),
+            (
+                json!("node"),
+                json!(chapter),
+                json!("element"),
+                element.clone(),
+                near.clone()
+            ),
+        ]
+    );
+    let comments = op(&fixture, "workspaceComments", json!({"action":"list"}));
+    let target = |id: &Value| {
+        comments["comments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == *id)
+            .map(|c| (c["targetKind"].clone(), c["targetId"].clone()))
+            .unwrap()
+    };
+    assert_eq!(target(&whole), (json!("element"), element.clone()));
+    assert_eq!(target(&elsewhere), (json!("node"), json!(chapter)));
+    let carried = db
+        .query(
+            "SELECT action,target_kind FROM sync_mutation WHERE change_set_id=(SELECT change_set_id FROM sync_change_set ORDER BY device_seq DESC LIMIT 1 OFFSET 1) ORDER BY mutation_index".into(),
+            vec![],
+            None,
+            CLIENT.into(),
+        )
+        .unwrap()
+        .rows;
+    let text = |v: &str| DatabaseValue::Text(v.into());
+    assert_eq!(
+        carried,
+        vec![
+            vec![text("entity.create"), text("entity-relation")],
+            vec![text("entity.create"), text("entity-relation")],
+            vec![text("field.set"), text("comment")],
+            vec![text("field.set"), text("comment")],
+        ]
+    );
+    fixture.close();
+}

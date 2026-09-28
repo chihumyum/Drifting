@@ -85,7 +85,7 @@ optional argument counts as absent.
 | write | `create_comment` (note or TODO, floating TODO or on a page, priority), `update_comment` (body, kind, priority), `resolve_comment` | `workspaceComments`; create with `byAssistant` |
 | write | `create_drift` (title, optional body), `rename_drift`, `set_drift_summary` | `workspaceDrifts` then one `append`; `updateDrift`; `setNodeSummary` |
 | write | `update_project_facts`, `update_project_summary` | `workspaceMetadata updateProject` |
-| memory | `create_author_rule`, `update_author_rule`, `delete_author_rule`, `checkpoint_working_memory`, `update_task_plan`, `update_task_step`, `update_task_constraint` | applied at once to the rules file or the conversation (rule and note writes after an MCP result wait for 允许); never Rust |
+| memory | `create_author_rule`, `update_author_rule`, `delete_author_rule`, `checkpoint_working_memory`, `update_task_plan`, `update_task_step`, `update_task_constraint` | applied at once to the rules file or the conversation (after an MCP result they wait for 允许); never Rust |
 
 References resolve the way chapter titles do: an identity, else an exact name
 (an element also by alias, 《》 and 「」 stripped). An ambiguous name is refused
@@ -152,12 +152,16 @@ request's system prompt ends with the current 作者规则, 工作记忆 and 任
 Memory tools change only the assistant's memory, apply at once without a
 proposal and never touch the book, SQLite, user defaults or the journal.
 In a turn that has already received an MCP tool result (any answer from a
-server, errors included), `create_author_rule`, `update_author_rule`,
-`delete_author_rule` and `checkpoint_working_memory` instead show a card
-(允许修改写作助手的记忆？) with the complete change and wait: 允许 applies it
-once, 拒绝 tells the model and writes nothing, 停止 or the end of the turn
-leaves it 未执行. Plan tools still apply at once; the next turn without MCP
-results writes at once again.
+server, errors included), every memory write (`create_author_rule`,
+`update_author_rule`, `delete_author_rule`, `checkpoint_working_memory`,
+`update_task_plan`, `update_task_step` and `update_task_constraint`)
+instead shows a card (允许修改写作助手的记忆？) with the complete change and
+waits: the rule, the whole new note, or the plan, step or constraint as it
+would read (设定任务计划（N 步）with every line, 更新任务计划第 N 步 and
+增加/删除/修改任务限制 with 原来 and 改为). 允许 applies it once, 拒绝 tells the
+model and writes nothing, 停止 or the end of the turn leaves it 未执行. A
+plan call that would be refused changes nothing and fails without a card;
+the next turn without MCP results writes at once again.
 The Mac keeps one assistant per project for the session, so a rule or
 working-memory sheet writes to the project and conversation it opened on,
 even after the window switched project; a deleted conversation or project
@@ -289,7 +293,7 @@ renderer's `agent_mcp_server` fields, stored natively):
   note; images, audio and resources are summarised and never stored;
   `isError` is reported as a failure. MCP tools cannot write the book: their
   results only reach the model, and any change still goes through a proposal
-  (or, for rules and working memory, the author's 允许).
+  (or, for rules, working memory and the task plan, the author's 允许).
 
 ## Persistence
 
@@ -403,6 +407,7 @@ policy reset when the endpoint moves, complete and pinned approval cards
 (rename, a name taken over, reconfiguration, deletion), a `list_changed`
 burst, an advisory catastrophic `pattern`, an SSE event without separators,
 an open notification answer, `\r`-only and newline-free standard error,
-quitting during a shutdown window, and memory writes after an MCP result.
+quitting during a shutdown window, and rule, note, plan, step and
+constraint writes after an MCP result.
 
 Physical keyboard input and live providers are not exercised.

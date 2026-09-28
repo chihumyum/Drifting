@@ -44,7 +44,9 @@ enum DriftConversionPicker {
         popup.setAccessibilityLabel("分类")
         let alert = NSAlert()
         alert.messageText = "将漂流“\(drift.title)”转为设定？"
-        var detail = "会以漂流的标题、摘要和正文在所选分类中新建设定，然后把漂流移到回收站（可以恢复）。与已有设定同名时不会转换。"
+        var detail = "会在所选分类中新建设定，标题、摘要和正文来自这条漂流；关系类型允许设定的关系、整篇漂流上的批注和待办会转到新设定上，其余关系会删除。"
+        detail += "然后漂流移到回收站（可以恢复）：正文里锚定的批注、历史版本、情节规划格和补丁来源留在漂流上，恢复漂流时一起回来。"
+        detail += "与已有设定同名时不会转换。"
         if let actName { detail += "它是“\(actName)”的幕笔记，移到回收站会解除这一绑定。" }
         alert.informativeText = detail
         alert.accessoryView = popup

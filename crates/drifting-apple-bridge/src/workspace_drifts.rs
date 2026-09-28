@@ -158,39 +158,51 @@ impl WorkspaceSession {
                     },
                     &mut || identifier("fact"),
                 )?;
+                // From here the element exists, so every failure says so.
+                let created = |error: String| format!("设定「{}」已创建{error}", element.name);
                 // The drift's body replaces the new body through a
                 // short-lived owner, as the author's input.
-                let scope = store.document_scope(project_id, &format!("element:{}", element.id))?;
-                let mut owner = LabSession::open_body(
-                    self.directory.clone(),
-                    self.gateway.clone(),
-                    scope,
-                    "element",
-                    element.id.clone(),
-                    self.installation_id.clone(),
-                )?;
-                let copied = owner.document.replace_with_state(&state).and_then(|()| {
-                    owner.persist();
-                    owner.save_error.clone().map_or(Ok(()), Err)
-                });
-                let released = owner.prepare_to_release();
-                if let Err(error) = copied.and(released) {
-                    return Err(format!(
-                        "设定「{}」已创建，但灵感正文未能复制：{error}",
-                        element.name
-                    ));
+                let copied = store
+                    .document_scope(project_id, &format!("element:{}", element.id))
+                    .and_then(|scope| {
+                        LabSession::open_body(
+                            self.directory.clone(),
+                            self.gateway.clone(),
+                            scope,
+                            "element",
+                            element.id.clone(),
+                            self.installation_id.clone(),
+                        )
+                    })
+                    .and_then(|mut owner| {
+                        let copied = owner.document.replace_with_state(&state).and_then(|()| {
+                            owner.persist();
+                            owner.save_error.clone().map_or(Ok(()), Err)
+                        });
+                        let released = owner.prepare_to_release();
+                        copied.and(released)
+                    });
+                if let Err(error) = copied {
+                    return Err(created(format!("，但灵感正文未能复制：{error}")));
                 }
+                // Relations and whole-drift notes follow the element.
+                let carried = store
+                    .carry_drift_links_to_element(&context, drift_id, &element.id, &mut || {
+                        identifier("relation")
+                    })
+                    .map_err(|error| {
+                        created(format!("并复制了正文，但关系和批注未能转移：{error}"))
+                    })?;
                 let trashed = store.trash_drift(&context, drift_id);
                 if let Some(handle) = self.drift_bodies.remove(&key) {
                     documents.remove(&handle);
                 }
                 if let Err(error) = trashed {
-                    return Err(format!(
-                        "设定「{}」已创建并复制了正文，但灵感未能移入回收站：{error}",
-                        element.name
-                    ));
+                    return Err(created(format!(
+                        "并复制了正文，但灵感未能移入回收站：{error}"
+                    )));
                 }
-                json!({"element": element, "driftId": drift_id})
+                json!({"element": element, "driftId": drift_id, "carried": carried})
             }
             DriftCommand::TrashDrift { drift_id } => {
                 let key = (project_id.to_owned(), drift_id.clone());
