@@ -85,7 +85,7 @@ optional argument counts as absent.
 | write | `create_comment` (note or TODO, floating TODO or on a page, priority), `update_comment` (body, kind, priority), `resolve_comment` | `workspaceComments`; create with `byAssistant` |
 | write | `create_drift` (title, optional body), `rename_drift`, `set_drift_summary` | `workspaceDrifts` then one `append`; `updateDrift`; `setNodeSummary` |
 | write | `update_project_facts`, `update_project_summary` | `workspaceMetadata updateProject` |
-| memory | `create_author_rule`, `update_author_rule`, `delete_author_rule`, `checkpoint_working_memory`, `update_task_plan`, `update_task_step`, `update_task_constraint` | applied at once to the rules file or the conversation; never Rust |
+| memory | `create_author_rule`, `update_author_rule`, `delete_author_rule`, `checkpoint_working_memory`, `update_task_plan`, `update_task_step`, `update_task_constraint` | applied at once to the rules file or the conversation (rule and note writes after an MCP result wait for 允许); never Rust |
 
 References resolve the way chapter titles do: an identity, else an exact name
 (an element also by alias, 《》 and 「」 stripped). An ambiguous name is refused
@@ -151,6 +151,13 @@ request's system prompt ends with the current 作者规则, 工作记忆 and 任
 
 Memory tools change only the assistant's memory, apply at once without a
 proposal and never touch the book, SQLite, user defaults or the journal.
+In a turn that has already received an MCP tool result (any answer from a
+server, errors included), `create_author_rule`, `update_author_rule`,
+`delete_author_rule` and `checkpoint_working_memory` instead show a card
+(允许修改写作助手的记忆？) with the complete change and wait: 允许 applies it
+once, 拒绝 tells the model and writes nothing, 停止 or the end of the turn
+leaves it 未执行. Plan tools still apply at once; the next turn without MCP
+results writes at once again.
 The Mac keeps one assistant per project for the session, so a rule or
 working-memory sheet writes to the project and conversation it opened on,
 even after the window switched project; a deleted conversation or project
@@ -227,41 +234,62 @@ renderer's `agent_mcp_server` fields, stored natively):
   `mcp.<projectId>.<serverId>.env|header.<name>`); a stored one is never
   shown and an empty field keeps it. Everything else is `mcpServers` in the
   lab's `settings.json`. A server is enabled or disabled by its checkbox and
-  removed with 删除… (its secrets go too; so do a deleted project's).
+  removed with 删除… (its secrets go too; so do a deleted project's). The
+  sheet and the 删除… confirmation write to the project they opened on, even
+  after the window switched project; a project or edited server deleted
+  meanwhile is refused in Chinese. Changing where the server is reached
+  (transport, command, arguments, working folder, or the URL's scheme, host,
+  port or path) resets every tool to 每次询问, and the sheet says so before
+  保存; variables, headers, secrets and the name keep the policies.
 - **Health and tools.** Each server shows 未启用, 连接中…, 可用 N 个工具 or
   出错：… (with its last standard-error lines), the tool-name prefix and
   the discovered tools, each with 允许, 每次询问 (default) or 禁用. A tool
   whose input schema uses unsupported JSON Schema (for example `$ref`), is
-  not an object or exceeds 64 KB is listed as 已跳过 with the reason.
+  not an object or exceeds 64 KB is listed as 已跳过 with the reason. A
+  `pattern` is advisory: the model reads it, the app never compiles or
+  evaluates it, so a hostile expression cannot stall the app.
 - **Connections** (`AgentMcpClient.swift`, `AgentMcpHub.swift`). Local
   commands speak line-delimited JSON-RPC 2.0 over a child process with a
   minimal environment plus the configured variables; standard error is kept
-  as a bounded log (200 lines). Streamable HTTP POSTs each message and reads
-  JSON or SSE answers, keeps the `Mcp-Session-Id` and sends
-  `MCP-Protocol-Version`; redirects are never followed and DELETE ends the
-  session. The handshake is `initialize` (2025-06-18) and
-  `notifications/initialized`, then `tools/list` with pagination (16 pages,
-  256 tools). Requests time out (30 s handshake, 300 s calls) and a timed-out
-  call is cancelled with `notifications/cancelled`; late answers are ignored.
+  as a bounded log (200 lines; `\n`, `\r\n` and a lone `\r` end a line, and
+  an unfinished line keeps only its newest 64 KB). Streamable HTTP POSTs
+  each message and reads JSON or SSE answers, keeps the `Mcp-Session-Id` and
+  sends `MCP-Protocol-Version`; redirects are never followed and DELETE ends
+  the session. Messages are capped at 4 MB: a stdout line, a JSON body, and
+  an SSE event plus its unfinished line (framed incrementally, never
+  rescanned). An oversized answer fails its request; the session stays. A
+  notification's answer left open is cancelled after 30 s. The handshake is
+  `initialize` (2025-06-18) and `notifications/initialized`, then
+  `tools/list` with pagination (16 pages, 256 tools). Requests time out
+  (30 s handshake, 300 s calls) and a timed-out call is cancelled with
+  `notifications/cancelled`; late answers are ignored.
   A failed or timed-out handshake, a crash or an expired session reconnects
   after 1, 3 and 10 s, then shows 出错 until 重新连接; a missing command or
   secret and an unsupported protocol version show 出错 at once. A changed
   server replaces its connection: the old tools leave the list first and
-  only a completed `tools/list` shows the new ones. Tool calls are never
-  replayed. Disabling, switching or closing the project and quitting end the
-  process (EOF, then SIGTERM, then SIGKILL); processes the server starts
-  itself are its own to end.
+  only a completed `tools/list` shows the new ones. `tools/list_changed`
+  runs one listing at a time, plus at most one after it for changes
+  announced meanwhile. Tool calls are never replayed. Disabling, switching
+  or closing the project end the process (EOF, then SIGTERM after 0.5 s,
+  then SIGKILL after 1.5 s); quitting ends every process at once, including
+  those still in that window after a disable, reconfiguration or failure.
+  Processes the server starts itself are its own to end.
 - **In the conversation.** Allowed and 每次询问 tools join the request's tool
   list as `mcp__<server>__<tool>` (64 characters, a short hash when a name
   had to change) with their schemas, and the system prompt says their results
   are external data. Arguments are checked against the schema before a call.
   允许 calls at once; 每次询问 first shows a card with the tool, server and
-  arguments and calls only after 允许一次 (拒绝 tells the model; 停止 marks
-  it 未执行). 禁用 tools are not offered and are refused. A result is its
-  text, cut at 16,000 characters with a note; images, audio and resources
-  are summarised and never stored; `isError` is reported as a failure. MCP
-  tools cannot write the book: their results only reach the model, and any
-  change still goes through a proposal.
+  the complete arguments (monospaced and scrollable, never cut) and calls
+  only after 允许一次 (拒绝 tells the model; 停止 marks it 未执行). The call
+  is pinned to the server and tool resolved when the model asked: a server
+  renamed, reconfigured, disabled or deleted meanwhile, or a tool it no
+  longer lists or the author disabled, leaves the card 未执行 with the
+  reason, and nothing is looked up again by name. 禁用 tools are not offered
+  and are refused. A result is its text, cut at 16,000 characters with a
+  note; images, audio and resources are summarised and never stored;
+  `isError` is reported as a failure. MCP tools cannot write the book: their
+  results only reach the model, and any change still goes through a proposal
+  (or, for rules and working memory, the author's 允许).
 
 ## Persistence
 
@@ -369,6 +397,12 @@ secrets only in the (in-memory) Keychain store, calls with checked arguments
 and a truncated result, media summaries, 允许 / 每次询问 (allow, deny, stop) /
 禁用, a crash and restart without replay, the stderr log, a call and a
 handshake timeout, reconfiguration, process cleanup on disable, project close,
-quit and deletion, and HTTP sessions, headers, expiry and DELETE.
+quit and deletion, and HTTP sessions, headers, expiry and DELETE. Hardening
+cases cover the sheet and 删除… after a project switch or a deletion, the
+policy reset when the endpoint moves, complete and pinned approval cards
+(rename, a name taken over, reconfiguration, deletion), a `list_changed`
+burst, an advisory catastrophic `pattern`, an SSE event without separators,
+an open notification answer, `\r`-only and newline-free standard error,
+quitting during a shutdown window, and memory writes after an MCP result.
 
 Physical keyboard input and live providers are not exercised.

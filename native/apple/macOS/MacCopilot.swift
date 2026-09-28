@@ -22,10 +22,15 @@ final class MacCopilotSettingsViewController: NSViewController {
     let secondsLabel = NSTextField(labelWithString: "")
     let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let driftCheckbox = NSButton(checkboxWithTitle: "在灵感中启用", target: nil, action: nil)
-    let privacyText = SettingsLayout.detail("""
-        Copilot 会把要分析的段落（新写或改过的段落，或你选中的段落），连同设定库里的名称、分类和相关设定的已有补丁标题，发送给所选的模型服务。\
-        费用、隐私、数据留存和训练条款都由该服务决定。它不会修改正文，每条建议都要你接受或拒绝。
-        """)
+    static let privacyNote = """
+        Copilot 会把以下内容发送给所选的模型服务：\
+        要分析的段落（新写或改过的段落，或你选中的段落，最多 12 段、6000 字）；\
+        设定抽取还会发送设定库里所有设定的名称和别名、全部分类名称，以及你拒绝过的设定名称；\
+        补丁建议还会发送段落中提到的设定（最多 12 个）的编号、名称、别名、分类和简介（截短到 80 字），\
+        它们已有补丁（每个最多 10 条）的标题（没有标题时是补丁正文的开头 30 字），以及你拒绝过的补丁的设定名称和标题。\
+        不会发送整本书或其他章节。费用、隐私、数据留存和训练条款都由该服务决定。它不会修改正文，每条建议都要你接受或拒绝。
+        """
+    let privacyText = SettingsLayout.detail(MacCopilotSettingsViewController.privacyNote)
     private let storageMessage = SettingsLayout.storageLabel()
 
     init(store: LabSettingsStore) {

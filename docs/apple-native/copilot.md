@@ -19,9 +19,14 @@ the lab's `settings.json`; off by default.
   编辑 › Copilot 分析 (⇧⌘I) and the prose context menu always work.
 - 输出语言: 跟随手稿, 简体中文, 繁體中文, English, 日本語, 한국어, Français.
 - 在灵感中启用 (default off): drift bodies are analysed too.
-- The pane says plainly that the analysed paragraphs, element names,
-  categories and patch titles go to the chosen provider, and that costs,
-  privacy and retention follow that provider.
+- The pane lists everything sent to the chosen provider and says that
+  costs, privacy and retention follow that provider: the analysed paragraphs
+  (at most 12 and 6,000 characters); for 设定抽取 every live element name and
+  alias, every category name and the rejected element names; for 补丁建议 the
+  mentioned elements' identities, names, aliases, categories and summaries
+  (cut to 80 characters), their valid patch titles (or the first 30
+  characters of an untitled body; at most 10 each) and the rejected patches'
+  element names and titles.
 
 `项目资料…` moved to ⌥⌘I so that ⇧⌘I is Copilot's, as in the renderer.
 
@@ -74,6 +79,11 @@ the chapter's 批注 panel, with 定位, 接受 and 拒绝 ([review](review.md))
   with source: the live anchor in an open body, else the recorded block and
   quote). Then `resolveSuggestion accepted:true` records `{elementId}` or
   `{patchId}`.
+- These are two commits. What the create made is remembered per suggestion
+  (`agent/<projectId>/copilot-accepted.json`) until the decision is
+  recorded. If recording fails, the card says 设定「…」已创建，但这条建议的状态没有
+  更新…, and 接受 again (also after a relaunch) only records the decision with
+  that identity; it never creates a second element or patch.
 - 拒绝 records `resolveSuggestion accepted:false`; later runs send and drop the
   rejected name or change.
 - A refused create (a name taken meanwhile, a trashed element) leaves the
@@ -89,13 +99,14 @@ notes and suggestions on any live chapter or drift body.
 
 ## Acceptance
 
-Six programmatic AppKit cases in `native/apple/Tests/CopilotAcceptance.swift`
+Seven programmatic AppKit cases in `native/apple/Tests/CopilotAcceptance.swift`
 (`--copilot-only`; [binding report](acceptance/p2b-binding.json)) drive the real
 tab host, editors, 审阅 and 批注 panels, settings pane and store, Rust
 workspace and SQLite with a `URLProtocol` stub of synthetic JSON replies and
 in-memory synthetic keys: off by default, settings and relaunch, the idle and
 manual triggers, changed-paragraph requests, exclusions, evidence anchoring
 and drops, element and patch acceptance with journal assertions, rejection,
-refused creates, typing during a request, cancellation on close, retries and
-errors, and the drift switch. Live providers, physical input and panels on
-screen are not covered.
+refused creates, a failed decision retried (also after a relaunch) without a
+second create, typing during a request, cancellation on close, retries and
+errors, the privacy note's list and the drift switch. Live providers,
+physical input and panels on screen are not covered.

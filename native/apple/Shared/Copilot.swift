@@ -89,6 +89,27 @@ struct CopilotUsageFile: Codable {
     var usage: [AgentUsageRecord]
 }
 
+/// What 接受 created for a suggestion whose decision is not yet recorded.
+/// 接受 is two commits (the create, then `resolveSuggestion`); when the
+/// second fails, a repeated 接受 only records the decision again with this
+/// identity and never creates a second element or patch. Kept beside the
+/// conversations until the decision is recorded.
+struct CopilotCreated: Codable, Equatable {
+    var elementID: String?
+    var patchID: String?
+    /// 已接受：… as the review shows it once recorded.
+    var message: String
+    /// 设定「沈舟」, or 设定「林岚」的补丁「左臂受伤」, for the card.
+    var label: String
+
+    var result: [String: Any] { elementID.map { ["elementId": $0] } ?? ["patchId": patchID ?? ""] }
+}
+
+struct CopilotCreatedFile: Codable {
+    var version = 1
+    var created: [String: CopilotCreated]
+}
+
 enum CopilotBodyKind: String {
     case chapter, drift
 
@@ -604,6 +625,10 @@ final class CopilotController {
     /// Why the last 接受 or 拒绝 of a suggestion failed.
     private(set) var failures: [String: String] = [:]
     private(set) var deciding: Set<String> = []
+    /// By suggestion: what 接受 created before its decision could be recorded.
+    private(set) var created: [String: CopilotCreated]
+    /// Acceptance only: an error to report instead of recording a decision.
+    var injectedDecisionFailure: ((String) -> Error?)?
     private(set) var lastRun: CopilotRunRecord?
     var isRunning: Bool { run != nil }
 
@@ -648,6 +673,7 @@ final class CopilotController {
         self.network = network
         store = AgentConversationStore(root: root ?? workspace.agentDirectory, projectID: projectID)
         usage = store.loadCopilotUsage()
+        created = store.loadCopilotCreated()
     }
 
     private static func key(_ kind: CopilotBodyKind, _ id: String) -> String { "\(kind.rawValue):\(id)" }
@@ -1014,10 +1040,16 @@ final class CopilotController {
         completion?(.failure(LabError.message(message)))
     }
 
+    private func remember(_ commentID: String, _ record: CopilotCreated?) {
+        created[commentID] = record
+        store.saveCopilotCreated(created)
+    }
+
     /// 接受: creates the element (in its category, or the one chosen) or the
-    /// patch anchored to the evidence, then records the decision with what
-    /// was created. A refused create leaves the suggestion open with Rust's
-    /// reason and writes nothing.
+    /// patch anchored to the evidence, remembers what it created, then
+    /// records the decision with it. A refused create leaves the suggestion
+    /// open with Rust's reason and writes nothing. When only the record
+    /// failed, 接受 again records it for what was created, and creates nothing.
     func accept(_ comment: WorkspaceComment, categoryID: String? = nil, completion: ((Result<Void, Error>) -> Void)? = nil) {
         guard !deciding.contains(comment.id) else { completion?(.failure(LabError.message("正在处理这条建议。"))); return }
         guard comment.isOpenSuggestion, let proposal = CopilotProposal(comment) else {
@@ -1025,6 +1057,10 @@ final class CopilotController {
         }
         deciding.insert(comment.id); failures[comment.id] = nil
         onReviewChange?(.deciding(commentID: comment.id))
+        if let done = created[comment.id] {
+            resolve(comment, accepted: true, result: done.result, message: done.message, created: done, completion: completion)
+            return
+        }
         workspace.elementLibrary(projectID: projectID) { [weak self] result in
             guard let self else { return }
             let library: WorkspaceElementLibrary
@@ -1045,8 +1081,10 @@ final class CopilotController {
                     case .success(let reply):
                         self.onWorkspaceEffect?(.elements(projectID: self.projectID, library: reply.library))
                         guard let element = reply.result else { self.decisionFailed(comment, "设定结果缺失。", completion); return }
-                        self.resolve(comment, accepted: true, result: ["elementId": element.id],
-                                     message: "已接受：设定「\(element.name)」已加入「\(category.name)」。", completion: completion)
+                        let done = CopilotCreated(elementID: element.id, patchID: nil,
+                                                  message: "已接受：设定「\(element.name)」已加入「\(category.name)」。", label: "设定「\(element.name)」")
+                        self.remember(comment.id, done)
+                        self.resolve(comment, accepted: true, result: done.result, message: done.message, created: done, completion: completion)
                     }
                 }
             case .patch(let candidate):
@@ -1060,8 +1098,10 @@ final class CopilotController {
                     case .success(let reply):
                         self.onWorkspaceEffect?(.patches(projectID: self.projectID, elementID: element.id))
                         guard let patch = reply.result else { self.decisionFailed(comment, "补丁结果缺失。", completion); return }
-                        self.resolve(comment, accepted: true, result: ["patchId": patch.id],
-                                     message: "已接受：补丁已加到设定「\(element.name)」。", completion: completion)
+                        let done = CopilotCreated(elementID: nil, patchID: patch.id, message: "已接受：补丁已加到设定「\(element.name)」。",
+                                                  label: "设定「\(element.name)」的补丁「\(patch.title ?? PatchText.title(candidate.title) ?? "")」")
+                        self.remember(comment.id, done)
+                        self.resolve(comment, accepted: true, result: done.result, message: done.message, created: done, completion: completion)
                     }
                 }
             }
@@ -1075,23 +1115,29 @@ final class CopilotController {
         guard comment.isOpenSuggestion else { completion?(.failure(LabError.message("这条建议已经处理过了。"))); return }
         deciding.insert(comment.id); failures[comment.id] = nil
         onReviewChange?(.deciding(commentID: comment.id))
-        resolve(comment, accepted: false, result: nil, message: "已拒绝这条建议，Copilot 不会再提出它。", completion: completion)
+        resolve(comment, accepted: false, result: nil, message: "已拒绝这条建议，Copilot 不会再提出它。", created: nil, completion: completion)
     }
 
-    private func resolve(_ comment: WorkspaceComment, accepted: Bool, result: [String: Any]?, message: String,
+    private func resolve(_ comment: WorkspaceComment, accepted: Bool, result: [String: Any]?, message: String, created done: CopilotCreated?,
                          completion: ((Result<Void, Error>) -> Void)?) {
-        workspace.resolveSuggestion(projectID: projectID, commentID: comment.id, accepted: accepted, result: result) { [weak self] reply in
+        let adopt = { [weak self] (reply: Result<WorkspaceSuggestionReply, Error>) in
             guard let self else { return }
             switch reply {
             case .success(let reply):
                 self.deciding.remove(comment.id); self.failures[comment.id] = nil
+                if self.created[comment.id] != nil { self.remember(comment.id, nil) }
                 self.onReviewChange?(.decided(commentID: comment.id, comments: reply.comments, message: message))
                 completion?(.success(()))
             case .failure(let error):
-                self.decisionFailed(comment, accepted ? "已写入，但这条建议的状态没有更新：\(error.localizedDescription)"
-                                                      : error.localizedDescription, completion)
+                self.decisionFailed(comment, done.map { "\($0.label)已创建，但这条建议的状态没有更新：\(error.localizedDescription) 再点“接受”只会更新状态，不会重复创建。" }
+                                                ?? error.localizedDescription, completion)
             }
         }
+        if let error = injectedDecisionFailure?(comment.id) {
+            DispatchQueue.main.async { adopt(.failure(error)) }
+            return
+        }
+        workspace.resolveSuggestion(projectID: projectID, commentID: comment.id, accepted: accepted, result: result, completion: adopt)
     }
 
     /// The patch's source: the suggestion's live anchor in its open owner,

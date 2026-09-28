@@ -35,6 +35,8 @@ class AgentMcpRPC {
 
     /// The child process, for a local command.
     var processID: Int32? { nil }
+    /// Whether a child process is still running, e.g. in its shutdown window.
+    var isRunning: Bool { false }
     /// The last lines the server wrote to standard error.
     var stderrLines: [String] { [] }
 
@@ -181,7 +183,12 @@ class AgentMcpRPC {
 final class AgentMcpStdioRPC: AgentMcpRPC {
     static let stderrLimit = 200
     static let stderrLineLimit = 1_000
+    /// Bytes of an unfinished standard-error line kept; older ones are dropped.
+    static let stderrPendingLimit = 64 * 1024
     static let inheritedVariables = ["PATH", "HOME", "TMPDIR", "USER", "LANG", "LC_ALL"]
+    /// Seconds after EOF before SIGTERM, and after SIGTERM before SIGKILL.
+    /// Acceptance lengthens them to show that quitting does not wait for them.
+    static var shutdownDelays: (terminate: TimeInterval, kill: TimeInterval) = (0.5, 1.5)
 
     let command: String
     let arguments: [String]
@@ -193,6 +200,8 @@ final class AgentMcpStdioRPC: AgentMcpRPC {
     private var errorPipe: Pipe?
     private let writes = DispatchQueue(label: "cc.drifting.native-lab.mcp-stdio-write")
     private var errors: [String] = []
+    /// Standard error split into display lines, bounded.
+    let errorLines = AgentMcpStderrSplitter(limit: AgentMcpStdioRPC.stderrPendingLimit, keep: AgentMcpStdioRPC.stderrLimit)
 
     /// The variables every server gets from this app's environment.
     static func baseEnvironment() -> [String: String] {
@@ -208,6 +217,7 @@ final class AgentMcpStdioRPC: AgentMcpRPC {
     }
 
     override var processID: Int32? { process.map(\.processIdentifier) }
+    override var isRunning: Bool { process?.isRunning == true }
     override var stderrLines: [String] { errors }
 
     override func start() throws {
@@ -236,11 +246,11 @@ final class AgentMcpStdioRPC: AgentMcpRPC {
                 if overflow { self.lost(AgentMcpError(.protocolError, "服务器的一条消息超过 4 MB，连接已断开。")) }
             }
         }
-        let errorLines = AgentMcpLineSplitter(limit: 64 * 1024)
+        let errorLines = self.errorLines
         stderr.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { handle.readabilityHandler = nil; return }
-            let text = errorLines.appendText(data)
+            let text = errorLines.append(data)
             guard !text.isEmpty else { return }
             DispatchQueue.main.async { self?.logError(text) }
         }
@@ -292,11 +302,12 @@ final class AgentMcpStdioRPC: AgentMcpRPC {
         input = nil
         writes.async { try? handle?.close() }
         let pid = process.processIdentifier
+        let delays = Self.shutdownDelays
         // EOF first; then SIGTERM; then SIGKILL, as the MCP lifecycle describes.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delays.terminate) {
             guard process.isRunning else { return }
             process.terminate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if process.isRunning { kill(pid, SIGKILL) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delays.kill) { if process.isRunning { kill(pid, SIGKILL) } }
         }
     }
 
@@ -315,10 +326,13 @@ final class AgentMcpStdioRPC: AgentMcpRPC {
 }
 #endif
 
-/// Splits a byte stream into newline-terminated lines, thread-safely.
+/// Splits a byte stream into newline-terminated JSON lines, thread-safely.
+/// Only the new bytes of each chunk are searched, and a line that grows
+/// past the limit ends the stream: nothing more is buffered.
 final class AgentMcpLineSplitter {
     private let lock = NSLock()
     private var buffer = Data()
+    private var overflowed = false
     private let limit: Int
 
     init(limit: Int) { self.limit = limit }
@@ -326,33 +340,145 @@ final class AgentMcpLineSplitter {
     /// Each complete line parsed as JSON (nil for one that is not), and
     /// whether an unfinished line grew past the limit.
     func append(_ data: Data) -> ([Any?], Bool) {
-        var messages: [Any?] = []
-        var overflow = false
-        // Blank lines are skipped.
-        for line in split(data) where !line.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) {
-            if line.count > limit { overflow = true; break }
-            messages.append(try? JSONSerialization.jsonObject(with: line, options: [.fragmentsAllowed]))
-        }
-        lock.lock(); if buffer.count > limit { overflow = true }; lock.unlock()
-        return (messages, overflow)
-    }
-
-    /// Complete lines as text (standard error).
-    func appendText(_ data: Data) -> [String] {
-        split(data).map { String(decoding: $0, as: UTF8.self) }.filter { !$0.isEmpty }
-    }
-
-    private func split(_ data: Data) -> [Data] {
-        lock.lock(); defer { lock.unlock() }
-        buffer.append(data)
+        lock.lock()
+        guard !overflowed else { lock.unlock(); return ([], true) }
         var lines: [Data] = []
-        while let index = buffer.firstIndex(of: 0x0A) {
-            var line = buffer.subdata(in: buffer.startIndex..<index)
-            buffer.removeSubrange(buffer.startIndex...index)
+        var start = data.startIndex
+        while let end = data[start...].firstIndex(of: 0x0A) {
+            var line = buffer
+            line.append(data[start..<end])
+            buffer = Data()
             if line.last == 0x0D { line.removeLast() }
             lines.append(line)
+            start = data.index(after: end)
         }
-        return lines
+        buffer.append(data[start...])
+        if buffer.count > limit || lines.contains(where: { $0.count > limit }) { overflowed = true; buffer = Data() }
+        let overflow = overflowed
+        lock.unlock()
+        var messages: [Any?] = []
+        // Blank lines are skipped.
+        for line in lines where !line.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) {
+            if line.count > limit { break }
+            messages.append(try? JSONSerialization.jsonObject(with: line, options: [.fragmentsAllowed]))
+        }
+        return (messages, overflow)
+    }
+}
+
+/// Standard error as display lines, thread-safely. `\n`, `\r\n` and a lone
+/// `\r` (progress output) each end a line; an unfinished line keeps only its
+/// newest `limit` bytes, so a stream without line breaks stays bounded, and
+/// one chunk yields at most its last `keep` non-empty lines.
+final class AgentMcpStderrSplitter {
+    private let lock = NSLock()
+    private var pending = Data()
+    private var afterCR = false
+    let limit: Int
+    let keep: Int
+
+    init(limit: Int, keep: Int) { self.limit = limit; self.keep = keep }
+
+    /// Bytes of the unfinished line held now; never more than `limit`.
+    var pendingCount: Int { lock.lock(); defer { lock.unlock() }; return pending.count }
+
+    func append(_ data: Data) -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        var lines: [String] = []
+        var start = data.startIndex
+        while start < data.endIndex {
+            if afterCR, data[start] == 0x0A { afterCR = false; start = data.index(after: start); continue }
+            afterCR = false
+            guard let end = data[start...].firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) else {
+                hold(data[start...]); break
+            }
+            hold(data[start..<end])
+            let line = String(decoding: pending, as: UTF8.self)
+            pending = Data()
+            if !line.trimmingCharacters(in: .whitespaces).isEmpty {
+                lines.append(line)
+                if lines.count > keep * 2 { lines.removeFirst(lines.count - keep) }
+            }
+            afterCR = data[end] == 0x0D
+            start = data.index(after: end)
+        }
+        return Array(lines.suffix(keep))
+    }
+
+    /// Adds to the unfinished line, dropping its oldest bytes past `limit`.
+    private func hold(_ bytes: Data) {
+        if bytes.count >= limit {
+            pending = Data(bytes.suffix(limit))
+        } else {
+            pending.append(bytes)
+            if pending.count > limit { pending.removeFirst(pending.count - limit) }
+        }
+    }
+}
+
+/// Incremental Server-Sent Events framing for Streamable HTTP. Each byte is
+/// looked at once (never rescanned from the start), the `data:` lines of an
+/// event are joined, and the unfinished line plus the event's data never
+/// exceed `limit`: past it the stream overflows and nothing more is kept.
+struct AgentMcpSSEParser {
+    let limit: Int
+    private var line = Data()
+    private var event = Data()
+    private var hasData = false
+    private var afterCR = false
+    private(set) var overflowed = false
+
+    init(limit: Int) { self.limit = limit }
+
+    /// Bytes held for the unfinished line and event.
+    var pendingCount: Int { line.count + event.count }
+
+    /// The data of each event completed by this chunk, in order, and
+    /// whether the stream overflowed (events before it are still returned).
+    mutating func append(_ chunk: Data) -> (events: [Data], overflow: Bool) {
+        guard !overflowed else { return ([], true) }
+        var events: [Data] = []
+        var start = chunk.startIndex
+        while start < chunk.endIndex {
+            if afterCR, chunk[start] == 0x0A { afterCR = false; start = chunk.index(after: start); continue }
+            afterCR = false
+            let end = chunk[start...].firstIndex { $0 == 0x0A || $0 == 0x0D }
+            line.append(chunk[start..<(end ?? chunk.endIndex)])
+            guard pendingCount <= limit else { return overflow(events) }
+            guard let end else { break }
+            afterCR = chunk[end] == 0x0D
+            start = chunk.index(after: end)
+            finishLine(into: &events)
+            guard pendingCount <= limit else { return overflow(events) }
+        }
+        return (events, false)
+    }
+
+    private mutating func overflow(_ events: [Data]) -> (events: [Data], overflow: Bool) {
+        overflowed = true
+        line = Data(); event = Data(); hasData = false
+        return (events, true)
+    }
+
+    /// A blank line ends the event; `data:` lines add to it; comments and
+    /// other fields (`event:`, `id:`, `retry:`) are ignored.
+    private mutating func finishLine(into events: inout [Data]) {
+        let current = line
+        line = Data()
+        guard !current.isEmpty else {
+            if hasData { events.append(event) }
+            event = Data(); hasData = false
+            return
+        }
+        guard current.first != 0x3A else { return }
+        let bytes = [UInt8](current)
+        let colon = bytes.firstIndex(of: 0x3A)
+        guard Array(bytes[..<(colon ?? bytes.count)]) == Array("data".utf8) else { return }
+        var value = colon.map { Array(bytes[($0 + 1)...]) } ?? []
+        if value.first == 0x20 { value.removeFirst() }
+        if hasData { event.append(0x0A) }
+        event.append(contentsOf: value)
+        hasData = true
     }
 }
 
@@ -365,6 +491,9 @@ final class AgentMcpLineSplitter {
 final class AgentMcpHTTPRPC: AgentMcpRPC {
     let url: URL
     let headers: [String: String]
+    /// A notification or reply POST whose answer is still open after this
+    /// long is cancelled; requests have their own timeouts.
+    let notificationTimeout: TimeInterval
     private let configuration: URLSessionConfiguration
     private var session: URLSession?
     private(set) var sessionID: String?
@@ -375,13 +504,16 @@ final class AgentMcpHTTPRPC: AgentMcpRPC {
         let request: AgentMcpPendingRequest?
         var status = 0
         var sse = false
+        /// The stream was refused (too large or unreadable); later bytes are dropped.
+        var ended = false
         var body = Data()
-        var events = AgentSSEBuffer()
+        var events = AgentMcpSSEParser(limit: AgentMcpRPC.messageLimit)
+        var timer: DispatchWorkItem?
         init(request: AgentMcpPendingRequest?) { self.request = request }
     }
 
-    init(url: URL, headers: [String: String], configuration: URLSessionConfiguration) {
-        self.url = url; self.headers = headers; self.configuration = configuration
+    init(url: URL, headers: [String: String], configuration: URLSessionConfiguration, notificationTimeout: TimeInterval = 30) {
+        self.url = url; self.headers = headers; self.configuration = configuration; self.notificationTimeout = notificationTimeout
         super.init()
         session = URLSession(configuration: configuration, delegate: AgentMcpHTTPDelegate(owner: self), delegateQueue: .main)
     }
@@ -408,10 +540,21 @@ final class AgentMcpHTTPRPC: AgentMcpRPC {
         var post = urlRequest(method: "POST")
         post.httpBody = body
         let task = session.dataTask(with: post)
-        exchanges[task.taskIdentifier] = Exchange(request: request)
-        if let request { tasks[request.id] = task }
+        let exchange = Exchange(request: request)
+        exchanges[task.taskIdentifier] = exchange
+        if let request {
+            tasks[request.id] = task
+        } else {
+            // A notification's answer (202, or a stream the server keeps open) is not awaited for ever.
+            let timer = DispatchWorkItem { [weak task] in task?.cancel() }
+            exchange.timer = timer
+            DispatchQueue.main.asyncAfter(deadline: .now() + notificationTimeout, execute: timer)
+        }
         task.resume()
     }
+
+    /// Open POSTs, for acceptance: notifications and replies still waiting for their answer to end.
+    var openExchanges: Int { exchanges.count }
 
     override func abandon(_ request: AgentMcpPendingRequest, reason: String) {
         tasks.removeValue(forKey: request.id)?.cancel()
@@ -439,6 +582,7 @@ final class AgentMcpHTTPRPC: AgentMcpRPC {
         sessionID = nil
         session?.invalidateAndCancel()
         session = nil
+        for exchange in exchanges.values { exchange.timer?.cancel() }
         exchanges = [:]; tasks = [:]
     }
 
@@ -467,29 +611,33 @@ final class AgentMcpHTTPRPC: AgentMcpRPC {
     }
 
     fileprivate func data(_ task: URLSessionTask, _ data: Data) {
-        guard let exchange = exchanges[task.taskIdentifier], !isClosed else { return }
+        guard let exchange = exchanges[task.taskIdentifier], !exchange.ended, !isClosed else { return }
+        // The stream is refused: the request fails and nothing more is read.
+        func refuse(_ message: String) {
+            exchange.ended = true
+            if let request = exchange.request, isPending(request.id) { finish(request, .failure(AgentMcpError(.protocolError, message))) }
+            task.cancel()
+        }
         if exchange.sse {
-            for payload in exchange.events.append(data) {
-                guard let value = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) else {
-                    if let request = exchange.request { finish(request, .failure(AgentMcpError(.protocolError, "服务器的 SSE 数据无法解析。"))) }
-                    task.cancel(); return
-                }
+            let (events, overflow) = exchange.events.append(data)
+            for payload in events {
+                guard let value = try? JSONSerialization.jsonObject(with: payload) else { refuse("服务器的 SSE 数据无法解析。"); return }
                 receive(value)
                 if isClosed { return }
                 // The answer arrived; the stream is not needed any longer.
-                if let request = exchange.request, !isPending(request.id) { task.cancel(); return }
+                if let request = exchange.request, !isPending(request.id) { exchange.ended = true; task.cancel(); return }
             }
+            if overflow { refuse("服务器的一条 SSE 消息超过 4 MB（或一直没有结束），这次请求已停止。") }
         } else {
             exchange.body.append(data)
-            if exchange.body.count > Self.messageLimit {
-                if let request = exchange.request { finish(request, .failure(AgentMcpError(.protocolError, "服务器的回应超过 4 MB。"))) }
-                task.cancel()
-            }
+            if exchange.body.count > Self.messageLimit { refuse("服务器的回应超过 4 MB。") }
         }
     }
 
     fileprivate func complete(_ task: URLSessionTask, _ error: Error?) {
-        guard let exchange = exchanges.removeValue(forKey: task.taskIdentifier), !isClosed else { return }
+        let removed = exchanges.removeValue(forKey: task.taskIdentifier)
+        removed?.timer?.cancel()
+        guard let exchange = removed, !isClosed else { return }
         guard let request = exchange.request, isPending(request.id) else { return }
         if let error {
             if (error as? URLError)?.code == .cancelled { return }

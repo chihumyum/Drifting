@@ -129,6 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var agentSettings: MacAgentSettingsSheet?
     /// Copilot（实验）: one per project, made when a tab of it first reports.
     private var copilotControllers: [String: CopilotController] = [:]
+    /// MCP hubs of deleted projects, kept while their local commands may still
+    /// be in their shutdown window, so that quitting ends those at once.
+    private var endedMcpHubs: [AgentMcpHub] = []
     /// Each project's last Copilot status line.
     private var copilotStatuses: [String: String] = [:]
     private var agentButton: NSButton!
@@ -2196,7 +2199,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if driftModel?.projectID == deleted.id { driftModel = nil }
         if materialModel?.projectID == deleted.id { materialModel = nil }
         graphAxes.removeValue(forKey: deleted.id)
-        agentControllers.removeValue(forKey: deleted.id)?.retire()
+        if let removed = agentControllers.removeValue(forKey: deleted.id) {
+            removed.retire()
+            endedMcpHubs.removeAll { $0.runningProcessIDs.isEmpty }
+            if let hub = removed.mcp { endedMcpHubs.append(hub) }
+        }
         if agentController?.projectID == deleted.id { agentController = nil }
         projects = outcome.projects
         if selectedProject?.id == deleted.id {
@@ -2879,6 +2886,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             controller.agentPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
             controller.mcpPane.secrets = agentCredentials
             controller.mcpPane.source = { [weak self] in self?.mcpSource() }
+            controller.mcpPane.projectExists = { [weak self] id in self?.projects.contains { $0.id == id } == true }
             controller.copilotPane.credentials = agentCredentials
             controller.copilotPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
         }
@@ -2935,7 +2943,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             case .success:
                 self.agentController?.stop()
                 // Local MCP commands end before the app quits.
-                self.agentControllers.values.forEach { $0.mcp?.terminateNow() }
+                (self.agentControllers.values.compactMap(\.mcp) + self.endedMcpHubs).forEach { $0.terminateNow() }
                 self.copilotControllers.values.forEach { $0.cancelAll() }
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
@@ -2986,6 +2994,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     /// No local MCP command outlives the app.
     func applicationWillTerminate(_ notification: Notification) {
-        agentControllers.values.forEach { $0.mcp?.terminateNow() }
+        (agentControllers.values.compactMap(\.mcp) + endedMcpHubs).forEach { $0.terminateNow() }
     }
 }

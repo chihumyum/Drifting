@@ -88,14 +88,14 @@ architectural redesign.
 | Review fixes: trash confirmation, project deletion cleanup, compose target, whole-book undo, atomic reading-order drops | `bea818b8` | [trash](trash.md), [workspace](workspace.md), [review](review.md), [whole book](whole-book.md), [timeline](timeline.md) |
 | Copilot suggestions (experimental) | `c2d4ab42` `30439d6d` | [copilot](copilot.md), [review](review.md), [settings](settings.md), [chapter comments](chapter-comments.md) |
 | MCP extensions and assistant memory fixes | `ab4e6a8a` | [agent](agent.md), [settings](settings.md), [whole book](whole-book.md), [trash](trash.md) |
-| Printing, PDF export and custom shortcuts | this batch | [library](library.md), [settings](settings.md) |
+| Printing, PDF export and custom shortcuts | `507f67ad` | [library](library.md), [settings](settings.md) |
+| MCP and Copilot hardening | this batch | [agent](agent.md), [copilot](copilot.md), [settings](settings.md) |
 
 ## Next batch
 
-MCP and Copilot hardening from the security review (sheet binding, policy
-reset on reconfiguration, bounded streams and logs, quit cleanup, complete
-approval cards, idempotent accept, approvals for memory writes after MCP
-results).
+Projection containers and ordered-list numbers for printing and PDF; then
+the open gates that need the author (attended performance certification,
+physical IME, signing and distribution).
 
 ## Open gates
 

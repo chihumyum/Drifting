@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T01:55:24.635Z",
+  "generatedAt": "2026-09-28T02:37:13.705Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "ab4e6a8ac28b85ef95c8d9bfb48fe64c9a588ee1",
+    "commit": "507f67addbf79a9fbeab58cf2adc49e39386e652",
     "dirty": true,
-    "fingerprint": "2d6780e17950681e921bfa2720ff82a9f7014ff288e40dce6c6c2bb4abac98b1"
+    "fingerprint": "502f408183e71f57396bd769e6e1456cae57cee85efea8d5b0a7cc3278bf9462"
   },
   "cases": [
     {
@@ -815,7 +815,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit Copilot is off by default: edits and 分析 send no request, the menu offers nothing and no status shows; 设置 › Copilot（实验） shows every option with the privacy note, writes provider, model, tasks, trigger, delay, language and the drift switch to settings.json, reads them back after a relaunch and falls back value by value for damaged ones",
+      "name": "AppKit Copilot is off by default: edits and 分析 send no request, the menu offers nothing and no status shows; 设置 › Copilot（实验） shows every option with a privacy note listing everything sent (paragraphs, names and aliases, categories, truncated summaries, patch titles or snippets, rejected names), writes provider, model, tasks, trigger, delay, language and the drift switch to settings.json, reads them back after a relaunch and falls back value by value for damaged ones",
       "status": "passed"
     },
     {
@@ -839,6 +839,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit Copilot 接受 remembers the element or patch it created when recording the decision fails and says so on the card; 接受 again, also after a relaunch, only records the decision with that identity and never creates twice",
+      "status": "passed"
+    },
+    {
       "name": "AppKit MCP 扩展 adds a local-command server through the settings sheet, refuses invalid commands, folders, variable names and URLs in Chinese, runs the initialize and notifications/initialized handshake and paginated tools/list, shows 可用 N 个工具 with each tool's 允许/每次询问/禁用 policy (每次询问 by default) and skips a $ref schema with its reason, offers valid tools to the model as mcp__<server>__<tool> with their schemas, and keeps the secret environment value only in the Keychain store, never in settings.json",
       "status": "passed"
     },
@@ -856,6 +860,26 @@
     },
     {
       "name": "AppKit MCP Streamable HTTP runs the handshake with JSON and SSE responses, sends the session id and protocol version on later requests and a secret Authorization header only from the Keychain, calls a tool, reconnects after an expired session without replaying the call and sends DELETE when disabled",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP 编辑… and 删除… write to the project they opened on after the window switched project and leave the open project untouched, a sheet or confirmation whose project or server was deleted meanwhile is refused in Chinese without writing, and changing the transport, command, arguments, folder or URL resets every tool to 每次询问 (the sheet says so) so the first call on the new endpoint asks, while other edits keep 允许",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP approval cards show the complete arguments monospaced and scrollable, and the call is pinned to the server and tool the card named: renaming the server (even when another server then takes its old name), reconfiguring or deleting it while the card waits leaves the card 未执行 with the reason and calls nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP hostile servers: a burst of tools/list_changed costs one listing in flight and one after it, a schema pattern is advisory and never evaluated, a Streamable HTTP SSE stream without event separators fails its request at 4 MB while the session stays usable, an open notification answer is cancelled after its timeout, and the SSE parser frames LF, CRLF, CR, comments, multi-line data and byte-by-byte chunks without rescanning",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP standard error treats a lone carriage return as a line break, keeps 200 lines and at most 64 KB of an unfinished line, and quitting ends at once every local command still in its shutdown window after a disable or a reconnection, even one that ignores EOF and SIGTERM",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 写作助手 rule and working-memory writes in a turn that has received an MCP result wait as 允许/拒绝 cards showing the complete change: 允许 applies it once, 拒绝 and 停止 write nothing and tell the model, plan tools still apply at once, and the next turn without MCP results writes rules at once again",
       "status": "passed"
     },
     {

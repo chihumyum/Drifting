@@ -70,9 +70,9 @@ interoperability is kept.
 - Copilot（实验）: off by default; 模型服务 and 模型 from the writing assistant's
   catalog with its Keychain keys (shown masked; 管理 API Key… opens the same
   sheet), 设定抽取 and 补丁建议, 停笔后自动 after N seconds (default 20) or
-  仅手动, 输出语言 and 在灵感中启用, with a note that the analysed paragraphs go to
+  仅手动, 输出语言 and 在灵感中启用, with a note listing everything that goes to
   the chosen provider and that costs and retention follow it
-  ([copilot](copilot.md)).
+  ([copilot](copilot.md#settings)).
 - 快捷键: the installed main menu's commands grouped by menu (应用, 文件, 项目,
   编辑, 格式, 视图, 帮助) with their shortcuts; one layout builds the menu and
   this list (defaults include ⌘P 打印…, ⇧⌘P 项目书架…, ⇧⌘I Copilot 分析 and

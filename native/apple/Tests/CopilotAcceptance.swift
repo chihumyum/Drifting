@@ -17,13 +17,15 @@ extension BindingAcceptance {
         try copilotPatchesAndReview()
         try copilotCancellation()
         try copilotDrifts()
+        try copilotRetriedDecision()
         return [
-            "AppKit Copilot is off by default: edits and 分析 send no request, the menu offers nothing and no status shows; 设置 › Copilot（实验） shows every option with the privacy note, writes provider, model, tasks, trigger, delay, language and the drift switch to settings.json, reads them back after a relaunch and falls back value by value for damaged ones",
+            "AppKit Copilot is off by default: edits and 分析 send no request, the menu offers nothing and no status shows; 设置 › Copilot（实验） shows every option with a privacy note listing everything sent (paragraphs, names and aliases, categories, truncated summaries, patch titles or snippets, rejected names), writes provider, model, tasks, trigger, delay, language and the drift switch to settings.json, reads them back after a relaunch and falls back value by value for damaged ones",
             "AppKit Copilot runs once typing has stopped for the idle delay (typing again restarts it) and by hand through 编辑 › Copilot 分析 and the prose context menu, sends only the paragraphs changed since its last run (else the selected ones) with the library's names and categories, anchors a suggestion through the chapter's owner as its only journal original, and leaves prose and undo untouched",
             "AppKit Copilot element suggestions leave out existing names, aliases and names the author rejected (sent in the prompt too), map unknown categories to 未分类, drop proposals whose evidence is not in the chapter, anchor each to its evidence, list under 审阅's Copilot filter and in the chapter's 批注 panel with 接受 and 拒绝, record usage beside the assistant's and show it in 设置 › 写作助手 › 用量",
             "AppKit Copilot patch suggestions cover elements named in the changed paragraphs, skip existing valid patches and rejected ones; 接受 creates the element (choosing a category for 未分类) or the patch anchored to the evidence and records accept_suggestion with its elementId or patchId, 拒绝 records reject_suggestion, both in one original each, decided suggestions leave the open lists, and a refused create leaves the suggestion open with the reason and writes nothing",
             "AppKit Copilot never holds typing while a request is out, runs one request at a time per project, stops its request when the chapter's tab closes without adding anything, retries 503 with the assistant's policy, does not retry 401, and reports a missing key in its quiet status",
             "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent and the suggestion is anchored in the drift body; turning it off stops a drift run",
+            "AppKit Copilot 接受 remembers the element or patch it created when recording the decision fails and says so on the card; 接受 again, also after a relaunch, only records the decision with that identity and never creates twice",
         ]
     }
 
@@ -293,8 +295,10 @@ extension BindingAcceptance {
             && pane.secondsLabel.stringValue == "停笔 20 秒后" && pane.secondsStepper.isEnabled
             && pane.languagePopup.titleOfSelectedItem == "跟随手稿" && pane.driftCheckbox.state == .off,
             "The pane's defaults differ")
-        try require(pane.privacyText.stringValue.contains("发送给所选的模型服务") && pane.privacyText.stringValue.contains("费用")
-            && pane.privacyText.stringValue.contains("数据留存"), "The privacy note is missing: \(pane.privacyText.stringValue)")
+        let privacy = pane.privacyText.stringValue
+        try require(["发送给所选的模型服务", "要分析的段落", "名称和别名", "全部分类名称", "你拒绝过的设定名称", "编号", "简介（截短到 80 字）",
+                     "已有补丁", "补丁正文的开头", "你拒绝过的补丁", "费用", "数据留存"].allSatisfy(privacy.contains),
+            "The privacy note does not list everything sent: \(privacy)")
         let window = MacSettingsWindowController(store: harness.settings)
         try require(window.copilotPane.title == "Copilot（实验）", "设置 lacks the Copilot tab")
         pane.enabledCheckbox.performClick(nil)
@@ -552,6 +556,84 @@ extension BindingAcceptance {
             && pane.conversationsStack.arrangedSubviews.map { $0.accessibilityIdentifier() } == ["settings-agent-usage-conversation-copilot"]
             && pane.conversationsStack.arrangedSubviews.first?.accessibilityLabel()?.hasPrefix("Copilot（实验）") == true,
             "用量 does not list Copilot: \(pane.todayLabel.stringValue)")
+        try harness.close()
+    }
+
+    // MARK: (g) 接受 when recording the decision fails
+
+    private static func copilotRetriedDecision() throws {
+        let harness = try CopilotHarness(titles: ["雨夜"], categories: ["人物"], elements: [("林岚", "人物", [])])
+        defer { harness.remove() }
+        let lan = harness.elements["林岚"]!
+        let view = try harness.open(0)
+        harness.enable { $0.trigger = .manual }
+        try harness.type(view, "林岚被落石砸伤了左臂，沈舟把她背下了楼。")
+        try harness.settle(view)
+        AgentStubProtocol.reset([
+            copilotElements([["name": "沈舟", "category": "人物", "summary": "渡口的船夫。", "evidence": "沈舟把她背下了楼"]]),
+            copilotPatches([["elementId": lan.id, "title": "左臂受伤", "body": "被落石砸伤了左臂。", "evidence": "被落石砸伤了左臂"]]),
+        ])
+        view.textView.copilotAnalyze(nil)
+        try harness.waitRun()
+        let ferryman = try harness.suggestion("沈舟"), injury = try harness.suggestion("左臂受伤")
+        let failure = "合成的记录失败"
+        harness.controller.injectedDecisionFailure = { _ in LabError.message(failure) }
+
+        // The element is created once; recording the decision fails.
+        var mark = try harness.journal.mark()
+        harness.reviewController.card(commentID: ferryman.id)?.acceptButton.performClick(nil)
+        try wait { harness.controller.deciding.isEmpty }
+        try harness.settle(view)
+        var written = withoutLinks(try harness.journal.originals(since: mark))
+        guard let shen = try harness.library().elements.first(where: { $0.name == "沈舟" }) else { throw LabError.message("沈舟 was not created") }
+        let shenMessage = "设定「沈舟」已创建，但这条建议的状态没有更新：\(failure) 再点“接受”只会更新状态，不会重复创建。"
+        try require(written.count == 1 && written[0].contains("entity.create element") && (try harness.suggestion("沈舟")).review == .open
+            && harness.controller.created[ferryman.id]?.elementID == shen.id && harness.controller.failures[ferryman.id] == shenMessage
+            && harness.reviewController.card(commentID: ferryman.id)?.suggestionMessage.stringValue == shenMessage,
+            "A failed decision after the create differs: \(written) \(harness.controller.failures[ferryman.id] ?? "")")
+        // 接受 again only records the decision for the element already created.
+        harness.controller.injectedDecisionFailure = nil
+        mark = try harness.journal.mark()
+        harness.reviewController.card(commentID: ferryman.id)?.acceptButton.performClick(nil)
+        try wait { harness.controller.deciding.isEmpty }
+        try harness.journal.expect([resolveOriginal], since: mark, "接受 after a failed decision")
+        var decisions = try harness.actions()
+        try require(try harness.library().elements.filter { $0.name == "沈舟" }.count == 1 && (try harness.suggestion("沈舟")).review == .converted
+            && decisions.last?.commentId == ferryman.id
+            && decisions.last?.resultJson.flatMap { AgentJSONText.object($0) }?["elementId"] as? String == shen.id
+            && harness.controller.created[ferryman.id] == nil && harness.controller.failures[ferryman.id] == nil,
+            "The retried decision created again or recorded another element")
+
+        // The patch: the decision fails, the app relaunches, 接受 records it only.
+        harness.controller.injectedDecisionFailure = { _ in LabError.message(failure) }
+        mark = try harness.journal.mark()
+        harness.reviewController.card(commentID: injury.id)?.acceptButton.performClick(nil)
+        try wait { harness.controller.deciding.isEmpty }
+        written = try harness.journal.originals(since: mark)
+        let created = try harness.patches(lan.id).filter { $0.title == "左臂受伤" }
+        try require(written == [["entity.create element-patch", "order.move element-patch"]] && created.count == 1
+            && harness.controller.created[injury.id]?.patchID == created[0].id && (try harness.suggestion("左臂受伤")).review == .open
+            && harness.controller.failures[injury.id]?.hasPrefix("设定「林岚」的补丁「左臂受伤」已创建") == true,
+            "A failed patch decision differs: \(written) \(harness.controller.failures[injury.id] ?? "")")
+        harness.controller.store.flush()
+        harness.makeController()
+        try require(harness.controller.created[injury.id]?.patchID == created[0].id && harness.controller.failures[injury.id] == nil,
+            "The created patch was not remembered across a relaunch")
+        mark = try harness.journal.mark()
+        var accepted: Result<Void, Error>?
+        harness.controller.accept(try harness.suggestion("左臂受伤")) { accepted = $0 }
+        try wait { accepted != nil }
+        try harness.journal.expect([resolveOriginal], since: mark, "接受 after a relaunch")
+        decisions = try harness.actions()
+        try require(try harness.patches(lan.id).filter { $0.title == "左臂受伤" }.count == 1
+            && decisions.last?.resultJson.flatMap { AgentJSONText.object($0) }?["patchId"] as? String == created[0].id
+            && harness.controller.created.isEmpty && (try harness.suggestion("左臂受伤")).review == .converted,
+            "The retried patch decision created again")
+        harness.controller.store.flush()
+        let file = harness.controller.store.directory.appendingPathComponent(AgentConversationStore.copilotCreatedFile)
+        try require(CopilotController(workspace: harness.workspace, projectID: harness.project.id, credentials: harness.credentials).created.isEmpty
+            && (try? Data(contentsOf: file)).map { !String(decoding: $0, as: UTF8.self).contains(injury.id) } ?? true,
+            "The recorded decision stayed remembered")
         try harness.close()
     }
 

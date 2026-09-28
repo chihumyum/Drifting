@@ -119,6 +119,25 @@ struct AgentMcpServerConfig: Codable, Equatable {
                               "url": url, "headers": headers.map { [$0.name, $0.value, $0.secret ? "1" : "0"] }, "revision": revision])
     }
 
+    /// Where the server is reached: the transport, then the command, its
+    /// arguments and working folder, or the URL's scheme, host, port and
+    /// path. A change resets every tool policy to 每次询问, because the
+    /// author's 允许 was given to whatever answered there before.
+    /// Variables, headers, secrets and the URL's query do not count.
+    var endpointKey: String {
+        switch transport {
+        case .stdio:
+            return AgentJSONText.encode(["stdio", command, arguments.joined(separator: "\n"), workingDirectory])
+        case .http:
+            let text = url.trimmingCharacters(in: .whitespaces)
+            guard let components = URLComponents(string: text) else { return AgentJSONText.encode(["http", text]) }
+            let scheme = components.scheme?.lowercased() ?? ""
+            let port = components.port ?? (scheme == "https" ? 443 : scheme == "http" ? 80 : 0)
+            let path = components.percentEncodedPath.isEmpty ? "/" : components.percentEncodedPath
+            return AgentJSONText.encode(["http", scheme, components.host?.lowercased() ?? "", String(port), path])
+        }
+    }
+
     /// 本地命令 /usr/local/bin/x, or HTTP https://….
     var summary: String {
         transport == .stdio ? "本地命令 \(command)" + (arguments.isEmpty ? "" : " " + arguments.joined(separator: " ")) : "HTTP \(url)"
@@ -384,9 +403,10 @@ enum AgentMcpSchema {
             guard let number = candidate as? NSNumber, !isBool(number), number.doubleValue.isFinite else { return "\(path).\(key) 必须是数字。" }
             if key == "multipleOf", number.doubleValue <= 0 { return "\(path).multipleOf 必须大于 0。" }
         }
-        if let pattern = schema["pattern"] {
-            guard let text = pattern as? String, (try? NSRegularExpression(pattern: text)) != nil else { return "\(path).pattern 不是有效的正则表达式。" }
-        }
+        // A server's `pattern` is advisory: the model reads it, but it is
+        // never compiled or evaluated here, so a hostile expression cannot
+        // stall the app. The server checks its own input.
+        if let pattern = schema["pattern"], !(pattern is String) { return "\(path).pattern 必须是文字。" }
         return nil
     }
 
@@ -427,6 +447,7 @@ enum AgentMcpSchema {
     private static func same(_ left: Any, _ right: Any) -> Bool { AgentJSON(any: left) == AgentJSON(any: right) }
 
     /// The first way the arguments break the schema, in Chinese, or nil.
+    /// `pattern` is not checked (see `check`).
     static func violation(_ value: Any, schema: [String: Any], path: String = "") -> String? {
         let name = path.isEmpty ? "参数" : "参数 \(path) "
         if let type = schema["type"] {
@@ -443,7 +464,6 @@ enum AgentMcpSchema {
         if let text = value as? String {
             if let minimum = (schema["minLength"] as? NSNumber)?.intValue, text.count < minimum { return "\(name)至少 \(minimum) 字。" }
             if let maximum = (schema["maxLength"] as? NSNumber)?.intValue, text.count > maximum { return "\(name)最多 \(maximum) 字。" }
-            if let pattern = schema["pattern"] as? String, text.range(of: pattern, options: .regularExpression) == nil { return "\(name)的格式不正确。" }
         }
         if let number = value as? NSNumber, !isBool(number) {
             let double = number.doubleValue
@@ -599,19 +619,22 @@ struct AgentMcpError: Error, LocalizedError, Equatable {
 // MARK: - Approval
 
 /// 每次询问: the card in the conversation before a call, kept on a notice
-/// row (never sent to the model). A waiting card whose turn ended reads 未执行.
+/// row (never sent to the model). A waiting card whose turn ended reads 未执行,
+/// and so does one whose server was renamed, reconfigured, disabled or
+/// deleted before 允许一次: the call is pinned to the server and tool the
+/// card named and is never resolved again by name.
 struct AgentMcpInvocation: Codable, Equatable {
     enum State: String, Codable { case waiting, allowed, denied, cancelled }
-
-    static let argumentLimit = 2_000
 
     var callID: String
     var serverID: String
     var serverName: String
     var tool: String
-    /// The call's arguments as indented JSON, bounded.
+    /// The call's complete arguments as indented JSON, exactly what is sent.
     var arguments: String
     var state: State
+    /// Why an allowed card was not executed, e.g. the server was renamed.
+    var reason: String?
 
     var stateLabel: String {
         switch state {
@@ -622,10 +645,12 @@ struct AgentMcpInvocation: Codable, Equatable {
         }
     }
 
+    /// The complete arguments; never shortened, so the author approves
+    /// exactly what the server receives.
     static func display(_ arguments: [String: Any]) -> String {
         guard !arguments.isEmpty,
               let data = try? JSONSerialization.data(withJSONObject: arguments, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]),
               let text = String(data: data, encoding: .utf8) else { return "（无参数）" }
-        return text.count > argumentLimit ? String(text.prefix(argumentLimit)) + "\n…（参数过长，只显示了前 \(argumentLimit) 字）" : text
+        return text
     }
 }

@@ -39,12 +39,13 @@ final class MacAgentPanelView: NSView {
         var proposals: [String: AgentProposal]
         /// Rule cards by message, as drawn.
         var memories: [String: AgentMemoryChange]
-        /// MCP approval cards by message, as drawn, and whether each could
-        /// still be answered.
+        /// MCP and memory approval cards by message, as drawn, and whether
+        /// each could still be answered.
         var approvals: [String: ApprovalDrawn]
     }
     private struct ApprovalDrawn: Equatable {
-        let invocation: AgentMcpInvocation
+        let invocation: AgentMcpInvocation?
+        let memory: AgentMemoryApproval?
         let answerable: Bool
     }
     /// Alerts are sheets on the window by default; acceptance answers them directly.
@@ -237,7 +238,9 @@ final class MacAgentPanelView: NSView {
 
     private func approvals(_ messages: [AgentMessage]) -> [String: ApprovalDrawn] {
         Dictionary(messages.compactMap { message in
-            message.mcp.map { (message.id, ApprovalDrawn(invocation: $0, answerable: controller?.waitingApproval == message.id)) }
+            guard message.mcp != nil || message.memoryApproval != nil else { return nil }
+            return (message.id, ApprovalDrawn(invocation: message.mcp, memory: message.memoryApproval,
+                                              answerable: controller?.waitingApproval == message.id))
         }, uniquingKeysWith: { first, _ in first })
     }
 
@@ -268,7 +271,8 @@ final class MacAgentPanelView: NSView {
         }
         let drawn = approvals(conversation.messages)
         for (id, approval) in drawn where previous.approvals[id] != nil && previous.approvals[id] != approval {
-            replace("agent-mcp-approval-\(id)", with: approvalCard(id, approval.invocation))
+            if let invocation = approval.invocation { replace("agent-mcp-approval-\(id)", with: approvalCard(id, invocation)) }
+            if let memory = approval.memory { replace("agent-memory-approval-\(id)", with: memoryApprovalCard(id, memory)) }
         }
         if let streamingRow { transcript.removeArrangedSubview(streamingRow); streamingRow.removeFromSuperview(); self.streamingRow = nil }
         for message in conversation.messages.dropFirst(previous.messages.count) {
@@ -286,8 +290,15 @@ final class MacAgentPanelView: NSView {
     private func approvalCard(_ messageID: String, _ invocation: AgentMcpInvocation) -> AgentMcpApprovalCard {
         let answerable = controller?.waitingApproval == messageID && invocation.state == .waiting
         return AgentMcpApprovalCard(messageID: messageID, invocation: invocation, answerable: answerable,
-                                    allow: { [weak self] in self?.controller?.decideMcp(messageID, allow: true) },
-                                    deny: { [weak self] in self?.controller?.decideMcp(messageID, allow: false) })
+                                    allow: { [weak self] in self?.controller?.decideApproval(messageID, allow: true) },
+                                    deny: { [weak self] in self?.controller?.decideApproval(messageID, allow: false) })
+    }
+
+    private func memoryApprovalCard(_ messageID: String, _ request: AgentMemoryApproval) -> AgentMemoryApprovalCard {
+        let answerable = controller?.waitingApproval == messageID && request.state == .waiting
+        return AgentMemoryApprovalCard(messageID: messageID, request: request, answerable: answerable,
+                                       allow: { [weak self] in self?.controller?.decideApproval(messageID, allow: true) },
+                                       deny: { [weak self] in self?.controller?.decideApproval(messageID, allow: false) })
     }
 
     private func rows(for message: AgentMessage, in conversation: AgentConversation, shown: inout [String: AgentProposal]) -> [NSView] {
@@ -310,6 +321,7 @@ final class MacAgentPanelView: NSView {
             return views
         case .notice:
             if let invocation = message.mcp { return [approvalCard(message.id, invocation)] }
+            if let request = message.memoryApproval { return [memoryApprovalCard(message.id, request)] }
             if let compaction = message.compaction {
                 let row = AgentActivityRow(identifier: "agent-compaction-\(message.id)", text: message.text, failed: false)
                 row.toolTip = compaction.summary
@@ -773,18 +785,23 @@ final class AgentProposalCard: NSView, AgentTranscriptRow {
 }
 
 /// 每次询问: an MCP call waiting for the author, with the tool, its server
-/// and the arguments, and 允许一次 / 拒绝 while the turn waits for it.
+/// and the complete arguments (monospaced and scrollable, never cut), and
+/// 允许一次 / 拒绝 while the turn waits for it. 未执行 says why when the
+/// server changed before 允许一次.
 final class AgentMcpApprovalCard: NSView, AgentTranscriptRow {
     let allowButton = NSButton(title: "允许一次", target: nil, action: nil)
     let denyButton = NSButton(title: "拒绝", target: nil, action: nil)
     let stateLabel = NSTextField(labelWithString: "")
     let invocation: AgentMcpInvocation
+    /// The complete arguments.
+    let argumentsView: AgentScrollingText
     private let allow: () -> Void
     private let deny: () -> Void
     private(set) var plainText = ""
 
     init(messageID: String, invocation: AgentMcpInvocation, answerable: Bool, allow: @escaping () -> Void, deny: @escaping () -> Void) {
         self.invocation = invocation; self.allow = allow; self.deny = deny
+        argumentsView = AgentScrollingText(text: invocation.arguments, identifier: "agent-mcp-arguments-\(messageID)")
         super.init(frame: .zero)
         wantsLayer = true
         setAccessibilityIdentifier("agent-mcp-approval-\(messageID)")
@@ -794,52 +811,26 @@ final class AgentMcpApprovalCard: NSView, AgentTranscriptRow {
         setAccessibilityLabel(heading)
         let title = NSTextField(labelWithString: heading)
         title.font = .systemFont(ofSize: 13, weight: .semibold)
-        stateLabel.stringValue = invocation.stateLabel
+        let state = invocation.state == .cancelled ? invocation.stateLabel + (invocation.reason.map { "：\($0)" } ?? "") : invocation.stateLabel
+        stateLabel.stringValue = state
         stateLabel.font = .systemFont(ofSize: 11, weight: .medium)
         stateLabel.textColor = invocation.state == .allowed ? .systemGreen : invocation.state == .denied ? .systemRed : .secondaryLabelColor
+        stateLabel.lineBreakMode = .byWordWrapping
+        stateLabel.maximumNumberOfLines = 0
         stateLabel.setAccessibilityIdentifier("agent-mcp-state-\(messageID)")
-        let tool = Self.field("工具：\(invocation.tool)", "agent-mcp-tool-\(messageID)")
-        let server = Self.field("服务器：\(invocation.serverName)", "agent-mcp-server-\(messageID)")
-        let note = Self.field("参数：", "agent-mcp-arguments-title-\(messageID)")
-        let arguments = NSTextField(wrappingLabelWithString: invocation.arguments)
-        arguments.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        arguments.isSelectable = true
-        arguments.setAccessibilityIdentifier("agent-mcp-arguments-\(messageID)")
-        var views: [NSView] = [title, stateLabel, tool, server, note, arguments]
-        plainText = [heading, invocation.stateLabel, tool.stringValue, server.stringValue, note.stringValue, invocation.arguments].joined(separator: "\n")
+        let tool = AgentApprovalText.field("工具：\(invocation.tool)", "agent-mcp-tool-\(messageID)")
+        let server = AgentApprovalText.field("服务器：\(invocation.serverName)", "agent-mcp-server-\(messageID)")
+        let empty = invocation.arguments == "（无参数）"
+        let note = AgentApprovalText.field(empty ? "参数：" : "参数（共 \(invocation.arguments.count) 字，完整显示）：", "agent-mcp-arguments-title-\(messageID)")
+        var views: [NSView] = [title, stateLabel, tool, server, note, argumentsView]
+        plainText = [heading, state, tool.stringValue, server.stringValue, "参数：", invocation.arguments].joined(separator: "\n")
         if invocation.state == .waiting {
-            for (button, name, action) in [(allowButton, "allow", #selector(pressAllow)), (denyButton, "deny", #selector(pressDeny))] {
-                button.target = self; button.action = action
-                button.bezelStyle = .rounded; button.controlSize = .small
-                button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
-                button.setAccessibilityIdentifier("agent-mcp-\(name)-\(messageID)")
-                button.isEnabled = answerable
-            }
-            let buttons = NSStackView(views: [allowButton, denyButton])
-            buttons.spacing = 6
-            views.append(buttons)
+            views.append(AgentApprovalText.buttons([(allowButton, "allow", #selector(pressAllow)), (denyButton, "deny", #selector(pressDeny))],
+                                                   target: self, prefix: "agent-mcp", messageID: messageID, enabled: answerable))
         }
-        let stack = NSStackView(views: views)
-        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 5
-        stack.setCustomSpacing(8, after: stateLabel)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 9),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
-            arguments.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
-        ])
+        AgentApprovalText.install(views, in: self, after: stateLabel, fill: [argumentsView, stateLabel])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    private static func field(_ text: String, _ identifier: String) -> NSTextField {
-        let label = NSTextField(wrappingLabelWithString: text)
-        label.font = .systemFont(ofSize: 12)
-        label.setAccessibilityIdentifier(identifier)
-        return label
-    }
 
     @objc private func pressAllow() { allow() }
     @objc private func pressDeny() { deny() }
@@ -848,6 +839,142 @@ final class AgentMcpApprovalCard: NSView, AgentTranscriptRow {
     override func updateLayer() {
         layer?.cornerRadius = 8
         layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(invocation.state == .waiting ? 0.10 : 0.06).cgColor
+    }
+}
+
+/// A rule or working-memory write asked for after an MCP result in the same
+/// turn: what it would change in full, and 允许 / 拒绝 while the turn waits.
+final class AgentMemoryApprovalCard: NSView, AgentTranscriptRow {
+    let allowButton = NSButton(title: "允许", target: nil, action: nil)
+    let denyButton = NSButton(title: "拒绝", target: nil, action: nil)
+    let stateLabel = NSTextField(labelWithString: "")
+    let request: AgentMemoryApproval
+    /// The complete change.
+    let detailView: AgentScrollingText
+    private let allow: () -> Void
+    private let deny: () -> Void
+    private(set) var plainText = ""
+
+    static let reason = "本轮已收到 MCP 工具的结果。为防止外部内容借写作助手改动作者规则或工作记忆，这次修改要你确认。"
+
+    init(messageID: String, request: AgentMemoryApproval, answerable: Bool, allow: @escaping () -> Void, deny: @escaping () -> Void) {
+        self.request = request; self.allow = allow; self.deny = deny
+        detailView = AgentScrollingText(text: request.detail, identifier: "agent-memory-approval-detail-\(messageID)")
+        super.init(frame: .zero)
+        wantsLayer = true
+        setAccessibilityIdentifier("agent-memory-approval-\(messageID)")
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        let heading = "允许修改写作助手的记忆？"
+        setAccessibilityLabel(heading)
+        let title = NSTextField(labelWithString: heading)
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        stateLabel.stringValue = request.stateLabel
+        stateLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        stateLabel.textColor = request.state == .allowed ? .systemGreen : request.state == .denied ? .systemRed : .secondaryLabelColor
+        stateLabel.setAccessibilityIdentifier("agent-memory-approval-state-\(messageID)")
+        let why = AgentApprovalText.field(Self.reason, "agent-memory-approval-reason-\(messageID)")
+        why.textColor = .secondaryLabelColor
+        let action = AgentApprovalText.field(request.action + "：", "agent-memory-approval-action-\(messageID)")
+        var views: [NSView] = [title, stateLabel, why, action, detailView]
+        plainText = [heading, request.stateLabel, Self.reason, action.stringValue, request.detail].joined(separator: "\n")
+        if request.state == .waiting {
+            views.append(AgentApprovalText.buttons([(allowButton, "allow", #selector(pressAllow)), (denyButton, "deny", #selector(pressDeny))],
+                                                   target: self, prefix: "agent-memory-approval", messageID: messageID, enabled: answerable))
+        }
+        AgentApprovalText.install(views, in: self, after: stateLabel, fill: [detailView, why])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    @objc private func pressAllow() { allow() }
+    @objc private func pressDeny() { deny() }
+
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.cornerRadius = 8
+        layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(request.state == .waiting ? 0.10 : 0.06).cgColor
+    }
+}
+
+/// Shared pieces of the approval cards.
+enum AgentApprovalText {
+    static func field(_ text: String, _ identifier: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 12)
+        label.setAccessibilityIdentifier(identifier)
+        return label
+    }
+
+    static func buttons(_ items: [(NSButton, String, Selector)], target: AnyObject, prefix: String, messageID: String, enabled: Bool) -> NSStackView {
+        for (button, name, action) in items {
+            button.target = target; button.action = action
+            button.bezelStyle = .rounded; button.controlSize = .small
+            button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+            button.setAccessibilityIdentifier("\(prefix)-\(name)-\(messageID)")
+            button.isEnabled = enabled
+        }
+        let row = NSStackView(views: items.map(\.0))
+        row.spacing = 6
+        return row
+    }
+
+    static func install(_ views: [NSView], in card: NSView, after state: NSView, fill: [NSView]) {
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 5
+        stack.setCustomSpacing(8, after: state)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 9),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -9),
+        ])
+        for view in fill { view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+    }
+}
+
+/// Read-only monospaced text in its own scroll view: as tall as the text up
+/// to `maxHeight`, then scrollable. Nothing is cut.
+final class AgentScrollingText: NSScrollView {
+    static let maxHeight: CGFloat = 180
+    let textView = NSTextView()
+    private var height: NSLayoutConstraint!
+
+    init(text: String, identifier: String) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 300, height: 40))
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.drawsBackground = false
+        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.textContainerInset = NSSize(width: 3, height: 4)
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.string = text
+        textView.setAccessibilityIdentifier(identifier)
+        setAccessibilityIdentifier(identifier + "-scroll")
+        hasVerticalScroller = true
+        autohidesScrollers = true
+        borderType = .noBorder
+        drawsBackground = false
+        documentView = textView
+        translatesAutoresizingMaskIntoConstraints = false
+        // Long text starts at the full height without laying all of it out.
+        height = heightAnchor.constraint(equalToConstant: text.utf16.count > 4_000 ? Self.maxHeight : 40)
+        height.isActive = true
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    var text: String { textView.string }
+
+    override func layout() {
+        super.layout()
+        guard height.constant < Self.maxHeight, let manager = textView.layoutManager, let container = textView.textContainer else { return }
+        manager.ensureLayout(for: container)
+        let needed = min(Self.maxHeight, ceil(manager.usedRect(for: container).height + textView.textContainerInset.height * 2))
+        if abs(height.constant - needed) > 0.5 { height.constant = needed }
     }
 }
 

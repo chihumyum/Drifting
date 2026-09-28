@@ -18,6 +18,9 @@ final class MacMcpSettingsViewController: NSViewController {
     var source: (() -> Project?)? { didSet { refresh() } }
     /// Where secret values go: the writing assistant's Keychain service.
     var secrets: AgentSecretStore?
+    /// Whether a project still exists; a sheet or confirmation opened on a
+    /// project deleted since is refused. Nil treats every project as live.
+    var projectExists: ((String) -> Bool)?
     /// Confirmations; nil shows them on the settings window. Acceptance
     /// answers them here.
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
@@ -100,12 +103,23 @@ final class MacMcpSettingsViewController: NSViewController {
         message.isHidden = text == nil
     }
 
-    /// Saves the list and lets the hub follow it at once.
-    private func commit(_ list: [AgentMcpServerConfig]) {
-        guard let project else { return }
+    /// Saves the list of `target` (the open project unless given) and lets
+    /// its hub follow at once.
+    private func commit(_ list: [AgentMcpServerConfig], to target: Project? = nil) {
+        guard let project = target ?? project else { return }
         store.setMcpServers(list, projectID: project.id)
         project.hub?.reconcile()
         refresh()
+    }
+
+    /// Why a sheet or confirmation opened on `target` can no longer write
+    /// to it, in Chinese, or nil.
+    private func goneRefusal(_ target: Project, serverID: String?) -> String? {
+        if projectExists?(target.id) == false { return "项目《\(target.name)》已经删除，修改没有保存。" }
+        if let serverID, !store.mcpServers(projectID: target.id).contains(where: { $0.id == serverID }) {
+            return "这个 MCP 服务器已经从项目《\(target.name)》中删除，修改没有保存。"
+        }
+        return nil
     }
 
     func setEnabled(_ id: String, _ enabled: Bool) {
@@ -140,13 +154,15 @@ final class MacMcpSettingsViewController: NSViewController {
         begin(sheet)
     }
 
+    /// The sheet writes to the project it opened on, even after the window
+    /// switched project.
     private func begin(_ sheet: MacMcpServerSheet) {
         guard let project else { return }
         self.sheet = sheet
         sheet.projectID = project.id
-        sheet.onSave = { [weak self] draft, typed in
+        sheet.onSave = { [weak self, weak sheet] draft, typed in
             guard let self else { return "设置窗口已关闭。" }
-            return self.save(draft, typed: typed)
+            return self.save(draft, typed: typed, into: project, isNew: sheet?.isNew ?? false)
         }
         sheet.onFinish = { [weak self, weak sheet] in if let self, self.sheet === sheet { self.sheet = nil } }
         if let presentSheet { presentSheet(sheet); return }
@@ -154,15 +170,21 @@ final class MacMcpSettingsViewController: NSViewController {
     }
 
     /// Validates, writes typed secrets to the Keychain, removes secrets no
-    /// longer used and saves. A change to how the server is reached raises
-    /// its revision, so the running connection is replaced.
-    func save(_ draft: AgentMcpServerConfig, typed: [String: String]) -> String? {
-        guard let project, let secrets else { return "没有打开的项目。" }
-        var list = servers
+    /// longer used and saves into `target` (the project the sheet opened
+    /// on). A change to how the server is reached raises its revision, so
+    /// the running connection is replaced; a change of where it is reached
+    /// (transport, command, arguments, folder, URL) also resets every tool
+    /// to 每次询问. A project or edited server deleted meanwhile is refused.
+    func save(_ draft: AgentMcpServerConfig, typed: [String: String], into target: Project? = nil, isNew: Bool = false) -> String? {
+        guard let project = target ?? project else { return "没有打开的项目。" }
+        guard let secrets else { return "钥匙串不可用，修改没有保存。" }
+        let exists = store.mcpServers(projectID: project.id).contains { $0.id == draft.id }
+        if let refusal = goneRefusal(project, serverID: isNew || (target == nil && !exists) ? nil : draft.id) { return refusal }
+        var list = store.mcpServers(projectID: project.id)
         let original = list.first { $0.id == draft.id }
         var next = draft
         next.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        next.toolPolicies = original?.toolPolicies ?? [:]
+        next.toolPolicies = original.map { $0.endpointKey == next.endpointKey ? $0.toolPolicies : [:] } ?? [:]
         let account = { (header: Bool, name: String) in
             AgentMcpSecrets.account(projectID: project.id, serverID: next.id, header: header, name: name)
         }
@@ -190,10 +212,13 @@ final class MacMcpSettingsViewController: NSViewController {
         }
         if let index = list.firstIndex(where: { $0.id == next.id }) { list[index] = next } else { list.append(next) }
         show(nil)
-        commit(list)
+        commit(list, to: project)
         return nil
     }
 
+    /// 删除… removes the server from the project the confirmation named,
+    /// with its secrets as stored when the author confirmed; a project or
+    /// server deleted meanwhile is refused.
     func deleteServer(_ id: String) {
         guard let project, let config = servers.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
@@ -203,8 +228,13 @@ final class MacMcpSettingsViewController: NSViewController {
         alert.addButton(withTitle: "删除"); alert.addButton(withTitle: "取消")
         present(alert) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            if let secrets = self.secrets { AgentMcpSecrets.remove(projectID: project.id, config: config, from: secrets) }
-            self.commit(self.servers.filter { $0.id != id })
+            if let refusal = self.goneRefusal(project, serverID: id) { self.show(refusal); return }
+            let list = self.store.mcpServers(projectID: project.id)
+            if let secrets = self.secrets, let current = list.first(where: { $0.id == id }) {
+                AgentMcpSecrets.remove(projectID: project.id, config: current, from: secrets)
+            }
+            self.show(nil)
+            self.commit(list.filter { $0.id != id }, to: project)
         }
     }
 
@@ -352,7 +382,8 @@ final class MacMcpServerRow: NSStackView {
 /// (one per line), working folder and environment, or the URL and headers.
 /// A secret's value is typed here and goes to the Keychain on 保存; a
 /// stored one is never shown, and leaving it empty keeps it.
-final class MacMcpServerSheet: NSObject {
+final class MacMcpServerSheet: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
+    static let policyResetNote = "连接方式已改变：保存后，这个服务器所有工具的权限都会恢复为“每次询问”，需要时请重新选择“允许”。"
     let window: NSWindow
     let isNew: Bool
     private(set) var config: AgentMcpServerConfig
@@ -365,6 +396,9 @@ final class MacMcpServerSheet: NSObject {
     let urlField = NSTextField()
     let headers: MacMcpVariablesEditor
     let message = NSTextField(wrappingLabelWithString: "")
+    /// Says that saving resets every tool to 每次询问 once where the server
+    /// is reached has changed.
+    let policyNote = NSTextField(wrappingLabelWithString: "")
     let saveButton = NSButton(title: "保存", target: nil, action: nil)
     let cancelButton = NSButton(title: "取消", target: nil, action: nil)
     private let stdioBox = NSStackView()
@@ -428,13 +462,19 @@ final class MacMcpServerSheet: NSObject {
         message.font = .systemFont(ofSize: 12)
         message.isHidden = true
         message.setAccessibilityIdentifier("mcp-sheet-message")
+        policyNote.textColor = .systemOrange
+        policyNote.font = .systemFont(ofSize: 12)
+        policyNote.isHidden = true
+        policyNote.setAccessibilityIdentifier("mcp-sheet-policy-note")
+        for field in [commandField, folderField, urlField] { field.delegate = self }
+        argumentsView.delegate = self
         saveButton.target = self; saveButton.action = #selector(save)
         saveButton.keyEquivalent = "\r"
         saveButton.setAccessibilityIdentifier("mcp-sheet-save")
         cancelButton.target = self; cancelButton.action = #selector(cancel)
         cancelButton.keyEquivalent = "\u{1b}"
         cancelButton.setAccessibilityIdentifier("mcp-sheet-cancel")
-        let stack = NSStackView(views: [title, top, stdioBox, httpBox, message, NSStackView(views: [NSView(), cancelButton, saveButton])])
+        let stack = NSStackView(views: [title, top, stdioBox, httpBox, policyNote, message, NSStackView(views: [NSView(), cancelButton, saveButton])])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 12
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -454,6 +494,7 @@ final class MacMcpServerSheet: NSObject {
             argumentsScroll.widthAnchor.constraint(equalToConstant: 340),
             argumentsScroll.heightAnchor.constraint(equalToConstant: 64),
             message.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            policyNote.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
     }
 
@@ -473,9 +514,25 @@ final class MacMcpServerSheet: NSObject {
         let kind = transport
         stdioBox.isHidden = kind != .stdio
         httpBox.isHidden = kind != .http
+        updatePolicyNote()
         window.contentView?.layoutSubtreeIfNeeded()
         if let size = window.contentView?.fittingSize { window.setContentSize(size) }
     }
+
+    /// Shown while the form reaches the server somewhere else than the
+    /// stored configuration and some tool has a policy other than 每次询问.
+    func updatePolicyNote() {
+        let (next, _) = draft(projectID: projectID)
+        let resets = !isNew && !config.toolPolicies.isEmpty && next.endpointKey != config.endpointKey
+        policyNote.stringValue = resets ? Self.policyResetNote : ""
+        guard policyNote.isHidden == resets else { return }
+        policyNote.isHidden = !resets
+        window.contentView?.layoutSubtreeIfNeeded()
+        if let size = window.contentView?.fittingSize { window.setContentSize(size) }
+    }
+
+    func controlTextDidChange(_ notification: Notification) { updatePolicyNote() }
+    func textDidChange(_ notification: Notification) { updatePolicyNote() }
 
     var transport: AgentMcpTransportKind {
         AgentMcpTransportKind.allCases.indices.contains(transportControl.selectedSegment)

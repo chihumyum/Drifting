@@ -98,6 +98,54 @@ struct AgentMemoryChange: Codable, Equatable {
     }
 }
 
+/// A rule or working-memory write asked for in a turn that has already
+/// received an MCP tool result. External content may be steering it, so it
+/// waits as a card for 允许 or 拒绝 instead of applying at once; 停止, or a
+/// turn that ended first, leaves it 未执行. Kept on a notice row, never
+/// sent to the model.
+struct AgentMemoryApproval: Codable, Equatable {
+    /// The memory tools that ask after an MCP result in the same turn.
+    static let guarded: Set<String> = ["create_author_rule", "update_author_rule", "delete_author_rule", "checkpoint_working_memory"]
+
+    var callID: String
+    var tool: String
+    /// 记住一条作者规则, 替换工作记忆（120 字）….
+    var action: String
+    /// The complete change: the rule as it would read, or the whole new note.
+    var detail: String
+    var state: AgentMcpInvocation.State
+
+    var stateLabel: String {
+        switch state {
+        case .waiting: return "等待你的决定"
+        case .allowed: return "已允许"
+        case .denied: return "已拒绝"
+        case .cancelled: return "未执行"
+        }
+    }
+
+    /// What the call would do to the rules or the note as they are now.
+    static func describe(_ call: AgentToolCall, _ a: [String: Any], rules: [AgentAuthorRule], workingMemory: String) -> (action: String, detail: String) {
+        let id = (a["ruleId"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let rule = rules.first { $0.id == id }
+        let kind = (a["kind"] as? String).flatMap(AgentAuthorRule.Kind.init(rawValue:))
+        let text = (a["text"] as? String).map(AgentAuthorRules.normalized)
+        switch call.name {
+        case "create_author_rule":
+            return ("记住一条作者规则", "【\(kind?.label ?? "?")】\(text ?? "")")
+        case "update_author_rule":
+            guard let rule else { return ("修改作者规则 \(id)", "找不到编号为 \(id) 的规则。") }
+            return ("修改作者规则 \(id)", "原来：\(rule.line)\n改为：【\((kind ?? rule.kind).label)】\(text ?? rule.text)")
+        case "delete_author_rule":
+            return ("忘记作者规则 \(id)", rule?.line ?? "找不到编号为 \(id) 的规则。")
+        default:
+            let note = AgentWorkingMemory.normalized(a["text"] as? String ?? "")
+            let before = workingMemory.isEmpty ? "" : "（替换现有的 \(workingMemory.count) 字）"
+            return note.isEmpty ? ("清空工作记忆", "（清空）\(before)") : ("替换工作记忆（\(note.count) 字）", note)
+        }
+    }
+}
+
 // MARK: - 工作记忆
 
 /// The assistant's Markdown note for one conversation, bounded in size.

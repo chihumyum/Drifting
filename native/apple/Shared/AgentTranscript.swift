@@ -138,6 +138,9 @@ struct AgentMessage: Codable, Equatable {
     /// Notice rows asking to call an MCP tool set to 每次询问: the tool,
     /// server, arguments and the author's decision.
     var mcp: AgentMcpInvocation?
+    /// Notice rows asking to change 作者规则 or 工作记忆 in a turn that
+    /// received an MCP result: the change and the author's decision.
+    var memoryApproval: AgentMemoryApproval?
     var createdAt: Date
 
     init(id: String = UUID().uuidString, role: Role, turnID: String, text: String, createdAt: Date = Date()) {
@@ -393,9 +396,10 @@ final class AgentConversationStore {
                 for index in conversation.proposals.indices where conversation.proposals[index].state == .applying {
                     conversation.proposals[index].state = .pending
                 }
-                // An MCP call still waiting when the app stopped was never made.
-                for index in conversation.messages.indices where conversation.messages[index].mcp?.state == .waiting {
-                    conversation.messages[index].mcp?.state = .cancelled
+                // An MCP call or a memory write still waiting when the app stopped was never made.
+                for index in conversation.messages.indices {
+                    if conversation.messages[index].mcp?.state == .waiting { conversation.messages[index].mcp?.state = .cancelled }
+                    if conversation.messages[index].memoryApproval?.state == .waiting { conversation.messages[index].memoryApproval?.state = .cancelled }
                 }
                 return conversation
             }.sorted { $0.updatedAt > $1.updatedAt }
@@ -492,6 +496,23 @@ final class AgentConversationStore {
     func saveCopilotUsage(_ usage: [AgentUsageRecord]) {
         guard let data = try? Self.encoder().encode(CopilotUsageFile(usage: usage)) else { return }
         write(data, name: Self.copilotUsageFile)
+    }
+
+    /// What Copilot's 接受 created before its decision was recorded, by
+    /// suggestion; none when the file is missing.
+    static let copilotCreatedFile = "copilot-accepted.json"
+
+    func loadCopilotCreated() -> [String: CopilotCreated] {
+        queue.sync {
+            guard let data = try? Data(contentsOf: directory.appendingPathComponent(Self.copilotCreatedFile)),
+                  let file = try? Self.decoder().decode(CopilotCreatedFile.self, from: data) else { return [:] }
+            return file.created
+        }
+    }
+
+    func saveCopilotCreated(_ created: [String: CopilotCreated]) {
+        guard let data = try? Self.encoder().encode(CopilotCreatedFile(created: created)) else { return }
+        write(data, name: Self.copilotCreatedFile)
     }
 
     func delete(_ id: String) {

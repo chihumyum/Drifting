@@ -48,6 +48,9 @@ final class AgentMcpHub {
         /// Why the model does not get it, e.g. an unsupported schema.
         let skipped: String?
         let policy: AgentMcpToolPolicy
+        /// The server's configuration revision when the tool was listed; a
+        /// call made later is pinned to it.
+        let revision: Int
 
         var isVisible: Bool { skipped == nil && policy != .deny }
         var schemaObject: [String: Any] { (schema?.any as? [String: Any]) ?? ["type": "object"] }
@@ -80,6 +83,11 @@ final class AgentMcpHub {
         fileprivate var failures = 0
         fileprivate var readySince: Date?
         fileprivate var retry: DispatchWorkItem?
+        /// A `tools/list` is running; `listAgain` asks for one more after it.
+        fileprivate var listing = false
+        fileprivate var listAgain = false
+        /// `tools/list` requests sent for this server so far, for acceptance.
+        fileprivate(set) var listRequests = 0
 
         fileprivate init(config: AgentMcpServerConfig) { self.config = config }
 
@@ -89,6 +97,10 @@ final class AgentMcpHub {
         /// The last lines the server wrote to standard error.
         var log: [String] { rpc?.stderrLines ?? lastRPC?.stderrLines ?? [] }
         var isConnected: Bool { rpc != nil }
+        #if os(macOS)
+        /// Bytes of an unfinished standard-error line held now, for acceptance.
+        var stderrPending: Int { (rpc as? AgentMcpStdioRPC)?.errorLines.pendingCount ?? 0 }
+        #endif
         var isReady: Bool { if case .ready = health { return rpc != nil }; return false }
     }
 
@@ -100,6 +112,8 @@ final class AgentMcpHub {
     var urlConfiguration: URLSessionConfiguration = AgentNetwork.standardConfiguration()
     var handshakeTimeout: TimeInterval = 30
     var callTimeout: TimeInterval = 300
+    /// How long an HTTP notification's answer may stay open.
+    var notificationTimeout: TimeInterval = 30
     /// Waits before each automatic reconnection after a failure or crash.
     var restartDelays: [TimeInterval] = [1, 3, 10]
     /// A connection that stayed up this long starts its retries afresh.
@@ -108,6 +122,9 @@ final class AgentMcpHub {
     private var order: [String] = []
     private var servers: [String: Server] = [:]
     private var slugs: [String: String] = [:]
+    /// Ended connections whose local command may still be in its shutdown
+    /// window (EOF, then SIGTERM, then SIGKILL); quitting ends them at once.
+    private var retired: [AgentMcpRPC] = []
 
     init(projectID: String, secrets: AgentSecretStore, configs: @escaping () -> [AgentMcpServerConfig]) {
         self.projectID = projectID; self.secrets = secrets; self.configs = configs
@@ -188,7 +205,9 @@ final class AgentMcpHub {
         changed()
     }
 
-    /// The app is quitting: local commands end before this returns.
+    /// The app is quitting: every local command ends before this returns,
+    /// running ones and those still in their shutdown window after a
+    /// disable, a reconfiguration or a failure.
     func terminateNow() {
         isActive = false
         for server in allServers {
@@ -196,15 +215,33 @@ final class AgentMcpHub {
             stop(server, health: .disabled, closing: false)
             rpc?.terminateNow()
         }
+        let closing = retired
+        retired = []
+        for rpc in closing { rpc.terminateNow() }
+    }
+
+    /// Local commands of this hub still running, current and retired.
+    var runningProcessIDs: [Int32] {
+        (allServers.compactMap(\.rpc) + retired).filter(\.isRunning).compactMap(\.processID)
+    }
+
+    /// Keeps an ended connection until its process has gone.
+    private func retire(_ rpc: AgentMcpRPC) {
+        retired.removeAll { !$0.isRunning }
+        if rpc.isRunning, !retired.contains(where: { $0 === rpc }) { retired.append(rpc) }
     }
 
     private func stop(_ server: Server, health: Health, closing: Bool = true) {
         server.generation += 1
         server.retry?.cancel(); server.retry = nil
+        server.listing = false; server.listAgain = false
         if let rpc = server.rpc {
             server.lastRPC = rpc
             rpc.onClosed = nil; rpc.onNotification = nil
-            if closing { rpc.close(reason: AgentMcpError(.closed, "服务器已停用或重新配置，这次调用没有完成（不会自动重试）。")) }
+            if closing {
+                rpc.close(reason: AgentMcpError(.closed, "服务器已停用或重新配置，这次调用没有完成（不会自动重试）。"))
+                retire(rpc)
+            }
         }
         server.rpc = nil
         server.tools = []; server.readySince = nil
@@ -237,6 +274,8 @@ final class AgentMcpHub {
         }
         rpc.onNotification = { [weak self, weak server] method in
             guard let self, let server, server.generation == generation, method == "notifications/tools/list_changed" else { return }
+            // A storm of changes costs at most one listing in flight and one after it.
+            if server.listing { server.listAgain = true; return }
             self.list(server, rpc: rpc, generation: generation)
         }
         let params: [String: Any] = ["protocolVersion": Self.protocolVersion, "capabilities": [String: Any](),
@@ -269,11 +308,15 @@ final class AgentMcpHub {
     }
 
     /// `tools/list` with pagination: at most 16 pages and 256 tools, no
-    /// duplicate names, cursors that do not repeat.
+    /// duplicate names, cursors that do not repeat. One listing runs at a
+    /// time; changes announced meanwhile start one more when it completes.
     private func list(_ server: Server, rpc: AgentMcpRPC, generation: Int) {
+        server.listing = true
+        server.listAgain = false
         var collected: [Discovered] = []
         var names: Set<String> = [], cursors: Set<String> = []
         func page(_ cursor: String?, _ number: Int) {
+            server.listRequests += 1
             rpc.request("tools/list", params: cursor.map { ["cursor": $0] }, timeout: handshakeTimeout) { [weak self, weak server] result in
                 guard let self, let server, server.generation == generation else { return }
                 let invalid = { (text: String) in self.failed(server, AgentMcpError(.protocolError, "工具列表无效：\(text)"), retry: true) }
@@ -303,7 +346,9 @@ final class AgentMcpHub {
                         self.rebuild(server)
                         server.health = .ready(collected.filter { $0.problem == nil }.count)
                         if server.readySince == nil { server.readySince = Date() }
+                        server.listing = false
                         self.changed()
+                        if server.listAgain { self.list(server, rpc: rpc, generation: generation) }
                     }
                 }
             }
@@ -318,7 +363,7 @@ final class AgentMcpHub {
         server.tools = zip(server.discovered, names).map { tool, providerName in
             Tool(serverID: config.id, serverName: config.name, name: tool.name, providerName: providerName, description: tool.description,
                  schema: tool.problem == nil ? AgentJSON(any: tool.schema) : nil, skipped: tool.problem.map { "已跳过：\($0)" },
-                 policy: config.policy(tool.name))
+                 policy: config.policy(tool.name), revision: config.revision)
         }
     }
 
@@ -332,10 +377,12 @@ final class AgentMcpHub {
 
     private func failed(_ server: Server, _ error: AgentMcpError, retry: Bool) {
         let generation = server.generation
+        server.listing = false; server.listAgain = false
         if let rpc = server.rpc {
             server.lastRPC = rpc
             rpc.onClosed = nil; rpc.onNotification = nil
             rpc.close(reason: AgentMcpError(.closed, "服务器连接已断开，这次调用没有完成（不会自动重试）。"))
+            retire(rpc)
         }
         server.rpc = nil
         server.tools = []; server.readySince = nil
@@ -376,7 +423,7 @@ final class AgentMcpHub {
             }
             var headers: [String: String] = [:]
             for variable in config.headers { headers[variable.name] = try value(variable, header: true, config) }
-            return AgentMcpHTTPRPC(url: url, headers: headers, configuration: urlConfiguration)
+            return AgentMcpHTTPRPC(url: url, headers: headers, configuration: urlConfiguration, notificationTimeout: notificationTimeout)
         }
     }
 
@@ -394,14 +441,32 @@ final class AgentMcpHub {
 
     // MARK: Calls
 
-    /// Calls a visible tool once. Nil when it is no longer visible. The
-    /// call is never sent again: a timeout, a crash or a replaced
-    /// connection fails it.
-    func call(_ providerName: String, arguments: [String: Any],
+    /// Why the tool the model (or an approval card) named can no longer be
+    /// called on the server it was listed for, or nil. The call is pinned:
+    /// a server renamed, reconfigured, disabled or deleted since, or a tool
+    /// it no longer lists or the author disabled, is refused, and nothing is
+    /// looked up again by name.
+    func pinProblem(_ pinned: Tool) -> String? {
+        guard let server = servers[pinned.serverID] else { return "MCP 服务器“\(pinned.serverName)”已经删除。" }
+        let config = server.config
+        if config.name != pinned.serverName { return "MCP 服务器“\(pinned.serverName)”已改名为“\(config.name)”。" }
+        if config.revision != pinned.revision { return "MCP 服务器“\(pinned.serverName)”已重新配置。" }
+        guard config.enabled, server.isReady else { return "MCP 服务器“\(pinned.serverName)”已停用或正在重新连接。" }
+        guard let current = server.tools.first(where: { $0.name == pinned.name }) else {
+            return "MCP 服务器“\(pinned.serverName)”已不再提供工具 \(pinned.name)。"
+        }
+        guard current.isVisible else { return "作者已禁用 MCP 工具 \(pinned.name)。" }
+        return nil
+    }
+
+    /// Calls the pinned tool once on its own server. Nil when `pinProblem`
+    /// refuses it. The call is never sent again: a timeout, a crash or a
+    /// replaced connection fails it.
+    func call(_ pinned: Tool, arguments: [String: Any],
               completion: @escaping (Result<AgentMcpCallResult, AgentMcpError>) -> Void) -> AgentMcpPendingRequest? {
-        guard let tool = tool(named: providerName), let server = servers[tool.serverID], let rpc = server.rpc else { return nil }
+        guard pinProblem(pinned) == nil, let server = servers[pinned.serverID], let rpc = server.rpc else { return nil }
         let generation = server.generation
-        return rpc.request("tools/call", params: ["name": tool.name, "arguments": arguments], timeout: callTimeout) { [weak server] result in
+        return rpc.request("tools/call", params: ["name": pinned.name, "arguments": arguments], timeout: callTimeout) { [weak server] result in
             switch result {
             case .failure(let error):
                 completion(.failure(error.kind == .timeout
@@ -419,5 +484,12 @@ final class AgentMcpHub {
                 }
             }
         }
+    }
+
+    /// Calls a visible tool by its provider name, as the model names it now.
+    func call(_ providerName: String, arguments: [String: Any],
+              completion: @escaping (Result<AgentMcpCallResult, AgentMcpError>) -> Void) -> AgentMcpPendingRequest? {
+        guard let tool = tool(named: providerName) else { return nil }
+        return call(tool, arguments: arguments, completion: completion)
     }
 }
