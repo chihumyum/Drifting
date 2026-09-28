@@ -28,6 +28,9 @@ pub enum NativeFormatAction {
     Blockquote,
     BulletList,
     OrderedList,
+    /// The caret's paragraph, the last of its list item and not the first,
+    /// becomes a new list item after it (Enter in a list item).
+    SplitListItem,
 }
 
 /// The deepest block indent, as the renderer's paragraph indent allows.
@@ -261,6 +264,9 @@ impl DocumentSession {
         };
         if let Some(tag) = container {
             return self.format_container(request, tag);
+        }
+        if matches!(request.action, NativeFormatAction::SplitListItem) {
+            return self.split_list_item(request);
         }
         let view = self.native_projection()?;
         let (first, last) = selected_blocks(&view, &request.range)?;

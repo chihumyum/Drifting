@@ -230,6 +230,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             .elementOverview: .init(#selector(showElementOverview), self),
             .bottomTimeline: .init(#selector(toggleBottomTimeline), self),
             .plotPlanner: .init(#selector(togglePlotPlanner), self),
+            .pageStats: .init(#selector(showPageStats), self),
+            .outlineRail: .init(#selector(toggleOutlineRail), self),
             .trash: .init(#selector(showTrashMenu), self),
             .diagnostics: .init(#selector(showDiagnostics), self),
             .projectHome: .init(#selector(showProjectHomeMenu), self),
@@ -364,6 +366,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.plotPlannerSettings = settingsStore
         // So are storyline and category pages' list filters.
         chapterWorkspace.listFilterSettings = settingsStore
+        chapterWorkspace.railSettings = settingsStore
+        // Pending revisions of the writing assistant are ticked beside bodies.
+        chapterWorkspace.pendingProposals = { [weak self] projectID in self?.agentControllers[projectID]?.pendingRevisions ?? [] }
         chapterWorkspace.onChapterCreated = { [weak self] project, chapter in self?.adoptCreatedChapter(chapter, projectID: project.id) }
         chapterWorkspace.onPlotPlanner = { [weak self] in self?.updatePlotPlannerMenu() }
         chapterWorkspace.onDriftConverted = { [weak self] projectID, outcome in self?.adoptDriftConversion(projectID: projectID, outcome: outcome) }
@@ -667,6 +672,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let controller = agentControllers[project.id] ?? makeAgent(project)
         agentControllers[project.id] = controller
         agentController = controller
+        // Proposals kept from earlier sessions are ticked beside their bodies.
+        chapterWorkspace.proposalsChanged(projectID: project.id)
         agentPanel.bind(controller)
         controller.mcp?.activate()
         settingsWindow?.mcpPane.refresh()
@@ -2067,6 +2074,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.toggleActivePlotPlanner()
     }
 
+    /// 视图 › 页面统计: the active page's statistics beside its header.
+    @objc private func showPageStats() {
+        guard chapterWorkspace.canShowPageStats else { status.stringValue = "请先打开一页（章节、漂流、设定、故事线或分类）。"; return }
+        chapterWorkspace.showPageStats()
+    }
+
+    /// 视图 › 大纲轨道: shown or hidden on every page of the active page's
+    /// kind; remembered in settings.json.
+    @objc private func toggleOutlineRail() {
+        guard chapterWorkspace.canToggleOutlineRail else { status.stringValue = "请先打开一页（章节、漂流、设定、故事线或分类）。"; return }
+        chapterWorkspace.toggleOutlineRail()
+    }
+
     private func updatePlotPlannerMenu() {
         plotPlannerMenuItem?.state = chapterWorkspace.isActivePlotPlannerShown ? .on : .off
     }
@@ -2078,6 +2098,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             item.state = chapterWorkspace.isActivePlotPlannerShown ? .on : .off
             return chapterWorkspace.canTogglePlotPlanner
         }
+        if item.action == #selector(toggleOutlineRail) {
+            item.state = chapterWorkspace.isActiveOutlineRailShown ? .on : .off
+            return chapterWorkspace.canToggleOutlineRail
+        }
+        if item.action == #selector(showPageStats) { return chapterWorkspace.canShowPageStats }
         if item.action == #selector(goBack) { return chapterWorkspace.canGoBack }
         if item.action == #selector(goForward) { return chapterWorkspace.canGoForward }
         if item.action == #selector(showPreviousTab) || item.action == #selector(showNextTab) {
@@ -2208,6 +2233,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                 comments.reload()
             }
         }
+        // Open chapter bodies tick the project's open notes and TODOs.
+        model.observe(self) { [weak self, weak model] in
+            guard let self, let model, model.loaded else { return }
+            self.chapterWorkspace.adoptComments(projectID: project.id, comments: model.comments)
+        }
         reviewModels[project.id] = model
         model.load()
         return model
@@ -2255,6 +2285,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// 定位 opens the page as a tab (a passage note selects its text) and a
     /// chip opens its entity, in the window under the panel.
     private func wireReviewCommands(_ commands: ReviewCommands, project: WorkspaceProject) {
+        commands.stickyNotes = { [weak self] comment in self?.chapterWorkspace.isStickyPinned(comment) }
+        commands.onPinSticky = { [weak self] comment, pinned in self?.chapterWorkspace.setStickyPinned(comment, pinned: pinned) }
         commands.onLocate = { [weak self, weak commands] comment in
             guard let self else { return }
             guard self.canLeaveDocument() else { commands?.model.showStatus("请先完成输入，并等待正文保存后再定位。"); return }

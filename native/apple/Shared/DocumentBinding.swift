@@ -19,6 +19,10 @@ enum NativeFormatAction: String, CaseIterable {
     case bold, italic, underline, strike, paragraph, heading1, heading2, heading3
     case alignLeft, alignCenter, alignRight, indentIncrease, indentDecrease
     case blockquote, bulletList, orderedList
+    /// The second half of Return in a list item: the caret's paragraph, the
+    /// last of its item and not the first, becomes the next item. Not a menu
+    /// command; the editor applies it once the Return has landed.
+    case splitListItem
 
     /// Marks toggle over selected text; a caret has nothing to mark.
     var isMark: Bool { Self.marks.contains(self) }
@@ -47,6 +51,7 @@ enum NativeFormatAction: String, CaseIterable {
         case .blockquote: return "引用"
         case .bulletList: return "无序列表"
         case .orderedList: return "有序列表"
+        case .splitListItem: return "新列表项"
         }
     }
     var accessibilityID: String { "format-\(rawValue)" }
@@ -264,10 +269,53 @@ extension NativeProjection {
             return blockState { $0.kind == "heading" && "heading\($0.headingLevel)" == action.rawValue }
         case .alignLeft, .alignCenter, .alignRight:
             return blockState({ $0.textAlign == action.textAlign }, considered: \.acceptsBlockAttributes)
-        case .indentIncrease, .indentDecrease: return .off
+        case .indentIncrease, .indentDecrease, .splitListItem: return .off
         case .blockquote, .bulletList, .orderedList:
             return blockState({ $0.containers.contains(action.rawValue) }, considered: \.acceptsBlockAttributes)
         }
+    }
+
+    /// Whether `splitListItem` applies at a caret: its paragraph or heading
+    /// is in an item of a root list, the last child of that item and not
+    /// its first (the new paragraph a Return in the item made).
+    func canSplitListItem(in range: NSRange) -> Bool {
+        guard range.length == 0, let index = NativeLayout.index(range.location, blocks: blocks) else { return false }
+        let block = blocks[index]
+        guard block.acceptsBlockAttributes, block.rootContainer == "bulletList" || block.rootContainer == "orderedList" else { return false }
+        let first = index == 0 || blocks[index - 1].container != block.container
+        let last = index + 1 == blocks.count || blocks[index + 1].container != block.container
+        return !first && last
+    }
+
+    /// The horizontal rule (分隔线) holding a UTF-16 location: its one U+FFFC
+    /// unit, or the places before and after it.
+    func rule(at location: Int) -> NativeBlock? {
+        guard let index = NativeLayout.index(location, blocks: blocks), blocks[index].kind == "horizontalRule" else { return nil }
+        return blocks[index]
+    }
+
+    /// Whether 插入分隔线 applies at a location: an editable block holds it
+    /// (the rule goes after its top-level block, or before an empty
+    /// top-level paragraph).
+    func canInsertRule(at location: Int) -> Bool {
+        guard let index = NativeLayout.index(location, blocks: blocks) else { return false }
+        return blocks[index].editable
+    }
+
+    /// The rule ⌫ (backward) or ⌦ (forward) at a caret removes: the caret
+    /// on a rule, at the start of a block right after one, or at the end of
+    /// a block right before one.
+    func ruleBeside(caret range: NSRange, forward: Bool) -> NativeBlock? {
+        guard range.length == 0, let index = NativeLayout.index(range.location, blocks: blocks) else { return nil }
+        let block = blocks[index]
+        if block.kind == "horizontalRule" { return block }
+        if forward {
+            guard range.location == NSMaxRange(block.range.nsRange), blocks.indices.contains(index + 1),
+                  blocks[index + 1].kind == "horizontalRule" else { return nil }
+            return blocks[index + 1]
+        }
+        guard range.location == block.range.location, index > 0, blocks[index - 1].kind == "horizontalRule" else { return nil }
+        return blocks[index - 1]
     }
 
     /// Why Rust refused 引用 or a list over a range, in Chinese with what to
@@ -622,8 +670,34 @@ final class DocumentBinding {
     }
     func canFormat(_ action: NativeFormatAction, range: NSRange) -> Bool {
         guard let projection = commandProjection(range) else { return false }
+        if action == .splitListItem { return projection.canSplitListItem(in: range) }
         if action.isBlockAttribute || action.isContainer { return projection.acceptsBlockAttributes(in: range) }
         return !action.requiresSelection || range.length > 0
+    }
+
+    /// 插入分隔线 at the end of a range: after its top-level block, or before
+    /// an empty top-level paragraph.
+    func canInsertRule(range: NSRange) -> Bool {
+        commandProjection(range)?.canInsertRule(at: NSMaxRange(range)) == true
+    }
+    func insertRule(range: NSRange, completion: ((Result<Int, Error>) -> Void)? = nil) {
+        guard canInsertRule(range: range), let projection = store.projection else {
+            completion?(.failure(LabError.message("请先完成输入，并等待正文保存后再插入分隔线。"))); return
+        }
+        selectionChanged(range, text: projection.text, marked: false)
+        store.rule("insert", location: NSMaxRange(range), revision: projection.revision, completion: completion)
+    }
+    /// The rule the idle owner's projection has at a location, which
+    /// 删除分隔线 removes.
+    func removableRule(at location: Int) -> NativeBlock? {
+        guard let projection = commandProjection(NSRange(location: location, length: 0)) else { return nil }
+        return projection.rule(at: location)
+    }
+    func removeRule(at location: Int, completion: ((Result<Int, Error>) -> Void)? = nil) {
+        guard let rule = removableRule(at: location), let projection = store.projection else {
+            completion?(.failure(LabError.message("请先完成输入，并等待正文保存后再删除分隔线。"))); return
+        }
+        store.rule("remove", location: rule.range.location, revision: projection.revision, completion: completion)
     }
     func format(_ action: NativeFormatAction, range: NSRange) {
         guard canFormat(action, range: range), let projection = store.projection else { return }

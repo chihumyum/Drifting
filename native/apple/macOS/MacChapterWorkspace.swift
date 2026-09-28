@@ -25,7 +25,28 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let driftPage: MacDriftPageView?
         let chapterPage: MacChapterPageView?
         let categoryPage: MacCategoryPageView?
-        var content: NSView { page ?? storylinePage ?? driftPage ?? chapterPage ?? categoryPage ?? view }
+        /// The page with its 大纲轨道: what the pane shows.
+        let pageFrame: MacPageFrame
+        var content: NSView { pageFrame }
+        /// The page itself.
+        var pageView: NSView { page ?? storylinePage ?? driftPage ?? chapterPage ?? categoryPage ?? view }
+        var rail: PageOutlineRail { pageFrame.rail }
+        /// The page kind the 大纲轨道 is shown or hidden for (`settings.json`).
+        var railKind: String {
+            switch target {
+            case .chapter: return "chapter"
+            case .element: return "element"
+            case .storyline: return "storyline"
+            case .drift: return "drift"
+            case .category: return "category"
+            }
+        }
+        /// The page's fixed sections above 正文 (element, storyline and category pages).
+        var railSections: [PageRailSection] { page?.railSections ?? storylinePage?.railSections ?? categoryPage?.railSections ?? [] }
+        /// The header's 统计 button.
+        var statsButton: NSButton? {
+            page?.statsButton ?? storylinePage?.statsButton ?? driftPage?.statsButton ?? chapterPage?.statsButton ?? categoryPage?.statsButton
+        }
         /// The 摘要 and 状态 of a chapter or drift tab.
         var metadataEditor: NodeMetadataEditor? { chapterPage?.metadataEditor ?? driftPage?.metadataEditor }
         /// A chapter's or drift's 情节规划格 toggle and dock.
@@ -116,6 +137,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 let page = MacCategoryPageView(category: category, core: core)
                 self.page = nil; storylinePage = nil; driftPage = nil; chapterPage = nil; categoryPage = page; view = page.documentView
             }
+            pageFrame = MacPageFrame(page: page ?? storylinePage ?? driftPage ?? chapterPage ?? categoryPage ?? view)
         }
         /// Ends an uncommitted header edit of any page kind, and a 情节规划格
         /// cell being edited.
@@ -383,6 +405,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
         // The selected tab's title takes a chosen 界面强调色.
         NotificationCenter.default.addObserver(self, selector: #selector(accentChanged), name: MacEditorPreferences.didChange, object: nil)
+        // Pending proposals are ticked beside the bodies they revise.
+        NotificationCenter.default.addObserver(self, selector: #selector(agentProposalsChanged(_:)),
+                                               name: AgentChatController.proposalsDidChange, object: nil)
         relations.names = { [weak self] projectID in self?.relationNames(projectID: projectID) ?? .empty }
         relations.requestNames = { [weak self] projectID in
             guard let self, self.storylineLibraries[projectID] == nil, !self.loadingStorylines.contains(projectID) else { return }
@@ -398,6 +423,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // A remote original may change bodies without an open owner, whose
         // projections only a reconcile writes.
         workspace.onRemoteOriginal = { [weak self] projectID in
+            self?.linkIndexChanged(projectID: projectID)
             self?.wordCountModels[projectID]?.reconcile()
             self?.refreshPlotGrids(projectID: projectID)
             self?.onRemoteOriginal?(projectID)
@@ -596,6 +622,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func prepare(_ tab: Tab) {
         let projectID = tab.project.id
         ensureLinkSources(projectID: projectID)
+        updateRail(of: tab)
+        updateStickyRail(of: tab)
+        if tab.nodeID != nil, commentRows[projectID] == nil { reloadComments(projectID: projectID) }
         if let page = tab.storylinePage {
             if let storyline = tab.storyline {
                 page.chaptersView.setFilter(listFilter(projectID: projectID, page: "storyline:\(storyline.id)"))
@@ -967,7 +996,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if live, let view = openView(scope: target.scope) {
             view.binding.store.requestEntityLinks()
         }
-        if target.kind == "chapter" || target.kind == "drift" { wordCounts(projectID: target.projectID, refresh: true) }
+        if target.kind == "chapter" || target.kind == "drift" {
+            wordCounts(projectID: target.projectID, refresh: true)
+            linkIndexChanged(projectID: target.projectID)
+        }
         // Restored chapter prose may add or remove element references.
         if target.kind == "chapter" { scheduleBacklinks(projectID: target.projectID) }
     }
@@ -1081,6 +1113,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         wordCounts(projectID: tab.project.id).scheduleRefresh()
         // Rust rechecked the body's anchored patches with the save.
         patches.bodySaved(projectID: tab.project.id)
+        linkIndexChanged(projectID: tab.project.id)
+        // A saved body is compared with its 章节模版 again, even at the same count.
+        if let nodeID = tab.nodeID { templateChecks[tab.project.id]?[nodeID] = nil }
     }
 
     // MARK: Storylines
@@ -1134,11 +1169,47 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let titles = Dictionary(chapters.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let id = page.storyline.id
         let counts = wordCountModels[projectID]?.library
+        // A body still exactly the 章节模版 is 未起. Only a chapter counted at
+        // most the template's words can be; its body is read to compare.
+        let template = page.template.map { CategoryElementsView.normalized($0.map(\.text).joined(separator: "\n")) } ?? ""
+        let templateWords = ProseWordCount.count(template)
         page.showChapters(library.chapters(storylineID: id).compactMap { membership in
-            titles[membership.chapterId].map {
-                StorylineChaptersView.Entry(chapter: $0, primary: membership.primary == id, words: counts?.count(nodeID: $0.id))
+            titles[membership.chapterId].map { chapter in
+                let words = counts?.count(nodeID: chapter.id)
+                var atTemplate: Bool? = false
+                if let words, words > 0, templateWords > 0, words <= templateWords {
+                    atTemplate = templateCheck(projectID: projectID, chapterID: chapter.id, words: words, template: template)
+                }
+                return StorylineChaptersView.Entry(chapter: chapter, primary: membership.primary == id, words: words, atTemplate: atTemplate)
             }
         })
+    }
+
+    /// Per project and chapter: whether the body read at that word count was
+    /// the template it was compared with.
+    private var templateChecks: [String: [String: (words: Int, template: String, atTemplate: Bool)]] = [:]
+    private var templateReads: Set<String> = []
+    /// Chapter bodies read to compare with a 章节模版, for acceptance.
+    private(set) var templateBodyReads = 0
+
+    /// Whether the chapter's body is the template, when known; otherwise nil
+    /// and its body is read (a read only), after which storyline pages of
+    /// the project list their chapters again.
+    private func templateCheck(projectID: String, chapterID: String, words: Int, template: String) -> Bool? {
+        if let known = templateChecks[projectID]?[chapterID], known.words == words, known.template == template { return known.atTemplate }
+        let key = "\(projectID)/\(chapterID)/\(words)"
+        guard templateReads.insert(key).inserted else { return nil }
+        templateBodyReads += 1
+        workspace.agentReadProse(projectID: projectID, kind: "chapter", id: chapterID) { [weak self] result in
+            guard let self else { return }
+            self.templateReads.remove(key)
+            let body = (try? result.get().text).map(CategoryElementsView.normalized)
+            self.templateChecks[projectID, default: [:]][chapterID] = (words, template, body == template)
+            for tab in self.allTabs where tab.project.id == projectID {
+                if let page = tab.storylinePage { self.showChapters(of: page, projectID: projectID) }
+            }
+        }
+        return nil
     }
 
     // MARK: 章节模版, new chapters in a storyline and list filters
@@ -1146,11 +1217,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Reads the storyline's 章节模版 into its page.
     private func loadChapterTemplate(of tab: Tab) {
         guard let storyline = tab.storyline, let page = tab.storylinePage else { return }
-        workspace.storylineChapterTemplate(projectID: tab.project.id, storylineID: storyline.id) { [weak page] result in
+        let projectID = tab.project.id
+        workspace.storylineChapterTemplate(projectID: projectID, storylineID: storyline.id) { [weak self, weak page] result in
             switch result {
             case .success(let blocks): page?.showTemplate(blocks)
             case .failure(let error): page?.showTemplateUnavailable(error)
             }
+            // 已写 and 未起 compare bodies with the template.
+            if let self, let page { self.showChapters(of: page, projectID: projectID) }
         }
     }
 
@@ -1172,6 +1246,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     let shown = (try? stored.get()) ?? blocks
                     for tab in self?.allTabs ?? [] where tab.project.id == projectID && tab.storyline?.id == storyline.id {
                         tab.storylinePage?.showTemplate(shown)
+                        if let page = tab.storylinePage { self?.showChapters(of: page, projectID: projectID) }
                     }
                     completion(.success(shown))
                 }
@@ -1272,45 +1347,91 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         })
     }
 
-    /// Reads the bodies of the elements open category pages list (a read
-    /// only: live text from an open owner, else stored), after a pause.
-    private func refreshElementBodies(projectID: String) {
+    /// The 设定 open category pages of the project list.
+    private func listedElementIDs(projectID: String) -> [String] {
+        let categories = Set(allTabs.filter { $0.project.id == projectID }.compactMap { $0.category?.id })
+        guard !categories.isEmpty, let library = linkSources[projectID]?.library else { return [] }
+        return library.elements.filter { $0.categoryId.map(categories.contains) ?? false }.map(\.id)
+    }
+
+    /// Reads the bodies of the 设定 open category pages list (a read only:
+    /// live text from an open owner, else stored), after a pause: all of
+    /// them when a page opens, else (`missingOnly`, after a library reply)
+    /// only those not read yet, e.g. a new or moved 设定. Each sweep has a
+    /// generation; a newer one stops older chains.
+    private func refreshElementBodies(projectID: String, missingOnly: Bool = false) {
+        if missingOnly {
+            let known = elementBodies[projectID] ?? [:]
+            // A pending full sweep covers it; nothing new to read otherwise.
+            guard elementBodyRefresh[projectID] == nil,
+                  listedElementIDs(projectID: projectID).contains(where: { known[$0] == nil }) else {
+                for tab in allTabs where tab.project.id == projectID && tab.categoryPage != nil { showElements(of: tab) }
+                return
+            }
+        }
         elementBodyRefresh[projectID]?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.elementBodyRefresh[projectID] = nil
-            let categories = Set(self.allTabs.filter { $0.project.id == projectID }.compactMap { $0.category?.id })
-            guard !categories.isEmpty, let library = self.linkSources[projectID]?.library else { return }
-            let ids = library.elements.filter { $0.categoryId.map(categories.contains) ?? false }.map(\.id)
-            self.readElementBodies(projectID: projectID, ids: ids[...], read: [:])
+            let known = self.elementBodies[projectID] ?? [:]
+            let ids = self.listedElementIDs(projectID: projectID).filter { !missingOnly || known[$0] == nil }
+            guard !ids.isEmpty else { return }
+            self.elementBodyGenerations[projectID, default: 0] += 1
+            self.elementBodySweeps += 1
+            self.readElementBodies(projectID: projectID, ids: ids[...], generation: self.elementBodyGenerations[projectID] ?? 0)
         }
         elementBodyRefresh[projectID] = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.elementBodyDelay, execute: work)
     }
 
-    private func readElementBodies(projectID: String, ids: ArraySlice<String>, read: [String: String]) {
+    /// Per project, the generation of the latest body sweep.
+    private var elementBodyGenerations: [String: Int] = [:]
+    /// Sweeps started and single bodies read, for acceptance.
+    private(set) var elementBodySweeps = 0
+    private(set) var elementBodyReads = 0
+
+    private func readElementBodies(projectID: String, ids: ArraySlice<String>, generation: Int) {
+        // A newer sweep took over.
+        guard elementBodyGenerations[projectID] == generation else { return }
         guard let id = ids.first else {
-            elementBodies[projectID, default: [:]].merge(read) { _, new in new }
             for tab in allTabs where tab.project.id == projectID && tab.categoryPage != nil { showElements(of: tab) }
             return
         }
-        workspace.agentReadProse(projectID: projectID, kind: "element", id: id) { [weak self] result in
-            var next = read
-            // An unreadable body counts as empty rather than blocking the list.
-            next[id] = (try? result.get().text) ?? ""
-            self?.readElementBodies(projectID: projectID, ids: ids.dropFirst(), read: next)
+        readElementBody(projectID: projectID, id: id) { [weak self] in
+            self?.readElementBodies(projectID: projectID, ids: ids.dropFirst(), generation: generation)
         }
     }
 
-    /// An element body settled at a new revision: category pages of the
-    /// project read their bodies again.
+    /// One element's body into the cache; an unreadable body counts as
+    /// empty rather than blocking the list. Reads keep their order on the
+    /// core queue, so a later read never loses to an earlier one.
+    private func readElementBody(projectID: String, id: String, then: @escaping () -> Void) {
+        elementBodyReads += 1
+        workspace.agentReadProse(projectID: projectID, kind: "element", id: id) { [weak self] result in
+            guard let self else { return }
+            self.elementBodies[projectID, default: [:]][id] = (try? result.get().text) ?? ""
+            then()
+        }
+    }
+
+    /// An element body settled at a new revision: only that body is read
+    /// again, when an open category page lists it.
     private func elementBodySaved(_ tab: Tab) {
-        guard tab.element != nil, let revision = tab.view.binding.state?.projection.revision,
+        guard let element = tab.element, let revision = tab.view.binding.state?.projection.revision,
               elementRevisions[tab.scope] != revision else { return }
         let first = elementRevisions[tab.scope] == nil
         elementRevisions[tab.scope] = revision
-        guard !first, allTabs.contains(where: { $0.project.id == tab.project.id && $0.categoryPage != nil }) else { return }
-        refreshElementBodies(projectID: tab.project.id)
+        let projectID = tab.project.id
+        guard !first else { return }
+        guard listedElementIDs(projectID: projectID).contains(element.id) else {
+            // Not listed now: read again when a page lists it.
+            elementBodies[projectID]?[element.id] = nil
+            return
+        }
+        readElementBody(projectID: projectID, id: element.id) { [weak self] in
+            guard let self else { return }
+            for tab in self.allTabs where tab.project.id == projectID && tab.categoryPage != nil { self.showElements(of: tab) }
+        }
     }
 
     // MARK: Drifts
@@ -1330,6 +1451,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // A created, trashed or restored drift changes the counted nodes.
         if linkSources[projectID]?.drifts?.drifts.map(\.id) != library.drifts.map(\.id) {
             wordCountModels[projectID]?.scheduleRefresh()
+            linkIndexChanged(projectID: projectID)
         }
         for tab in allTabs where tab.project.id == projectID {
             guard let drift = tab.drift, let page = tab.driftPage else { continue }
@@ -1432,6 +1554,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         onTrash?(projectID, .elements(library))
         for home in homes(projectID: projectID) { home.model.applyElements(library) }
         elementCategories[projectID] = library.categories
+        // Category pages below list their 设定 from this library.
+        linkSources[projectID, default: LinkSources()].library = library
         // Rust retired the body of a trashed category; its tabs go without
         // closing the owner again.
         let trashed = Set(library.trashedCategories.map(\.id))
@@ -1450,10 +1574,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             tab.page?.apply(element: stored, categories: library.categories)
         }
         refreshTabs(); onChange?()
-        let previous = linkSources[projectID]?.library
-        linkSources[projectID, default: LinkSources()].library = library
+        let previous = previousLibrary
+        // Bodies are read again only for 设定 the category pages did not list.
         if allTabs.contains(where: { $0.project.id == projectID && $0.categoryPage != nil }) {
-            refreshElementBodies(projectID: projectID)
+            refreshElementBodies(projectID: projectID, missingOnly: true)
         }
         if refreshDormant(projectID: projectID) { refreshTabs() }
         updateLinkDirectory(projectID: projectID)
@@ -1846,6 +1970,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// owner reads its anchors again once idle.
     func commentsChanged(_ change: ReviewChange, projectID: String) {
         let comment = change.comment
+        if var rows = commentRows[projectID] {
+            rows.removeAll { $0.id == comment.id }
+            if case .deleted = change {} else { rows.append(comment) }
+            adoptComments(projectID: projectID, comments: rows)
+        }
         guard case .deleted = change, comment.isBlock, comment.targetKind == "node", let chapter = comment.targetId,
               let view = openView(scope: .chapter(ChapterScope(projectID: projectID, chapterID: chapter))) else { return }
         view.binding.store.load()
@@ -3166,6 +3295,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         defer { relationSourcesChanged(projectID: projectID, lost: lostIDs(previous?.map(\.id), chapters.map(\.id))) }
         // A created, trashed or restored chapter changes the book total.
         if previous?.map(\.id) != chapters.map(\.id) { wordCountModels[projectID]?.scheduleRefresh() }
+        if previous.map(titles) != titles(chapters) { linkIndexChanged(projectID: projectID) }
         linkSources[projectID, default: LinkSources()].chapters = chapters
         if refreshDormant(projectID: projectID) { refreshTabs() }
         for home in homes(projectID: projectID) { home.model.applyChapters(chapters) }
@@ -3303,6 +3433,548 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    // MARK: 页面统计, 大纲轨道 and scrollbar markers
+
+    /// Where each page kind's 大纲轨道 is remembered shown or hidden (shown
+    /// by default) and each page's 便笺栏; nil remembers them for the session.
+    var railSettings: LabSettingsStore?
+    private var railOverrides: [String: Bool] = [:]
+
+    func isOutlineRailShown(kind: String) -> Bool {
+        railSettings?.outlineRailShown(kind: kind) ?? railOverrides[kind] ?? true
+    }
+    /// 视图 › 大纲轨道 acts on the active page's kind.
+    var canToggleOutlineRail: Bool { panes[activePane].active != nil }
+    var isActiveOutlineRailShown: Bool { panes[activePane].active.map { isOutlineRailShown(kind: $0.railKind) } ?? false }
+
+    /// 视图 › 大纲轨道: shows or hides the rail on every page of the active
+    /// page's kind; remembered in settings.json.
+    func toggleOutlineRail() {
+        guard let tab = panes[activePane].active else { return }
+        setOutlineRail(!isOutlineRailShown(kind: tab.railKind), kind: tab.railKind)
+    }
+
+    func setOutlineRail(_ shown: Bool, kind: String) {
+        if let railSettings { railSettings.setOutlineRail(shown, kind: kind) } else { railOverrides[kind] = shown }
+        for tab in allTabs where tab.railKind == kind {
+            tab.pageFrame.railShown = shown
+            if shown { updateRail(of: tab) }
+        }
+        onChange?()
+    }
+
+    /// A tab's 大纲轨道, for acceptance.
+    func rail(pane: Int, scope: DocumentScope) -> PageOutlineRail? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == scope }?.rail
+    }
+
+    /// The page's fixed sections, 正文 when there are sections, then the
+    /// body's headings.
+    private func updateRail(of tab: Tab) {
+        guard tab.pageFrame.railShown else { return }
+        let sections = tab.railSections
+        var items = sections.map { PageOutlineRail.Item(title: $0.title, level: 0, target: .section($0.key)) }
+        if !sections.isEmpty { items.append(PageOutlineRail.Item(title: "正文", level: 0, target: .body)) }
+        let headings = tab.view.headings()
+        items += headings.map { PageOutlineRail.Item(title: $0.title, level: $0.level, target: .heading(id: $0.id, location: $0.location)) }
+        tab.rail.show(items, emptyText: headings.isEmpty ? "正文还没有标题。设为标题 1–3 的段落会列在这里。" : nil)
+        updateRailCurrent(of: tab)
+    }
+
+    /// The heading at or above the top of the visible prose is current;
+    /// before the first heading, 正文 (on pages with sections) or none.
+    /// Scrolled to its end, the last heading in view is.
+    private func updateRailCurrent(of tab: Tab) {
+        guard tab.pageFrame.railShown, !tab.rail.items.isEmpty else { return }
+        let top = tab.view.endVisibleLocation ?? tab.view.firstVisibleLocation
+        var current = tab.rail.items.firstIndex { $0.target == .body }
+        for (index, item) in tab.rail.items.enumerated() {
+            if case .heading(_, let location) = item.target, location <= top { current = index }
+        }
+        tab.rail.setCurrent(current)
+    }
+
+    /// A click in the rail: a section is brought into view (the overview's
+    /// name takes the keyboard); 正文 and headings scroll the prose so the
+    /// line is at the top, with the caret there.
+    private func chooseRailItem(_ item: PageOutlineRail.Item, of tab: Tab) {
+        activate(tab: tab)
+        switch item.target {
+        case .section(let key):
+            guard let section = tab.railSections.first(where: { $0.key == key }) else { return }
+            section.view.scrollToVisible(section.view.bounds)
+            if let focus = section.focus { window?.makeFirstResponder(focus) }
+            tab.rail.revealedSection = key
+        case .body:
+            tab.view.scrollToLine(at: 0)
+        case .heading(let id, let location):
+            // The heading's identity finds it again if text moved since.
+            let at = id.flatMap { id in tab.view.headings().first { $0.id == id }?.location } ?? location
+            let index = tab.rail.items.firstIndex(of: item)
+            tab.view.scrollToLine(at: at)
+            tab.rail.setCurrent(index)
+        }
+    }
+
+    // MARK: Markers
+
+    /// Each project's notes and TODOs, for the ticks beside chapter bodies.
+    private var commentRows: [String: [WorkspaceComment]] = [:]
+    private var loadingComments: Set<String> = []
+    private var commentRereads: Set<String> = []
+
+    /// Every note and TODO of the project as 审阅 read them: open chapter
+    /// bodies tick their open ones.
+    func adoptComments(projectID: String, comments: [WorkspaceComment]) {
+        commentRows[projectID] = comments
+        applyMarkerComments(projectID: projectID)
+    }
+
+    /// Reads the project's notes and TODOs again (a read only).
+    func reloadComments(projectID: String) {
+        guard loadingComments.insert(projectID).inserted else { commentRereads.insert(projectID); return }
+        workspace.projectComments(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            self.loadingComments.remove(projectID)
+            if case .success(let comments) = result { self.adoptComments(projectID: projectID, comments: comments) }
+            if self.commentRereads.remove(projectID) != nil { self.reloadComments(projectID: projectID) }
+        }
+    }
+
+    private func applyMarkerComments(projectID: String) {
+        pruneStickyNotes(projectID: projectID)
+        for tab in allTabs where tab.project.id == projectID { updateStickyRail(of: tab) }
+        let rows = commentRows[projectID] ?? []
+        for tab in allTabs where tab.project.id == projectID {
+            guard let node = tab.nodeID else { continue }
+            let own = rows.filter { $0.targetKind == "node" && $0.targetId == node }
+            tab.view.markerComments = Dictionary(own.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        }
+    }
+
+    /// The writing assistant's pending proposals of a project; set by the
+    /// app. Revisions of an open body are ticked beside it.
+    var pendingProposals: ((String) -> [AgentProposal])?
+
+    @objc private func agentProposalsChanged(_ notification: Notification) {
+        guard let controller = notification.object as? AgentChatController else { return }
+        proposalsChanged(projectID: controller.projectID)
+    }
+
+    /// The pending proposals changed: open bodies of the project tick them.
+    func proposalsChanged(projectID: String) {
+        for tab in allTabs where tab.project.id == projectID { tab.view.markerProposals = proposalAnchors(for: tab) }
+    }
+
+    private func proposalAnchors(for tab: Tab) -> [ProseProposalAnchor] {
+        let kind: String, id: String
+        switch tab.target {
+        case .chapter(let chapter): (kind, id) = ("chapter", chapter.id)
+        case .element(let element): (kind, id) = ("element", element.id)
+        case .drift(let drift): (kind, id) = ("drift", drift.id)
+        default: return []
+        }
+        return (pendingProposals?(tab.project.id) ?? []).filter {
+            $0.state == .pending && $0.kind == .revise && $0.targetID == id && ($0.targetKind ?? "chapter") == kind
+        }.flatMap { proposal in
+            proposal.changes.filter { !$0.append && !$0.currentText.isEmpty }.map {
+                ProseProposalAnchor(id: proposal.id, text: $0.currentText, all: $0.allOccurrences, label: "写作助手：\(proposal.headline)")
+            }
+        }
+    }
+
+    // MARK: 便笺栏
+
+    private var stickySession: [String: StickyNotePage] = [:]
+
+    /// A page's pinned notes and TODOs (the page by its relation key, such as
+    /// `node:<id>`).
+    private func stickyNotes(projectID: String, page: String) -> StickyNotePage {
+        (railSettings.map { $0.stickyNotes(projectID: projectID, page: page) } ?? stickySession["\(projectID)|\(page)"]) ?? StickyNotePage()
+    }
+
+    private func setStickyNotes(_ notes: StickyNotePage, projectID: String, page: String) {
+        if let railSettings { railSettings.setStickyNotes(notes, projectID: projectID, page: page) }
+        else { stickySession["\(projectID)|\(page)"] = notes.pinned.isEmpty ? nil : notes }
+        for tab in allTabs where tab.project.id == projectID && tab.relationEndpoint.key == page { updateStickyRail(of: tab) }
+    }
+
+    /// Whether a note or TODO is in its page's 便笺栏; nil when it has no
+    /// page (a floating TODO) or is a Copilot suggestion.
+    func isStickyPinned(_ comment: WorkspaceComment) -> Bool? {
+        guard !comment.isCopilot, let target = comment.target else { return nil }
+        return stickyNotes(projectID: comment.projectId, page: target.key).pinned.contains(comment.id)
+    }
+
+    /// 放入便笺栏 or 移出便笺栏: the note or TODO on its own page's margin.
+    /// Nothing is written but `settings.json`.
+    func setStickyPinned(_ comment: WorkspaceComment, pinned: Bool) {
+        guard !comment.isCopilot, let target = comment.target else { return }
+        var notes = stickyNotes(projectID: comment.projectId, page: target.key)
+        notes.pinned.removeAll { $0 == comment.id }
+        if pinned { notes.pinned.append(comment.id) }
+        // The card shows the row; a note just pinned from 审阅 may be newer than the rows here.
+        if pinned, var rows = commentRows[comment.projectId] {
+            rows.removeAll { $0.id == comment.id }
+            rows.append(comment)
+            commentRows[comment.projectId] = rows
+        }
+        setStickyNotes(notes, projectID: comment.projectId, page: target.key)
+    }
+
+    /// A tab's 便笺栏, for acceptance.
+    func stickyRail(pane: Int, scope: DocumentScope) -> StickyNoteRail? {
+        guard panes.indices.contains(pane) else { return nil }
+        return panes[pane].tabs.first { $0.scope == scope }?.pageFrame.stickyRail
+    }
+
+    /// The page's pinned cards from the project's notes and TODOs; the
+    /// column shows while it has any.
+    private func updateStickyRail(of tab: Tab) {
+        let notes = stickyNotes(projectID: tab.project.id, page: tab.relationEndpoint.key)
+        guard !notes.pinned.isEmpty else {
+            tab.pageFrame.stickyShown = false
+            tab.pageFrame.stickyRail.show([], expanded: false)
+            return
+        }
+        guard let rows = commentRows[tab.project.id] else { reloadComments(projectID: tab.project.id); return }
+        let byID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        let cards = notes.pinned.compactMap { id -> StickyNoteRail.Card? in
+            guard let row = byID[id] else { return nil }
+            let kind = row.kindLabel + (row.review == .resolved ? " · 已解决" : "")
+            return StickyNoteRail.Card(id: id, kind: kind, quote: row.isBlock ? row.selectedText : "", body: row.bodyText)
+        }
+        tab.pageFrame.stickyShown = !cards.isEmpty
+        tab.pageFrame.stickyRail.show(cards, expanded: notes.expanded)
+    }
+
+    /// Notes and TODOs that are gone (deleted, or their page purged) leave
+    /// the project's 便笺栏 once a complete list of them was read.
+    private func pruneStickyNotes(projectID: String) {
+        guard let rows = commentRows[projectID], let pages = railSettings?.settings.stickyNotes[projectID] else { return }
+        let known = Set(rows.map(\.id))
+        for (page, notes) in pages where notes.pinned.contains(where: { !known.contains($0) }) {
+            var kept = notes
+            kept.pinned.removeAll { !known.contains($0) }
+            railSettings?.setStickyNotes(kept, projectID: projectID, page: page)
+        }
+    }
+
+    private func connectStickyRail(_ tab: Tab) {
+        let rail = tab.pageFrame.stickyRail
+        rail.onOpen = { [weak self, weak tab] id in
+            guard let self, let tab, let row = self.commentRows[tab.project.id]?.first(where: { $0.id == id }) else { return }
+            self.locate(comment: row, project: tab.project) { [weak self] refusal in
+                if let refusal { self?.onError?(LabError.message(refusal)) }
+            }
+        }
+        rail.onUnpin = { [weak self, weak tab] id in
+            guard let self, let tab, let row = self.commentRows[tab.project.id]?.first(where: { $0.id == id }) else { return }
+            self.setStickyPinned(row, pinned: false)
+        }
+        rail.onClear = { [weak self, weak tab] in
+            guard let self, let tab else { return }
+            self.setStickyNotes(StickyNotePage(), projectID: tab.project.id, page: tab.relationEndpoint.key)
+        }
+        rail.onExpand = { [weak self, weak tab] expanded in
+            guard let self, let tab else { return }
+            var notes = self.stickyNotes(projectID: tab.project.id, page: tab.relationEndpoint.key)
+            notes.expanded = expanded
+            self.setStickyNotes(notes, projectID: tab.project.id, page: tab.relationEndpoint.key)
+        }
+    }
+
+    // MARK: 页面统计
+
+    private let statsPopover = NSPopover()
+    /// The statistics shown, while their page is open.
+    private(set) var pageStatsController: MacPageStatsViewController?
+    private weak var statsTab: Tab?
+    /// Each project's book order from the last outline read.
+    private var statsOutlines: [String: [WorkspaceOutlineEntry]] = [:]
+    /// Each project's links of every chapter and drift, until a body saves.
+    private var linkIndexes: [String: BookLinkIndex] = [:]
+    private var linkIndexGenerations: [String: Int] = [:]
+    private var linkIndexWaiters: [String: [(BookLinkIndex) -> Void]] = [:]
+    /// Bodies read for link indexes, for acceptance.
+    private(set) var linkIndexBodyReads = 0
+
+    var canShowPageStats: Bool { panes[activePane].active != nil }
+
+    /// 视图 › 页面统计: the active page's 统计 beside its header button.
+    func showPageStats() {
+        guard let tab = panes[activePane].active else { return }
+        showStats(of: tab)
+    }
+
+    @objc private func statsButtonPressed(_ sender: NSButton) {
+        guard let tab = allTabs.first(where: { $0.statsButton === sender }) else { return }
+        showStats(of: tab)
+    }
+
+    private func showStats(of tab: Tab) {
+        activate(tab: tab)
+        let controller = MacPageStatsViewController(stats: pageStats(of: tab))
+        controller.onOpen = { [weak self, weak tab] endpoint in
+            guard let self, let tab else { return }
+            self.statsPopover.performClose(nil)
+            self.open(endpoint: endpoint, project: tab.project, in: self.pane(of: tab)) { [weak self] result in
+                if case .failure(let error) = result { self?.onError?(error) }
+            }
+        }
+        pageStatsController = controller
+        statsTab = tab
+        statsPopover.behavior = .transient
+        statsPopover.animates = false
+        statsPopover.contentViewController = controller
+        _ = controller.view
+        statsPopover.contentSize = controller.preferredContentSize
+        if let button = tab.statsButton, let window = button.window, window.isVisible {
+            statsPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
+        }
+        let projectID = tab.project.id
+        ensureLinkSources(projectID: projectID)
+        wordCounts(projectID: projectID)
+        workspace.outline(projectID: projectID) { [weak self] result in
+            guard let self else { return }
+            if case .success(let entries) = result { self.statsOutlines[projectID] = entries }
+            self.refreshStats()
+            self.withLinkIndex(projectID: projectID) { [weak self] _ in self?.refreshStats() }
+        }
+    }
+
+    /// Shows the open statistics again from what is known now.
+    private func refreshStats() {
+        guard let tab = statsTab, let controller = pageStatsController, allTabs.contains(where: { $0 === tab }) else { return }
+        controller.show(pageStats(of: tab))
+        statsPopover.contentSize = controller.preferredContentSize
+    }
+
+    /// The link index went stale: the next 统计 reads the bodies again, and
+    /// open statistics of the project read them now.
+    private func linkIndexChanged(projectID: String) {
+        linkIndexes[projectID] = nil
+        linkIndexGenerations[projectID, default: 0] += 1
+        // Only statistics on screen read the bodies again.
+        guard let tab = statsTab, tab.project.id == projectID, pageStatsController != nil, statsPopover.isShown else { return }
+        withLinkIndex(projectID: projectID) { [weak self] _ in self?.refreshStats() }
+    }
+
+    /// The project's link index: kept, or read now from every live chapter
+    /// (book order) and drift, one body at a time. Reads only: owners that
+    /// are open answer live, others from storage; nothing opens or writes.
+    private func withLinkIndex(projectID: String, _ done: @escaping (BookLinkIndex) -> Void) {
+        if let index = linkIndexes[projectID] { done(index); return }
+        guard linkIndexWaiters[projectID] == nil else { linkIndexWaiters[projectID]?.append(done); return }
+        linkIndexWaiters[projectID] = [done]
+        let generation = linkIndexGenerations[projectID] ?? 0
+        let build: ([WorkspaceOutlineEntry], [WorkspaceDrift]) -> Void = { [weak self] entries, drifts in
+            guard let self else { return }
+            let chapters = BookPlace.chapters(entries)
+            let targets = chapters.map { ("chapter", $0.id, $0.title, Optional($0.place.number)) }
+                + drifts.map { ("drift", $0.id, $0.title, Int?.none) }
+            self.readBodies(projectID: projectID, targets[...], read: [], unreadable: []) { bodies, unreadable in
+                let index = BookLinkIndex(bodies: bodies, unreadable: unreadable)
+                if self.linkIndexGenerations[projectID] ?? 0 == generation { self.linkIndexes[projectID] = index }
+                let waiting = self.linkIndexWaiters.removeValue(forKey: projectID) ?? []
+                waiting.forEach { $0(index) }
+            }
+        }
+        workspace.outline(projectID: projectID) { [weak self] outline in
+            guard let self else { return }
+            let entries = (try? outline.get()) ?? []
+            if !entries.isEmpty { self.statsOutlines[projectID] = entries }
+            if let drifts = self.linkSources[projectID]?.drifts { build(entries, drifts.drifts); return }
+            self.workspace.driftLibrary(projectID: projectID) { library in build(entries, (try? library.get())?.drifts ?? []) }
+        }
+    }
+
+    private func readBodies(projectID: String, _ targets: ArraySlice<(String, String, String, Int?)>, read: [BookLinkIndex.Body],
+                            unreadable: [String], done: @escaping ([BookLinkIndex.Body], [String]) -> Void) {
+        guard let (kind, id, title, number) = targets.first else { done(read, unreadable); return }
+        linkIndexBodyReads += 1
+        workspace.readNativeProjection(projectID: projectID, kind: kind, id: id) { [weak self] result in
+            guard let self else { return }
+            var read = read, unreadable = unreadable
+            switch result {
+            case .success(let reply):
+                read.append(BookLinkIndex.Body(kind: kind, id: id, title: title, number: number,
+                                               links: ProseLinkCounts(blocks: reply.projection.blocks)))
+            case .failure: unreadable.append(title)
+            }
+            self.readBodies(projectID: projectID, targets.dropFirst(), read: read, unreadable: unreadable, done: done)
+        }
+    }
+
+    /// A body's name in the statistics: “第 3 章「雨夜」” or “漂流「旧信」”.
+    private static func bodyName(_ body: BookLinkIndex.Body) -> String {
+        body.number.map { "第 \($0) 章「\(body.title)」" } ?? "漂流「\(body.title)」"
+    }
+
+    private static func endpoint(of link: NativeEntityLink) -> RelationEndpoint { RelationEndpoint(kind: link.kind, id: link.id) }
+
+    /// The statistics of a tab's page from what the tab host knows now;
+    /// values still being read show 统计中….
+    private func pageStats(of tab: Tab) -> PageStats {
+        let projectID = tab.project.id
+        let counting = WordCountText.counting
+        let library = linkSources[projectID]?.library
+        let index = linkIndexes[projectID]
+        let places = statsOutlines[projectID].map(BookPlace.chapters) ?? []
+        let counts = wordCountModels[projectID]?.library
+        let elementNames = Dictionary((library?.elements ?? []).map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        var sections: [PageStats.Section] = []
+        let projection = tab.view.binding.store.projection
+
+        func mentionRows(_ links: [NativeEntityLink], counts: (NativeEntityLink) -> Int, prefix: String, empty: String) -> [PageStats.Row] {
+            // Most first; ties keep the order they first appear in.
+            let named = links.enumerated().compactMap { index, link -> (NativeEntityLink, String, Int, Int)? in
+                guard let name = elementNames[link.id] else { return nil }
+                return (link, name, counts(link), index)
+            }.sorted { ($0.2, -$0.3) > ($1.2, -$1.3) }
+            guard !named.isEmpty else { return [.note(empty)] }
+            return named.map { .link(id: "\(prefix)-\($0.0.id)", title: $0.1, detail: "\($0.2) 次", target: Self.endpoint(of: $0.0)) }
+        }
+        func backlinkRows(_ link: NativeEntityLink, excluding id: String, prefix: String, empty: String) -> (String, [PageStats.Row]) {
+            guard let index else { return (counting, [.note(counting)]) }
+            let found = index.mentions(of: link, excluding: id)
+            guard !found.isEmpty else { return ("暂无", [.note(empty)]) }
+            let chapters = found.filter { $0.body.kind == "chapter" }.count, drifts = found.count - chapters
+            var parts: [String] = []
+            if chapters > 0 { parts.append("\(chapters) 章") }
+            if drifts > 0 { parts.append("\(drifts) 条漂流") }
+            let total = found.reduce(0) { $0 + $1.spans }
+            let rows = found.map { PageStats.Row.link(id: "\(prefix)-\($0.body.id)", title: Self.bodyName($0.body), detail: "\($0.spans) 次",
+                                                      target: RelationEndpoint(kind: "node", id: $0.body.id)) }
+            return (parts.joined(separator: " · ") + " · 共 \(total) 次", rows + (index.unreadable.isEmpty ? [] : [.note("未能读取：\(index.unreadable.joined(separator: "、"))")]))
+        }
+
+        switch tab.target {
+        case .chapter, .drift:
+            guard let nodeID = tab.nodeID else { break }
+            let isChapter = tab.chapter != nil
+            let shape = projection.map { ProseShape(text: $0.text, blocks: $0.blocks) }
+            let links = projection.map { ProseLinkCounts(blocks: $0.blocks) } ?? ProseLinkCounts()
+            var overview: [PageStats.Row] = []
+            if isChapter {
+                let place = places.first { $0.id == nodeID }?.place
+                overview.append(.value(id: "page-stats-position", label: "位置", value: place?.text ?? counting))
+                overview.append(.value(id: "page-stats-act", label: "所在幕", value: place?.actText ?? counting))
+            } else {
+                overview.append(.value(id: "page-stats-position", label: "位置", value: "漂流（不在全书顺序中）"))
+                let act = tab.drift?.actId.map { id in actNames[projectID]?[id].map { "「\($0)」的幕笔记" } ?? "已绑定一幕" }
+                overview.append(.value(id: "page-stats-act", label: "所在幕", value: act ?? "未绑定幕"))
+            }
+            overview.append(.value(id: "page-stats-words", label: "字数",
+                                   value: counts?.count(nodeID: nodeID).map(WordCountText.full) ?? counting))
+            overview.append(.value(id: "page-stats-paragraphs", label: "段落", value: shape.map { "\($0.paragraphs)" } ?? counting))
+            overview.append(.value(id: "page-stats-sentences", label: "句子", value: shape.map { "\($0.sentences)" } ?? counting))
+            overview.append(.value(id: "page-stats-dialogue", label: "对白比", value: shape.map { "\($0.dialoguePercent)%" } ?? counting))
+            sections.append(PageStats.Section(title: "概况", rows: overview))
+            sections.append(PageStats.Section(title: "提到的设定", rows: mentionRows(links.elements(), counts: links.count,
+                prefix: "page-stats-element", empty: "正文里还没有链接到设定。")))
+            let chapterTitles = Dictionary((linkSources[projectID]?.chapters ?? []).map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+            let driftTitles = Dictionary((linkSources[projectID]?.drifts?.drifts ?? []).map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+            let outgoing = links.nodes().compactMap { link -> PageStats.Row? in
+                if let title = chapterTitles[link.id] {
+                    let number = places.first { $0.id == link.id }?.place.number
+                    return .link(id: "page-stats-cites-\(link.id)", title: number.map { "第 \($0) 章「\(title)」" } ?? "章节「\(title)」",
+                                 detail: "\(links.count(link)) 次", target: Self.endpoint(of: link))
+                }
+                if let title = driftTitles[link.id] {
+                    return .link(id: "page-stats-cites-\(link.id)", title: "漂流「\(title)」", detail: "\(links.count(link)) 次",
+                                 target: Self.endpoint(of: link))
+                }
+                return nil
+            }
+            sections.append(PageStats.Section(title: "引用其他", rows: outgoing.isEmpty ? [.note("没有引用其他章节或漂流。")] : outgoing))
+            let (summary, rows) = backlinkRows(NativeEntityLink(kind: "node", id: nodeID), excluding: nodeID,
+                                               prefix: "page-stats-cited-by", empty: "还没有章节或漂流引用这一\(isChapter ? "章" : "条漂流")。")
+            sections.append(PageStats.Section(title: "被引用", rows: [.value(id: "page-stats-backlinks", label: "被引用", value: summary)] + rows))
+        case .element(let element):
+            let link = NativeEntityLink(kind: "element", id: element.id)
+            var rows: [PageStats.Row] = []
+            if let index {
+                let found = index.mentions(of: link)
+                let chapters = found.filter { $0.body.kind == "chapter" }
+                let drifts = found.count - chapters.count
+                let total = found.reduce(0) { $0 + $1.spans }
+                let summary = found.isEmpty ? "从未出现" : [chapters.isEmpty ? nil : "\(chapters.count) 章", drifts > 0 ? "\(drifts) 条漂流" : nil]
+                    .compactMap { $0 }.joined(separator: " · ") + " · 共 \(total) 次"
+                rows.append(.value(id: "page-stats-appearances", label: "出现", value: summary))
+                rows.append(.value(id: "page-stats-first", label: "首次出现", value: chapters.first.map { Self.bodyName($0.body) } ?? "暂无"))
+                rows.append(.value(id: "page-stats-last", label: "最后出现", value: chapters.last.map { Self.bodyName($0.body) } ?? "暂无"))
+                sections.append(PageStats.Section(title: "概况", rows: rows))
+                let list: [PageStats.Row] = found.map {
+                    .link(id: "page-stats-appears-\($0.body.id)", title: Self.bodyName($0.body), detail: "\($0.spans) 次",
+                          target: RelationEndpoint(kind: "node", id: $0.body.id))
+                }
+                sections.append(PageStats.Section(title: "出现的章节和漂流",
+                    rows: (list.isEmpty ? [.note("还没有章节或漂流链接到这个设定。")] : list)
+                        + (index.unreadable.isEmpty ? [] : [.note("未能读取：\(index.unreadable.joined(separator: "、"))")])))
+            } else {
+                for (id, label) in [("page-stats-appearances", "出现"), ("page-stats-first", "首次出现"), ("page-stats-last", "最后出现")] {
+                    rows.append(.value(id: id, label: label, value: counting))
+                }
+                sections.append(PageStats.Section(title: "概况", rows: rows))
+            }
+        case .category(let category):
+            let members = (library?.elements ?? []).filter { $0.categoryId == category.id }
+            var rows: [PageStats.Row] = [.value(id: "page-stats-elements", label: "设定", value: "\(members.count) 个")]
+            if let index {
+                let mentions = members.map { element in
+                    (element, index.mentions(of: NativeEntityLink(kind: "element", id: element.id)).reduce(0) { $0 + $1.spans })
+                }
+                let used = mentions.filter { $0.1 > 0 }
+                let percent = members.isEmpty ? 0 : Int((Double(used.count) / Double(members.count) * 100).rounded())
+                rows.append(.value(id: "page-stats-health", label: "健康度",
+                                   value: members.isEmpty ? "暂无设定" : "\(used.count) / \(members.count) 已在正文中出现 · \(percent)%"))
+                sections.append(PageStats.Section(title: "概况", rows: rows))
+                let top = used.enumerated().sorted { ($0.element.1, -$0.offset) > ($1.element.1, -$1.offset) }.map(\.element).prefix(5).map { PageStats.Row.link(id: "page-stats-top-\($0.0.id)", title: $0.0.name,
+                    detail: "\($0.1) 次", target: RelationEndpoint(kind: "element", id: $0.0.id)) }
+                sections.append(PageStats.Section(title: "最常提到", rows: top.isEmpty ? [.note("这个分类的设定还没有在正文中出现。")] : Array(top)))
+                let never = mentions.filter { $0.1 == 0 }.map { PageStats.Row.link(id: "page-stats-never-\($0.0.id)", title: $0.0.name,
+                    detail: "未出现", target: RelationEndpoint(kind: "element", id: $0.0.id)) }
+                sections.append(PageStats.Section(title: "从未提到", rows: never.isEmpty ? [.note("每个设定都已在正文中出现。")] : never))
+            } else {
+                rows.append(.value(id: "page-stats-health", label: "健康度", value: counting))
+                sections.append(PageStats.Section(title: "概况", rows: rows))
+            }
+        case .storyline(let storyline):
+            let chapters = linkSources[projectID]?.chapters ?? []
+            let members = storylineLibraries[projectID]?.chapters(storylineID: storyline.id).map(\.chapterId) ?? []
+            let statuses = Dictionary(chapters.map { ($0.id, $0.writingStatus ?? "draft") }, uniquingKeysWith: { first, _ in first })
+            let words = members.compactMap { counts?.count(nodeID: $0) }
+            let ready = counts != nil && words.count == members.count
+            var rows: [PageStats.Row] = [.value(id: "page-stats-chapters", label: "章节",
+                value: "\(members.count) 章 · " + (ready ? WordCountText.full(words.reduce(0, +)) : counting))]
+            for status in WritingStatus.chapter {
+                let ids = members.filter { statuses[$0] == status.rawValue }
+                let total = ids.compactMap { counts?.count(nodeID: $0) }.reduce(0, +)
+                rows.append(.value(id: "page-stats-status-\(status.rawValue)", label: status.label,
+                                   value: "\(ids.count) 章 · " + (ready ? WordCountText.full(total) : counting)))
+            }
+            sections.append(PageStats.Section(title: "概况", rows: rows))
+            if let index {
+                var totals: [NativeEntityLink: Int] = [:], order: [NativeEntityLink] = []
+                for body in index.bodies where body.kind == "chapter" && members.contains(body.id) {
+                    for link in body.links.elements() {
+                        if totals[link] == nil { order.append(link) }
+                        totals[link, default: 0] += body.links.count(link)
+                    }
+                }
+                let core = mentionRows(order, counts: { totals[$0] ?? 0 }, prefix: "page-stats-core",
+                                       empty: "这条故事线的章节还没有链接到设定。")
+                sections.append(PageStats.Section(title: "核心设定", rows: Array(core.prefix(5))))
+            } else {
+                sections.append(PageStats.Section(title: "核心设定", rows: [.note(counting)]))
+            }
+        }
+        let kind = tab.chapter != nil ? "章节" : tab.drift != nil ? "漂流" : tab.element != nil ? "设定" : tab.category != nil ? "分类" : "故事线"
+        return PageStats(title: "统计 · \(kind)「\(tab.title)」", sections: sections)
+    }
+
     // MARK: Views outside the tabs
 
     /// A chapter view shown outside the tabs by the 全书长卷. It shares the
@@ -3373,6 +4045,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         countedRevisions[external.scope] = revision
         wordCounts(projectID: external.project.id).scheduleRefresh()
         patches.bodySaved(projectID: external.project.id)
+        linkIndexChanged(projectID: external.project.id)
+        if case .chapter(let chapter) = external.scope { templateChecks[external.project.id]?[chapter.chapterID] = nil }
     }
 
     private func pane(of tab: Tab) -> Int? { panes.firstIndex { $0.tabs.contains { $0 === tab } } }
@@ -3575,6 +4249,26 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         if let section = tab.relationsView {
             relations.attach(section, projectID: tab.project.id, endpoint: tab.relationEndpoint)
         }
+        // 大纲轨道, 统计 and the markers beside the prose.
+        tab.pageFrame.railShown = isOutlineRailShown(kind: tab.railKind)
+        tab.rail.onChoose = { [weak self, weak tab] item in
+            if let self, let tab { self.chooseRailItem(item, of: tab) }
+        }
+        tab.view.onScroll = { [weak self, weak tab] in
+            if let self, let tab { self.updateRailCurrent(of: tab) }
+        }
+        tab.view.onRendered = { [weak self, weak tab] in
+            guard let self, let tab else { return }
+            self.updateRail(of: tab)
+        }
+        tab.statsButton?.target = self
+        tab.statsButton?.action = #selector(statsButtonPressed(_:))
+        connectStickyRail(tab)
+        tab.view.markerProposals = proposalAnchors(for: tab)
+        if let node = tab.nodeID, let rows = commentRows[tab.project.id] {
+            tab.view.markerComments = Dictionary(rows.filter { $0.targetKind == "node" && $0.targetId == node }.map { ($0.id, $0) },
+                                                 uniquingKeysWith: { _, last in last })
+        }
         tab.view.isInteractionLocked = isBusy || externallyLocked
         tab.view.onFocus = { [weak self, weak tab] in self?.activate(tab: tab) }
         tab.view.linkDirectory = linkDirectories[tab.project.id]
@@ -3741,7 +4435,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 if let self, let view { self.onComments?(view) }
             }
             tab.view.onCommentCreated = { [weak self, weak view = tab.view] comment in
-                if let self, let view { self.onCommentCreated?(view, comment) }
+                guard let self else { return }
+                self.reloadComments(projectID: comment.projectId)
+                if let view { self.onCommentCreated?(view, comment) }
             }
         }
         tab.plotToggle?.onToggle = { [weak self, weak tab] in
@@ -3765,6 +4461,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             // Settled chapter prose may add or remove references.
             if !busy, let tab, tab.chapter != nil { self.scheduleBacklinks(projectID: tab.project.id) }
             if !busy, let tab { self.countSavedBody(of: tab); self.elementBodySaved(tab) }
+            if !busy, let tab, self.statsTab === tab { self.refreshStats() }
             self.onActivity?(!self.canNavigate)
         }
     }
@@ -3789,6 +4486,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             copilot?(tab.project.id)?.closed(kind: kind, id: id)
         }
         tab.view.onEdited = nil; tab.view.canCopilotAnalyze = nil; tab.view.onCopilotAnalyze = nil
+        tab.view.onScroll = nil; tab.view.onRendered = nil; tab.rail.onChoose = nil
+        let sticky = tab.pageFrame.stickyRail
+        sticky.onOpen = nil; sticky.onUnpin = nil; sticky.onClear = nil; sticky.onExpand = nil
+        tab.statsButton?.target = nil; tab.statsButton?.action = nil
+        if statsTab === tab { statsPopover.close(); statsTab = nil; pageStatsController = nil }
         if let section = tab.relationsView { relations.detach(section) }
         if let page = tab.page { patches.detach(page.patchesView) }
         tab.view.onCreatePatch = nil; tab.view.patchNodeID = nil
@@ -3915,11 +4617,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let pane = panes[index]
         // Leaving a page saves its header edit before the view is hidden.
         for child in pane.body.subviews where child !== pane.content {
-            (child as? MacElementPageView)?.endEditing()
-            (child as? MacStorylinePageView)?.endEditing()
-            (child as? MacDriftPageView)?.endEditing()
-            (child as? MacChapterPageView)?.endEditing()
-            (child as? MacCategoryPageView)?.endEditing()
+            let page = (child as? MacPageFrame)?.page ?? child
+            (page as? MacElementPageView)?.endEditing()
+            (page as? MacStorylinePageView)?.endEditing()
+            (page as? MacDriftPageView)?.endEditing()
+            (page as? MacChapterPageView)?.endEditing()
+            (page as? MacCategoryPageView)?.endEditing()
         }
         // The page already shown stays in place (no focus churn).
         let alreadyShown = pane.content.map { pane.body.subviews.count == 1 && pane.body.subviews[0] === $0 } ?? false

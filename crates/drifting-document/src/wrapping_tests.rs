@@ -159,3 +159,115 @@ fn native_lists_wrap_each_block_in_an_item_number_and_lift() {
         .iter()
         .all(|(_, containers, _)| containers.is_empty()));
 }
+
+fn rule(doc: &mut DocumentSession, location: u32, action: NativeRuleAction) -> Result<u32, String> {
+    doc.rule_native(NativeRuleEdit {
+        revision: doc.revision,
+        location,
+        action,
+    })
+}
+
+#[test]
+fn native_rules_insert_after_a_block_or_before_an_empty_one_and_remove() {
+    let mut doc = source();
+    doc.set_comment_anchors(vec![CommentAnchorRecord {
+        id: "note".into(),
+        target_block_id: Some("c".into()),
+        target_block_ids_json: "[\"c\"]".into(),
+        anchor_json: json!({"selectedText":"夜航",
+            "blockSnapshots":[{"blockId":"c","blockText":"夜航"}],
+            "textAnchor":{"startBlockId":"c","startOffset":0,"endBlockId":"c","endOffset":2,"text":"夜航"}})
+        .to_string(),
+    }])
+    .unwrap();
+    let before = doc.semantic().unwrap();
+    let log = doc.capture_authored_updates().unwrap();
+    // After 潮汐: the rule, then an empty paragraph holding the caret.
+    let caret = rule(&mut doc, 6, NativeRuleAction::Insert).unwrap();
+    assert_eq!(log.drain_records().len(), 1);
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.text, "开篇🙂\n潮汐\n\u{fffc}\n\n夜航");
+    assert_eq!(view.blocks[2].kind, "horizontalRule");
+    assert!(!view.blocks[2].editable && view.blocks[2].id.is_some());
+    assert_eq!(caret, view.blocks[3].range.location);
+    assert_eq!(view.comments[0].status, "anchored");
+    assert_eq!(view.comments[0].ranges[0].location, 11);
+    // In that empty paragraph another rule goes before it.
+    let caret = rule(&mut doc, caret, NativeRuleAction::Insert).unwrap();
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.text, "开篇🙂\n潮汐\n\u{fffc}\n\u{fffc}\n\n夜航");
+    assert_eq!(caret, view.blocks[4].range.location);
+    // Removing a rule by its location; text blocks and other places refuse.
+    let second = view.blocks[3].range.location;
+    rule(&mut doc, second, NativeRuleAction::Remove).unwrap();
+    assert_eq!(
+        doc.native_projection().unwrap().text,
+        "开篇🙂\n潮汐\n\u{fffc}\n\n夜航"
+    );
+    let revision = doc.revision;
+    assert!(rule(&mut doc, 5, NativeRuleAction::Remove).is_err());
+    assert_eq!(doc.revision, revision);
+    assert_eq!(
+        doc.native_projection().unwrap().comments[0].status,
+        "anchored"
+    );
+    // Each edit is one undo unit.
+    assert!(doc.undo());
+    assert_eq!(
+        doc.native_projection().unwrap().text,
+        "开篇🙂\n潮汐\n\u{fffc}\n\u{fffc}\n\n夜航"
+    );
+    while doc.undo() {}
+    assert_eq!(doc.semantic().unwrap(), before);
+}
+
+#[test]
+fn native_list_item_split_turns_an_items_new_last_paragraph_into_the_next_item() {
+    let mut doc = source();
+    apply(&mut doc, NativeFormatAction::OrderedList, 0, 10).unwrap();
+    // Enter at the end of 开篇🙂 adds a paragraph to the same item.
+    doc.replace_native(NativeReplacement {
+        revision: doc.revision,
+        range: NativeRange {
+            location: 4,
+            length: 0,
+        },
+        text: "\n".into(),
+    })
+    .unwrap();
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.text, "开篇🙂\n\n潮汐\n夜航");
+    assert_eq!(view.blocks[1].list_number, Some(1));
+    let new_id = view.blocks[1].id.clone().unwrap();
+    // The first paragraph of an item does not split; the new one does.
+    let revision = doc.revision;
+    assert!(apply(&mut doc, NativeFormatAction::SplitListItem, 0, 0).is_err());
+    assert_eq!(doc.revision, revision);
+    let log = doc.capture_authored_updates().unwrap();
+    apply(&mut doc, NativeFormatAction::SplitListItem, 5, 0).unwrap();
+    assert_eq!(log.drain_records().len(), 1);
+    let numbers: Vec<_> = doc
+        .native_projection()
+        .unwrap()
+        .blocks
+        .into_iter()
+        .map(|block| (block.id.unwrap(), block.list_number))
+        .collect();
+    assert_eq!(
+        numbers,
+        vec![
+            ("a".into(), Some(1)),
+            (new_id.clone(), Some(2)),
+            ("b".into(), Some(3)),
+            ("c".into(), Some(4)),
+        ]
+    );
+    // The new empty item, not the last, stays; lifting needs it last.
+    assert!(apply(&mut doc, NativeFormatAction::OrderedList, 5, 0).is_err());
+    assert!(doc.undo());
+    assert_eq!(
+        doc.native_projection().unwrap().blocks[1].list_number,
+        Some(1)
+    );
+}

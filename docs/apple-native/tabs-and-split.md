@@ -105,7 +105,8 @@ project's) are left out silently; restoring records no 最近 and writes
 nothing to the journal. A restore never erases the stored tabs: pages of a
 list that could not be read (reported as 部分标签未能恢复) stay in every later
 save of the project, each after the page it followed, until a restore
-completes; a restore refused while navigation is held keeps the stored tabs
+completes or the author opens one (it is theirs again: closing it leaves it
+out, also when it opens and closes between two saves); a restore refused while navigation is held keeps the stored tabs
 in every save and runs again once navigation is possible, unless the project
 has tabs by then; one overtaken by another switch saves nothing. At launch the project selected last (`lastProject`)
 opens with its tabs; without one, or once it is gone, the 项目书架 opens.
@@ -169,6 +170,7 @@ switch leaving the saved tabs, unopened tabs and 项目主页 as they were, a sa
 during the refusal keeping them and the refused restore running once
 navigation is possible; a restore whose drift list cannot be read keeping the
 drift at its place through a later save until a complete restore brings it
-back; and a forgotten project leaving 后退. The chapter read before closing, and holding
+back, and a drift opened and closed after such a restore staying out of the
+stored tabs; and a forgotten project leaving 后退. The chapter read before closing, and holding
 navigation until the tabs are back, are AppDelegate wiring outside these
 headless cases.

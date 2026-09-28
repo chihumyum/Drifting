@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T20:18:58.734Z",
+  "generatedAt": "2026-09-28T22:37:12.483Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "bd42e93cf4119875fbd7d7b0bedf5a1a9f03a41c",
+    "commit": "8f3d5809319ba88de11e9b9c6758cbfea0727184",
     "dirty": true,
-    "fingerprint": "07abedc7bf568e4d4f6d7d30478eedfca46b26cb5683e2e0f2702f2438cdee38"
+    "fingerprint": "83c2ee30a16c80ca2127a9e904ddae94d26ac40414bfdc6eb90d94da1ad582d7"
   },
   "cases": [
     {
@@ -1047,7 +1047,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit a restore whose drift list cannot be read puts back the other tabs, says so and keeps the unread page at its place in every later save until a complete restore brings it back, and a restore refused while navigation is held keeps the stored tabs through a save and is tried again once navigation is possible",
+      "name": "AppKit a restore whose drift list cannot be read puts back the other tabs, says so and keeps the unread page at its place in every later save until a complete restore brings it back or the author opens it (closing it then leaves it out, also when opened and closed between two saves), and a restore refused while navigation is held keeps the stored tabs through a save and is tried again once navigation is possible",
       "status": "passed"
     },
     {
@@ -1079,6 +1079,14 @@
       "status": "passed"
     },
     {
+      "name": "AppKit import fixes: 导入 and the target popups stay disabled while an import runs in both sheets, so a late library reply or a second Return imports nothing twice; a chapter that could not join its 故事线 says so in its file line, the summary and the single-file sheet's final status; bulk import shows its sheet at once and reads the files off the main thread one by one, skips a file above 200 MB unread, and 取消 closes the sheet while reading or stops the import before the next file",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit list fixes: a category page lists its 设定 from the library a reply brings at once; an element body save reads only that body, library replies read only 设定 not read yet, and a newer sweep stops an older chain; a chapter whose body is still its storyline's 章节模版 counts as 未起 until it is written, and only chapters no longer than the template are read",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 引用, 无序列表 and 有序列表 toggle through the 格式 menu, shortcuts assigned in 设置 › 快捷键, the toolbar, the prose context menu's 格式 submenu and the slash menu, checked for the caret's block, each as one undo unit that keeps the text, block IDs and a comment anchored on the wrapped paragraph, with both panes drawing the quote indent and the numbered and bulleted markers, and all of it survives a cold reopen",
       "status": "passed"
     },
@@ -1091,11 +1099,43 @@
       "status": "passed"
     },
     {
-      "name": "AppKit Return in a non-empty list item adds a paragraph to the same item and in a quote a paragraph to the quote; Return on an empty last list item or empty last quote paragraph, also typed while input is queued, and ⌫ at the start of a quote's first paragraph or of the first or last list item take the block out as one undo unit each, while ⌫ at a middle item is refused before input is queued",
+      "name": "AppKit Return in a non-empty list item starts the next item once its new paragraph lands (at an item's end, in its middle and while typing goes on at once), and Return on that empty last item ends the list, one undo unit each; Return in a quote adds a paragraph to the quote, Return on an empty last quote paragraph, also typed while input is queued, and ⌫ at the start of a quote's first paragraph or of the first or last list item take the block out as one undo unit each, while ⌫ at a middle item is refused before input is queued",
       "status": "passed"
     },
     {
       "name": "AppKit 打印 and the PDF export set quotes muted and indented and list items with their numbers and bullets from the live projection; the 全书长卷's editor rows and read-only previews and the 历史版本 preview draw the same markers",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 分隔线 goes in from 格式 › 插入分隔线 after the caret's block (the caret in the new paragraph) and from the slash menu before an empty paragraph, and out through 删除分隔线 in its context menu, ⌫ at the start of the paragraph after it (also while typed text is on its way) and ⌦ at the end of the one before it, each one undo unit with the caret where Rust puts it; typing over it is refused, and it is drawn as a centred thin line, never the placeholder, in both panes, the 全书长卷's editor rows and previews, the 历史版本 preview and print, and survives a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit the slash menu in a list item or a quote offers only the formats that apply there, a slash row whose format stopped applying before it was chosen keeps the typed “/”, and the list-marker drawing log stays bounded",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 统计 of a chapter (from its header button) and of a drift (from 视图 › 页面统计) shows the place in the book (第 2 章 / 共 3 章 and its act), canonical words, paragraphs, sentences (CJK and Latin ends, an ellipsis mid-paragraph and at its end), 对白比 over “”, 「」 and straight quotes, the elements the body links with counts (most first; a click opens the element), the chapters and drifts it cites and the bodies that cite it, all as computed by hand, reading every body without opening an owner or writing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 统计 of an element (chapters and drifts it appears in with counts, first and last appearance in book order), a category (设定 mentioned and never mentioned, most mentioned) and a storyline (chapters and words by status, core elements) matches hand-computed values and writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 大纲轨道 lists a chapter's headings by level and the fixed sections of element, storyline and category pages before 正文, highlights the heading at the top of the prose while it scrolls, scrolls to a heading (the caret there) or brings a section into view on a click, follows a new heading, and is shown or hidden per page kind from 视图, kept in settings.json through a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit scrollbar markers tick open notes and TODOs at their anchors' heights in both panes, follow typing above them, a note turned into a TODO, a resolve and a delete, select the anchor on a click, and the 全书长卷's rows have none",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit a pending revision of the writing assistant is ticked at the text it would replace, a click selects that text, and 拒绝 removes the tick",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 便笺栏: 放入便笺栏 in a note's ⋯ in 审阅 pins it to its page's margin (a floating TODO offers none), several stack with the newest on top and 展开 spreads them, a card opens its note and selects a passage's text, a changed body and a resolve show on the card, a deleted note leaves, 移出 and 清空便笺栏 unpin, and the pins and 展开 are kept per page in settings.json through a cold relaunch",
       "status": "passed"
     }
   ],

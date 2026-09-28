@@ -20,7 +20,7 @@ use drifting_core::prose::{ProseRepository, RevisionSource};
 use drifting_core::prose_journal::{AuthoredProseContext, AuthoredProseJournal};
 use drifting_document::{
     CommentAnchorRecord, DocumentSession, NativeDraftCommit, NativeDraftStart, NativeFormatting,
-    NativeInputEdit, NativeLinking, NativeReplacement, NativeSelectionRequest,
+    NativeInputEdit, NativeLinking, NativeReplacement, NativeRuleEdit, NativeSelectionRequest,
 };
 use drifting_prose::{DurabilityPhase, DurableDocument};
 use serde::Deserialize;
@@ -866,6 +866,12 @@ enum Request {
         handle: u64,
         edit: NativeLinking,
     },
+    /// Inserts or removes a horizontal rule (see `NativeRuleEdit`); the
+    /// reply adds `caret`, where the caret belongs afterwards.
+    DocumentRule {
+        handle: u64,
+        edit: NativeRuleEdit,
+    },
     DocumentReplace {
         handle: u64,
         edit: NativeReplacement,
@@ -1402,6 +1408,24 @@ fn dispatch(request: Request) -> Result<Value, String> {
             session.persist();
             session.document_state()
         }
+        Request::DocumentRule { handle, edit } => {
+            let session = sessions
+                .get_mut(&handle)
+                .ok_or("Unknown or closed session")?;
+            if session.write_blocked() {
+                return Err("Retry the pending save before formatting".into());
+            }
+            if session.document.active_drafts() > 0
+                || session.document.active_input_compositions() > 0
+            {
+                return Err("Commit or cancel active drafts before formatting".into());
+            }
+            let caret = session.document.rule_native(edit)?;
+            session.persist();
+            let mut state = session.document_state()?;
+            state["caret"] = json!(caret);
+            Ok(state)
+        }
         Request::DocumentReplace { handle, edit } => {
             let session = sessions
                 .get_mut(&handle)
@@ -1550,6 +1574,7 @@ fn reply(input: &str) -> Value {
                 .is_some_and(|request| {
                     request["operation"] == "documentFormat"
                         || request["operation"] == "documentLink"
+                        || request["operation"] == "documentRule"
                 });
             let error = if formatting {
                 format!("NATIVE_FORMATTING_UNAVAILABLE: {error}")

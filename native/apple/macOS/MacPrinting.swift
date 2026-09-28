@@ -130,8 +130,10 @@ final class PrintTypesetter {
         let isText = ["paragraph", "heading", "codeBlock"].contains(block.kind)
         var content = text
         if !isText {
+            // A rule is a centred thin line (an attachment drawn as one),
+            // as the editors draw it.
             guard block.kind == "horizontalRule" else { return nil }
-            content = "＊　＊　＊"
+            content = "\u{FFFC}"
         }
         let size = block.kind == "heading" ? headingSize(block.level ?? 1) : typography.size
         let weight: NSFont.Weight = block.kind == "heading" ? .semibold : .regular
@@ -191,6 +193,10 @@ final class PrintTypesetter {
         }
         let result = NSMutableAttributedString(string: prefix + content, attributes: base(paragraph, font: bodyFont, color: color))
         if mono { result.addAttribute(.backgroundColor, value: Self.codeWash, range: NSRange(location: 0, length: result.length)) }
+        if block.kind == "horizontalRule" {
+            result.addAttribute(.attachment, value: PrintRuleCell.attachment(width: typography.size * 8, size: typography.size, color: Self.muted),
+                                range: NSRange(location: 0, length: result.length))
+        }
         guard isText else { return result }
         let offset = (prefix as NSString).length, length = (content as NSString).length
         for run in block.runs {
@@ -215,6 +221,41 @@ final class PrintTypesetter {
             if !attributes.isEmpty { result.addAttributes(attributes, range: span) }
         }
         return result
+    }
+}
+
+/// A horizontal rule on paper: a thin centred line in the muted colour,
+/// drawn in the middle of a body-sized line. `drawn` counts the lines drawn,
+/// for acceptance.
+final class PrintRuleCell: NSTextAttachmentCell {
+    let width: CGFloat
+    let size: CGFloat
+    let color: NSColor
+    static var drawn = 0
+
+    init(width: CGFloat, size: CGFloat, color: NSColor) {
+        self.width = width; self.size = size; self.color = color
+        super.init(textCell: "")
+    }
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    static func attachment(width: CGFloat, size: CGFloat, color: NSColor) -> NSTextAttachment {
+        let attachment = NSTextAttachment()
+        attachment.attachmentCell = PrintRuleCell(width: width, size: size, color: color)
+        return attachment
+    }
+
+    override func cellSize() -> NSSize { NSSize(width: width, height: size) }
+    override func cellBaselineOffset() -> NSPoint { NSPoint(x: 0, y: -size * 0.2) }
+    override func wantsToTrackMouse() -> Bool { false }
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        color.setFill()
+        NSRect(x: cellFrame.minX, y: cellFrame.midY - 0.25, width: cellFrame.width, height: 0.5).fill()
+        Self.drawn += 1
+    }
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?, characterIndex charIndex: Int,
+                       layoutManager: NSLayoutManager) {
+        draw(withFrame: cellFrame, in: controlView)
     }
 }
 

@@ -227,7 +227,7 @@ extension BindingAcceptance {
         var result = NSAttributedString()
         dark.performAsCurrentDrawingAppearance { result = PrintTypesetter(typography: typography, headingShift: 1).body(projection) }
         let string = result.string as NSString
-        try require(result.string == "雾中港口\n粗体与斜体混排的一段。\n引用的一句话\n•\t第一项\n第一项的续段\n•\t第二项\nlet tide = 1\n＊　＊　＊\n删去 网址 灯塔守人 行内码",
+        try require(result.string == "雾中港口\n粗体与斜体混排的一段。\n引用的一句话\n•\t第一项\n第一项的续段\n•\t第二项\nlet tide = 1\n\u{fffc}\n删去 网址 灯塔守人 行内码",
                     "Typeset text was \(result.string.debugDescription)")
         // Containers name the structure: an ordered list numbers from its
         // start, a list inside a quote keeps the quote's indent.
@@ -271,7 +271,9 @@ extension BindingAcceptance {
                     && continued.headIndent == first.headIndent && second.headIndent == first.headIndent, "List items do not hang their bullets")
         try require((try font("let tide")).isFixedPitch && (try at("let tide"))[.backgroundColor] as? NSColor == PrintTypesetter.codeWash,
                     "The code block is not monospaced on a wash")
-        try require((try paragraph("＊")).alignment == .center, "The rule is not centred")
+        try require((try paragraph("\u{fffc}")).alignment == .center
+                    && (try at("\u{fffc}"))[.attachment].flatMap { ($0 as? NSTextAttachment)?.attachmentCell as? PrintRuleCell } != nil,
+                    "The rule is not a centred line")
         try require((try at("删去"))[.strikethroughStyle] as? Int == NSUnderlineStyle.single.rawValue, "Strike was lost")
         try require(try color("网址") == PrintTypesetter.linkColor && (try at("网址"))[.underlineStyle] as? Int == NSUnderlineStyle.single.rawValue,
                     "The link is not styled")

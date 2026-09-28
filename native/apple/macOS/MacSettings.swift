@@ -113,12 +113,21 @@ struct LabSettings: Codable, Equatable {
     var tabSessions: [String: TabSession] = [:]
     /// The project selected last; it opens with its tabs at launch.
     var lastProject: String?
+    /// 视图 › 大纲轨道 per page kind (`chapter`, `drift`, `element`,
+    /// `storyline`, `category`); a kind without an entry shows it.
+    var outlineRails: [String: Bool] = [:]
+    /// 便笺栏: per project and page (`node:<id>`, `element:<id>`,
+    /// `category:<id>`, `storyline:<id>`), the notes and TODOs pinned to its
+    /// margin, oldest first, and whether they are spread out.
+    var stickyNotes: [String: [String: StickyNotePage]] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
     static let paragraphSpacings: ClosedRange<Double> = 0...2.5
     static let columnWidths: ClosedRange<Double> = 480...1280
     static let typewriterPositions: ClosedRange<Double> = 25...75
+    /// The page kinds with a 大纲轨道.
+    static let railKinds: Set<String> = ["chapter", "drift", "element", "storyline", "category"]
     static let locales: [(code: String, name: String)] = [
         ("zh-CN", "中文（简体）"), ("zh-TW", "中文（繁體）"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"), ("fr", "Français"),
     ]
@@ -129,7 +138,7 @@ struct LabSettings: Codable, Equatable {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling, typewriterPosition, paragraphSpacing, columnWidth, autoEntityLinks, listFilters, wholeBookPositions
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
-        case recentPages, dailyStreaks, tabSessions, lastProject
+        case recentPages, dailyStreaks, tabSessions, lastProject, outlineRails, stickyNotes
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -174,6 +183,10 @@ struct LabSettings: Codable, Equatable {
         let sessionValues = (try? values.decodeIfPresent([String: LenientTabSession].self, forKey: .tabSessions)) ?? [:]
         tabSessions = sessionValues.compactMapValues(\.value).filter { !$0.value.isEmpty }
         lastProject = (try? values.decodeIfPresent(String.self, forKey: .lastProject)) ?? nil
+        outlineRails = (try? values.decodeIfPresent([String: Bool].self, forKey: .outlineRails)) ?? [:]
+        // One unreadable page drops alone.
+        let stickyValues = (try? values.decodeIfPresent([String: [String: LenientStickyPage]].self, forKey: .stickyNotes)) ?? [:]
+        stickyNotes = stickyValues.mapValues { $0.compactMapValues(\.value) }
         self = normalized()
     }
 
@@ -196,6 +209,9 @@ struct LabSettings: Codable, Equatable {
         // A shortcut no command may take (no ⌘ or ⌃, or reserved by the
         // system) is dropped; the command keeps its default.
         next.shortcuts = shortcuts.filter { MacShortcuts.refusal($0.value) == nil }
+        next.outlineRails = outlineRails.filter { Self.railKinds.contains($0.key) && !$0.value }
+        next.stickyNotes = stickyNotes.mapValues { $0.mapValues { $0.normalized() }.filter { !$0.value.pinned.isEmpty } }
+            .filter { !$0.value.isEmpty }
         return next
     }
 
@@ -232,6 +248,10 @@ struct LabSettings: Codable, Equatable {
         let value: RecentPage?
         init(from decoder: Decoder) throws { value = try? RecentPage(from: decoder) }
     }
+    private struct LenientStickyPage: Decodable {
+        let value: StickyNotePage?
+        init(from decoder: Decoder) throws { value = try? StickyNotePage(from: decoder) }
+    }
     private struct LenientTabSession: Decodable {
         let value: TabSession?
         init(from decoder: Decoder) throws { value = try? TabSession(from: decoder) }
@@ -263,6 +283,26 @@ struct WholeBookPosition: Codable, Equatable {
             throw DecodingError.dataCorruptedError(forKey: .row, in: values, debugDescription: "Unknown 全书长卷 position")
         }
         self.offset = min(max(offset, -10_000), 10_000_000)
+    }
+}
+
+/// A page's 便笺栏: the comments pinned to it, oldest first (each once),
+/// and whether the cards are spread out (else stacked).
+struct StickyNotePage: Codable, Equatable {
+    var pinned: [String] = []
+    var expanded = false
+
+    init(pinned: [String] = [], expanded: Bool = false) { self.pinned = pinned; self.expanded = expanded }
+    private enum CodingKeys: String, CodingKey { case pinned, expanded }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        pinned = try values.decode([String].self, forKey: .pinned)
+        expanded = (try? values.decodeIfPresent(Bool.self, forKey: .expanded)) ?? false
+        self = normalized()
+    }
+    func normalized() -> StickyNotePage {
+        var seen = Set<String>()
+        return StickyNotePage(pinned: pinned.filter { !$0.isEmpty && seen.insert($0).inserted }, expanded: expanded)
     }
 }
 
@@ -521,6 +561,35 @@ final class LabSettingsStore {
             $0.importedFont = nil
             if $0.fontSource == .imported { $0.fontSource = .systemSerif }
         }
+    }
+
+    // MARK: 便笺栏
+
+    /// A page's pinned notes and TODOs, if any.
+    func stickyNotes(projectID: String, page: String) -> StickyNotePage? { settings.stickyNotes[projectID]?[page] }
+
+    /// Saves a page's 便笺栏 at once (nothing pinned removes the entry); an
+    /// unchanged one writes nothing. Editors and the settings window are not told.
+    func setStickyNotes(_ notes: StickyNotePage?, projectID: String, page: String) {
+        let value = notes.map { $0.normalized() }.flatMap { $0.pinned.isEmpty ? nil : $0 }
+        guard stickyNotes(projectID: projectID, page: page) != value else { return }
+        var pages = settings.stickyNotes[projectID] ?? [:]
+        pages[page] = value
+        settings.stickyNotes[projectID] = pages.isEmpty ? nil : pages
+        save()
+    }
+
+    // MARK: 大纲轨道
+
+    /// Whether pages of the kind show their 大纲轨道 (shown unless hidden).
+    func outlineRailShown(kind: String) -> Bool { settings.outlineRails[kind] ?? true }
+
+    /// Saves the choice at once; an unchanged one writes nothing. Editors and
+    /// the settings window are not told.
+    func setOutlineRail(_ shown: Bool, kind: String) {
+        guard LabSettings.railKinds.contains(kind), outlineRailShown(kind: kind) != shown else { return }
+        settings.outlineRails[kind] = shown ? nil : false
+        save()
     }
 
     // MARK: Element overview
@@ -843,7 +912,7 @@ final class LabSettingsStore {
 
     /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
     /// 底部时间轴 or 情节规划格 state, recent pages, tabs, list filters, 全书长卷
-    /// position or MCP servers
+    /// position, 便笺栏 or MCP servers
     /// behind, nor stays the project that opens at launch (their Keychain
     /// secrets are removed by the caller).
     func forgetProject(_ projectID: String) {
@@ -853,7 +922,9 @@ final class LabSettingsStore {
             || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil
             || settings.recentPages[projectID] != nil || settings.tabSessions[projectID] != nil
             || settings.listFilters[projectID] != nil || settings.wholeBookPositions[projectID] != nil
+            || settings.stickyNotes[projectID] != nil
             || settings.lastProject == projectID else { return }
+        settings.stickyNotes.removeValue(forKey: projectID)
         settings.listFilters.removeValue(forKey: projectID)
         settings.wholeBookPositions.removeValue(forKey: projectID)
         settings.tabSessions.removeValue(forKey: projectID)

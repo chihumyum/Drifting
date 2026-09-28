@@ -50,6 +50,10 @@ other sources are shown read-only. Resolved notes and accepted or rejected
 suggestions wait under 显示已解决. UIKit is unchanged while mobile work is
 deferred.
 
+Open notes and TODOs anchored in a chapter are also ticked beside its prose,
+at their anchors' heights; a click on a tick selects the anchor
+([page statistics](page-stats.md#scrollbar-markers)).
+
 ## Acceptance
 
 `pnpm apple:workspace-comment:acceptance` generates

@@ -99,6 +99,7 @@ enum MacMenuCommand: String, CaseIterable {
     case bold = "format.bold", italic = "format.italic", underline = "format.underline", strike = "format.strike"
     case bodyText = "format.paragraph", heading1 = "format.heading1", heading2 = "format.heading2", heading3 = "format.heading3"
     case blockquote = "format.blockquote", bulletList = "format.bulletList", orderedList = "format.orderedList"
+    case insertRule = "format.insertRule"
     case alignLeft = "format.alignLeft", alignCenter = "format.alignCenter", alignRight = "format.alignRight"
     case indentIncrease = "format.indentIncrease", indentDecrease = "format.indentDecrease"
     case link = "format.link", removeLink = "format.removeLink"
@@ -107,6 +108,7 @@ enum MacMenuCommand: String, CaseIterable {
     case agent = "view.agent", materials = "view.materials", review = "view.review", board = "view.board"
     case storyGraph = "view.storyGraph", wholeBook = "view.wholeBook", elementOverview = "view.elementOverview"
     case bottomTimeline = "view.bottomTimeline", plotPlanner = "view.plotPlanner", trash = "view.trash"
+    case pageStats = "view.pageStats", outlineRail = "view.outlineRail"
     case diagnostics = "help.diagnostics"
 
     var title: String {
@@ -156,6 +158,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .blockquote: return "引用"
         case .bulletList: return "无序列表"
         case .orderedList: return "有序列表"
+        case .insertRule: return "插入分隔线"
         case .alignLeft: return "左对齐"
         case .alignCenter: return "居中"
         case .alignRight: return "右对齐"
@@ -177,6 +180,8 @@ enum MacMenuCommand: String, CaseIterable {
         case .elementOverview: return "设定总览"
         case .bottomTimeline: return "底部时间轴"
         case .plotPlanner: return "情节规划格"
+        case .pageStats: return "页面统计"
+        case .outlineRail: return "大纲轨道"
         case .diagnostics: return "诊断摘要…"
         }
     }
@@ -274,6 +279,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .blockquote: return #selector(ProseTextView.blockquoteProse(_:))
         case .bulletList: return #selector(ProseTextView.bulletListProse(_:))
         case .orderedList: return #selector(ProseTextView.orderedListProse(_:))
+        case .insertRule: return #selector(ProseTextView.insertRuleProse(_:))
         case .alignLeft: return #selector(ProseTextView.alignLeftProse(_:))
         case .alignCenter: return #selector(ProseTextView.alignCenterProse(_:))
         case .alignRight: return #selector(ProseTextView.alignRightProse(_:))
@@ -345,9 +351,9 @@ enum MacMainMenu {
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, nil, .find, .findNext, .findPrevious, .findSelection, nil,
                 .search, .elements, .storylines, .drifts, .relationTypes, nil, .addComment, .comments, .copilot, nil, .history]),
         ("格式", [.bold, .italic, .underline, .strike, nil, .bodyText, .heading1, .heading2, .heading3, nil,
-                .blockquote, .bulletList, .orderedList, nil, .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
+                .blockquote, .bulletList, .orderedList, .insertRule, nil, .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
         ("视图", [.projectHome, nil, .back, .forward, .previousTab, .nextTab, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
-                .trash]),
+                .pageStats, .outlineRail, nil, .trash]),
         ("帮助", [.diagnostics]),
     ]
     /// How 设置 › 快捷键 names the app menu.
@@ -376,6 +382,9 @@ enum MacMainMenu {
                 case .blockquote: item.toolTip = "也可在段首输入“> ”"
                 case .bulletList: item.toolTip = "也可在段首输入“- ”或“* ”"
                 case .orderedList: item.toolTip = "也可在段首输入“1. ”"
+                case .insertRule: item.toolTip = "在光标所在段落后插入一条分隔线（也可在空段落输入“/”选择分隔线）"
+                case .pageStats: item.toolTip = "这一页的字数、段落、句子、对白比、提到的设定和引用"
+                case .outlineRail: item.toolTip = "在当前这类页面（章节、漂流、设定、故事线或分类）旁显示或隐藏标题大纲"
                 default: break
                 }
                 submenu.addItem(item)

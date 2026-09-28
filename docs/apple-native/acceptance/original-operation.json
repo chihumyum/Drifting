@@ -4,7 +4,7 @@
   "status": "passed",
   "productionSemanticDeletionEnabled": false,
   "source": {
-    "fingerprint": "03083beb576fc0efbbca5f60a0c88e027bd2b89c2ed8dfa7719c908c7f9760b5",
+    "fingerprint": "ff040672e07189755e4397581bc26d181e1e8c125a035812482faa542c0db9b6",
     "files": [
       {
         "path": "crates/drifting-core/Cargo.lock",
@@ -360,7 +360,7 @@
       },
       {
         "path": "crates/drifting-document/src/formatting.rs",
-        "sha256": "c353fa1242ee3c93928fe1d322d8aea48fe680a3afd72ba06a74e057e25be45b"
+        "sha256": "e1ea3db2eec41b9f7bd06073adb10153e7eccc8dcd186796a424e6cc3fd061b3"
       },
       {
         "path": "crates/drifting-document/src/formatting_tests.rs",
@@ -380,7 +380,7 @@
       },
       {
         "path": "crates/drifting-document/src/lib.rs",
-        "sha256": "b96cc22eb24ae5be9eeb28807d6bb64581cca71ebb732df94394630c35e310b1"
+        "sha256": "3b3125ff130bade144e891e80b4a4aa2261ce7dc73e5dd5e7059ed91ad4c0084"
       },
       {
         "path": "crates/drifting-document/src/lineage.rs",
@@ -455,6 +455,10 @@
         "sha256": "bff8d54b87240d6b14dd143bdb5104f7924bf3c654271fff7d29b183bff2d5b6"
       },
       {
+        "path": "crates/drifting-document/src/rules.rs",
+        "sha256": "e15a0afd1dbd4a1efcd7ec6501dec01dd57bacbfd0c222f43809dc6ce7d41b3b"
+      },
+      {
         "path": "crates/drifting-document/src/search.rs",
         "sha256": "67872dffd810d4c50a7045a02966a9eeba6bb16d1f9a470455102167cadf94da"
       },
@@ -492,11 +496,11 @@
       },
       {
         "path": "crates/drifting-document/src/wrapping.rs",
-        "sha256": "1ab5c56d806193a9ff4aca59085b60f2b2f230304afba152f31794846123048c"
+        "sha256": "21888a7e26701ec1b6876f864fa24b48fdd7b5cec7916057794d8ef1f4185e08"
       },
       {
         "path": "crates/drifting-document/src/wrapping_tests.rs",
-        "sha256": "41a059c5b2428d11fa77f7b1658b563a6b243e14ec3ef535d35759959bf2e8f2"
+        "sha256": "5fe6c73d489d647bff4ae6914d35874686e700cafc8a4748520bd4d502f31589"
       },
       {
         "path": "docs/apple-native/fixtures/prose-journal-v1.json",
@@ -999,7 +1003,7 @@
       "materialization_admission::tests::materialization_reader_refuses_missing_forged_and_mismatched_raw_without_writes",
       "materialization_admission::tests::materialization_receipts_are_immutable_and_equal_events_do_not_share_identity"
     ],
-    "logSha256": "be58d00716f8738cf7b182681d22582bea6447fb21edb1226251dab85340ba6d"
+    "logSha256": "5928b027f7c775e4d5ee9617bb919c677f39731980fc94265b4171ef547ad8df"
   },
   "scope": [
     "Canonical original envelope and every mutation schema, payload hash and full selected reference",

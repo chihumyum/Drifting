@@ -26,6 +26,11 @@ final class ReviewCommands {
     var window: () -> NSWindow? = { nil }
     /// 接受 and 拒绝 of open Copilot suggestions; nil leaves them read-only.
     var copilot: CopilotSuggestionCommands?
+    /// Whether a note or TODO is in its page's 便笺栏 (nil: it cannot be,
+    /// e.g. a floating TODO); nil leaves 放入便笺栏 out of ⋯.
+    var stickyNotes: ((WorkspaceComment) -> Bool?)?
+    /// 放入便笺栏 (true) or 移出便笺栏 (false).
+    var onPinSticky: ((WorkspaceComment, Bool) -> Void)?
     /// The open 新建 sheet or 编辑 composer, if any.
     private(set) var composeSheet: ReviewComposeSheet?
     private(set) var editor: MacCommentComposerViewController?
@@ -34,7 +39,7 @@ final class ReviewCommands {
 
     // MARK: Menu
 
-    /// ⋯ of a card: 优先级, 批注 ↔ 待办, 关联, 编辑 and 删除. An open Copilot
+    /// ⋯ of a card: 优先级, 批注 ↔ 待办, 放入便笺栏, 关联, 编辑 and 删除. An open Copilot
     /// suggestion is accepted or rejected on the card; ⋯ only deletes it.
     func menuItems(for comment: WorkspaceComment) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
@@ -66,6 +71,13 @@ final class ReviewCommands {
             convert.toolTip = "浮动的待办不能转为批注。可以先关联到页面，或在页面上写批注。"
         }
         items.append(convert)
+        if let pinned = stickyNotes?(comment) {
+            let sticky = LibraryMenuItem(title: pinned ? "移出便笺栏" : "放入便笺栏", identifier: "review-sticky") { [weak self] in
+                self?.onPinSticky?(comment, !pinned)
+            }
+            sticky.toolTip = pinned ? "从它所在页面的便笺栏移出" : "钉在它所在页面边上的便笺栏里"
+            items.append(sticky)
+        }
         items.append(.separator())
         let associate = NSMenuItem(title: "关联", action: nil, keyEquivalent: "")
         associate.setAccessibilityIdentifier("review-associate")

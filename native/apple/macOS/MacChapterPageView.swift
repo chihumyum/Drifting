@@ -171,6 +171,8 @@ final class MacChapterPageView: NSView {
     let relationsView = RelationsSectionView()
     /// Shows or hides the 情节规划格 dock below the body.
     let plotPlannerButton = PlotPlannerToggle()
+    /// 统计 of this page (视图 › 页面统计).
+    let statsButton = MacPageStatsButton.make()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private let stack = NSStackView()
@@ -197,7 +199,8 @@ final class MacChapterPageView: NSView {
         metadataEditor.onMessage = { [weak self] in self?.showMessage($0) }
 
         let statusLabel = label("状态")
-        let titleRow = NSStackView(views: [titleLabel, wordCountLabel, NSView(), plotPlannerButton, statusLabel, metadataEditor.statusPopup])
+        let titleRow = NSStackView(views: [titleLabel, wordCountLabel, NSView(), statsButton, plotPlannerButton, statusLabel,
+                                           metadataEditor.statusPopup])
         titleRow.spacing = 8
         titleRow.setCustomSpacing(10, after: titleLabel)
         let summaryLabel = label("摘要")

@@ -912,6 +912,45 @@ fn workspace_quotes_and_lists_wrap_lift_and_survive_cold_reopen() {
 }
 
 #[test]
+fn workspace_rules_insert_remove_and_survive_cold_reopen() {
+    let mut fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    insert(handle, "第一幕\n第二幕");
+    let rule = |location: u64, action: &str| {
+        let current = state(handle);
+        call(json!({"operation":"documentRule","handle":handle,"edit":{
+            "revision":current["projection"]["revision"],"location":location,"action":action}}))
+    };
+    let inserted = rule(1, "insert");
+    assert_eq!(inserted["ok"], true, "{inserted}");
+    let value = inserted["value"].clone();
+    assert_eq!(value["projection"]["text"], "第一幕\n\u{fffc}\n\n第二幕");
+    assert_eq!(value["caret"], 6);
+    assert_eq!(value["saved"], true);
+    let blocks = value["projection"]["blocks"].clone();
+    assert_eq!(blocks[1]["kind"], "horizontalRule");
+    // A text block is not a rule: a formatting refusal.
+    let refused = rule(0, "remove");
+    assert!(refused["error"]
+        .as_str()
+        .unwrap()
+        .starts_with("NATIVE_FORMATTING_UNAVAILABLE:"));
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let reopened = fixture.open(0);
+    assert_eq!(reopened["document"]["projection"]["blocks"], blocks);
+    let handle = reopened["handle"].as_u64().unwrap();
+    let current = state(handle);
+    let removed = success(json!({"operation":"documentRule","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"location":4,"action":"remove"}}));
+    assert_eq!(removed["projection"]["text"], "第一幕\n\n第二幕");
+    fixture.close();
+}
+
+#[test]
 fn workspace_formatting_rejection_preserves_input_and_save_failure_retries_once() {
     let fixture = Fixture::new();
     let handle = fixture.open(0)["handle"].as_u64().unwrap();

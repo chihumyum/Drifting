@@ -95,20 +95,30 @@ becomes a heading. The title guess is the first `#` heading or first line
 sheet shows the editable title, 导入为 章节 (with an optional 故事线 it joins as
 主线), 设定 (with a 分类 popup; none refuses) or 漂流, the block count and a
 preview; 导入 creates the entity and opens its page once every open body is
-idle, and lists and links read the new entity.
+idle, and lists and links read the new entity. While it runs, 导入, the
+target popups and the title stay disabled, whatever library reply arrives,
+and a second Return imports nothing. A chapter that could not join its
+故事线 is kept, and the final status says so with Rust's reason.
 
-Several files, or a folder, open one sheet for all of them. It lists every
-file sorted by name as the Finder sorts (第2章 before 第10章) with its format
-and block count; a folder contributes its Markdown, text and Word files (not
-subfolders, hidden or other files, which the summary counts), and a chosen
-file of another kind, an empty or unreadable file is listed as skipped with
-the reason. One target applies to all: 章节 with an optional 故事线, 设定 with
+Several files, or a folder, open one sheet for all of them at once. It lists
+every file sorted by name as the Finder sorts (第2章 before 第10章); the files
+are read one after another off the main thread, each line showing 正在读取…
+until its format and block count arrive, and 导入 waits for them. A folder
+contributes its Markdown, text and Word files (not subfolders, hidden or
+other files, which the summary counts); a chosen file of another kind, a file
+above 200 MB (skipped unread), an empty or unreadable file is listed as
+skipped with the reason. 取消 while reading closes the sheet and stops
+reading. One target applies to all: 章节 with an optional 故事线, 设定 with
 a 分类, or 漂流. 导入 imports the files one after another through the
 single-file path, each with its guessed title (a chapter then joins the
-storyline), and each line then reads 已创建「标题」 or 跳过 with Rust's
-refusal (for example a 设定 name already used). The summary counts created and
-skipped files and 完成 closes the sheet; lists and libraries learn about the
-new entities and no page opens.
+storyline), and each line then reads 已创建「标题」 (with “但未能加入故事线：”
+and Rust's reason when the join failed) or 跳过 with Rust's refusal (for
+example a 设定 name already used). While it runs, 导入 and the popups stay
+disabled and a second Return imports nothing; 取消 stops before the next
+file, which with the rest reads 跳过：已取消. The summary counts created
+files (and those that did not join), skipped files and a stop, and 完成
+closes the sheet; lists and libraries learn about the new entities and no
+page opens.
 
 文件 › 导出全书… asks for a destination in a save panel whose 格式 popup offers
 Markdown (.md) or 纯文本 (.txt), then writes Rust's text as UTF-8. Queued input
@@ -172,7 +182,9 @@ Each projected block names its enclosing containers (`blockquote`,
 `bulletList`, `orderedList`, `listItem`, outermost first) and an ordered
 item's number (`listNumber`, from the list's `start`), so quotes indent,
 ordered items print their numbers and a list inside a quote keeps the
-quote's indent. Limits: Quartz's PDF text extraction reads some CJK glyphs as
+quote's indent. A horizontal rule is a thin centred line in the muted
+colour (an attachment drawn as a line, eight em wide). Limits: Quartz's PDF
+text extraction reads some CJK glyphs as
 Kangxi radicals when text is copied or searched (Songti's 口 as ⼜); the
 pages render correctly. Links are styled but not clickable.
 

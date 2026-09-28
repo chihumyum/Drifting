@@ -313,6 +313,34 @@ final class DocumentStore {
     }
     /// The last formatting refusal shown, for acceptance.
     private(set) var lastFormatRefusal: String?
+
+    /// Inserts (`insert`) or removes (`remove`) a horizontal rule (分隔线)
+    /// in one undo unit; the reply names where the caret belongs. A refusal
+    /// before mutation keeps the input bases, like formatting.
+    func rule(_ action: String, location: Int, revision: UInt64, completion: ((Result<Int, Error>) -> Void)? = nil) {
+        guard !hasPendingWork, canEdit, projection?.revision == revision else {
+            completion?(.failure(LabError.message("请先完成输入，并等待正文保存后再编辑分隔线。"))); return
+        }
+        sending = true; activity()
+        core.rule(edit: ["revision": revision, "location": location, "action": action]) { [weak self] result in
+            guard let self else { completion?(.failure(LabError.message("正文已关闭。"))); return }
+            self.sending = false
+            switch result {
+            case .success(let reply):
+                // The caret is placed once the view renders this state
+                // (`state` already names its revision).
+                self.state = reply.state
+                completion?(.success(reply.caret))
+                self.needsRefresh = true; self.reportSave(reply.state); self.pump()
+            case .failure(let error):
+                if let lab = error as? LabError, case .formattingUnavailable = lab {
+                    self.lastFormatRefusal = error.localizedDescription
+                    self.status(error.localizedDescription); self.pump()
+                } else { self.fail(error.localizedDescription) }
+                completion?(.failure(error))
+            }
+        }
+    }
     /// Sets (`href`) or removes (nil) the range's URL link in one undo unit.
     /// A refusal before mutation keeps the input bases, like formatting.
     func link(range: NSRange, href: String?, revision: UInt64, completion: ((Error?) -> Void)? = nil) {
@@ -545,7 +573,10 @@ enum NativeLayout {
             return "此处涉及段落结构或未支持的内容，暂时保留只读"
         }
         let selected = Array(blocks[first...last])
-        guard selected.allSatisfy(\.editable) else { return "未支持的内容已保留，只读区域不能改写" }
+        guard selected.allSatisfy(\.editable) else {
+            return selected.contains { $0.kind == "horizontalRule" } ? "分隔线不能和文字一起改写，可以在它后面的段首按 ⌫ 或用右键菜单删除分隔线"
+                : "未支持的内容已保留，只读区域不能改写"
+        }
         if first != last || (selected[0].kind != "codeBlock" && text.contains("\n")) {
             guard selected.allSatisfy({ ["paragraph", "heading"].contains($0.kind) }) else {
                 return "此操作涉及尚未支持的结构，已保留原文"

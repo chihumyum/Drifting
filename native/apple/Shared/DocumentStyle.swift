@@ -268,7 +268,8 @@ enum DocumentStyle {
         paragraph.headIndent = containerIndent(containers, depth: depth, size: typography.size) + indentWidth(indent, size: typography.size)
         paragraph.firstLineHeadIndent = paragraph.headIndent + (kind == "paragraph" && depth == 0 ? typography.paragraphIndent : 0)
         if containers.contains("blockquote") { paragraph.tailIndent = -typography.size * 2 }
-        paragraph.alignment = alignment(textAlign)
+        // A rule's caret sits in the middle, under its line.
+        paragraph.alignment = kind == "horizontalRule" ? .center : alignment(textAlign)
         return paragraph
     }
 
@@ -298,6 +299,10 @@ enum DocumentStyle {
     /// On the last line break: the empty list item after it, which has no
     /// character of its own, shows this marker.
     static let trailingListMarkerKey = NSAttributedString.Key("DriftingTrailingListMarker")
+    /// On a horizontal rule's one U+FFFC unit, which is drawn invisible: the
+    /// text view draws the rule as a centred thin line in its place
+    /// (`ListMarkerTextView`), never the placeholder of unsupported content.
+    static let ruleKey = NSAttributedString.Key("DriftingHorizontalRule")
 
     /// The marker of the text's last block when that block is an empty list
     /// item (it has no character to carry the marker).
@@ -407,8 +412,14 @@ enum DocumentStyle {
             if block.kind == "heading" { base[.font] = font(size: fontSize(block), weight: .semibold) }
             if block.kind == "codeBlock" { base[.font] = font(size: typography.codeSize, monospaced: true) }
             // A quote is set in the secondary colour: indentation and
-            // typography, never a bar.
-            if !block.editable || block.quoteDepth > 0 { base[.foregroundColor] = PlatformColor.secondaryLabelColorForDocument }
+            // typography, never a bar. A rule's character is invisible; its
+            // line is drawn by the text view.
+            if block.kind == "horizontalRule" {
+                base[.foregroundColor] = PlatformColor.clear
+                base[ruleKey] = true
+            } else if !block.editable || block.quoteDepth > 0 {
+                base[.foregroundColor] = PlatformColor.secondaryLabelColorForDocument
+            }
             storage.addAttributes(base, range: block.range.nsRange)
             // The separator ends the block's paragraph: an empty block's caret
             // follows its alignment and indent. Font and colour stay plain.
@@ -565,14 +576,66 @@ class ListMarkerTextView: NSTextView {
     var emptyTextMarker: DocumentListMarker? {
         didSet { if emptyTextMarker != oldValue { needsDisplay = true } }
     }
-    /// The markers drawn since this was last cleared, for acceptance.
+    /// The markers drawn since this was last cleared, for acceptance; only
+    /// the last `drawLogLimit` are kept.
     var drawnMarkers: [String] = []
+    /// The horizontal rules drawn since this was last cleared (each rule's
+    /// UTF-16 location and the line's rectangle), for acceptance; only the
+    /// last `drawLogLimit` are kept.
+    var drawnRules: [(location: Int, rect: NSRect)] = []
+    /// The drawing logs never grow past this.
+    static let drawLogLimit = 256
 
     /// Drawn with the background, beside the text: overriding `draw(_:)`
     /// would switch the view to TextKit 1.
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         drawListMarkers(in: rect)
+        drawRules(in: rect)
+    }
+
+    /// A rule is a centred thin line across the middle of its line: a third
+    /// of the text column, at least 48 points and at most 320.
+    private func drawRules(in dirtyRect: NSRect) {
+        guard let storage = textStorage, storage.length > 0 else { return }
+        let text = storage.string as NSString
+        let origin = textContainerOrigin
+        let padding = textContainer?.lineFragmentPadding ?? 0
+        let column = max(1, (textContainer?.size.width ?? bounds.width) - padding * 2)
+        let width = min(320, max(48, (column / 3).rounded()))
+        let x = origin.x + padding + ((column - width) / 2).rounded()
+        var locations: [Int] = []
+        storage.enumerateAttribute(DocumentStyle.ruleKey, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard value != nil else { return }
+            for index in range.location..<NSMaxRange(range) where text.character(at: index) == 0xFFFC { locations.append(index) }
+        }
+        for location in locations {
+            guard let line = ruleLine(at: location) else { continue }
+            let rect = NSRect(x: x, y: (origin.y + line.midY).rounded(.down) - 0.5, width: width, height: 1)
+            guard rect.insetBy(dx: 0, dy: -2).intersects(dirtyRect) else { continue }
+            NSColor.separatorColor.setFill()
+            rect.fill()
+            drawnRules.append((location, rect))
+            if drawnRules.count > Self.drawLogLimit { drawnRules.removeFirst(drawnRules.count - Self.drawLogLimit) }
+        }
+    }
+
+    /// The middle band of the line holding a rule's character, in text
+    /// container coordinates: the line's top and its font's height.
+    private func ruleLine(at location: Int) -> NSRect? {
+        let font = (textStorage?.attribute(.font, at: location, effectiveRange: nil) as? NSFont) ?? DocumentStyle.bodyFont
+        let height = ceil(font.ascender - font.descender)
+        if let manager = textLayoutManager, let content = manager.textContentManager,
+           let at = content.location(content.documentRange.location, offsetBy: location) {
+            guard let fragment = manager.textLayoutFragment(for: at) else { return nil }
+            let top = fragment.layoutFragmentFrame.minY + (fragment.textLineFragments.first?.typographicBounds.minY ?? 0)
+            return NSRect(x: 0, y: top, width: 1, height: height)
+        }
+        guard let manager = layoutManager, location < manager.numberOfGlyphs || location < (textStorage?.length ?? 0) else { return nil }
+        let glyph = manager.glyphIndexForCharacter(at: location)
+        guard glyph < manager.numberOfGlyphs else { return nil }
+        let line = manager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        return NSRect(x: 0, y: line.minY, width: 1, height: height)
     }
 
     private func drawListMarkers(in dirtyRect: NSRect) {
@@ -662,6 +725,7 @@ class ListMarkerTextView: NSTextView {
         guard rect.intersects(dirtyRect) else { return }
         string.draw(with: rect, options: [.usesLineFragmentOrigin])
         drawnMarkers.append(marker.text)
+        if drawnMarkers.count > Self.drawLogLimit { drawnMarkers.removeFirst(drawnMarkers.count - Self.drawLogLimit) }
     }
 }
 #endif

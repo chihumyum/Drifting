@@ -369,7 +369,7 @@ extension BindingAcceptance {
         format.update()
         let titles = format.items.filter { !$0.isSeparatorItem }.map(\.title)
         try require(titles == ["加粗", "斜体", "下划线", "删除线", "正文", "标题 1", "标题 2", "标题 3", "引用", "无序列表", "有序列表",
-                               "左对齐", "居中", "右对齐", "增加缩进", "减少缩进", "链接…", "移除链接"], "The 格式 submenu lists \(titles)")
+                               "插入分隔线", "左对齐", "居中", "右对齐", "增加缩进", "减少缩进", "链接…", "移除链接"], "The 格式 submenu lists \(titles)")
         let item = { (title: String) in format.items.first { $0.title == title }! }
         try require(item("下划线").state == .on && item("删除线").state == .on && item("加粗").state == .off
                     && item("左对齐").state == .on && item("正文").state == .on && item("移除链接").isEnabled == false,
@@ -573,7 +573,7 @@ extension BindingAcceptance {
         }
         try typeSlash()
         guard let opened = view.picker, opened.kind == .slash else { throw LabError.message("/ did not open the slash menu") }
-        try require(opened.items.map(\.title) == ["正文", "标题 1", "标题 2", "标题 3", "引用", "无序列表", "有序列表", "居中", "右对齐"]
+        try require(opened.items.map(\.title) == ["正文", "标题 1", "标题 2", "标题 3", "引用", "无序列表", "有序列表", "居中", "右对齐", "分隔线"]
                     && !view.isPickerShown,
                     "The slash menu lists \(opened.items.map(\.title))")
         fxType(view, "标")

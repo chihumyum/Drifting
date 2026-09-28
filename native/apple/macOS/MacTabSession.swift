@@ -273,6 +273,7 @@ final class MacTabSession {
 
     /// A tab changed: saved after `saveDelay`, once for a burst of changes.
     func scheduleSave() {
+        forgetShownPages()
         guard paused == 0 else { return }
         pendingSave?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -289,6 +290,7 @@ final class MacTabSession {
     func saveNow() {
         pendingSave?.cancel()
         pendingSave = nil
+        forgetShownPages()
         guard paused == 0 else { return }
         var ids = host.projectsWithTabs
         if let projectID { ids.insert(projectID) }
@@ -298,12 +300,26 @@ final class MacTabSession {
         }
     }
 
+    /// A page the author has had shown since the restore is no longer
+    /// unread: it leaves the kept pages, so closing it removes it from the
+    /// stored tabs. Every tab change asks, so a page opened and closed
+    /// between two saves is forgotten too.
+    private func forgetShownPages() {
+        for (id, pending) in unrestored {
+            let shown = Set(host.tabSession(projectID: id).panes.flatMap(\.tabs))
+            guard !shown.isDisjoint(with: pending.pages) else { continue }
+            let pages = pending.pages.subtracting(shown)
+            unrestored[id] = pages.isEmpty && !pending.whole ? nil : Unrestored(stored: pending.stored, pages: pages, whole: pending.whole)
+        }
+    }
+
     /// The shown tabs with the pages not put back yet: each in its pane,
     /// after the page it followed when stored (first when none of those is
     /// shown); the shown tab, 项目主页 and pane stay as shown. Without any
     /// shown tab a refused restore's session stays as it was stored.
     static func merged(_ shown: TabSession, keeping pending: Unrestored) -> TabSession {
-        if shown.isEmpty, pending.whole { return pending.stored }
+        // A refused restore with none of its pages shown since keeps its session.
+        if shown.isEmpty, pending.whole, pending.pages == Set(pending.stored.panes.flatMap(\.tabs)) { return pending.stored }
         var panes = shown.panes
         for (index, stored) in pending.stored.panes.enumerated() {
             let kept = stored.tabs.filter { pending.pages.contains($0) }

@@ -105,7 +105,7 @@
         "IME, UTF-16 positions, split/merge IDs, marks, opaque data, selection, multi-view"
       ],
       "milestone": "P2",
-      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented",
+      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented; Mac-horizontal-rules-list-item-split-heading-rail-and-scrollbar-markers-implemented",
       "decisionTask": "D2/D3/D4"
     },
     {
@@ -298,7 +298,7 @@
         "synthetic corpus counting parity; preserve Apache-2.0 provenance"
       ],
       "milestone": "P3",
-      "status": "Rust-word-count-port-whole-book-statistics-and-Mac-today's-words-implemented",
+      "status": "Rust-word-count-port-whole-book-statistics-and-Mac-today's-words-implemented; Mac-page-statistics-implemented",
       "decisionTask": "D6"
     },
     {

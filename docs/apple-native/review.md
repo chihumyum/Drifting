@@ -51,7 +51,8 @@ opens the page as a tab; a passage note then selects its anchored text in
 that tab, as the comment panel does. 编辑 opens the comment composer.
 解决/重新打开 changes the state.
 ⋯ offers 优先级 (无/低/中/高, the current one checked), 转为待办/转为批注
-(disabled for a floating TODO), 关联 (the project's live pages by kind,
+(disabled for a floating TODO), 放入便笺栏/移出便笺栏 (not for a floating TODO;
+[便笺栏](page-stats.md#便笺栏)), 关联 (the project's live pages by kind,
 leaving out those already associated), 移除关联, 编辑… and 删除…, which
 confirms first. A passage note is not deleted while its chapter has input in
 flight; once deleted its highlight leaves every open view of the chapter.
@@ -80,8 +81,9 @@ reordering ([library](library.md)).
 
 ## Not ported
 
-- The sticky-note rail and the board's search field, entity filter and 待整理
-  drawer.
+- The board's search field, entity filter and 待整理 drawer. Pinning a note
+  to its page's 便笺栏 is in ⋯, and open passage notes and TODOs are ticked
+  beside the prose ([page statistics](page-stats.md)).
 - Inline editing on the card: the body is edited in the composer sheet.
 
 ## Acceptance

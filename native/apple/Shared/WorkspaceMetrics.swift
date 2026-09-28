@@ -63,6 +63,31 @@ struct WordCountLibrary: Equatable {
     }
 }
 
+/// `@drifting/prose-metrics`' `countWords` for a text the Mac holds but Rust
+/// has not counted (a 章节模版): CJK ideographs, plus Latin tokens (runs
+/// between whitespace, CJK and full-width forms counting as spaces) holding
+/// an ASCII letter or digit. Canonical counts still come from Rust.
+enum ProseWordCount {
+    static func count(_ text: String) -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+        func ideograph(_ value: UInt32) -> Bool { (0x3400...0x4DBF).contains(value) || (0x4E00...0x9FFF).contains(value) }
+        func strippable(_ value: UInt32) -> Bool {
+            (0x3000...0x303F).contains(value) || ideograph(value) || (0xFF00...0xFFEF).contains(value)
+        }
+        var cjk = 0, latin = 0, token = false, alphanumeric = false
+        func end() { if token, alphanumeric { latin += 1 }; token = false; alphanumeric = false }
+        for scalar in trimmed.unicodeScalars {
+            if ideograph(scalar.value) { cjk += 1 }
+            if strippable(scalar.value) || scalar.properties.isWhitespace { end(); continue }
+            token = true
+            if scalar.isASCII, CharacterSet.alphanumerics.contains(scalar) { alphanumeric = true }
+        }
+        end()
+        return cjk + latin
+    }
+}
+
 /// The renderer's zh-CN wording and number formats.
 enum WordCountText {
     /// `common.counting`.

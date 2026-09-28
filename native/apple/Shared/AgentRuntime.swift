@@ -164,7 +164,23 @@ final class AgentChatController {
 
     private var retiredMessage: String { "项目《\(projectName)》已经删除，这次修改没有保存。" }
 
-    private func notify(_ change: AgentChange) { onChange?(change) }
+    /// Posted (object: the controller) when its pending revisions of a body
+    /// changed: editors tick them beside the prose.
+    static let proposalsDidChange = Notification.Name("AgentChatController.proposalsDidChange")
+    /// Every conversation's pending proposals that revise a body.
+    var pendingRevisions: [AgentProposal] {
+        conversations.flatMap(\.proposals).filter { $0.state == .pending && $0.kind == .revise }
+    }
+    private var announcedRevisions: [AgentProposal] = []
+
+    private func notify(_ change: AgentChange) {
+        onChange?(change)
+        guard change == .transcript || change == .conversations else { return }
+        let pending = pendingRevisions
+        guard pending != announcedRevisions else { return }
+        announcedRevisions = pending
+        NotificationCenter.default.post(name: Self.proposalsDidChange, object: self)
+    }
 
     private func index(_ id: String) -> Int? { conversations.firstIndex { $0.id == id } }
 

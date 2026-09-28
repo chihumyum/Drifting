@@ -50,6 +50,7 @@ snapshot and fail-closed recovery rules apply to every host.
 - [Copilot（实验）: element and patch suggestions while writing](copilot.md)
 - [Settings: appearance, typesetting and language](settings.md)
 - [Native editor formatting, find and pickers](formatting.md)
+- [Page statistics, heading rail, scrollbar markers and 便笺栏](page-stats.md)
 - [Whole-book outline navigation](outline.md)
 - [Act boundary editing](act-boundaries.md)
 - [Story graph, story time and the bottom timeline (底部时间轴)](timeline.md)
@@ -130,9 +131,12 @@ other side and merge the panes, ⌥⌘←/⌥⌘→, ⌘W, drag to reorder, 后�
 project at launch), formatting (bold, italic, underline,
 strike, headings, alignment, Tab indent and URL links from the 格式 menu, the
 toolbar and the context menu), quotes and bulleted and numbered lists (also
-typed as “> ”, “- ” or “1. ”, ended by Return on an empty last item or ⌫ at
-the start, drawn with markers in every editor, the 全书长卷, the 历史版本
-preview and print), a slash menu, find in the editor (⌘F, no
+typed as “> ”, “- ” or “1. ”, Return starting the next item and ending the
+list on an empty last item, ⌫ at the start, drawn with markers in every
+editor, the 全书长卷, the 历史版本 preview and print), horizontal rules
+(分隔线, from 格式 and the slash menu, removed by ⌫, ⌦ or their context menu,
+drawn as a centred line everywhere), a slash menu offering what applies
+where it opens, find in the editor (⌘F, no
 replace), an @ picker that inserts and links names, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
 words against the daily goal, one 回收站 per project with 彻底删除, hover cards
@@ -141,7 +145,13 @@ and 自动链接设定名称, a 项目书架 of every project, import of several
 folder, Markdown folder export of one or every project, printing of the focused
 page and PDF export of the whole book, a 全书长卷 that reopens where it was read,
 a 历史版本 preview with the version's formatting,
-custom menu shortcuts in 设置 › 快捷键, a diagnostic summary, a 项目主页 per
+custom menu shortcuts in 设置 › 快捷键, 统计 of the open page (视图 › 页面统计 or
+its header: place in the book, words, paragraphs, sentences, 对白比, linked
+设定, citations; appearances, category health, storyline status and core
+设定), a 大纲轨道 of headings and page sections beside every page, shown per
+page kind, scrollbar ticks for notes, TODOs and the writing assistant's
+pending revisions, a 便笺栏 of notes pinned to a page's margin, a diagnostic
+summary, a 项目主页 per
 project (counts, chapter statuses, 继续写作, today's words with streak, week
 and month, storyline tracks, categories and recently opened pages), a 恢复
 window instead of the workspace when its database does not open (重试,

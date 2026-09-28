@@ -27,6 +27,8 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
     let relationsView = RelationsSectionView()
     /// 补丁, filled and driven by the tab host's patch coordinator.
     let patchesView = ElementPatchesView()
+    /// 统计 of this page (视图 › 页面统计).
+    let statsButton = MacPageStatsButton.make()
     /// The last backlinks read; nil until the first read completes.
     private(set) var backlinks: WorkspaceElementBacklinks?
     private var backlinkGeneration = 0
@@ -105,7 +107,9 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         grid.row(at: 3).yPlacement = .top
         grid.row(at: 3).topPadding = 4
         grid.cell(for: factsEditor)?.xPlacement = .fill
-        let fieldsStack = NSStackView(views: [nameField, grid, message])
+        let nameRow = NSStackView(views: [nameField, statsButton])
+        nameRow.spacing = 8
+        let fieldsStack = NSStackView(views: [nameRow, grid, message])
         fieldsStack.orientation = .vertical; fieldsStack.alignment = .leading; fieldsStack.spacing = 10
         portraitView.onChange = { [weak self] url in self?.setPortrait(url) }
         let headerStack = NSStackView(views: [portraitView, fieldsStack])
@@ -140,7 +144,7 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
             headerStack.topAnchor.constraint(equalTo: header.topAnchor, constant: 12),
             headerStack.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -12),
-            nameField.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
+            nameRow.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
             grid.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
             message.widthAnchor.constraint(equalTo: fieldsStack.widthAnchor),
             fieldsStack.trailingAnchor.constraint(equalTo: headerStack.trailingAnchor),
@@ -155,6 +159,15 @@ final class MacElementPageView: NSView, NSTextFieldDelegate, NSTextViewDelegate 
         updateWash()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// The fixed sections the 大纲轨道 lists above 正文.
+    var railSections: [PageRailSection] {
+        [PageRailSection(key: "overview", title: "概述", view: nameField, focus: nameField),
+         PageRailSection(key: "facts", title: "字段", view: factsEditor, focus: nil),
+         PageRailSection(key: "relations", title: "关系", view: relationsView, focus: nil),
+         PageRailSection(key: "patches", title: "补丁", view: patchesView, focus: nil),
+         PageRailSection(key: "backlinks", title: "被引用", view: backlinksView, focus: nil)]
+    }
 
     // MARK: Portrait
 

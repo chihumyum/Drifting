@@ -22,6 +22,8 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
                                                   editTooltip: "编辑在这条故事线中新建的章节正文从哪里开始")
     /// 关系, filled and driven by the tab host's relation coordinator.
     let relationsView = RelationsSectionView()
+    /// 统计 of this page (视图 › 页面统计).
+    let statsButton = MacPageStatsButton.make()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private(set) var storyline: WorkspaceStoryline
@@ -104,7 +106,9 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
         grid.row(at: 2).yPlacement = .top
         grid.row(at: 2).topPadding = 4
         grid.cell(for: factsEditor)?.xPlacement = .fill
-        let headerStack = NSStackView(views: [nameField, grid, message])
+        let nameRow = NSStackView(views: [nameField, statsButton])
+        nameRow.spacing = 8
+        let headerStack = NSStackView(views: [nameRow, grid, message])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
@@ -139,7 +143,7 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
             headerStack.topAnchor.constraint(equalTo: header.topAnchor, constant: 12),
             headerStack.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -12),
-            nameField.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
+            nameRow.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             grid.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             message.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             summaryScroll.heightAnchor.constraint(equalToConstant: 48),
@@ -151,6 +155,15 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
         chaptersView.showMessage("正在读取章节…")
         updateWash()
     }
+    /// The fixed sections the 大纲轨道 lists above 正文.
+    var railSections: [PageRailSection] {
+        [PageRailSection(key: "overview", title: "概述", view: nameField, focus: nameField),
+         PageRailSection(key: "facts", title: "字段", view: factsEditor, focus: nil),
+         PageRailSection(key: "chapters", title: "章节", view: chaptersView, focus: nil),
+         PageRailSection(key: "template", title: "章节模版", view: templateView, focus: nil),
+         PageRailSection(key: "relations", title: "关系", view: relationsView, focus: nil)]
+    }
+
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func label(_ text: String) -> NSTextField {
@@ -405,7 +418,8 @@ final class MacStorylinePageView: NSView, NSTextFieldDelegate, NSTextViewDelegat
 /// 章节: the storyline's chapters in book order, each opening the chapter;
 /// a chapter whose 主线 is this storyline says so, and each shows its words
 /// or 未起. 全部, 已写 and 未起 filter by the canonical word count (a chapter
-/// with words is 已写); until every listed chapter is counted all are shown.
+/// with words is 已写, unless its body is still exactly the 章节模版); until
+/// every listed chapter is counted and checked all are shown.
 /// 新建章节 creates a chapter in this storyline. Typography and spacing only.
 final class StorylineChaptersView: NSView {
     struct Entry: Equatable {
@@ -413,9 +427,14 @@ final class StorylineChaptersView: NSView {
         let primary: Bool
         /// The canonical word count; nil while it is not known.
         var words: Int? = nil
+        /// The body is still exactly the 章节模版 (normalised as category
+        /// pages compare bodies); nil while it is being read.
+        var atTemplate: Bool? = false
+        /// 已写: words beyond an untouched template.
+        var written: Bool { (words ?? 0) > 0 && atTemplate == false }
         static func == (lhs: Entry, rhs: Entry) -> Bool {
             lhs.chapter.id == rhs.chapter.id && lhs.chapter.title == rhs.chapter.title && lhs.primary == rhs.primary
-                && lhs.words == rhs.words
+                && lhs.words == rhs.words && lhs.atTemplate == rhs.atTemplate
         }
     }
     /// The filters in order, as `settings.json` keeps them.
@@ -441,10 +460,10 @@ final class StorylineChaptersView: NSView {
     /// The chapters the filter shows, in book order, including collapsed ones.
     var filtered: [Entry] {
         guard filter != ListFilter.all, countsReady else { return entries }
-        return entries.filter { (($0.words ?? 0) > 0) == (filter == ListFilter.written) }
+        return entries.filter { $0.written == (filter == ListFilter.written) }
     }
-    /// Every listed chapter has a count.
-    var countsReady: Bool { entries.allSatisfy { $0.words != nil } }
+    /// Every listed chapter has a count and is checked against the template.
+    var countsReady: Bool { entries.allSatisfy { $0.words != nil && $0.atTemplate != nil } }
     private(set) var mutedLines: [String] = []
 
     override init(frame: NSRect) {
@@ -503,12 +522,12 @@ final class StorylineChaptersView: NSView {
             let secondary: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]
             if entry.primary { text.append(NSAttributedString(string: "  主线", attributes: secondary)) }
             if let words = entry.words {
-                text.append(NSAttributedString(string: words > 0 ? "  \(WordCountText.full(words))" : "  未起", attributes: secondary))
+                text.append(NSAttributedString(string: entry.written ? "  \(WordCountText.full(words))" : "  未起", attributes: secondary))
             }
             button.attributedTitle = text
             button.setAccessibilityIdentifier("storyline-chapter-\(entry.chapter.id)")
             button.setAccessibilityLabel(entry.primary ? "\(entry.chapter.title)，主线" : entry.chapter.title)
-            button.toolTip = "打开「\(entry.chapter.title)」"
+            button.toolTip = entry.atTemplate == true ? "打开「\(entry.chapter.title)」（正文仍是章节模版）" : "打开「\(entry.chapter.title)」"
             rows.addArrangedSubview(button)
             chapterButtons.append(button)
         }
@@ -533,7 +552,7 @@ final class StorylineChaptersView: NSView {
 
     /// 全部 3, 已写 1, 未起 2 once counts are known.
     private func updateFilterLabels() {
-        let written = entries.filter { ($0.words ?? 0) > 0 }.count
+        let written = entries.filter(\.written).count
         let ready = loaded && countsReady
         let labels = ["全部" + (loaded ? " \(entries.count)" : ""), "已写" + (ready ? " \(written)" : ""),
                       "未起" + (ready ? " \(entries.count - written)" : "")]

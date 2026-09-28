@@ -16,7 +16,7 @@ extension BindingAcceptance {
         "AppKit a refused restore and one overtaken by another project's switch restore nothing and leave the saved tabs as they were, a switch refused by a tab that cannot close keeps the project's restored tabs and 项目主页 and saves nothing, and forgetting a deleted project drops its pages from 后退 and 前进",
         restoreKeepsPagesCase,
     ]
-    static let restoreKeepsPagesCase = "AppKit a restore whose drift list cannot be read puts back the other tabs, says so and keeps the unread page at its place in every later save until a complete restore brings it back, and a restore refused while navigation is held keeps the stored tabs through a save and is tried again once navigation is possible"
+    static let restoreKeepsPagesCase = "AppKit a restore whose drift list cannot be read puts back the other tabs, says so and keeps the unread page at its place in every later save until a complete restore brings it back or the author opens it (closing it then leaves it out, also when opened and closed between two saves), and a restore refused while navigation is held keeps the stored tabs through a save and is tried again once navigation is possible"
 
     static func tabsNavigationAcceptance() throws -> [String] {
         let saved = (DocumentStore.entityLinkDelay, MacChapterWorkspace.backlinkDelay, WordCountModel.refreshDelay,
@@ -1062,6 +1062,33 @@ extension BindingAcceptance {
         try harness.show(first)
         try require(host.tabTitles(pane: 0) == ["晨雾", "旧信", "午潮", "暮钟"] && session.unrestored[first.id] == nil,
                     "The complete restore put back \(host.tabTitles(pane: 0))")
+
+        // Unread again; the author opens the drift and closes it before the
+        // save: it is no longer unread, and the stored tabs leave it out.
+        try harness.show(second)
+        try WorkspaceRemoteProseFixture.execute(in: harness.directory, sql: "ALTER TABLE drift_group RENAME TO drift_group_unreadable")
+        let again = try harness.step { done in session.leave(for: first) { _ in session.enter(first, completion: done) } }
+        try require(again != nil && session.unrestored[first.id]?.pages == [page(.drift, pages.drift.id)],
+                    "The second partial restore kept \(String(describing: session.unrestored[first.id]?.pages))")
+        try WorkspaceRemoteProseFixture.execute(in: harness.directory, sql: "ALTER TABLE drift_group_unreadable RENAME TO drift_group")
+        let saveDelay = MacTabSession.saveDelay
+        MacTabSession.saveDelay = 5
+        defer { MacTabSession.saveDelay = saveDelay }
+        try harness.open(first, .drift(pages.drift))
+        try require(session.unrestored[first.id] == nil, "Opening the unread drift kept it unread")
+        let closed = try harness.step { done in
+            host.closeTab(pane: 0, scope: .drift(DriftScope(projectID: first.id, driftID: pages.drift.id))) { result in
+                if case .failure(let error) = result { done(error) } else { done(nil) }
+            }
+        }
+        try require(closed == nil, "The drift tab did not close: \(closed?.localizedDescription ?? "")")
+        session.saveNow()
+        try require(settings.tabSession(projectID: first.id)?.panes.first?.tabs == [page(.chapter, chapters[0].id), page(.chapter, chapters[1].id),
+                                                                                  page(.chapter, chapters[2].id)],
+                    "The closed drift came back: \(String(describing: settings.tabSession(projectID: first.id)))")
+        try harness.show(second)
+        try harness.show(first)
+        try require(host.tabTitles(pane: 0) == ["晨雾", "午潮", "暮钟"], "The restore put back \(host.tabTitles(pane: 0))")
         try harness.quit()
     }
 

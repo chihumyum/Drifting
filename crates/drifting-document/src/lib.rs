@@ -16,7 +16,9 @@ mod concurrent_draft_tests;
 mod draft_tests;
 mod drafts;
 mod formatting;
+mod rules;
 mod wrapping;
+pub use rules::{NativeRuleAction, NativeRuleEdit};
 #[cfg(test)]
 mod wrapping_tests;
 pub use formatting::{NativeFormatAction, NativeFormatting, NativeLinking};

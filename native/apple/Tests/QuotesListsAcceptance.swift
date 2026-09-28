@@ -13,8 +13,10 @@ extension BindingAcceptance {
         "AppKit 引用, 无序列表 and 有序列表 toggle through the 格式 menu, shortcuts assigned in 设置 › 快捷键, the toolbar, the prose context menu's 格式 submenu and the slash menu, checked for the caret's block, each as one undo unit that keeps the text, block IDs and a comment anchored on the wrapped paragraph, with both panes drawing the quote indent and the numbered and bulleted markers, and all of it survives a cold reopen",
         "AppKit typing “> ”, “- ”, “* ” or “1. ” as the whole text before the caret in a root paragraph (also an empty chapter, and with text after the caret) removes the marker through the input path and then quotes or lists the paragraph as two undo units, also when typing goes on at once, while “3. ”, a marker inside a sentence and a marker in a quote change nothing",
         "AppKit Rust's quote and list refusals (the middle of a quote or list, the other list kind, a quote around a list item, a list inside a quote, a mixed selection, an item of two paragraphs) show Chinese guidance and write nothing, and deleting across list items is refused before input is queued, leaving no failed draft",
-        "AppKit Return in a non-empty list item adds a paragraph to the same item and in a quote a paragraph to the quote; Return on an empty last list item or empty last quote paragraph, also typed while input is queued, and ⌫ at the start of a quote's first paragraph or of the first or last list item take the block out as one undo unit each, while ⌫ at a middle item is refused before input is queued",
+        "AppKit Return in a non-empty list item starts the next item once its new paragraph lands (at an item's end, in its middle and while typing goes on at once), and Return on that empty last item ends the list, one undo unit each; Return in a quote adds a paragraph to the quote, Return on an empty last quote paragraph, also typed while input is queued, and ⌫ at the start of a quote's first paragraph or of the first or last list item take the block out as one undo unit each, while ⌫ at a middle item is refused before input is queued",
         "AppKit 打印 and the PDF export set quotes muted and indented and list items with their numbers and bullets from the live projection; the 全书长卷's editor rows and read-only previews and the 历史版本 preview draw the same markers",
+        "AppKit 分隔线 goes in from 格式 › 插入分隔线 after the caret's block (the caret in the new paragraph) and from the slash menu before an empty paragraph, and out through 删除分隔线 in its context menu, ⌫ at the start of the paragraph after it (also while typed text is on its way) and ⌦ at the end of the one before it, each one undo unit with the caret where Rust puts it; typing over it is refused, and it is drawn as a centred thin line, never the placeholder, in both panes, the 全书长卷's editor rows and previews, the 历史版本 preview and print, and survives a cold reopen",
+        "AppKit the slash menu in a list item or a quote offers only the formats that apply there, a slash row whose format stopped applying before it was chosen keeps the typed “/”, and the list-marker drawing log stays bounded",
     ]
 
     static func quotesListsAcceptance() throws -> [String] {
@@ -27,6 +29,9 @@ extension BindingAcceptance {
         try qlRefusals()
         try qlEnterAndBackspace()
         try qlPrintingAndPreviews()
+        try qlListItemSplits()
+        try qlRules()
+        try qlSlashContext()
         return quotesListsCases
     }
 
@@ -481,16 +486,23 @@ extension BindingAcceptance {
         let mixed = try span("序", "甲一")
         try refused(.blockquote, at: "序", length: mixed.length - 1, "有的在引用或列表里，有的不在")
 
-        // An item of two paragraphs cannot leave its list.
+        // Return after an item's text starts the next item; undoing that one
+        // unit leaves the new paragraph in the item, which then has two
+        // paragraphs and cannot leave its list.
         let third = try qlAt("乙三", in: view)
         qlCaret(view, third + 3)
         qlKey(view, #selector(NSResponder.insertNewline(_:)))
         try qlSettled(host, view)
+        let started = try read(core).projection.blocks.first { $0.range.location == third + 4 }
+        try require(started?.containers == ["orderedList", "listItem"] && started?.listNumber == 4
+                    && started?.container != (try qlBlock(core, containing: "乙三")).container,
+                    "Return in the item did not start the next item: \(qlDescribe(core))")
+        view.undoProse(); try qlSettled(host, view)
         qlType(view, "续", at: third + 4)
         try qlSettled(host, view)
         let item = try qlBlock(core, containing: "续")
         try require(item.containers == ["orderedList", "listItem"] && item.container == (try qlBlock(core, containing: "乙三")).container,
-                    "Return in the item did not add a paragraph to it: \(qlDescribe(core))")
+                    "Undoing the split did not keep the paragraph in its item: \(qlDescribe(core))")
         try refused(.orderedList, at: "续", "这个列表项有不止一段")
 
         // Deleting across list items is refused before any input is queued.
@@ -535,27 +547,34 @@ extension BindingAcceptance {
         try require(try qlShape(core).map(\.containers.count) == [0, 2, 2, 2, 2, 0], "One undo did not put the item back")
         view.redoProse(); try qlSettled(host, view)
 
-        // Return at the end of a non-empty item adds a paragraph to that item.
+        // Return at the end of a non-empty item starts the next item once the
+        // new paragraph lands; Return on that empty last item ends the list.
         let third = try qlAt("丙", in: view)
+        let rowsBefore = try qlRows(page.directory)
         qlCaret(view, third + 1)
         qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try require(view.deferredFormat?.action == .splitListItem, "Return did not wait to start the next item")
         try qlSettled(host, view)
         let added = try read(core).projection.blocks[4]
         let thirdBlock = try qlBlock(core, containing: "丙")
-        try require(added.range.length == 0 && added.containers == ["orderedList", "listItem"] && added.listNumber == 3
-                    && added.container == thirdBlock.container, "Return in 丙 did not add a paragraph to its item: \(qlDescribe(core))")
-        try require(try qlDrawnMarkers(view.textView) == ["1.", "2.", "3."], "The item's second paragraph drew a marker")
-        // Return on that empty paragraph cannot end the list (its item has
-        // two paragraphs): it adds another, and ⌫ joins both back.
+        try require(added.range.length == 0 && added.containers == ["orderedList", "listItem"] && added.listNumber == 4
+                    && added.container != thirdBlock.container, "Return in 丙 did not start item 4: \(qlDescribe(core))")
+        try require(try qlDrawnMarkers(view.textView) == ["1.", "2.", "3.", "4."], "The new item does not draw its number")
+        try require((try qlStatus(view)) == "正文已保存" && (try qlRows(page.directory)) != rowsBefore,
+                    "Return and the split were not saved: \(try qlStatus(view))")
         qlKey(view, #selector(NSResponder.insertNewline(_:)))
         try qlSettled(host, view)
-        try require(try qlShape(core).filter { $0.containers.count == 2 }.count == 5, "Return on the item's empty paragraph left the item")
-        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
-        try qlSettled(host, view)
-        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
-        try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [0, 2, 2, 2, 0, 0, 0] && view.textView.string == text.replacingOccurrences(of: "丙\n", with: "丙\n\n"),
+                    "Return on the new empty item did not end the list: \(qlDescribe(core))")
+        // Each step is one undo unit: the lift, the split, then the Return.
+        view.undoProse(); try qlSettled(host, view)
+        try require(try qlShape(core).map(\.number) == [nil, 1, 2, 3, 4, nil, nil], "Undo did not put item 4 back: \(qlDescribe(core))")
+        view.undoProse(); try qlSettled(host, view)
+        let joined = try read(core).projection.blocks[4]
+        try require(joined.container == (try qlBlock(core, containing: "丙")).container, "Undo did not rejoin the paragraph to item 3")
+        view.undoProse(); try qlSettled(host, view)
         try require(try qlShape(core).map(\.containers.count) == [0, 2, 2, 2, 0, 0] && view.textView.string == text,
-                    "⌫ did not join the item's empty paragraphs: \(qlDescribe(core))")
+                    "Three undos did not restore the list: \(qlDescribe(core))")
 
         // ⌫ at the start of the first item takes it out before the list; at
         // the start of the last one after it; at a middle one it is refused
@@ -713,4 +732,346 @@ extension BindingAcceptance {
         try page.close()
     }
 
+
+    // MARK: List items
+
+    /// Return in the middle of an item and with typing going on at once.
+    private static func qlListItemSplits() throws {
+        let page = try qlPage("清单\n苹果梨子\n橙")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let first = try qlAt("苹果", in: view), orange = try qlAt("橙", in: view)
+        view.binding.format(.bulletList, range: NSRange(location: first, length: orange + 1 - first))
+        try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [0, 2, 2], "The list was not set up: \(qlDescribe(core))")
+        // In the middle: the rest of the item becomes the next item.
+        qlCaret(view, first + 2)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        var shape = try qlShape(core)
+        try require(shape.map(\.text) == ["清单", "苹果", "梨子", "橙"] && shape.dropFirst().allSatisfy { $0.containers.count == 2 }
+                    && Set(try read(core).projection.blocks.dropFirst().map(\.container)).count == 3,
+                    "Return in the middle did not split the item: \(qlDescribe(core))")
+        // At the end, with typing going on at once: the waiting split keeps
+        // to its paragraph, and the typed text lands in the new item.
+        let end = try qlAt("橙", in: view) + 1
+        qlCaret(view, end)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        qlType(view, "桃", at: end + 1)
+        try require(view.deferredFormat?.action == .splitListItem, "Typing dropped the waiting split")
+        try qlSettled(host, view)
+        shape = try qlShape(core)
+        let blocks = try read(core).projection.blocks
+        try require(shape.last?.text == "桃" && blocks.last?.container != blocks[blocks.count - 2].container && shape.last?.containers.count == 2,
+                    "Typing at once lost the new item: \(qlDescribe(core))")
+        try require(try qlDrawnMarkers(view.textView) == ["•", "•", "•", "•"], "The items draw \(try qlDrawnMarkers(view.textView))")
+        // A middle paragraph of an item with two (an undone split) does not
+        // split, and says nothing.
+        qlCaret(view, try qlAt("梨子", in: view) + 2)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        view.undoProse(); try qlSettled(host, view)
+        let pear = try qlBlock(core, containing: "梨子")
+        let beforeSplit = try read(core).projection.blocks
+        let emptyIndex = beforeSplit.firstIndex { $0.range.location == NSMaxRange(pear.range.nsRange) + 1 }
+        try require(emptyIndex.map { beforeSplit[$0].container == pear.container } == true, "Undo did not leave two paragraphs in 梨子's item")
+        qlCaret(view, try qlAt("梨子", in: view) + 1)
+        let status = try qlStatus(view)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try require(view.deferredFormat == nil, "A middle paragraph waited to split")
+        try qlSettled(host, view)
+        try require((try qlStatus(view)) == "正文已保存" && status == "正文已保存" && view.binding.store.lastFormatRefusal == nil,
+                    "Return in a middle paragraph showed \(try qlStatus(view))")
+        try page.close()
+    }
+
+    // MARK: Rules
+
+    private static func qlRuleLocation(_ core: LabCore, _ nth: Int = 0) throws -> Int {
+        let rules = try read(core).projection.blocks.filter { $0.kind == "horizontalRule" }
+        guard rules.indices.contains(nth) else { throw LabError.message("No rule \(nth) in \(qlDescribe(core))") }
+        return rules[nth].range.location
+    }
+
+    /// Draws the text view off screen and returns the rules it drew.
+    private static func qlDrawnRules(_ textView: NSTextView) throws -> [(location: Int, rect: NSRect)] {
+        guard let view = textView as? ListMarkerTextView else { throw LabError.message("The text view does not draw rules") }
+        view.drawnRules = []
+        let bounds = view.bounds
+        guard bounds.width > 1, bounds.height > 1, let rep = view.bitmapImageRepForCachingDisplay(in: bounds) else {
+            throw LabError.message("The text view has no area to draw: \(bounds)")
+        }
+        view.cacheDisplay(in: bounds, to: rep)
+        return view.drawnRules
+    }
+
+    /// A rule is a thin line centred in the text column, over an invisible character.
+    private static func qlRequireRuleDrawn(_ textView: NSTextView, at location: Int, _ label: String) throws {
+        let drawn = try qlDrawnRules(textView)
+        let column = (textView.textContainer?.size.width ?? 0) - 2 * (textView.textContainer?.lineFragmentPadding ?? 0)
+        let middle = textView.textContainerOrigin.x + (textView.textContainer?.lineFragmentPadding ?? 0) + column / 2
+        guard let rule = drawn.first(where: { $0.location == location }) else {
+            throw LabError.message("\(label) drew no rule at \(location): \(drawn)")
+        }
+        try require(rule.rect.height <= 1.5 && rule.rect.width >= 48 && rule.rect.width <= column && abs(rule.rect.midX - middle) <= 1,
+                    "\(label) drew the rule off centre: \(rule.rect) in a column of \(column)")
+        let color = textView.textStorage?.attribute(.foregroundColor, at: location, effectiveRange: nil) as? NSColor
+        try require(color == .clear && textView.textStorage?.attribute(DocumentStyle.ruleKey, at: location, effectiveRange: nil) != nil,
+                    "\(label) shows the rule's character: \(String(describing: color))")
+    }
+
+    private static func qlRules() throws {
+        let text = "开篇。\n潮汐。\n夜航。"
+        let page = try qlPage(text)
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let twin: NativeDocumentView = try elementResult { host.split(completion: $0) }
+        try qlSettled(host, view, twin)
+        let menu = qlMenu(view)
+        guard let formatGroup = MacMainMenu.groups(of: menu).first(where: { $0.title == "格式" }) else { throw LabError.message("No 格式 menu") }
+        try require(formatGroup.commands.map(\.title).contains("插入分隔线") && MacMenuCommand.insertRule.defaultShortcut.isNone,
+                    "The 格式 menu lacks 插入分隔线")
+
+        // 格式 › 插入分隔线 after 潮汐: the rule, then an empty paragraph with the caret.
+        let tide = try qlAt("潮汐", in: view)
+        var rows = try qlRows(page.directory)
+        qlCaret(view, tide + 1)
+        try qlChoose(menu, .insertRule)
+        try qlSettled(host, view, twin)
+        var projection = try read(core).projection
+        try require(projection.text == "开篇。\n潮汐。\n\u{fffc}\n\n夜航。" && projection.blocks[2].kind == "horizontalRule"
+                    && !projection.blocks[2].editable && projection.blocks[2].id != nil, "插入分隔线 wrote \(qlDescribe(core))")
+        try require(view.textView.selectedRange() == NSRange(location: projection.blocks[3].range.location, length: 0),
+                    "The caret is at \(view.textView.selectedRange()), not in the new paragraph")
+        try require((try qlRows(page.directory)) != rows && (try qlStatus(view)) == "正文已保存", "The rule was not saved")
+        for pane in [view, twin] { try qlRequireRuleDrawn(pane.textView, at: projection.blocks[2].range.location, "A pane") }
+        try require((try qlDrawnMarkers(view.textView)).isEmpty, "The rule drew a list marker")
+        view.undoProse(); try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == text, "One undo did not remove the rule")
+        view.redoProse(); try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == "开篇。\n潮汐。\n\u{fffc}\n\n夜航。", "Redo did not bring the rule back")
+
+        // The slash menu's 分隔线 in the empty paragraph: a rule before it,
+        // the caret stays in it (two undo units: the “/hr”, then the rule).
+        let empty = try read(core).projection.blocks[3].range.location
+        qlType(view, "/", at: empty)
+        qlType(view, "hr", at: empty + 1)
+        try require(view.picker?.items.map(\.title) == ["分隔线"], "/hr lists \(view.picker?.items.map(\.title) ?? [])")
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view, twin)
+        projection = try read(core).projection
+        try require(projection.text == "开篇。\n潮汐。\n\u{fffc}\n\u{fffc}\n\n夜航。" && projection.blocks[3].kind == "horizontalRule",
+                    "The slash row did not put a rule before the empty paragraph: \(qlDescribe(core))")
+        try require(view.textView.selectedRange() == NSRange(location: projection.blocks[4].range.location, length: 0),
+                    "The caret left the empty paragraph: \(view.textView.selectedRange())")
+        try require(ProsePickers.slashItems(query: "").last?.title == "分隔线" && ProsePickers.slashItems(query: "分").map(\.title) == ["分隔线"],
+                    "The slash menu does not list 分隔线 last")
+
+        // 删除分隔线 from the second rule's context menu; the caret follows.
+        let second = try qlRuleLocation(core, 1)
+        guard let window = view.window, let event = NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [],
+            timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1),
+              let context = view.textView(view.textView, menu: NSMenu(), for: event, at: second),
+              let remove = context.items.first(where: { $0.title == "删除分隔线" }) else {
+            throw LabError.message("The rule's context menu has no 删除分隔线")
+        }
+        guard let plainEvent = NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1),
+              let plain = view.textView(view.textView, menu: NSMenu(), for: plainEvent, at: tide) else { throw LabError.message("No prose menu") }
+        try require(!plain.items.contains { $0.title == "删除分隔线" }, "Prose offers 删除分隔线")
+        context.performActionForItem(at: context.index(of: remove))
+        try qlSettled(host, view, twin)
+        projection = try read(core).projection
+        try require(projection.text == "开篇。\n潮汐。\n\u{fffc}\n\n夜航。", "删除分隔线 left \(qlDescribe(core))")
+        try require(view.textView.selectedRange().location == second, "The caret did not follow: \(view.textView.selectedRange())")
+
+        // ⌫ at the start of the paragraph right after the rule removes it.
+        let afterRule = projection.blocks[3].range.location
+        qlCaret(view, afterRule)
+        rows = try qlRows(page.directory)
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == "开篇。\n潮汐。\n\n夜航。" && (try qlRows(page.directory)) != rows,
+                    "⌫ after the rule left \(qlDescribe(core))")
+        view.undoProse(); try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == "开篇。\n潮汐。\n\u{fffc}\n\n夜航。", "One undo did not bring the rule back")
+        // ⌦ at the end of the paragraph right before it.
+        qlCaret(view, try qlAt("潮汐。", in: view) + 3)
+        qlKey(view, #selector(NSResponder.deleteForward(_:)))
+        try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == "开篇。\n潮汐。\n\n夜航。", "⌦ before the rule left \(qlDescribe(core))")
+        view.undoProse(); try qlSettled(host, view, twin)
+        // ⌫ given while typed text is still on its way waits for it.
+        let paragraph = try read(core).projection.blocks[3].range.location
+        qlType(view, "雾", at: paragraph)
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        try require(view.deferredFormat?.command == .removeRule(forward: false), "⌫ at the paragraph's start did not wait for the typed text")
+        try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == "开篇。\n潮汐。\n\n夜航。", "The waiting ⌫ left \(qlDescribe(core))")
+        view.undoProse(); try qlSettled(host, view, twin)
+        try require(try read(core).projection.text == "开篇。\n潮汐。\n\u{fffc}\n\n夜航。", "Undo did not bring the rule back")
+
+        // Typing over the rule is refused before anything is queued.
+        let rule = try qlRuleLocation(core)
+        let current = view.textView.string
+        view.textView.setSelectedRange(NSRange(location: rule - 2, length: 4))
+        view.textView.insertText("换", replacementRange: NSRange(location: rule - 2, length: 4))
+        try require(view.textView.string == current && !view.binding.hasPendingWork && !view.binding.hasFailedDraft
+                    && (try qlStatus(view)).contains("分隔线不能和文字一起改写"), "Typing over the rule read “\(try qlStatus(view))”")
+
+        // Printing: a centred thin line, not text.
+        let stored: WorkspaceBodyProjection = try elementResult {
+            page.workspace.readProjection(projectID: page.project.id, kind: "chapter", id: page.chapter.id, completion: $0)
+        }
+        let typeset = PrintTypesetter().body(stored.projection)
+        let at = (typeset.string as NSString).range(of: "\u{fffc}").location
+        guard at != NSNotFound, let attachment = typeset.attribute(.attachment, at: at, effectiveRange: nil) as? NSTextAttachment,
+              attachment.attachmentCell is PrintRuleCell else { throw LabError.message("The printed rule is not a line: \(typeset.string.debugDescription)") }
+        try require((typeset.attribute(.paragraphStyle, at: at, effectiveRange: nil) as? NSParagraphStyle)?.alignment == .center
+                    && !typeset.string.contains("＊"), "The printed rule is not centred")
+        let output = page.directory.deletingLastPathComponent().appendingPathComponent("rules.pdf")
+        let printing = MacPrintCoordinator(workspace: page.workspace)
+        let a4 = NSPrintInfo()
+        a4.paperSize = PrintPaper.a4.size
+        printing.printInfo = { a4 }
+        printing.runPrintOperation = { operation, _ in
+            operation.printInfo.jobDisposition = .save
+            operation.printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = output
+            operation.showsPrintPanel = false
+            operation.showsProgressPanel = false
+            operation.run()
+        }
+        guard let target = host.activeHistoryTarget else { throw LabError.message("No focused page to print") }
+        let drawnBefore = PrintRuleCell.drawn
+        let pages: Int = try elementResult {
+            printing.print(MacPrintCoordinator.Target(projectID: target.projectID, kind: target.kind, id: target.id, title: target.title),
+                           window: nil, completion: $0)
+        }
+        try require(pages >= 1 && PrintRuleCell.drawn > drawnBefore && PDFDocument(url: output) != nil, "Printing drew no rule")
+
+        // The 全书长卷's editor row and read-only preview.
+        let row = NativeDocumentView(core: core, minimumTextHeight: 48, growsWithText: true)
+        row.frame = NSRect(x: 0, y: 0, width: 640, height: 400)
+        row.binding.load()
+        try wait { row.binding.state != nil && !row.binding.hasPendingWork && row.textView.string == view.textView.string }
+        row.layoutSubtreeIfNeeded()
+        try qlRequireRuleDrawn(row.textView, at: rule, "The long page's editor row")
+        try require(row.markerStrip == nil, "The long page's row has scrollbar markers")
+        try require(row.binding.detach(), "The long page's row did not detach")
+        let preview = WholeBookPreviewText(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
+        let styled = NSTextStorage(string: view.textView.string)
+        DocumentStyle.apply(try read(core).projection, to: styled)
+        preview.show(styled)
+        preview.prepare(width: 640)
+        preview.layoutSubtreeIfNeeded()
+        try qlRequireRuleDrawn(preview.textView, at: rule, "The long page's preview")
+
+        // Cold reopen keeps the rule; the 历史版本 preview draws it.
+        let expected = try read(core).projection
+        try page.close()
+        let cold = LabWorkspaceCore(directory: page.directory)
+        let (coldWindow, coldHost) = elementHost(cold)
+        defer { coldWindow.close() }
+        let _: [WorkspaceProject] = try elementResult { cold.projects(completion: $0) }
+        let reopened: NativeDocumentView = try elementResult { coldHost.open(project: page.project, chapter: page.chapter, completion: $0) }
+        try qlSettled(coldHost, reopened)
+        guard let coldProjection = reopened.binding.store.projection else { throw LabError.message("The reopened chapter has no projection") }
+        try require(coldProjection.text == expected.text && coldProjection.blocks.map(\.id) == expected.blocks.map(\.id)
+                    && coldProjection.blocks.map(\.kind) == expected.blocks.map(\.kind), "The rule did not survive a cold reopen")
+        try qlRequireRuleDrawn(reopened.textView, at: rule, "The reopened editor")
+        let closed: Bool = try elementResult {
+            coldHost.closeTab(pane: 0, scope: .chapter(ChapterScope(projectID: page.project.id, chapterID: page.chapter.id)), completion: $0)
+        }
+        try require(closed, "The chapter did not close")
+        let historyTarget = VersionHistoryTarget(projectID: page.project.id, kind: "chapter", id: page.chapter.id, title: page.chapter.title)
+        let model = VersionHistoryModel(workspace: cold, target: historyTarget)
+        let sheet = VersionHistorySheet(model: model)
+        sheet.begin(in: nil)
+        model.load()
+        try wait { model.loaded && !model.busy }
+        guard let version = model.entries.first else { throw LabError.message("No version was kept on close") }
+        sheet.select(entryID: version.id)
+        try wait { model.preview(of: version) != nil }
+        sheet.diffCheckbox.state = .off
+        sheet.reload()
+        sheet.previewView.frame = NSRect(x: 0, y: 0, width: 640, height: 400)
+        try qlRequireRuleDrawn(sheet.previewView, at: rule, "The 历史版本 preview")
+        sheet.close()
+        let shut: Bool = try elementResult { coldHost.close(completion: $0) }
+        try require(shut, "The cold workspace did not close")
+    }
+
+    // MARK: Slash rows by place, and bounded drawing logs
+
+    private static func qlSlashContext() throws {
+        let page = try qlPage("开头\n甲\n乙\n\n引\n尾")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let twin: NativeDocumentView = try elementResult { host.split(completion: $0) }
+        try qlSettled(host, view, twin)
+        let first = try qlAt("甲", in: view), second = try qlAt("乙", in: view)
+        view.binding.format(.orderedList, range: NSRange(location: first, length: second + 1 - first))
+        try qlSettled(host, view)
+        view.binding.format(.blockquote, range: NSRange(location: try qlAt("引", in: view), length: 0))
+        try qlSettled(host, view)
+        // A new empty last item: only its own list kind (which ends it),
+        // alignment and 分隔线 are offered.
+        let end = try qlAt("乙", in: view) + 1
+        qlCaret(view, end)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        let item = try read(core).projection.blocks.firstIndex { $0.range.location == end + 1 }
+        try require(item.map { (try? read(core).projection.blocks[$0].listNumber) == 3 } == true, "No empty item 3: \(qlDescribe(core))")
+        qlType(view, "/", at: end + 1)
+        try require(view.picker?.items.map(\.title) == ["有序列表", "居中", "右对齐", "分隔线"], "A list item's slash menu lists \(view.picker?.items.map(\.title) ?? [])")
+        view.closePicker()
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        try qlSettled(host, view)
+        // In the quote: headings, alignment, 引用 (it is the quote's only paragraph) and 分隔线.
+        let quote = try qlAt("引", in: view)
+        qlCaret(view, quote + 1)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        qlType(view, "/", at: quote + 2)
+        try require(view.picker?.items.map(\.title) == ["标题 1", "标题 2", "标题 3", "引用", "居中", "右对齐", "分隔线"],
+                    "A quote's slash menu lists \(view.picker?.items.map(\.title) ?? [])")
+        view.closePicker()
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        try qlSettled(host, view)
+        // A row whose format stopped applying before it was chosen keeps “/”.
+        let tail = try qlAt("尾", in: view) + 1
+        qlCaret(view, tail)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        let slash = tail + 1
+        qlType(view, "/", at: slash)
+        try require(view.picker?.items.contains { $0.title == "标题 1" } == true, "A root paragraph does not offer 标题 1")
+        try qlSettled(host, view)
+        // The other pane's owner makes the paragraph a list item meanwhile.
+        twin.binding.format(.bulletList, range: NSRange(location: slash, length: 0))
+        try qlSettled(host, view, twin)
+        try require(view.picker != nil && view.textView.selectedRange() == NSRange(location: slash + 1, length: 0),
+                    "The slash menu closed when the other pane listed its paragraph")
+        let rows = try qlRows(page.directory)
+        guard let heading = view.picker?.items.firstIndex(where: { $0.title == "标题 1" }) else { throw LabError.message("The picker closed") }
+        view.choosePickerItem(heading)
+        let refusal = try qlStatus(view)
+        try qlSettled(host, view)
+        try require((view.textView.string as NSString).substring(with: NSRange(location: slash, length: 1)) == "/"
+                    && (try qlRows(page.directory)) == rows && refusal.contains("这里不能设为标题 1"),
+                    "A row that no longer applies removed “/”: \(qlDescribe(core)) / \(refusal)")
+        // Rows are filtered by place for any caller that names the block.
+        let blocks = try read(core).projection.blocks
+        let rootIndex = blocks.firstIndex { $0.containers.isEmpty && $0.editable }!
+        try require(ProsePickers.slashItems(query: "", blocks: blocks, at: rootIndex).count == 10, "A root paragraph does not offer every row")
+        // The drawing logs keep only the last entries.
+        guard let text = view.textView as? ListMarkerTextView else { throw LabError.message("No marker view") }
+        text.drawnMarkers = Array(repeating: "x", count: ListMarkerTextView.drawLogLimit + 40)
+        let bounds = text.bounds
+        if let rep = text.bitmapImageRepForCachingDisplay(in: bounds) { text.cacheDisplay(in: bounds, to: rep) }
+        try require(text.drawnMarkers.count <= ListMarkerTextView.drawLogLimit && text.drawnMarkers.last == "•",
+                    "The marker log grew to \(text.drawnMarkers.count)")
+        try page.close()
+    }
 }

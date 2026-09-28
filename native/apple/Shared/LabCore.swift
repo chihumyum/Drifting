@@ -388,6 +388,13 @@ enum LabError: LocalizedError {
         let known: [(String, String)] = [
             ("http, https or mailto", "链接地址需要以 http://、https:// 或 mailto: 开头，且不能包含空格。正文和选区已保留。"),
             ("Select text before adding a link", "请先选中要加链接的文字。"),
+            ("No rule here", "这里没有分隔线。正文已保留。"),
+            ("keeps at least one block", "正文至少要留下一段，这条分隔线不能删除。"),
+            ("rule has no identity", "这条分隔线没有标识，已保留原样。"),
+            ("rule alone in a quote or list", "引用或列表里只有这条分隔线，暂时不能删除。"),
+            ("No text block at the caret", "请先把光标放在正文段落里，再插入分隔线。"),
+            ("preserved read-only", "只读内容处不能插入分隔线。请把光标放在正文段落里。"),
+            ("list item to split", "请把光标放在列表项里。"),
             ("require a paragraph or heading", "只有正文段落和标题可以对齐或缩进。正文和选区已保留。"),
             ("Document changed", "正文已变化，请重新选择后再试。"),
             ("active drafts", "请先完成输入，再设置格式。"),
@@ -423,6 +430,16 @@ struct NativeCheckpoint: Decodable { let update: String; let stateVector: String
 struct DraftSelection { let viewID: String; let epoch: UInt64; let range: NSRange }
 /// `linked` spans were added; the state is adopted like a format reply.
 struct NativeEntityLinkReply: Decodable { let linked: Int; let state: LabDocumentState }
+/// A `documentRule` reply: the document state and the caret's new place.
+struct LabRuleReply: Decodable {
+    let state: LabDocumentState
+    let caret: Int
+    private enum CodingKeys: String, CodingKey { case caret }
+    init(from decoder: Decoder) throws {
+        state = try LabDocumentState(from: decoder)
+        caret = try decoder.container(keyedBy: CodingKeys.self).decode(Int.self, forKey: .caret)
+    }
+}
 
 final class LabCore {
     private let queue: DispatchQueue
@@ -518,7 +535,7 @@ final class LabCore {
                reason.hasPrefix("NATIVE_HISTORY_UNAVAILABLE:") {
                 throw LabError.historyUnavailable(reason: reason)
             }
-            if ["documentFormat", "documentLink"].contains(request["operation"] as? String ?? ""),
+            if ["documentFormat", "documentLink", "documentRule"].contains(request["operation"] as? String ?? ""),
                reason.hasPrefix("NATIVE_FORMATTING_UNAVAILABLE:") {
                 throw LabError.formattingUnavailable(reason: reason)
             }
@@ -624,6 +641,12 @@ final class LabCore {
     func document(_ operation: String = "documentRead", edit: [String: Any]? = nil,
                   completion: @escaping (Result<LabDocumentState, Error>) -> Void) {
         documentRequest(operation, fields: edit.map { ["edit": $0] } ?? [:], completion: completion)
+    }
+
+    /// `documentRule`: inserts or removes a horizontal rule; the state comes
+    /// back with where the caret belongs. Callers go through DocumentStore.
+    func rule(edit: [String: Any], completion: @escaping (Result<LabRuleReply, Error>) -> Void) {
+        documentValue("documentRule", fields: ["edit": edit], completion: completion)
     }
 
     private func documentRequest(_ operation: String, fields: [String: Any],
@@ -995,6 +1018,13 @@ struct WorkspaceAgentProse: Decodable {
 /// `workspaceAgent readProjection`: a body's text, blocks and marks for
 /// printing, read from its open owner (`live`, with text not saved yet) or
 /// from stored prose. Display hints only; the marks stay in Yrs.
+/// `readProjection` decoded as the editor's projection, with whether it
+/// came from an open owner.
+struct WorkspaceNativeProjection: Decodable {
+    let projection: NativeProjection
+    let live: Bool
+}
+
 struct WorkspaceBodyProjection: Decodable {
     struct Marks: Decodable {
         /// Mark names without y-prosemirror's overlap suffix.
@@ -2309,6 +2339,17 @@ final class LabWorkspaceCore {
     /// written. Queued input is not in it yet; callers wait for it first.
     func readProjection(projectID: String, kind: String, id: String,
                         completion: @escaping (Result<WorkspaceBodyProjection, Error>) -> Void) {
+        perform(completion) {
+            try self.request("workspaceAgent", fields: ["projectId": projectID,
+                "command": ["action": "readProjection", "target": ["kind": kind, "id": id]]])
+        }
+    }
+
+    /// A body's full native projection (blocks, runs and entity links), live
+    /// from its open owner or else stored, for 统计. A read only, as
+    /// `readProjection`: no owner opens and nothing is written.
+    func readNativeProjection(projectID: String, kind: String, id: String,
+                              completion: @escaping (Result<WorkspaceNativeProjection, Error>) -> Void) {
         perform(completion) {
             try self.request("workspaceAgent", fields: ["projectId": projectID,
                 "command": ["action": "readProjection", "target": ["kind": kind, "id": id]]])

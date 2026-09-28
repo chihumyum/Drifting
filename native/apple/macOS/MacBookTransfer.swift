@@ -88,6 +88,9 @@ final class MacImportSheet: NSObject {
     let cancelButton = NSButton(title: "取消", target: nil, action: nil)
     private let message = NSTextField(wrappingLabelWithString: "")
     private var categories: [WorkspaceElementCategory]?
+    /// An import is running: 导入 and the popups stay disabled, and Return
+    /// or a late library reply cannot start a second one.
+    private(set) var importing = false
     /// The title, the target and, for a chapter, the storyline it joins.
     var onImport: ((String, BookImportTarget, String?) -> Void)?
     var onCancel: (() -> Void)?
@@ -262,7 +265,8 @@ final class MacImportSheet: NSObject {
         let chapter = selectedKind == "chapter"
         storylineLabel.isHidden = !chapter
         storylinePopup.isHidden = !chapter
-        categoryPopup.isEnabled = element && categories?.isEmpty == false
+        categoryPopup.isEnabled = element && categories?.isEmpty == false && !importing
+        if importing { return }
         if element, categories?.isEmpty == true {
             showError("还没有设定分类。请先在设定库中新建一个分类，例如“人物”。")
         } else { showError(nil) }
@@ -275,12 +279,17 @@ final class MacImportSheet: NSObject {
     }
 
     func setImporting(_ importing: Bool) {
+        self.importing = importing
         importButton.isEnabled = !importing
         cancelButton.isEnabled = !importing
+        targetPopup.isEnabled = !importing; storylinePopup.isEnabled = !importing
+        titleField.isEnabled = !importing
         importButton.title = importing ? "正在导入…" : "导入"
+        if !importing { targetChanged() } else { categoryPopup.isEnabled = false }
     }
 
     @objc func confirm() {
+        guard !importing else { return }
         let title = BookImportParser.trim(titleField.currentEditor()?.string ?? titleField.stringValue)
         guard !title.isEmpty else { showError("标题不能为空。"); return }
         let target: BookImportTarget
@@ -308,6 +317,13 @@ private final class ImportPreviewWash: NSView {
         layer?.cornerRadius = 8
         layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.06).cgColor
     }
+}
+
+/// An imported entity, and why its chapter did not join the chosen 故事线
+/// (nil when it joined or none was chosen).
+struct BookImportResult {
+    let entity: WorkspaceImportedEntity
+    let joinFailure: String?
 }
 
 /// 文件 › 导入… and 导出全书…. Import parses the file on the host, lets the
@@ -363,7 +379,7 @@ final class MacBookTransfer {
                 do { self.present(try Self.read(urls[0]), project: project, window: window) }
                 catch { self.onStatus?(error.localizedDescription) }
             } else {
-                self.presentBulk(Self.items(urls), project: project, window: window)
+                self.presentBulk(urls, project: project, window: window)
             }
         }
         if let chooseImportFile { chooseImportFile(window) { finish($0.map { [$0] } ?? []) }; return }
@@ -393,16 +409,16 @@ final class MacBookTransfer {
         }
         sheet.onCancel = { [weak self] in self?.endImport() }
         sheet.onImport = { [weak self, weak sheet] title, target, storylineID in
-            guard let self, let sheet else { return }
+            guard let self, let sheet, !sheet.importing else { return }
             sheet.setImporting(true)
             self.importOne(project: project, title: title, target: target, storylineID: storylineID,
                            blocks: document.blocks) { [weak self, weak sheet] result in
                 guard let self else { return }
                 sheet?.setImporting(false)
                 switch result {
-                case .success(let entity):
+                case .success(let imported):
                     self.endImport()
-                    self.adopt(entity, project: project)
+                    self.adopt(imported.entity, project: project, joinFailure: imported.joinFailure)
                 case .failure(let error):
                     // The sheet stays with the typed title for another try.
                     sheet?.showError(error.localizedDescription)
@@ -415,18 +431,24 @@ final class MacBookTransfer {
 
     /// The single-file path every import takes: Rust creates the entity with
     /// its body; a chapter then joins the storyline as its 主线. A failed join
-    /// keeps the chapter and says so.
+    /// keeps the chapter and comes back with it (`joinFailure`), for the
+    /// caller to show.
     func importOne(project: WorkspaceProject, title: String, target: BookImportTarget, storylineID: String?,
-                   blocks: [BookImportBlock], completion: @escaping (Result<WorkspaceImportedEntity, Error>) -> Void) {
+                   blocks: [BookImportBlock], completion: @escaping (Result<BookImportResult, Error>) -> Void) {
         workspace.importBlocks(projectID: project.id, title: title, target: target, blocks: blocks) { [weak self] result in
-            guard let self, case .success(.chapter(let chapter)) = result, let storylineID else { completion(result); return }
-            self.workspace.setChapterStorylines(projectID: project.id, chapterID: chapter.id, storylineIDs: [storylineID],
-                                                primary: storylineID) { [weak self] joined in
-                if case .failure(let error) = joined {
-                    self?.onStatus?("已导入“\(chapter.title)”，但未能加入故事线：\(error.localizedDescription)")
+            switch result {
+            case .failure(let error): completion(.failure(error))
+            case .success(let entity):
+                guard let self, case .chapter(let chapter) = entity, let storylineID else {
+                    completion(.success(BookImportResult(entity: entity, joinFailure: nil))); return
                 }
-                self?.host.storylinesChanged(projectID: project.id)
-                completion(result)
+                self.workspace.setChapterStorylines(projectID: project.id, chapterID: chapter.id, storylineIDs: [storylineID],
+                                                    primary: storylineID) { [weak self] joined in
+                    var failure: String?
+                    if case .failure(let error) = joined { failure = error.localizedDescription }
+                    self?.host.storylinesChanged(projectID: project.id)
+                    completion(.success(BookImportResult(entity: entity, joinFailure: failure)))
+                }
             }
         }
     }
@@ -434,11 +456,11 @@ final class MacBookTransfer {
     /// Lists learn about the new entity and its page opens once every open
     /// body is idle (a link pass may still be settling); then the libraries
     /// that name it are read again.
-    private func adopt(_ entity: WorkspaceImportedEntity, project: WorkspaceProject, attempt: Int = 0) {
+    private func adopt(_ entity: WorkspaceImportedEntity, project: WorkspaceProject, joinFailure: String?, attempt: Int = 0) {
         if attempt == 0 { onImported?(project, entity) }
         guard host.canNavigate || attempt >= 50 else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.adopt(entity, project: project, attempt: attempt + 1)
+                self?.adopt(entity, project: project, joinFailure: joinFailure, attempt: attempt + 1)
             }
             return
         }
@@ -449,9 +471,12 @@ final class MacBookTransfer {
             case .drift: self.host.driftsChanged(projectID: project.id)
             case .element: self.host.elementsChanged(projectID: project.id)
             }
+            // A failed 故事线 join stays in the final status.
+            let join = joinFailure.map { "但未能加入故事线：\($0)" }
             switch result {
-            case .success: self.onStatus?("已导入“\(entity.title)”，正文自动保存。")
-            case .failure(let error): self.onStatus?("已导入“\(entity.title)”，但页面未能打开：\(error.localizedDescription)")
+            case .success: self.onStatus?("已导入“\(entity.title)”" + (join.map { "，\($0)。正文自动保存。" } ?? "，正文自动保存。"))
+            case .failure(let error):
+                self.onStatus?("已导入“\(entity.title)”" + (join.map { "，\($0)" } ?? "") + "，但页面未能打开：\(error.localizedDescription)")
             }
         }
         switch entity {
@@ -465,6 +490,7 @@ final class MacBookTransfer {
     func endImport(projectID: String? = nil) {
         guard projectID == nil || projectID == importProjectID else { return }
         let window = importSheet?.window ?? bulkSheet?.window
+        bulkSheet?.close()
         importSheet = nil; bulkSheet = nil; importProjectID = nil
         guard let window else { return }
         if let parent = window.sheetParent { parent.endSheet(window) } else { window.orderOut(nil) }

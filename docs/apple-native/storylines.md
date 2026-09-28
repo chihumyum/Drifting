@@ -73,9 +73,13 @@ element page's facts editor (`setStorylineFacts`). A refusal keeps typed text
 and rows. Below it, 章节 lists the storyline's chapters in book order, marking
 those whose 主线 it is and each chapter's words (or 未起); a row opens that
 chapter in the page's pane. 全部, 已写 and 未起 (with their counts) filter the
-list by the canonical word count: a chapter with words is 已写. Until every
-listed chapter is counted the list shows all of them and says so; typing in a
-chapter moves it once its count is read. Each page's filter is kept in
+list by the canonical word count: a chapter with words is 已写, unless its
+body is still exactly the 章节模版 (lines compared as category pages compare
+bodies), which is 未起 too. Only a chapter counted at most the template's
+words (`@drifting/prose-metrics`' count, ported for the template) has its
+body read to compare (`agentReadProse`, a read only), once per count. Until
+every listed chapter is counted and compared the list shows all of them and
+says so; typing in a chapter moves it once its count is read. Each page's filter is kept in
 `settings.json` (`listFilters`, per project and `storyline:<id>`), other views
 of the page follow, and it comes back after a relaunch.
 

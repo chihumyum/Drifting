@@ -1,10 +1,10 @@
 # Native editor formatting, find and pickers
 
 Selection marks (bold, italic, underline, strike, URL links), block styles
-(paragraph, heading 1–3), block attributes (alignment, indent) and quotes and
-lists (引用, 无序列表, 有序列表) use the same document owner, history and
-persistence path as typing, in every Mac body editor: chapter, drift,
-element, category and storyline pages and the 全书长卷. The slash menu,
+(paragraph, heading 1–3), block attributes (alignment, indent), quotes and
+lists (引用, 无序列表, 有序列表) and horizontal rules (分隔线) use the same
+document owner, history and persistence path as typing, in every Mac body
+editor: chapter, drift, element, category and storyline pages and the 全书长卷. The slash menu,
 Markdown-style starts, find and the @ picker are editor tools on that path.
 Native only; no Tauri interoperability is kept. The deferred UIKit editor keeps
 bold, italic and the paragraph-style menu.
@@ -15,7 +15,7 @@ bold, italic and the paragraph-style menu.
 displayed revision, a global UTF-16 range and one action: `bold`, `italic`,
 `underline`, `strike`, `paragraph`, `heading1`–`heading3`, `alignLeft`,
 `alignCenter`, `alignRight`, `indentIncrease`, `indentDecrease`, `blockquote`,
-`bulletList` or `orderedList`. The core
+`bulletList`, `orderedList` or `splitListItem`. The core
 validates the whole selection before mutation; one command is one local
 transaction and one undo unit, also across paragraphs, and a command that
 changes nothing writes nothing and keeps the revision. There is no separate
@@ -45,6 +45,20 @@ typing-marks state.
   list, the other list kind, a quote around a list item, a list inside a
   quote, a mixed selection, an item of several paragraphs and nested
   structures. Blocks report `containers` (outermost first) and `listNumber`.
+- **New list items**: `splitListItem` at a caret in a paragraph or heading
+  that is the last child of an item of a root list, and not its first, moves
+  it into a new item right after that one (one undo unit); anything else
+  refuses before mutation.
+
+`DocumentSession::rule_native(NativeRuleEdit)` (`documentRule`,
+`crates/drifting-document/src/rules.rs`) takes the displayed revision, a
+UTF-16 `location` and `insert` or `remove`, and the reply adds `caret`.
+`insert` puts a rule after the top-level block holding the location and a new
+empty paragraph after it (the caret there); in an empty top-level paragraph
+the rule goes before it and the caret stays. `remove` removes the rule whose
+block starts at the location; a rule without an identity, the only block and
+a rule alone in a quote or list stay. A rule is a read-only block of one
+U+FFFC unit. One undo unit each; refusals are `NATIVE_FORMATTING_UNAVAILABLE:`.
 
 `DocumentSession::link_native(NativeLinking)` (`documentLink`) sets the URL
 link mark `link: {href}` on selected text — a trimmed http, https or mailto
@@ -80,17 +94,27 @@ duplicate operation.
   format once that input lands (two undo units), as a slash row does. Other
   numbers, a marker inside a sentence and one in a quote or list stay text.
 - **Return and ⌫ in quotes and lists**: Return in a quote paragraph adds a
-  paragraph to the quote; in a non-empty list item it adds a paragraph to the
-  same item, drawn without a marker (the core has no item split). Return on
-  an empty paragraph that is the last of its quote, or on an empty list item
-  holding one paragraph that is its list's last, lifts it out (ends the quote
-  or list, one undo unit). ⌫ at the start of a quote's first paragraph, or of
-  the only paragraph of a list's first or last item, lifts it out instead of
-  joining it to the paragraph before. ⌫ at a middle item, and any deletion
-  across list items or between a list and the paragraph beside it, is
-  refused before input is queued (列表项之间不能合并…), as Rust would refuse it.
-  So after typing in an item, Return twice does not leave the list: ⌫ the
-  empty paragraph and continue below the list, or end it from an empty item.
+  paragraph to the quote. Return in a non-empty list item whose paragraph is
+  its item's last adds the paragraph, and once it lands applies
+  `splitListItem` to it (the waiting-command pattern of the slash menu), so
+  the new paragraph is the next item: at an item's end an empty item, in its
+  middle the rest of the text. Return on an empty paragraph that is the last
+  of its quote, or on an empty list item holding one paragraph that is its
+  list's last, lifts it out (ends the quote or list, one undo unit): Return
+  twice after an item's text ends the list. ⌫ at the start of a quote's first
+  paragraph, or of the only paragraph of a list's first or last item, lifts
+  it out instead of joining it to the paragraph before. ⌫ at a middle item,
+  and any deletion across list items or between a list and the paragraph
+  beside it, is refused before input is queued (列表项之间不能合并…), as Rust
+  would refuse it.
+- **分隔线**: 格式 › 插入分隔线 (no default shortcut), the context menu's 格式
+  submenu and the slash menu's 分隔线 insert a rule through `documentRule`;
+  the caret goes where Rust puts it. A rule's context menu offers 删除分隔线;
+  ⌫ at the start of the paragraph right after a rule, or ⌦ at the end of the
+  one right before it (or either key on the rule), removes it, also when
+  given while typed text is on its way (it waits like a slash row). Typing
+  over a rule together with text is refused before input is queued
+  (分隔线不能和文字一起改写…). Markdown export writes `---`.
 - **Keys**: Tab and ⇧Tab indent the caret's paragraph or every selected one, as
   in the renderer, and never type a tab character. ⌘[ and ⌘] stay free for
   back and forward. The shortcuts are listed in 设置 › 快捷键
@@ -118,8 +142,12 @@ duplicate operation.
   (`ListMarkerTextView`), never typed, so the prose, caret and selections
   exclude them; the view keeps its TextKit engine. An empty paragraph's line
   break carries its paragraph style, so its caret follows the alignment.
-  Headings are 28/24/20 pt at the 17 pt body. Printing and the PDF export set
-  the same, with the markers as text ([library](library.md)).
+  Headings are 28/24/20 pt at the 17 pt body. A rule is a centred thin line
+  across a third of the text column (48–320 points) in the separator colour,
+  drawn by the text view with its background over the rule's invisible
+  character, never the placeholder of unsupported content. Printing and the
+  PDF export set the same, with the markers as text and a rule as a centred
+  line ([library](library.md)).
 - **链接…** needs a selection, or a caret inside a URL link (which selects the
   link). The sheet is prefilled from the existing link or a selected address (a
   URL, a `www.` host or an e-mail address); a bare domain becomes https and a
@@ -130,12 +158,19 @@ duplicate operation.
   plain click edits. Typing never autolinks.
 - **Slash menu**: “/” typed at the start of an empty paragraph or heading (also
   ／, and 、, which the / key types with Pinyin) opens a popover at the caret
-  with 正文, 标题 1, 标题 2, 标题 3, 引用, 无序列表, 有序列表, 居中 and 右对齐.
-  Typing filters by title or keyword (`h1`, `quote`, `ul`, `ol`, `center` …);
-  ↑ and ↓ move, Return chooses: “/query” is deleted
+  with 正文, 标题 1, 标题 2, 标题 3, 引用, 无序列表, 有序列表, 居中, 右对齐 and
+  分隔线, only the rows that apply where it opened: in a quote headings,
+  alignment, 引用 (at the quote's first or last paragraph) and 分隔线; in a
+  list item alignment, its own list kind (an item alone at the list's start
+  or end) and 分隔线; deeper, alignment and 分隔线.
+  Typing filters by title or keyword (`h1`, `quote`, `ul`, `ol`, `center`,
+  `hr` …); ↑ and ↓ move, Return chooses: “/query” is deleted
   through the input path, then the format applies once that input lands (two
-  undo units). Esc, a caret moved away, lost focus, a space, sentence
-  punctuation or no match closes it and leaves the text.
+  undo units). A row whose format stopped applying meanwhile leaves “/query”
+  in place and says so; a Markdown start whose format does not apply leaves
+  its marker as typed. Esc, a caret moved away,
+  lost focus, a space, sentence punctuation or no match closes it and leaves
+  the text.
 - **Find**: ⌘F shows the standard find bar of the page's editor with
   incremental search highlighting every match; ⌘G, ⇧⌘G and ⌘E work as in every
   Mac app (编辑 › 查找…, 查找下一个, 查找上一个, 用所选内容查找). While the bar is open,
@@ -197,20 +232,31 @@ duplicate operation.
   its input is queued keeping the heading or indent, and a mistyped @ query
   corrected with ⌫, an inert picker not taking Return. `--style-only` and the
   older formatting cases keep the incremental-style reference.
-- `--quotes-lists-only` (five AppKit cases in
+- `--quotes-lists-only` (seven AppKit cases in
   `native/apple/Tests/QuotesListsAcceptance.swift`) covers each toggle by
   menu, an assigned shortcut, the toolbar, the context submenu and the slash
   menu with checkmarks, one undo unit each, block IDs and a comment on a
   wrapped paragraph kept, both panes drawing indents and markers, and a cold
   reopen; Markdown starts (an empty chapter, text after the caret, typing on
   at once, non-starts); Rust's refusals in Chinese writing nothing and
-  deletions across items refused without a failed draft; Return and ⌫ ending
-  quotes and lists (also while input is queued) and Return in an item; and
-  printing, the PDF, the 全书长卷's editor rows and previews and the 历史版本
-  preview drawing the markers.
+  deletions across items refused without a failed draft (an item of two
+  paragraphs comes from undoing a split); Return starting the next item at
+  an item's end and in its middle, also with typing going on at once, a
+  middle paragraph that does not split, Return on the new empty item ending
+  the list and each step one undo unit; Return and ⌫ ending quotes and lists
+  (also while input is queued); printing, the PDF, the 全书长卷's editor rows
+  and previews and the 历史版本 preview drawing the markers; 分隔线 by menu,
+  slash row, context menu, ⌫ and ⌦ (also while typed text is on its way)
+  with the caret where Rust puts it, typing over a rule refused, the line
+  drawn centred with its character hidden in both panes, the 全书长卷, the
+  历史版本 preview and print, and a cold reopen; and slash rows by place, a
+  row that stopped applying keeping “/”, and the drawing log's bound.
 - Not covered: physical keys and clicks, the popovers and find bar on screen,
   typing into the find bar's field, input-method composition inside a
   picker's query, the markers' pixels (the tests record which markers each view
-  draws), nested quotes and lists (read and drawn, not created), splitting a
-  list item and ending a list from an item of several paragraphs, which need
-  a new core edit.
+  draws), nested quotes and lists (read and drawn, not created; Tab indents,
+  it does not nest an item), and ending a list from an item of several
+  paragraphs (an older item or an undone split), which needs a new core edit.
+  Return pressed again before the first Return's split has landed adds a
+  paragraph to the item instead of ending the list. A rule inserted inside a
+  quote or list goes after the whole quote or list.

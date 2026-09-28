@@ -236,6 +236,8 @@ final class ProseFinderClient: NSObject, NSTextFinderClient {
 struct ProsePickerItem: Equatable {
     enum Action: Equatable {
         case format(NativeFormatAction)
+        /// 分隔线: a horizontal rule before the (now empty) paragraph.
+        case rule
         /// Inserts an element name or alias, or a chapter title, which the
         /// link pass then links.
         case mention(name: String, kind: EntityLinkTarget.Kind, id: String)
@@ -368,13 +370,50 @@ enum ProsePickers {
         (.alignCenter, ["center"]), (.alignRight, ["right"]),
     ]
 
-    /// 正文, 标题 1–3, 引用, 无序列表, 有序列表, 居中 and 右对齐 whose title
-    /// contains the query, or whose keyword starts with it (h1, quote, ol …).
-    static func slashItems(query: String) -> [ProsePickerItem] {
+    /// 分隔线's keywords (hr, rule, divider, fenge).
+    private static let ruleKeywords = ["hr", "rule", "divider", "fenge", "---"]
+
+    /// Whether Rust applies a block format to the paragraph or heading at
+    /// `index`, as the slash menu and Markdown starts need to know before
+    /// they remove what was typed. At the root everything applies. In a
+    /// quote: headings, alignment and 引用 when the block is the quote's
+    /// first or last. In an item of a root list: alignment, and the same
+    /// list kind when the item holds only this block and is its list's first
+    /// or last. Elsewhere (nested) only alignment.
+    static func formatApplies(_ action: NativeFormatAction, at index: Int, in blocks: [NativeBlock]) -> Bool {
+        guard blocks.indices.contains(index) else { return false }
+        let block = blocks[index]
+        guard block.acceptsBlockAttributes else { return false }
+        if NativeFormatAction.alignments.contains(action) || action.isBlockAttribute { return true }
+        if block.containers.isEmpty { return true }
+        let previous = index > 0 ? blocks[index - 1] : nil
+        let next = blocks.indices.contains(index + 1) ? blocks[index + 1] : nil
+        switch block.rootContainer {
+        case "blockquote"?:
+            if NativeFormatAction.blocks.contains(action) { return action != .paragraph }
+            guard action == .blockquote else { return false }
+            return previous?.container != block.container || next?.container != block.container
+        case let list?:
+            guard action.rawValue == list, previous?.container != block.container, next?.container != block.container else { return false }
+            return previous?.containers != block.containers || next?.containers != block.containers
+        case nil: return false
+        }
+    }
+
+    /// 正文, 标题 1–3, 引用, 无序列表, 有序列表, 居中, 右对齐 and 分隔线 whose
+    /// title contains the query, or whose keyword starts with it (h1, quote,
+    /// ol, hr …). With the block the menu opened in, only formats that apply
+    /// there are offered (`formatApplies`); a rule goes after any block.
+    static func slashItems(query: String, blocks: [NativeBlock]? = nil, at index: Int? = nil) -> [ProsePickerItem] {
         let q = query.lowercased()
-        return slash.filter { action, keywords in
+        let formats = slash.filter { action, keywords in
             q.isEmpty || action.title.lowercased().contains(q) || keywords.contains { $0.hasPrefix(q) }
+        }.filter { action, _ in
+            guard let blocks, let index else { return true }
+            return formatApplies(action, at: index, in: blocks)
         }.map { ProsePickerItem(title: $0.0.title, detail: "", action: .format($0.0)) }
+        let rule = q.isEmpty || "分隔线".contains(q) || ruleKeywords.contains { $0.hasPrefix(q) }
+        return formats + (rule ? [ProsePickerItem(title: "分隔线", detail: "", action: .rule)] : [])
     }
 
     /// Names containing the query (ignoring case): exact matches, then

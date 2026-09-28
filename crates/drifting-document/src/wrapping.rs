@@ -277,4 +277,103 @@ impl DocumentSession {
         );
         Ok(())
     }
+
+    /// Moves the caret's paragraph or heading, the last child of a list item
+    /// of a root list and not its first, into a new list item right after
+    /// that one: the second half of Enter in a list item. Only the moved leaf
+    /// is rebuilt. One local transaction and one undo unit.
+    pub(crate) fn split_list_item(&mut self, request: NativeFormatting) -> Result<(), String> {
+        if request.range.length != 0 {
+            return Err("Place the caret in the list item to split".into());
+        }
+        let view = self.native_projection()?;
+        let (first, last) = selected_blocks(&view, &request.range)?;
+        let block = &view.blocks[first];
+        if !block.editable || !matches!(block.kind.as_str(), "paragraph" | "heading") {
+            return Err("Quotes and lists apply to paragraphs and headings".into());
+        }
+        let txn = self.doc.transact();
+        let leaf = self.editable_block(&txn, block.id.as_deref().ok_or("Missing block ID")?)?;
+        let item = parent_element(&leaf)
+            .filter(|item| item.tag().as_ref() == "listItem")
+            .ok_or("The caret is not in a list item")?;
+        let list = parent_element(&item)
+            .filter(|list| {
+                matches!(list.tag().as_ref(), "bulletList" | "orderedList") && is_root(list)
+            })
+            .ok_or("Only items of a top-level list split")?;
+        let position = child_index(&item, &txn, &leaf).ok_or("Item child moved")?;
+        if position == 0 || position + 1 != item.len(&txn) {
+            return Err(
+                "Only the last paragraph of a list item after its first becomes a new item".into(),
+            );
+        }
+        let item_index = child_index(&list, &txn, &item).ok_or("List item moved")?;
+        let text = match (leaf.len(&txn), leaf.get(&txn, 0)) {
+            (0, None) => None,
+            (1, Some(XmlOut::Text(_))) => Some((
+                text_attributes(std::slice::from_ref(&leaf), &txn)?,
+                tail_runs(block, &leaf, &txn, block.range.location)?,
+            )),
+            _ => return Err("Text block requires exactly one XML text child in this slice".into()),
+        };
+        let copy = LeafCopy {
+            tag: leaf.tag().to_string(),
+            attrs: block_attributes(&leaf, &txn)?,
+            text,
+        };
+        drop(txn);
+        let blocks = &view.blocks[first..=last];
+        let before = self.capture_lineage(blocks)?;
+        let comments = self.comments.clone();
+        let selections = self.selections.clone();
+        let undo_count = self.undo.undo_stack().len();
+        {
+            let mut txn = self.doc.transact_mut_with(LOCAL);
+            let next = list.insert(
+                &mut txn,
+                item_index + 1,
+                XmlElementPrelim::empty("listItem"),
+            );
+            let target = next.push_back(&mut txn, XmlElementPrelim::empty(copy.tag.as_str()));
+            for (key, value) in copy.attrs {
+                target.insert_attribute(&mut txn, key, value);
+            }
+            if let Some((attrs, runs)) = copy.text {
+                let text = target.push_back(&mut txn, XmlTextPrelim::new(""));
+                preserve_text_attributes(&text, &mut txn, &attrs);
+                insert_runs(&text, &mut txn, 0, runs);
+            }
+            item.remove(&mut txn, position);
+        }
+        self.undo.reset();
+        self.revision += 1;
+        let after = self.native_projection()?;
+        let mapping = NativeEditMap::new(
+            &view,
+            &after,
+            &NativeReplacement {
+                revision: request.revision,
+                range: NativeRange {
+                    location: 0,
+                    length: 0,
+                },
+                text: String::new(),
+            },
+        );
+        let lineage = crate::lineage::Lineage {
+            before,
+            after: self.capture_lineage(&after.blocks[first..=last])?,
+            forward: mapping.clone(),
+            relocation: None,
+        };
+        self.finish_local_edit(
+            comments,
+            selections,
+            undo_count,
+            Some(&mapping),
+            Some(lineage),
+        );
+        Ok(())
+    }
 }

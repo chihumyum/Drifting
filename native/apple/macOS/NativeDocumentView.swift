@@ -40,6 +40,9 @@ final class ProseTextView: ListMarkerTextView {
     var performEditLink: (() -> Void)?
     var canRemoveLink: (() -> Bool)?
     var performRemoveLink: (() -> Void)?
+    /// 格式 › 插入分隔线.
+    var canInsertRule: (() -> Bool)?
+    var performInsertRule: (() -> Void)?
     /// 编辑 › Copilot 分析 (⇧⌘I) on this body.
     var canPerformCopilot: (() -> Bool)?
     var performCopilot: (() -> Void)?
@@ -157,6 +160,10 @@ final class ProseTextView: ListMarkerTextView {
         guard canPerformComment?() == true else { return }
         performComment?()
     }
+    @objc func insertRuleProse(_ sender: Any?) {
+        guard canInsertRule?() == true else { return }
+        performInsertRule?()
+    }
     @objc func copilotAnalyze(_ sender: Any?) {
         guard canPerformCopilot?() == true else { return }
         performCopilot?()
@@ -186,6 +193,7 @@ final class ProseTextView: ListMarkerTextView {
         if action == #selector(editProseLink(_:)) { return canEditLink?() == true }
         if action == #selector(removeProseLink(_:)) { return canRemoveLink?() == true }
         if action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
+        if action == #selector(insertRuleProse(_:)) { return canInsertRule?() == true }
         if action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
         if action == #selector(performTextFinderAction(_:)) {
             guard let finder = textFinder, let finderAction = NSTextFinder.Action(rawValue: item.tag) else { return false }
@@ -261,6 +269,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// A block command (Tab, a slash row) waiting for queued input to land,
     /// and the blocks it was given for.
     private(set) var deferredFormat: DeferredBlockFormat?
+    /// Return in a non-empty list item: once its new paragraph lands, it
+    /// becomes the next item (`splitListItem`).
+    private var splitsAfterNewline = false
+    /// Where the caret goes once the reply of a rule edit renders, and the
+    /// revision that reply has.
+    private var pendingRuleCaret: (caret: Int, revision: UInt64)?
     /// The text an allowed input is about to insert, for opening a picker.
     private var pendingReplacement: String?
     private var rendering = false
@@ -327,6 +341,32 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// Comments are a chapter feature. Element bodies never offer or send one.
     let allowsComments: Bool
 
+    // MARK: Reading aids
+
+    /// The prose was scrolled (the 大纲轨道 follows the heading in view).
+    var onScroll: (() -> Void)?
+    /// A projection was rendered: headings may have changed.
+    var onRendered: (() -> Void)?
+    /// Ticks for comments, open TODOs and pending proposals beside the
+    /// prose; none in a body that grows with its text (the 全书长卷).
+    private(set) var markerStrip: ProseMarkerStrip?
+    /// The rows of this body's comments, set by the tab host: a tick shows
+    /// open notes and TODOs (resolved and decided ones leave). An anchor
+    /// without a row yet shows as a note.
+    var markerComments: [String: WorkspaceComment] = [:] {
+        didSet { if markerComments != oldValue { scheduleMarkers() } }
+    }
+    /// The writing assistant's pending revisions of this body.
+    var markerProposals: [ProseProposalAnchor] = [] {
+        didSet { if markerProposals != oldValue { scheduleMarkers() } }
+    }
+    /// The ticks shown, in the order of their anchors.
+    var markers: [ProseMarker] { markerStrip?.markers ?? [] }
+    private var markerWork: DispatchWorkItem?
+    /// Markers are placed shortly after the prose settles.
+    var hasScheduledMarkers: Bool { markerWork != nil }
+    static var markerDelay: TimeInterval = 0.3
+
     init(core: LabCore, allowsComments: Bool = true, minimumTextHeight: CGFloat = 220, growsWithText: Bool = false) {
         binding = DocumentBinding(core: core)
         self.allowsComments = allowsComments
@@ -371,6 +411,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.onResize = { [weak self] in self?.updateTextInsets() }
         textView.canPerformComment = { [weak self] in self?.canAddComment == true }
         textView.performComment = { [weak self] in self?.beginComment() }
+        textView.canInsertRule = { [weak self] in self?.canInsertRule == true }
+        textView.performInsertRule = { [weak self] in self?.insertRule() }
         textView.canPerformCopilot = { [weak self] in self?.canRequestCopilot == true }
         textView.performCopilot = { [weak self] in self?.requestCopilot() }
         textView.openLink = { [weak self] index in
@@ -465,6 +507,15 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         }
         applyEditorPreferences()
         if !growsWithText {
+            let strip = ProseMarkerStrip()
+            strip.onClick = { [weak self] in self?.revealMarker($0) }
+            addSubview(strip)
+            markerStrip = strip
+            scroll.contentView.postsBoundsChangedNotifications = true
+            NotificationCenter.default.addObserver(self, selector: #selector(proseScrolled),
+                                                   name: NSView.boundsDidChangeNotification, object: scroll.contentView)
+        }
+        if !growsWithText {
             let client = ProseFinderClient(textView: textView)
             let finder = NSTextFinder()
             finder.client = client
@@ -553,6 +604,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         comments.stringValue = projection.comments.map(\.summary).joined(separator: "\n")
         if reportedComments != projection.comments { reportedComments = projection.comments; onComments?() }
         if let anchored = binding.resolvedSelection(in: projection) { selection = anchored }
+        var placedRuleCaret = false
+        if let pending = pendingRuleCaret, projection.revision >= pending.revision {
+            pendingRuleCaret = nil
+            selection = NSRange(location: pending.caret, length: 0)
+            placedRuleCaret = true
+        }
         let length = (projection.text as NSString).length
         let start = min(selection.location, length)
         textView.setSelectedRange(NSRange(location: start, length: min(selection.length, length - start)))
@@ -560,9 +617,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         if let scroll { textView.enclosingScrollView?.contentView.scroll(to: scroll) }
         updateEditability()
         rendering = false
+        if placedRuleCaret {
+            // The caret follows the rule edit, and Rust learns this view's selection.
+            binding.selectionChanged(textView.selectedRange(), text: textView.string, marked: false)
+            textView.scrollRangeToVisible(textView.selectedRange())
+        }
         updateFormatControls()
         fitTextHeight()
         if alignAfterRender || typewriterFollowsInput { alignAfterRender = false; scheduleTypewriterAlignment() }
+        scheduleMarkers()
+        onRendered?()
     }
 
     // MARK: Growing with the text
@@ -571,6 +635,141 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         super.layout()
         fitTextHeight()
         updateTextInsets()
+        placeMarkerStrip()
+    }
+
+    // MARK: Markers and headings
+
+    /// The strip runs down the prose's trailing edge, over the text
+    /// container's inset, left of a scroller that takes room.
+    private func placeMarkerStrip() {
+        guard let strip = markerStrip, let superview = scroll.superview else { return }
+        let frame = convert(scroll.frame, from: superview)
+        let scroller = scroll.scrollerStyle == .legacy && scroll.hasVerticalScroller
+            ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+        let border: CGFloat = scroll.borderType == .noBorder ? 0 : 1
+        let placed = NSRect(x: frame.maxX - border - scroller - ProseMarkerStrip.width - 2, y: frame.minY + border + 4,
+                            width: ProseMarkerStrip.width, height: max(0, frame.height - border * 2 - 8))
+        if strip.frame != placed {
+            strip.frame = placed
+            scheduleMarkers()
+        }
+    }
+
+    @objc private func proseScrolled() { onScroll?() }
+
+    /// Places the ticks once the prose settles (layout is measured then).
+    func scheduleMarkers() {
+        guard markerStrip != nil else { return }
+        markerWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.markerWork = nil
+            self?.updateMarkers()
+        }
+        markerWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.markerDelay, execute: work)
+    }
+
+    /// The ticks of the displayed prose: open notes and TODOs at their
+    /// anchors, and each pending proposal at the text it would replace.
+    func updateMarkers() {
+        markerWork?.cancel(); markerWork = nil
+        guard let strip = markerStrip else { return }
+        guard let projection = styledProjection, NativeText.identical(textView.string, projection.text), !textView.hasMarkedText() else {
+            return
+        }
+        let text = projection.text as NSString
+        var found: [(ProseMarker.Kind, String, NSRange, String)] = []
+        for comment in projection.comments {
+            let row = markerComments[comment.id]
+            if let row {
+                guard row.review == .open, !row.isCopilot || row.isOpenSuggestion else { continue }
+            }
+            guard let range = comment.ranges.first(where: { $0.length > 0 && NSMaxRange($0.nsRange) <= text.length })?.nsRange else { continue }
+            let todo = row?.kind == "todo"
+            let quote = comment.quote.isEmpty ? text.substring(with: range) : comment.quote
+            let excerpt = quote.count > 24 ? String(quote.prefix(24)) + "…" : quote
+            found.append((todo ? .todo : .comment, comment.id, range, "\(todo ? "待办" : "批注")「\(excerpt)」"))
+        }
+        for anchor in markerProposals where !anchor.text.isEmpty {
+            var searched = NSRange(location: 0, length: text.length)
+            while searched.length > 0 {
+                let hit = text.range(of: anchor.text, options: .literal, range: searched)
+                guard hit.location != NSNotFound else { break }
+                found.append((.proposal, anchor.id, hit, anchor.label))
+                guard anchor.all else { break }
+                searched = NSRange(location: NSMaxRange(hit), length: text.length - NSMaxRange(hit))
+            }
+        }
+        found.sort { ($0.2.location, $0.1) < ($1.2.location, $1.1) }
+        let height = found.isEmpty ? 1 : textView.proseDocumentHeight()
+        strip.markers = found.map { kind, id, range, label in
+            let top = textView.proseLineTop(at: range.location) ?? 0
+            return ProseMarker(kind: kind, id: id, range: range, fraction: height > 0 ? min(1, max(0, top / height)) : 0, label: label)
+        }
+    }
+
+    /// A tick's click: its anchor is selected and scrolled into view.
+    @discardableResult
+    func revealMarker(_ marker: ProseMarker) -> Bool {
+        guard !isInteractionLocked, !textView.hasMarkedText(), let projection = styledProjection,
+              NativeText.identical(textView.string, projection.text),
+              NSMaxRange(marker.range) <= (projection.text as NSString).length else { return false }
+        textView.setSelectedRange(marker.range)
+        binding.selectionChanged(marker.range, text: projection.text, marked: false)
+        textView.scrollRangeToVisible(marker.range)
+        focus()
+        return true
+    }
+
+    /// The body's headings as the prose shows them: identity (nil while a
+    /// heading being typed has none), UTF-16 location, level and text.
+    func headings() -> [(id: String?, location: Int, level: Int, title: String)] {
+        let text = binding.displayedText as NSString
+        return binding.displayedBlocks.compactMap { block in
+            guard block.kind == "heading", block.editable, NSMaxRange(block.range.nsRange) <= text.length else { return nil }
+            let title = text.substring(with: block.range.nsRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            return (block.id, block.range.location, block.headingLevel, title)
+        }
+    }
+
+    /// The first character at the top of the visible prose.
+    var firstVisibleLocation: Int { textView.proseFirstVisibleLocation() }
+
+    /// The character at the bottom of the visible prose once it is scrolled
+    /// to its end (a heading in the last screenful cannot reach the top);
+    /// nil while there is more below or the prose does not scroll.
+    var endVisibleLocation: Int? {
+        let clip = scroll.contentView
+        guard textView.frame.height > clip.bounds.height + 1, clip.bounds.maxY >= textView.frame.height - 1 else { return nil }
+        let visible = textView.visibleRect
+        return textView.characterIndexForInsertion(at: NSPoint(x: textView.textContainerOrigin.x + 1, y: visible.maxY - 4))
+    }
+
+    /// Scrolls the line holding a location to the top of the visible prose
+    /// and puts the caret there (a heading of the 大纲轨道).
+    @discardableResult
+    func scrollToLine(at location: Int, focusing: Bool = true) -> Bool {
+        let length = (textView.string as NSString).length
+        guard location >= 0, location <= length, !textView.hasMarkedText() else { return false }
+        if focusing, !isInteractionLocked {
+            let caret = NSRange(location: location, length: 0)
+            textView.setSelectedRange(caret)
+            binding.selectionChanged(caret, text: textView.string, marked: false)
+        }
+        guard let top = textView.proseLineTop(at: location) else { return false }
+        // The whole text is laid out first, so the scroll is not held to an
+        // estimated height (TextKit 2 lays out lazily).
+        _ = textView.proseDocumentHeight()
+        textView.sizeToFit()
+        let clip = scroll.contentView
+        // The line sits just above the reading line, so it reads as current.
+        let y = max(0, top - (NSTextView.proseReadingLine - 4))
+        let target = clip.constrainBoundsRect(NSRect(origin: NSPoint(x: clip.bounds.origin.x, y: y), size: clip.bounds.size)).origin
+        clip.scroll(to: target)
+        scroll.reflectScrolledClipView(clip)
+        if focusing { focus() }
+        return true
     }
 
     /// Sizes the prose to its laid-out text at the current width, so a long
@@ -594,6 +793,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         restyleLinks()
         if !textView.hasMarkedText() { textView.typingAttributes = DocumentStyle.bodyAttributes }
         fitTextHeight()
+        scheduleMarkers()
     }
 
     @objc private func editorPreferencesChanged() { applyEditorPreferences() }
@@ -954,7 +1154,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         let query = text.substring(with: NSRange(location: session.trigger + 1, length: caret - session.trigger - 1))
         guard query.rangeOfCharacter(from: ProsePickers.queryEnds) == nil, (query as NSString).length <= ProsePickers.maximumQuery,
               session.kind == .mention || slashAllowed(trigger: session.trigger, caret: caret) else { closePicker(); return }
-        let items = session.kind == .slash ? ProsePickers.slashItems(query: query)
+        let items = session.kind == .slash
+            ? ProsePickers.slashItems(query: query, blocks: binding.displayedBlocks,
+                                      at: NativeLayout.index(session.trigger, blocks: binding.displayedBlocks))
             : ProsePickers.mentionItems(query: query, source: mentionSource?() ?? .empty, canCreate: onCreateElement != nil)
         if query != session.query || items != session.items { session.selected = 0; session.navigated = false }
         session.query = query; session.items = items
@@ -1045,8 +1247,18 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
               textView.selectedRange() == NSRange(location: NSMaxRange(session.range), length: 0) else { return }
         switch session.items[index].action {
         case .format(let action):
+            // The typed “/query” stays when the format cannot apply here.
+            let blocks = binding.displayedBlocks
+            guard let block = NativeLayout.index(session.trigger, blocks: blocks),
+                  ProsePickers.formatApplies(action, at: block, in: blocks) else {
+                status.stringValue = "这里不能设为\(action.title)，输入的文字已保留。"
+                return
+            }
             guard replaceThroughInput(session.range, with: "") else { return }
             formatWhenIdle(action)
+        case .rule:
+            guard replaceThroughInput(session.range, with: "") else { return }
+            commandWhenIdle(.insertRule)
         case .mention(let name, _, _):
             guard replaceThroughInput(session.range, with: name) else { return }
             binding.store.requestEntityLinks()
@@ -1100,19 +1312,40 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
 
     /// A block command that waits for queued input (Tab typed right after
-    /// text, a slash row): it runs once the owner is idle, only on the
-    /// blocks the selection touched when it was given. Any later input or
-    /// key command, a click in the prose, a failed draft or save, and a
-    /// render that removed one of those blocks drop it.
-    /// False when it neither ran nor waits.
+    /// text, a slash row, the split after Return in a list item, a rule):
+    /// it runs once the owner is idle, only on the blocks the selection
+    /// touched when it was given. Any later input or key command, a click in
+    /// the prose, a failed draft or save, and a render that removed one of
+    /// those blocks drop it. False when it neither ran nor waits.
     @discardableResult
-    private func formatWhenIdle(_ action: NativeFormatAction) -> Bool {
-        if canPerformFormat(action) { performFormat(action); return true }
+    private func formatWhenIdle(_ action: NativeFormatAction) -> Bool { commandWhenIdle(.format(action)) }
+
+    @discardableResult
+    private func commandWhenIdle(_ command: DeferredBlockFormat.Command) -> Bool {
+        if canPerform(command) { perform(command); return true }
         deferredFormat = nil
         guard binding.store.hasQueuedInput, binding.canEdit, !binding.hasFailedDraft,
               NativeText.identical(binding.displayedText, textView.string) else { return false }
-        deferredFormat = DeferredBlockFormat(action: action, selection: textView.selectedRange(), blocks: binding.displayedBlocks)
+        deferredFormat = DeferredBlockFormat(command: command, selection: textView.selectedRange(), blocks: binding.displayedBlocks)
         return deferredFormat != nil
+    }
+
+    private func canPerform(_ command: DeferredBlockFormat.Command) -> Bool {
+        switch command {
+        case .format(let action): return canPerformFormat(action)
+        case .insertRule: return canInsertRule
+        case .removeRule(let forward): return removableRuleBeside(forward: forward) != nil
+        }
+    }
+
+    private func perform(_ command: DeferredBlockFormat.Command) {
+        switch command {
+        case .format(let action): performFormat(action)
+        case .insertRule: insertRule()
+        case .removeRule(let forward):
+            guard let rule = removableRuleBeside(forward: forward) else { return }
+            removeRule(at: rule.range.location)
+        }
     }
 
     private func runDeferredFormat() {
@@ -1121,8 +1354,64 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         guard !binding.hasPendingWork else { return }
         deferredFormat = nil
         guard let projection = binding.store.projection, NativeText.identical(textView.string, projection.text),
-              deferred.applies(to: projection.blocks, selection: textView.selectedRange()), canPerformFormat(deferred.action) else { return }
-        performFormat(deferred.action)
+              deferred.applies(to: projection.blocks, selection: textView.selectedRange()), canPerform(deferred.command) else { return }
+        perform(deferred.command)
+    }
+
+    // MARK: Horizontal rules
+
+    /// 插入分隔线: after the caret's top-level block, or before an empty
+    /// top-level paragraph (the caret stays in it).
+    var canInsertRule: Bool {
+        !isInteractionLocked && !textView.hasMarkedText() && binding.canInsertRule(range: textView.selectedRange())
+    }
+
+    func insertRule() {
+        guard canInsertRule else { return }
+        let range = textView.selectedRange()
+        focus()
+        binding.insertRule(range: range) { [weak self] result in self?.ruleEdited(result) }
+    }
+
+    /// 删除分隔线 (a rule's context menu), ⌫ right after a rule and ⌦ right
+    /// before one. The caret follows Rust's reply.
+    func removeRule(at location: Int) {
+        guard !isInteractionLocked, !textView.hasMarkedText(), binding.removableRule(at: location) != nil else { return }
+        focus()
+        binding.removeRule(at: location) { [weak self] result in self?.ruleEdited(result) }
+    }
+
+    private func ruleEdited(_ result: Result<Int, Error>) {
+        guard case .success(let caret) = result else { return }
+        pendingRuleCaret = (caret, binding.state?.projection.revision ?? 0)
+    }
+
+    /// The rule ⌫ or ⌦ would remove at the caret, on the idle owner's projection.
+    private func removableRuleBeside(forward: Bool) -> NativeBlock? {
+        guard !isInteractionLocked, !textView.hasMarkedText(), binding.canEdit, !binding.hasPendingWork,
+              let projection = binding.store.projection, NativeText.identical(textView.string, projection.text) else { return nil }
+        return projection.ruleBeside(caret: textView.selectedRange(), forward: forward)
+    }
+
+    /// Whether ⌫ or ⌦ at the displayed caret meets a rule (also while typed
+    /// text is still on its way).
+    private func displayedRuleBeside(forward: Bool) -> Bool {
+        guard !textView.hasMarkedText(), !isInteractionLocked, textView.isEditable, binding.canEdit, !binding.hasFailedDraft,
+              NativeText.identical(binding.displayedText, textView.string) else { return false }
+        let blocks = binding.displayedBlocks, selection = textView.selectedRange()
+        guard selection.length == 0, let index = NativeLayout.index(selection.location, blocks: blocks) else { return false }
+        let block = blocks[index]
+        if block.kind == "horizontalRule" { return true }
+        if forward {
+            return selection.location == NSMaxRange(block.range.nsRange) && blocks.indices.contains(index + 1)
+                && blocks[index + 1].kind == "horizontalRule"
+        }
+        return selection.location == block.range.location && index > 0 && blocks[index - 1].kind == "horizontalRule"
+    }
+
+    @objc private func removeRuleItem(_ sender: NSMenuItem) {
+        guard let location = sender.representedObject as? Int else { return }
+        removeRule(at: location)
     }
 
     // MARK: Comments
@@ -1212,7 +1501,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private func formatMenuItem() -> NSMenuItem {
         let submenu = NSMenu(title: "格式")
         let groups: [[MacMenuCommand]] = [[.bold, .italic, .underline, .strike], [.bodyText, .heading1, .heading2, .heading3],
-                                          [.blockquote, .bulletList, .orderedList], [.alignLeft, .alignCenter, .alignRight],
+                                          [.blockquote, .bulletList, .orderedList, .insertRule], [.alignLeft, .alignCenter, .alignRight],
                                           [.indentIncrease, .indentDecrease], [.link, .removeLink]]
         for (index, group) in groups.enumerated() {
             if index > 0 { submenu.addItem(.separator()) }
@@ -1238,6 +1527,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             item.toolTip = href
             item.isEnabled = ProseLinkAddress.openable(href) != nil
             item.setAccessibilityIdentifier("context-open-url")
+            leading.append(item)
+        }
+        if let rule = binding.store.projection?.rule(at: charIndex), NativeText.identical(textView.string, binding.displayedText) {
+            let item = NSMenuItem(title: "删除分隔线", action: #selector(removeRuleItem(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = rule.range.location
+            item.isEnabled = binding.removableRule(at: rule.range.location) != nil && !isInteractionLocked
+            item.setAccessibilityIdentifier("context-remove-rule")
             leading.append(item)
         }
         leading.append(formatMenuItem())
@@ -1299,9 +1595,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         case #selector(NSResponder.insertNewline(_:)):
             if let action = containerExit(onReturn: true), formatWhenIdle(action) { return true }
             deferredFormat = nil
+            // In a non-empty list item the new paragraph becomes the next item.
+            splitsAfterNewline = splitsListItemOnReturn()
             return false
         case #selector(NSResponder.deleteBackward(_:)):
             if let action = containerExit(onReturn: false), formatWhenIdle(action) { return true }
+            if displayedRuleBeside(forward: false), commandWhenIdle(.removeRule(forward: false)) { return true }
+            deferredFormat = nil
+            return false
+        case #selector(NSResponder.deleteForward(_:)):
+            if displayedRuleBeside(forward: true), commandWhenIdle(.removeRule(forward: true)) { return true }
             deferredFormat = nil
             return false
         default:
@@ -1342,6 +1645,21 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         return (onReturn ? last : last || first) ? action : nil
     }
 
+    /// Return in a non-empty list item whose paragraph is its item's last:
+    /// once the new paragraph lands it becomes the next item. An empty item
+    /// keeps the ordinary Return (its list ends when it is the last).
+    private func splitsListItemOnReturn() -> Bool {
+        guard !textView.hasMarkedText(), !isInteractionLocked, textView.isEditable, binding.canEdit, !binding.hasFailedDraft,
+              NativeText.identical(binding.displayedText, textView.string) else { return false }
+        let selection = textView.selectedRange(), blocks = binding.displayedBlocks
+        guard let index = NativeLayout.index(selection.location, blocks: blocks),
+              NativeLayout.index(NSMaxRange(selection), blocks: blocks) == index else { return false }
+        let block = blocks[index]
+        guard block.acceptsBlockAttributes, block.range.length > 0,
+              block.rootContainer == "bulletList" || block.rootContainer == "orderedList" else { return false }
+        return index + 1 == blocks.count || blocks[index + 1].container != block.container
+    }
+
     /// Markdown-style starts, as in the renderer: “> ”, “- ” (“+ ”, “* ”)
     /// or “1. ” typed as the whole text before the caret in a root
     /// paragraph removes the marker through the input path, then applies
@@ -1363,9 +1681,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.pendingMarkdownStarts -= 1
-            // Only while the marker and the caret after it are as typed.
+            // Only while the marker and the caret after it are as typed, and
+            // only when the format applies there: otherwise the marker stays.
+            let blocks = self.binding.displayedBlocks
             guard NativeText.identical(self.textView.string, snapshot), self.textView.selectedRange() == selection,
-                  !self.textView.hasMarkedText(), self.replaceThroughInput(marker, with: "") else { return }
+                  !self.textView.hasMarkedText(), let at = NativeLayout.index(marker.location, blocks: blocks),
+                  ProsePickers.formatApplies(action, at: at, in: blocks),
+                  self.replaceThroughInput(marker, with: "") else { return }
             self.formatWhenIdle(action)
         }
     }
@@ -1384,6 +1706,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         scheduleTypewriterAlignment()
         let typed = marked ? nil : pendingReplacement
         if !marked { pendingReplacement = nil }
+        let splits = splitsAfterNewline
+        splitsAfterNewline = false
+        if splits, typed == "\n" { commandWhenIdle(.format(.splitListItem)) }
         updatePicker(typed: typed)
         if let typed { scheduleMarkdownStart(typed: typed) }
         onEdited?()
@@ -1500,12 +1825,22 @@ struct DeferredBlockFormat {
         var id: String?
         var range: NSRange
     }
-    let action: NativeFormatAction
+    /// What waits: a format (also the list-item split after Return), or
+    /// inserting or removing a horizontal rule at the caret.
+    enum Command: Equatable {
+        case format(NativeFormatAction)
+        case insertRule
+        /// ⌫ (backward) or ⌦ (forward) beside a rule.
+        case removeRule(forward: Bool)
+    }
+    let command: Command
+    /// The format that waits, if it is one.
+    var action: NativeFormatAction? { if case .format(let action) = command { return action }; return nil }
     private(set) var targets: [Target]
 
-    init?(action: NativeFormatAction, selection: NSRange, blocks: [NativeBlock]) {
+    init?(command: Command, selection: NSRange, blocks: [NativeBlock]) {
         guard let touched = Self.touched(selection, blocks) else { return nil }
-        self.action = action
+        self.command = command
         targets = touched.map { Target(id: blocks[$0].id, range: blocks[$0].range.nsRange) }
     }
 

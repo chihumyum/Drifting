@@ -31,6 +31,8 @@ final class MacCategoryPageView: NSView, NSTextFieldDelegate {
     let relationsView = RelationsSectionView()
     /// 新设定模版: the stored template's preview and 编辑模版….
     let templateView = ElementTemplateSectionView()
+    /// 统计 of this page (视图 › 页面统计).
+    let statsButton = MacPageStatsButton.make()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private(set) var category: WorkspaceElementCategory
@@ -108,7 +110,9 @@ final class MacCategoryPageView: NSView, NSTextFieldDelegate {
         grid.row(at: 1).yPlacement = .top
         grid.row(at: 1).topPadding = 4
         grid.cell(for: factsEditor)?.xPlacement = .fill
-        let headerStack = NSStackView(views: [nameField, grid, message])
+        let nameRow = NSStackView(views: [nameField, statsButton])
+        nameRow.spacing = 8
+        let headerStack = NSStackView(views: [nameRow, grid, message])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10
         headerStack.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(headerStack)
@@ -143,7 +147,7 @@ final class MacCategoryPageView: NSView, NSTextFieldDelegate {
             headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
             headerStack.topAnchor.constraint(equalTo: header.topAnchor, constant: 12),
             headerStack.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -12),
-            nameField.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
+            nameRow.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             grid.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             message.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
             factsLabel.topAnchor.constraint(equalTo: factsEditor.topAnchor, constant: 3),
@@ -154,6 +158,15 @@ final class MacCategoryPageView: NSView, NSTextFieldDelegate {
         showCount(nil)
         updateWash()
     }
+    /// The fixed sections the 大纲轨道 lists above 正文.
+    var railSections: [PageRailSection] {
+        [PageRailSection(key: "overview", title: "概述", view: nameField, focus: nameField),
+         PageRailSection(key: "facts", title: "模板字段", view: factsEditor, focus: nil),
+         PageRailSection(key: "elements", title: "设定", view: elementsView, focus: nil),
+         PageRailSection(key: "relations", title: "关系", view: relationsView, focus: nil),
+         PageRailSection(key: "template", title: "模版", view: templateView, focus: nil)]
+    }
+
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func label(_ text: String) -> NSTextField {

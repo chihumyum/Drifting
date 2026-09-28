@@ -131,8 +131,11 @@ version restores, and chapter trash and restore do not count.
 
 ## Not ported
 
-Find in the long view (`AllChaptersFindPanel`), the outline rail and a shared
-toolbar for the focused chapter are not ported. Each attached chapter keeps its own editor controls.
+Find in the long view (`AllChaptersFindPanel`), the 大纲轨道, scrollbar markers
+and a shared toolbar for the focused chapter are not offered here (tabs have
+the rail and markers: [page statistics](page-stats.md)). Each attached chapter
+keeps its own editor controls; its horizontal rules are drawn as centred
+lines, in editor rows and read-only previews alike.
 
 ## Acceptance
 

@@ -17,6 +17,8 @@ extension BindingAcceptance {
         "AppKit 设置 › 编辑器 段间距, 版心宽度, 打字机位置 and 自动链接设定名称 apply at once and persist in settings.json: paragraph spacing in every body's paragraph style (a hidden tab too) and the 全书长卷, a centred text column of the chosen width in pane editors and the 全书长卷's rows (a narrow pane keeps its margins), the caret line at the chosen height with 打字机滚动, and with linking off typed names get no new link while existing links stay, until linking is on again",
         "AppKit 全书长卷 reports its reading position (the row at the top and the offset into it) per project to settings.json after scrolling and on closing, a cold relaunch opens the book at that chapter and offset, another project keeps its own position, and a position whose chapter left the book opens at the top",
         "AppKit 历史版本 preview reads the selected version from Rust's projection and sets it with its headings, bold, italic, underline, strike, URL links, centred alignment and block indent, keeps marking text the current body lacks on a green wash and striking text the version lacks, falls back to plain text when the marks are off, and another body's version is refused",
+        "AppKit import fixes: 导入 and the target popups stay disabled while an import runs in both sheets, so a late library reply or a second Return imports nothing twice; a chapter that could not join its 故事线 says so in its file line, the summary and the single-file sheet's final status; bulk import shows its sheet at once and reads the files off the main thread one by one, skips a file above 200 MB unread, and 取消 closes the sheet while reading or stops the import before the next file",
+        "AppKit list fixes: a category page lists its 设定 from the library a reply brings at once; an element body save reads only that body, library replies read only 设定 not read yet, and a newer sweep stops an older chain; a chapter whose body is still its storyline's 章节模版 counts as 未起 until it is written, and only chapters no longer than the template are read",
     ]
 
     static func smallItemsAcceptance() throws -> [String] {
@@ -47,6 +49,8 @@ extension BindingAcceptance {
         try smallSettings()
         try smallWholeBookPosition()
         try smallHistoryPreview()
+        try smallImportFixes()
+        try smallListFixes()
         return smallItemsCases
     }
 
@@ -576,7 +580,11 @@ extension BindingAcceptance {
         transfer.beginImport(project: project, window: nil)
         guard let sheet = transfer.bulkSheet else { throw LabError.message("Several files showed no sheet: \(statuses)") }
         try require(transfer.importSheet == nil, "Several files opened the single-file sheet")
-        try wait { sheet.storylinePopup.numberOfItems == 2 && sheet.categoryPopup.itemArray.contains { $0.representedObject as? String == places.id } }
+        // The sheet shows at once; the files are read off the main thread.
+        try require(sheet.isReading && sheet.lines.contains { $0.hasSuffix("正在读取…") } && !sheet.importButton.isEnabled,
+                    "The files were read before the sheet showed: \(sheet.lines)")
+        try wait { !sheet.isReading && sheet.storylinePopup.numberOfItems == 2
+            && sheet.categoryPopup.itemArray.contains { $0.representedObject as? String == places.id } }
         try require(sheet.lines == ["第1章 启程.md · Markdown · 2 段", "第2章 雨夜.md · Markdown · 2 段",
                                     "第3章 插图.png · 跳过：不是 Markdown、纯文本或 Word（.docx）文件", "第4章 空白.md · 跳过：“第4章 空白.md”中没有可导入的文字。",
                                     "第10章 归航.txt · 纯文本 · 2 段"],
@@ -616,7 +624,7 @@ extension BindingAcceptance {
         chosen = [folder]
         transfer.beginImport(project: project, window: nil)
         guard let folderSheet = transfer.bulkSheet else { throw LabError.message("A folder showed no sheet: \(statuses)") }
-        try wait { folderSheet.categoryPopup.itemArray.contains { $0.representedObject as? String == places.id } }
+        try wait { !folderSheet.isReading && folderSheet.categoryPopup.itemArray.contains { $0.representedObject as? String == places.id } }
         try require(folderSheet.lines == ["1 北岸.md · Markdown · 2 段", "2 港口.txt · 纯文本 · 1 段", "3 灯塔.docx · Word 文档 · 2 段"]
             && folderSheet.summary.stringValue.contains("另有 2 个其他文件或子文件夹未列出"),
             "The folder is listed as \(folderSheet.lines) / \(folderSheet.summary.stringValue)")
@@ -643,6 +651,7 @@ extension BindingAcceptance {
         // The same folder as 漂流.
         transfer.beginImport(project: project, window: nil)
         guard let driftSheet = transfer.bulkSheet else { throw LabError.message("The folder did not open a second time") }
+        try wait { !driftSheet.isReading }
         driftSheet.select(kind: "drift")
         driftSheet.importButton.performClick(nil)
         try wait { driftSheet.finished }
@@ -1079,6 +1088,237 @@ extension BindingAcceptance {
         }, "Another body's version was previewed")
         try require(refusal.contains("不属于"), "The refusal says \(refusal)")
         sheet.close()
+        try harness.close()
+    }
+
+    // MARK: Review fixes of the import sheets
+
+    private static func smallImportFixes() throws {
+        let harness = try SmallHarness()
+        defer { harness.remove() }
+        let project = try harness.project("导入修正合成项目")
+        let workspace = harness.workspace
+        let doomed = try harness.storyline(project, "将删的线")
+        let sources = harness.root.appendingPathComponent("来源", isDirectory: true)
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        func write(_ name: String, _ text: String) throws -> URL {
+            let url = sources.appendingPathComponent(name)
+            try Data(text.utf8).write(to: url)
+            return url
+        }
+        let one = try write("一 起风.md", "起风了。")
+        let two = try write("二 落雨.md", "落雨了。")
+        let three = try write("三 天晴.md", "天晴了。")
+        // A file above 200 MB: sparse, so the disk is not filled.
+        let huge = sources.appendingPathComponent("四 巨大.md")
+        FileManager.default.createFile(atPath: huge.path, contents: Data("大".utf8))
+        let handle = try FileHandle(forWritingTo: huge)
+        try handle.truncate(atOffset: UInt64(200 * 1024 * 1024 + 1))
+        try handle.close()
+        let transfer = MacBookTransfer(workspace: workspace, host: harness.host)
+        var statuses: [String] = []
+        transfer.onStatus = { statuses.append($0) }
+        var chosen: [URL] = []
+        transfer.chooseImportFiles = { _, done in done(chosen) }
+        func chapterCount() throws -> Int { try harness.chapters(project).count }
+
+        // 取消 while the files are read closes the sheet; reading stops.
+        chosen = [one, two, three]
+        transfer.beginImport(project: project, window: nil)
+        guard let reading = transfer.bulkSheet else { throw LabError.message("No bulk sheet") }
+        try require(reading.isReading, "The sheet did not show before reading")
+        smallPress(reading.cancelButton)
+        try require(transfer.bulkSheet == nil && reading.isClosed, "取消 while reading did not close the sheet")
+        let until = Date().addingTimeInterval(0.3)
+        while Date() < until { _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01)) }
+        try require(reading.lines.allSatisfy { $0.hasSuffix("正在读取…") }, "Reading went on after 取消: \(reading.lines)")
+
+        // A 故事线 trashed after it was chosen: the chapters are created and
+        // their lines, the summary and the status say the join failed. While
+        // the import runs, late library replies and a second Return change
+        // nothing.
+        chosen = [one, two, huge]
+        transfer.beginImport(project: project, window: nil)
+        guard let sheet = transfer.bulkSheet else { throw LabError.message("No bulk sheet") }
+        try wait { !sheet.isReading && sheet.storylinePopup.numberOfItems == 2 }
+        try require(sheet.lines[2] == "四 巨大.md · 跳过：文件超过 200 MB，未读取", "The huge file reads \(sheet.lines[2])")
+        sheet.select(storylineID: doomed.id)
+        let _: WorkspaceStorylineReply<WorkspaceStoryline> = try elementResult {
+            workspace.trashStoryline(projectID: project.id, storylineID: doomed.id, completion: $0)
+        }
+        let before = try chapterCount()
+        smallPress(sheet.importButton)
+        try require(sheet.importing && !sheet.importButton.isEnabled && !sheet.targetPopup.isEnabled, "导入 stayed enabled while importing")
+        sheet.setStorylines([]); sheet.setCategories([])
+        try require(!sheet.importButton.isEnabled && !sheet.storylinePopup.isEnabled && !sheet.targetPopup.isEnabled,
+                    "A late library reply enabled 导入")
+        sheet.confirm()
+        try wait { sheet.finished }
+        try require(try chapterCount() == before + 2, "The files were imported \(try chapterCount() - before) times")
+        try require(sheet.lines[0].hasPrefix("一 起风.md · 已创建「起风了。」，但未能加入故事线：") && sheet.lines[1].contains("但未能加入故事线")
+                    && sheet.summary.stringValue == "已创建 2 个（其中 2 个未能加入故事线），跳过 1 个。"
+                    && statuses.last == "导入完成：已创建 2 个（其中 2 个未能加入故事线），跳过 1 个。",
+                    "The join failure reads \(sheet.lines) / \(sheet.summary.stringValue) / \(statuses.last ?? "")")
+        smallPress(sheet.importButton)
+
+        // 取消 during the import stops before the next file.
+        chosen = [one, two, three]
+        transfer.beginImport(project: project, window: nil)
+        guard let stopping = transfer.bulkSheet else { throw LabError.message("No bulk sheet") }
+        try wait { !stopping.isReading }
+        let beforeStop = try chapterCount()
+        smallPress(stopping.importButton)
+        smallPress(stopping.cancelButton)
+        try require(stopping.stopRequested && transfer.bulkSheet === stopping, "取消 during the import closed the sheet")
+        try wait { stopping.finished }
+        try require(try chapterCount() == beforeStop + 1 && stopping.lines[0].contains("已创建")
+                    && stopping.lines.dropFirst().allSatisfy { $0.hasSuffix("跳过：已取消") } && stopping.summary.stringValue.contains("导入已取消")
+                    && statuses.last?.hasPrefix("导入已停止：") == true,
+                    "取消 did not stop the import: \(stopping.lines) / \(statuses.last ?? "")")
+        smallPress(stopping.importButton)
+
+        // The single-file sheet: the same guard, and the failed join in its final status.
+        let line = try harness.storyline(project, "另一条将删的线")
+        transfer.chooseImportFiles = nil
+        transfer.chooseImportFile = { _, done in done(three) }
+        transfer.beginImport(project: project, window: nil)
+        guard let single = transfer.importSheet else { throw LabError.message("No single-file sheet") }
+        try wait { single.storylinePopup.itemArray.contains { $0.representedObject as? String == line.id } }
+        single.select(storylineID: line.id)
+        let _: WorkspaceStorylineReply<WorkspaceStoryline> = try elementResult {
+            workspace.trashStoryline(projectID: project.id, storylineID: line.id, completion: $0)
+        }
+        let beforeSingle = try chapterCount()
+        smallPress(single.importButton)
+        try require(single.importing && !single.importButton.isEnabled, "The single-file 导入 stayed enabled")
+        single.setCategories([]); single.setStorylines([])
+        try require(!single.importButton.isEnabled && !single.targetPopup.isEnabled, "A late reply enabled the single-file 导入")
+        single.confirm()
+        try wait { transfer.importSheet == nil && harness.host.activeChapter?.title == "天晴了。" }
+        try wait { statuses.last?.contains("已导入“天晴了。”") == true }
+        try require(try chapterCount() == beforeSingle + 1 && statuses.last?.contains("但未能加入故事线") == true,
+                    "The single file imported \(try chapterCount() - beforeSingle) times: \(statuses.last ?? "")")
+        try harness.close()
+    }
+
+    // MARK: Review fixes of the list filters
+
+    private static func smallListFixes() throws {
+        let harness = try SmallHarness()
+        defer { harness.remove() }
+        let project = try harness.project("筛选修正合成项目")
+        let workspace = harness.workspace
+        let host = harness.host
+
+        // A chapter still exactly its storyline's 章节模版 is 未起.
+        let line = try harness.storyline(project, "主线")
+        let _: WorkspaceStorylineReply<WorkspaceStoryline> = try elementResult {
+            workspace.setStorylineChapterTemplate(projectID: project.id, storylineID: line.id,
+                                                  blocks: [.paragraph("开场。"), .paragraph("冲突：")], completion: $0)
+        }
+        let fromTemplate: WorkspaceChapter = try elementResult {
+            workspace.createChapter(projectID: project.id, title: "照模版", storylineID: line.id, completion: $0)
+        }
+        let short: WorkspaceChapter = try elementResult {
+            workspace.createChapter(projectID: project.id, title: "短章", storylineID: line.id, completion: $0)
+        }
+        let long: WorkspaceChapter = try elementResult {
+            workspace.createChapter(projectID: project.id, title: "长章", storylineID: line.id, completion: $0)
+        }
+        host.chaptersChanged(projectID: project.id)
+        let shortView = try harness.open(project, .chapter(short))
+        shortView.textView.selectAll(nil)
+        shortView.textView.insertText("海风。", replacementRange: NSRange(location: 0, length: (shortView.textView.string as NSString).length))
+        try harness.settled()
+        let longView = try harness.open(project, .chapter(long))
+        try harness.type(longView, "港口起了很大的雾，船都停着。")
+        host.wordCounts(projectID: project.id, refresh: true)
+        try wait {
+            let counts = host.wordCountLibrary(projectID: project.id)
+            return counts?.count(nodeID: fromTemplate.id) == 4 && counts?.count(nodeID: short.id) == 2 && (counts?.count(nodeID: long.id) ?? 0) > 4
+        }
+        try harness.open(project, .storyline(line))
+        guard let page = host.activeStorylinePage else { throw LabError.message("The storyline page did not open") }
+        let chapters = page.chaptersView
+        try wait { chapters.listed.count == 3 && chapters.countsReady }
+        func entry(_ id: String) -> StorylineChaptersView.Entry? { chapters.listed.first { $0.chapter.id == id } }
+        try require(entry(fromTemplate.id)?.atTemplate == true && entry(fromTemplate.id)?.written == false
+                    && (entry(fromTemplate.id)?.words ?? 0) > 0 && entry(short.id)?.written == true && entry(long.id)?.written == true,
+                    "The template chapter is not 未起: \(chapters.listed.map { ($0.chapter.title, $0.words ?? -1, String(describing: $0.atTemplate)) })")
+        try require(chapters.filterControl.label(forSegment: 1) == "已写 2" && chapters.filterControl.label(forSegment: 2) == "未起 1",
+                    "The filter counts differ: \(chapters.filterControl.label(forSegment: 1) ?? "")")
+        try require(chapters.chapterButtons.first { $0.accessibilityIdentifier() == "storyline-chapter-\(fromTemplate.id)" }?.title.hasSuffix("未起") == true,
+                    "The template chapter's row does not read 未起")
+        // Only the chapters no longer than the template were read.
+        try require(host.templateBodyReads == 2, "\(host.templateBodyReads) chapter bodies were read")
+        // Writing in it makes it 已写.
+        let templated = try harness.open(project, .chapter(fromTemplate))
+        try harness.type(templated, "她推开门。")
+        host.wordCounts(projectID: project.id, refresh: true)
+        try harness.open(project, .storyline(line))
+        try wait { entry(fromTemplate.id)?.written == true && chapters.filterControl.label(forSegment: 1) == "已写 3" }
+
+        // A category page with many 设定.
+        let category: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
+            workspace.createElementCategory(projectID: project.id, name: "地点", completion: $0)
+        }
+        guard let places = category.result else { throw LabError.message("No category") }
+        var library = category.library
+        var elements: [WorkspaceElement] = []
+        for index in 1...24 {
+            let reply: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+                workspace.createElement(projectID: project.id, categoryID: places.id, name: "地点\(index)", completion: $0)
+            }
+            if let element = reply.result { elements.append(element) }
+            library = reply.library
+        }
+        host.applyElementLibrary(projectID: project.id, library: library)
+        try harness.open(project, .category(places))
+        guard let categoryPage = host.activeCategoryPage else { throw LabError.message("The category page did not open") }
+        let listed = categoryPage.elementsView
+        try wait { listed.listed.count == 24 && listed.ready }
+        let sweeps = host.elementBodySweeps, reads = host.elementBodyReads
+        try require(reads >= 24, "Opening the page read \(reads) bodies")
+        // A rename is a library reply without new 设定: the list shows the new
+        // name at once and no body is read.
+        let renamed: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+            workspace.updateElement(projectID: project.id, elementID: elements[0].id, changes: WorkspaceElementChanges(name: "改名的地点"), completion: $0)
+        }
+        host.applyElementLibrary(projectID: project.id, library: renamed.library)
+        try require(listed.listed.contains { $0.element.name == "改名的地点" } && !listed.listed.contains { $0.element.name == "地点1" },
+                    "The 设定 list shows the old library: \(listed.listed.map(\.element.name).prefix(3))")
+        let pause = Date().addingTimeInterval(0.3)
+        while Date() < pause { _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01)) }
+        try require(host.elementBodySweeps == sweeps && host.elementBodyReads == reads, "A rename read bodies again")
+        // A body save reads only that body.
+        let body = try harness.open(project, .element(elements[1]))
+        try harness.type(body, "东边的码头。")
+        try harness.open(project, .category(places))
+        try wait { host.elementBodyReads == reads + 1 && listed.listed.first { $0.element.id == elements[1].id }?.filled == true }
+        try require(host.elementBodySweeps == sweeps, "A body save swept every body")
+        // A new 设定 reads only its own body.
+        let added: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+            workspace.createElement(projectID: project.id, categoryID: places.id, name: "新地点", completion: $0)
+        }
+        host.applyElementLibrary(projectID: project.id, library: added.library)
+        try wait { host.elementBodyReads == reads + 2 && listed.listed.count == 25 && listed.ready }
+        // A newer sweep stops an older chain: the page opened in the other
+        // pane sweeps all 25, and a new 设定 arriving meanwhile takes over.
+        let later: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+            workspace.createElement(projectID: project.id, categoryID: places.id, name: "更新的地点", completion: $0)
+        }
+        let beforeSplit = (host.elementBodySweeps, host.elementBodyReads)
+        let _: NativeDocumentView = try elementResult { host.split(completion: $0) }
+        while host.elementBodySweeps == beforeSplit.0 { _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.001)) }
+        // The newer sweep starts at the next turn, while the older one reads.
+        let delay = MacChapterWorkspace.elementBodyDelay
+        MacChapterWorkspace.elementBodyDelay = 0
+        defer { MacChapterWorkspace.elementBodyDelay = delay }
+        host.applyElementLibrary(projectID: project.id, library: later.library)
+        try wait { host.elementBodySweeps == beforeSplit.0 + 2 && listed.listed.count == 26 && listed.ready }
+        let settle = Date().addingTimeInterval(0.3)
+        while Date() < settle { _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01)) }
+        try require(host.elementBodyReads - beforeSplit.1 < 25 + 1, "The older sweep went on: \(host.elementBodyReads - beforeSplit.1) reads")
         try harness.close()
     }
 }

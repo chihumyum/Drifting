@@ -25,6 +25,8 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
     let plotPlannerButton = PlotPlannerToggle()
     /// 操作: 转为章节… and 转为设定….
     let actionsButton = NSPopUpButton(frame: .zero, pullsDown: true)
+    /// 统计 of this page (视图 › 页面统计).
+    let statsButton = MacPageStatsButton.make()
     private let message = NSTextField(wrappingLabelWithString: "")
     private let header = ElementHeaderWash()
     private let stack = NSStackView()
@@ -90,7 +92,7 @@ final class MacDriftPageView: NSView, NSTextFieldDelegate {
             })
         }
         actionsButton.setContentHuggingPriority(.required, for: .horizontal)
-        let titleRow = NSStackView(views: [titleField, wordCountLabel, plotPlannerButton, actionsButton])
+        let titleRow = NSStackView(views: [titleField, wordCountLabel, statsButton, plotPlannerButton, actionsButton])
         titleRow.spacing = 10
         let headerStack = NSStackView(views: [titleRow, grid, message])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 10

@@ -47,10 +47,12 @@ value other than the one the category's 模板字段 gave it (same key, trimmed)
 or its body has text other than the 新设定模版 (lines compared without
 surrounding spaces and blank lines); otherwise 未填写, so an element created
 from the templates and not touched since is 未填写. Bodies are read with
-`agentReadProse` (live from an open owner, else stored; a read only) when the
-page opens, the library or template changes and an element body settles at
-a new revision; until every body and the template are read all elements
-show. The filter is kept per page in `settings.json` (`listFilters`,
+`agentReadProse` (live from an open owner, else stored; a read only): all of
+them when a page opens; after a library reply only 设定 not read yet (a new or
+moved one), while the list itself follows the reply's library at once; and
+only the element whose body settled at a new revision. Each sweep has a
+generation, so a newer one stops an older chain. Until every body and the
+template are read all elements show. The filter is kept per page in `settings.json` (`listFilters`,
 `category:<id>`) like the [storyline page's](storylines.md).
 
 新设定模版 previews how a new element's body starts, in the body editor's
