@@ -61,6 +61,9 @@ struct LabSettings: Codable, Equatable {
     var bottomTimelines: [String: BottomTimelineSetting] = [:]
     /// 设置 › Copilot（实验）: off by default.
     var copilot = CopilotSettings()
+    /// 设置 › 写作助手 › MCP 扩展: each project's servers, keyed by project
+    /// identity. Secret values are in the Keychain, never here.
+    var mcpServers: [String: [AgentMcpServerConfig]] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -73,7 +76,7 @@ struct LabSettings: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
-        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, copilot
+        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, copilot, mcpServers
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -96,6 +99,7 @@ struct LabSettings: Codable, Equatable {
         dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
         bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
         copilot = (try? values.decodeIfPresent(CopilotSettings.self, forKey: .copilot)) ?? CopilotSettings()
+        mcpServers = (try? values.decodeIfPresent([String: [AgentMcpServerConfig]].self, forKey: .mcpServers)) ?? [:]
         self = normalized()
     }
 
@@ -337,6 +341,24 @@ final class LabSettingsStore {
         changed()
     }
 
+    // MARK: MCP 扩展
+
+    /// A project's MCP servers changed; `object` is the store, `userInfo["projectID"]` the project.
+    static let mcpDidChange = Notification.Name("LabSettingsStoreMcpDidChange")
+
+    /// The project's MCP servers, in the order shown.
+    func mcpServers(projectID: String) -> [AgentMcpServerConfig] { settings.mcpServers[projectID] ?? [] }
+
+    /// Saves the project's servers at once; an unchanged list writes
+    /// nothing. Typesetting is not applied again.
+    func setMcpServers(_ servers: [AgentMcpServerConfig], projectID: String) {
+        guard mcpServers(projectID: projectID) != servers else { return }
+        settings.mcpServers[projectID] = servers.isEmpty ? nil : servers
+        save()
+        NotificationCenter.default.post(name: Self.mcpDidChange, object: self, userInfo: ["projectID": projectID])
+        changed()
+    }
+
     // MARK: Today's words
 
     /// A project's 今日字数 changed, or the local day rolled over; `object`
@@ -422,15 +444,18 @@ final class LabSettingsStore {
 
     // MARK: Deleted projects
 
-    /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数 or
-    /// 底部时间轴 state behind.
+    /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
+    /// 底部时间轴 state or MCP servers behind (their Keychain secrets are
+    /// removed by the caller).
     func forgetProject(_ projectID: String) {
         guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
-            || settings.dailyWords[projectID] != nil || settings.bottomTimelines[projectID] != nil else { return }
+            || settings.dailyWords[projectID] != nil || settings.bottomTimelines[projectID] != nil
+            || settings.mcpServers[projectID] != nil else { return }
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)
         settings.dailyWords.removeValue(forKey: projectID)
         settings.bottomTimelines.removeValue(forKey: projectID)
+        settings.mcpServers.removeValue(forKey: projectID)
         save()
     }
 

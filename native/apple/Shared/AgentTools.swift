@@ -4,7 +4,9 @@ import Foundation
 /// soon as the model calls them. Writes only create a pending proposal;
 /// nothing is written until the author accepts it. Memory tools change only
 /// the assistant's own rules, working memory and task plan, at once.
-enum AgentToolAccess: String { case read, write, memory }
+/// External tools come from the project's MCP servers and only return
+/// results to the model.
+enum AgentToolAccess: String { case read, write, memory, external }
 
 struct AgentToolDefinition {
     let name: String

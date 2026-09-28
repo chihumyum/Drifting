@@ -1015,7 +1015,7 @@ final class LabWorkspaceCore {
         guard !isChangingOwners else {
             completion(.failure(LabError.message("请先完成输入，并等待正文保存后再清空回收站。"))); return
         }
-        let keys = confirmed.map { ["kind": $0.kind.rawValue, "id": $0.id] }
+        let keys = confirmed.map(\.confirmedKey)
         perform(completion) { try self.request("workspaceEmptyTrash", fields: ["projectId": projectID, "confirmed": keys]) }
     }
 

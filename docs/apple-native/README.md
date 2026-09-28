@@ -106,7 +106,10 @@ assistant whose 63 tools read the project and propose prose, element, patch,
 storyline, relation, note/TODO, chapter, drift and project changes the author
 reviews, with 作者规则, per-conversation 工作记忆 and 任务计划 (继续 after the
 round limit), context compaction, automatic retries and token usage in
-设置 › 写作助手 › 用量, an experimental Copilot (off by default) that proposes
+设置 › 写作助手 › 用量, per-project MCP servers (local commands and
+Streamable HTTP) in 设置 › 写作助手 › MCP 扩展 whose tools the author allows,
+asks for or disables and whose results only reach the model, an
+experimental Copilot (off by default) that proposes
 new elements and element patches from newly written paragraphs as
 suggestions the author accepts or rejects in 审阅, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
@@ -123,9 +126,9 @@ goes through shared Rust domain commands, transactions and canonical journals;
 views of one chapter share its document owner and history while keeping their
 own selections. Remote prose and chapter
 originals are received through the shared native queue without replacing live
-editors. The writing assistant keeps provider API keys in the lab's own Keychain
-service (`Drifting Native Lab`); the production Keychain service and URL scheme
-are not used.
+editors. The writing assistant keeps provider API keys and MCP secrets in the
+lab's own Keychain service (`Drifting Native Lab`); the production Keychain
+service and URL scheme are not used.
 
 The editor is an acceptance prototype, not desktop feature parity. Physical IME,
 desktop XCTest input, devices, accounts and signed distribution are unaccepted.

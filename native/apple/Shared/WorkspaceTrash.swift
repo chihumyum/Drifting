@@ -1,8 +1,15 @@
 import Foundation
 
-/// The kinds of content one project's 回收站 holds.
+/// The kinds of content one project's 回收站 holds. `unknown` is a kind
+/// Rust lists that this client does not know: it is shown as 未知类型,
+/// cannot be restored or purged alone here, and stays in the confirmed set
+/// of 清空回收站, so emptying never leaves Rust's check blind to it.
 enum WorkspaceTrashKind: String, CaseIterable {
     case chapter, drift, element, category, storyline
+    case unknown = "__unknown__"
+
+    /// The kinds this client restores and filters by; `unknown` is not one.
+    static var allCases: [WorkspaceTrashKind] { [.chapter, .drift, .element, .category, .storyline] }
 
     var label: String {
         switch self {
@@ -11,6 +18,7 @@ enum WorkspaceTrashKind: String, CaseIterable {
         case .element: return "设定"
         case .category: return "分类"
         case .storyline: return "故事线"
+        case .unknown: return "未知类型"
         }
     }
 
@@ -22,6 +30,7 @@ enum WorkspaceTrashKind: String, CaseIterable {
         case .element: return "个设定"
         case .category: return "个分类"
         case .storyline: return "条故事线"
+        case .unknown: return "项未知类型的内容"
         }
     }
 
@@ -32,33 +41,45 @@ enum WorkspaceTrashKind: String, CaseIterable {
         case .element: return "它的字段、补丁、正文和历史版本，以及写在它上面的批注与待办"
         case .category: return "它的模板字段、正文和历史版本，以及写在它上面的批注与待办"
         case .storyline: return "它的字段、正文和历史版本，以及写在它上面的批注与待办"
+        case .unknown: return "它的全部内容"
         }
     }
 }
 
 /// One trashed entity as `workspaceTrash` lists it: its kind, title and
-/// when it entered the trash (its `deleted_at`).
+/// when it entered the trash (its `deleted_at`). `rawKind` is Rust's kind
+/// string, kept for a kind this client does not know.
 struct WorkspaceTrashItem: Equatable {
     let kind: WorkspaceTrashKind
+    let rawKind: String
     let id: String
     let title: String
     let trashedAt: String
 
-    var key: String { "\(kind.rawValue):\(id)" }
+    init(kind: WorkspaceTrashKind, id: String, title: String, trashedAt: String, rawKind: String? = nil) {
+        self.kind = kind; self.id = id; self.title = title; self.trashedAt = trashedAt
+        self.rawKind = rawKind ?? kind.rawValue
+    }
+
+    var key: String { "\(rawKind):\(id)" }
+    /// The `{kind, id}` Rust's 清空回收站 compares.
+    var confirmedKey: [String: String] { ["kind": rawKind, "id": id] }
     var displayTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名" : title }
     var trashedDate: Date? { WorkspaceTrashText.date(trashedAt) }
 }
 
-/// A row of Rust's trash listing. A kind this client does not know stays
-/// in the confirmed set of 清空回收站, so Rust's check still sees it.
+/// A row of Rust's trash listing. A kind this client does not know is
+/// listed as 未知类型 and stays in the confirmed set of 清空回收站, so
+/// Rust's check still sees it.
 struct WorkspaceTrashEntry: Decodable, Equatable {
     let kind: String
     let id: String
     let title: String
     let trashedAt: String
 
-    var item: WorkspaceTrashItem? {
-        WorkspaceTrashKind(rawValue: kind).map { WorkspaceTrashItem(kind: $0, id: id, title: title, trashedAt: trashedAt) }
+    var item: WorkspaceTrashItem {
+        let known = WorkspaceTrashKind.allCases.first { $0.rawValue == kind } ?? .unknown
+        return WorkspaceTrashItem(kind: known, id: id, title: title, trashedAt: trashedAt, rawKind: kind)
     }
 }
 
@@ -120,9 +141,10 @@ enum WorkspaceTrashText {
         item.trashedDate.map { display.string(from: $0) } ?? item.trashedAt
     }
 
-    /// “1 个章节、2 个设定”, in kind order; kinds without items are left out.
+    /// “1 个章节、2 个设定”, in kind order, unknown kinds last; kinds
+    /// without items are left out.
     static func counts(_ items: [WorkspaceTrashItem]) -> String {
-        WorkspaceTrashKind.allCases.compactMap { kind in
+        (WorkspaceTrashKind.allCases + [.unknown]).compactMap { kind in
             let count = items.filter { $0.kind == kind }.count
             return count > 0 ? "\(count) \(kind.counted)" : nil
         }.joined(separator: "、")
@@ -137,6 +159,9 @@ enum WorkspaceTrashText {
     }
 
     static let emptyQuestion = "清空回收站？"
+
+    /// Restore or purge of an item of a kind this client does not know.
+    static let unknownRefusal = "这一项是当前版本不认识的类型，不能单独恢复或彻底删除；清空回收站时会一并删除。"
 
     static func emptyDetail(_ items: [WorkspaceTrashItem]) -> String {
         "将永久删除回收站中的全部 \(items.count) 项：\(counts(items))，连同它们的字段、补丁、正文、历史版本和写在上面的批注与待办，无法恢复。"
@@ -240,7 +265,7 @@ final class WorkspaceTrashModel {
 
     /// A complete listing, in Rust's order (newest trash first).
     private func adopt(_ entries: [WorkspaceTrashEntry]) {
-        items = entries.compactMap(\.item)
+        items = entries.map(\.item)
         unread = nil
     }
 

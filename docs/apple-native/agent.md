@@ -5,7 +5,9 @@ Rust workspace and proposes prose, chapter, element, patch, storyline,
 relation, note/TODO, drift and project changes that the author accepts or
 rejects in the conversation. It keeps its own memory: the project's 作者规则
 and each conversation's 工作记忆 and 任务计划, compacts long conversations,
-retries transient failures and records token usage.
+retries transient failures and records token usage. The author's MCP
+servers add external tools whose results only go back to the model
+([MCP 扩展](#mcp-扩展)).
 
 ## Scope
 
@@ -26,7 +28,8 @@ retries transient failures and records token usage.
   items) is replayed only inside the current turn's tool loop.
 - Not ported:
   - the ChatGPT-subscription `openai-codex` route (needs OAuth);
-  - MCP and plugin tools, `ask_user` and `read_tool_result`;
+  - plugin tools, MCP resources, prompts and sampling, `ask_user` and
+    `read_tool_result`;
   - the renderer's long-task runtime beyond the native plan (manifests,
     review results, automatic continuation) and its project-wide Working
     Memory document (the native note is per conversation);
@@ -148,16 +151,31 @@ request's system prompt ends with the current 作者规则, 工作记忆 and 任
 
 Memory tools change only the assistant's memory, apply at once without a
 proposal and never touch the book, SQLite, user defaults or the journal.
+The Mac keeps one assistant per project for the session, so a rule or
+working-memory sheet writes to the project and conversation it opened on,
+even after the window switched project; a deleted conversation or project
+is refused in Chinese.
 
 - **作者规则** (per project): 偏好, 否决 or 指令 with one self-contained line
   (at most 500 characters, 40 rules). The panel's 作者规则 section adds, edits
   (kind and words) and deletes them after confirmation. A rule tool's change
-  shows as a card (已记住 / 已更新记忆 / 已忘记：…) with 撤销, which reverts it;
-  the author's next turn tells the model once.
+  shows as a card (已记住 / 已更新记忆 / 已忘记：…) with 撤销, which reverts it
+  only while the rule is as the card recorded it (otherwise the card says
+  why and nothing changes); restoring a deleted rule respects the 40-rule
+  limit and refuses a duplicate. The author's next turn tells the model once.
+  An edit or deletion confirmed on a rule that changed meanwhile is refused.
+- An unreadable `author-rules.json` is never treated as empty: the section
+  says it cannot be read, rule edits and rule tools are refused, and 重置…
+  (after confirmation) renames the file
+  `author-rules.unreadable-<yyyyMMdd-HHmmss>.json` beside it before rules
+  start empty.
 - **工作记忆** (per conversation): a Markdown note of at most 6,000
   characters that `checkpoint_working_memory` replaces whole; longer text is
   refused in Chinese. The collapsible 工作记忆 section shows it with who wrote
-  it last; the author edits it or clears it after confirmation.
+  it last; the author edits it or clears it after confirmation. A note
+  written in a new, unsent conversation saves that conversation. An edit or
+  清空 is refused when the assistant changed the note while the sheet was
+  open.
 - **任务计划** (per conversation): a goal, up to 40 ordered steps (待办,
   进行中, 完成, 跳过, each with an optional note) and constraints (`c1`…).
   Replacing the steps keeps the state of each unchanged title. The panel
@@ -195,6 +213,56 @@ proposal and never touch the book, SQLite, user defaults or the journal.
   its usage. [Copilot](copilot.md)'s requests are recorded the same way in
   `copilot-usage.json` and listed as one more row.
 
+## MCP 扩展
+
+设置 › 写作助手 › MCP 扩展 lists the open project's MCP servers (the
+renderer's `agent_mcp_server` fields, stored natively):
+
+- **Servers.** 添加服务器… and 编辑… open a sheet: name, 本地命令 (absolute
+  command path, arguments one per line, working folder, environment
+  variables) or HTTP (HTTPS URL, or HTTP to localhost; headers). Invalid
+  paths, names, reserved or forbidden headers and URLs with credentials are
+  refused in Chinese. A variable or header marked 密钥 is stored in the
+  Keychain (`Drifting Native Lab`, account
+  `mcp.<projectId>.<serverId>.env|header.<name>`); a stored one is never
+  shown and an empty field keeps it. Everything else is `mcpServers` in the
+  lab's `settings.json`. A server is enabled or disabled by its checkbox and
+  removed with 删除… (its secrets go too; so do a deleted project's).
+- **Health and tools.** Each server shows 未启用, 连接中…, 可用 N 个工具 or
+  出错：… (with its last standard-error lines), the tool-name prefix and
+  the discovered tools, each with 允许, 每次询问 (default) or 禁用. A tool
+  whose input schema uses unsupported JSON Schema (for example `$ref`), is
+  not an object or exceeds 64 KB is listed as 已跳过 with the reason.
+- **Connections** (`AgentMcpClient.swift`, `AgentMcpHub.swift`). Local
+  commands speak line-delimited JSON-RPC 2.0 over a child process with a
+  minimal environment plus the configured variables; standard error is kept
+  as a bounded log (200 lines). Streamable HTTP POSTs each message and reads
+  JSON or SSE answers, keeps the `Mcp-Session-Id` and sends
+  `MCP-Protocol-Version`; redirects are never followed and DELETE ends the
+  session. The handshake is `initialize` (2025-06-18) and
+  `notifications/initialized`, then `tools/list` with pagination (16 pages,
+  256 tools). Requests time out (30 s handshake, 300 s calls) and a timed-out
+  call is cancelled with `notifications/cancelled`; late answers are ignored.
+  A failed or timed-out handshake, a crash or an expired session reconnects
+  after 1, 3 and 10 s, then shows 出错 until 重新连接; a missing command or
+  secret and an unsupported protocol version show 出错 at once. A changed
+  server replaces its connection: the old tools leave the list first and
+  only a completed `tools/list` shows the new ones. Tool calls are never
+  replayed. Disabling, switching or closing the project and quitting end the
+  process (EOF, then SIGTERM, then SIGKILL); processes the server starts
+  itself are its own to end.
+- **In the conversation.** Allowed and 每次询问 tools join the request's tool
+  list as `mcp__<server>__<tool>` (64 characters, a short hash when a name
+  had to change) with their schemas, and the system prompt says their results
+  are external data. Arguments are checked against the schema before a call.
+  允许 calls at once; 每次询问 first shows a card with the tool, server and
+  arguments and calls only after 允许一次 (拒绝 tells the model; 停止 marks
+  it 未执行). 禁用 tools are not offered and are refused. A result is its
+  text, cut at 16,000 characters with a note; images, audio and resources
+  are summarised and never stored; `isError` is reported as a failure. MCP
+  tools cannot write the book: their results only reach the model, and any
+  change still goes through a proposal.
+
 ## Persistence
 
 - Conversations are stored per project under
@@ -223,6 +291,7 @@ proposal and never touch the book, SQLite, user defaults or the journal.
   unsigned lab uses the file keychain.
 - Keys go only into the provider's auth header (`authorization` or
   `x-api-key`). They are never written to conversation files, errors or logs.
+- MCP secrets use the same service with `mcp.…` accounts ([MCP 扩展](#mcp-扩展)).
 - The sheet shows only `已保存 ····<last four>`.
 - Missing keys, HTTP 401/403/404/429/5xx, network failures and broken streams
   map to Chinese messages (after retries where they apply). Error bodies are
@@ -285,6 +354,21 @@ covers memory and long work through the same panel, host and stub:
 - usage from each provider's stubbed fields and unknown usage, totals per
   day and model, the 用量 pane and removal with the conversation;
 - 写作助手 authorship on 审阅 cards, and one-original `create_element` with a
-  refused alias writing nothing.
+  refused alias writing nothing;
+- a note in a new conversation keeping it, sheets writing to the project and
+  conversation they opened on (and refusing a deleted one or a note the
+  assistant changed meanwhile), 撤销 refusals, and an unreadable rules file
+  with 重置….
+
+`native/apple/Tests/McpAcceptance.swift` (`--mcp-only`) runs a synthetic
+stdio server (a Python script written into a temporary folder and run with
+`/usr/bin/python3`) and a Streamable HTTP stub (`URLProtocol`) through the
+settings pane, hub, controller and panel: the sheet and its refusals, the
+handshake and paginated listing, schema skipping, the model's tool list,
+secrets only in the (in-memory) Keychain store, calls with checked arguments
+and a truncated result, media summaries, 允许 / 每次询问 (allow, deny, stop) /
+禁用, a crash and restart without replay, the stderr log, a call and a
+handshake timeout, reconfiguration, process cleanup on disable, project close,
+quit and deletion, and HTTP sessions, headers, expiry and DELETE.
 
 Physical keyboard input and live providers are not exercised.

@@ -103,6 +103,25 @@ final class AgentChatController {
     private var runningID: String?
     /// The project details read at the start of the running turn.
     private var turnDetails: WorkspaceProjectDetails?
+    /// The project's MCP servers: their allowed and 每次询问 tools join the
+    /// tool list. The owner activates it and shuts it down.
+    var mcp: AgentMcpHub?
+    /// Why `author-rules.json` could not be read. Rules are then read-only
+    /// until 重置 moves the file aside; it is never overwritten.
+    private(set) var rulesProblem: String?
+    /// The project was deleted; nothing more is written.
+    private(set) var isRetired = false
+    /// A 每次询问 MCP call waiting for 允许一次 or 拒绝.
+    private var approval: PendingApproval?
+    private struct PendingApproval {
+        let conversationID: String
+        let messageID: String
+        let allow: () -> Void
+        let deny: () -> Void
+        let cancel: () -> Void
+    }
+    /// The MCP call in flight; 停止 cancels it.
+    private var mcpCall: AgentMcpPendingRequest?
 
     var current: AgentConversation? { conversations.first { $0.id == currentID } }
 
@@ -116,9 +135,30 @@ final class AgentChatController {
         store = AgentConversationStore(root: root ?? workspace.agentDirectory, projectID: projectID)
         tools = AgentWorkspaceTools(workspace: workspace, projectID: projectID)
         conversations = store.load()
-        rules = store.loadRules()
+        switch store.loadRules() {
+        case .rules(let list): rules = list
+        case .unreadable(let reason):
+            rulesProblem = "作者规则无法读取（\(reason)）。为了不覆盖它，现在不能添加、修改或删除规则；可以点“重置…”把它移到一旁，从空白重新开始。"
+        }
         currentID = conversations.first?.id
     }
+
+    /// Every tool of the next request: the built-in ones, then the
+    /// visible MCP tools.
+    var toolDefinitions: [AgentToolDefinition] { AgentToolRegistry.all + (mcp?.definitions ?? []) }
+
+    /// Shown but not yet written: new and untouched.
+    func isDraft(_ id: String) -> Bool { drafts.contains(id) }
+
+    /// The project was deleted: the turn stops, MCP servers end and later
+    /// edits from sheets still open are refused.
+    func retire() {
+        stop()
+        isRetired = true
+        mcp?.shutdown()
+    }
+
+    private var retiredMessage: String { "项目《\(projectName)》已经删除，这次修改没有保存。" }
 
     private func notify(_ change: AgentChange) { onChange?(change) }
 
@@ -137,7 +177,7 @@ final class AgentChatController {
     @discardableResult
     func newConversation() -> AgentConversation? {
         guard !isRunning else { return nil }
-        if let current, current.messages.isEmpty { return current }
+        if let current, current.messages.isEmpty, drafts.contains(current.id) { return current }
         let conversation = AgentConversation(projectID: projectID, choice: current?.choice ?? .standard)
         conversations.insert(conversation, at: 0)
         drafts.insert(conversation.id)
@@ -158,7 +198,9 @@ final class AgentChatController {
 
     func rename(_ id: String, title: String) -> Bool {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, index(id) != nil else { return false }
+        guard !title.isEmpty, index(id) != nil, !isRetired else { return false }
+        // A draft the author names is kept.
+        drafts.remove(id)
         update(id) { $0.title = String(title.prefix(60)) }
         notify(.conversations)
         return true
@@ -263,7 +305,8 @@ final class AgentChatController {
     /// the current rules, working memory and plan.
     func systemPrompt(for conversation: AgentConversation) -> String {
         AgentPrompt.system(projectName: projectName, details: turnDetails, rules: rules,
-                           workingMemory: conversation.workingMemory, plan: conversation.plan)
+                           workingMemory: conversation.workingMemory, plan: conversation.plan,
+                           rulesUnreadable: rulesProblem != nil, mcpServers: mcp?.visibleServerNames ?? [])
     }
 
     /// Stops the running turn: a streamed reply keeps what arrived; a tool
@@ -279,8 +322,16 @@ final class AgentChatController {
             finish(id, notice: "已停止。", error: false)
             return
         }
+        // A call waiting for the author is not made.
+        if let approval {
+            self.approval = nil
+            approval.cancel()
+            return
+        }
         if let summaryCall { summaryCall.cancel() }
         if let stream { stream.cancel() }
+        // Its completion records the cancellation and ends the turn.
+        if let mcpCall { mcpCall.cancel() }
     }
 
     private func window(_ choice: AgentModelChoice) -> Int { contextWindow?(choice) ?? choice.option.contextWindowTokens }
@@ -297,7 +348,7 @@ final class AgentChatController {
         }
         guard let key, !key.isEmpty else { finish(id, notice: AgentErrors.missingKey(choice.provider).message, error: true); return }
         let request = AgentModelRequest(choice: choice, apiKey: key, system: systemPrompt(for: conversation), messages: conversation.messages,
-                                        turnID: turnID, tools: AgentToolRegistry.all, sessionID: id)
+                                        turnID: turnID, tools: toolDefinitions, sessionID: id)
         if !compacted, AgentContextBudget.estimate(request) > AgentContextBudget.limit(window: window(choice)),
            let plan = AgentCompactor.plan(conversation.messages) {
             compact(id, plan: plan, choice: choice, key: key, run: run) { [weak self] in
@@ -465,6 +516,10 @@ final class AgentChatController {
             return
         }
         let call = calls[position]
+        if AgentMcpNames.isMcp(call.name) {
+            runMcpTool(calls, at: position, id: id, turnID: turnID, number: number, run: run)
+            return
+        }
         activity = AgentWorkspaceTools.progress(call)
         notify(.streaming)
         tools.run(call, turnID: turnID) { [weak self] outcome in
@@ -485,8 +540,12 @@ final class AgentChatController {
     private func runMemoryTool(_ call: AgentToolCall, id: String, turnID: String) {
         var result: AgentMemoryTools.Result
         var rules = self.rules
+        let ruleTool = ["list_author_rules", "create_author_rule", "update_author_rule", "delete_author_rule"].contains(call.name)
         switch AgentWorkspaceTools.validated(call) {
         case .failure(let refusal): result = AgentMemoryTools.Result(outcome: refusal.outcome)
+        case .success where ruleTool && rulesProblem != nil:
+            result = AgentMemoryTools.Result(outcome: .failure("作者规则文件无法读取，现在不能读取或修改规则。请告诉作者在写作助手面板的作者规则中处理。",
+                                                               activity: "作者规则无法读取"))
         case .success(let arguments):
             guard let index = index(id) else { return }
             var conversation = conversations[index]
@@ -505,6 +564,8 @@ final class AgentChatController {
     }
 
     private func setRules(_ next: [AgentAuthorRule]) {
+        // An unreadable file is never replaced by what could be read.
+        guard rulesProblem == nil, !isRetired else { return }
         rules = next
         store.saveRules(next)
         notify(.rules)
@@ -519,6 +580,10 @@ final class AgentChatController {
         }
         stream = nil; summaryCall = nil
         retryWork?.cancel(); retryWork = nil; retryDelay = nil
+        if let approval {
+            self.approval = nil
+            setInvocation(approval.conversationID, approval.messageID, .cancelled)
+        }
         isRunning = false; isStopping = false; runningID = nil
         streamingText = ""; streamingThinking = ""; activity = nil
         notify(.transcript)
@@ -573,12 +638,15 @@ final class AgentChatController {
 
     // MARK: Memory
 
-    /// 撤销 on a rule card: the rule change is reverted and the model is told
-    /// in the author's next turn.
-    func undoMemory(_ messageID: String) {
-        guard let id = currentID, let change = current?.messages.first(where: { $0.id == messageID })?.memory, change.undone != true else { return }
+    /// 撤销 on a rule card: the rule change is reverted, only while the rule
+    /// is as the card recorded it, and the model is told in the author's
+    /// next turn. Returns why nothing changed.
+    @discardableResult
+    func undoMemory(_ messageID: String) -> String? {
+        guard let id = currentID, let change = current?.messages.first(where: { $0.id == messageID })?.memory, change.undone != true else { return nil }
+        if let refusal = ruleRefusal() { return refusal }
         var next = rules
-        AgentMemoryTools.undo(change, rules: &next)
+        if let refusal = AgentMemoryTools.undo(change, rules: &next) { return refusal }
         update(id) { conversation in
             guard let index = conversation.messages.firstIndex(where: { $0.id == messageID }) else { return }
             conversation.messages[index].memory?.undone = true
@@ -586,20 +654,46 @@ final class AgentChatController {
         }
         setRules(next)
         notify(.transcript)
+        return nil
+    }
+
+    private func ruleRefusal() -> String? {
+        if isRetired { return retiredMessage }
+        return rulesProblem == nil ? nil : "作者规则文件无法读取，现在不能修改规则。请先在作者规则中点“重置…”。"
+    }
+
+    /// 重置 of unreadable rules: the file is renamed
+    /// `author-rules.unreadable-<时间>.json` beside it and rules start empty.
+    @discardableResult
+    func resetRules() -> String? {
+        guard rulesProblem != nil else { return nil }
+        if isRetired { return retiredMessage }
+        do { _ = try store.setAsideRules() } catch { return error.localizedDescription }
+        rulesProblem = nil
+        rules = []
+        notify(.rules)
+        return nil
     }
 
     /// The author adds a rule in the panel. Returns why it was refused.
     @discardableResult
     func addRule(kind: AgentAuthorRule.Kind, text: String) -> String? {
+        if let refusal = ruleRefusal() { return refusal }
         let text = AgentAuthorRules.normalized(text)
         if let refusal = AgentAuthorRules.refusal(text, kind: kind, in: rules, except: nil) { return refusal }
         setRules(rules + [AgentAuthorRule(kind: kind, text: text, source: "author")])
         return nil
     }
 
+    /// `expected` is the rule as the edit sheet showed it; a rule changed
+    /// meanwhile is not overwritten.
     @discardableResult
-    func updateRule(_ ruleID: String, kind: AgentAuthorRule.Kind, text: String) -> String? {
+    func updateRule(_ ruleID: String, kind: AgentAuthorRule.Kind, text: String, expected: AgentAuthorRule? = nil) -> String? {
+        if let refusal = ruleRefusal() { return refusal }
         guard let index = rules.firstIndex(where: { $0.id == ruleID }) else { return "这条规则已经不存在。" }
+        if let expected, rules[index].kind != expected.kind || rules[index].text != expected.text {
+            return "这条规则在你编辑时被修改了（现在是\(rules[index].line)），你的修改没有保存。请重新打开“编辑…”。"
+        }
         let text = AgentAuthorRules.normalized(text)
         if let refusal = AgentAuthorRules.refusal(text, kind: kind, in: rules, except: ruleID) { return refusal }
         guard rules[index].kind != kind || rules[index].text != text else { return nil }
@@ -609,23 +703,161 @@ final class AgentChatController {
         return nil
     }
 
-    func deleteRule(_ ruleID: String) {
-        guard rules.contains(where: { $0.id == ruleID }) else { return }
+    /// `expected` is the rule the confirmation named.
+    @discardableResult
+    func deleteRule(_ ruleID: String, expected: AgentAuthorRule? = nil) -> String? {
+        if let refusal = ruleRefusal() { return refusal }
+        guard let rule = rules.first(where: { $0.id == ruleID }) else { return "这条规则已经不存在。" }
+        if let expected, rule.kind != expected.kind || rule.text != expected.text {
+            return "这条规则在你确认前被修改了（现在是\(rule.line)），没有删除。"
+        }
         setRules(rules.filter { $0.id != ruleID })
+        return nil
     }
 
-    /// The author replaces or clears the current conversation's working
-    /// memory. Returns why it was refused.
+    /// A conversation's working memory as an editor showed it.
+    struct MemoryStamp: Equatable {
+        let conversationID: String
+        let text: String
+        let updatedAt: Date?
+    }
+
+    /// The current conversation's working memory, for an edit to start from.
+    func memoryStamp() -> MemoryStamp? {
+        current.map { MemoryStamp(conversationID: $0.id, text: $0.workingMemory, updatedAt: $0.workingMemoryUpdatedAt) }
+    }
+
+    /// The author replaces or clears a conversation's working memory: the
+    /// one `stamp` names (else the current one), only while it is as the
+    /// stamp saw it. A new conversation is written at once. Returns why
+    /// it was refused.
     @discardableResult
-    func setWorkingMemory(_ text: String) -> String? {
-        guard let id = currentID else { return "请先选择一个对话。" }
+    func setWorkingMemory(_ text: String, basedOn stamp: MemoryStamp? = nil) -> String? {
+        if isRetired { return retiredMessage }
+        guard let id = stamp?.conversationID ?? currentID else { return "请先选择一个对话。" }
+        guard let index = index(id) else { return "这个对话已经删除，工作记忆没有保存。" }
+        if let stamp, conversations[index].workingMemory != stamp.text || conversations[index].workingMemoryUpdatedAt != stamp.updatedAt {
+            return "写作助手在你编辑时更新了工作记忆，你的修改没有保存，以免覆盖它。请重新打开“编辑…”后再改。"
+        }
         let text = AgentWorkingMemory.normalized(text)
         if let refusal = AgentWorkingMemory.refusal(text) { return refusal }
+        let wasDraft = drafts.remove(id) != nil
         update(id) { conversation in
             conversation.workingMemory = text
             conversation.workingMemoryUpdatedAt = Date(); conversation.workingMemoryUpdatedBy = "author"
         }
+        if wasDraft { notify(.conversations) }
         notify(.transcript)
         return nil
+    }
+
+    // MARK: MCP
+
+    /// The card's message while a 每次询问 call waits for the author.
+    var waitingApproval: String? { approval?.messageID }
+
+    /// 允许一次 or 拒绝 on the waiting MCP card.
+    func decideMcp(_ messageID: String, allow: Bool) {
+        guard let approval, approval.messageID == messageID, isRunning, !isStopping else { return }
+        self.approval = nil
+        setInvocation(approval.conversationID, messageID, allow ? .allowed : .denied)
+        if allow { approval.allow() } else { approval.deny() }
+    }
+
+    private func setInvocation(_ id: String, _ messageID: String, _ state: AgentMcpInvocation.State) {
+        update(id) { conversation in
+            guard let index = conversation.messages.firstIndex(where: { $0.id == messageID }) else { return }
+            conversation.messages[index].mcp?.state = state
+        }
+        notify(.transcript)
+    }
+
+    private func appendTool(_ id: String, turnID: String, call: AgentToolCall, _ outcome: AgentToolOutcome) {
+        var result = AgentMessage(role: .tool, turnID: turnID, text: outcome.content)
+        result.callID = call.id; result.toolName = call.name; result.ok = outcome.ok; result.activity = outcome.activity
+        update(id) { $0.messages.append(result); $0.updatedAt = Date() }
+        notify(.transcript)
+    }
+
+    /// An MCP call: checked against its schema, then made at once
+    /// (允许) or after the author's 允许一次 (每次询问). Its result only goes
+    /// back to the model.
+    private func runMcpTool(_ calls: [AgentToolCall], at position: Int, id: String, turnID: String, number: Int, run: Int) {
+        let call = calls[position]
+        let next: () -> Void = { [weak self] in self?.runTools(calls, at: position + 1, id: id, turnID: turnID, number: number, run: run) }
+        guard let tool = mcp?.tool(named: call.name) else {
+            appendTool(id, turnID: turnID, call: call, AgentToolOutcome(ok: false,
+                content: "这个 MCP 工具现在不可用：它的服务器可能已停用、正在重新连接或已删除，或者作者把它设为禁用。请不要再调用它。",
+                activity: "MCP 工具 \(call.name) 不可用", proposal: nil))
+            next(); return
+        }
+        let label = "MCP 工具「\(tool.name)」（\(tool.serverName)）"
+        guard let arguments = AgentJSONText.object(call.arguments) else {
+            appendTool(id, turnID: turnID, call: call, .failure("参数不是有效的 JSON 对象。请按工具说明重新调用。", activity: "调用\(label)失败"))
+            next(); return
+        }
+        if let violation = AgentMcpSchema.violation(arguments, schema: tool.schemaObject) {
+            appendTool(id, turnID: turnID, call: call, .failure("\(violation)请按工具说明重新调用。", activity: "调用\(label)失败"))
+            next(); return
+        }
+        let invoke: () -> Void = { [weak self] in self?.invokeMcp(tool, call: call, arguments: arguments, id: id, turnID: turnID, run: run, next: next) }
+        guard tool.policy == .ask else { invoke(); return }
+        var card = AgentMessage(role: .notice, turnID: turnID, text: "请求调用\(label)")
+        card.mcp = AgentMcpInvocation(callID: call.id, serverID: tool.serverID, serverName: tool.serverName, tool: tool.name,
+                                      arguments: AgentMcpInvocation.display(arguments), state: .waiting)
+        let cardID = card.id
+        update(id) { $0.messages.append(card); $0.updatedAt = Date() }
+        approval = PendingApproval(conversationID: id, messageID: cardID, allow: invoke, deny: { [weak self] in
+            self?.appendTool(id, turnID: turnID, call: call, AgentToolOutcome(ok: false,
+                content: "作者拒绝了这次调用，工具没有执行。除非作者要求，不要再请求同样的调用。", activity: "已拒绝调用\(label)", proposal: nil))
+            next()
+        }, cancel: { [weak self] in
+            guard let self else { return }
+            self.setInvocation(id, cardID, .cancelled)
+            self.update(id) { conversation in
+                for call in calls[position...] {
+                    var result = AgentMessage(role: .tool, turnID: turnID, text: "作者停止了本轮，这个工具没有执行。")
+                    result.callID = call.id; result.toolName = call.name; result.ok = false
+                    conversation.messages.append(result)
+                }
+            }
+            self.finish(id, notice: "已停止。", error: false)
+        })
+        activity = "等待你允许调用\(label)…"
+        notify(.transcript)
+        notify(.streaming)
+    }
+
+    private func invokeMcp(_ tool: AgentMcpHub.Tool, call: AgentToolCall, arguments: [String: Any], id: String, turnID: String, run: Int,
+                           next: @escaping () -> Void) {
+        guard run == generation, isRunning else { return }
+        let label = "MCP 工具「\(tool.name)」（\(tool.serverName)）"
+        activity = "正在调用\(label)…"
+        notify(.streaming)
+        let request = mcp?.call(tool.providerName, arguments: arguments) { [weak self] result in
+            guard let self, run == self.generation else { return }
+            self.mcpCall = nil
+            let outcome: AgentToolOutcome
+            switch result {
+            case .success(let value) where value.isError:
+                outcome = AgentToolOutcome(ok: false, content: "MCP 工具报告了错误：\(value.text)", activity: "\(label)报告了错误", proposal: nil)
+            case .success(let value):
+                outcome = AgentToolOutcome(ok: true, content: value.text,
+                                           activity: "调用\(label)（\(value.characters) 字\(value.truncated ? "，已截断" : "")）", proposal: nil)
+            case .failure(let error) where error.kind == .cancelled:
+                outcome = AgentToolOutcome(ok: false, content: "作者停止了本轮，这次 MCP 调用已取消。", activity: "已取消调用\(label)", proposal: nil)
+            case .failure(let error):
+                outcome = AgentToolOutcome(ok: false, content: "调用失败：\(error.message)", activity: "调用\(label)失败：\(error.message)", proposal: nil)
+            }
+            self.appendTool(id, turnID: turnID, call: call, outcome)
+            next()
+        }
+        if let request, !request.isFinished {
+            mcpCall = request
+        } else if request == nil {
+            appendTool(id, turnID: turnID, call: call, AgentToolOutcome(ok: false, content: "这个 MCP 工具刚刚变得不可用，调用没有发出。",
+                                                                     activity: "\(label)不可用", proposal: nil))
+            next()
+        }
     }
 }

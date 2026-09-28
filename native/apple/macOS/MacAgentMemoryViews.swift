@@ -11,6 +11,8 @@ final class AgentMemorySectionsView: NSView {
     let memory = AgentPanelSection(identifier: "agent-working-memory", title: "工作记忆")
     let plan = AgentPanelSection(identifier: "agent-plan", title: "任务计划")
     let addRuleButton = AgentPanelSection.button("添加…", "agent-rule-add")
+    /// Shown while `author-rules.json` cannot be read.
+    let resetRulesButton = AgentPanelSection.button("重置…", "agent-rules-reset")
     let editMemoryButton = AgentPanelSection.button("编辑…", "agent-memory-edit")
     let clearMemoryButton = AgentPanelSection.button("清空", "agent-memory-clear")
     /// Why the last rule or memory edit was refused, in red.
@@ -20,9 +22,10 @@ final class AgentMemorySectionsView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        rules.actions = [addRuleButton]
+        rules.actions = [addRuleButton, resetRulesButton]
         memory.actions = [editMemoryButton, clearMemoryButton]
         addRuleButton.target = self; addRuleButton.action = #selector(addRule)
+        resetRulesButton.target = self; resetRulesButton.action = #selector(resetRules)
         editMemoryButton.target = self; editMemoryButton.action = #selector(editMemory)
         clearMemoryButton.target = self; clearMemoryButton.action = #selector(clearMemory)
         plan.isExpanded = true
@@ -55,11 +58,17 @@ final class AgentMemorySectionsView: NSView {
 
     func reloadRules() {
         let list = controller?.rules ?? []
-        rules.title = list.isEmpty ? "作者规则" : "作者规则（\(list.count)）"
-        addRuleButton.isEnabled = controller != nil
+        let problem = controller?.rulesProblem
+        rules.title = problem != nil ? "作者规则（无法读取）" : list.isEmpty ? "作者规则" : "作者规则（\(list.count)）"
+        addRuleButton.isEnabled = controller != nil && problem == nil
+        resetRulesButton.isHidden = problem == nil
         ruleRows = [:]
         var views: [NSView] = []
-        if list.isEmpty {
+        if let problem {
+            let text = AgentPanelSection.detail(problem, "agent-rules-unreadable")
+            text.textColor = .systemRed
+            views.append(text)
+        } else if list.isEmpty {
             views.append(AgentPanelSection.detail("还没有作者规则。你表达长期的偏好、否决或指令时，写作助手会记下；你也可以自己添加。", "agent-rules-empty"))
         }
         for rule in list {
@@ -112,8 +121,11 @@ final class AgentMemorySectionsView: NSView {
         label.isHidden = text == nil
     }
 
+    /// Every sheet captures the controller (its project) when it opens and
+    /// writes to exactly that one when it closes, even if the panel shows
+    /// another project by then.
     @objc func addRule() {
-        guard controller != nil else { return }
+        guard let controller else { return }
         let (form, popup, field) = ruleForm(kind: .preference, text: "")
         let alert = NSAlert()
         alert.messageText = "添加作者规则"
@@ -123,12 +135,12 @@ final class AgentMemorySectionsView: NSView {
         alert.window.initialFirstResponder = field
         present?(alert) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            self.show(self.ruleMessage, self.controller?.addRule(kind: Self.kind(popup), text: field.stringValue))
+            self.show(self.ruleMessage, controller.addRule(kind: Self.kind(popup), text: field.stringValue))
         }
     }
 
     func editRule(_ id: String) {
-        guard let rule = controller?.rules.first(where: { $0.id == id }) else { return }
+        guard let controller, let rule = controller.rules.first(where: { $0.id == id }) else { return }
         let (form, popup, field) = ruleForm(kind: rule.kind, text: rule.text)
         let alert = NSAlert()
         alert.messageText = "编辑作者规则"
@@ -137,12 +149,12 @@ final class AgentMemorySectionsView: NSView {
         alert.window.initialFirstResponder = field
         present?(alert) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            self.show(self.ruleMessage, self.controller?.updateRule(id, kind: Self.kind(popup), text: field.stringValue))
+            self.show(self.ruleMessage, controller.updateRule(id, kind: Self.kind(popup), text: field.stringValue, expected: rule))
         }
     }
 
     func deleteRule(_ id: String) {
-        guard let rule = controller?.rules.first(where: { $0.id == id }) else { return }
+        guard let controller, let rule = controller.rules.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
         alert.messageText = "删除这条作者规则？"
         alert.informativeText = rule.line
@@ -150,8 +162,21 @@ final class AgentMemorySectionsView: NSView {
         alert.addButton(withTitle: "删除"); alert.addButton(withTitle: "取消")
         present?(alert) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            self.controller?.deleteRule(id)
-            self.show(self.ruleMessage, nil)
+            self.show(self.ruleMessage, controller.deleteRule(id, expected: rule))
+        }
+    }
+
+    /// 重置…: the unreadable file is moved aside and rules start empty.
+    @objc func resetRules() {
+        guard let controller, controller.rulesProblem != nil else { return }
+        let alert = NSAlert()
+        alert.messageText = "重置作者规则？"
+        alert.informativeText = "无法读取的 author-rules.json 会改名为 author-rules.unreadable-<时间>.json，留在原来的文件夹里，不会删除。之后作者规则从空白开始。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "重置"); alert.addButton(withTitle: "取消")
+        present?(alert) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            self.show(self.ruleMessage, controller.resetRules())
         }
     }
 
@@ -161,7 +186,7 @@ final class AgentMemorySectionsView: NSView {
         let conversation = controller?.current
         let text = conversation?.workingMemory ?? ""
         memory.title = text.isEmpty ? "工作记忆（空）" : "工作记忆（\(text.count) 字）"
-        editMemoryButton.isEnabled = conversation != nil
+        editMemoryButton.isEnabled = controller != nil
         clearMemoryButton.isEnabled = !text.isEmpty
         let body = AgentPanelSection.detail(text.isEmpty ? "本对话还没有工作记忆。写作助手会在长任务中记下进度和结论；你也可以编辑。" : text,
                                             "agent-memory-text")
@@ -174,8 +199,13 @@ final class AgentMemorySectionsView: NSView {
         memory.setContent(views)
     }
 
+    /// A new conversation the author writes a note in is kept (the note
+    /// saves it). The edit applies to the conversation it opened on, and is
+    /// refused if the assistant changed the note meanwhile.
     @objc func editMemory() {
-        guard let conversation = controller?.current else { return }
+        guard let controller else { return }
+        if controller.current == nil { controller.newConversation() }
+        guard let conversation = controller.current, let stamp = controller.memoryStamp() else { return }
         let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 360, height: 220))
         scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
         let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 360, height: 220))
@@ -194,12 +224,12 @@ final class AgentMemorySectionsView: NSView {
         alert.window.initialFirstResponder = editor
         present?(alert) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            self.show(self.memoryMessage, self.controller?.setWorkingMemory(editor.string))
+            self.show(self.memoryMessage, controller.setWorkingMemory(editor.string, basedOn: stamp))
         }
     }
 
     @objc func clearMemory() {
-        guard controller?.current?.workingMemory.isEmpty == false else { return }
+        guard let controller, controller.current?.workingMemory.isEmpty == false, let stamp = controller.memoryStamp() else { return }
         let alert = NSAlert()
         alert.messageText = "清空本对话的工作记忆？"
         alert.informativeText = "写作助手记下的进度和结论会删除，作品内容不受影响。"
@@ -207,7 +237,7 @@ final class AgentMemorySectionsView: NSView {
         alert.addButton(withTitle: "清空"); alert.addButton(withTitle: "取消")
         present?(alert) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            self.show(self.memoryMessage, self.controller?.setWorkingMemory(""))
+            self.show(self.memoryMessage, controller.setWorkingMemory("", basedOn: stamp))
         }
     }
 
@@ -372,13 +402,22 @@ final class AgentClosureButton: NSButton {
 final class AgentMemoryCard: NSView, AgentTranscriptRow {
     let label = NSTextField(wrappingLabelWithString: "")
     let undoButton: NSButton
+    /// Why 撤销 did nothing, in red.
+    let messageLabel = AgentPanelSection.message("")
     let change: AgentMemoryChange
     private(set) var plainText = ""
 
-    init(messageID: String, change: AgentMemoryChange, undo: @escaping () -> Void) {
+    /// `undo` returns why nothing was undone.
+    init(messageID: String, change: AgentMemoryChange, undo: @escaping () -> String?) {
         self.change = change
-        undoButton = AgentPanelSection.button("撤销", "agent-memory-undo-\(messageID)", pressed: undo)
+        var shown: ((String?) -> Void)?
+        undoButton = AgentPanelSection.button("撤销", "agent-memory-undo-\(messageID)", pressed: { shown?(undo()) })
         super.init(frame: .zero)
+        messageLabel.setAccessibilityIdentifier("agent-memory-message-\(messageID)")
+        shown = { [weak self] text in
+            self?.messageLabel.stringValue = text ?? ""
+            self?.messageLabel.isHidden = text == nil
+        }
         wantsLayer = true
         setAccessibilityIdentifier("agent-memory-\(messageID)")
         plainText = change.headline
@@ -389,8 +428,11 @@ final class AgentMemoryCard: NSView, AgentTranscriptRow {
         label.setAccessibilityIdentifier("agent-memory-text-\(messageID)")
         undoButton.isHidden = change.undone == true
         undoButton.toolTip = "撤销这次对作者规则的修改"
-        let stack = NSStackView(views: [label, undoButton])
-        stack.orientation = .horizontal; stack.alignment = .firstBaseline; stack.spacing = 6
+        let line = NSStackView(views: [label, undoButton])
+        line.orientation = .horizontal; line.alignment = .firstBaseline; line.spacing = 6
+        line.detachesHiddenViews = true
+        let stack = NSStackView(views: [line, messageLabel])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 3
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)

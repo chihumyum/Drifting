@@ -135,6 +135,9 @@ struct AgentMessage: Codable, Equatable {
     var compaction: AgentCompaction?
     /// A round-limit notice after which 继续 may start the next turn.
     var continuable: Bool?
+    /// Notice rows asking to call an MCP tool set to 每次询问: the tool,
+    /// server, arguments and the author's decision.
+    var mcp: AgentMcpInvocation?
     var createdAt: Date
 
     init(id: String = UUID().uuidString, role: Role, turnID: String, text: String, createdAt: Date = Date()) {
@@ -390,6 +393,10 @@ final class AgentConversationStore {
                 for index in conversation.proposals.indices where conversation.proposals[index].state == .applying {
                     conversation.proposals[index].state = .pending
                 }
+                // An MCP call still waiting when the app stopped was never made.
+                for index in conversation.messages.indices where conversation.messages[index].mcp?.state == .waiting {
+                    conversation.messages[index].mcp?.state = .cancelled
+                }
                 return conversation
             }.sorted { $0.updatedAt > $1.updatedAt }
         }
@@ -418,12 +425,50 @@ final class AgentConversationStore {
         }
     }
 
-    /// The project's 作者规则, oldest first; none when the file is missing.
-    func loadRules() -> [AgentAuthorRule] {
+    /// The project's 作者规则 as read: oldest first and none when the file is
+    /// missing, or why a file that exists could not be read. An unreadable
+    /// file is never treated as empty, so nothing overwrites it.
+    enum RulesRead: Equatable {
+        case rules([AgentAuthorRule])
+        case unreadable(String)
+    }
+
+    func loadRules() -> RulesRead {
         queue.sync {
-            guard let data = try? Data(contentsOf: directory.appendingPathComponent(Self.rulesFile)),
-                  let file = try? Self.decoder().decode(AgentAuthorRulesFile.self, from: data) else { return [] }
-            return file.rules
+            let url = directory.appendingPathComponent(Self.rulesFile)
+            guard FileManager.default.fileExists(atPath: url.path) else { return .rules([]) }
+            guard let data = try? Data(contentsOf: url) else { return .unreadable("无法打开 \(Self.rulesFile)") }
+            do {
+                let file = try Self.decoder().decode(AgentAuthorRulesFile.self, from: data)
+                return .rules(file.rules)
+            } catch {
+                return .unreadable("\(Self.rulesFile) 的内容无法解析")
+            }
+        }
+    }
+
+    /// 重置 of unreadable rules: the file is renamed
+    /// `author-rules.unreadable-<yyyyMMdd-HHmmss>.json` beside it, after
+    /// every queued write. Returns the new name.
+    func setAsideRules(now: Date = Date()) throws -> String {
+        try queue.sync {
+            let source = directory.appendingPathComponent(Self.rulesFile)
+            guard FileManager.default.fileExists(atPath: source.path) else { return "" }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let stamp = formatter.string(from: now)
+            var name = "author-rules.unreadable-\(stamp).json", number = 1
+            while FileManager.default.fileExists(atPath: directory.appendingPathComponent(name).path) {
+                number += 1
+                name = "author-rules.unreadable-\(stamp)-\(number).json"
+            }
+            do {
+                try FileManager.default.moveItem(at: source, to: directory.appendingPathComponent(name))
+            } catch {
+                throw LabError.message("无法把无法读取的作者规则文件移到一旁：\(error.localizedDescription)")
+            }
+            return name
         }
     }
 

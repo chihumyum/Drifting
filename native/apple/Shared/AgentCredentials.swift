@@ -9,6 +9,14 @@ protocol AgentCredentialStore: AnyObject {
     func removeKey(for provider: AgentProviderID) throws
 }
 
+/// Other secrets of the writing assistant (MCP environment values and
+/// headers) under the same Keychain service, by account name.
+protocol AgentSecretStore: AnyObject {
+    func secret(account: String) throws -> String?
+    func setSecret(_ value: String, account: String) throws
+    func removeSecret(account: String) throws
+}
+
 extension AgentCredentialStore {
     /// “已保存 ····a1b2”, or nil when no key is stored.
     func maskedKey(for provider: AgentProviderID) -> String? {
@@ -39,57 +47,84 @@ enum AgentCredentials {
 /// Generic-password items under `Drifting Native Lab` / `byok.<provider>`.
 /// The lab is unsigned, so the macOS file keychain is used rather than the
 /// data-protection keychain (which needs an access-group entitlement).
-final class AgentKeychainCredentialStore: AgentCredentialStore {
+/// MCP secrets use the same service with `mcp.…` accounts.
+final class AgentKeychainCredentialStore: AgentCredentialStore, AgentSecretStore {
     private let service: String
 
     init(service: String = AgentCredentials.service) { self.service = service }
 
-    private func query(_ provider: AgentProviderID) -> [String: Any] {
+    private func query(_ account: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
-         kSecAttrAccount as String: AgentCredentials.account(provider)]
+         kSecAttrAccount as String: account]
     }
 
     func key(for provider: AgentProviderID) throws -> String? {
-        var request = query(provider)
+        try read(AgentCredentials.account(provider), what: "API Key")
+    }
+
+    func setKey(_ key: String, for provider: AgentProviderID) throws {
+        guard let key = AgentCredentials.normalized(key) else { throw LabError.message("API Key 不能为空。") }
+        try write(key, account: AgentCredentials.account(provider), label: "\(service) · \(provider.label) API Key", what: "API Key")
+    }
+
+    func removeKey(for provider: AgentProviderID) throws {
+        try remove(AgentCredentials.account(provider), what: "API Key")
+    }
+
+    func secret(account: String) throws -> String? { try read(account, what: "密钥") }
+
+    func setSecret(_ value: String, account: String) throws {
+        try write(value, account: account, label: "\(service) · MCP 密钥", what: "密钥")
+    }
+
+    func removeSecret(account: String) throws { try remove(account, what: "密钥") }
+
+    private func read(_ account: String, what: String) throws -> String? {
+        var request = query(account)
         request[kSecReturnData as String] = true
         request[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         let status = SecItemCopyMatching(request as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = item as? Data else { throw Self.failure(status, reading: true) }
+        guard status == errSecSuccess, let data = item as? Data else { throw Self.failure(status, reading: true, what: what) }
         return String(data: data, encoding: .utf8)
     }
 
-    func setKey(_ key: String, for provider: AgentProviderID) throws {
-        guard let key = AgentCredentials.normalized(key) else { throw LabError.message("API Key 不能为空。") }
-        let data = Data(key.utf8)
-        let update = SecItemUpdate(query(provider) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+    private func write(_ value: String, account: String, label: String, what: String) throws {
+        let data = Data(value.utf8)
+        let update = SecItemUpdate(query(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
         if update == errSecSuccess { return }
-        guard update == errSecItemNotFound else { throw Self.failure(update, reading: false) }
-        var item = query(provider)
+        guard update == errSecItemNotFound else { throw Self.failure(update, reading: false, what: what) }
+        var item = query(account)
         item[kSecValueData as String] = data
-        item[kSecAttrLabel as String] = "\(service) · \(provider.label) API Key"
+        item[kSecAttrLabel as String] = label
         let status = SecItemAdd(item as CFDictionary, nil)
-        guard status == errSecSuccess else { throw Self.failure(status, reading: false) }
+        guard status == errSecSuccess else { throw Self.failure(status, reading: false, what: what) }
     }
 
-    func removeKey(for provider: AgentProviderID) throws {
-        let status = SecItemDelete(query(provider) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw Self.failure(status, reading: false) }
+    private func remove(_ account: String, what: String) throws {
+        let status = SecItemDelete(query(account) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw Self.failure(status, reading: false, what: what) }
     }
 
-    private static func failure(_ status: OSStatus, reading: Bool) -> LabError {
-        .message(reading ? "无法从钥匙串读取 API Key（错误 \(status)）。请检查 macOS 的钥匙串访问提示。"
-                         : "无法把 API Key 保存到钥匙串（错误 \(status)）。")
+    private static func failure(_ status: OSStatus, reading: Bool, what: String) -> LabError {
+        .message(reading ? "无法从钥匙串读取\(what)（错误 \(status)）。请检查 macOS 的钥匙串访问提示。"
+                         : "无法把\(what)保存到钥匙串（错误 \(status)）。")
     }
 }
 
 /// Tests and previews: keys live only in memory and never touch the Keychain.
-final class AgentMemoryCredentialStore: AgentCredentialStore {
+final class AgentMemoryCredentialStore: AgentCredentialStore, AgentSecretStore {
     private var keys: [AgentProviderID: String]
+    /// Other secrets by account, as the Keychain would hold them.
+    private(set) var secrets: [String: String] = [:]
 
     init(_ keys: [AgentProviderID: String] = [:]) { self.keys = keys }
+
+    func secret(account: String) throws -> String? { secrets[account] }
+    func setSecret(_ value: String, account: String) throws { secrets[account] = value }
+    func removeSecret(account: String) throws { secrets[account] = nil }
 
     func key(for provider: AgentProviderID) throws -> String? { keys[provider] }
 

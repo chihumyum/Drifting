@@ -12,6 +12,8 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     let editorPane: MacEditorSettingsViewController
     let languagePane: MacLanguageSettingsViewController
     let agentPane = MacAgentSettingsViewController()
+    /// 写作助手 › MCP 扩展, shown as the second tab of the 写作助手 pane.
+    let mcpPane: MacMcpSettingsViewController
     let copilotPane: MacCopilotSettingsViewController
     private let tabs = NSTabViewController()
 
@@ -21,6 +23,8 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
         editorPane = MacEditorSettingsViewController(store: store)
         languagePane = MacLanguageSettingsViewController(store: store)
         copilotPane = MacCopilotSettingsViewController(store: store)
+        mcpPane = MacMcpSettingsViewController(store: store)
+        agentPane.mcpPane = mcpPane
         tabs.tabStyle = .toolbar
         for (controller, label, symbol) in [(appearancePane as NSViewController, "外观", "paintbrush"),
                                             (editorPane, "编辑器", "textformat"), (languagePane, "语言", "globe"),
@@ -47,11 +51,18 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func refresh() {
         appearancePane.refresh(); editorPane.refresh(); languagePane.refresh(); agentPane.refresh(); copilotPane.refresh()
+        mcpPane.refresh()
     }
 
     /// Shows the 写作助手 tab.
     func showAgentPane() {
         tabs.selectedTabViewItemIndex = tabs.tabViewItems.firstIndex { $0.viewController === agentPane } ?? 0
+    }
+
+    /// Shows 写作助手 › MCP 扩展.
+    func showMcpPane() {
+        showAgentPane()
+        agentPane.showMcp()
     }
 
     /// Shows the Copilot（实验） tab.
@@ -497,6 +508,9 @@ final class MacLanguageSettingsViewController: NSViewController {
 /// are the providers' own usage fields; unreported ones count as unknown,
 /// and no prices are shown.
 final class MacAgentSettingsViewController: NSViewController {
+    /// MCP 扩展, a second tab beside 用量 when set before the view loads.
+    var mcpPane: MacMcpSettingsViewController?
+    private(set) var sections: NSTabView?
     /// The project's name and conversations, or nil without a project.
     var source: (() -> (project: String, conversations: [AgentConversation])?)?
     var now: () -> Date = Date.init
@@ -526,7 +540,7 @@ final class MacAgentSettingsViewController: NSViewController {
 
     override func loadView() {
         let grid = SettingsLayout.grid([("今天", [todayLabel]), ("近 30 天", [monthLabel])])
-        view = SettingsLayout.page([
+        let usage = SettingsLayout.page([
             SettingsLayout.heading("用量"),
             SettingsLayout.detail("按模型服务在每次请求后报告的数字记录；没有报告的记为“未知”，不估算，也不计算费用。删除对话会一并删除它的用量。"),
             projectLabel, grid,
@@ -534,10 +548,65 @@ final class MacAgentSettingsViewController: NSViewController {
             SettingsLayout.heading("按对话（全部）"), conversationsStack,
             SettingsLayout.line([keysButton]),
         ], spacing: [1: 14, 3: 16, 5: 16, 7: 16])
+        guard let mcpPane else { view = usage; refresh(); return }
+        addChild(mcpPane)
+        let tabs = NSTabView()
+        tabs.setAccessibilityIdentifier("settings-agent-sections")
+        let usageItem = NSTabViewItem(identifier: "usage")
+        usageItem.label = "用量"
+        usageItem.view = Self.scrolled(usage)
+        let mcpItem = NSTabViewItem(identifier: "mcp")
+        mcpItem.label = "MCP 扩展"
+        mcpItem.view = Self.scrolled(mcpPane.view)
+        tabs.addTabViewItem(usageItem)
+        tabs.addTabViewItem(mcpItem)
+        tabs.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.addSubview(tabs)
+        NSLayoutConstraint.activate([
+            tabs.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            tabs.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            tabs.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            tabs.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
+            container.widthAnchor.constraint(equalToConstant: SettingsLayout.width + 60),
+            container.heightAnchor.constraint(equalToConstant: 640),
+        ])
+        sections = tabs
+        view = container
         refresh()
     }
 
-    override func viewWillAppear() { super.viewWillAppear(); refresh() }
+    /// A fixed-width page in a scroll view that fills its tab, so a long
+    /// list scrolls instead of growing the window.
+    private static func scrolled(_ page: NSView) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true; scroll.drawsBackground = false; scroll.borderType = .noBorder
+        let document = AgentFlippedView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+        page.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(page)
+        scroll.documentView = document
+        let fill = document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor)
+        fill.priority = .defaultHigh
+        NSLayoutConstraint.activate([
+            page.leadingAnchor.constraint(equalTo: document.leadingAnchor),
+            page.topAnchor.constraint(equalTo: document.topAnchor),
+            page.bottomAnchor.constraint(equalTo: document.bottomAnchor),
+            document.trailingAnchor.constraint(greaterThanOrEqualTo: page.trailingAnchor),
+            document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            fill,
+        ])
+        return scroll
+    }
+
+    /// Selects the MCP 扩展 tab.
+    func showMcp() {
+        _ = view
+        sections?.selectTabViewItem(at: 1)
+    }
+
+    override func viewWillAppear() { super.viewWillAppear(); refresh(); mcpPane?.refresh() }
 
     @objc private func usageChanged() { if isViewLoaded { refresh() } }
     @objc private func manageKeys() { onManageKeys?() }

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-27T23:37:27.412Z",
+  "generatedAt": "2026-09-28T00:51:49.849Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "c2d4ab428aea240d49e69178478ad174114ba975",
+    "commit": "30439d6d99bdf1666e299890f3f7d28ab4747dcc",
     "dirty": true,
-    "fingerprint": "7eaf71cce9a06774d8c5b796884e588cb8d1fa025688aececad57f10f0a6482c"
+    "fingerprint": "da10723fd3a320a9893b084d41ee1e68d02c7bf68c19a9c3abf4d1c564e52aa0"
   },
   "cases": [
     {
@@ -523,6 +523,22 @@
       "status": "passed"
     },
     {
+      "name": "AppKit 工作记忆 written in a new, unsent conversation saves that conversation at once, so switching away and relaunching keep it with its note (it can then be renamed and deleted), while an untouched new conversation is still dropped and never written",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 作者规则 and 工作记忆 sheets write to the project and conversation they opened on even after the panel switched project, refuse in Chinese when the conversation was deleted or the project removed, and refuse to overwrite working memory the assistant changed while the sheet was open",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 撤销 on a rule card only undoes a rule still as the card recorded it and otherwise explains on the card and changes nothing; undoing a deletion refuses a duplicate and the 40-rule limit",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit an unreadable author-rules.json is shown as unreadable, never treated as empty or overwritten: the panel and rule tools refuse rule changes, and 重置… after confirmation moves it aside as author-rules.unreadable-<timestamp>.json with its bytes before rules start empty",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 素材库 imports a generated PNG and PDF through 导入文件… and a dropped JPEG, shows image and PDF cards whose downsampled thumbnails load, adds a link showing its host that opens in the browser and a note from the sheet, previews files through Quick Look and the space bar, and refuses a dropped text file, a javascript: link and Rust's missing-file and folder imports in Chinese without writing",
       "status": "passed"
     },
@@ -636,6 +652,10 @@
     },
     {
       "name": "AppKit 全书长卷 keeps tracking an owner whose close fails, names its chapter in the status line, tries again at the next quiet moment until it closes, makes 删除项目 refuse naming the chapter before anything closes, and a shutdown reports the failure instead of waiting",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 全书长卷 reopens reliably when closing completes at once (a reported close failure or a book already shut down), and every book still closing its owners is tracked for 删除项目 until each has shut down",
       "status": "passed"
     },
     {
@@ -771,6 +791,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit 回收站 lists a kind this client does not know as 未知类型 with restore and 彻底删除 refused, counts it in the 清空回收站 question and keeps it in the confirmed set Rust compares, so a listing Rust does not hold makes Rust refuse with nothing deleted",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 项目书架 lists every project with summary, chapters, words and last edit newest first, reorders after an edit, creates, renames and opens projects, deletes through the project deletion sheet, reads without writing and lists the same after a cold relaunch",
       "status": "passed"
     },
@@ -812,6 +836,26 @@
     },
     {
       "name": "AppKit Copilot works in drifts only with 在灵感中启用: off, drift edits send nothing; on, the drift's changed paragraphs are sent and the suggestion is anchored in the drift body; turning it off stops a drift run",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP 扩展 adds a local-command server through the settings sheet, refuses invalid commands, folders, variable names and URLs in Chinese, runs the initialize and notifications/initialized handshake and paginated tools/list, shows 可用 N 个工具 with each tool's 允许/每次询问/禁用 policy (每次询问 by default) and skips a $ref schema with its reason, offers valid tools to the model as mcp__<server>__<tool> with their schemas, and keeps the secret environment value only in the Keychain store, never in settings.json",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP tool calls: 允许 calls at once with schema-checked arguments and returns text truncated to 16,000 characters with a note, summarises images and resources without storing them, reports isError; 每次询问 shows an approval card with tool, server and arguments and calls only after 允许一次, 拒绝 sends nothing, 停止 while waiting marks it 未执行; 禁用 tools leave the tool list and are refused; MCP results write nothing to the journal",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP server crash fails the running call without replaying it and restarts the server with its tools, stderr is kept as a bounded log and shown with 出错, a slow call times out with notifications/cancelled while the late answer is ignored, and a handshake that never answers reports 握手超时",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP reconfiguration through the sheet raises the revision, removes the old tools before the new connection and fails a call in flight on the old one; disabling, closing the project, quitting and deleting a server terminate the local command, and deletion removes its Keychain secrets",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit MCP Streamable HTTP runs the handshake with JSON and SSE responses, sends the session id and protocol version on later requests and a secret Authorization header only from the Keychain, calls a tool, reconnects after an expired session without replaying the call and sends DELETE when disabled",
       "status": "passed"
     }
   ],

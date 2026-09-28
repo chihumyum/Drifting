@@ -18,6 +18,7 @@ extension BindingAcceptance {
         WordCountModel.refreshDelay = 0.05
         try wholeBookVirtualizes()
         try wholeBookCloseFailures()
+        try wholeBookReopensAndTracksClosing()
         try wholeBookEditsShareOwners()
         try wholeBookNavigates()
         try wholeBookStatistics()
@@ -26,6 +27,7 @@ extension BindingAcceptance {
         return [
             "AppKit 全书长卷 opens 200 synthetic chapters in book order with act separators, keeps row views, editors and owners only near the viewport (at most six editors, plus the chapter being written in, and owners kept for undo), attaches and releases them while scrolling to the end with no main-thread step over 100 ms and nothing written to the journal, and text typed in chapter 3 just before scrolling far away is saved with its owner kept, so ⌘Z on return undoes the typing, while beyond the kept limit the least recently edited owner closes",
             "AppKit 全书长卷 keeps tracking an owner whose close fails, names its chapter in the status line, tries again at the next quiet moment until it closes, makes 删除项目 refuse naming the chapter before anything closes, and a shutdown reports the failure instead of waiting",
+            "AppKit 全书长卷 reopens reliably when closing completes at once (a reported close failure or a book already shut down), and every book still closing its owners is tracked for 删除项目 until each has shut down",
             "AppKit 全书长卷 edits, undo and redo in an attached chapter go through the owner a tab of that chapter shares, typed element names link, a comment reaches the tab, word counts follow in the header and 统计, a closed tab leaves the owner to the long page, ⌘-click opens the element, and releasing closes only owners no tab shows",
             "AppKit 全书长卷 scrolls to a chapter or a heading chosen in the 整书大纲 and to chapters and acts in the 跳到 menu, attaching the chapter's editor at the top of the viewport with the caret on the heading",
             "AppKit 统计 reads 统计中… until every chapter is counted, then the total, chapter count, average, completion and written/target progress of a synthetic book, colours each chapter bar by its act, lists each act's chapters and words, and a click on a bar scrolls the 全书长卷 to its chapter",
@@ -409,6 +411,77 @@ extension BindingAcceptance {
         controller.closeChapterOwner = nil
         try wait { controller.isShutDown && workspace.openDocumentCount == 0 }
         harness.bookWindow.close()
+    }
+
+    /// The presenter AppDelegate closes and reopens the 全书长卷 through.
+    private static func wholeBookReopensAndTracksClosing() throws {
+        let harness = try BookHarness(name: "长卷重开合成项目")
+        defer { try? harness.close() }
+        for index in 1...40 { try harness.chapter(String(format: "重开章节 %02d", index), [.paragraph(ideographs(40, seed: index))]) }
+        let chapters = harness.chapters, project = harness.project, workspace = harness.workspace
+        let savedDelay = MacWholeBookViewController.closeRetryDelay
+        MacWholeBookViewController.closeRetryDelay = 0.1
+        defer { MacWholeBookViewController.closeRetryDelay = savedDelay }
+        let presenter = WholeBookPresenter()
+        var detached: [NSWindow] = []
+        let detach: (NSWindow) -> Void = { detached.append($0); $0.close() }
+        let failing: (ChapterScope, @escaping (Result<Bool, Error>) -> Void) -> Void = { _, done in done(.failure(LabError.message("合成的关闭失败"))) }
+
+        // Book A cannot close an owner, so its shutdown reports at once.
+        try harness.openBook()
+        let first = harness.controller!
+        presenter.present(first, panel: harness.bookWindow)
+        first.closeChapterOwner = failing
+        // Away from the chapters book B will hold, so B never takes A's owners.
+        first.scroll(toChapter: chapters[20].id)
+        try wait { !first.unclosedChapterTitles.isEmpty }
+        try harness.settle()
+        var reason: String?? = nil
+        var skipped = false
+        var reopened: MacWholeBookViewController?
+        let closed = presenter.close(detach: detach) { text in
+            reason = .some(text)
+            // As AppDelegate.openWholeBook: nothing may be open any longer.
+            guard presenter.controller == nil else { skipped = true; return }
+            let model = WholeBookModel(workspace: workspace, projectID: project.id)
+            let book = MacWholeBookViewController(project: project, model: model, workspace: workspace, host: harness.host)
+            presenter.present(book, panel: nil)
+            reopened = book
+        }
+        guard case .some(.some(let text)) = reason, closed, !skipped, let reopened else {
+            throw LabError.message("The reopen was skipped: \(String(describing: reason)) skipped \(skipped)")
+        }
+        try require(text.contains("合成的关闭失败") && presenter.controller === reopened && detached.count == 1
+            && presenter.closingControllers.map { ObjectIdentifier($0) } == [ObjectIdentifier(first)] && !first.isShutDown,
+            "The presenter differs after the reopen: \(text)")
+        // A book already shut down completes at once too, and reopens.
+        var again = false
+        _ = presenter.close(detach: detach) { _ in
+            again = presenter.controller == nil
+            if again { presenter.present(reopened, panel: nil) }
+        }
+        try wait { reopened.isShutDown }
+        var third = false
+        _ = presenter.close(detach: detach) { _ in third = presenter.controller == nil }
+        try require(again && third && presenter.controller == nil, "A shut-down book blocked its reopen")
+
+        // Book B also keeps closing: both are tracked for 删除项目.
+        try harness.openBook()
+        let second = harness.controller!
+        presenter.present(second, panel: harness.bookWindow)
+        second.closeChapterOwner = failing
+        second.scroll(toChapter: chapters[39].id)
+        try wait { !second.unclosedChapterTitles.isEmpty }
+        try harness.settle()
+        _ = presenter.close(detach: detach)
+        let tracked = Set(presenter.closingControllers.map { ObjectIdentifier($0) })
+        try require(tracked == [ObjectIdentifier(first), ObjectIdentifier(second)] && presenter.all.count == 2
+            && presenter.all.allSatisfy { $0.deletionRefusal?.contains("合成的关闭失败") == true }, "Closing books are not all tracked")
+        // Once closes work, each finishes and leaves the list.
+        first.closeChapterOwner = nil
+        second.closeChapterOwner = nil
+        try wait { first.isShutDown && second.isShutDown && presenter.closingControllers.isEmpty && presenter.all.isEmpty }
+        try wait { workspace.openDocumentCount == 0 }
     }
 
     // MARK: (b) Editing, undo, links, comments and counts beside a tab

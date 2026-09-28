@@ -428,17 +428,43 @@ enum AgentMemoryTools {
         }
     }
 
-    /// Reverts a rule change: a created rule is removed, an updated one
-    /// returns to its previous words, a deleted one comes back.
-    static func undo(_ change: AgentMemoryChange, rules: inout [AgentAuthorRule]) {
+    /// Reverts a rule change, only while the rule is still as the card
+    /// recorded it: a created rule is removed, an updated one returns to its
+    /// previous words, a deleted one comes back within the 40-rule limit
+    /// and without duplicating another rule. Returns why nothing changed.
+    static func undo(_ change: AgentMemoryChange, rules: inout [AgentAuthorRule]) -> String? {
+        let same = { (rule: AgentAuthorRule, recorded: AgentAuthorRule) in rule.kind == recorded.kind && rule.text == recorded.text }
         switch change.action {
         case .created:
+            guard let current = rules.first(where: { $0.id == change.rule.id }) else {
+                return "这条规则已经不在作者规则里了，无需撤销。"
+            }
+            guard same(current, change.rule) else {
+                return "这条规则记下之后又被修改过（现在是\(current.line)），撤销不会删除它。需要时请在作者规则中直接删除。"
+            }
             rules.removeAll { $0.id == change.rule.id }
         case .updated:
-            guard let previous = change.previous else { return }
-            if let index = rules.firstIndex(where: { $0.id == previous.id }) { rules[index] = previous } else { rules.append(previous) }
+            guard let previous = change.previous else { return "这次修改没有记录原来的内容，无法撤销。" }
+            guard let index = rules.firstIndex(where: { $0.id == previous.id }) else {
+                return "这条规则已经被删除，撤销不会把它加回来。"
+            }
+            guard same(rules[index], change.rule) else {
+                return "这条规则在这次修改之后又变过（现在是\(rules[index].line)），撤销不会覆盖它。"
+            }
+            if rules.contains(where: { $0.id != previous.id && same($0, previous) }) {
+                return "已经有一条相同的规则（\(previous.line)），撤销没有进行。"
+            }
+            rules[index] = previous
         case .deleted:
-            if !rules.contains(where: { $0.id == change.rule.id }) { rules.append(change.rule) }
+            guard !rules.contains(where: { $0.id == change.rule.id }) else { return "这条规则已经在作者规则里了。" }
+            if let duplicate = rules.first(where: { same($0, change.rule) }) {
+                return "已经有一条相同的规则（\(duplicate.line)），撤销不会再加一条。"
+            }
+            guard rules.count < AgentAuthorRules.limit else {
+                return "作者规则已有 \(AgentAuthorRules.limit) 条，恢复这条会超过上限。请先删除或合并不再需要的规则。"
+            }
+            rules.append(change.rule)
         }
+        return nil
     }
 }

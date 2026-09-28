@@ -1346,3 +1346,51 @@ final class MacWholeBookViewController: NSViewController {
         closingSelf = nil
     }
 }
+
+/// Which 全书长卷 is open, and every one whose panel closed while its
+/// owners still close (each keeps itself alive until it has shut down).
+/// Closing detaches the open one first, so a shutdown that completes at
+/// once (an owner-less or already shut-down book) finds the presenter free
+/// and a reopen in its completion is never skipped.
+final class WholeBookPresenter {
+    private(set) var controller: MacWholeBookViewController?
+    private(set) var panel: NSWindow?
+    private let closing = NSHashTable<MacWholeBookViewController>.weakObjects()
+
+    /// Books whose panels closed and whose owners are still closing.
+    var closingControllers: [MacWholeBookViewController] { closing.allObjects.filter { !$0.isShutDown } }
+
+    /// The open book and every closing one, e.g. for 删除项目 to ask.
+    var all: [MacWholeBookViewController] { [controller].compactMap { $0 } + closingControllers }
+
+    func present(_ controller: MacWholeBookViewController, panel: NSWindow?) {
+        self.controller = controller
+        self.panel = panel
+    }
+
+    /// The panel closed by itself: nothing is open any longer.
+    func panelClosed(_ panel: NSWindow) {
+        guard self.panel === panel else { return }
+        self.panel = nil
+        controller = nil
+    }
+
+    /// Releases the open book's editors and detaches its panel; `completion`
+    /// runs once its owners are closed, or with the reason one could not be
+    /// closed (it keeps trying). False, keeping everything, while one of its
+    /// editors has input in flight.
+    @discardableResult
+    func close(detach: (NSWindow) -> Void, completion: ((String?) -> Void)? = nil) -> Bool {
+        guard let controller else { completion?(nil); return true }
+        guard !controller.hasInputInFlight else { return false }
+        let panel = self.panel
+        self.controller = nil
+        self.panel = nil
+        if let panel { detach(panel) }
+        if !controller.isShutDown { closing.add(controller) }
+        // Nothing is in flight, so the shutdown is accepted; its completion
+        // may run before this returns.
+        _ = controller.shutdown(completion: completion)
+        return true
+    }
+}

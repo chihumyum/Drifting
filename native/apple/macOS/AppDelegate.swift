@@ -96,11 +96,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var graphAxes: [String: StoryGraphModel.Axis] = [:]
     /// 全书长卷: every chapter of one project in one scroll, over the editor.
     private var wholeBookButton: NSButton!
-    private var wholeBookPanel: WholeBookPanel?
-    private var wholeBookController: MacWholeBookViewController?
-    /// A 全书长卷 whose panel closed while its owners still close, e.g. one
-    /// that failed and is tried again; project deletion asks it too.
-    private weak var closingWholeBook: MacWholeBookViewController?
+    /// The open 全书长卷 and every one whose panel closed while its owners
+    /// still close (e.g. one that failed and is tried again); project
+    /// deletion asks them all.
+    private let wholeBook = WholeBookPresenter()
+    private var wholeBookPanel: WholeBookPanel? { wholeBook.panel as? WholeBookPanel }
+    private var wholeBookController: MacWholeBookViewController? { wholeBook.controller }
     /// 设定总览: categories around the chapter band, element cards and relation edges.
     private var overviewPanel: ElementOverviewPanel?
     private var overviewController: MacElementOverviewViewController?
@@ -122,6 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private let agentPanel = MacAgentPanelView()
     private let agentCredentials = AgentKeychainCredentialStore()
     private var agentController: AgentChatController?
+    /// One assistant per project, kept while the app runs, so a sheet
+    /// opened in one project always writes to that project's assistant.
+    private var agentControllers: [String: AgentChatController] = [:]
     private var agentSettings: MacAgentSettingsSheet?
     /// Copilot（实验）: one per project, made when a tab of it first reports.
     private var copilotControllers: [String: CopilotController] = [:]
@@ -682,17 +686,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if show { window.makeFirstResponder(agentPanel.composer) }
     }
 
-    /// One assistant per project; a turn still running in another project stops.
+    /// One assistant per project; a turn still running in another project
+    /// stops, and that project's MCP servers end (local commands are
+    /// terminated) while this project's start.
     private func ensureAgent(_ project: WorkspaceProject) {
         guard agentController?.projectID != project.id else { return }
-        agentController?.stop()
+        if let previous = agentController {
+            previous.stop()
+            previous.mcp?.shutdown()
+        }
+        let controller = agentControllers[project.id] ?? makeAgent(project)
+        agentControllers[project.id] = controller
+        agentController = controller
+        agentPanel.bind(controller)
+        controller.mcp?.activate()
+        settingsWindow?.mcpPane.refresh()
+    }
+
+    private func makeAgent(_ project: WorkspaceProject) -> AgentChatController {
         let controller = AgentChatController(workspace: workspace, projectID: project.id, projectName: project.name,
                                              credentials: agentCredentials)
         controller.editorContext = { [weak self] in self?.chapterWorkspace.agentContext(projectID: project.id) }
         controller.onWorkspaceEffect = { [weak self] effect in self?.adoptAgentEffect(effect) }
         controller.tools.lifecycle = chapterWorkspace.agentLifecycle(projectID: project.id)
-        agentController = controller
-        agentPanel.bind(controller)
+        let projectID = project.id
+        controller.mcp = AgentMcpHub(projectID: projectID, secrets: agentCredentials) { [weak self] in
+            self?.settingsStore.mcpServers(projectID: projectID) ?? []
+        }
+        return controller
+    }
+
+    /// 设置 › 写作助手 › MCP 扩展 shows the open project's servers.
+    private func mcpSource() -> MacMcpSettingsViewController.Project? {
+        guard let project = currentProject ?? selectedProject else { return nil }
+        let name = projects.first { $0.id == project.id }?.name ?? project.name
+        return MacMcpSettingsViewController.Project(id: project.id, name: name, hub: agentControllers[project.id]?.mcp)
     }
 
     /// An accepted proposal reaches open pages, counts and the chapter list.
@@ -1876,11 +1904,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // Over the editor area, leaving the chapter list beside it.
         let area = window.convertToScreen(editorHost.convert(editorHost.bounds, to: nil))
         panel.setFrame(NSRect(x: area.minX, y: area.minY, width: max(area.width, 560), height: max(area.height + 60, 420)), display: false)
-        wholeBookPanel = panel; wholeBookController = controller
+        wholeBook.present(controller, panel: panel)
         panel.shouldClose = { [weak self] in self?.closeWholeBook(); return false }
         panel.onClose = { [weak self, weak panel] in
-            guard let self, self.wholeBookPanel === panel else { return }
-            self.wholeBookPanel = nil; self.wholeBookController = nil
+            guard let self, let panel else { return }
+            self.wholeBook.panelClosed(panel)
         }
         window.addChildWindow(panel, ordered: .above)
         panel.makeKeyAndOrderFront(nil)
@@ -1896,18 +1924,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// panel, while one of its editors has input in flight.
     @discardableResult
     private func closeWholeBook(completion: ((String?) -> Void)? = nil) -> Bool {
-        guard let controller = wholeBookController else { completion?(nil); return true }
-        guard controller.shutdown(completion: completion) else {
+        let controller = wholeBookController
+        let closed = wholeBook.close(detach: { [weak self] panel in
+            self?.window.removeChildWindow(panel); panel.close()
+        }, completion: completion)
+        if !closed, let controller {
             let message = "请先完成全书长卷中的输入，并等待正文保存后再关闭。"
             status.stringValue = message
             controller.model.showStatus(message)
-            return false
         }
-        let panel = wholeBookPanel
-        wholeBookPanel = nil; wholeBookController = nil
-        if !controller.isShutDown { closingWholeBook = controller }
-        if let panel { window.removeChildWindow(panel); panel.close() }
-        return true
+        return closed
     }
 
     // MARK: Act colours
@@ -2163,8 +2189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         projectDeletion.panelRefusal = { [weak self] projectID in
             guard let self else { return nil }
             // The 全书长卷 (open, or still closing its owners) answers first.
-            return [self.wholeBookController, self.closingWholeBook].compactMap { $0 }
-                .filter { $0.project.id == projectID }.lazy.compactMap(\.deletionRefusal).first
+            return self.wholeBook.all.filter { $0.project.id == projectID }.lazy.compactMap(\.deletionRefusal).first
         }
         projectDeletion.closePanels = { [weak self] projectID, done in
             guard let self else { done(nil); return }
@@ -2175,8 +2200,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.copilotControllers[projectID]?.cancelAll()
         }
         projectDeletion.forgetSettings = { [weak self] projectID in
-            self?.dailyWords.forget(projectID: projectID)
-            self?.settingsStore.forgetProject(projectID)
+            guard let self else { return }
+            self.dailyWords.forget(projectID: projectID)
+            // MCP secrets leave the Keychain with the project's servers.
+            for config in self.settingsStore.mcpServers(projectID: projectID) {
+                AgentMcpSecrets.remove(projectID: projectID, config: config, from: self.agentCredentials)
+            }
+            self.settingsStore.forgetProject(projectID)
         }
         sheet.onConfirm = { [weak self] done in
             guard let self else { done(LabError.message("窗口已关闭，项目未删除。")); return }
@@ -2240,6 +2270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if driftModel?.projectID == deleted.id { driftModel = nil }
         if materialModel?.projectID == deleted.id { materialModel = nil }
         graphAxes.removeValue(forKey: deleted.id)
+        agentControllers.removeValue(forKey: deleted.id)?.retire()
         if agentController?.projectID == deleted.id { agentController = nil }
         projects = outcome.projects
         if selectedProject?.id == deleted.id {
@@ -2889,6 +2920,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if settingsWindow == nil {
             controller.agentPane.source = { [weak self] in self?.agentUsageSource() }
             controller.agentPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
+            controller.mcpPane.secrets = agentCredentials
+            controller.mcpPane.source = { [weak self] in self?.mcpSource() }
             controller.copilotPane.credentials = agentCredentials
             controller.copilotPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
         }
@@ -2944,6 +2977,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             switch result {
             case .success:
                 self.agentController?.stop()
+                // Local MCP commands end before the app quits.
+                self.agentControllers.values.forEach { $0.mcp?.terminateNow() }
                 self.copilotControllers.values.forEach { $0.cancelAll() }
                 self.workspaceClosed = true; self.closeOutline(); self.closeSearch(); self.closeComments(); self.closeElements()
                 self.closeStorylines(); self.closeDrifts(); self.closeRelationTypes(); self.closeMaterials()
@@ -2991,4 +3026,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         return .terminateLater
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    /// No local MCP command outlives the app.
+    func applicationWillTerminate(_ notification: Notification) {
+        agentControllers.values.forEach { $0.mcp?.terminateNow() }
+    }
 }

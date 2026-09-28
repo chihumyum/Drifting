@@ -115,8 +115,10 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
 
     private func updateButtons() {
         let idle = !model.busy && model.loaded
-        restoreButton.isEnabled = idle && selectedItem != nil
-        purgeButton.isEnabled = idle && selectedItem != nil
+        // An item of an unknown kind is only removed by 清空回收站.
+        let known = selectedItem.map { $0.kind != .unknown } ?? false
+        restoreButton.isEnabled = idle && known
+        purgeButton.isEnabled = idle && known
         emptyButton.isEnabled = idle && model.canEmpty
     }
 
@@ -276,7 +278,7 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
         let label = NSTextField(labelWithString: text)
         label.lineBreakMode = .byTruncatingTail
         if tableColumn?.identifier.rawValue != "title" { label.textColor = .secondaryLabelColor }
-        label.setAccessibilityIdentifier("trash-\(tableColumn?.identifier.rawValue ?? "title")-\(item.kind.rawValue)-\(item.id)")
+        label.setAccessibilityIdentifier("trash-\(tableColumn?.identifier.rawValue ?? "title")-\(item.rawKind)-\(item.id)")
         return label
     }
 
@@ -287,6 +289,7 @@ final class MacTrashViewController: NSViewController, NSTableViewDataSource, NST
         let row = table.clickedRow
         guard rows.indices.contains(row), !model.busy else { return }
         let item = rows[row]
+        guard item.kind != .unknown else { return }
         let restore = LibraryMenuItem(title: "恢复", identifier: "trash-menu-restore") { [weak self] in self?.restore(item) }
         let purge = LibraryMenuItem(title: "彻底删除…", identifier: "trash-menu-purge") { [weak self] in self?.purge(item) }
         menu.addItem(restore)

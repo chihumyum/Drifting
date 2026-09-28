@@ -39,6 +39,13 @@ final class MacAgentPanelView: NSView {
         var proposals: [String: AgentProposal]
         /// Rule cards by message, as drawn.
         var memories: [String: AgentMemoryChange]
+        /// MCP approval cards by message, as drawn, and whether each could
+        /// still be answered.
+        var approvals: [String: ApprovalDrawn]
+    }
+    private struct ApprovalDrawn: Equatable {
+        let invocation: AgentMcpInvocation
+        let answerable: Bool
     }
     /// Alerts are sheets on the window by default; acceptance answers them directly.
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
@@ -223,9 +230,15 @@ final class MacAgentPanelView: NSView {
         if let conversation {
             for message in messages { rows(for: message, in: conversation, shown: &shown).forEach(add) }
             rendered = Rendered(conversation: conversation.id, messages: messages.map(\.id), proposals: shown,
-                                memories: Self.memories(conversation.messages))
+                                memories: Self.memories(conversation.messages), approvals: approvals(conversation.messages))
         }
         addStreamingRow()
+    }
+
+    private func approvals(_ messages: [AgentMessage]) -> [String: ApprovalDrawn] {
+        Dictionary(messages.compactMap { message in
+            message.mcp.map { (message.id, ApprovalDrawn(invocation: $0, answerable: controller?.waitingApproval == message.id)) }
+        }, uniquingKeysWith: { first, _ in first })
     }
 
     private static func memories(_ messages: [AgentMessage]) -> [String: AgentMemoryChange] {
@@ -253,17 +266,28 @@ final class MacAgentPanelView: NSView {
             guard let change = message.memory, previous.memories[message.id] != change else { continue }
             replace("agent-memory-\(message.id)", with: memoryCard(message.id, change))
         }
+        let drawn = approvals(conversation.messages)
+        for (id, approval) in drawn where previous.approvals[id] != nil && previous.approvals[id] != approval {
+            replace("agent-mcp-approval-\(id)", with: approvalCard(id, approval.invocation))
+        }
         if let streamingRow { transcript.removeArrangedSubview(streamingRow); streamingRow.removeFromSuperview(); self.streamingRow = nil }
         for message in conversation.messages.dropFirst(previous.messages.count) {
             rows(for: message, in: conversation, shown: &shown).forEach(add)
         }
         rendered = Rendered(conversation: conversation.id, messages: conversation.messages.map(\.id), proposals: shown,
-                            memories: Self.memories(conversation.messages))
+                            memories: Self.memories(conversation.messages), approvals: drawn)
         addStreamingRow()
     }
 
     private func memoryCard(_ messageID: String, _ change: AgentMemoryChange) -> AgentMemoryCard {
         AgentMemoryCard(messageID: messageID, change: change) { [weak self] in self?.controller?.undoMemory(messageID) }
+    }
+
+    private func approvalCard(_ messageID: String, _ invocation: AgentMcpInvocation) -> AgentMcpApprovalCard {
+        let answerable = controller?.waitingApproval == messageID && invocation.state == .waiting
+        return AgentMcpApprovalCard(messageID: messageID, invocation: invocation, answerable: answerable,
+                                    allow: { [weak self] in self?.controller?.decideMcp(messageID, allow: true) },
+                                    deny: { [weak self] in self?.controller?.decideMcp(messageID, allow: false) })
     }
 
     private func rows(for message: AgentMessage, in conversation: AgentConversation, shown: inout [String: AgentProposal]) -> [NSView] {
@@ -285,6 +309,7 @@ final class MacAgentPanelView: NSView {
             }
             return views
         case .notice:
+            if let invocation = message.mcp { return [approvalCard(message.id, invocation)] }
             if let compaction = message.compaction {
                 let row = AgentActivityRow(identifier: "agent-compaction-\(message.id)", text: message.text, failed: false)
                 row.toolTip = compaction.summary
@@ -333,8 +358,11 @@ final class MacAgentPanelView: NSView {
         sendButton.isEnabled = hasProject && !running && !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         composer.isEditable = hasProject
         for control in [conversationPopup, newButton, providerPopup, modelPopup] as [NSControl] { control.isEnabled = hasProject && !running }
-        renameButton.isEnabled = hasProject && controller?.current?.messages.isEmpty == false
-        deleteButton.isEnabled = hasProject && !running && controller?.current?.messages.isEmpty == false
+        // A conversation is renamed or deleted once it is written (a
+        // message, or a note the author wrote in it).
+        let written = controller?.current.map { !controller!.isDraft($0.id) || !$0.messages.isEmpty } ?? false
+        renameButton.isEnabled = hasProject && written
+        deleteButton.isEnabled = hasProject && !running && written
         let model = controller?.current?.choice.option ?? AgentModelChoice.standard.option
         thinkingPopup.isEnabled = hasProject && !running && model.reasoning.thinkingModes.count > 1
         effortPopup.isEnabled = hasProject && !running && !model.reasoning.efforts.isEmpty
@@ -424,7 +452,7 @@ final class MacAgentPanelView: NSView {
     }
 
     @objc func renameConversation() {
-        guard let conversation = controller?.current else { return }
+        guard let controller, let conversation = controller.current else { return }
         let alert = NSAlert()
         alert.messageText = "重命名对话"
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
@@ -434,23 +462,23 @@ final class MacAgentPanelView: NSView {
         alert.addButton(withTitle: "保存")
         alert.addButton(withTitle: "取消")
         alert.window.initialFirstResponder = field
-        present(alert) { [weak self] response in
+        present(alert) { response in
             guard response == .alertFirstButtonReturn else { return }
-            _ = self?.controller?.rename(conversation.id, title: field.stringValue)
+            _ = controller.rename(conversation.id, title: field.stringValue)
         }
     }
 
     @objc func deleteConversation() {
-        guard let conversation = controller?.current else { return }
+        guard let controller, let conversation = controller.current else { return }
         let alert = NSAlert()
         alert.messageText = "删除对话“\(conversation.title)”？"
         alert.informativeText = "对话记录连同它的工作记忆、任务计划和用量记录会从这台 Mac 上删除，无法恢复。已经接受并写入的修改和作者规则不受影响。"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "删除")
         alert.addButton(withTitle: "取消")
-        present(alert) { [weak self] response in
+        present(alert) { response in
             guard response == .alertFirstButtonReturn else { return }
-            self?.controller?.delete(conversation.id)
+            controller.delete(conversation.id)
         }
     }
 
@@ -741,6 +769,85 @@ final class AgentProposalCard: NSView, AgentTranscriptRow {
     override func updateLayer() {
         layer?.cornerRadius = 8
         layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(proposal.state == .pending ? 0.10 : 0.06).cgColor
+    }
+}
+
+/// 每次询问: an MCP call waiting for the author, with the tool, its server
+/// and the arguments, and 允许一次 / 拒绝 while the turn waits for it.
+final class AgentMcpApprovalCard: NSView, AgentTranscriptRow {
+    let allowButton = NSButton(title: "允许一次", target: nil, action: nil)
+    let denyButton = NSButton(title: "拒绝", target: nil, action: nil)
+    let stateLabel = NSTextField(labelWithString: "")
+    let invocation: AgentMcpInvocation
+    private let allow: () -> Void
+    private let deny: () -> Void
+    private(set) var plainText = ""
+
+    init(messageID: String, invocation: AgentMcpInvocation, answerable: Bool, allow: @escaping () -> Void, deny: @escaping () -> Void) {
+        self.invocation = invocation; self.allow = allow; self.deny = deny
+        super.init(frame: .zero)
+        wantsLayer = true
+        setAccessibilityIdentifier("agent-mcp-approval-\(messageID)")
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        let heading = "允许调用 MCP 工具？"
+        setAccessibilityLabel(heading)
+        let title = NSTextField(labelWithString: heading)
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        stateLabel.stringValue = invocation.stateLabel
+        stateLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        stateLabel.textColor = invocation.state == .allowed ? .systemGreen : invocation.state == .denied ? .systemRed : .secondaryLabelColor
+        stateLabel.setAccessibilityIdentifier("agent-mcp-state-\(messageID)")
+        let tool = Self.field("工具：\(invocation.tool)", "agent-mcp-tool-\(messageID)")
+        let server = Self.field("服务器：\(invocation.serverName)", "agent-mcp-server-\(messageID)")
+        let note = Self.field("参数：", "agent-mcp-arguments-title-\(messageID)")
+        let arguments = NSTextField(wrappingLabelWithString: invocation.arguments)
+        arguments.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        arguments.isSelectable = true
+        arguments.setAccessibilityIdentifier("agent-mcp-arguments-\(messageID)")
+        var views: [NSView] = [title, stateLabel, tool, server, note, arguments]
+        plainText = [heading, invocation.stateLabel, tool.stringValue, server.stringValue, note.stringValue, invocation.arguments].joined(separator: "\n")
+        if invocation.state == .waiting {
+            for (button, name, action) in [(allowButton, "allow", #selector(pressAllow)), (denyButton, "deny", #selector(pressDeny))] {
+                button.target = self; button.action = action
+                button.bezelStyle = .rounded; button.controlSize = .small
+                button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+                button.setAccessibilityIdentifier("agent-mcp-\(name)-\(messageID)")
+                button.isEnabled = answerable
+            }
+            let buttons = NSStackView(views: [allowButton, denyButton])
+            buttons.spacing = 6
+            views.append(buttons)
+        }
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 5
+        stack.setCustomSpacing(8, after: stateLabel)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 9),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
+            arguments.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private static func field(_ text: String, _ identifier: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 12)
+        label.setAccessibilityIdentifier(identifier)
+        return label
+    }
+
+    @objc private func pressAllow() { allow() }
+    @objc private func pressDeny() { deny() }
+
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.cornerRadius = 8
+        layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(invocation.state == .waiting ? 0.10 : 0.06).cgColor
     }
 }
 

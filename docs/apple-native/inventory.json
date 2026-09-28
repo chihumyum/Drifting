@@ -420,7 +420,7 @@
         "generated built-in capability inventory, permission/CAS/review/receipt/concurrency parity"
       ],
       "milestone": "P4/P5",
-      "status": "Mac-writing-assistant-63-tools-reviewed-proposals-author-rules-working-memory-task-plans-compaction-retries-and-usage-implemented; Mac-Copilot-element-and-patch-suggestions-implemented-experimental-drift-anchoring-open; MCP-planned",
+      "status": "Mac-writing-assistant-63-tools-reviewed-proposals-author-rules-working-memory-task-plans-compaction-retries-and-usage-implemented; Mac-Copilot-element-and-patch-suggestions-implemented-experimental-drift-anchoring-open; Mac-MCP-extensions-implemented",
       "decisionTask": "D7"
     },
     {
@@ -448,8 +448,8 @@
         "src-tauri/src/mcp_http.rs",
         "src-tauri/src/mcp_stdio.rs"
       ],
-      "target": "Rust MCP transports and per-platform capabilities",
-      "strategy": "retain-rust",
+      "target": "Swift MCP transports (local command over stdio on Mac, Streamable HTTP) and per-project servers in the native writing assistant",
+      "strategy": "port-business",
       "dependencies": [
         "agent"
       ],
@@ -457,7 +457,7 @@
         "availability, permission, process lifetime and transport cancellation"
       ],
       "milestone": "P4",
-      "status": "planned",
+      "status": "Mac-stdio-and-Streamable-HTTP-MCP-with-per-tool-allow-ask-deny-approval-cards-and-Keychain-secrets-implemented; plugins-planned",
       "decisionTask": "D7"
     },
     {

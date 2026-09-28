@@ -44,9 +44,9 @@ architectural redesign.
 | P2b | AppKit document binding: stable IDs, comments, marks, multi-view, IME, semantic undo | In progress; see open gates |
 | P2c | Durability and measured writing behavior | Crash/replay/compaction pass; performance comparison open |
 | P3 | Shared domain commands and queries | In progress: projects (with deletion), chapters, order, trash (with permanent deletion), acts (with boundary moves) and act colours, outline, search (chapters and entities), comments and TODOs, element categories, elements, facts, element patches, entity links, storylines and membership, drifts and groups, chapter/drift/project metadata, relations and associations, library order, word counts |
-| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools, author rules, working memory, task plans, compaction, retries and usage ([agent](agent.md)); experimental Copilot suggestions ([copilot](copilot.md)); Google Drive excluded |
+| P4 | Agent over native prose; receiver foundations | Receiver accepted; Mac writing assistant with reviewed proposals over prose and domain tools, author rules, working memory, task plans, compaction, retries, usage and MCP extensions ([agent](agent.md)); experimental Copilot suggestions ([copilot](copilot.md)); Google Drive excluded |
 | P5a | Daily desktop writing loop | In progress: see delivered slices |
-| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary and experimental Copilot suggestions delivered |
+| P5b | Desktop parity: elements/materials, graph/timeline, comments/review, Agent, import/export/settings/diagnostics | In progress: Agent, materials, import/export, graph/timeline, version history, settings, whole-book editor and statistics, element overview, review and the 备忘与素材 board, global search and today's words, element patches and the bottom timeline, the unified trash, hover cards, typewriter scrolling, the project shelf, Markdown folder export, the diagnostic summary, experimental Copilot suggestions and MCP extensions delivered |
 | P6 | iPhone/iPad auxiliary client | Deferred; no current gate |
 | P7 | Upgrade, signing, notarization, update, exact-source artifacts | Not started |
 
@@ -86,12 +86,12 @@ architectural redesign.
 | Trash, hover cards, typewriter scrolling, the project shelf and Markdown folder export | `2c017a2a` | [trash](trash.md), [entity links](entity-links.md), [settings](settings.md), [workspace](workspace.md), [library](library.md) |
 | Assistant rules, working memory, task plans, compaction and retries | `add67d34` | [agent](agent.md), [review](review.md) |
 | Review fixes: trash confirmation, project deletion cleanup, compose target, whole-book undo, atomic reading-order drops | `bea818b8` | [trash](trash.md), [workspace](workspace.md), [review](review.md), [whole book](whole-book.md), [timeline](timeline.md) |
-| Copilot suggestions (experimental) | this batch | [copilot](copilot.md), [review](review.md), [settings](settings.md), [chapter comments](chapter-comments.md) |
+| Copilot suggestions (experimental) | `c2d4ab42` `30439d6d` | [copilot](copilot.md), [review](review.md), [settings](settings.md), [chapter comments](chapter-comments.md) |
+| MCP extensions and assistant memory fixes | this batch | [agent](agent.md), [settings](settings.md), [whole book](whole-book.md), [trash](trash.md) |
 
 ## Next batch
 
-MCP extensions with the assistant memory fixes; then printing, PDF export
-and custom shortcuts.
+Printing, PDF export and custom shortcuts.
 
 ## Open gates
 

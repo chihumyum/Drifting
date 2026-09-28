@@ -14,6 +14,10 @@ extension BindingAcceptance {
         try memoryRetries()
         try memoryUsage()
         try memoryAuthorship()
+        try memoryDrafts()
+        try memoryCapturedSheets()
+        try memoryUndoChecks()
+        try memoryUnreadableRules()
         return [
             "AppKit 作者规则 are added, edited, refused and deleted in the 写作助手 panel and created, listed, updated and deleted by the model's rule tools without proposals; each tool change shows a 已记住 card whose 撤销 reverts it and is told to the model once, rules enter every request's system prompt, persist in author-rules.json beside the conversations through a relaunch and never reach the journal, SQLite or user defaults",
             "AppKit 工作记忆 is read, replaced and bounded by the model's tools with a Chinese refusal over 6,000 characters, enters the system prompt, shows in its collapsible panel section, is edited and cleared by the author after confirmation and persists in the conversation file",
@@ -22,6 +26,10 @@ extension BindingAcceptance {
             "AppKit retries HTTP 429 after its Retry-After, 503 and a dropped connection up to three times showing 重试中（n/3）, never retries 401, stops during the backoff on 停止, and a retried tool call makes exactly one proposal",
             "AppKit usage records input, cached and output tokens from DeepSeek, Anthropic and OpenAI usage fields, and unknown when a provider sends none, in the conversation file; 设置 › 写作助手 › 用量 totals today and 30 days by provider and model and per conversation, and deleting a conversation after confirmation removes its usage",
             "AppKit an accepted create_comment is stored as 写作助手 (author kind ai), its 审阅 card says so and stays editable, and create_element writes name, group, summary, aliases and facts in one original so a refused alias leaves nothing written",
+            "AppKit 工作记忆 written in a new, unsent conversation saves that conversation at once, so switching away and relaunching keep it with its note (it can then be renamed and deleted), while an untouched new conversation is still dropped and never written",
+            "AppKit 作者规则 and 工作记忆 sheets write to the project and conversation they opened on even after the panel switched project, refuse in Chinese when the conversation was deleted or the project removed, and refuse to overwrite working memory the assistant changed while the sheet was open",
+            "AppKit 撤销 on a rule card only undoes a rule still as the card recorded it and otherwise explains on the card and changes nothing; undoing a deletion refuses a duplicate and the 40-rule limit",
+            "AppKit an unreadable author-rules.json is shown as unreadable, never treated as empty or overwritten: the panel and rule tools refuse rule changes, and 重置… after confirmation moves it aside as author-rules.unreadable-<timestamp>.json with its bytes before rules start empty",
         ]
     }
 
@@ -746,6 +754,255 @@ extension BindingAcceptance {
             && lin.facts == [WorkspaceFact(key: "年龄", value: "二十"), WorkspaceFact(key: "住处", value: "北塔")]
             && originals.count == 1 && originals[0].contains("entity.create element") && originals[0].contains("set.add alias")
             && originals[0].filter { $0 == "entity.create kv-entry" }.count == 2, "create_element was not one original: \(originals)")
+        try harness.close()
+    }
+}
+
+extension BindingAcceptance {
+    private static func fixFind(_ identifier: String, in view: NSView) -> NSView? {
+        if view.accessibilityIdentifier() == identifier { return view }
+        for child in view.subviews { if let found = fixFind(identifier, in: child) { return found } }
+        return nil
+    }
+
+    private static func fixArguments(_ value: [String: Any]) -> String { AgentJSONText.encode(value) }
+
+    /// Answers an alert later, as a sheet the author has not closed yet.
+    private final class HeldAlerts {
+        var alerts: [(alert: NSAlert, done: (NSApplication.ModalResponse) -> Void)] = []
+
+        func answer(_ title: String, _ response: NSApplication.ModalResponse, fill: (NSView) -> Void = { _ in }) throws {
+            guard let index = alerts.firstIndex(where: { $0.alert.messageText == title }) else {
+                throw LabError.message("No open alert “\(title)”: \(alerts.map(\.alert.messageText))")
+            }
+            let held = alerts.remove(at: index)
+            if let accessory = held.alert.accessoryView { fill(accessory) }
+            held.done(response)
+        }
+    }
+
+    private static func fillMemory(_ text: String) -> (NSView) -> Void {
+        { accessory in (fixFind("agent-memory-editor", in: accessory) as? NSTextView)?.string = text }
+    }
+
+    private static func fillRule(kind: Int, _ text: String) -> (NSView) -> Void {
+        { accessory in
+            (fixFind("agent-rule-kind", in: accessory) as? NSPopUpButton)?.selectItem(at: kind)
+            (fixFind("agent-rule-field", in: accessory) as? NSTextField)?.stringValue = text
+        }
+    }
+
+    // MARK: (h) Working memory in a new conversation
+
+    static func memoryDrafts() throws {
+        let harness = try AgentHarness(titles: ["启程"])
+        defer { harness.remove() }
+        let controller = harness.controller!, panel = harness.panel!, sections = panel.memorySections
+        try require(controller.current == nil && sections.editMemoryButton.isEnabled, "A new project cannot write a note")
+        harness.answer = { alert in
+            guard alert.messageText == "编辑工作记忆", let accessory = alert.accessoryView else { return .alertSecondButtonReturn }
+            fillMemory("## 草稿笔记\n- 先定人物")(accessory)
+            return .alertFirstButtonReturn
+        }
+        sections.editMemoryButton.performClick(nil)
+        guard let noted = controller.current else { throw LabError.message("编辑… made no conversation") }
+        try require(noted.messages.isEmpty && noted.workingMemory == "## 草稿笔记\n- 先定人物" && !controller.isDraft(noted.id)
+            && panel.renameButton.isEnabled && panel.deleteButton.isEnabled, "The note did not keep the new conversation")
+        controller.store.flush()
+        let file = controller.store.directory.appendingPathComponent("\(noted.id).json")
+        try require(FileManager.default.fileExists(atPath: file.path), "The noted conversation was not written")
+        // Another conversation, then back: the noted one is still there.
+        let other = controller.newConversation()
+        try require(other != nil && other?.id != noted.id && controller.isDraft(other!.id), "新对话 reused the noted conversation")
+        AgentStubProtocol.reset([AgentSSE.deepseekText(["你好。"])])
+        try harness.send("你好。")
+        let talking = controller.current!.id
+        controller.select(noted.id)
+        controller.select(talking)
+        try require(controller.conversations.contains { $0.id == noted.id }, "Switching away dropped the noted conversation")
+        // An untouched new conversation is still dropped and never written.
+        controller.newConversation()
+        let untouched = controller.current!.id
+        controller.select(noted.id)
+        controller.store.flush()
+        try require(!controller.conversations.contains { $0.id == untouched }
+            && !FileManager.default.fileExists(atPath: controller.store.directory.appendingPathComponent("\(untouched).json").path),
+            "An untouched new conversation was kept")
+        // A relaunch reads the noted conversation with its note.
+        harness.reopenPanel()
+        let reopened = harness.controller.conversations.first { $0.id == noted.id }
+        try require(reopened?.workingMemory == "## 草稿笔记\n- 先定人物" && reopened?.messages.isEmpty == true, "The note did not survive a relaunch")
+        try harness.close()
+    }
+
+    // MARK: (i) Sheets write where they opened
+
+    static func memoryCapturedSheets() throws {
+        let harness = try AgentHarness(titles: ["启程"])
+        defer { harness.remove() }
+        let panel = harness.panel!, a = harness.controller!
+        let second: WorkspaceProject = try elementResult { harness.workspace.createProject(name: "另一个合成项目", completion: $0) }
+        let b = AgentChatController(workspace: harness.workspace, projectID: second.id, projectName: second.name,
+                                    credentials: harness.credentials, network: harness.network)
+        AgentStubProtocol.reset([AgentSSE.deepseekText(["好。"])])
+        try harness.send("开始。")
+        let conversation = a.current!.id
+        let held = HeldAlerts()
+        panel.presentAlert = { alert, done in held.alerts.append((alert, done)) }
+
+        // Opened in A; the panel shows B (another project) when they close.
+        panel.memorySections.editMemoryButton.performClick(nil)
+        panel.memorySections.addRuleButton.performClick(nil)
+        panel.bind(b)
+        try held.answer("编辑工作记忆", .alertFirstButtonReturn, fill: fillMemory("A 项目的笔记"))
+        try held.answer("添加作者规则", .alertFirstButtonReturn, fill: fillRule(kind: 1, "A 项目的否决。"))
+        try require(a.conversations.first { $0.id == conversation }?.workingMemory == "A 项目的笔记" && a.rules.map(\.text) == ["A 项目的否决。"]
+            && b.conversations.allSatisfy { $0.workingMemory.isEmpty } && b.rules.isEmpty
+            && panel.memorySections.memoryMessage.isHidden && panel.memorySections.ruleMessage.isHidden,
+            "A sheet wrote into the other project: A \(a.rules.map(\.text)) B \(b.rules.map(\.text))")
+        a.store.flush(); b.store.flush()
+        try require(!FileManager.default.fileExists(atPath: b.store.directory.appendingPathComponent(AgentConversationStore.rulesFile).path),
+            "The other project got a rules file")
+
+        // The assistant changes the note while the author edits it.
+        panel.bind(a)
+        panel.memorySections.editMemoryButton.performClick(nil)
+        AgentStubProtocol.reset([AgentSSE.deepseekTools([("call_note", "checkpoint_working_memory", fixArguments(["text": "助手的新笔记"]))]),
+                                 AgentSSE.deepseekText(["记下了。"])])
+        try harness.send("记一下进度。")
+        try held.answer("编辑工作记忆", .alertFirstButtonReturn, fill: fillMemory("作者的旧稿"))
+        try require(a.current?.workingMemory == "助手的新笔记" && !panel.memorySections.memoryMessage.isHidden
+            && panel.memorySections.memoryMessage.stringValue == "写作助手在你编辑时更新了工作记忆，你的修改没有保存，以免覆盖它。请重新打开“编辑…”后再改。",
+            "An edit overwrote the assistant's note: \(panel.memorySections.memoryMessage.stringValue)")
+        // 清空 too.
+        panel.memorySections.clearMemoryButton.performClick(nil)
+        AgentStubProtocol.reset([AgentSSE.deepseekTools([("call_note_2", "checkpoint_working_memory", fixArguments(["text": "助手又改了"]))]),
+                                 AgentSSE.deepseekText(["好。"])])
+        try harness.send("再记一下。")
+        try held.answer("清空本对话的工作记忆？", .alertFirstButtonReturn)
+        try require(a.current?.workingMemory == "助手又改了", "清空 removed a note the author had not seen")
+
+        // The conversation is deleted while its sheet is open.
+        panel.memorySections.editMemoryButton.performClick(nil)
+        let open = a.current!.id
+        a.delete(open)
+        try held.answer("编辑工作记忆", .alertFirstButtonReturn, fill: fillMemory("写给已删除对话"))
+        try require(panel.memorySections.memoryMessage.stringValue == "这个对话已经删除，工作记忆没有保存。"
+            && !a.conversations.contains { $0.workingMemory == "写给已删除对话" }, "A deleted conversation took the edit")
+
+        // The project is deleted while a rule sheet is open.
+        panel.memorySections.addRuleButton.performClick(nil)
+        let before = a.rules
+        a.retire()
+        try held.answer("添加作者规则", .alertFirstButtonReturn, fill: fillRule(kind: 0, "删除后的规则。"))
+        try require(a.rules == before && panel.memorySections.ruleMessage.stringValue == "项目《写作助手合成项目》已经删除，这次修改没有保存。",
+            "A removed project took the rule: \(panel.memorySections.ruleMessage.stringValue)")
+        try harness.close()
+    }
+
+    // MARK: (j) 撤销 only what the card recorded
+
+    static func memoryUndoChecks() throws {
+        let harness = try AgentHarness(titles: ["启程"])
+        defer { harness.remove() }
+        let controller = harness.controller!, panel = harness.panel!
+        func turn(_ calls: [(id: String, name: String, arguments: String)], _ text: String) throws {
+            AgentStubProtocol.reset([AgentSSE.deepseekTools(calls), AgentSSE.deepseekText(["好。"])])
+            try harness.send(text)
+        }
+        func card(_ call: String) throws -> AgentMemoryCard {
+            guard let row = harness.conversation.messages.last(where: { $0.role == .tool && $0.callID == call }),
+                  let card = panel.element("agent-memory-\(row.id)") as? AgentMemoryCard else { throw LabError.message("No card for \(call)") }
+            return card
+        }
+
+        // Created, then changed by the author: 撤销 explains and keeps it.
+        try turn([("call_new", "create_author_rule", fixArguments(["kind": "preference", "text": "对话少用感叹号。"]))], "记住：对话少用感叹号。")
+        let rule = controller.rules[0]
+        controller.updateRule(rule.id, kind: .veto, text: "对话不用感叹号。")
+        var created = try card("call_new")
+        created.undoButton.performClick(nil)
+        created = try card("call_new")
+        try require(controller.rules.map(\.line) == ["【否决】对话不用感叹号。"] && !created.messageLabel.isHidden && !created.undoButton.isHidden
+            && created.messageLabel.stringValue == "这条规则记下之后又被修改过（现在是【否决】对话不用感叹号。），撤销不会删除它。需要时请在作者规则中直接删除。",
+            "The undo of a changed rule differs: \(created.messageLabel.stringValue)")
+
+        // Updated, then deleted by the author.
+        try turn([("call_update", "update_author_rule", fixArguments(["ruleId": rule.id, "text": "对话里一律不用感叹号。"]))], "改一下。")
+        controller.deleteRule(rule.id)
+        let updated = try card("call_update")
+        updated.undoButton.performClick(nil)
+        try require(controller.rules.isEmpty && updated.messageLabel.stringValue == "这条规则已经被删除，撤销不会把它加回来。", "The undo of a deleted update differs")
+
+        // Deleted by the tool, then written again by the author: a duplicate.
+        controller.addRule(kind: .preference, text: "章节标题用两个字。")
+        let titles = controller.rules[0]
+        try turn([("call_forget", "delete_author_rule", fixArguments(["ruleId": titles.id]))], "忘掉标题那条。")
+        controller.addRule(kind: .preference, text: "章节标题用两个字。")
+        let forget = try card("call_forget")
+        forget.undoButton.performClick(nil)
+        try require(controller.rules.count == 1 && controller.rules[0].id != titles.id
+            && forget.messageLabel.stringValue == "已经有一条相同的规则（【偏好】章节标题用两个字。），撤销不会再加一条。", "A duplicate was restored")
+
+        // Deleted by the tool while the rules are full: the limit holds.
+        let again = controller.rules[0]
+        try turn([("call_forget_2", "delete_author_rule", fixArguments(["ruleId": again.id]))], "再忘掉。")
+        for index in 1...AgentAuthorRules.limit { controller.addRule(kind: .directive, text: "合成规则 \(index)。") }
+        let full = try card("call_forget_2")
+        full.undoButton.performClick(nil)
+        try require(controller.rules.count == AgentAuthorRules.limit && !controller.rules.contains { $0.id == again.id }
+            && full.messageLabel.stringValue == "作者规则已有 40 条，恢复这条会超过上限。请先删除或合并不再需要的规则。", "The limit was not kept")
+        // With room again, the same 撤销 works and is told once.
+        controller.deleteRule(controller.rules.last!.id)
+        try card("call_forget_2").undoButton.performClick(nil)
+        try require(controller.rules.count == AgentAuthorRules.limit && controller.rules.contains { $0.id == again.id }
+            && (try card("call_forget_2")).undoButton.isHidden, "The undo did not apply once there was room")
+        try harness.close()
+    }
+
+    // MARK: (k) An unreadable rules file
+
+    static func memoryUnreadableRules() throws {
+        let harness = try AgentHarness(titles: ["启程"])
+        defer { harness.remove() }
+        let directory = harness.controller.store.directory
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent(AgentConversationStore.rulesFile)
+        let damaged = Data("{ \"version\": 1, \"rules\": [ 这不是 JSON".utf8)
+        try damaged.write(to: file)
+        harness.reopenPanel()
+        let controller = harness.controller!, sections = harness.panel.memorySections
+        try require(controller.rulesProblem?.hasPrefix("作者规则无法读取（author-rules.json 的内容无法解析）") == true && controller.rules.isEmpty
+            && sections.rules.title == "作者规则（无法读取）" && harness.panel.element("agent-rules-unreadable") != nil
+            && !sections.addRuleButton.isEnabled && !sections.resetRulesButton.isHidden, "The unreadable file was not shown: \(controller.rulesProblem ?? "")")
+        try require(controller.addRule(kind: .preference, text: "新规则。") == "作者规则文件无法读取，现在不能修改规则。请先在作者规则中点“重置…”。",
+            "A rule was added over an unreadable file")
+        AgentStubProtocol.reset([AgentSSE.deepseekTools([("call_rule", "create_author_rule", fixArguments(["kind": "veto", "text": "不要写雨夜。"])),
+                                                         ("call_list", "list_author_rules", "{}")]),
+                                 AgentSSE.deepseekText(["好。"])])
+        try harness.send("记住：不要写雨夜。")
+        let results = harness.conversation.messages.filter { $0.role == .tool }
+        let system = ((AgentStubProtocol.requests[0].body["messages"] as? [[String: Any]])?.first?["content"] as? String) ?? ""
+        try require(results.allSatisfy { $0.ok == false && $0.text.hasPrefix("作者规则文件无法读取") } && results.count == 2
+            && system.contains("【作者规则】本项目的作者规则文件暂时无法读取"), "Rule tools ran over an unreadable file")
+        controller.store.flush()
+        try require(try Data(contentsOf: file) == damaged, "The unreadable file was overwritten")
+
+        // 重置… asks, then moves it aside.
+        harness.answer = { _ in .alertSecondButtonReturn }
+        sections.resetRulesButton.performClick(nil)
+        try require(controller.rulesProblem != nil && (try Data(contentsOf: file)) == damaged, "取消 reset the rules")
+        harness.answer = { $0.messageText == "重置作者规则？" ? .alertFirstButtonReturn : .alertSecondButtonReturn }
+        sections.resetRulesButton.performClick(nil)
+        let moved = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.range(of: "^author-rules\\.unreadable-[0-9]{8}-[0-9]{6}\\.json$", options: .regularExpression) != nil }
+        try require(controller.rulesProblem == nil && !FileManager.default.fileExists(atPath: file.path) && moved.count == 1
+            && (try Data(contentsOf: directory.appendingPathComponent(moved[0]))) == damaged && sections.resetRulesButton.isHidden
+            && sections.addRuleButton.isEnabled, "重置 did not move the file aside: \(moved)")
+        try require(controller.addRule(kind: .veto, text: "不要写雨夜。") == nil, "A rule could not be added after 重置")
+        controller.store.flush()
+        let stored = try AgentConversationStore.decoder().decode(AgentAuthorRulesFile.self, from: Data(contentsOf: file))
+        try require(stored.rules.map(\.text) == ["不要写雨夜。"], "The new rules file differs")
         try harness.close()
     }
 }

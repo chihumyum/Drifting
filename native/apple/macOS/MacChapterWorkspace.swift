@@ -1412,6 +1412,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// reply's library or chapter lists reach every list, page and link as
     /// a restore from its own panel does; nothing is opened.
     func restore(_ item: WorkspaceTrashItem, projectID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard item.kind != .unknown else { completion(.failure(LabError.message(WorkspaceTrashText.unknownRefusal))); return }
         guard canNavigate else { completion(.failure(blocked())); return }
         setBusy(true)
         let finish: (Error?) -> Void = { [weak self] error in
@@ -1455,6 +1456,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 }
                 finish(result.error)
             }
+        case .unknown:
+            finish(LabError.message(WorkspaceTrashText.unknownRefusal))
         }
     }
 
@@ -1463,9 +1466,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// again, so links to it read as plain prose and every list follows.
     func purge(_ item: WorkspaceTrashItem, projectID: String,
                completion: @escaping (Result<WorkspaceTrashPurgeReply, Error>) -> Void) {
+        guard item.kind != .unknown else { completion(.failure(LabError.message(WorkspaceTrashText.unknownRefusal))); return }
         guard canNavigate else { completion(.failure(blocked())); return }
         setBusy(true)
-        workspace.purgeTrashed(projectID: projectID, kind: item.kind.rawValue, id: item.id) { [weak self] result in
+        workspace.purgeTrashed(projectID: projectID, kind: item.rawKind, id: item.id) { [weak self] result in
             guard let self else { return }
             if case .success(let reply) = result { self.adoptPurge(reply, projectID: projectID) }
             self.setBusy(false)

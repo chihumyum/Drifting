@@ -56,9 +56,11 @@ interoperability is kept.
 - 语言: 拼写检查 (default on) toggles continuous spell checking in every body;
   手稿默认语言 (zh-CN, zh-TW, en, ja, ko, fr) sets CoreText's language attribute
   on prose: glyph forms, fallback fonts and line breaking.
-- 写作助手: 用量 of the open project's conversations and Copilot's requests
-  (read only, stored beside the conversations, not in `settings.json`;
-  [agent](agent.md)) and 管理 API Key….
+- 写作助手: two tabs. 用量 of the open project's conversations and Copilot's
+  requests (read only, stored beside the conversations, not in
+  `settings.json`; [agent](agent.md)) and 管理 API Key…; MCP 扩展, the open
+  project's MCP servers (`mcpServers` in `settings.json`, secrets in the
+  Keychain; [agent](agent.md#mcp-扩展)).
 - Copilot（实验）: off by default; 模型服务 and 模型 from the writing assistant's
   catalog with its Keychain keys (shown masked; 管理 API Key… opens the same
   sheet), 设定抽取 and 补丁建议, 停笔后自动 after N seconds (default 20) or

@@ -13,12 +13,14 @@ extension BindingAcceptance {
         MacChapterWorkspace.backlinkDelay = 0.05
         try trashListsFiltersAndRestores()
         try trashPurgesAndEmpties()
+        try trashKeepsUnknownKinds()
         try shelfListsOpensCreatesRenamesAndDeletes()
         try markdownFolderExport()
         try diagnosticSummary()
         return [
             "AppKit 回收站 lists trashed chapters, drifts, elements, categories and storylines from workspaceTrash newest first by their own trash time (a category above an element of it trashed earlier) with kind, title and time, filters by kind, follows a trash made elsewhere, 恢复 each kind with one original through its restore command while the 设定库, 漂流, 故事线 and chapter trash lists follow and nothing opens, and a failed read turns 清空回收站 off naming the kinds it could not read",
             "AppKit 彻底删除 asks naming the item and what goes with it, writes nothing on 取消, for live content (Rust's refusal) or while input is marked, purges an element with its facts, patch, TODO, body and history in one original, leaves links to it as plain unrewritten prose, and 清空回收站 asks with counts and sends exactly the counted entries: one trashed elsewhere while it asks makes Rust refuse with nothing deleted and the list read again, then the rest is purged in one original that survives a cold reopen",
+            "AppKit 回收站 lists a kind this client does not know as 未知类型 with restore and 彻底删除 refused, counts it in the 清空回收站 question and keeps it in the confirmed set Rust compares, so a listing Rust does not hold makes Rust refuse with nothing deleted",
             "AppKit 项目书架 lists every project with summary, chapters, words and last edit newest first, reorders after an edit, creates, renames and opens projects, deletes through the project deletion sheet, reads without writing and lists the same after a cold relaunch",
             "AppKit 导出为 Markdown 文件夹 writes every archive file as UTF-8 into <项目名>-<yyyy-MM-dd> with subfolders, wiki links and front matter, adds a numeric suffix instead of overwriting, offers 在访达中显示, writes no journal row and refuses paths that leave the folder",
             "AppKit 诊断摘要 shows Rust's counts with the app version, macOS version and architecture as read-only JSON, says it holds no book content, copies and saves it, and contains no synthetic title, prose, identity or path",
@@ -502,6 +504,58 @@ extension BindingAcceptance {
             && linkedRuns(coldText).map(\.1) == [NativeEntityLink(kind: "element", id: tower.id)],
             "After a cold reopen: \(coldTrash.items.map(\.title)) \(library.elements.map(\.name)) \(coldText.text)")
         let _: Bool = try elementResult { cold.close(completion: $0) }
+    }
+
+    // MARK: Unknown kinds
+
+    private static func trashKeepsUnknownKinds() throws {
+        let harness = try TrashHarness(name: "未知类型合成项目", chapterTitles: ["第一章", "第二章"])
+        defer { harness.cleanup() }
+        try harness.trashChapter(harness.chapters[1])
+        let (controller, panel) = try harness.trashController()
+        defer { panel.close() }
+        let model = controller.model
+        // Rust lists a kind this client does not know (a synthetic entry).
+        let reader = model.read
+        let unknown = WorkspaceTrashEntry(kind: "note", id: "synthetic-note", title: "未来的便签", trashedAt: "2026-09-28T10:00:00.000Z")
+        model.read = { done in reader { result in done(result.map { $0 + [unknown] }) } }
+        model.load()
+        try wait { model.loaded && model.items.count == 2 }
+        guard let item = model.items.first(where: { $0.id == "synthetic-note" }) else { throw LabError.message("The unknown kind was dropped") }
+        try require(item.kind == .unknown && item.rawKind == "note" && item.kind.label == "未知类型" && item.confirmedKey == ["kind": "note", "id": "synthetic-note"]
+            && trashTitles(controller).contains("未知类型:未来的便签") && model.summary.hasPrefix("回收站中有 2 项：1 个章节、1 项未知类型的内容。"),
+            "The unknown kind is not listed: \(trashTitles(controller)) \(model.summary)")
+        // It cannot be restored or purged alone.
+        try require(controller.select(item) && !controller.restoreButton.isEnabled && !controller.purgeButton.isEnabled, "Its buttons are enabled")
+        var refused: Error??
+        controller.restore(item) { refused = .some($0) }
+        try wait { refused != nil }
+        guard case .some(.some(let error)) = refused, error.localizedDescription == WorkspaceTrashText.unknownRefusal else {
+            throw LabError.message("Restoring an unknown kind was not refused: \(String(describing: refused))")
+        }
+        // 清空回收站 counts it and sends it; Rust holds no such entry and refuses.
+        var asked: NSAlert?
+        controller.presentAlert = { alert, done in asked = alert; done(.alertFirstButtonReturn) }
+        let mark = try harness.journal.mark()
+        var result: Error??
+        controller.emptyTrash { result = .some($0) }
+        try wait { result != nil && !model.busy }
+        try require(asked?.informativeText.hasPrefix("将永久删除回收站中的全部 2 项：1 个章节、1 项未知类型的内容") == true,
+            "The question did not count the unknown kind: \(asked?.informativeText ?? "")")
+        guard case .some(.some(let changed)) = result, changed.localizedDescription.contains("确认后有变化") else {
+            throw LabError.message("The confirmed set left the unknown kind out: \(String(describing: result))")
+        }
+        try harness.journal.expect([], since: mark, "Emptying with an entry Rust does not hold")
+        try require(try harness.count("SELECT COUNT(*) AS n FROM book_node WHERE id='\(harness.chapters[1].id)'") == 1, "The chapter was purged")
+        // With Rust's own listing, the trash empties.
+        model.read = reader
+        model.load()
+        try wait { model.loaded && model.items.count == 1 && !model.busy }
+        result = nil
+        controller.emptyTrash { result = .some($0) }
+        try wait { result != nil && !model.busy }
+        if case .some(.some(let error)) = result { throw LabError.message("Emptying failed: \(error.localizedDescription)") }
+        try require(model.items.isEmpty, "The trash did not empty")
     }
 
     // MARK: 项目书架

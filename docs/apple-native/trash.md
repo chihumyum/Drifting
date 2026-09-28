@@ -51,9 +51,15 @@ the 审阅 notes. The panel follows trash and restore made anywhere else,
 because every library and chapter list the host adopts passes through it.
 Queued or marked input holds every command with a Chinese reason.
 
+A kind this client does not know (a newer Rust listing more kinds) is shown
+as 未知类型 with Rust's own kind kept. It is counted in the 清空回收站
+question and stays in the confirmed set Rust compares, so emptying either
+removes exactly what the author was shown or is refused; 恢复 and 彻底删除
+are off for it and refused with the reason.
+
 ## Acceptance
 
-Two programmatic AppKit cases in the [binding report](acceptance/p2b-binding.json)
+Three programmatic AppKit cases in the [binding report](acceptance/p2b-binding.json)
 (`--trash-shelf-only`) drive the panel, the tab host and the panels' models
 wired as AppDelegate wires them: the listing order by trash time (a category
 above an element of it trashed earlier), kinds, times and filter; a trash
@@ -64,5 +70,7 @@ content and marked input writing nothing; an element purged with its TODO,
 fact, patch, body and history in one pinned original and the rows gone; the
 link to it plain yet unchanged in the prose; a category trashed elsewhere
 while 清空回收站 asks, refused with nothing written or purged; 清空回收站 in
-one pinned original; and a cold reopen. Rust suites cover the ABI in
+one pinned original; a cold reopen; and a synthetic unknown kind listed as
+未知类型, refused for 恢复, counted in the question and sent in the confirmed
+set, so Rust refuses with nothing deleted. Rust suites cover the ABI in
 `workspace_purge_tests.rs`. The panel's sheets and physical input are not covered.

@@ -52,6 +52,11 @@ Right-clicking a chapter offers its 写作状态.
   closes. 删除项目 asks the panel first and refuses, naming the chapter,
   before anything closes; a panel closing for deletion reports the failure
   instead of waiting ([workspace](workspace.md)).
+- **Closing and reopening.** Closing detaches the panel before its owners
+  close, so a close that completes at once (an owner that already failed to
+  close, or a book already shut down) still lets 全书长卷 reopen. Every book
+  whose panel closed while its owners still close is tracked until it has
+  shut down, and 删除项目 asks each of them.
 - **Tab parity.** Edits, undo, formatting, comments and ⌘-click on links
   behave as in a tab. The tab host gives these views the link directory and
   link passes, and counts their saved bodies. A ⌘-clicked link closes the
@@ -116,7 +121,7 @@ chapter are not ported. Each attached chapter keeps its own editor controls.
 
 ## Acceptance
 
-Seven programmatic AppKit cases in `native/apple/Tests/WholeBookAcceptance.swift`
+Eight programmatic AppKit cases in `native/apple/Tests/WholeBookAcceptance.swift`
 (`--whole-book-only`; [binding report](acceptance/p2b-binding.json)) drive the
 real controllers, tab host, Rust workspace and SQLite:
 
@@ -131,6 +136,10 @@ real controllers, tab host, Rust workspace and SQLite:
   repeated attempts, the status line names it, 删除项目 refuses naming it
   with nothing closed or written, it closes once closes work again, and a
   shutdown reports a failure instead of waiting.
+- Closing through the presenter AppDelegate uses: a close whose shutdown
+  reports a failed close at once, and one of a book already shut down, both
+  reopen the 全书长卷 from their completion; two books still closing their
+  owners are both tracked (and refuse 删除项目) until each shuts down.
 - An attached chapter shared with a tab: edit, element link, undo and redo,
   a comment, word counts in the header and 统计, a closed tab leaving the
   owner, ⌘-click, and releasing only owners no tab shows.
