@@ -62,8 +62,11 @@ duplicate operation.
   ([settings](settings.md)).
 - **Guards**: pending input, marked text, recovery and failed drafts disable
   the commands, as for bold and italic. Tab, or a slash-menu row, pressed while
-  typed text is still on its way applies once it lands; a click in the prose
-  drops it. Formatting keeps selection, focus and scroll position.
+  typed text is still on its way applies once it lands, only to the blocks its
+  selection touched then (a paragraph the queued input creates is named by its
+  reply), never elsewhere: later input, any other key command (Return, ↓ …),
+  a click in the prose, a failed draft or save and a render that removed the
+  block drop it. Formatting keeps selection, focus and scroll position.
 - **Rendering** (`DocumentStyle`, every editor and the 全书长卷's read-only
   rows): underline and strike; URL links in the system link colour, underlined
   (an entity link's own presentation wins on the same text); paragraph
@@ -85,8 +88,8 @@ duplicate operation.
   with 正文, 标题 1, 标题 2, 标题 3, 居中 and 右对齐. Typing filters by title or
   keyword (`h1`, `center` …); ↑ and ↓ move, Return chooses: “/query” is deleted
   through the input path, then the format applies once that input lands (two
-  undo units). Esc, a caret moved away, lost focus, a space or no match closes
-  it and leaves the text.
+  undo units). Esc, a caret moved away, lost focus, a space, sentence
+  punctuation or no match closes it and leaves the text.
 - **Find**: ⌘F shows the standard find bar of the page's editor with
   incremental search highlighting every match; ⌘G, ⇧⌘G and ⌘E work as in every
   Mac app (编辑 › 查找…, 查找下一个, 查找上一个, 用所选内容查找). While the bar is open,
@@ -94,16 +97,25 @@ duplicate operation.
   closes. The bar has no 替换: a replacement from it would not pass through the
   binding's input path, and 全部替换 could not be one undo unit. The 全书长卷
   offers no find.
-- **@ picker**: “@” (or ＠) typed anywhere opens a popover of the project's live
-  element names and aliases (latest edited first) and chapter titles (book
-  order), without the body's own element or chapter. Typing filters (exact,
-  then prefix, then other matches; at most 30). Return replaces “@query” with
-  the name through the input path and asks for a link pass, which links it as
-  [automatic linking](entity-links.md) does — leftmost-longest, so a longer
-  overlapping name wins. A query that names no element adds ＋ 新建设定「…」 for
-  each category: it creates the element there, every open view adopts the
-  library, and the name is inserted and linked while “@query” is still in
-  place. Esc leaves the text.
+- **@ picker**: “@” (or ＠) typed anywhere except right after an ASCII letter
+  or digit (an e-mail address) opens a popover of the project's live element
+  names and aliases (latest edited first) and chapter titles (book order),
+  without the body's own element or chapter, and only names the link pass
+  resolves to that row's target ([entity links](entity-links.md)). Typing
+  filters (exact, then prefix, then other matches; at most 30). A space,
+  sentence punctuation (，。！？；：、,.!?;:) or a query that names nothing closes
+  it, so ↑, ↓ and Return act on the text again. Return replaces “@query” with
+  the highlighted name through the input path and asks for a link pass, which
+  links it as [automatic linking](entity-links.md) does — leftmost-longest,
+  so a longer overlapping name wins. After the names, a query no element is
+  named or aliased and the pass does not resolve adds ＋ 新建设定「…」 for each
+  category; Return takes one only after ↑ or ↓ moved to it. It creates the
+  element there, every open view adopts the library, and the name is inserted
+  and linked while “@query” is still in place, leaving the caret or a
+  selection where the author has put it meanwhile. Esc leaves the text.
+- **Both pickers** close when undo, another pane, a remote change or the
+  writing assistant replaces the prose, and a row is chosen only while its
+  trigger and query are still under the caret; otherwise nothing is edited.
 
 ## Acceptance and limits
 
@@ -113,7 +125,7 @@ duplicate operation.
   at a caret, entity links kept, refusals); bridge tests cover format, history,
   refusal, save retry and alignment, indent, underline and links through a cold
   reopen of the workspace SQLite.
-- `--format-extras-only` (seven AppKit cases in
+- `--format-extras-only` (ten AppKit cases in
   `native/apple/Tests/FormatExtrasAcceptance.swift`, in the
   [binding report](acceptance/p2b-binding.json)) drives the real tab host, both
   panes, the Rust workspace and SQLite: every new command through the menu, its
@@ -123,7 +135,13 @@ duplicate operation.
   link sheet (prefill, replace, `javascript:` refused in the sheet and in Rust,
   removal three ways, entity links kept), ⌘-click and 打开链接 through an
   injected opener, the slash menu, find, the @ picker with element creation,
-  printing a page with these attributes and a cold reopen. `--style-only` and
+  printing a page with these attributes and a cold reopen; then the review
+  fixes: an e-mail address, CJK prose and sentence punctuation around “@”,
+  ＋ rows alone, names shadowed by a chapter or a drift, undo and a
+  writing-assistant change closing the pickers, a created name keeping the
+  caret and a selection, and a waiting Tab or slash row reaching only its own
+  block (also a new one) and dropped by Return, ↓, a failed save and a block
+  another pane removed. `--style-only` and
   the older formatting cases keep the incremental-style reference.
 - Not covered: physical keys and clicks, the popovers and find bar on screen,
   typing into the find bar's field, and input-method composition inside a

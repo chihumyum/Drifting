@@ -59,12 +59,16 @@ reason, while the tabs already closed stay closed. Closing the shown tab (×,
 - 移到另一侧 moves the tab with its view (selection, scroll, local history);
   when the other pane already has the page, that pane's tab shows it and this
   one goes. 解除分屏 moves the second pane's tabs after the first's the same
-  way, keeps the page the active pane showed and closes no owner. 关闭分栏
+  way, keeps the page the active pane showed and closes no owner; first, as
+  closing would, the second pane's header edits are saved and its 情节规划格
+  gestures answered, and a refusal keeps both panes and says why. 关闭分栏
   still closes the second pane's tabs.
 - 视图 › 上一个标签 (⌥⌘←) and 下一个标签 (⌥⌘→) cycle the active pane's tabs.
-  文件 › 关闭标签 (⌘W) closes the shown tab of the main window's active pane,
-  otherwise the key window (a panel, 设置, the shelf, or the main window when
-  it has no tab).
+  文件 › 关闭标签 (⌘W) closes the shown tab of the main window's active pane.
+  When that pane shows none but a pane still has tabs (open, restored or a
+  项目主页), that pane becomes active and shows its tab instead; the main
+  window closes only without any tab. Other key windows (a panel, 设置, the
+  shelf) close.
 - Dragging a body tab along its strip drops it before the first tab whose
   middle is right of the pointer; owners, views and the shown tab stay.
 
@@ -78,7 +82,8 @@ other pane, records it; a new visit after 后退 drops the pages ahead; at most
 active pane once that pane is gone. Pages that were trashed or purged, and
 the page already shown, are skipped; a page that no longer opens leaves the
 history. The usual guards apply (queued or marked input, 情节规划格 gestures
-on their way). Showing another project starts a new history.
+on their way). Showing another project starts a new history; deleting one
+drops its pages, its 项目主页 included.
 
 ## Restoring tabs
 
@@ -88,13 +93,18 @@ whether the split is shown. They are saved half a second after tabs, their
 order, the shown tab, the split or the active pane change (typing changes
 none); quitting saves them as they are and closing them to quit saves
 nothing. Showing a project (the project list, the 项目书架, creating or
-deleting a project) first saves and closes the tabs of the project shown
-before through the close path; a tab that cannot close keeps that project
-shown and is named. Its own tabs then come back: every tab in its place,
+deleting a project) first reads its chapters (a failed read keeps the
+project shown before, tabs and all), then saves and closes the tabs of the
+project shown before through the close path, open ones first; a tab that
+cannot close keeps that project shown with its unopened tabs and 项目主页,
+is named and saves nothing. Its own tabs then come back, and navigation
+waits until they have: every tab in its place,
 while only each pane's shown tab opens its body; the others open theirs, in
 place, when selected. Pages that no longer exist (trashed, purged, a deleted
 project's) are left out silently; restoring records no 最近 and writes
-nothing to the journal. At launch the project selected last (`lastProject`)
+nothing to the journal. A restore that was refused, could not read a list or
+was overtaken by another switch saves nothing, so it never erases the stored
+tabs. At launch the project selected last (`lastProject`)
 opens with its tabs; without one, or once it is gone, the 项目书架 opens.
 
 ## Bounded acceptance
@@ -138,7 +148,7 @@ after quitting and relaunching. The ignored
 and complete bundle fingerprints, including the Debug dylib. This is targeted
 desktop interaction, not desktop XCTest or physical keyboard/IME evidence.
 
-Four `--tabs-nav-only` cases in `native/apple/Tests/TabsNavigationAcceptance.swift`
+Six `--tabs-nav-only` cases in `native/apple/Tests/TabsNavigationAcceptance.swift`
 ([binding report](acceptance/p2b-binding.json)) drive the real tab host,
 panes, tab buttons, menu layout, settings store and tab session: 后退 and 前进
 across kinds and panes (also by ⌘[ and ⌘]), a closed tab and a gone pane, a
@@ -148,4 +158,11 @@ every context-menu command with a 情节规划格 refusal in the middle of 全�
 saving (coalesced, not while typing), a cold relaunch with only the shown
 tabs opened, dropped pages, unreadable entries, a deleted project and the
 last project; switching projects and back with a refusal naming the tab; no
-journal rows from navigation, restore or switching.
+journal rows from navigation, restore or switching; 解除分屏 saving the
+right pane's unsaved 摘要, element name and 情节规划格 cell and a refused cell
+keeping both panes; ⌘W showing another pane's tab or a restored one instead
+of closing the window; a refused and an overtaken restore and a refused
+switch leaving the saved tabs, unopened tabs and 项目主页 as they were; and a
+forgotten project leaving 后退. The chapter read before closing, and holding
+navigation until the tabs are back, are AppDelegate wiring outside these
+headless cases.

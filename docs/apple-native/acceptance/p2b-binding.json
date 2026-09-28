@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T16:29:00.973Z",
+  "generatedAt": "2026-09-28T17:32:53.237Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "dd217788ab05ed11b4f89ffa896e3bf6420ac0c4",
+    "commit": "2f24cbb943b120db59097f9a07178aca16658e95",
     "dirty": true,
-    "fingerprint": "9c76ae28a985a000d3788ed5c497e0a21af145ea83be02548293409869299b61"
+    "fingerprint": "57cc22b114345a6069114a1570f3763a056299e89767b6e892ff54d95d628d3f"
   },
   "cases": [
     {
@@ -915,6 +915,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit 快捷键 resolve the author's overrides before the defaults: ⌘F kept for 项目搜索 from an earlier settings.json stays its shortcut in the menu while 查找… shows 无 with 设置 › 快捷键 naming 编辑 › 项目搜索 as the holder, recording ⌘F for 查找… is refused, and resetting 项目搜索 gives ⌘F back to 查找…",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 情节规划格 toggles below a chapter's prose from the page header and 视图 › 情节规划格, remembered per page in settings.json, starts from an unsaved 3×3 template written by the first edit as one original, edits cells by click and Return with Tab, ⇧Tab and arrows moving, ⌥Return for a new line, Esc cancelling and Delete clearing, writes nothing for unchanged edits, and never touches the Yjs body, its undo history or word counts",
       "status": "passed"
     },
@@ -999,6 +1003,18 @@
       "status": "passed"
     },
     {
+      "name": "AppKit @ picker stays out of ordinary prose: “@” or “＠” after an ASCII letter or digit (an e-mail address) opens nothing, sentence punctuation or a query naming nothing closes it so Return types a new line and ↑ and ↓ move the caret, ＋ 新建设定 rows never keep it open alone and Return takes a name row unless ↑ or ↓ moved to one, and only names the link pass resolves to the row's own target are offered (an element named like a chapter and an alias a drift is titled are left out)",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit an open slash menu or @ picker closes when undo or a writing-assistant change replaces the prose, so Return then types a new line and edits nothing else; ＋ 新建设定 inserts the created name without moving a caret the author typed on or a selection made elsewhere meanwhile",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit a slash row or Tab given while typed text is on its way applies once it lands only to the block it was given for, also a paragraph the queued input creates, and is dropped by Return, ↓, a failed save kept after 重试保存 and another pane removing that block",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 后退 and 前进 (⌘[ ⌘]) step through the chapter, element, drift, category, storyline and 项目主页 pages the window showed in the panes that showed them, reopen a closed tab in its pane or in the active pane once that pane is gone, skip a trashed and a purged page, drop the pages ahead after a new visit, hold while input is queued or composing or a 情节规划格 edit is on its way, start a new history on a project switch and write nothing to the journal",
       "status": "passed"
     },
@@ -1012,6 +1028,14 @@
     },
     {
       "name": "AppKit switching projects saves and closes the shown project's tabs through the close path, a tab that cannot close keeping the project and naming the tab, restores the other project's tabs with their split and text and back again with a new 后退 history, writes nothing to the journal, and 设置 › 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进, 上一个标签 and 下一个标签",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 解除分屏 first saves the right pane's unsaved 摘要, element name and 情节规划格 cell, also for pages both panes show, and a refused cell keeps both panes and says why; ⌘W with the active pane empty shows another pane's tab or a restored tab instead of closing the window, which closes only without tabs",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit a refused restore and one overtaken by another project's switch restore nothing and leave the saved tabs as they were, a switch refused by a tab that cannot close keeps the project's restored tabs and 项目主页 and saves nothing, and forgetting a deleted project drops its pages from 后退 and 前进",
       "status": "passed"
     }
   ],

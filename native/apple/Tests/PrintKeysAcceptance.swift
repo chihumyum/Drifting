@@ -23,6 +23,7 @@ extension BindingAcceptance {
         try pdfExportProgressAndCancellation()
         try shortcutRecording()
         try shortcutPersistence()
+        try shortcutOverridesFirst()
         return [
             "AppKit print typesetting sets headings, bold and italic, strike, inline and block code, quotes by odd depth, bulleted lists by even depth with continuation paragraphs, links and a rule from a projection, entity links and unsupported blocks as plain text or nothing, in black whatever the appearance",
             "AppKit 打印 prints the focused drift and element page from readProjection in 设置's typography under the page title with the title and page number in every page's header through NSPrintOperation, lays out again for the operation's paper, reads an open owner's live text, opens no owner and writes no journal row",
@@ -31,8 +32,11 @@ extension BindingAcceptance {
             "AppKit 设置 › 快捷键 lists the installed menu's commands by menu with ⇧⌘I for Copilot 分析 and ⌥⌘I for 项目资料, records a pressed combination into the menu item's key equivalent at once so the menu performs it, refuses a conflict, system-reserved and text-editing shortcuts and one without ⌘ or ⌃ while recording continues, cancels with Esc, removes with ⌫, and resets one (refusing a default another command now uses) and all",
             "AppKit 快捷键 persist in settings.json and apply to a new menu and the settings window at relaunch, while a hand-edited file's reserved, unreadable and conflicting entries fall back without losing the others or an unknown command's entry",
             printKeysReviewCase,
+            shortcutOverridesCase,
         ]
     }
+
+    static let shortcutOverridesCase = "AppKit 快捷键 resolve the author's overrides before the defaults: ⌘F kept for 项目搜索 from an earlier settings.json stays its shortcut in the menu while 查找… shows 无 with 设置 › 快捷键 naming 编辑 › 项目搜索 as the holder, recording ⌘F for 查找… is refused, and resetting 项目搜索 gives ⌘F back to 查找…"
 
     // MARK: Harness
 
@@ -669,6 +673,48 @@ extension BindingAcceptance {
         for command in MacMenuCommand.allCases {
             try requireMenu(menu, command, command.defaultShortcut.key, command.defaultShortcut.flags, "Reset all")
         }
+        withExtendedLifetime(applier) {}
+    }
+
+    /// A default added after the author chose the same shortcut for another
+    /// command never takes it away: overrides resolve first.
+    private static func shortcutOverridesFirst() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let commandF = MenuShortcut(key: "f", flags: .command)
+        // ⌘F for 项目搜索, saved before 查找… had ⌘F as its default.
+        LabSettingsStore(directory: root).setShortcut(commandF, for: .search)
+        let store = LabSettingsStore(directory: root)
+        let effective = MacShortcuts.effective(store.settings.shortcuts)
+        try require(effective[.search] == commandF && effective[.find] == .unassigned
+                    && effective[.findNext] == MenuShortcut(key: "g", flags: .command),
+                    "A default took the author's shortcut: 项目搜索 \(effective[.search]?.display ?? "-"), 查找… \(effective[.find]?.display ?? "-")")
+        try require(MacShortcuts.defaultHolder(of: .find, overrides: store.settings.shortcuts) == .search
+                    && MacShortcuts.defaultHolder(of: .search, overrides: store.settings.shortcuts) == nil
+                    && MacShortcuts.defaultHolder(of: .findNext, overrides: store.settings.shortcuts) == nil, "The default's holder is wrong")
+        let probe = MenuProbe()
+        let menu = MacMainMenu.build(Dictionary(uniqueKeysWithValues: MacMenuCommand.allCases.filter { $0.responderAction == nil }
+            .map { ($0, MacMainMenu.Action(#selector(MenuProbe.fire(_:)), probe)) }))
+        let applier = MacShortcutApplier(store: store, menu: menu)
+        try requireMenu(menu, .search, "f", .command, "Override")
+        try requireMenu(menu, .find, "", [], "Default held by an override")
+        try require(menu.performKeyEquivalent(with: key("f", .command, code: 3)) && probe.fired == ["menu.edit.search"],
+                    "⌘F did not reach 项目搜索: \(probe.fired)")
+        let pane = MacShortcutSettingsViewController(store: store)
+        pane.menuSource = { menu }
+        _ = pane.view
+        let note = pane.defaultNotes[.find]
+        try require(pane.shortcutButtons[.find]?.title == "无" && pane.shortcutButtons[.search]?.title == "⌘F"
+                    && note?.isHidden == false && note?.stringValue.contains("⌘F") == true && note?.stringValue.contains("编辑 › 项目搜索") == true
+                    && pane.defaultNotes[.search]?.isHidden == true, "设置 › 快捷键 does not name the holder: “\(note?.stringValue ?? "")”")
+        pane.beginRecording(.find)
+        try require(pane.record(key("f", .command, code: 3)) && pane.recording == .find && pane.message.stringValue.contains("编辑 › 项目搜索"),
+                    "Recording ⌘F for 查找… read “\(pane.message.stringValue)”")
+        pane.reset(.search)
+        try requireMenu(menu, .search, "f", [.command, .shift], "Reset")
+        try requireMenu(menu, .find, "f", .command, "Freed default")
+        try require(pane.shortcutButtons[.find]?.title == "⌘F" && pane.defaultNotes[.find]?.isHidden == true && store.settings.shortcuts.isEmpty,
+                    "Resetting 项目搜索 did not give ⌘F back to 查找…")
         withExtendedLifetime(applier) {}
     }
 

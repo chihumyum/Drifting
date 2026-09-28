@@ -43,7 +43,12 @@ auto-detect pass, which is leftmost-longest).
 
 The [@ picker](formatting.md) inserts an element name, alias or chapter title
 through the input path and requests a pass at once, so a picked name is linked
-exactly as a typed one; its ＋ 新建设定「…」 creates the element first. URL
+exactly as a typed one; its ＋ 新建设定「…」 creates the element first. It offers
+a row only when this map, built the same way for the body (own element,
+chapter or drift left out), resolves the row's name to the row's own target:
+an element name or alias that a later element, a chapter title or a drift
+title shares is left out, since the pass would link that other target, and
+＋ 新建设定 is not offered for a name the map already resolves. URL
 links (`link` marks) are separate from entity links; both can cover the same
 text.
 

@@ -469,21 +469,44 @@ enum MacShortcuts {
         return MenuShortcut(key: base, flags: shortcut.flags)
     }
 
-    /// Every command's shortcut: its override, else its default. System
-    /// commands always keep their own. A shortcut two commands would share
-    /// (only a hand-edited file can say so) stays with the first in menu order.
+    /// Every command's shortcut. System commands always keep their own; then
+    /// the author's overrides take theirs, and only then does every other
+    /// command take its default, unless an override already holds it: that
+    /// command has none (a newer default never takes the author's shortcut
+    /// away) and 设置 › 快捷键 names the holder (`defaultHolder`). An
+    /// override the rules now refuse counts as none. An override two
+    /// commands would share (only a hand-edited file can say so) stays with
+    /// the first in menu order.
     static func effective(_ overrides: [String: MenuShortcut]) -> [MacMenuCommand: MenuShortcut] {
         var result: [MacMenuCommand: MenuShortcut] = [:]
         var taken = Set<MenuShortcut>()
-        let ordered = MacMainMenu.layout.flatMap { $0.items.compactMap { $0 } }
-        for command in ordered.filter(\.isSystem) + ordered.filter({ !$0.isSystem }) {
-            var shortcut = command.isSystem ? command.defaultShortcut : (overrides[command.rawValue] ?? command.defaultShortcut)
-            if !command.isSystem, !shortcut.isNone, refusal(shortcut) != nil { shortcut = command.defaultShortcut }
-            if !shortcut.isNone, taken.contains(shortcut) { shortcut = .unassigned }
-            if !shortcut.isNone { taken.insert(shortcut) }
-            result[command] = shortcut
+        func take(_ command: MacMenuCommand, _ shortcut: MenuShortcut) {
+            let free = !shortcut.isNone && !taken.contains(shortcut)
+            if free { taken.insert(shortcut) }
+            result[command] = free ? shortcut : .unassigned
         }
+        let ordered = MacMainMenu.layout.flatMap { $0.items.compactMap { $0 } }
+        for command in ordered where command.isSystem { take(command, command.defaultShortcut) }
+        var defaults: [MacMenuCommand] = []
+        for command in ordered where !command.isSystem {
+            if let shortcut = overrides[command.rawValue], shortcut.isNone || refusal(shortcut) == nil {
+                take(command, shortcut)
+            } else {
+                defaults.append(command)
+            }
+        }
+        for command in defaults { take(command, command.defaultShortcut) }
         return result
+    }
+
+    /// The command holding `command`'s default shortcut when `command` has
+    /// none because an override took it first; nil otherwise.
+    static func defaultHolder(of command: MacMenuCommand, overrides: [String: MenuShortcut]) -> MacMenuCommand? {
+        let target = command.defaultShortcut
+        let current = effective(overrides)
+        guard !command.isSystem, !target.isNone, current[command]?.isNone == true,
+              overrides[command.rawValue].map({ !$0.isNone && refusal($0) != nil }) ?? true else { return nil }
+        return MacMainMenu.layout.flatMap { $0.items.compactMap { $0 } }.first { $0 != command && current[$0] == target }
     }
 
     /// Why a shortcut cannot be used at all, whichever command asks: taken

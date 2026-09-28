@@ -245,8 +245,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     var mentionSource: (() -> ProseMentionSource)?
     /// ＋ 新建设定「…」: creates an element with the name in the category.
     var onCreateElement: ((_ name: String, _ categoryID: String, _ done: @escaping (Result<WorkspaceElement, Error>) -> Void) -> Void)?
-    /// A block command (Tab, a slash row) waiting for queued input to land.
-    private(set) var deferredFormat: NativeFormatAction?
+    /// A block command (Tab, a slash row) waiting for queued input to land,
+    /// and the blocks it was given for.
+    private(set) var deferredFormat: DeferredBlockFormat?
     /// The text an allowed input is about to insert, for opening a picker.
     private var pendingReplacement: String?
     private var rendering = false
@@ -466,7 +467,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             self.updateEditability()
             self.updateActions()
             self.onActivity?(busy)
-            if !busy { self.runDeferredFormat() }
+            self.runDeferredFormat()
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -509,8 +510,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         let replacedText = !NativeText.identical(textView.string, projection.text)
         if replacedText {
             for change in changes { selection = change.mapSelection(selection) }
+            // Other input, undo, a remote or Agent write: an open picker's
+            // range no longer names what the author typed.
+            closePicker()
             textFinder?.noteClientStringWillChange()
             textView.string = projection.text
+        }
+        if let deferred = deferredFormat {
+            deferredFormat = deferred.following(changes, replaced: replacedText, blocks: projection.blocks)
         }
         if let storage = textView.textStorage {
             lastStyleUpdate = DocumentStyle.update(projection, previous: replacedText ? nil : styledProjection,
@@ -889,7 +896,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             guard typed.hasSuffix(character) else { return }
             if ProsePickers.slashTriggers.contains(character), slashAllowed(trigger: trigger, caret: selection.location) {
                 picker = ProsePickerSession(kind: .slash, trigger: trigger, triggerCharacter: character, query: "", items: [], selected: 0)
-            } else if ProsePickers.mentionTriggers.contains(character), mentionSource != nil {
+            } else if ProsePickers.mentionTriggers.contains(character), mentionSource != nil,
+                      ProsePickers.opensMention(after: trigger > 0 ? text.character(at: trigger - 1) : nil) {
                 picker = ProsePickerSession(kind: .mention, trigger: trigger, triggerCharacter: character, query: "", items: [], selected: 0)
             } else { return }
             updatePicker(typed: nil)
@@ -900,12 +908,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         guard selection.length == 0, session.trigger < text.length, caret > session.trigger,
               text.substring(with: NSRange(location: session.trigger, length: 1)) == session.triggerCharacter else { closePicker(); return }
         let query = text.substring(with: NSRange(location: session.trigger + 1, length: caret - session.trigger - 1))
-        guard query.rangeOfCharacter(from: .whitespacesAndNewlines) == nil, (query as NSString).length <= ProsePickers.maximumQuery,
+        guard query.rangeOfCharacter(from: ProsePickers.queryEnds) == nil, (query as NSString).length <= ProsePickers.maximumQuery,
               session.kind == .mention || slashAllowed(trigger: session.trigger, caret: caret) else { closePicker(); return }
         let items = session.kind == .slash ? ProsePickers.slashItems(query: query)
             : ProsePickers.mentionItems(query: query, source: mentionSource?() ?? .empty, canCreate: onCreateElement != nil)
         guard !items.isEmpty else { closePicker(); return }
-        if query != session.query || items != session.items { session.selected = 0 }
+        if query != session.query || items != session.items { session.selected = 0; session.navigated = false }
         session.query = query; session.items = items
         session.selected = min(session.selected, items.count - 1)
         picker = session
@@ -945,14 +953,19 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     /// ↑ and ↓ move through the rows, Return chooses, Esc closes; other
     /// keys go to the text. With marked text the input method keeps them.
+    /// Return takes a ＋ 新建设定 row only once ↑ or ↓ moved to it; otherwise
+    /// it closes the picker and types a new line.
     private func pickerCommand(_ selector: Selector) -> Bool {
         guard var session = picker, !session.items.isEmpty else { return false }
         switch selector {
         case #selector(NSResponder.moveDown(_:)):
             session.selected = (session.selected + 1) % session.items.count
+            session.navigated = true
         case #selector(NSResponder.moveUp(_:)):
             session.selected = (session.selected - 1 + session.items.count) % session.items.count
+            session.navigated = true
         case #selector(NSResponder.insertNewline(_:)):
+            if case .createElement = session.items[session.selected].action, !session.navigated { closePicker(); return false }
             choosePickerItem(session.selected); return true
         case #selector(NSResponder.cancelOperation(_:)):
             closePicker(); return true
@@ -965,10 +978,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     /// Choosing replaces the trigger and query through the normal input
     /// path: a format then applies once that input lands; a name is linked
-    /// by the link pass, as typed names are.
+    /// by the link pass, as typed names are. Only while the trigger and the
+    /// query are still in place with the caret after them; otherwise the
+    /// picker closes and nothing is edited.
     func choosePickerItem(_ index: Int) {
         guard let session = picker, session.items.indices.contains(index) else { return }
         closePicker()
+        let text = textView.string as NSString
+        guard NSMaxRange(session.range) <= text.length,
+              text.substring(with: session.range) == session.triggerCharacter + session.query,
+              textView.selectedRange() == NSRange(location: NSMaxRange(session.range), length: 0) else { return }
         switch session.items[index].action {
         case .format(let action):
             guard replaceThroughInput(session.range, with: "") else { return }
@@ -985,9 +1004,10 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
                 switch result {
                 case .success(let element):
                     let text = self.textView.string as NSString
-                    // Inserted only while the typed query is still in place.
+                    // Inserted only while the typed query is still in place,
+                    // leaving the author's caret or selection where it is now.
                     if NSMaxRange(range) <= text.length, text.substring(with: range) == typed,
-                       self.replaceThroughInput(range, with: element.name) {
+                       self.replaceThroughInput(range, with: element.name, keepingSelection: true) {
                         self.binding.store.requestEntityLinks()
                     }
                 case .failure(let error):
@@ -998,30 +1018,53 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
 
     /// Replaces text as typing does: the text system asks the binding, then
-    /// the change is submitted as one input event.
+    /// the change is submitted as one input event. The caret goes after the
+    /// replacement, or with `keepingSelection` (a reply that arrives later)
+    /// the selection stays where the author left it, shifted when it lies
+    /// after the range; only a caret still at the range's end follows it.
     @discardableResult
-    private func replaceThroughInput(_ range: NSRange, with replacement: String) -> Bool {
+    private func replaceThroughInput(_ range: NSRange, with replacement: String, keepingSelection: Bool = false) -> Bool {
         guard !isInteractionLocked, textView.isEditable, !textView.hasMarkedText(),
               NSMaxRange(range) <= (textView.string as NSString).length,
               textView.shouldChangeText(in: range, replacementString: replacement) else { return false }
+        let inserted = (replacement as NSString).length
+        var selection = NSRange(location: range.location + inserted, length: 0)
+        if keepingSelection {
+            let before = textView.selectedRange()
+            func map(_ point: Int) -> Int {
+                if point >= NSMaxRange(range) { return point + inserted - range.length }
+                return point <= range.location ? point : range.location + inserted
+            }
+            let start = map(before.location)
+            selection = NSRange(location: start, length: max(0, map(NSMaxRange(before)) - start))
+        }
         textView.replaceCharacters(in: range, with: replacement)
-        textView.setSelectedRange(NSRange(location: range.location + (replacement as NSString).length, length: 0))
+        textView.setSelectedRange(selection)
         textView.didChangeText()
         return true
     }
 
     /// A block command that waits for queued input (Tab typed right after
-    /// text, a slash row): it runs once the owner is idle, on the block the
-    /// caret is in then. A click in the prose drops it.
+    /// text, a slash row): it runs once the owner is idle, only on the
+    /// blocks the selection touched when it was given. Any later input or
+    /// key command, a click in the prose, a failed draft or save, and a
+    /// render that removed one of those blocks drop it.
     private func formatWhenIdle(_ action: NativeFormatAction) {
         if canPerformFormat(action) { performFormat(action); return }
-        if binding.store.hasQueuedInput, binding.canEdit, !binding.hasFailedDraft { deferredFormat = action }
+        deferredFormat = nil
+        guard binding.store.hasQueuedInput, binding.canEdit, !binding.hasFailedDraft,
+              NativeText.identical(binding.displayedText, textView.string) else { return }
+        deferredFormat = DeferredBlockFormat(action: action, selection: textView.selectedRange(), blocks: binding.displayedBlocks)
     }
 
     private func runDeferredFormat() {
-        guard let action = deferredFormat, !binding.hasPendingWork else { return }
+        guard let deferred = deferredFormat else { return }
+        if binding.hasFailedDraft || !binding.canEdit { deferredFormat = nil; return }
+        guard !binding.hasPendingWork else { return }
         deferredFormat = nil
-        if canPerformFormat(action) { performFormat(action) }
+        guard let projection = binding.store.projection, NativeText.identical(textView.string, projection.text),
+              deferred.applies(to: projection.blocks, selection: textView.selectedRange()), canPerformFormat(deferred.action) else { return }
+        performFormat(deferred.action)
     }
 
     // MARK: Comments
@@ -1182,11 +1225,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
                 formatWhenIdle(commandSelector == #selector(NSResponder.insertTab(_:)) ? .indentIncrease : .indentDecrease)
             }
             return true
-        default: return false
+        default:
+            // Every other key command moves the caret or edits: a block
+            // command still waiting for input no longer applies.
+            deferredFormat = nil
+            return false
         }
     }
     func textDidChange(_ notification: Notification) {
         guard !rendering else { return }
+        deferredFormat = nil
         closeLinkPreview()
         let text = textView.string, marked = textView.hasMarkedText()
         if marked { styledProjection = nil }
@@ -1291,4 +1339,64 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     @objc func redoProse() { performHistory(redo: true) }
     @objc private func retrySave() { guard !isInteractionLocked else { return }; focus(); binding.retrySave() }
     @objc private func discardDraft() { guard !isInteractionLocked else { return }; focus(); binding.discardDraft() }
+}
+
+/// A block command (Tab, ⇧Tab, a slash row) given while typed text was still
+/// on its way, and the first and last blocks its selection touched: by ID,
+/// or, for a block the queued input creates (it has none until its reply),
+/// by its displayed range, which the reply then names. It applies only to
+/// those blocks, and only while the selection still touches exactly them.
+struct DeferredBlockFormat {
+    struct Target: Equatable {
+        var id: String?
+        var range: NSRange
+    }
+    let action: NativeFormatAction
+    private(set) var targets: [Target]
+
+    init?(action: NativeFormatAction, selection: NSRange, blocks: [NativeBlock]) {
+        guard let touched = Self.touched(selection, blocks) else { return nil }
+        self.action = action
+        targets = touched.map { Target(id: blocks[$0].id, range: blocks[$0].range.nsRange) }
+    }
+
+    /// The first and last blocks a selection touches, as Rust counts them.
+    private static func touched(_ selection: NSRange, _ blocks: [NativeBlock]) -> [Int]? {
+        guard selection.location >= 0, selection.length >= 0, let first = NativeLayout.index(selection.location, blocks: blocks) else { return nil }
+        guard selection.length > 0 else { return [first] }
+        guard let last = blocks.lastIndex(where: { $0.range.location < NSMaxRange(selection) }), last >= first else { return nil }
+        return last == first ? [first] : [first, last]
+    }
+
+    /// After a render: a named block must still exist. Other input moves an
+    /// unnamed block's range and drops the command when it touches that
+    /// block; a render of the same text (the reply) names it. Nil when the
+    /// command no longer applies.
+    func following(_ changes: [NativeTextChange], replaced: Bool, blocks: [NativeBlock]) -> DeferredBlockFormat? {
+        var next = self
+        for index in next.targets.indices {
+            var target = next.targets[index]
+            if let id = target.id {
+                guard blocks.contains(where: { $0.id == id }) else { return nil }
+            } else if replaced {
+                guard !changes.isEmpty else { return nil }
+                for change in changes {
+                    guard NSMaxRange(change.range) < target.range.location || change.range.location > NSMaxRange(target.range) else { return nil }
+                    target.range = change.mapSelection(target.range)
+                }
+            } else if let found = NativeLayout.index(target.range.location, blocks: blocks), blocks[found].range.nsRange == target.range {
+                target.id = blocks[found].id
+            }
+            next.targets[index] = target
+        }
+        return next
+    }
+
+    /// Whether the selection touches exactly the blocks the command was given for.
+    func applies(to blocks: [NativeBlock], selection: NSRange) -> Bool {
+        guard let touched = Self.touched(selection, blocks), touched.count == targets.count else { return false }
+        return zip(touched, targets).allSatisfy { index, target in
+            target.id.map { $0 == blocks[index].id } ?? (blocks[index].range.nsRange == target.range)
+        }
+    }
 }

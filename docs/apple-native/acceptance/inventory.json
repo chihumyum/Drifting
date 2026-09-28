@@ -202,8 +202,8 @@
     "sha256": "29e67886e7d5f8d755c6aaa29ab7c82d74f511d7a9b83d74bf0d1f211895fd57"
   },
   "source": {
-    "fingerprint": "11328af9ac1e8ef1b93ae276f28da75445c6b816e50d072957afa508f449d6cc",
-    "runtimeFingerprint": "0efde938193867b6cb8f687c470ce349fd3ef11e62bbae9a8ca7eeec2e5d76e1",
+    "fingerprint": "7d5e56d32accacb7e7ec8cf325705e5f0e104b3dd749c8ff444f33df39fc199f",
+    "runtimeFingerprint": "c3c83a77730d472ff7e77df9ead48b716548379fd3ff6e0a564f62929aea6142",
     "files": [
       {
         "path": ".github/workflows/ci.yml",
@@ -1039,7 +1039,7 @@
       },
       {
         "path": "docs/apple-native/entity-links.md",
-        "sha256": "970c0862907300e0de67db095fa893941ba1f91325f3030feae9dfd3277c406a"
+        "sha256": "a9c502a0b9e84c07a73c36b897865ab03f2afb5ef10f67688206530f316564af"
       },
       {
         "path": "docs/apple-native/fixtures.md",
@@ -1055,7 +1055,7 @@
       },
       {
         "path": "docs/apple-native/formatting.md",
-        "sha256": "799bf084096bfab1e00a50b938107d5a111160756f62a450e2d937207ba9d236"
+        "sha256": "7631d6f930da26b8f987938add4c4e5e1f2e14a62f6f3ba6b6061e5081c8f23b"
       },
       {
         "path": "docs/apple-native/history.md",
@@ -1075,7 +1075,7 @@
       },
       {
         "path": "docs/apple-native/milestones.md",
-        "sha256": "79456e2fa98d84a5943f74402718c9ff26ef41422ce49e012d2f45fb7d043662"
+        "sha256": "86f27b4642dc76089400cbca12c15a88c55c3a60f2c85a34a9008f0377a0eab8"
       },
       {
         "path": "docs/apple-native/native-authoring.md",
@@ -1131,7 +1131,7 @@
       },
       {
         "path": "docs/apple-native/settings.md",
-        "sha256": "10b467b0b3552999160ff4be9a4cf6bb1a47d98e8691fd428333216f8ce6aab0"
+        "sha256": "abddd5b623da083ecb586ec6b530253b0fe7f88a0e9ec402005955c33fc4ae88"
       },
       {
         "path": "docs/apple-native/storylines.md",
@@ -1143,7 +1143,7 @@
       },
       {
         "path": "docs/apple-native/tabs-and-split.md",
-        "sha256": "e8b5c532d738b5472860261b277b58a23a31c10a5c0d3c22d97a12bb48f2cff7"
+        "sha256": "213fca71317070035bffeb0c124552f587ca2d63135c514d54cf784002032e24"
       },
       {
         "path": "docs/apple-native/timeline.md",
@@ -1471,7 +1471,7 @@
       },
       {
         "path": "native/apple/Tests/FormatExtrasAcceptance.swift",
-        "sha256": "3be2d29395cb399d112a383a8fb60eeeebf107cf32ebc22208886595d33b32d9"
+        "sha256": "9455a23fa76392546cb6feb8122e5850a63ca0f06f3656a9982438715d262373"
       },
       {
         "path": "native/apple/Tests/FormattingAcceptance.swift",
@@ -1527,7 +1527,7 @@
       },
       {
         "path": "native/apple/Tests/PrintKeysAcceptance.swift",
-        "sha256": "cd7fdf44325891f9dd36fbe6d6da135b08029e08abad446426dfc0ae0dee071b"
+        "sha256": "4fdcb9dbb0c0c69cd82b881a6a7db411d38155bb5c876fafd13354ec1f372ab5"
       },
       {
         "path": "native/apple/Tests/RecoveryHomeAcceptance.swift",
@@ -1579,7 +1579,7 @@
       },
       {
         "path": "native/apple/Tests/TabsNavigationAcceptance.swift",
-        "sha256": "e192eeca9cea604c6507da962b9eda891b0ac29c69af299f24eb4b06ec434cd3"
+        "sha256": "c5f23c8b0203e382421e09fa3ba40a8d73f6b1ef2decf462bc288b85cdebd43e"
       },
       {
         "path": "native/apple/Tests/TextIdentityAcceptance.swift",
@@ -1663,7 +1663,7 @@
       },
       {
         "path": "native/apple/macOS/AppDelegate.swift",
-        "sha256": "cc081c2eab15287a034f5147670de8cc32e145c076d76b41772a5b75f46eca14"
+        "sha256": "e0c5fffa6c35e3333ec59d708b4c85853e9a4f85aa0e775a644d2edc8a11b4fb"
       },
       {
         "path": "native/apple/macOS/BookOutlineViewController.swift",
@@ -1711,7 +1711,7 @@
       },
       {
         "path": "native/apple/macOS/MacChapterWorkspace.swift",
-        "sha256": "dfd55021b1bfa804c5659548b1340c2207374669348c6fdc75494721f6c7f8f2"
+        "sha256": "c27a6ae71dd60de4fb3b09de79bb1bf61637c949b998b71c1c6ef799571f58bd"
       },
       {
         "path": "native/apple/macOS/MacCopilot.swift",
@@ -1767,7 +1767,7 @@
       },
       {
         "path": "native/apple/macOS/MacMainMenu.swift",
-        "sha256": "608d13bcb42edaed38c6266fc5df4030e16716743cedc126ff663145fd0ef8df"
+        "sha256": "6515dedc2cf1db69ddd044410392df7b856795a2eee712e7dd6d4467c467a984"
       },
       {
         "path": "native/apple/macOS/MacMarkdownExport.swift",
@@ -1819,7 +1819,7 @@
       },
       {
         "path": "native/apple/macOS/MacProseTools.swift",
-        "sha256": "59c9c9e7bcafcf1bf26a787045284683f39d5e1af19678bd902b329a4383dfd7"
+        "sha256": "98e16c6a3d735e4f4a831fa3dc5667abe438cd17dda77fbfda71615cda3dc167"
       },
       {
         "path": "native/apple/macOS/MacRelationTypesViewController.swift",
@@ -1843,7 +1843,7 @@
       },
       {
         "path": "native/apple/macOS/MacShortcutSettings.swift",
-        "sha256": "e4b4b2d1013e4dad12489e1629fc99fe82b66be219e1dda3b52d63b32b8380ba"
+        "sha256": "6e589cdf31e02dbf15f28d22719e38f11a888827696899d182372180503e4943"
       },
       {
         "path": "native/apple/macOS/MacStoryGraphViewController.swift",
@@ -1859,7 +1859,7 @@
       },
       {
         "path": "native/apple/macOS/MacTabSession.swift",
-        "sha256": "75ae257970cdc716f32b554de9388e8a1e1ad8eae7c2317bea59aa2a42c86617"
+        "sha256": "e5d50c617e252fc67022818a462929d99f377a7961d5167faf467c0c6d11671b"
       },
       {
         "path": "native/apple/macOS/MacTrashViewController.swift",
@@ -1883,7 +1883,7 @@
       },
       {
         "path": "native/apple/macOS/NativeDocumentView.swift",
-        "sha256": "c10b8335e1ea83d4b1c5d9b2a53fa95fa62e7ea92d8973a65582cc29234db1a9"
+        "sha256": "74e4a9c4f8485f5cce00746115a88aefb1cb5cc20de521b066c609456257f5b2"
       },
       {
         "path": "native/apple/project.yml",
@@ -1895,7 +1895,7 @@
       },
       {
         "path": "scripts/apple-binding-acceptance.mjs",
-        "sha256": "92ea664f914aa0e0d43bd9c98a5c480b9207c9ca464847201887a4be392082cc"
+        "sha256": "a0d664f11ea9f8de69ff408ed7e9ad29639b11b402deaea50218c0edbcd565d6"
       },
       {
         "path": "scripts/apple-comment-oracle.ts",

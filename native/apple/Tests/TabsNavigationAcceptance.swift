@@ -12,6 +12,8 @@ extension BindingAcceptance {
         "AppKit tab context menus 关闭, 关闭其他, 关闭右侧全部, 全部关闭, 在另一侧打开, 移到另一侧 and 解除分屏 go through the close path, keep the views, selections and history of moved tabs and one owner per page, and 全部关闭 stops at a 情节规划格 refusal in the middle naming the tab while the tabs before it stay closed; ⌥⌘← and ⌥⌘→ cycle the active pane's tabs, ⌘W closes the shown tab and then the window, and a dragged tab reorders within its pane",
         "AppKit tabs of both panes, each pane's shown tab, the 项目主页 tab and the split are kept per project in settings.json as they change, coalesced and not while typing, and a cold relaunch opens the last selected project with only each pane's shown tab owning its body while the others open in place when selected, leaving out trashed and purged pages, unreadable entries and a deleted project, and opens no project without a last one",
         "AppKit switching projects saves and closes the shown project's tabs through the close path, a tab that cannot close keeping the project and naming the tab, restores the other project's tabs with their split and text and back again with a new 后退 history, writes nothing to the journal, and 设置 › 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进, 上一个标签 and 下一个标签",
+        "AppKit 解除分屏 first saves the right pane's unsaved 摘要, element name and 情节规划格 cell, also for pages both panes show, and a refused cell keeps both panes and says why; ⌘W with the active pane empty shows another pane's tab or a restored tab instead of closing the window, which closes only without tabs",
+        "AppKit a refused restore and one overtaken by another project's switch restore nothing and leave the saved tabs as they were, a switch refused by a tab that cannot close keeps the project's restored tabs and 项目主页 and saves nothing, and forgetting a deleted project drops its pages from 后退 and 前进",
     ]
 
     static func tabsNavigationAcceptance() throws -> [String] {
@@ -30,6 +32,8 @@ extension BindingAcceptance {
         try tabsManagement()
         try tabsRestore()
         try tabsProjectSwitch()
+        try tabsMergeAndClose()
+        try tabsRestoreGuards()
         return tabsNavigationCases
     }
 
@@ -51,7 +55,7 @@ extension BindingAcceptance {
         @objc func previous(_ sender: Any?) { host.selectAdjacentTab(-1) }
         @objc func next(_ sender: Any?) { host.selectAdjacentTab(1) }
         @objc func close(_ sender: Any?) {
-            if host.canCloseActiveTab { host.closeActiveTab() } else { window.performClose(nil) }
+            if !host.hasAnyTab || !host.closeTabOrShowAnother() { window.performClose(nil) }
         }
         func menu() -> NSMenu {
             MacMainMenu.build([
@@ -829,6 +833,184 @@ extension BindingAcceptance {
                                          windowNumber: 0, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
                                          isARepeat: false, keyCode: 53)!)
         try require(store.settings.shortcuts.isEmpty, "A refused shortcut was stored")
+    }
+
+    // MARK: 解除分屏 and ⌘W
+
+    private static func tabsMergeAndClose() throws {
+        let harness = try TabsHarness()
+        defer { harness.cleanup() }
+        let host = harness.host, workspace = harness.workspace, window = harness.window
+        let (project, chapters) = try harness.project("合并合成项目", chapters: ["雨夜", "钟楼"])
+        let pages = try harness.pages(project)
+        try harness.show(project)
+        let (rain, bell) = (chapters[0], chapters[1])
+        let rainScope = ChapterScope(projectID: project.id, chapterID: rain.id)
+        func split(showing target: WorkspaceTabTarget) throws {
+            try harness.open(project, target, in: 0)
+            let _: NativeDocumentView = try tabsStep { host.split(completion: $0) }
+            try harness.settled()
+            try require(host.paneCount == 2 && host.shownTab(pane: 1) == harness.key(project, target), "The split did not show the page on the right")
+        }
+        func unsplit(_ target: WorkspaceTabTarget) throws {
+            try harness.choose(pane: 1, harness.key(project, target), "tab-menu-unsplit")
+        }
+
+        // An unsaved 摘要 in the right pane, on a chapter the left pane shows too.
+        try split(showing: .chapter(rain))
+        let right = try require(value: host.retainedChapterPage(pane: 1, scope: rainScope), "The right pane has no 雨夜 page")
+        let editor = right.metadataEditor
+        try wait { editor.metadata != nil && editor.summaryView.isEditable }
+        try require(window.makeFirstResponder(editor.summaryView), "The 摘要 refused keyboard focus")
+        editor.summaryView.insertText("雨夜启程，北岸无灯。", replacementRange: NSRange(location: 0, length: (editor.summaryView.string as NSString).length))
+        try unsplit(.chapter(rain))
+        try wait { !editor.isCommitting }
+        let metadata: WorkspaceNodeMetadata = try tabsStep { workspace.nodeMetadata(projectID: project.id, nodeID: rain.id, completion: $0) }
+        try require(host.paneCount == 1 && metadata.summary == "雨夜启程，北岸无灯。", "解除分屏 lost the 摘要: “\(metadata.summary)”")
+
+        // An unsaved element name in the right pane.
+        try split(showing: .element(pages.element))
+        let elementPage = try require(value: host.retainedElementPage(pane: 1, scope: ElementScope(projectID: project.id, elementID: pages.element.id)),
+                                      "The right pane has no element page")
+        try require(window.makeFirstResponder(elementPage.nameField), "The name refused keyboard focus")
+        guard let field = elementPage.nameField.currentEditor() as? NSTextView else { throw LabError.message("The name has no field editor") }
+        field.selectAll(nil)
+        field.insertText("林雾生", replacementRange: field.selectedRange())
+        try unsplit(.element(pages.element))
+        try wait { !elementPage.isCommitting }
+        try harness.settled()
+        let library: WorkspaceElementLibrary = try tabsStep { workspace.elementLibrary(projectID: project.id, completion: $0) }
+        try require(host.paneCount == 1 && library.elements.contains { $0.id == pages.element.id && $0.name == "林雾生" },
+                    "解除分屏 lost the element name: \(library.elements.map(\.name))")
+
+        // A 情节规划格 cell being edited in the right pane.
+        try split(showing: .chapter(bell))
+        host.setPlotPlanner(shown: true, projectID: project.id, nodeID: bell.id)
+        let dock = try require(value: host.retainedPlotDock(pane: 1, nodeID: bell.id), "The right pane shows no 情节规划格")
+        try wait { dock.model.loaded && !dock.model.busy }
+        window.contentView?.layoutSubtreeIfNeeded()
+        let grid = dock.canvas.grid
+        let (row, column) = (grid.rows[0].id, grid.columns[0].id)
+        dock.canvas.beginEditing(.cell(row: row, column: column))
+        dock.canvas.editor.insertText("钟声三响", replacementRange: dock.canvas.editor.selectedRange())
+        try unsplit(.chapter(bell))
+        try wait { host.paneCount == 1 && !host.plotGridsWriting() }
+        let stored: WorkspacePlotGridReply = try tabsStep { workspace.plotGrid(projectID: project.id, nodeID: bell.id, ops: [], completion: $0) }
+        try require(stored.grid?.value(row: row, column: column) == "钟声三响", "解除分屏 lost the 情节规划格 cell")
+
+        // A cell Rust refuses keeps both panes and says why.
+        try split(showing: .chapter(bell))
+        try harness.overlongCell(project, bell, pane: 1)
+        harness.errors.removeAll()
+        try unsplit(.chapter(bell))
+        try wait { harness.errors.contains { $0.contains("情节规划格的修改没有保存") } }
+        try wait { !host.isBusy && host.canNavigate }
+        try require(host.paneCount == 2 && harness.errors.contains { $0.contains("没有解除分屏") }, "A refused cell read \(harness.errors)")
+        try unsplit(.chapter(bell))
+        try require(host.paneCount == 1, "解除分屏 after the refusal did not merge")
+
+        // ⌘W with the active pane empty shows the other pane's tab instead of closing.
+        let probe = TabsMenuProbe(host: host, window: window)
+        let windowProbe = TabsWindowProbe()
+        window.delegate = windowProbe
+        defer { window.delegate = nil }
+        let menu = probe.menu()
+        try split(showing: .chapter(rain))
+        let _: Void = try tabsStep { host.closeAllTabs(pane: 1, completion: $0) }
+        try harness.settled()
+        host.activate(pane: 1)
+        let shownLeft = host.shownTab(pane: 0)
+        try require(host.activePane == 1 && host.tabKeys(pane: 1).isEmpty && shownLeft != nil, "The right pane is not empty and active")
+        try harness.press(menu, "w", .command, code: 13)
+        try require(windowProbe.closeRequests == 0 && host.activePane == 0 && host.shownTab(pane: 0) == shownLeft,
+                    "⌘W with the active pane empty closed the window or a tab: \(windowProbe.closeRequests)")
+        // Only restored tabs, none shown: ⌘W shows one.
+        let _: Void = try tabsStep { host.closeAllTabs(pane: 0, completion: $0) }
+        try harness.settled()
+        var restored: (Bool, Error?)?
+        host.restoreTabs(project: project, panes: [MacChapterWorkspace.RestoredPane(targets: [.chapter(bell)], active: nil)], activePane: 0) {
+            restored = ($0, $1)
+        }
+        try wait { restored != nil }
+        try harness.settled()
+        try require(restored?.0 == true && host.paneCount == 1 && host.shownTab(pane: 0) == nil && host.tabKeys(pane: 0) == [harness.key(project, .chapter(bell))],
+                    "The restored tab is not waiting unopened")
+        try harness.press(menu, "w", .command, code: 13)
+        try require(windowProbe.closeRequests == 0 && host.shownTab(pane: 0) == harness.key(project, .chapter(bell)),
+                    "⌘W with only a restored tab closed the window: \(windowProbe.closeRequests)")
+        try harness.press(menu, "w", .command, code: 13)
+        try require(windowProbe.closeRequests == 0 && !host.hasAnyTab, "⌘W did not close the shown tab")
+        try harness.press(menu, "w", .command, code: 13)
+        try require(windowProbe.closeRequests == 1, "⌘W without any tab did not close the window")
+        try harness.quit()
+    }
+
+    // MARK: Restore guards
+
+    private static func tabsRestoreGuards() throws {
+        let harness = try TabsHarness()
+        defer { harness.cleanup() }
+        let host = harness.host, session = harness.session, settings = harness.settings
+        let (first, chapters) = try harness.project("守护第一部", chapters: ["晨雾", "午潮"])
+        let (second, _) = try harness.project("守护第二部", chapters: ["序章"])
+        let (a, b) = (chapters[0], chapters[1])
+        try harness.show(first)
+        try harness.open(first, .chapter(a))
+        try harness.open(first, .chapter(b))
+        try harness.show(second)
+        let saved = try require(value: settings.tabSession(projectID: first.id), "第一部's tabs were not saved")
+        try require(saved.panes.first?.tabs.count == 2 && !host.hasTabs(projectID: first.id), "The switch kept 第一部's tabs")
+
+        // Refused (navigation held): nothing restored, nothing saved.
+        host.lockViews(true)
+        let refused = try harness.step(settling: false) { session.enter(first, completion: $0) }
+        host.lockViews(false)
+        try harness.settled()
+        try require(refused != nil && !host.hasTabs(projectID: first.id) && settings.tabSession(projectID: first.id) == saved,
+                    "A refused restore saved \(String(describing: settings.tabSession(projectID: first.id)))")
+
+        // Overtaken by another switch before its lists were read: nothing mixes in.
+        var overtaken = false
+        session.enter(first) { _ in overtaken = true }
+        session.enter(second) { _ in }
+        try wait { overtaken }
+        try harness.settled()
+        RunLoop.current.run(until: Date().addingTimeInterval(MacTabSession.saveDelay * 3))
+        try require(session.projectID == second.id && !host.hasTabs(projectID: first.id) && settings.tabSession(projectID: first.id) == saved,
+                    "A stale restore put back \(host.projectsWithTabs)")
+
+        // A switch refused by a tab that cannot close keeps the restored tab and
+        // the 项目主页, and saves nothing.
+        try harness.show(first)
+        try require(host.tabTitles(pane: 0) == ["晨雾", "午潮"] && host.isTabOpen(pane: 0, scope: tabsScope(first, .chapter(b)))
+                    && !host.isTabOpen(pane: 0, scope: tabsScope(first, .chapter(a))), "第一部 restored \(host.tabTitles(pane: 0))")
+        try require(host.openHome(project: first) != nil, "项目主页 did not open")
+        try harness.open(first, .chapter(b))
+        try harness.overlongCell(first, b)
+        let before = host.tabSession(projectID: first.id)
+        var result: Result<Void, Error>?
+        session.show(second) { result = $0 }
+        try wait { result != nil }
+        guard case .failure? = result else { throw LabError.message("The switch went ahead past a tab that could not close") }
+        try wait { !host.isBusy && host.canNavigate }
+        RunLoop.current.run(until: Date().addingTimeInterval(MacTabSession.saveDelay * 3))
+        try require(host.tabTitles(pane: 0) == ["晨雾", "午潮"] && host.homeProjects(pane: 0) == [first] && session.projectID == first.id
+                    && settings.tabSession(projectID: first.id)?.panes.map(\.tabs) == before.panes.map(\.tabs)
+                    && settings.tabSession(projectID: first.id)?.panes.first?.home == true,
+                    "The refused switch left \(host.tabTitles(pane: 0)) and saved \(String(describing: settings.tabSession(projectID: first.id)))")
+        try harness.show(second)
+
+        // Forgetting a deleted project drops its pages from 后退 and 前进.
+        try harness.show(first)
+        try harness.open(first, .chapter(a))
+        try require(host.openHome(project: first) != nil, "项目主页 did not open")
+        try harness.settled()
+        try require(host.canGoBack && !host.historyTitles.titles.isEmpty, "No history to forget")
+        let _: Void = try tabsStep { host.closeTabs(projectID: first.id, completion: $0) }
+        host.forget(projectID: first.id)
+        try require(host.historyTitles.titles.isEmpty && !host.canGoBack && !host.canGoForward,
+                    "The forgotten project stayed in 后退: \(host.historyTitles)")
+        try harness.quit()
     }
 
     /// A host or workspace step that reports through a completion; its

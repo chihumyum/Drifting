@@ -35,7 +35,9 @@ interoperability is kept.
   an entry keeps its default. An unreadable entry, or one the rules below
   now refuse, is dropped alone and the command keeps its default; a
   shortcut two entries claim stays with the first command in menu order;
-  entries of unknown commands are kept.
+  entries of unknown commands are kept. Entries resolve before defaults: a
+  default an entry already holds (⌘F kept for 项目搜索 from before 查找… had
+  it) leaves its command without a shortcut rather than taking it away.
 - An imported font is copied to `fonts/<uuid>.ttf|otf` in the same directory and
   registered with CTFontManager for this process only; nothing is installed.
   Prose is set from the copy's own descriptor, so a re-registered font never
@@ -104,7 +106,9 @@ interoperability is kept.
   command uses is refused in Chinese naming why (由系统保留 / 由文本编辑使用 and
   what for), and recording continues. The system's text-editing commands
   (撤销, 重做, 剪切, 复制, 粘贴, 全选), 退出 and 关闭标签 (⌘W, which closes the
-  window when no tab is open) are listed but fixed. 还原 returns a
+  window when no tab is open) are listed but fixed. A command whose default
+  the author gave another command shows 无 with “默认快捷键 ⌘F 已用于“编辑 ›
+  项目搜索”” under its name. 还原 returns a
   command to its default unless another command now uses it; 全部还原 returns
   all. A change applies to the menu items at once; at launch the stored
   shortcuts apply as the menu is installed. A shifted letter is set as an
@@ -144,8 +148,9 @@ character, ⌃⇧⌘3, ⌃Space, ⌃⌥Space, ⌃ arrows, ⌘ and ⌥ arrows wit
 recording continues, cancels with Esc, removes with ⌫, refuses a reset onto a
 default in use, resets one and all, and relaunches the store, a new menu and
 the settings window with the shortcuts applied; a hand-edited file falls back
-entry by entry, also for values the rules now refuse. Physical key presses
-are not covered.
+entry by entry, also for values the rules now refuse; an earlier ⌘F for
+项目搜索 stays its shortcut while 查找… shows 无 naming the holder, and
+resetting 项目搜索 returns ⌘F to 查找…. Physical key presses are not covered.
 `--tabs-nav-only` checks that 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进,
 上一个标签 and 下一个标签 with their defaults and refuses ⌘[ for another command,
 and covers `tabSessions` and `lastProject` ([tabs](tabs-and-split.md)).

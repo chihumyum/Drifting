@@ -28,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var documentCore: LabCore? { chapterWorkspace.activeCore }
     private var documentView: NativeDocumentView? { chapterWorkspace.activeView }
     private var loading = false
+    /// Showing another project: its tabs are saved and closed, its chapters
+    /// read and its own tabs restored. Navigation waits until it is done.
+    private var switchingProject = false
     private var updatingSelection = false
     private let projectTable = NSTableView()
     private let chapterTable = NSTableView()
@@ -899,7 +902,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func updateControls() {
-        let ready = !loading && chapterWorkspace.canNavigate
+        let ready = !loading && !switchingProject && chapterWorkspace.canNavigate
         createProjectButton.isEnabled = ready
         createChapterButton.isEnabled = ready && selectedProject != nil
         renameProjectButton.isEnabled = ready && selectedProject != nil
@@ -934,7 +937,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// the tab host waits for the gestures (bounded) and refuses if they do
     /// not finish.
     private func canLeaveDocument(waitingForPlotGrids: Bool = false) -> Bool {
-        guard !loading else { return false }
+        guard !loading, !switchingProject else { return false }
         guard waitingForPlotGrids ? chapterWorkspace.canNavigateAfterPlotGrids : chapterWorkspace.canNavigate else {
             status.stringValue = chapterWorkspace.canNavigateAfterPlotGrids ? "情节规划格还在保存，请稍候再试。"
                 : "请先完成输入，并等待正文保存。保存失败时可在编辑器中重试。"
@@ -992,10 +995,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         window.orderOut(nil)
     }
 
-    /// Shows the project: panels of other projects close, the tabs of the
-    /// project shown before are saved and closed (one that cannot close
-    /// keeps it shown, naming the tab), its chapters are listed and its own
-    /// tabs come back; `then` runs once they have.
+    /// Shows the project: panels of other projects close, its chapters are
+    /// read, the tabs of the project shown before are saved and closed (one
+    /// that cannot close keeps it shown, naming the tab), its chapters are
+    /// listed and its own tabs come back; `then` runs once they have.
+    /// Navigation waits for all of it.
     private func selectProject(_ project: WorkspaceProject, message: String? = nil, then: (() -> Void)? = nil) {
         guard canLeaveDocument() else { return }
         // The 全书长卷 shows one project; typing there must settle first.
@@ -1012,50 +1016,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if reviewController?.model.projectID != project.id { closeReview() }
         if boardController?.review.projectID != project.id { closeBoard() }
         if trashController?.model.projectID != project.id { closeTrash() }
-        tabSession.leave(for: project) { [weak self] left in
+        switchingProject = true
+        updateControls()
+        func stop(_ message: String) {
+            switchingProject = false
+            status.stringValue = message
+            reselectShownProject()
+            updateControls()
+        }
+        // The chapters are read before the shown project's tabs close: a
+        // failed read keeps that project and its tabs as they are.
+        setLoading(true)
+        workspace.chapters(projectID: project.id) { [weak self] result in
             guard let self else { return }
-            if case .failure(let error) = left {
-                self.status.stringValue = error.localizedDescription
-                self.reselectShownProject()
-                return
+            self.setLoading(false)
+            let chapters: [WorkspaceChapter]
+            switch result {
+            case .success(let read): chapters = read
+            case .failure(let error): stop(error.localizedDescription); return
             }
-            self.setLoading(true)
-            self.workspace.chapters(projectID: project.id) { [weak self] result in
+            self.tabSession.leave(for: project) { [weak self] left in
                 guard let self else { return }
-                self.setLoading(false)
-                switch result {
-                case .success(let chapters):
-                    self.selectedProject = project
-                    self.showingTrash = false
-                    self.chapterTable.setAccessibilityIdentifier("chapter-list")
-                    self.trashedChapters = []
-                    self.chapters = chapters
-                    self.updatingSelection = true
-                    self.chapterTable.reloadData()
-                    self.chapterTable.deselectAll(nil)
-                    self.updatingSelection = false
-                    self.chapterEmpty.stringValue = "还没有章节，点击“新建章节”开始写作。"
-                    self.chapterEmpty.isHidden = !chapters.isEmpty
-                    self.status.stringValue = message ?? "\(project.name) · \(chapters.count) 个章节"
-                    self.ensureStorylineModel(project)
-                    self.ensureDriftModel(project)
-                    self.ensureAgent(project)
-                    self.timelineDock.follow(project)
-                    self.updateTimelineMenu()
-                    // Opening a project reconciles its counts once per session.
-                    self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
-                    self.updateWordStatus()
+                if case .failure(let error) = left { stop(error.localizedDescription); return }
+                self.selectedProject = project
+                self.showingTrash = false
+                self.chapterTable.setAccessibilityIdentifier("chapter-list")
+                self.trashedChapters = []
+                self.chapters = chapters
+                self.updatingSelection = true
+                self.chapterTable.reloadData()
+                self.chapterTable.deselectAll(nil)
+                self.updatingSelection = false
+                self.chapterEmpty.stringValue = "还没有章节，点击“新建章节”开始写作。"
+                self.chapterEmpty.isHidden = !chapters.isEmpty
+                self.status.stringValue = message ?? "\(project.name) · \(chapters.count) 个章节"
+                self.ensureStorylineModel(project)
+                self.ensureDriftModel(project)
+                self.ensureAgent(project)
+                self.timelineDock.follow(project)
+                self.updateTimelineMenu()
+                // Opening a project reconciles its counts once per session.
+                self.chapterWorkspace.wordCounts(projectID: project.id, refresh: true)
+                self.updateWordStatus()
+                self.updateControls()
+                // Its tabs come back as they were left; 后退 starts again.
+                self.tabSession.enter(project) { [weak self] error in
+                    guard let self else { return }
+                    self.switchingProject = false
                     self.updateControls()
-                    // Its tabs come back as they were left; 后退 starts again.
-                    self.tabSession.enter(project) { [weak self] error in
-                        guard let self else { return }
-                        if let error { self.status.stringValue = error.localizedDescription }
-                        self.activeChapterChanged()
-                        then?()
-                    }
-                case .failure(let error):
-                    self.status.stringValue = error.localizedDescription
-                    self.reselectShownProject()
+                    if let error { self.status.stringValue = error.localizedDescription }
+                    self.activeChapterChanged()
+                    then?()
                 }
             }
         }
@@ -2059,13 +2070,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     // MARK: 标签与导航
 
     /// ⌘W: the tab the main window's active pane shows, through the close
-    /// path; otherwise the key window closes (a panel, 设置, the shelf, or
-    /// the main window without a tab).
+    /// path. When it shows none but a pane still has tabs, that pane shows
+    /// one instead; the main window closes only without any tab. Other key
+    /// windows (a panel, 设置, the shelf) close.
     @objc private func closeTabOrWindow() {
         guard let key = NSApp.keyWindow else { return }
-        if key === window, chapterWorkspace.canCloseActiveTab {
-            guard canLeaveDocument(waitingForPlotGrids: true) else { return }
-            chapterWorkspace.closeActiveTab()
+        if key === window, chapterWorkspace.hasAnyTab {
+            guard canLeaveDocument(waitingForPlotGrids: chapterWorkspace.canCloseActiveTab) else { NSSound.beep(); return }
+            if !chapterWorkspace.closeTabOrShowAnother() { key.performClose(nil) }
             return
         }
         key.performClose(nil)

@@ -34,6 +34,11 @@ struct NavigationHistory<Entry: Equatable> {
 
     mutating func update(_ transform: (Entry) -> Entry) { entries = entries.map(transform) }
 
+    /// Pages that can no longer be shown (a deleted project's) leave it.
+    mutating func removeAll(where gone: (Entry) -> Bool) {
+        for position in entries.indices.reversed() where gone(entries[position]) { remove(at: position) }
+    }
+
     mutating func reset() {
         entries = []
         index = -1
@@ -97,9 +102,9 @@ final class MacTabSession {
                 switch result {
                 case .success: next(remaining.dropFirst())
                 case .failure(let error):
-                    // The tabs that did close are saved as closed.
+                    // Saved before closing; the refusal saves nothing, so
+                    // the tabs it could not close stay stored as they were.
                     self.paused -= 1
-                    self.scheduleSave()
                     completion(.failure(error))
                 }
             }
@@ -110,7 +115,9 @@ final class MacTabSession {
     /// The project shows: it opens at the next launch, a new history
     /// starts, and its tabs come back unless it has tabs here already. Pages
     /// that no longer exist are left out silently; a shown tab that does
-    /// not open is reported.
+    /// not open is reported. A restore that was refused, could not read a
+    /// list or belongs to a project no longer shown saves nothing, so the
+    /// stored tabs are never erased by it.
     func enter(_ project: WorkspaceProject, completion: @escaping (Error?) -> Void) {
         let switching = projectID != project.id
         projectID = project.id
@@ -122,41 +129,53 @@ final class MacTabSession {
             completion(nil); return
         }
         paused += 1
-        restore(project, session) { [weak self] error in
+        restore(project, session) { [weak self] error, complete in
             guard let self else { return }
             self.paused -= 1
+            guard self.projectID == project.id else { completion(error); return }
             self.host.resetHistory()
             // Pages left out leave the stored tabs too.
-            self.saveNow()
+            if complete { self.saveNow() }
             completion(error)
         }
     }
 
     /// Reads what the session names (chapters, the element library, drifts,
     /// storylines: only the lists it needs) and puts back what still exists.
-    private func restore(_ project: WorkspaceProject, _ session: TabSession, completion: @escaping (Error?) -> Void) {
+    /// `complete` is false when a list could not be read (its tabs are left
+    /// out, not dropped), the host refused, or another project is shown by
+    /// then (nothing is restored).
+    private func restore(_ project: WorkspaceProject, _ session: TabSession,
+                         completion: @escaping (_ error: Error?, _ complete: Bool) -> Void) {
         let kinds = Set(session.panes.flatMap { $0.tabs.map(\.kind) })
         let projectID = project.id, workspace = self.workspace
         var chapters: [WorkspaceChapter]?
         var elements: WorkspaceElementLibrary?
         var drifts: WorkspaceDriftLibrary?
         var storylines: WorkspaceStorylineLibrary?
+        var failure: Error?
+        func value<T>(_ result: Result<T, Error>) -> T? {
+            switch result {
+            case .success(let value): return value
+            case .failure(let error): failure = failure ?? error; return nil
+            }
+        }
         let reads: [(@escaping () -> Void) -> Void] = [
             { done in
                 guard kinds.contains(.chapter) else { done(); return }
-                workspace.chapters(projectID: projectID) { chapters = try? $0.get(); done() }
+                workspace.chapters(projectID: projectID) { chapters = value($0); done() }
             },
             { done in
                 guard kinds.contains(.element) || kinds.contains(.category) else { done(); return }
-                workspace.elementLibrary(projectID: projectID) { elements = try? $0.get(); done() }
+                workspace.elementLibrary(projectID: projectID) { elements = value($0); done() }
             },
             { done in
                 guard kinds.contains(.drift) else { done(); return }
-                workspace.driftLibrary(projectID: projectID) { drifts = try? $0.get(); done() }
+                workspace.driftLibrary(projectID: projectID) { drifts = value($0); done() }
             },
             { done in
                 guard kinds.contains(.storyline) else { done(); return }
-                workspace.storylineLibrary(projectID: projectID) { storylines = try? $0.get(); done() }
+                workspace.storylineLibrary(projectID: projectID) { storylines = value($0); done() }
             },
         ]
         func target(_ page: RecentPage) -> WorkspaceTabTarget? {
@@ -169,11 +188,16 @@ final class MacTabSession {
             }
         }
         func apply() {
+            // Another project was shown meanwhile: this one's tabs stay stored.
+            guard self.projectID == projectID else { completion(nil, false); return }
             let panes = session.panes.map { pane in
                 MacChapterWorkspace.RestoredPane(targets: pane.tabs.compactMap(target), active: pane.active.flatMap(target),
                                                  home: pane.home, homeShown: pane.homeShown)
             }
-            host.restoreTabs(project: project, panes: panes, activePane: session.activePane, completion: completion)
+            host.restoreTabs(project: project, panes: panes, activePane: session.activePane) { restored, error in
+                let unread = failure.map { LabError.message("部分标签未能恢复：\($0.localizedDescription)") }
+                completion(unread ?? error, restored && failure == nil)
+            }
         }
         func read(_ position: Int) {
             guard position < reads.count else { apply(); return }

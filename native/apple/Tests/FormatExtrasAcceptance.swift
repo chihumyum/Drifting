@@ -20,6 +20,10 @@ extension BindingAcceptance {
         try findInTheEditor()
         try mentionPicker()
         try printingFormattedPage()
+        try mentionPickerInProse()
+        try stalePickerRanges()
+        try createdNameKeepsCaret()
+        try deferredBlockFormats()
         return [
             "AppKit 格式 下划线 (⌘U), 删除线, 左对齐/居中/右对齐 (⌘{ ⌘| ⌘}) and 增加缩进/减少缩进 through the menu, their keys, the toolbar and the prose context menu's 格式 submenu, with checkmarks for the selection's marks and alignment, as one undo unit each; an unchanged alignment writes nothing, marked text disables them, and both panes of the chapter restyle",
             "AppKit Tab and ⇧Tab indent the caret's paragraph or every selected paragraph without inserting a tab, up to eight levels, also when pressed while typed text is still on its way; the editors draw underline, strike, paragraph alignment and a whole-block shift of two em per level that keeps the first-line indent, and all of it survives a cold reopen",
@@ -28,8 +32,13 @@ extension BindingAcceptance {
             "AppKit ⌘F shows the editor's find bar with incremental search highlighting every match and no 替换, ⌘E takes the selection as the search text, ⌘G and ⇧⌘G (查找下一个, 查找上一个) select the next and previous match without writing, and a 全书长卷 row offers no find",
             "AppKit @ picker lists element names, aliases and chapter titles but not the body's own, filters as typed, and Return inserts the chosen name through the input path where the link pass links it to its element or chapter; Esc leaves the text, and ＋ 新建设定「…」 creates the element in the chosen category, inserts and links it",
             "AppKit 打印 of a page sets its paragraph alignment, block indent, underline and URL links from the live projection, and the printed PDF centres and shifts those lines",
+            pickerProseCase, stalePickerCase, deferredFormatCase,
         ]
     }
+
+    static let pickerProseCase = "AppKit @ picker stays out of ordinary prose: “@” or “＠” after an ASCII letter or digit (an e-mail address) opens nothing, sentence punctuation or a query naming nothing closes it so Return types a new line and ↑ and ↓ move the caret, ＋ 新建设定 rows never keep it open alone and Return takes a name row unless ↑ or ↓ moved to one, and only names the link pass resolves to the row's own target are offered (an element named like a chapter and an alias a drift is titled are left out)"
+    static let stalePickerCase = "AppKit an open slash menu or @ picker closes when undo or a writing-assistant change replaces the prose, so Return then types a new line and edits nothing else; ＋ 新建设定 inserts the created name without moving a caret the author typed on or a selection made elsewhere meanwhile"
+    static let deferredFormatCase = "AppKit a slash row or Tab given while typed text is on its way applies once it lands only to the block it was given for, also a paragraph the queued input creates, and is dropped by Return, ↓, a failed save kept after 重试保存 and another pane removing that block"
 
     // MARK: Harness
 
@@ -709,7 +718,7 @@ extension BindingAcceptance {
 
     private static func mentionPicker() throws {
         var kai: WorkspaceElement?, mist: WorkspaceElement?, people: WorkspaceElementCategory?
-        var places: WorkspaceElementCategory?, homecoming: WorkspaceChapter?
+        var places: WorkspaceElementCategory?, homecoming: WorkspaceChapter?, lighthouse: WorkspaceChapter?
         let page = try page("") { workspace, project in
             let created: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
                 workspace.createElementCategory(projectID: project.id, name: "人物", completion: $0)
@@ -724,32 +733,46 @@ extension BindingAcceptance {
             }
             kai = first.result
             let second: WorkspaceElementReply<WorkspaceElement> = try elementResult {
-                workspace.createElement(projectID: project.id, categoryID: people!.id, name: "林雾", completion: $0)
+                workspace.createElement(projectID: project.id, categoryID: people!.id, name: "林雾", aliases: ["雾姐"], completion: $0)
             }
             mist = second.result
+            // Names the link pass resolves elsewhere: an element named like a
+            // chapter, an alias a drift is titled.
+            for name in ["灯塔", "潮生港"] {
+                let _: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+                    workspace.createElement(projectID: project.id, categoryID: places!.id, name: name, completion: $0)
+                }
+            }
             homecoming = try elementResult { workspace.createChapter(projectID: project.id, title: "归航", completion: $0) }
+            lighthouse = try elementResult { workspace.createChapter(projectID: project.id, title: "灯塔", completion: $0) }
+            let _: WorkspaceDriftReply<WorkspaceDrift> = try elementResult {
+                workspace.createDrift(projectID: project.id, title: "雾姐", groupID: nil, completion: $0)
+            }
         }
         defer { page.remove() }
         let (host, view, core) = (page.host, page.view, page.core)
-        try wait { host.linkDirectory(projectID: page.project.id)?.elements[mist!.id] != nil }
+        try wait { host.linkDirectory(projectID: page.project.id)?.elements[mist!.id] != nil
+            && host.driftLibrary(projectID: page.project.id)?.drifts.contains { $0.title == "雾姐" } == true }
         func links(_ name: String) throws -> [NativeEntityLink] {
             let at = try fxRange(name, in: view).location
             return try run(core, at: at).links
         }
 
         // Elements in the library's order (latest edited first), each name
-        // before its aliases, then chapters in book order.
+        // before its aliases, then chapters in book order; a name the link
+        // pass resolves to another target (the element 灯塔 to the chapter,
+        // the alias 雾姐 to the drift) is left out.
         let initial: WorkspaceElementLibrary = try elementResult { page.workspace.elementLibrary(projectID: page.project.id, completion: $0) }
         let elementNames = initial.elements.flatMap { [$0.name] + $0.aliases }
-        try require(Set(elementNames) == ["林凯", "阿凯", "林雾"], "Unexpected fixture names \(elementNames)")
+        try require(Set(elementNames) == ["林凯", "阿凯", "林雾", "雾姐", "灯塔", "潮生港"], "Unexpected fixture names \(elementNames)")
         // A picker opens when the trigger itself is typed.
         fxType(view, "他看见@")
         guard let opened = view.picker, opened.kind == .mention else { throw LabError.message("@ did not open the picker") }
         let names = opened.items.map(\.title)
-        try require(names == elementNames + ["归航"] && !names.contains("雨夜"),
-                    "The picker lists \(names) (the body's own chapter must be left out)")
+        try require(names == elementNames.filter { !["灯塔", "雾姐"].contains($0) } + ["归航", "灯塔"] && !names.contains("雨夜"),
+                    "The picker lists \(names) (the body's own chapter and shadowed names must be left out)")
         let detail = { (name: String) in opened.items.first { $0.title == name }?.detail }
-        try require(detail("阿凯") == "「林凯」的别名" && detail("归航") == "章节" && detail("林凯") == "设定 · 人物",
+        try require(detail("阿凯") == "「林凯」的别名" && detail("归航") == "章节" && detail("林凯") == "设定 · 人物" && detail("灯塔") == "章节",
                     "The rows do not say what they are")
         fxType(view, "林")
         let filtered = view.picker?.items ?? []
@@ -787,6 +810,23 @@ extension BindingAcceptance {
         try fxSettled(host, view)
         try wait { (try? links("归航")) == [NativeEntityLink(kind: "node", id: homecoming!.id)] }
 
+        // A name shadowed by a chapter offers the chapter, whose title links
+        // to it; the exact title offers no 新建设定. A shadowed alias
+        // matches nothing, which closes the picker.
+        fxType(view, "，@")
+        fxType(view, "灯塔")
+        try require(view.picker?.items.map(\.title) == ["灯塔"] && view.picker?.items.first?.detail == "章节",
+                    "The shadowed element was offered: \(view.picker?.items.map(\.detail) ?? [])")
+        view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        try fxSettled(host, view)
+        try wait { (try? links("灯塔")) == [NativeEntityLink(kind: "node", id: lighthouse!.id)] }
+        fxType(view, "，@")
+        fxType(view, "雾")
+        try require(view.picker?.items.first?.title == "林雾", "雾 did not find 林雾")
+        fxType(view, "姐")
+        try require(view.picker == nil, "An alias a drift shadows kept the picker open: \(view.picker?.items.map(\.title) ?? [])")
+        try fxSettled(host, view)
+
         // Esc leaves the typed text unlinked.
         fxType(view, "。@")
         fxType(view, "雾")
@@ -803,6 +843,8 @@ extension BindingAcceptance {
         try fxSettled(host, view)
         fxType(view, "@")
         fxType(view, "潮生")
+        try require(view.picker?.items.map(\.title) == ["潮生港", "＋ 新建设定「潮生」", "＋ 新建设定「潮生」"],
+                    "潮生 lists \(view.picker?.items.map(\.title) ?? [])")
         guard let create = view.picker?.items.firstIndex(where: { $0.detail == "地点" }) else {
             throw LabError.message("＋ 新建设定 was not offered for 地点")
         }
@@ -815,6 +857,274 @@ extension BindingAcceptance {
         try require(tide.categoryId == places!.id, "The new element is not in the chosen category")
         try wait { (try? links("潮生"))?.map(\.id) == [tide.id] }
         try require(host.linkDirectory(projectID: page.project.id)?.elements[tide.id] != nil, "The tab host did not adopt the new element")
+        try page.close()
+    }
+
+    // MARK: Picker and deferred-format fixes
+
+    /// Categories 人物 and 地点; elements 林凯 and Dr.Lin (人物), 港务局 and
+    /// 北岸灯塔 (地点).
+    private static func pickerPage(_ text: String) throws -> Page {
+        let page = try page(text) { workspace, project in
+            var categories: [String] = []
+            for name in ["人物", "地点"] {
+                let created: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
+                    workspace.createElementCategory(projectID: project.id, name: name, completion: $0)
+                }
+                categories.append(created.result!.id)
+            }
+            for (name, category) in [("林凯", 0), ("Dr.Lin", 0), ("港务局", 1), ("北岸灯塔", 1)] {
+                let _: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+                    workspace.createElement(projectID: project.id, categoryID: categories[category], name: name, completion: $0)
+                }
+            }
+        }
+        try wait { page.host.linkDirectory(projectID: page.project.id)?.elements.count == 4 }
+        return page
+    }
+
+    private static func elementNames(_ page: Page) throws -> [String] {
+        let library: WorkspaceElementLibrary = try elementResult { page.workspace.elementLibrary(projectID: page.project.id, completion: $0) }
+        return library.elements.map(\.name).sorted()
+    }
+
+    private static func mentionPickerInProse() throws {
+        let page = try pickerPage("")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let names = try elementNames(page)
+        func enter() { view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:))) }
+        func text() throws -> String { try read(core).projection.text }
+
+        // An e-mail address: “@” after an ASCII letter or digit opens nothing.
+        fxType(view, "联系 lin@")
+        try require(view.picker == nil, "An address opened the picker")
+        fxType(view, "example.com")
+        enter()
+        try fxSettled(host, view)
+        try require(try text() == "联系 lin@example.com\n" && (try elementNames(page)) == names,
+                    "Return after an address edited more than a new line: \(try text().debugDescription)")
+        fxType(view, "备用 kai2＠")
+        try require(view.picker == nil, "＠ after a digit opened the picker")
+        fxType(view, "\n")
+        try fxSettled(host, view)
+
+        // CJK prose: “他说@林…。” — the query stops naming anything at “…”,
+        // which closes the picker; ↑ and ↓ then move the caret and Return
+        // types a new line.
+        fxType(view, "他说@")
+        try require(view.picker?.kind == .mention, "@ after CJK prose did not open the picker")
+        fxType(view, "林")
+        try require(view.picker?.items.first?.title == "林凯", "林 did not find 林凯")
+        fxType(view, "…")
+        try require(view.picker == nil, "A query naming nothing kept the picker open")
+        fxType(view, "。")
+        let end = view.textView.selectedRange()
+        view.textView.doCommand(by: #selector(NSResponder.moveUp(_:)))
+        let up = view.textView.selectedRange()
+        try require(up.location < end.location && view.picker == nil, "↑ did not move the caret with the picker closed")
+        view.textView.doCommand(by: #selector(NSResponder.moveDown(_:)))
+        try require(view.textView.selectedRange().location > up.location, "↓ did not move the caret with the picker closed")
+        fxSelect(view, end)
+        enter()
+        try fxSettled(host, view)
+        try require(try text().hasSuffix("\n他说@林…。\n") && (try elementNames(page)) == names,
+                    "Return in CJK prose edited more than a new line: \(try text().debugDescription)")
+
+        // Sentence punctuation ends a query even where a name goes on.
+        fxType(view, "问@")
+        fxType(view, "Dr")
+        try require(view.picker?.items.first?.title == "Dr.Lin", "Dr did not find Dr.Lin")
+        fxType(view, ".")
+        try require(view.picker == nil, "“.” did not close the picker")
+        fxType(view, "Lin，@")
+        fxType(view, "林")
+        try require(view.picker != nil, "The picker did not open after ，")
+        fxType(view, "，")
+        try require(view.picker == nil, "“，” did not close the picker")
+
+        // ＋ 新建设定 rows alone never keep it open.
+        fxType(view, "去@")
+        fxType(view, "码头")
+        try require(view.picker == nil, "Only ＋ 新建设定 rows kept the picker open")
+        enter()
+        try fxSettled(host, view)
+        try require(try text().hasSuffix("去@码头\n") && (try elementNames(page)) == names, "Return created an element from 码头")
+
+        // With names and ＋ rows, Return takes the highlighted name.
+        fxType(view, "到@")
+        fxType(view, "港")
+        try require(view.picker?.items.map(\.title) == ["港务局", "＋ 新建设定「港」", "＋ 新建设定「港」"] && view.picker?.navigated == false,
+                    "港 lists \(view.picker?.items.map(\.title) ?? [])")
+        enter()
+        try fxSettled(host, view)
+        try require(try text().hasSuffix("\n到港务局") && (try elementNames(page)) == names, "Return did not take the name row")
+        try page.close()
+    }
+
+    private static func stalePickerRanges() throws {
+        let page = try pickerPage("第一段。")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        func enter() { view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:))) }
+
+        // “/h1” on an empty line, then ⌘Z: the menu closes, and Return types
+        // a new line instead of deleting through the paragraph before.
+        fxType(view, "\n")
+        try fxSettled(host, view)
+        for piece in ["/", "h", "1"] { fxType(view, piece) }
+        try fxSettled(host, view)
+        try require(view.picker?.items.map(\.title) == ["标题 1"], "/h1 did not open the slash menu")
+        view.undoProse(); try fxSettled(host, view)
+        let undone = try read(core).projection.text
+        try require(view.picker == nil && undone.hasPrefix("第一段。"), "Undo left the slash menu open: \(undone.debugDescription)")
+        enter()
+        try fxSettled(host, view)
+        let returned = try read(core).projection
+        try require(returned.text.hasPrefix("第一段。") && (returned.text as NSString).length == (undone as NSString).length + 1
+                    && returned.text.filter({ $0 == "\n" }).count == undone.filter({ $0 == "\n" }).count + 1
+                    && returned.blocks.allSatisfy { $0.kind == "paragraph" },
+                    "Return after the undo edited the prose: \(returned.text.debugDescription)")
+
+        // “@林” open, then an accepted writing-assistant change rewrites the
+        // text before it: the picker closes and Return replaces nothing.
+        fxType(view, "他说@")
+        fxType(view, "林")
+        try fxSettled(host, view)
+        try require(view.picker?.items.first?.title == "林凯", "The picker is not open on 林")
+        let agent = ["sessionId": "conversation-synthetic", "turnId": "turn-synthetic", "callId": "call-synthetic"]
+        let _: WorkspaceAgentApplied = try elementResult {
+            page.workspace.agentApplyChanges(projectID: page.project.id, kind: "chapter", id: page.chapter.id,
+                changes: [AgentProseChange(currentText: "他说", revisedText: "他低声说").payload], agent: agent, completion: $0)
+        }
+        try fxSettled(host, view)
+        try require(view.picker == nil && view.textView.string.contains("他低声说@林"), "The writing assistant's change left the picker open")
+        let written = try read(core).projection.text
+        enter()
+        try fxSettled(host, view)
+        let final = try read(core).projection.text
+        try require(final.replacingOccurrences(of: "\n", with: "") == written.replacingOccurrences(of: "\n", with: "")
+                    && (final as NSString).length == (written as NSString).length + 1 && (try elementNames(page)).count == 4,
+                    "Return after the change edited the prose: \(final.debugDescription)")
+        try page.close()
+    }
+
+    private static func createdNameKeepsCaret() throws {
+        let page = try pickerPage("")
+        defer { page.remove() }
+        let (host, view) = (page.host, page.view)
+        func chooseSecondRow() {
+            view.textView.doCommand(by: #selector(NSResponder.moveDown(_:)))
+            view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        }
+
+        // Typing on while the element is created: the name arrives in place
+        // of “@港务” and the caret stays after the typed text.
+        fxType(view, "他去了@")
+        fxType(view, "港务")
+        try require(view.picker?.items.map(\.title) == ["港务局", "＋ 新建设定「港务」", "＋ 新建设定「港务」"],
+                    "港务 lists \(view.picker?.items.map(\.title) ?? [])")
+        chooseSecondRow()
+        fxType(view, "说")
+        try wait { view.textView.string == "他去了港务说" }
+        try require(view.textView.selectedRange() == NSRange(location: 6, length: 0),
+                    "The created name moved the caret to \(view.textView.selectedRange())")
+        try fxSettled(host, view)
+        try require(view.textView.selectedRange() == NSRange(location: 6, length: 0), "The caret moved once the name settled")
+
+        // A selection made elsewhere meanwhile stays.
+        fxType(view, "，@")
+        fxType(view, "北岸")
+        try require(view.picker?.items.first?.title == "北岸灯塔", "北岸 did not find 北岸灯塔")
+        chooseSecondRow()
+        fxSelect(view, NSRange(location: 0, length: 3))
+        try wait { view.textView.string == "他去了港务说，北岸" }
+        try require(view.textView.selectedRange() == NSRange(location: 0, length: 3),
+                    "The created name took the selection: \(view.textView.selectedRange())")
+        try fxSettled(host, view)
+        let names = try elementNames(page)
+        try require(names.contains("港务") && names.contains("北岸") && view.textView.selectedRange() == NSRange(location: 0, length: 3),
+                    "The elements were not created or the selection moved: \(names)")
+        try page.close()
+    }
+
+    private static func deferredBlockFormats() throws {
+        let page = try page("甲段。\n乙段。\n丙段。")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        func kinds() throws -> [String] { try read(core).projection.blocks.map { $0.kind == "heading" ? "h\($0.headingLevel)" : $0.kind } }
+        func enter() { view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:))) }
+        func slash(_ query: String, at location: Int? = nil) throws {
+            let at = location ?? (view.textView.string as NSString).length
+            fxType(view, "/", at: at)
+            fxType(view, query, at: at + 1)
+            try require(view.picker?.kind == .slash && view.picker?.items.count == 1, "/\(query) did not open the slash menu")
+        }
+        let paragraphs = { (count: Int) in Array(repeating: "paragraph", count: count) }
+
+        // A paragraph the queued Return creates has no ID yet: 标题 1 waits
+        // for it and lands on it.
+        fxType(view, "\n")
+        try slash("h1")
+        enter()
+        try require(view.deferredFormat != nil && view.deferredFormat?.targets.first?.id == nil && view.binding.hasPendingWork,
+                    "The slash row did not wait for the new paragraph")
+        try fxSettled(host, view)
+        try require(try kinds() == paragraphs(3) + ["h1"] && (try read(core).projection.text) == "甲段。\n乙段。\n丙段。\n",
+                    "标题 1 did not reach the paragraph the queued input created: \(try kinds())")
+        view.textView.bodyTextProse(nil)
+        try fxSettled(host, view)
+        try require(try kinds() == paragraphs(4), "正文 did not turn the heading back")
+
+        // Return right after choosing, while “/h2” is still being removed:
+        // neither the emptied line nor the new one becomes a heading.
+        try slash("h2")
+        enter()
+        try require(view.deferredFormat != nil, "标题 2 did not wait for its input")
+        enter()
+        try require(view.deferredFormat == nil, "Return kept the waiting 标题 2")
+        try fxSettled(host, view)
+        try require(try kinds() == paragraphs(5) && (try read(core).projection.text) == "甲段。\n乙段。\n丙段。\n\n",
+                    "标题 2 applied after Return: \(try kinds())")
+
+        // ↓ from the emptied line before the format lands: nothing moves along.
+        try slash("h3", at: (view.textView.string as NSString).length - 1)
+        enter()
+        try require(view.deferredFormat != nil, "标题 3 did not wait for its input")
+        view.textView.doCommand(by: #selector(NSResponder.moveDown(_:)))
+        try require(view.deferredFormat == nil, "↓ kept the waiting 标题 3")
+        try fxSettled(host, view)
+        try require(try kinds() == paragraphs(5) && (try read(core).projection.text) == "甲段。\n乙段。\n丙段。\n\n",
+                    "标题 3 applied after ↓: \(try kinds())")
+
+        // A failed save drops a waiting Tab; it does not land after 重试保存.
+        let second = try fxRange("乙段", in: view)
+        try WorkspaceRemoteProseFixture.execute(in: page.directory, sql: "CREATE TRIGGER fail_deferred_format BEFORE INSERT ON sync_change_set BEGIN SELECT RAISE(ABORT, 'synthetic deferred format failure'); END")
+        defer { try? WorkspaceRemoteProseFixture.execute(in: page.directory, sql: "DROP TRIGGER IF EXISTS fail_deferred_format") }
+        fxType(view, "橹", at: second.location + 2)
+        view.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        try require(view.deferredFormat != nil, "Tab did not wait for the typed text")
+        try wait { view.binding.state?.saveError != nil }
+        try require(view.deferredFormat == nil, "A failed save kept the waiting Tab")
+        try WorkspaceRemoteProseFixture.execute(in: page.directory, sql: "DROP TRIGGER fail_deferred_format")
+        view.binding.retrySave()
+        try fxSettled(host, view)
+        try require(try read(core).projection.text.contains("乙段橹。") && (try read(core).projection.blocks).allSatisfy { $0.indent == 0 },
+                    "The Tab landed after 重试保存")
+
+        // Another pane removes the block while Tab waits: nothing is indented.
+        let twin: NativeDocumentView = try elementResult { host.split(completion: $0) }
+        try fxSettled(host, view, twin)
+        fxType(view, "x", at: second.location + 1)
+        view.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        try require(view.deferredFormat != nil && twin.textView.string.contains("乙x段橹"), "Tab did not wait for the typed text")
+        let removed = NSRange(location: 3, length: ("\n乙x段橹。" as NSString).length)
+        twin.textView.setSelectedRange(removed)
+        twin.textView.insertText("", replacementRange: removed)
+        try require(view.deferredFormat == nil, "The removed block kept its waiting Tab")
+        try fxSettled(host, view, twin)
+        try require(try read(core).projection.text == "甲段。\n丙段。\n\n" && (try read(core).projection.blocks).allSatisfy { $0.indent == 0 },
+                    "Tab landed on another block: \(try read(core).projection.blocks.map(\.indent))")
         try page.close()
     }
 

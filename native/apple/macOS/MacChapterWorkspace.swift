@@ -2364,6 +2364,25 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         closeTab(pane: activePane, key: key, completion: completion)
     }
 
+    /// Whether any pane has a tab: open, restored or a 项目主页.
+    var hasAnyTab: Bool { panes.contains { !$0.keys.isEmpty } }
+
+    /// ⌘W in the main window: closes the tab the active pane shows. When it
+    /// shows none but a pane still has tabs, that pane becomes active and
+    /// shows its tab (a restored one opens) instead, and nothing closes.
+    /// False only when no pane has a tab: the window may close then. A
+    /// refusal is reported through `onError` and the completion.
+    func closeTabOrShowAnother(completion: ((Result<Bool, Error>) -> Void)? = nil) -> Bool {
+        if canCloseActiveTab { closeActiveTab(completion: completion); return true }
+        guard let index = ([activePane] + Array(panes.indices)).first(where: { !panes[$0].keys.isEmpty }) else { return false }
+        guard canNavigate else { let error = blocked(); onError?(error); completion?(.failure(error)); return true }
+        activate(pane: index)
+        if panes[index].shownKey != nil { completion?(.success(false)); return true }
+        let key = panes[index].selected.map { TabKey.body($0) }.flatMap { panes[index].keys.contains($0) ? $0 : nil } ?? panes[index].keys[0]
+        selectTab(pane: index, key: key) { error in completion?(error.map { .failure($0) } ?? .success(false)) }
+        return true
+    }
+
     /// 关闭其他: every other tab of the pane; the tab stays and is shown.
     func closeOtherTabs(pane index: Int, key: TabKey, completion: ((Result<Void, Error>) -> Void)? = nil) {
         guard panes.indices.contains(index) else { completion?(.success(())); return }
@@ -2529,9 +2548,28 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     /// 解除分屏: the second pane's tabs join the first after its own, with
     /// their views; a page both panes had keeps the first pane's tab. The
-    /// page the active pane showed stays shown. No owner closes.
+    /// page the active pane showed stays shown. No owner closes. First, as
+    /// closing them would, the second pane's header edits are saved and its
+    /// 情节规划格 gestures answered; a refusal keeps both panes and says why.
     func mergePanes(completion: ((Error?) -> Void)? = nil) {
-        guard panes.count == 2, canNavigate else { let error = blocked(); onError?(error); completion?(error); return }
+        guard panes.count == 2, canNavigateAfterPlotGrids else { let error = blocked(); onError?(error); completion?(error); return }
+        let second = panes[1]
+        for tab in second.tabs { tab.endEditing() }
+        let nodes = second.tabs.compactMap { tab in tab.nodeID.map { (projectID: tab.project.id, nodeID: $0) } }
+        func refuse(_ error: Error) { onError?(error); completion?(error) }
+        func settle(_ remaining: ArraySlice<(projectID: String, nodeID: String)>) {
+            guard let node = remaining.first else {
+                guard panes.count == 2, panes[1] === second, canNavigate else { refuse(blocked()); return }
+                mergeNow(completion: completion); return
+            }
+            settlePlotGrids(projectID: node.projectID, nodeID: node.nodeID, purpose: "解除分屏") { error in
+                if let error { refuse(error) } else { settle(remaining.dropFirst()) }
+            }
+        }
+        settle(nodes[...])
+    }
+
+    private func mergeNow(completion: ((Error?) -> Void)?) {
         let first = panes[0], second = panes[1]
         let shown = panes[activePane].shownKey ?? first.shownKey
         for item in second.items {
@@ -2740,10 +2778,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// then each pane's shown tab opens its body (or shows the 项目主页);
     /// the others open when selected. A shown tab that does not open goes
     /// and is reported. Nothing joins 最近, and the page shown in the active
-    /// pane starts the history.
+    /// pane starts the history. The completion says whether it restored at
+    /// all: while navigation is held it refuses and changes nothing.
     func restoreTabs(project: WorkspaceProject, panes layout: [RestoredPane], activePane wanted: Int,
-                     completion: @escaping (Error?) -> Void) {
-        guard canNavigate else { completion(blocked()); return }
+                     completion: @escaping (_ restored: Bool, _ error: Error?) -> Void) {
+        guard canNavigate else { completion(false, blocked()); return }
         let layout = Array(layout.prefix(2))
         if layout.count == 2, panes.count == 1 { addPane() }
         if layout.count < 2, panes.count == 2, panes[1].items.isEmpty, panes[1].homes.isEmpty { removeSecondPane() }
@@ -2769,12 +2808,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             focusWhenReady()
             recordVisit()
             onChange?()
-            completion(firstError)
+            completion(true, firstError)
         }
         func step(_ position: Int) {
             guard position < steps.count else { finish(); return }
             let (index, restored) = steps[position]
-            if restored.homeShown, panes[index].homes.contains(where: { $0.project.id == project.id }) {
+            if restored.homeShown, panes.indices.contains(index), panes[index].homes.contains(where: { $0.project.id == project.id }) {
                 whenNavigable(ignoringPlotGrids: false) { [weak self] in
                     self?.openHome(project: project, in: index)
                     step(position + 1)
@@ -2789,7 +2828,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                     if case .failure(let error) = result {
                         firstError = firstError ?? error
                         let scope = Tab.scope(of: active, projectID: project.id)
-                        self.panes[index].items.removeAll { $0.dormant != nil && $0.scope == scope }
+                        if self.panes.indices.contains(index) {
+                            self.panes[index].items.removeAll { $0.dormant != nil && $0.scope == scope }
+                        }
                         self.refreshTabs()
                     }
                     step(position + 1)
@@ -2822,20 +2863,20 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     /// Closes every tab of the project in both panes, one at a time, saving
     /// each as closing a tab does. The first tab that cannot close stops it
-    /// with the reason; tabs already closed stay closed.
+    /// with the reason; tabs already closed stay closed. Tabs not opened yet
+    /// and the 项目主页 hold no body: they go only once every open tab has
+    /// closed, so a refusal keeps them.
     func closeTabs(projectID: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        // A 项目主页 holds no body: it closes at once.
-        for index in panes.indices where panes[index].homes.contains(where: { $0.project.id == projectID }) {
-            closeHome(projectID: projectID, pane: index)
-        }
-        // Tabs not opened yet hold no owner: they go at once.
-        if allDormant.contains(where: { $0.project.id == projectID }) {
-            for pane in panes { pane.items.removeAll { $0.dormant?.project.id == projectID } }
-            refreshTabs(); onChange?()
-        }
         guard let (index, tab) = panes.enumerated().lazy.compactMap({ entry in
             entry.element.tabs.first { $0.project.id == projectID }.map { (entry.offset, $0) }
         }).first else {
+            for index in panes.indices where panes[index].homes.contains(where: { $0.project.id == projectID }) {
+                closeHome(projectID: projectID, pane: index)
+            }
+            if allDormant.contains(where: { $0.project.id == projectID }) {
+                for pane in panes { pane.items.removeAll { $0.dormant?.project.id == projectID } }
+                refreshTabs(); onChange?()
+            }
             completion(.success(())); return
         }
         let title = tab.title
@@ -2858,8 +2899,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         Set(panes.flatMap { pane in pane.items.map(\.project.id) + pane.homes.map(\.project.id) })
     }
 
-    /// Drops everything read for a deleted project.
+    /// Drops everything read for a deleted project, and its pages (its
+    /// 项目主页 too) from 后退 and 前进.
     func forget(projectID: String) {
+        history.removeAll { $0.project.id == projectID }
         linkSources.removeValue(forKey: projectID)
         linkDirectories.removeValue(forKey: projectID)
         storylineLibraries.removeValue(forKey: projectID)
@@ -2957,11 +3000,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     // MARK: @ picker
 
     /// The @ picker's names for one body: the project's live element names
-    /// and aliases, then its live chapter titles, without the body's own.
-    func mentionSource(projectID: String, excludingElement: String?, excludingChapter: String?) -> ProseMentionSource {
+    /// and aliases, then its live chapter titles, without the body's own and
+    /// without names the link pass resolves elsewhere (drift titles too).
+    func mentionSource(projectID: String, excludingElement: String?, excludingNode: String?) -> ProseMentionSource {
         let sources = linkSources[projectID]
-        return ProseMentionSource(library: sources?.library, chapters: sources?.chapters ?? [],
-                                  excludingElement: excludingElement, excludingChapter: excludingChapter)
+        return ProseMentionSource(library: sources?.library, chapters: sources?.chapters ?? [], drifts: sources?.drifts?.drifts ?? [],
+                                  excludingElement: excludingElement, excludingNode: excludingNode)
     }
 
     /// ＋ 新建设定「…」 from the @ picker: one element named as typed in the
@@ -3087,7 +3131,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.patches.beginCreate(projectID: project.id, source: source, from: view?.window ?? self.window)
         }
         view.mentionSource = { [weak self] in
-            self?.mentionSource(projectID: project.id, excludingElement: nil, excludingChapter: chapterID) ?? .empty
+            self?.mentionSource(projectID: project.id, excludingElement: nil, excludingNode: chapterID) ?? .empty
         }
         view.onCreateElement = { [weak self] name, categoryID, done in
             guard let self else { done(.failure(LabError.message("全书长卷已关闭，设定未创建。"))); return }
@@ -3327,10 +3371,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         tab.view.onEntityLinks = { [weak self, weak tab] in
             if let self, let tab { self.scheduleBacklinks(projectID: tab.project.id) }
         }
-        let ownElement = tab.element?.id, ownChapter = tab.chapter?.id
+        let ownElement = tab.element?.id, ownNode = tab.chapter?.id ?? tab.drift?.id
         tab.view.mentionSource = { [weak self, weak tab] in
             guard let self, let tab else { return .empty }
-            return self.mentionSource(projectID: tab.project.id, excludingElement: ownElement, excludingChapter: ownChapter)
+            return self.mentionSource(projectID: tab.project.id, excludingElement: ownElement, excludingNode: ownNode)
         }
         tab.view.onCreateElement = { [weak self, weak tab] name, categoryID, done in
             guard let self, let tab else { done(.failure(LabError.message("标签已关闭，设定未创建。"))); return }

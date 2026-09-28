@@ -263,29 +263,43 @@ struct ProseMentionSource: Equatable {
     }
     var entries: [Entry] = []
     var categories: [Category] = []
+    /// Every name the link pass resolves in this body, whatever its target.
+    var linkedNames: Set<String> = []
 
     static let empty = ProseMentionSource()
 
-    init(entries: [Entry] = [], categories: [Category] = []) {
-        self.entries = entries; self.categories = categories
+    init(entries: [Entry] = [], categories: [Category] = [], linkedNames: Set<String> = []) {
+        self.entries = entries; self.categories = categories; self.linkedNames = linkedNames
     }
 
-    /// A body never links its own element or chapter, so neither is offered.
-    init(library: WorkspaceElementLibrary?, chapters: [WorkspaceChapter], excludingElement: String? = nil,
-         excludingChapter: String? = nil) {
+    /// Only a name the link pass resolves to the row's own target is offered.
+    /// Its map holds every live element's name and aliases in library order,
+    /// then chapter and drift titles, and the last target given a name wins;
+    /// a body never links its own element, chapter or drift. So a name or
+    /// alias a later element, a chapter or a drift also has is left out.
+    init(library: WorkspaceElementLibrary?, chapters: [WorkspaceChapter], drifts: [WorkspaceDrift] = [],
+         excludingElement: String? = nil, excludingNode: String? = nil) {
         let categoryNames = Dictionary((library?.categories ?? []).map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        var all: [Entry] = []
         for element in library?.elements ?? [] where element.id != excludingElement {
             let category = element.categoryId.flatMap { categoryNames[$0] }
             if !element.name.isEmpty {
-                entries.append(Entry(name: element.name, kind: .element, id: element.id, detail: category.map { "设定 · \($0)" } ?? "设定"))
+                all.append(Entry(name: element.name, kind: .element, id: element.id, detail: category.map { "设定 · \($0)" } ?? "设定"))
             }
             for alias in element.aliases where !alias.isEmpty {
-                entries.append(Entry(name: alias, kind: .element, id: element.id, detail: "「\(element.name)」的别名"))
+                all.append(Entry(name: alias, kind: .element, id: element.id, detail: "「\(element.name)」的别名"))
             }
         }
-        for chapter in chapters where chapter.id != excludingChapter && !chapter.title.isEmpty {
-            entries.append(Entry(name: chapter.title, kind: .chapter, id: chapter.id, detail: "章节"))
+        for chapter in chapters where chapter.id != excludingNode && !chapter.title.isEmpty {
+            all.append(Entry(name: chapter.title, kind: .chapter, id: chapter.id, detail: "章节"))
         }
+        func target(_ kind: EntityLinkTarget.Kind, _ id: String) -> String { (kind == .element ? "element:" : "node:") + id }
+        var resolved: [String: String] = [:]
+        for entry in all { resolved[entry.name] = target(entry.kind, entry.id) }
+        for drift in drifts where drift.id != excludingNode && !drift.title.isEmpty { resolved[drift.title] = target(.drift, drift.id) }
+        var offered = Set<String>()
+        entries = all.filter { resolved[$0.name] == target($0.kind, $0.id) && offered.insert($0.name).inserted }
+        linkedNames = Set(resolved.keys)
         categories = (library?.categories ?? []).map { Category(id: $0.id, name: $0.name) }
     }
 }
@@ -301,6 +315,9 @@ struct ProsePickerSession: Equatable {
     var query: String
     var items: [ProsePickerItem]
     var selected: Int
+    /// The author moved through these rows with ↑ or ↓: only then does
+    /// Return choose a ＋ 新建设定 row.
+    var navigated = false
     /// The trigger and the query, which choosing a row replaces.
     var range: NSRange { NSRange(location: trigger, length: 1 + (query as NSString).length) }
 }
@@ -308,11 +325,20 @@ struct ProsePickerSession: Equatable {
 enum ProsePickers {
     /// “/” opens the slash menu at the start of an empty paragraph; the
     /// full-width ／ and 、 (what the / key types with the Pinyin input
-    /// method) do too. “@” (or ＠) opens the picker anywhere.
+    /// method) do too. “@” (or ＠) opens the picker anywhere except right
+    /// after an ASCII letter or digit, as in an e-mail address.
     static let slashTriggers: Set<String> = ["/", "／", "、"]
     static let mentionTriggers: Set<String> = ["@", "＠"]
     static let maximumMentions = 30
     static let maximumQuery = 40
+    /// Whitespace and sentence punctuation end a query and close the picker.
+    static let queryEnds = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，。！？；：、,.!?;:"))
+
+    /// An ASCII letter or digit before “@” makes it part of an address.
+    static func opensMention(after previous: unichar?) -> Bool {
+        guard let previous, previous < 0x80, let scalar = Unicode.Scalar(previous) else { return true }
+        return !CharacterSet.alphanumerics.contains(scalar)
+    }
 
     private static let slash: [(NativeFormatAction, [String])] = [
         (.paragraph, ["paragraph", "body", "p"]), (.heading1, ["heading1", "h1"]), (.heading2, ["heading2", "h2"]),
@@ -329,9 +355,11 @@ enum ProsePickers {
     }
 
     /// Names containing the query (ignoring case): exact matches, then
-    /// prefixes, then the rest, elements before chapters, at most 30. A
-    /// non-empty query no element is named or aliased adds ＋ 新建设定「…」
-    /// for each category when `canCreate`.
+    /// prefixes, then the rest, elements before chapters, at most 30. None
+    /// means no rows: ＋ 新建设定「…」 alone never keeps the picker open. After
+    /// the names, a query no element is named or aliased and the link pass
+    /// does not already resolve adds ＋ 新建设定「…」 for each category when
+    /// `canCreate`.
     static func mentionItems(query: String, source: ProseMentionSource, canCreate: Bool) -> [ProsePickerItem] {
         let q = query.lowercased()
         func rank(_ entry: ProseMentionSource.Entry) -> Int? {
@@ -346,9 +374,10 @@ enum ProsePickers {
             ProsePickerItem(title: $0.entry.name, detail: $0.entry.detail,
                             action: .mention(name: $0.entry.name, kind: $0.entry.kind, id: $0.entry.id))
         }
+        guard !items.isEmpty else { return [] }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let named = source.entries.contains { $0.kind == .element && $0.name.lowercased() == trimmed.lowercased() }
-        if canCreate, !trimmed.isEmpty, !named {
+        if canCreate, !trimmed.isEmpty, !named, !source.linkedNames.contains(trimmed) {
             items += source.categories.map {
                 ProsePickerItem(title: "＋ 新建设定「\(trimmed)」", detail: $0.name, action: .createElement(name: trimmed, categoryID: $0.id))
             }

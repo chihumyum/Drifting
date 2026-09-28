@@ -94,7 +94,8 @@ architectural redesign.
 | Review fixes for printing, planner and conversions | `faa58ca4` | [drifts](drifts.md), [plot planner](plot-planner.md), [settings](settings.md), [agent](agent.md), [copilot](copilot.md) |
 | Database recovery and project home | `3717a99d` `a6a1db34` | [recovery](recovery.md), [project home](project-home.md), [whole book](whole-book.md), [settings](settings.md) |
 | Editor formatting, find and pickers | `dd217788` | [formatting](formatting.md), [settings](settings.md), [library](library.md), [whole book](whole-book.md), [entity links](entity-links.md) |
-| Tabs, navigation and restore | this batch | [tabs and split](tabs-and-split.md), [workspace](workspace.md), [settings](settings.md), [project home](project-home.md) |
+| Tabs, navigation and restore | `2f24cbb9` | [tabs and split](tabs-and-split.md), [workspace](workspace.md), [settings](settings.md), [project home](project-home.md) |
+| Picker, shortcut and tab fixes | this batch | [formatting](formatting.md), [entity links](entity-links.md), [settings](settings.md), [tabs and split](tabs-and-split.md) |
 
 ## Next batch
 

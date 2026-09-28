@@ -7,8 +7,10 @@ import AppKit
 /// Mission Control) or the text editor uses (⌘/⌥ arrows, ⌘⌫, ⌥⌫, ⌃A/⌃E/⌃K
 /// and the other Emacs keys) or one without ⌘ or ⌃ is refused in Chinese
 /// while recording continues. The system's text-editing
-/// commands and 退出 are listed but cannot change. Every change saves at
-/// once and the menu follows through `MacShortcutApplier`.
+/// commands and 退出 are listed but cannot change. A command whose default
+/// the author's shortcut for another command holds shows 无 and names that
+/// command. Every change saves at once and the menu follows through
+/// `MacShortcutApplier`.
 final class MacShortcutSettingsViewController: NSViewController {
     let store: LabSettingsStore
     /// The menu whose commands are listed; the app's main menu by default.
@@ -20,6 +22,8 @@ final class MacShortcutSettingsViewController: NSViewController {
     /// Each listed command's shortcut button (a label for system commands).
     private(set) var shortcutButtons: [MacMenuCommand: NSButton] = [:]
     private(set) var resetButtons: [MacMenuCommand: NSButton] = [:]
+    /// Under a command whose default another command's shortcut holds: which one.
+    private(set) var defaultNotes: [MacMenuCommand: NSTextField] = [:]
     /// The listed commands, grouped by menu, as last read from the menu.
     private(set) var listed: [(title: String, commands: [(command: MacMenuCommand, title: String)])] = []
     /// The command whose shortcut the next key press sets.
@@ -64,7 +68,7 @@ final class MacShortcutSettingsViewController: NSViewController {
         ])
         view = SettingsLayout.page([
             SettingsLayout.heading("菜单命令"),
-            SettingsLayout.detail("点按快捷键后按下新的组合即可更改，Esc 取消，⌫ 移除。与其他命令冲突、由系统保留（截屏、切换输入法、调度中心等）或由文本编辑使用（⌘/⌥ 加方向键、⌘⌫、⌥⌫、⌃A、⌃E、⌃K 等）的组合不会被接受。系统的文本编辑快捷键（撤销、复制、粘贴等）和“退出”不能在这里更改。"),
+            SettingsLayout.detail("点按快捷键后按下新的组合即可更改，Esc 取消，⌫ 移除。与其他命令冲突、由系统保留（截屏、切换输入法、调度中心等）或由文本编辑使用（⌘/⌥ 加方向键、⌘⌫、⌥⌫、⌃A、⌃E、⌃K 等）的组合不会被接受。系统的文本编辑快捷键（撤销、复制、粘贴等）和“退出”不能在这里更改。你设置的快捷键优先于默认：某个命令的默认组合已被你用在别处时，它显示“无”，并注明被哪个命令占用。"),
             message, scroll, SettingsLayout.line([resetAllButton]), storageMessage,
         ], spacing: [1: 12])
         refresh()
@@ -91,6 +95,9 @@ final class MacShortcutSettingsViewController: NSViewController {
             button.title = recording == command ? "请按下快捷键…" : shortcut.display
             button.setAccessibilityValue(shortcut.display)
             resetButtons[command]?.isHidden = command.isSystem || store.settings.shortcuts[command.rawValue] == nil
+            let holder = MacShortcuts.defaultHolder(of: command, overrides: store.settings.shortcuts)
+            defaultNotes[command]?.stringValue = holder.map { "默认快捷键 \(command.defaultShortcut.display) 已用于“\(MacMainMenu.path($0))”" } ?? ""
+            defaultNotes[command]?.isHidden = holder == nil
         }
         resetAllButton.isEnabled = store.settings.shortcuts.keys.contains { MacMenuCommand(rawValue: $0) != nil }
         SettingsLayout.storage(storageMessage, store)
@@ -98,14 +105,23 @@ final class MacShortcutSettingsViewController: NSViewController {
 
     private func rebuild() {
         for view in rows.arrangedSubviews { rows.removeArrangedSubview(view); view.removeFromSuperview() }
-        shortcutButtons = [:]; resetButtons = [:]
+        shortcutButtons = [:]; resetButtons = [:]; defaultNotes = [:]
         for (index, group) in listed.enumerated() {
             let heading = SettingsLayout.heading(group.title)
             rows.addArrangedSubview(heading)
             if index > 0 { rows.setCustomSpacing(16, after: rows.arrangedSubviews[rows.arrangedSubviews.count - 2]) }
             let grid = NSGridView(views: group.commands.map { entry -> [NSView] in
-                let name = NSTextField(labelWithString: entry.title)
-                name.lineBreakMode = .byTruncatingTail
+                let label = NSTextField(labelWithString: entry.title)
+                label.lineBreakMode = .byTruncatingTail
+                let note = NSTextField(labelWithString: "")
+                note.font = .systemFont(ofSize: 11)
+                note.textColor = .secondaryLabelColor
+                note.lineBreakMode = .byTruncatingTail
+                note.isHidden = true
+                note.setAccessibilityIdentifier("shortcut-note-\(entry.command.rawValue)")
+                defaultNotes[entry.command] = note
+                let name = NSStackView(views: [label, note])
+                name.orientation = .vertical; name.alignment = .leading; name.spacing = 1
                 let button = NSButton(title: "", target: self, action: #selector(toggleRecording(_:)))
                 button.bezelStyle = .rounded; button.controlSize = .small
                 button.setAccessibilityIdentifier("shortcut-\(entry.command.rawValue)")
