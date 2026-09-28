@@ -160,10 +160,10 @@
         "business"
       ],
       "acceptance": [
-        "project home, tabs, split, focus, navigation, mounted session ownership; recoverable chapter trash closes owners only after commit and restores retained prose into a new incarnation"
+        "project home, tabs, split, focus, navigation, mounted session ownership; recoverable chapter trash closes owners only after commit and restores retained prose into a new incarnation; a database that does not open shows recovery instead of the workspace and opens nothing"
       ],
       "milestone": "P5/P6",
-      "status": "local-writing-tabs-two-pane-chapter-trash-whole-book-editor-and-project-deletion-implemented; project-home-planned",
+      "status": "local-writing-tabs-two-pane-chapter-trash-whole-book-editor-project-deletion-project-home-and-database-recovery-window-implemented",
       "decisionTask": null
     },
     {
@@ -180,10 +180,10 @@
         "project-workspace"
       ],
       "acceptance": [
-        "current project title/prose matches over live and cold owners without cache writes; exact current anchored selection; stale, unavailable and truncated results are explicit; Mac global search over summaries, drifts, elements, categories, storylines and materials with anchored body hits; replacement remains a later parity gate"
+        "current project title/prose matches over live and cold owners without cache writes; exact current anchored selection; stale, unavailable and truncated results are explicit; Mac global search over summaries, drifts, elements, categories, storylines and materials with anchored body hits; the renderer has no user-facing find and replace"
       ],
       "milestone": "P3/P5/P6",
-      "status": "chapter-title-and-prose-navigation-and-Mac-global-entity-search-implemented; replacement-planned",
+      "status": "chapter-title-and-prose-navigation-and-Mac-global-entity-search-implemented; find-and-replace-no-renderer-feature",
       "decisionTask": null
     },
     {
@@ -200,7 +200,7 @@
         "five-level semantics, nullable storyline, ordering and drift visibility; act boundaries created at current chapter coordinates, renamed and removed without changing prose or chapter order"
       ],
       "milestone": "P5/P6",
-      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-act-notes-drift-to-chapter-and-element-conversions-and-story-graph-implemented; drift-graph-positions-planned",
+      "status": "five-level-navigation-act-boundaries-storylines-membership-drifts-drift-groups-act-notes-drift-to-chapter-and-element-conversions-and-story-graph-with-drift-positions-implemented",
       "decisionTask": null
     },
     {
@@ -346,7 +346,7 @@
       "sources": [
         "src/renderer/services/snapshot-history.service.ts",
         "src/renderer/services/snapshot-restore.service.ts",
-        "src/renderer/services/backup"
+        "src/renderer/app/components/DatabaseRecoveryBoundary.tsx"
       ],
       "target": "Rust history/checkpoint services",
       "strategy": "port-business",
@@ -355,10 +355,10 @@
         "business"
       ],
       "acceptance": [
-        "restore identities, guarded inverse, journal and asset closure"
+        "restore identities, guarded inverse, journal and asset closure; the verified pre-upgrade safety copy restores, exports and is revealed through the database recovery window"
       ],
       "milestone": "P3/P4",
-      "status": "Mac-version-history-capture-thinning-and-undoable-restore-implemented; backup-planned",
+      "status": "Mac-version-history-capture-thinning-and-undoable-restore-implemented; Mac-database-recovery-safety-copy-restore-and-export-implemented",
       "decisionTask": null
     },
     {
@@ -457,7 +457,7 @@
         "availability, permission, process lifetime and transport cancellation"
       ],
       "milestone": "P4",
-      "status": "Mac-stdio-and-Streamable-HTTP-MCP-with-per-tool-allow-ask-deny-approval-cards-and-Keychain-secrets-implemented; plugins-planned",
+      "status": "Mac-stdio-and-Streamable-HTTP-MCP-with-per-tool-allow-ask-deny-approval-cards-and-Keychain-secrets-implemented; plugins-no-renderer-feature",
       "decisionTask": "D7"
     },
     {

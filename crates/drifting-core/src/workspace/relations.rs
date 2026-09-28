@@ -749,7 +749,7 @@ impl WorkspaceStore<'_> {
         mut values: Vec<V>,
     ) -> Result<Vec<WorkspaceRelation>, String> {
         values.insert(0, text(&context.project_id));
-        self.query(Some(tx), &format!("SELECT {RELATION_COLUMNS} FROM entity_relation WHERE project_id=? AND {filter} ORDER BY rowid"), values)?
+        self.query(Some(tx), &format!("SELECT {RELATION_COLUMNS} FROM entity_relation WHERE project_id=? AND ({filter}) ORDER BY rowid"), values)?
             .iter()
             .map(|row| relation_from_row(row))
             .collect()

@@ -35,6 +35,10 @@ enum LabError: LocalizedError {
     case patchUnavailable(reason: String)
     case trashUnavailable(reason: String)
     case plotGridUnavailable(reason: String)
+    /// `workspaceOpen` failed, or a restore of the safety copy did: the
+    /// reason is Rust's (`database-recovery:<session>:<code>` when an upgrade
+    /// stopped), which `workspaceRecovery status` reads.
+    case workspaceUnavailable(reason: String)
 
     /// Keep the core's exact reason available to diagnostics without exposing
     /// CRDT identities in the shared macOS/iOS error presentation.
@@ -46,7 +50,7 @@ enum LabError: LocalizedError {
              .libraryUnavailable(let text), .transferUnavailable(let text), .timelineUnavailable(let text),
              .versionHistoryUnavailable(let text), .reviewUnavailable(let text), .actUnavailable(let text),
              .projectUnavailable(let text), .patchUnavailable(let text), .trashUnavailable(let text),
-             .plotGridUnavailable(let text): return text
+             .plotGridUnavailable(let text), .workspaceUnavailable(let text): return text
         }
     }
     var errorDescription: String? {
@@ -74,6 +78,7 @@ enum LabError: LocalizedError {
         case .patchUnavailable(let reason): return LabError.patchMessage(reason)
         case .trashUnavailable(let reason): return LabError.trashMessage(reason)
         case .plotGridUnavailable(let reason): return LabError.plotGridMessage(reason)
+        case .workspaceUnavailable(let reason): return WorkspaceRecoveryStatus.headline(stopped: WorkspaceRecoveryStatus.isStoppedUpgrade(reason))
         }
     }
 
@@ -559,6 +564,10 @@ final class LabCore {
             if request["operation"] as? String == "workspacePlotGrid" {
                 throw LabError.plotGridUnavailable(reason: reason)
             }
+            if request["operation"] as? String == "workspaceOpen"
+                || (request["operation"] as? String == "workspaceRecovery" && WorkspaceRecoveryStatus.isStoppedUpgrade(reason)) {
+                throw LabError.workspaceUnavailable(reason: reason)
+            }
             throw LabError.message(reason)
         }
         return reply.value
@@ -884,6 +893,38 @@ private struct WorkspaceState: Decodable {
     let projects: [WorkspaceProject]
 }
 
+/// `workspaceRecovery status`: why the workspace did not open. An upgrade
+/// that stopped has a recovery session and, once its receipt verifies, a
+/// safety copy; any other failure is `database-open-failed` without either.
+struct WorkspaceRecoveryStatus: Decodable, Equatable {
+    struct SafetyBackup: Decodable, Equatable {
+        let backupId: String
+        let sha256: String
+        let sizeBytes: UInt64
+        let createdAtMs: UInt64
+    }
+    let code: String
+    /// Rust's English sentence; the host says it in Chinese instead.
+    let message: String
+    let recoverySessionId: String?
+    let sourceVersion: String?
+    let targetVersion: String
+    let safetyBackup: SafetyBackup?
+
+    static let stoppedPrefix = "database-recovery:"
+    static func isStoppedUpgrade(_ reason: String) -> Bool { reason.hasPrefix(stoppedPrefix) }
+    /// An upgrade stopped before activation: the previous database is untouched.
+    var upgradeStopped: Bool { recoverySessionId != nil }
+
+    /// What happened, in one line.
+    static func headline(stopped: Bool) -> String {
+        stopped ? "升级本地资料库时停止，之前的资料库保持原样。" : "无法打开本地资料库。"
+    }
+}
+
+private struct WorkspaceRecoveryRestored: Decodable { let migrationsApplied: Int }
+private struct WorkspaceRecoveryPath: Decodable { let path: String }
+
 struct WorkspaceDocumentReply: Decodable {
     let handle: UInt64
     let projectId: String
@@ -1061,15 +1102,95 @@ final class LabWorkspaceCore {
             .appendingPathComponent("apple-native-lab", isDirectory: true)
     }
 
+    /// The workspace's projects; the first call opens the workspace. After
+    /// an open failed, later calls refuse with that failure instead of
+    /// opening again: only `retryOpen` and `restoreSafetyBackup` open.
     func projects(completion: @escaping (Result<[WorkspaceProject], Error>) -> Void) {
         perform(completion) {
             if self.handle != nil { return try self.request("workspaceProjects") }
-            guard let state: WorkspaceState = try LabCore.call([
-                "operation": "workspaceOpen", "directory": self.directory.path,
-            ]) else { throw LabError.message("工作区没有返回") }
-            self.handle = state.handle
-            return state.projects
+            if let refusal = self.openRefusal { throw LabError.workspaceUnavailable(reason: refusal) }
+            return try self.openNow()
         }
+    }
+
+    // MARK: Database recovery
+
+    /// Why the last `workspaceOpen` failed, while no workspace is open.
+    /// Queue-owned, like `handle`.
+    private var openRefusal: String?
+
+    private func openNow() throws -> [WorkspaceProject] {
+        do {
+            guard let state: WorkspaceState = try LabCore.call([
+                "operation": "workspaceOpen", "directory": directory.path,
+            ]) else { throw LabError.message("工作区没有返回") }
+            openRefusal = nil
+            handle = state.handle
+            return state.projects
+        } catch LabError.workspaceUnavailable(let reason) {
+            openRefusal = reason
+            throw LabError.workspaceUnavailable(reason: reason)
+        }
+    }
+
+    /// 重试: opens the workspace again, whatever failed before.
+    func retryOpen(completion: @escaping (Result<[WorkspaceProject], Error>) -> Void) {
+        perform(completion) {
+            if self.handle != nil { return try self.request("workspaceProjects") }
+            self.openRefusal = nil
+            return try self.openNow()
+        }
+    }
+
+    /// What Rust knows about a failed open: its code, the versions and the
+    /// verified safety copy. A read; nothing opens.
+    func recoveryStatus(error: String, completion: @escaping (Result<WorkspaceRecoveryStatus, Error>) -> Void) {
+        perform(completion) { try self.recoveryRequest(["action": "status", "error": error]) }
+    }
+
+    /// 恢复安全副本: Rust rebuilds the database from the verified safety copy
+    /// (migrating it again in a shadow copy) and activates it; the workspace
+    /// then opens. Only after an open of this directory failed in this
+    /// process. A failure is again a `database-recovery:` refusal.
+    func restoreSafetyBackup(sessionID: String, backupID: String,
+                             completion: @escaping (Result<[WorkspaceProject], Error>) -> Void) {
+        perform(completion) {
+            guard self.handle == nil else { throw LabError.message("工作区已经打开，无需恢复。") }
+            do {
+                let _: WorkspaceRecoveryRestored = try self.recoveryRequest(
+                    ["action": "restore", "recoverySessionId": sessionID, "backupId": backupID])
+            } catch LabError.workspaceUnavailable(let reason) {
+                self.openRefusal = reason
+                throw LabError.workspaceUnavailable(reason: reason)
+            }
+            self.openRefusal = nil
+            return try self.openNow()
+        }
+    }
+
+    /// The verified safety copy, for the host to copy elsewhere (never to move).
+    func recoveryBackupFile(sessionID: String, backupID: String, completion: @escaping (Result<URL, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceRecoveryPath = try self.recoveryRequest(
+                ["action": "backupFile", "recoverySessionId": sessionID, "backupId": backupID])
+            return URL(fileURLWithPath: reply.path)
+        }
+    }
+
+    /// The folder holding the recovery session's safety copy.
+    func recoveryBackupFolder(sessionID: String, completion: @escaping (Result<URL, Error>) -> Void) {
+        perform(completion) {
+            let reply: WorkspaceRecoveryPath = try self.recoveryRequest(["action": "backupFolder", "recoverySessionId": sessionID])
+            return URL(fileURLWithPath: reply.path, isDirectory: true)
+        }
+    }
+
+    /// Rust refuses these while a workspace is open in the directory.
+    private func recoveryRequest<Payload: Decodable>(_ command: [String: Any]) throws -> Payload {
+        guard let reply: Payload = try LabCore.call(["operation": "workspaceRecovery", "directory": directory.path, "command": command]) else {
+            throw LabError.message("恢复结果缺失")
+        }
+        return reply
     }
 
     func createProject(name: String, completion: @escaping (Result<WorkspaceProject, Error>) -> Void) {

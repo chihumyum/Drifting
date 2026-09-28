@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T11:08:38.811Z",
+  "generatedAt": "2026-09-28T12:31:46.304Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "1866145c14d514766b918ead125f3e84314dedb8",
+    "commit": "faa58ca43df0f481d60394f9a7cc0adee2f6a395",
     "dirty": true,
-    "fingerprint": "6d37e990b9bf3a2194c9ee6a9d6c381e877af52f499a5d1bb120b06514f7746a"
+    "fingerprint": "ccce8b38bc48141847e85e195986f62e48e9c98fcbf7371e762ff45546f12a91"
   },
   "cases": [
     {
@@ -675,7 +675,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 今日字数 in 项目资料 and 统计 counts the net change of this device's saves against the daily goal (typing, undo and redo, an accepted writing-assistant change and an import), leaves out received remote originals for open and closed chapters, a version restore and chapter trash and restore, rolls over at local midnight with an injected clock, keeps 30 days in settings.json, writes nothing to the journal and survives a cold relaunch without counting twice",
+      "name": "AppKit 今日字数 in 项目资料 and 统计 counts the net change of this device's saves against the daily goal (typing, undo and redo, an accepted writing-assistant change and an import), leaves out received remote originals for open and closed chapters, a version restore and chapter trash and restore, rolls over at local midnight with an injected clock, keeps 31 days in settings.json, writes nothing to the journal and survives a cold relaunch without counting twice",
       "status": "passed"
     },
     {
@@ -944,6 +944,30 @@
     },
     {
       "name": "AppKit 转为设定… says what moves and what stays, carries relations whose type allows an element and notes on the whole drift to the element and reports the counts, the element's and chapter's 关系 sections, the 设定总览 and 审阅 follow, a note anchored in the drift's text stays with it in the trash and returns on restore, and a conversion that stopped after the element was created shows Rust's message, reads the lists again and keeps the drift's tab (reopening a released body) unless the drift is in the trash",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 恢复 shows instead of the workspace when an upgrade stops: the previous database is untouched, nothing opens and later reads refuse without opening, and the window states in Chinese what happened, the versions and the verified safety copy's size, time and SHA-256 prefix",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 恢复 exports the safety copy through the save panel under its default name as a verified copy whose bytes equal it while the original stays, shows its folder in Finder, and copies diagnostics with the code, versions, app and macOS versions and architecture but no path, title or identity beyond the recovery session",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 恢复 重试 while the upgrade still fails updates the window from the new failure, 恢复安全副本… asks first (取消 writes nothing) and rebuilds the library from the copy made before the upgrade and opens it with the synthetic project and its chapter text, 重试 opens it once the fault is gone, and a failure without a safety copy turns off the buttons that need one",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 项目主页 opens as one tab per project from 视图 › 项目主页 and the project shelf, reused when open, shows the name, summary, 故事线, 章节, 设定, 总字数 and 最后编辑 as Rust reports them and chapter statuses with a progress bar, 编辑资料… opens 项目资料 whose saved summary it follows, and 继续写作 names the most recently edited chapter with its last paragraph and opens it",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 项目主页 reads 今日, 连续天数, 本周 and 本月 from a seeded 今日字数 ledger against the 写作计划 across a month boundary and follows today's words, lists storyline tracks with their chapters in book order as status-coloured items that open the chapter, and categories with element counts that open the category page and follow a category trash",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 项目主页 最近 lists the last ten pages this device opened newest first without duplicates, opens them, leaves out a trashed page until it is restored and forgets a purged one, follows a chapter rename, a status change, word counts and a project rename, writes nothing to the journal, and shows the same counts and pages after a cold relaunch from settings.json",
       "status": "passed"
     }
   ],

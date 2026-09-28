@@ -1281,7 +1281,7 @@ extension BindingAcceptance {
             }
         }
         try elementCreated("灯塔二号")
-        let moved = "设定「灯塔二号」已创建并复制了正文，但关系和批注未能转移：合成的转移失败"
+        let moved = "设定「灯塔二号」已创建，但灵感正文未能复制：合成的复制失败"
         host.injectedElementConversionFailure = { _ in LabError.driftUnavailable(reason: moved) }
         mark = try harness.journal.mark()
         restoredPage.conversionItem(.element)?.press()

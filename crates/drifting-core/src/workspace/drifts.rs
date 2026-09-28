@@ -279,7 +279,21 @@ impl WorkspaceStore<'_> {
         validate_context(context)?;
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
-            let LiveDrift { mut drift, incarnation } = self.live_drift(tx, context, drift_id)?;
+            self.trash_drift_in(tx, context, drift_id)
+        })
+    }
+
+    fn trash_drift_in(
+        &self,
+        tx: u64,
+        context: &AuthoredProseContext,
+        drift_id: &str,
+    ) -> Result<WorkspaceDrift, String> {
+        {
+            let LiveDrift {
+                mut drift,
+                incarnation,
+            } = self.live_drift(tx, context, drift_id)?;
             // unbindMarkersForDrift, then unbindActsForDrift: one original each,
             // rows in index (rowid) order. A marker keeps its own caption and
             // otherwise takes the drift title, and journals both fields.
@@ -287,8 +301,15 @@ impl WorkspaceStore<'_> {
                 "" => "Marker",
                 title => title,
             };
-            for (table, kind) in [("timeline_marker", "timeline-marker"), ("book_act", "book-act")] {
-                let label = if kind == "timeline-marker" { "label" } else { "NULL" };
+            for (table, kind) in [
+                ("timeline_marker", "timeline-marker"),
+                ("book_act", "book-act"),
+            ] {
+                let label = if kind == "timeline-marker" {
+                    "label"
+                } else {
+                    "NULL"
+                };
                 let bound = self.query(Some(tx), &format!("SELECT id,{label} FROM {table} WHERE drift_node_id=? AND project_id=? ORDER BY rowid"),
                     vec![text(drift_id), text(&context.project_id)])?;
                 if bound.is_empty() {
@@ -298,13 +319,29 @@ impl WorkspaceStore<'_> {
                 for row in &bound {
                     let id = string(row, 0)?;
                     let owner = self.lifecycle_of(tx, context, kind, &id)?;
-                    mutations.push(journal::Mutation::field(kind, &id, owner, "driftNodeId", Value::Null));
+                    mutations.push(journal::Mutation::field(
+                        kind,
+                        &id,
+                        owner,
+                        "driftNodeId",
+                        Value::Null,
+                    ));
                     if kind == "timeline-marker" {
                         let current = string(row, 1)?;
-                        let caption = if js_trim(&current).is_empty() { fallback.to_string() } else { current };
+                        let caption = if js_trim(&current).is_empty() {
+                            fallback.to_string()
+                        } else {
+                            current
+                        };
                         self.execute(tx, "UPDATE timeline_marker SET drift_node_id=NULL,label=?,updated_at=? WHERE id=? AND project_id=?",
                             vec![text(&caption), text(&context.now_iso), text(&id), text(&context.project_id)])?;
-                        mutations.push(journal::Mutation::field(kind, &id, owner, "label", json!(caption)));
+                        mutations.push(journal::Mutation::field(
+                            kind,
+                            &id,
+                            owner,
+                            "label",
+                            json!(caption),
+                        ));
                     } else {
                         self.execute(tx, "UPDATE book_act SET drift_node_id=NULL,updated_at=? WHERE id=? AND project_id=?",
                             vec![text(&context.now_iso), text(&id), text(&context.project_id)])?;
@@ -314,15 +351,25 @@ impl WorkspaceStore<'_> {
             }
             // The trash original itself purges the drift's relations first.
             let mut mutations = self.purge_relations(tx, context, "node", drift_id)?;
-            self.execute(tx, "UPDATE book_node SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
-                vec![text(&context.now_iso), text(&context.now_iso), text(drift_id), text(&context.project_id)])?;
-            mutations.push(journal::Mutation::json("entity", "node", drift_id, "entity.trash", json!({}))
-                .at_incarnation(incarnation));
+            self.execute(
+                tx,
+                "UPDATE book_node SET deleted_at=?,updated_at=? WHERE id=? AND project_id=?",
+                vec![
+                    text(&context.now_iso),
+                    text(&context.now_iso),
+                    text(drift_id),
+                    text(&context.project_id),
+                ],
+            )?;
+            mutations.push(
+                journal::Mutation::json("entity", "node", drift_id, "entity.trash", json!({}))
+                    .at_incarnation(incarnation),
+            );
             self.commit_changes(tx, context, &mutations, None)?;
             drift.act_id = None;
             drift.updated_at = context.now_iso.clone();
             Ok(drift)
-        })
+        }
     }
 
     /// 转为章节: the same node becomes a chapter at the end of the book, a
@@ -373,12 +420,13 @@ impl WorkspaceStore<'_> {
         })
     }
 
-    /// 转为设定 carries what can follow the drift onto the new element in one
-    /// original: its relations where each type allows an element endpoint,
-    /// and notes and TODOs on the whole drift. Notes anchored in its text,
-    /// version history, patch sources and the plot planner stay with the
-    /// drift.
-    pub fn carry_drift_links_to_element(
+    /// 转为设定's last step, in one transaction: an original carrying what can
+    /// follow the drift onto the new element — its relations where each type
+    /// allows an element endpoint, and notes and TODOs on the whole drift —
+    /// then the drift's trash original. Notes anchored in its text, version
+    /// history, patch sources and the plot planner stay with the drift; its
+    /// other relations go with the trash. A failure writes neither.
+    pub fn carry_drift_to_element_and_trash(
         &self,
         context: &AuthoredProseContext,
         drift_id: &str,
@@ -412,6 +460,7 @@ impl WorkspaceStore<'_> {
             if !mutations.is_empty() {
                 self.commit_changes(tx, context, &mutations, None)?;
             }
+            self.trash_drift_in(tx, context, drift_id)?;
             Ok(DriftCarry { relations, skipped_relations, comments })
         })
     }

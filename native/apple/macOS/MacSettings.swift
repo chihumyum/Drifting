@@ -55,7 +55,7 @@ struct LabSettings: Codable, Equatable {
     var elementOverviewViewports: [String: ElementOverviewViewport] = [:]
     /// 今日字数: per project, the net change in canonical chapter word
     /// counts this device's own saves made on each local calendar day
-    /// (`yyyy-MM-dd`), for the last 30 days. See `DailyWordLedger`.
+    /// (`yyyy-MM-dd`), for the last 31 days. See `DailyWordLedger`.
     var dailyWords: [String: [String: Int]] = [:]
     /// Each project's 底部时间轴: shown or hidden, and 阅读顺序 or 故事时间.
     var bottomTimelines: [String: BottomTimelineSetting] = [:]
@@ -71,6 +71,9 @@ struct LabSettings: Codable, Equatable {
     /// by command identifier (`file.print`); an empty key removes the
     /// default. Commands without an entry keep their default.
     var shortcuts: [String: MenuShortcut] = [:]
+    /// 项目主页 › 最近: per project, the last pages this device opened,
+    /// newest first (identities only; titles are read live).
+    var recentPages: [String: [RecentPage]] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -84,6 +87,7 @@ struct LabSettings: Codable, Equatable {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
+        case recentPages
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -111,6 +115,9 @@ struct LabSettings: Codable, Equatable {
         // One unreadable shortcut does not take the others with it.
         let shortcutValues = (try? values.decodeIfPresent([String: LenientShortcut].self, forKey: .shortcuts)) ?? [:]
         shortcuts = shortcutValues.compactMapValues(\.value)
+        // An unreadable entry drops alone; the list keeps its order.
+        let recentValues = (try? values.decodeIfPresent([String: [LenientRecentPage]].self, forKey: .recentPages)) ?? [:]
+        recentPages = recentValues.mapValues { $0.compactMap(\.value) }.filter { !$0.value.isEmpty }
         self = normalized()
     }
 
@@ -135,6 +142,10 @@ struct LabSettings: Codable, Equatable {
         let value: MenuShortcut?
         init(from decoder: Decoder) throws { value = try? MenuShortcut(from: decoder) }
     }
+    private struct LenientRecentPage: Decodable {
+        let value: RecentPage?
+        init(from decoder: Decoder) throws { value = try? RecentPage(from: decoder) }
+    }
 
     /// The manuscript language as a BCP 47 tag for CoreText.
     var languageTag: String {
@@ -144,6 +155,14 @@ struct LabSettings: Codable, Equatable {
         default: return manuscriptLocale
         }
     }
+}
+
+/// A page this device opened, for 项目主页 › 最近: a chapter, drift,
+/// element, category or storyline, by identity.
+struct RecentPage: Codable, Hashable {
+    enum Kind: String, Codable, CaseIterable { case chapter, drift, element, category, storyline }
+    let kind: Kind
+    let id: String
 }
 
 /// A project's 底部时间轴 below the editor. Unknown modes read as 阅读顺序.
@@ -455,8 +474,8 @@ final class LabSettingsStore {
     /// A project's 今日字数 changed, or the local day rolled over; `object`
     /// is the store, `userInfo["projectID"]` the project (absent on rollover).
     static let dailyWordsDidChange = Notification.Name("LabSettingsStoreDailyWordsDidChange")
-    /// Days kept, today included.
-    static let dailyWordDays = 30
+    /// Days kept, today included: a whole calendar month for 项目主页 › 本月.
+    static let dailyWordDays = 31
     /// The clock the ledger's days follow; acceptance injects one and then
     /// calls `checkDay()`, as the midnight timer does.
     var now: () -> Date = Date.init
@@ -495,7 +514,7 @@ final class LabSettingsStore {
     }
 
     /// At local midnight: today's words start again from 0 and days beyond
-    /// the 30 kept are dropped. Views showing 今日 read again.
+    /// the 31 kept are dropped. Views showing 今日 read again.
     func checkDay() {
         let today = dayKey(now())
         if shownDay != today {
@@ -533,15 +552,48 @@ final class LabSettingsStore {
         rolloverTimer = timer
     }
 
+    // MARK: Recent pages
+
+    /// A project's 最近 changed; `object` is the store, `userInfo["projectID"]` the project.
+    static let recentPagesDidChange = Notification.Name("LabSettingsStoreRecentPagesDidChange")
+    /// Pages kept per project.
+    static let recentPageLimit = 10
+
+    /// The project's recent pages, newest first; some may be trashed or gone.
+    func recentPages(projectID: String) -> [RecentPage] { settings.recentPages[projectID] ?? [] }
+
+    /// A page was opened: it moves to the front (once) and the list keeps
+    /// the newest ten. Saved at once; typesetting is not applied again.
+    func recordRecentPage(_ page: RecentPage, projectID: String) {
+        let current = recentPages(projectID: projectID)
+        let next = Array(([page] + current.filter { $0 != page }).prefix(Self.recentPageLimit))
+        guard next != current else { return }
+        settings.recentPages[projectID] = next
+        save()
+        NotificationCenter.default.post(name: Self.recentPagesDidChange, object: self, userInfo: ["projectID": projectID])
+    }
+
+    /// Purged pages leave the list; trashed ones stay, hidden until restored.
+    func forgetRecentPages(ids: Set<String>, projectID: String) {
+        let current = recentPages(projectID: projectID)
+        let next = current.filter { !ids.contains($0.id) }
+        guard next != current else { return }
+        settings.recentPages[projectID] = next.isEmpty ? nil : next
+        save()
+        NotificationCenter.default.post(name: Self.recentPagesDidChange, object: self, userInfo: ["projectID": projectID])
+    }
+
     // MARK: Deleted projects
 
     /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
-    /// 底部时间轴 or 情节规划格 state or MCP servers behind (their Keychain secrets are
-    /// removed by the caller).
+    /// 底部时间轴 or 情节规划格 state, recent pages or MCP servers behind
+    /// (their Keychain secrets are removed by the caller).
     func forgetProject(_ projectID: String) {
         guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
             || settings.dailyWords[projectID] != nil || settings.bottomTimelines[projectID] != nil
-            || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil else { return }
+            || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil
+            || settings.recentPages[projectID] != nil else { return }
+        settings.recentPages.removeValue(forKey: projectID)
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)
         settings.dailyWords.removeValue(forKey: projectID)

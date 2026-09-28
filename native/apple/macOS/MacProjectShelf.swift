@@ -2,7 +2,8 @@ import AppKit
 
 /// 项目书架 (项目 › 项目书架…, and at launch while no project is chosen):
 /// every project with its summary, chapters, words and last edit, newest
-/// first. 打开 shows the project in the main window; 新建项目…, 重命名…,
+/// first. 打开 shows the project in the main window, 项目主页 its overview
+/// page; 新建项目…, 重命名…,
 /// 导出为 Markdown 文件夹… and 删除项目… (the existing deletion sheet) act on
 /// the selected row.
 final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
@@ -10,6 +11,7 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
     let table = NSTableView()
     let status = NSTextField(wrappingLabelWithString: "")
     let openButton = NSButton(title: "打开", target: nil, action: nil)
+    let homeButton = NSButton(title: "项目主页", target: nil, action: nil)
     let createButton = NSButton(title: "新建项目…", target: nil, action: nil)
     let renameButton = NSButton(title: "重命名…", target: nil, action: nil)
     let exportButton = NSButton(title: "导出为 Markdown 文件夹…", target: nil, action: nil)
@@ -18,6 +20,7 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
     /// an alert with a text field. Acceptance answers here.
     var askName: ((String, String?, @escaping (String?) -> Void) -> Void)?
     var onOpen: ((WorkspaceProject) -> Void)?
+    var onOpenHome: ((WorkspaceProject) -> Void)?
     var onCreated: ((WorkspaceProject) -> Void)?
     var onRenamed: ((WorkspaceProject) -> Void)?
     var onDelete: ((WorkspaceProject) -> Void)?
@@ -60,7 +63,8 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
         scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder; scroll.documentView = table
         status.textColor = .secondaryLabelColor
         status.setAccessibilityIdentifier("project-shelf-status")
-        for (button, id, action) in [(openButton, "shelf-open", #selector(openSelected)), (createButton, "shelf-create", #selector(createProject)),
+        for (button, id, action) in [(openButton, "shelf-open", #selector(openSelected)), (homeButton, "shelf-home", #selector(openHomeSelected)),
+                                     (createButton, "shelf-create", #selector(createProject)),
                                      (renameButton, "shelf-rename", #selector(renameSelected)),
                                      (exportButton, "shelf-export", #selector(exportSelected)),
                                      (deleteButton, "shelf-delete", #selector(deleteSelected))] {
@@ -68,7 +72,7 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
             button.setAccessibilityIdentifier(id)
         }
         openButton.keyEquivalent = "\r"
-        let buttons = NSStackView(views: [openButton, createButton, renameButton, NSView(), exportButton, deleteButton])
+        let buttons = NSStackView(views: [openButton, homeButton, createButton, renameButton, NSView(), exportButton, deleteButton])
         let stack = NSStackView(views: [scroll, status, buttons])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -107,6 +111,7 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
         let idle = !model.busy
         let chosen = idle && selectedEntry != nil
         openButton.isEnabled = chosen
+        homeButton.isEnabled = chosen
         createButton.isEnabled = idle
         renameButton.isEnabled = chosen
         exportButton.isEnabled = chosen
@@ -134,6 +139,12 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
     @objc func openSelected() {
         guard let entry = selectedEntry, allowed() else { return }
         onOpen?(entry.project)
+    }
+
+    /// 项目主页: the project's overview page opens as a tab in the main window.
+    @objc func openHomeSelected() {
+        guard let entry = selectedEntry, allowed() else { return }
+        onOpenHome?(entry.project)
     }
 
     @objc func createProject() {
@@ -224,6 +235,7 @@ final class MacProjectShelfWindowController: NSWindowController, NSWindowDelegat
         guard rows.indices.contains(row), !model.busy else { return }
         table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         menu.addItem(LibraryMenuItem(title: "打开", identifier: "shelf-menu-open") { [weak self] in self?.openSelected() })
+        menu.addItem(LibraryMenuItem(title: "项目主页", identifier: "shelf-menu-home") { [weak self] in self?.openHomeSelected() })
         menu.addItem(LibraryMenuItem(title: "重命名…", identifier: "shelf-menu-rename") { [weak self] in self?.renameSelected() })
         menu.addItem(LibraryMenuItem(title: "导出为 Markdown 文件夹…", identifier: "shelf-menu-export") { [weak self] in self?.exportSelected() })
         menu.addItem(.separator())

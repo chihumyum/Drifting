@@ -94,6 +94,7 @@ enum MacMenuCommand: String, CaseIterable {
     case relationTypes = "edit.relationTypes", addComment = "edit.addComment", comments = "edit.comments"
     case copilot = "edit.copilot", history = "edit.history"
     case bold = "format.bold", italic = "format.italic"
+    case projectHome = "view.projectHome"
     case agent = "view.agent", materials = "view.materials", review = "view.review", board = "view.board"
     case storyGraph = "view.storyGraph", wholeBook = "view.wholeBook", elementOverview = "view.elementOverview"
     case bottomTimeline = "view.bottomTimeline", plotPlanner = "view.plotPlanner", trash = "view.trash"
@@ -131,6 +132,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .history: return "历史版本…"
         case .bold: return "加粗"
         case .italic: return "斜体"
+        case .projectHome: return "项目主页"
         case .agent: return "写作助手"
         case .materials: return "素材库"
         case .review: return "审阅"
@@ -233,7 +235,7 @@ enum MacMainMenu {
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, .search, .elements, .storylines, .drifts, .relationTypes, nil,
                 .addComment, .comments, .copilot, nil, .history]),
         ("格式", [.bold, .italic]),
-        ("视图", [.agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
+        ("视图", [.projectHome, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
                 .trash]),
         ("帮助", [.diagnostics]),
     ]

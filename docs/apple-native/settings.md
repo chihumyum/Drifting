@@ -19,6 +19,9 @@ interoperability is kept.
   项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
 - Each page's 情节规划格 dock (shown and height) is under `plotPlanners`
   ([plot planner](plot-planner.md)).
+- 今日字数 days are under `dailyWords` ([whole book](whole-book.md)), and each
+  project's last ten opened pages under `recentPages` as `{kind, id}`
+  ([project home](project-home.md)); an unreadable entry is dropped alone.
 - Copilot's choices are under `copilot`, read value by value like the rest
   (an unknown model is the provider's first, the delay is clamped to
   5–300 seconds); saving them applies nothing else.

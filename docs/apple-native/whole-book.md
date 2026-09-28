@@ -104,14 +104,15 @@ version restores, and chapter trash and restore do not count.
   in a session is only a baseline; words saved but never read before quitting
   are not counted.
 - **Storage.** `settings.json` keeps `dailyWords` per project and
-  `yyyy-MM-dd` day, for the last 30 days (today included); older days are
+  `yyyy-MM-dd` day, for the last 31 days (today included, so a whole month
+  for the [project home](project-home.md)'s 本月); older days are
   dropped when a day is written or rolls over. The ledger writes nothing
   else: no journal row, nothing that leaves the device. Deleting a project
   removes its days.
 - **Days.** A change counts on the local day its read runs. A timer at the
   next local midnight starts today again from 0 in open sheets and 统计.
-- **Limits.** Undoing a version restore counts as an edit. There is no
-  streak or weekly total yet.
+- **Limits.** Undoing a version restore counts as an edit. The streak and
+  the week's and month's totals are on the [project home](project-home.md).
 
 ## Not ported
 
@@ -153,6 +154,6 @@ real controllers, tab host, Rust workspace and SQLite:
   writing-assistant change and an import count in 项目资料 and 统计; received
   originals into an open and a closed chapter (from a second replica), a
   version restore, and chapter trash and restore do not; midnight rollover,
-  30 kept days, no journal writes, and a cold relaunch that counts nothing twice.
+  31 kept days, no journal writes, and a cold relaunch that counts nothing twice.
 
 Physical input, desktop XCTest and a visible panel on screen are not covered.

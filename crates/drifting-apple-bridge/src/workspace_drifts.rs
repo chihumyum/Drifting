@@ -185,23 +185,22 @@ impl WorkspaceSession {
                 if let Err(error) = copied {
                     return Err(created(format!("，但灵感正文未能复制：{error}")));
                 }
-                // Relations and whole-drift notes follow the element.
-                let carried = store
-                    .carry_drift_links_to_element(&context, drift_id, &element.id, &mut || {
-                        identifier("relation")
-                    })
-                    .map_err(|error| {
-                        created(format!("并复制了正文，但关系和批注未能转移：{error}"))
-                    })?;
-                let trashed = store.trash_drift(&context, drift_id);
+                // Relations and whole-drift notes follow the element and the
+                // drift goes to the trash, together or not at all.
+                let carried = store.carry_drift_to_element_and_trash(
+                    &context,
+                    drift_id,
+                    &element.id,
+                    &mut || identifier("relation"),
+                );
                 if let Some(handle) = self.drift_bodies.remove(&key) {
                     documents.remove(&handle);
                 }
-                if let Err(error) = trashed {
-                    return Err(created(format!(
-                        "并复制了正文，但灵感未能移入回收站：{error}"
-                    )));
-                }
+                let carried = carried.map_err(|error| {
+                    created(format!(
+                        "并复制了正文，但灵感未能移入回收站（关系和批注没有转移）：{error}"
+                    ))
+                })?;
                 json!({"element": element, "driftId": drift_id, "carried": carried})
             }
             DriftCommand::TrashDrift { drift_id } => {

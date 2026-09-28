@@ -32,7 +32,7 @@ extension BindingAcceptance {
             "AppKit 全书长卷 scrolls to a chapter or a heading chosen in the 整书大纲 and to chapters and acts in the 跳到 menu, attaching the chapter's editor at the top of the viewport with the caret on the heading",
             "AppKit 统计 reads 统计中… until every chapter is counted, then the total, chapter count, average, completion and written/target progress of a synthetic book, colours each chapter bar by its act, lists each act's chapters and words, and a click on a bar scrolls the 全书长卷 to its chapter",
             "AppKit 写作计划 in 项目资料 parses and stores the target and daily goal per project in settings.json with the book's progress, refuses unreadable input without saving, writes nothing to the journal, and restores both after a cold relaunch of the workspace and settings",
-            "AppKit 今日字数 in 项目资料 and 统计 counts the net change of this device's saves against the daily goal (typing, undo and redo, an accepted writing-assistant change and an import), leaves out received remote originals for open and closed chapters, a version restore and chapter trash and restore, rolls over at local midnight with an injected clock, keeps 30 days in settings.json, writes nothing to the journal and survives a cold relaunch without counting twice",
+            "AppKit 今日字数 in 项目资料 and 统计 counts the net change of this device's saves against the daily goal (typing, undo and redo, an accepted writing-assistant change and an import), leaves out received remote originals for open and closed chapters, a version restore and chapter trash and restore, rolls over at local midnight with an injected clock, keeps 31 days in settings.json, writes nothing to the journal and survives a cold relaunch without counting twice",
         ]
     }
 
@@ -987,7 +987,7 @@ extension BindingAcceptance {
         try require(today() == 10 && relaunched.todayLabel.stringValue == "今日 10 / 100 字 · 10%", "After the relaunch today reads \(today())")
         relaunched.window.close()
 
-        // 30 days are kept: a synthetic project observed on 35 days in a row.
+        // 31 days are kept (a whole month): a synthetic project observed on 35 days in a row.
         let start = clock
         for day in 0..<35 {
             clock = calendar.date(byAdding: .day, value: day, to: start)!
@@ -995,8 +995,8 @@ extension BindingAcceptance {
                 counts: [WorkspaceNodeWordCount(nodeId: "chapter-synthetic", kind: "chapter", wordCount: day)], failures: []), authored: true)
         }
         let kept = harness.settings.dailyWords(projectID: "synthetic-days")
-        let oldest = harness.settings.dayKey(calendar.date(byAdding: .day, value: 5, to: start)!)
-        try require(kept.count == 30 && kept.keys.min() == oldest && kept.values.allSatisfy { $0 == 1 }
+        let oldest = harness.settings.dayKey(calendar.date(byAdding: .day, value: 4, to: start)!)
+        try require(kept.count == 31 && kept.keys.min() == oldest && kept.values.allSatisfy { $0 == 1 }
             && harness.settings.dailyWords(projectID: projectID).isEmpty,
             "Pruning kept \(kept.count) days from \(kept.keys.min() ?? "")")
     }

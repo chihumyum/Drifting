@@ -264,7 +264,7 @@ fn workspace_drift_converts_to_chapter_and_element() {
 
 #[test]
 fn drift_to_element_carries_relations_and_whole_drift_notes() {
-    let mut fixture = Fixture::new();
+    let fixture = Fixture::new();
     let chapter = fixture.chapters[0].clone();
     let db = gateway(fixture.open(0)["handle"].as_u64().unwrap());
     let category = op(

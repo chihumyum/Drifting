@@ -500,6 +500,12 @@ enum Request {
     WorkspaceOpen {
         directory: PathBuf,
     },
+    /// After `workspaceOpen` failed: read the failure, restore the safety
+    /// copy, or name the copy and its folder.
+    WorkspaceRecovery {
+        directory: PathBuf,
+        command: workspace::recovery::RecoveryCommand,
+    },
     WorkspaceProjects {
         handle: u64,
     },
@@ -1452,6 +1458,7 @@ fn dispatch(request: Request) -> Result<Value, String> {
             resolved,
         ),
         Request::WorkspaceOpen { .. }
+        | Request::WorkspaceRecovery { .. }
         | Request::WorkspaceProjects { .. }
         | Request::WorkspaceCreateProject { .. }
         | Request::WorkspaceRenameProject { .. }

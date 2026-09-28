@@ -121,10 +121,12 @@ row is read with `workspaceProjects`, then `workspaceMetadata` `project` and
 `nodes` (the last edit is the latest `updated_at` of the project and its
 live chapters and drifts, which editor saves stamp) and `workspaceMetrics`
 `counts`; reading writes nothing. 打开 (or a double-click) shows the project
-in the main window; 新建项目… and 重命名… ask for a nonblank name and use the
+in the main window and 项目主页 its [project home](project-home.md); 新建项目… and 重命名… ask for a nonblank name and use the
 workspace commands, and the main window's list, titles and panels follow;
 导出为 Markdown 文件夹… exports that project ([library](library.md)); 删除项目…
 opens the deletion sheet above. Queued or marked input holds every command.
+
+A workspace that does not open shows the [恢复](recovery.md) window instead.
 
 ## 诊断摘要
 

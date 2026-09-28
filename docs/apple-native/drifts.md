@@ -52,18 +52,18 @@ original; restore does not bring them back. No SQLite migration is added.
   `{element, driftId, carried: {relations, skippedRelations, comments}}`:
   creates the element (name and summary from the drift, the category's
   template facts) and copies the drift's full body into it as the author's
-  input. One more original then re-creates each relation touching the drift
-  on the element where the relation type allows an element end (an
-  identical edge counts as carried) and moves notes and TODOs on the whole
-  drift to `element:<id>` (`field.set`). Last the drift is trashed
-  (unbinding markers and acts, purging its relations, so the
-  `skippedRelations` are deleted). Notes anchored in the drift's text, its
+  input. Then, in one transaction, one original re-creates each relation
+  touching the drift on the element where the relation type allows an
+  element end (an identical edge counts as carried) and moves notes and TODOs
+  on the whole drift to `element:<id>` (`field.set`), and the drift is
+  trashed (unbinding markers and acts, purging its relations, so the
+  `skippedRelations` are deleted); a failure writes neither. Notes anchored in the drift's text, its
   version history, 情节规划格 and patch sources stay with the trashed drift
   and come back when it is restored. An element name or alias conflict is
   refused before anything is written. Every failure after the element exists
-  starts with “设定「名称」已创建”: `，但灵感正文未能复制：…`,
-  `并复制了正文，但关系和批注未能转移：…` or `并复制了正文，但灵感未能移入回收站：…`;
-  only the last comes after Rust released the drift's open body.
+  starts with “设定「名称」已创建”: `，但灵感正文未能复制：…` or
+  `并复制了正文，但灵感未能移入回收站（关系和批注没有转移）：…`; only the last
+  comes after Rust released the drift's open body.
 
 ## Native interaction
 

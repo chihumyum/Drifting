@@ -163,6 +163,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private lazy var printing = MacPrintCoordinator(workspace: workspace)
     /// Keeps the menu's key equivalents on 设置 › 快捷键.
     private var shortcuts: MacShortcutApplier?
+    /// Opens the workspace, or shows 恢复 instead when it does not open.
+    private lazy var recovery = DatabaseRecoveryCoordinator(workspace: workspace)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -176,9 +178,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         window.delegate = self
         window.isReleasedWhenClosed = false
         buildWorkspace()
-        reloadProjects()
         window.center()
-        window.makeKeyAndOrderFront(nil)
+        // The window shows once the workspace opens; until then, and while
+        // 恢复 shows instead, nothing opens or writes.
+        recovery.onRecovering = { [weak self] in self?.enterRecovery() }
+        recovery.onRecovered = { [weak self] projects in self?.adoptProjects(projects) }
+        reloadProjects()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -219,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             .plotPlanner: .init(#selector(togglePlotPlanner), self),
             .trash: .init(#selector(showTrashMenu), self),
             .diagnostics: .init(#selector(showDiagnostics), self),
+            .projectHome: .init(#selector(showProjectHomeMenu), self),
         ]
         let menu = MacMainMenu.build(actions)
         agentMenuItem = MacMainMenu.item(.agent, in: menu)
@@ -351,6 +357,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         chapterWorkspace.copilot = { [weak self] projectID in self?.copilot(for: projectID) }
         NotificationCenter.default.addObserver(self, selector: #selector(copilotSettingsChanged), name: LabSettingsStore.copilotDidChange,
                                                object: settingsStore)
+        // 项目主页 tabs read the plan, 今日字数 and 最近; opened pages join 最近.
+        chapterWorkspace.homeSettings = settingsStore
+        chapterWorkspace.onEditProjectProfile = { [weak self] project in self?.presentProjectProfile(for: project) }
         chapterWorkspace.onPurged = { [weak self] projectID, _ in
             // Notes and TODOs written on purged content went with it.
             self?.reviewModels[projectID]?.load()
@@ -508,6 +517,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             let row = projectTable.clickedRow
             guard projects.indices.contains(row) else { return }
             let project = projects[row]
+            menu.addItem(LibraryMenuItem(title: "项目主页", identifier: "project-menu-home") { [weak self] in
+                self?.openHome(fromList: project)
+            })
             menu.addItem(LibraryMenuItem(title: "项目书架…", identifier: "project-menu-shelf") { [weak self] in self?.showShelf() })
             menu.addItem(LibraryMenuItem(title: "回收站…", identifier: "project-menu-trash") { [weak self] in
                 self?.showTrash(for: project)
@@ -788,7 +800,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     /// 项目资料: a sheet over the window; each part saves as it is edited.
     @objc private func showProjectProfile() {
-        guard !loading, profileSheet == nil, let project = currentProject ?? selectedProject else { return }
+        guard let project = currentProject ?? selectedProject else { return }
+        presentProjectProfile(for: project)
+    }
+
+    /// 项目资料 of a given project, e.g. from its 项目主页's 编辑资料….
+    private func presentProjectProfile(for project: WorkspaceProject) {
+        guard !loading, profileSheet == nil else { return }
         let name = projects.first { $0.id == project.id }?.name ?? project.name
         let profile = ProjectProfileModel(workspace: workspace, projectID: project.id)
         if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { profile.applyWordCounts(counts) }
@@ -800,6 +818,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.profileStats?.popover.close(); self?.profileStats = nil
             self?.profileSheet = nil
             self?.status.stringValue = "项目资料已保存"
+            // 项目主页 shows the summary.
+            self?.chapterWorkspace.projectDetailsChanged(projectID: project.id)
         }
         sheet.begin(in: window)
     }
@@ -913,23 +933,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         return true
     }
 
+    /// Lists the projects, opening the workspace first when needed. When it
+    /// does not open, 恢复 shows instead of the window.
     private func reloadProjects() {
         setLoading(true)
-        workspace.projects { [weak self] result in
+        recovery.open { [weak self] result in
             guard let self else { return }
             self.setLoading(false)
             switch result {
-            case .success(let projects):
-                self.projects = projects
-                self.projectTable.reloadData()
-                self.projectEmpty.isHidden = !projects.isEmpty
-                // A chosen font that could not be used says so once at launch.
-                self.status.stringValue = self.settingsStore.fontFallback ?? "选择项目，或新建一个项目。"
-                // No project is chosen yet: the 项目书架 offers them all.
-                if self.selectedProject == nil { self.showShelf() }
-            case .failure(let error): self.status.stringValue = error.localizedDescription
+            case .success(let projects): self.adoptProjects(projects)
+            case .failure(let error):
+                guard !self.recovery.isRecovering else { return }
+                self.showWorkspaceWindow()
+                self.status.stringValue = error.localizedDescription
             }
         }
+    }
+
+    private func adoptProjects(_ projects: [WorkspaceProject]) {
+        self.projects = projects
+        projectTable.reloadData()
+        projectEmpty.isHidden = !projects.isEmpty
+        // A chosen font that could not be used says so once at launch.
+        status.stringValue = settingsStore.fontFallback ?? "选择项目，或新建一个项目。"
+        showWorkspaceWindow()
+        // No project is chosen yet: the 项目书架 offers them all.
+        if selectedProject == nil { showShelf() }
+    }
+
+    private func showWorkspaceWindow() {
+        guard !window.isVisible else { return }
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// 恢复 shows instead of the workspace: nothing of it stays on screen.
+    private func enterRecovery() {
+        shelf?.close()
+        diagnostics?.close()
+        window.orderOut(nil)
     }
 
     private func selectProject(_ project: WorkspaceProject, message: String? = nil) {
@@ -1006,9 +1047,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func activeChapterChanged() {
-        emptyEditor.isHidden = documentView != nil
+        emptyEditor.isHidden = documentView != nil || chapterWorkspace.activeHome != nil
         updateCurrentTitle()
-        if documentView == nil { currentTitle.stringValue = "开始写作"; window.title = "Drifting Native Lab" }
+        if documentView == nil && chapterWorkspace.activeHome == nil {
+            currentTitle.stringValue = "开始写作"; window.title = "Drifting Native Lab"
+        }
         updatingSelection = true
         if !showingTrash, currentProject?.id == selectedProject?.id, let chapter = currentChapter,
            let index = chapters.firstIndex(where: { $0.id == chapter.id }) {
@@ -1956,6 +1999,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        // While 恢复 shows, only 设置 and 退出 act.
+        if recovery.isRecovering, item.target === self, item.action != #selector(showSettings) { return false }
         if item.action == #selector(togglePlotPlanner) {
             item.state = chapterWorkspace.isActivePlotPlannerShown ? .on : .off
             return chapterWorkspace.canTogglePlotPlanner
@@ -2395,6 +2440,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         shelf = controller
         controller.canAct = { [weak self] in self?.loading == false && self?.chapterWorkspace.canNavigate == true }
         controller.onOpen = { [weak self] project in self?.openFromShelf(project) }
+        controller.onOpenHome = { [weak self] project in
+            self?.openFromShelf(project)
+            if self?.shelf == nil { self?.openHome(project) }
+        }
         controller.onCreated = { [weak self] project in
             guard let self else { return }
             if !self.projects.contains(where: { $0.id == project.id }) { self.projects.append(project) }
@@ -2432,6 +2481,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         updatingSelection = false
         selectProject(projects[index])
+    }
+
+    // MARK: 项目主页
+
+    /// 视图 › 项目主页: the shown project's overview page as a tab.
+    @objc private func showProjectHomeMenu() {
+        guard let project = currentProject ?? selectedProject else { status.stringValue = "请先选择一个项目。"; return }
+        openHome(namedProject(project))
+    }
+
+    /// The project list's 项目主页: the row's project is shown and its page opens.
+    private func openHome(fromList project: WorkspaceProject) {
+        guard canLeaveDocument() else { return }
+        if selectedProject?.id != project.id, let index = projects.firstIndex(where: { $0.id == project.id }) {
+            updatingSelection = true
+            projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            updatingSelection = false
+            selectProject(projects[index])
+        }
+        openHome(project)
+    }
+
+    /// One 项目主页 per project, reused when open.
+    private func openHome(_ project: WorkspaceProject) {
+        guard canLeaveDocument() else { return }
+        window.makeKeyAndOrderFront(nil)
+        guard chapterWorkspace.openHome(project: namedProject(project)) != nil else { return }
+        status.stringValue = "项目主页"
     }
 
     // MARK: 导出为 Markdown 文件夹
@@ -2801,6 +2878,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         } else if let category = chapterWorkspace.activeCategory {
             currentTitle.stringValue = "\(project.name) / 分类 · \(category.name)"
             window.title = "\(category.name) — Drifting Native Lab"
+        } else if let home = chapterWorkspace.activeHome {
+            currentTitle.stringValue = "\(home.name) / 项目主页"
+            window.title = "\(home.name) · 项目主页 — Drifting Native Lab"
         }
     }
 
@@ -3064,7 +3144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         closeWholeBook()
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if workspaceClosed { return .terminateNow }
+        // Nothing opened while 恢复 shows.
+        if workspaceClosed || recovery.isRecovering { return .terminateNow }
         guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { return .terminateCancel }
         closeWorkspace { success in sender.reply(toApplicationShouldTerminate: success) }
         return .terminateLater

@@ -92,6 +92,16 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             plotDock?.canvas.commitEditing()
         }
     }
+    /// 项目主页: a page without a body, one per project.
+    private final class HomeTab {
+        var project: WorkspaceProject
+        let model: ProjectHomeModel
+        let page: MacProjectHomeView
+        init(project: WorkspaceProject, model: ProjectHomeModel) {
+            self.project = project; self.model = model
+            page = MacProjectHomeView(model: model)
+        }
+    }
     private final class Pane {
         let root = NSView()
         let tabsBar = NSStackView()
@@ -103,7 +113,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let copilotLabel = NSTextField(labelWithString: "")
         var tabs: [Tab] = []
         var selected: DocumentScope?
-        var active: Tab? { tabs.first { $0.scope == selected } }
+        /// 项目主页 tabs, shown before the body tabs.
+        var homes: [HomeTab] = []
+        /// The project whose 项目主页 is shown instead of `selected`.
+        var shownHome: String?
+        var home: HomeTab? { homes.first { $0.project.id == shownHome } }
+        /// The body tab shown; nil while a 项目主页 is.
+        var active: Tab? { shownHome == nil ? tabs.first { $0.scope == selected } : nil }
+        var content: NSView? { home?.page ?? active?.content }
     }
 
     private let workspace: LabWorkspaceCore
@@ -236,7 +253,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     var activeCategoryPage: MacCategoryPageView? { panes[activePane].active?.categoryPage }
     /// The active view only when it shows a chapter; comments bind to this.
     var activeChapterView: NativeDocumentView? { activeChapter == nil ? nil : activeView }
-    var activeProject: WorkspaceProject? { panes[activePane].active?.project }
+    var activeProject: WorkspaceProject? { panes[activePane].active?.project ?? panes[activePane].home?.project }
+    /// The project whose 项目主页 the active pane shows.
+    var activeHome: WorkspaceProject? { panes[activePane].home?.project }
     /// No body input in flight and no 情节规划格 gesture queued or sent.
     var canNavigate: Bool { canNavigateAfterPlotGrids && !plotGridsWriting() }
     /// Everything `canNavigate` asks except 情节规划格 gestures: closing,
@@ -356,6 +375,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     func tabTitles(pane: Int) -> [String] {
         panes.indices.contains(pane) ? panes[pane].tabs.map(\.title) : []
     }
+    /// The projects whose 项目主页 the pane has as tabs, in display order.
+    func homeProjects(pane: Int) -> [WorkspaceProject] {
+        panes.indices.contains(pane) ? panes[pane].homes.map(\.project) : []
+    }
 
     func activate(pane: Int) {
         guard panes.indices.contains(pane), !isBusy, !externallyLocked else { return }
@@ -424,6 +447,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             case .success(let core):
                 let (tab, isNew) = self.install(core, project: project, target: target, in: index)
                 self.setBusy(false)
+                self.recordRecent(tab.target, projectID: project.id)
                 self.onChange?()
                 self.focusWhenReady()
                 if isNew { self.prepare(tab) }
@@ -456,6 +480,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             connect(tab, pane: index)
         }
         panes[index].selected = scope
+        panes[index].shownHome = nil
         activePane = index
         showSelected(in: index)
         pendingFocus = tab.view
@@ -763,6 +788,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 for pane in self.panes {
                     for tab in pane.tabs { self.disconnect(tab) }
                     pane.tabs.removeAll(); pane.selected = nil
+                    pane.homes.forEach { $0.page.removeFromSuperview() }
+                    pane.homes.removeAll(); pane.shownHome = nil
                 }
             }
             self.setBusy(false); self.onChange?(); completion(result)
@@ -771,6 +798,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     func rename(project: WorkspaceProject) {
         for tab in allTabs where tab.project.id == project.id { tab.project = project }
+        for home in homes(projectID: project.id) { home.project = project; home.model.rename(project.name) }
         refreshTabs(); onChange?()
     }
     func rename(chapter: WorkspaceChapter, projectID: String) {
@@ -818,6 +846,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         for tab in allTabs where tab.project.id == projectID && tab.nodeID == metadata.id {
             tab.metadataEditor?.show(metadata)
         }
+        for home in homes(projectID: projectID) { home.model.applyNodeMetadata(metadata) }
     }
 
     /// Writes a chapter's or drift's status from a panel, the outline or the
@@ -892,6 +921,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Every open chapter and drift page of the project shows its count.
     private func applyWordCounts(projectID: String, library: WordCountLibrary) {
         for tab in allTabs where tab.project.id == projectID { showWordCount(of: tab) }
+        for home in homes(projectID: projectID) { home.model.applyWordCounts(library) }
         onWordCounts?(projectID, library)
     }
 
@@ -929,6 +959,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         storylineLibraries[projectID] = library
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         onTrash?(projectID, .storylines(library))
+        for home in homes(projectID: projectID) { home.model.applyStorylines(library) }
         for tab in allTabs where tab.project.id == projectID {
             guard let storyline = tab.storyline, let page = tab.storylinePage else { continue }
             if let stored = library.storyline(id: storyline.id) {
@@ -982,6 +1013,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         let lost = lostIDs(linkSources[projectID]?.drifts?.drifts.map(\.id), library.drifts.map(\.id))
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         onTrash?(projectID, .drifts(library))
+        for home in homes(projectID: projectID) { home.model.applyDrifts(library) }
         // A created, trashed or restored drift changes the counted nodes.
         if linkSources[projectID]?.drifts?.drifts.map(\.id) != library.drifts.map(\.id) {
             wordCountModels[projectID]?.scheduleRefresh()
@@ -1084,6 +1116,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                            library.elements.map(\.id) + library.categories.map(\.id))
         defer { relationSourcesChanged(projectID: projectID, lost: lost) }
         onTrash?(projectID, .elements(library))
+        for home in homes(projectID: projectID) { home.model.applyElements(library) }
         elementCategories[projectID] = library.categories
         // Rust retired the body of a trashed category; its tabs go without
         // closing the owner again.
@@ -1596,6 +1629,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             plotPlannerSession.removeValue(forKey: key)
             plotPlannerSettings?.forgetPlotPlanner(projectID: projectID, nodeID: purged.id)
         }
+        // Purged pages leave 最近 for good; trashed ones only hide.
+        homeSettings?.forgetRecentPages(ids: Set(reply.purged.map(\.id)), projectID: projectID)
         relations.reload(projectID: projectID)
         // An element's patches went with it; patch sources may name a purged chapter.
         patches.reload(projectID: projectID)
@@ -1816,7 +1851,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private struct TabPlace { let pane: Int; let index: Int; let selected: Bool }
     private func places(of scope: DocumentScope) -> [TabPlace] {
         panes.indices.compactMap { index in
-            panes[index].tabs.firstIndex { $0.scope == scope }.map { TabPlace(pane: index, index: $0, selected: panes[index].selected == scope) }
+            panes[index].tabs.firstIndex { $0.scope == scope }.map {
+                TabPlace(pane: index, index: $0, selected: panes[index].selected == scope && panes[index].shownHome == nil)
+            }
         }
     }
 
@@ -1994,7 +2031,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             var created: [Tab] = []
             for place in places where self.panes.indices.contains(place.pane) {
                 let pane = self.panes[place.pane]
-                let previous = pane.selected
+                let previous = pane.selected, previousHome = pane.shownHome
                 let (tab, isNew) = self.install(core, project: project, target: target, in: place.pane)
                 if isNew { created.append(tab) }
                 if let from = pane.tabs.firstIndex(where: { $0 === tab }) {
@@ -2003,6 +2040,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 }
                 if !place.selected, let previous, pane.tabs.contains(where: { $0.scope == previous }) {
                     pane.selected = previous
+                    self.showSelected(in: place.pane)
+                }
+                if !place.selected, let previousHome, pane.homes.contains(where: { $0.project.id == previousHome }) {
+                    pane.shownHome = previousHome
                     self.showSelected(in: place.pane)
                 }
             }
@@ -2017,12 +2058,113 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         }
     }
 
+    // MARK: 项目主页
+
+    /// Where 项目主页 reads the 写作计划, 今日字数 and 最近, and where opened
+    /// pages are remembered for 最近; nil offers no 项目主页 and remembers nothing.
+    var homeSettings: LabSettingsStore?
+    /// 编辑资料… on a 项目主页.
+    var onEditProjectProfile: ((WorkspaceProject) -> Void)?
+
+    private func homes(projectID: String) -> [HomeTab] { panes.flatMap(\.homes).filter { $0.project.id == projectID } }
+
+    /// The project's 项目主页 page, if a pane has one.
+    func homePage(projectID: String) -> MacProjectHomeView? { homes(projectID: projectID).first?.page }
+
+    /// Opens the project's 项目主页: the one already open (in either pane)
+    /// is shown and read again; otherwise a new tab in `pane` or the active
+    /// pane. One per project.
+    @discardableResult
+    func openHome(project: WorkspaceProject, in pane: Int? = nil) -> MacProjectHomeView? {
+        guard let settings = homeSettings else { onError?(LabError.message("项目主页暂不可用。")); return nil }
+        guard canNavigate else { onError?(blocked()); return nil }
+        let index: Int
+        let home: HomeTab
+        if let existing = panes.indices.first(where: { panes[$0].homes.contains { $0.project.id == project.id } }),
+           let open = panes[existing].homes.first(where: { $0.project.id == project.id }) {
+            index = existing; home = open
+            home.project = project
+        } else {
+            index = pane.map { panes.indices.contains($0) ? $0 : activePane } ?? activePane
+            let model = ProjectHomeModel(workspace: workspace, settings: settings, project: project)
+            home = HomeTab(project: project, model: model)
+            connect(home)
+            panes[index].homes.append(home)
+        }
+        // Leaving a body tab saves its header edit, as switching tabs does.
+        panes[index].active?.endEditing()
+        panes[index].shownHome = project.id
+        activePane = index
+        showSelected(in: index)
+        // The keyboard leaves the body the page replaced.
+        window?.makeFirstResponder(nil)
+        // Counts come from the host's model; everything else is read now.
+        if let counts = wordCounts(projectID: project.id).library { home.model.applyWordCounts(counts) }
+        home.model.load()
+        onChange?()
+        return home.page
+    }
+
+    /// Closes a 项目主页; the pane shows its selected body tab again.
+    func closeHome(projectID: String, pane index: Int) {
+        guard panes.indices.contains(index), let home = panes[index].homes.first(where: { $0.project.id == projectID }) else { return }
+        panes[index].homes.removeAll { $0 === home }
+        home.page.removeFromSuperview()
+        if panes[index].shownHome == projectID { panes[index].shownHome = nil }
+        showSelected(in: index)
+        if index == activePane { pendingFocus = activeView; focusWhenReady() }
+        onChange?()
+    }
+
+    /// 项目资料 was saved: open 项目主页 read the summary again.
+    func projectDetailsChanged(projectID: String) {
+        for home in homes(projectID: projectID) { home.model.reloadDetails() }
+    }
+
+    private func connect(_ home: HomeTab) {
+        home.model.isShown = { [weak self, weak home] in
+            guard let self, let home else { return false }
+            return self.panes.contains { $0.home === home }
+        }
+        home.page.onEditProfile = { [weak self, weak home] in
+            guard let self, let home else { return }
+            self.onEditProjectProfile?(home.project)
+        }
+        let open: (WorkspaceTabTarget) -> Void = { [weak self, weak home] target in
+            guard let self, let home else { return }
+            let index = self.panes.firstIndex { $0.homes.contains { $0 === home } } ?? self.activePane
+            self.open(project: home.project, target: target, in: index) { [weak self] result in
+                if case .failure(let error) = result { self?.onError?(error) }
+            }
+        }
+        home.page.onOpenChapter = { open(.chapter($0)) }
+        home.page.onOpenCategory = { open(.category($0)) }
+        home.page.onOpenRecent = { open($0.target) }
+    }
+
+    /// Every page opened in a tab joins the project's 最近.
+    private func recordRecent(_ target: WorkspaceTabTarget, projectID: String) {
+        let page: RecentPage
+        switch target {
+        case .chapter(let chapter): page = RecentPage(kind: .chapter, id: chapter.id)
+        case .drift(let drift): page = RecentPage(kind: .drift, id: drift.id)
+        case .element(let element): page = RecentPage(kind: .element, id: element.id)
+        case .category(let category): page = RecentPage(kind: .category, id: category.id)
+        case .storyline(let storyline): page = RecentPage(kind: .storyline, id: storyline.id)
+        }
+        homeSettings?.recordRecentPage(page, projectID: projectID)
+    }
+
     // MARK: Project deletion
 
     /// Closes every tab of the project in both panes, one at a time, saving
     /// each as closing a tab does. The first tab that cannot close stops it
     /// with the reason; tabs already closed stay closed.
     func closeTabs(projectID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        // A 项目主页 holds no body: it closes at once.
+        for index in panes.indices where panes[index].homes.contains(where: { $0.project.id == projectID }) {
+            closeHome(projectID: projectID, pane: index)
+        }
         guard let (index, tab) = panes.enumerated().lazy.compactMap({ entry in
             entry.element.tabs.first { $0.project.id == projectID }.map { (entry.offset, $0) }
         }).first else {
@@ -2039,7 +2181,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     }
 
     /// Whether any tab shows a page of the project.
-    func hasTabs(projectID: String) -> Bool { allTabs.contains { $0.project.id == projectID } }
+    func hasTabs(projectID: String) -> Bool {
+        allTabs.contains { $0.project.id == projectID } || !homes(projectID: projectID).isEmpty
+    }
 
     /// Drops everything read for a deleted project.
     func forget(projectID: String) {
@@ -2091,6 +2235,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // A created, trashed or restored chapter changes the book total.
         if previous?.map(\.id) != chapters.map(\.id) { wordCountModels[projectID]?.scheduleRefresh() }
         linkSources[projectID, default: LinkSources()].chapters = chapters
+        for home in homes(projectID: projectID) { home.model.applyChapters(chapters) }
         if let trashed {
             linkSources[projectID]?.trashedChapters = trashed
             onTrash?(projectID, .chapters(live: chapters, trashed: trashed))
@@ -2726,7 +2871,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func removeSecondPane() {
         guard panes.count == 2 else { return }
         needsInitialSplitLayout = false
-        panes.removeLast().root.removeFromSuperview()
+        let removed = panes.removeLast()
+        removed.homes.forEach { $0.page.removeFromSuperview() }
+        removed.homes.removeAll()
+        removed.root.removeFromSuperview()
         activePane = 0; pendingFocus = activeView
         splitView.adjustSubviews(); refreshTabs(); focusWhenReady(); onChange?()
     }
@@ -2743,7 +2891,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     private func showSelected(in index: Int) {
         let pane = panes[index]
         // Leaving a page saves its header edit before the view is hidden.
-        for child in pane.body.subviews where child !== pane.active?.content {
+        for child in pane.body.subviews where child !== pane.content {
             (child as? MacElementPageView)?.endEditing()
             (child as? MacStorylinePageView)?.endEditing()
             (child as? MacDriftPageView)?.endEditing()
@@ -2751,7 +2899,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             (child as? MacCategoryPageView)?.endEditing()
         }
         for child in pane.body.subviews { child.removeFromSuperview() }
-        if let view = pane.active?.content {
+        if let view = pane.content {
             view.translatesAutoresizingMaskIntoConstraints = false; pane.body.addSubview(view)
             NSLayoutConstraint.activate([
                 view.leadingAnchor.constraint(equalTo: pane.body.leadingAnchor), view.trailingAnchor.constraint(equalTo: pane.body.trailingAnchor),
@@ -2781,6 +2929,21 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             pane.copilotLabel.stringValue = copilotText
             pane.copilotLabel.isHidden = copilotText.isEmpty
             for child in pane.tabsBar.arrangedSubviews { pane.tabsBar.removeArrangedSubview(child); child.removeFromSuperview() }
+            for home in pane.homes {
+                let projectID = home.project.id
+                let select = ChapterTabButton(title: "项目主页 · \(home.project.name)") { [weak self] in
+                    self?.openHome(project: home.project, in: index)
+                }
+                select.setAccessibilityIdentifier("home-tab-\(projectID)")
+                select.state = pane.shownHome == projectID ? .on : .off
+                select.contentTintColor = pane.shownHome == projectID ? MacEditorPreferences.accentColor : nil
+                select.isEnabled = canNavigate
+                let close = ChapterTabButton(title: "×") { [weak self] in self?.closeHome(projectID: projectID, pane: index) }
+                close.setAccessibilityIdentifier("close-home-tab-\(projectID)")
+                close.setAccessibilityLabel("关闭 项目主页 · \(home.project.name)")
+                close.isEnabled = canNavigate
+                pane.tabsBar.addArrangedSubview(NSStackView(views: [select, close]))
+            }
             for tab in pane.tabs {
                 let kind = tab.element != nil ? "element" : tab.storyline != nil ? "storyline" : tab.drift != nil ? "drift"
                     : tab.category != nil ? "category" : "chapter"

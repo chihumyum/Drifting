@@ -27,6 +27,8 @@ pub(super) mod metrics;
 pub(super) mod patches;
 #[path = "workspace_plot_grid.rs"]
 pub(super) mod plot_grid;
+#[path = "workspace_recovery.rs"]
+pub(super) mod recovery;
 #[path = "workspace_relations.rs"]
 pub(super) mod relations;
 #[path = "workspace_remote_prose.rs"]
@@ -47,6 +49,17 @@ mod trash;
 const WORKSPACE_DATABASE: &str = "apple-native-workspace.db";
 pub(super) const WORKSPACE_USER: &str = "local-user";
 static WORKSPACES: OnceLock<Mutex<HashMap<u64, WorkspaceSession>>> = OnceLock::new();
+/// The gateway whose open stopped for recovery, by lab directory. It holds
+/// the lease that restoring the safety copy requires.
+static RECOVERIES: OnceLock<Mutex<HashMap<PathBuf, DatabaseGateway>>> = OnceLock::new();
+
+fn recoveries() -> Result<std::sync::MutexGuard<'static, HashMap<PathBuf, DatabaseGateway>>, String>
+{
+    RECOVERIES
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Workspace recovery registry is unavailable".into())
+}
 
 struct WorkspaceSession {
     directory: PathBuf,
@@ -252,6 +265,7 @@ pub(super) fn dispatch(
             | Request::WorkspaceTimeline { .. }
             | Request::WorkspaceHistory { .. }
             | Request::WorkspaceClose { .. }
+            | Request::WorkspaceRecovery { .. }
     ) {
         return Ok(None);
     }
@@ -270,7 +284,13 @@ pub(super) fn dispatch(
                 return Err("This workspace already has a live owner".into());
             }
             let gateway = DatabaseGateway::new(directory.clone())?;
-            gateway.open(WORKSPACE_DATABASE.into(), CLIENT.into(), false)?;
+            if let Err(error) = gateway.open(WORKSPACE_DATABASE.into(), CLIENT.into(), false) {
+                if error.starts_with("database-recovery:") {
+                    recoveries()?.insert(directory.clone(), gateway);
+                }
+                return Err(error);
+            }
+            recoveries()?.remove(&directory);
             let projects = WorkspaceStore::new(&gateway, CLIENT).list_projects(WORKSPACE_USER)?;
             let installation_id = identifier("installation")?;
             // Interrupted imports and deletions of earlier sessions converge.
@@ -296,6 +316,17 @@ pub(super) fn dispatch(
                 },
             );
             json!({"handle":handle,"projects":projects})
+        }
+        Request::WorkspaceRecovery { directory, command } => {
+            validate_directory(directory)?;
+            let directory = directory.canonicalize().map_err(|e| e.to_string())?;
+            if workspaces
+                .values()
+                .any(|session| session.directory == directory)
+            {
+                return Err("This workspace already has a live owner".into());
+            }
+            recovery::recover(&directory, command)?
         }
         Request::WorkspaceProjects { handle } => {
             let workspace = workspaces
