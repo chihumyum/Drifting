@@ -2662,7 +2662,9 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// when the step's own guard refuses.
     static var navigationWait: TimeInterval = 5
 
-    private func whenNavigable(ignoringPlotGrids: Bool, _ body: @escaping () -> Void) {
+    /// Runs `body` once navigation is possible, or after `navigationWait`
+    /// in any case (the caller checks again).
+    func whenNavigable(ignoringPlotGrids: Bool, _ body: @escaping () -> Void) {
         let deadline = Date().addingTimeInterval(Self.navigationWait)
         func check() {
             if (ignoringPlotGrids ? canNavigateAfterPlotGrids : canNavigate) || Date() >= deadline { body(); return }

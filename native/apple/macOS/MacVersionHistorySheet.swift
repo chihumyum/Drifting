@@ -9,7 +9,8 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
     let model: VersionHistoryModel
     let window: NSWindow
     let table = NSTableView()
-    let previewView = NSTextView()
+    /// Draws list markers as the editor does.
+    let previewView = ListMarkerTextView()
     let diffCheckbox = NSButton(checkboxWithTitle: "标出与当前正文的差异", target: nil, action: nil)
     let legend = NSTextField(wrappingLabelWithString: "")
     let message = NSTextField(wrappingLabelWithString: "")
@@ -265,6 +266,9 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
                 var attributes = styled.length == 0 ? DocumentStyle.bodyAttributes
                     : styled.attributes(at: min(cursor, styled.length - 1), effectiveRange: nil)
                 attributes[.underlineStyle] = nil
+                // Removed text is not a list item's first character.
+                attributes[DocumentStyle.listMarkerKey] = nil
+                attributes[DocumentStyle.trailingListMarkerKey] = nil
                 attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
                 attributes[.strikethroughColor] = NSColor.systemRed
                 attributes[.foregroundColor] = NSColor.secondaryLabelColor

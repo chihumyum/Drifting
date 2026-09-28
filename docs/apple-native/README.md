@@ -129,7 +129,10 @@ other side and merge the panes, ⌥⌘←/⌥⌘→, ⌘W, drag to reorder, 后�
 ⌘[ ⌘], and each project's tabs saved and restored when it opens, the last
 project at launch), formatting (bold, italic, underline,
 strike, headings, alignment, Tab indent and URL links from the 格式 menu, the
-toolbar and the context menu), a slash menu, find in the editor (⌘F, no
+toolbar and the context menu), quotes and bulleted and numbered lists (also
+typed as “> ”, “- ” or “1. ”, ended by Return on an empty last item or ⌫ at
+the start, drawn with markers in every editor, the 全书长卷, the 历史版本
+preview and print), a slash menu, find in the editor (⌘F, no
 replace), an @ picker that inserts and links names, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
 words against the daily goal, one 回收站 per project with 彻底删除, hover cards

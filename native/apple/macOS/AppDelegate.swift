@@ -375,8 +375,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // 项目主页 tabs read the plan, 今日字数 and 最近; opened pages join 最近.
         chapterWorkspace.homeSettings = settingsStore
         chapterWorkspace.onEditProjectProfile = { [weak self] project in self?.presentProjectProfile(for: project) }
-        // Tabs are saved per project as they change, from the first one on.
-        _ = tabSession
+        // Tabs are saved per project as they change, from the first one on;
+        // a restore tried again once navigation is possible reports here.
+        tabSession.onError = { [weak self] error in self?.status.stringValue = error.localizedDescription }
         chapterWorkspace.onPurged = { [weak self] projectID, _ in
             // Notes and TODOs written on purged content went with it.
             self?.reviewModels[projectID]?.load()

@@ -110,7 +110,10 @@ interoperability is kept.
   for [格式](formatting.md) ⌘U 下划线, ⌘K 链接… and the macOS ⌘{ ⌘| ⌘} for
   左对齐, 居中 and 右对齐, pressed and shown with ⇧ (⇧⌘{). 故事图谱 is ⌃⌘G, so
   ⇧⌘G finds as in every Mac app. 删除线, 正文, 标题 1–3, 增加缩进, 减少缩进 and
-  移除链接 start without one: indent is Tab and ⇧Tab in the prose. For
+  移除链接 start without one: indent is Tab and ⇧Tab in the prose. 引用, 无序列表
+  and 有序列表 start without one too, since Mac apps disagree (Notes' ⇧⌘7 is a
+  bulleted list, the renderer's a numbered one, and the renderer's quote key
+  ⇧⌘B is the 全书长卷 here); typing “> ”, “- ” or “1. ” starts them. For
   [tabs](tabs-and-split.md) 视图 has ⌘[ 后退, ⌘] 前进, ⌥⌘← 上一个标签 and ⌥⌘→
   下一个标签, and 文件 › 关闭标签 is ⌘W. Clicking a shortcut records the next key press, which the
   menus do not see; Esc cancels and ⌫ removes it. A combination the system

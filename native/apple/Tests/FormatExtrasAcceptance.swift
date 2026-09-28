@@ -24,6 +24,8 @@ extension BindingAcceptance {
         try stalePickerRanges()
         try createdNameKeepsCaret()
         try deferredBlockFormats()
+        try typingKeepsDeferredFormats()
+        try mentionTypoCorrection()
         return [
             "AppKit 格式 下划线 (⌘U), 删除线, 左对齐/居中/右对齐 (⌘{ ⌘| ⌘}) and 增加缩进/减少缩进 through the menu, their keys, the toolbar and the prose context menu's 格式 submenu, with checkmarks for the selection's marks and alignment, as one undo unit each; an unchanged alignment writes nothing, marked text disables them, and both panes of the chapter restyle",
             "AppKit Tab and ⇧Tab indent the caret's paragraph or every selected paragraph without inserting a tab, up to eight levels, also when pressed while typed text is still on its way; the editors draw underline, strike, paragraph alignment and a whole-block shift of two em per level that keeps the first-line indent, and all of it survives a cold reopen",
@@ -32,12 +34,14 @@ extension BindingAcceptance {
             "AppKit ⌘F shows the editor's find bar with incremental search highlighting every match and no 替换, ⌘E takes the selection as the search text, ⌘G and ⇧⌘G (查找下一个, 查找上一个) select the next and previous match without writing, and a 全书长卷 row offers no find",
             "AppKit @ picker lists element names, aliases and chapter titles but not the body's own, filters as typed, and Return inserts the chosen name through the input path where the link pass links it to its element or chapter; Esc leaves the text, and ＋ 新建设定「…」 creates the element in the chosen category, inserts and links it",
             "AppKit 打印 of a page sets its paragraph alignment, block indent, underline and URL links from the live projection, and the printed PDF centres and shifts those lines",
-            pickerProseCase, stalePickerCase, deferredFormatCase,
+            pickerProseCase, stalePickerCase, deferredFormatCase, typingKeepsDeferralCase, pickerTypoCase,
         ]
     }
 
     static let pickerProseCase = "AppKit @ picker stays out of ordinary prose: “@” or “＠” after an ASCII letter or digit (an e-mail address) opens nothing, sentence punctuation or a query naming nothing closes it so Return types a new line and ↑ and ↓ move the caret, ＋ 新建设定 rows never keep it open alone and Return takes a name row unless ↑ or ↓ moved to one, and only names the link pass resolves to the row's own target are offered (an element named like a chapter and an alias a drift is titled are left out)"
     static let stalePickerCase = "AppKit an open slash menu or @ picker closes when undo or a writing-assistant change replaces the prose, so Return then types a new line and edits nothing else; ＋ 新建设定 inserts the created name without moving a caret the author typed on or a selection made elsewhere meanwhile"
+    static let typingKeepsDeferralCase = "AppKit typing straight after choosing a slash row or pressing Tab, while the removed “/query” or the typed text is still queued, keeps the waiting heading or indent for its block, also when an input method's marked text starts the typing, while a new line still drops it"
+    static let pickerTypoCase = "AppKit ＋ 新建设定 rows alone keep the @ picker open for a short query, so a mistyped name is corrected with ⌫ back to the element's row; a longer query naming nothing leaves the picker inert, hidden and not taking Return, until ⌫ brings rows back, while sentence punctuation, a space and an e-mail address still close or never open it"
     static let deferredFormatCase = "AppKit a slash row or Tab given while typed text is on its way applies once it lands only to the block it was given for, also a paragraph the queued input creates, and is dropped by Return, ↓, a failed save kept after 重试保存 and another pane removing that block"
 
     // MARK: Harness
@@ -364,8 +368,8 @@ extension BindingAcceptance {
         guard let format = context.items.first(where: { $0.title == "格式" })?.submenu else { throw LabError.message("No 格式 submenu") }
         format.update()
         let titles = format.items.filter { !$0.isSeparatorItem }.map(\.title)
-        try require(titles == ["加粗", "斜体", "下划线", "删除线", "正文", "标题 1", "标题 2", "标题 3", "左对齐", "居中", "右对齐",
-                               "增加缩进", "减少缩进", "链接…", "移除链接"], "The 格式 submenu lists \(titles)")
+        try require(titles == ["加粗", "斜体", "下划线", "删除线", "正文", "标题 1", "标题 2", "标题 3", "引用", "无序列表", "有序列表",
+                               "左对齐", "居中", "右对齐", "增加缩进", "减少缩进", "链接…", "移除链接"], "The 格式 submenu lists \(titles)")
         let item = { (title: String) in format.items.first { $0.title == title }! }
         try require(item("下划线").state == .on && item("删除线").state == .on && item("加粗").state == .off
                     && item("左对齐").state == .on && item("正文").state == .on && item("移除链接").isEnabled == false,
@@ -569,7 +573,8 @@ extension BindingAcceptance {
         }
         try typeSlash()
         guard let opened = view.picker, opened.kind == .slash else { throw LabError.message("/ did not open the slash menu") }
-        try require(opened.items.map(\.title) == ["正文", "标题 1", "标题 2", "标题 3", "居中", "右对齐"] && !view.isPickerShown,
+        try require(opened.items.map(\.title) == ["正文", "标题 1", "标题 2", "标题 3", "引用", "无序列表", "有序列表", "居中", "右对齐"]
+                    && !view.isPickerShown,
                     "The slash menu lists \(opened.items.map(\.title))")
         fxType(view, "标")
         try require(view.picker?.items.map(\.title) == ["标题 1", "标题 2", "标题 3"] && view.picker?.query == "标", "Typing did not filter the menu")
@@ -824,7 +829,8 @@ extension BindingAcceptance {
         fxType(view, "雾")
         try require(view.picker?.items.first?.title == "林雾", "雾 did not find 林雾")
         fxType(view, "姐")
-        try require(view.picker == nil, "An alias a drift shadows kept the picker open: \(view.picker?.items.map(\.title) ?? [])")
+        try require(view.picker?.items.isEmpty == true && !view.isPickerActive && !view.isPickerShown,
+                    "An alias a drift shadows offered rows: \(view.picker?.items.map(\.title) ?? [])")
         try fxSettled(host, view)
 
         // Esc leaves the typed text unlinked.
@@ -943,10 +949,12 @@ extension BindingAcceptance {
         fxType(view, "，")
         try require(view.picker == nil, "“，” did not close the picker")
 
-        // ＋ 新建设定 rows alone never keep it open.
+        // ＋ 新建设定 rows alone keep a short query open, but Return takes
+        // one only after ↑ or ↓: here it closes the picker and types a line.
         fxType(view, "去@")
         fxType(view, "码头")
-        try require(view.picker == nil, "Only ＋ 新建设定 rows kept the picker open")
+        try require(view.picker?.items.map(\.title) == ["＋ 新建设定「码头」", "＋ 新建设定「码头」"] && view.picker?.navigated == false,
+                    "码头 lists \(view.picker?.items.map(\.title) ?? [])")
         enter()
         try fxSettled(host, view)
         try require(try text().hasSuffix("去@码头\n") && (try elementNames(page)) == names, "Return created an element from 码头")
@@ -1125,6 +1133,113 @@ extension BindingAcceptance {
         try fxSettled(host, view, twin)
         try require(try read(core).projection.text == "甲段。\n丙段。\n\n" && (try read(core).projection.blocks).allSatisfy { $0.indent == 0 },
                     "Tab landed on another block: \(try read(core).projection.blocks.map(\.indent))")
+        try page.close()
+    }
+
+    /// Typing on at once after a slash row or Tab keeps the waiting command
+    /// (the review of e754a7f7 found it dropped on any text change).
+    private static func typingKeepsDeferredFormats() throws {
+        let page = try page("甲段。")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        func enter() { view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:))) }
+        func last() throws -> NativeBlock { try read(core).projection.blocks.last! }
+        // “/h1”, Return, then a keystroke while “/h1” is still being removed.
+        fxType(view, "\n")
+        try fxSettled(host, view)
+        for piece in ["/", "h", "1"] { fxType(view, piece) }
+        try fxSettled(host, view)
+        try require(view.picker?.items.map(\.title) == ["标题 1"], "/h1 did not open the slash menu")
+        enter()
+        try require(view.deferredFormat != nil && view.binding.store.hasQueuedInput, "标题 1 did not wait for the removal of “/h1”")
+        fxType(view, "港")
+        try require(view.deferredFormat != nil, "Typing dropped the waiting 标题 1")
+        try fxSettled(host, view)
+        try require(try last().kind == "heading" && (try last()).headingLevel == 1 && (try read(core).projection.text) == "甲段。\n港",
+                    "Typing on lost 标题 1: \(try read(core).projection.text.debugDescription)")
+        // An input method's first keystroke is marked text.
+        enter()
+        try fxSettled(host, view)
+        for piece in ["/", "h", "2"] { fxType(view, piece) }
+        try fxSettled(host, view)
+        enter()
+        try require(view.deferredFormat != nil && view.binding.store.hasQueuedInput, "标题 2 did not wait for the removal of “/h2”")
+        let caret = view.textView.selectedRange().location
+        view.textView.setMarkedText("gang", selectedRange: NSRange(location: 4, length: 0), replacementRange: NSRange(location: caret, length: 0))
+        try require(view.deferredFormat != nil && view.textView.hasMarkedText(), "Marked text dropped the waiting 标题 2")
+        view.textView.insertText("岸", replacementRange: NSRange(location: NSNotFound, length: 0))
+        try fxSettled(host, view)
+        try require(try last().kind == "heading" && (try last()).headingLevel == 2 && (try read(core).projection.text).hasSuffix("\n港\n岸"),
+                    "Marked text lost 标题 2: \(try read(core).projection.text.debugDescription)")
+        // Tab while typed text is queued, then typing on at once.
+        let first = try fxRange("甲段", in: view)
+        fxType(view, "橹", at: first.location + 2)
+        view.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        try require(view.deferredFormat != nil, "Tab did not wait for the typed text")
+        fxType(view, "舟", at: first.location + 3)
+        try require(view.deferredFormat != nil, "Typing dropped the waiting Tab")
+        try fxSettled(host, view)
+        try require(try block(core, containing: first.location).indent == 1 && view.textView.string.hasPrefix("甲段橹舟。"),
+                    "Typing on lost the Tab: \(try block(core, containing: first.location).indent)")
+        // A new line still drops it.
+        fxType(view, "帆", at: first.location + 4)
+        view.textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        try require(view.deferredFormat != nil, "Tab did not wait for the typed text")
+        fxType(view, "\n", at: first.location + 5)
+        try require(view.deferredFormat == nil, "A new line kept the waiting Tab")
+        try fxSettled(host, view)
+        try require(try read(core).projection.blocks.allSatisfy { $0.indent <= 1 } && (try block(core, containing: first.location)).indent == 1,
+                    "The dropped Tab indented a block")
+        try page.close()
+    }
+
+    /// A homophone typo in an @ query is corrected with ⌫ (the review of
+    /// e754a7f7 found the picker closed for good on no match).
+    private static func mentionTypoCorrection() throws {
+        let page = try pickerPage("")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let names = try elementNames(page)
+        func enter() { view.textView.doCommand(by: #selector(NSResponder.insertNewline(_:))) }
+        func back() { view.textView.doCommand(by: #selector(NSResponder.deleteBackward(_:))) }
+        func text() throws -> String { try read(core).projection.text }
+        fxType(view, "他去@")
+        fxType(view, "港物")
+        try require(view.picker?.items.map(\.title) == ["＋ 新建设定「港物」", "＋ 新建设定「港物」"] && view.isPickerActive,
+                    "港物 lists \(view.picker?.items.map(\.title) ?? [])")
+        back()
+        try require(view.picker?.items.map(\.title) == ["港务局", "＋ 新建设定「港」", "＋ 新建设定「港」"], "⌫ did not bring 港务局 back")
+        fxType(view, "务")
+        enter()
+        try fxSettled(host, view)
+        try require(try text() == "他去港务局" && (try elementNames(page)) == names, "The corrected name was not inserted: \(try text())")
+        // Eleven units naming nothing: inert, hidden, Return types a line.
+        fxType(view, "，@")
+        fxType(view, "一二三四五六七八九十甲")
+        try require(view.picker != nil && view.picker?.items.isEmpty == true && !view.isPickerActive && !view.isPickerShown,
+                    "A long query naming nothing kept rows: \(view.picker?.items.map(\.title) ?? [])")
+        back()
+        try require(view.picker?.items.count == 2 && view.isPickerActive, "⌫ into ten units did not bring the ＋ rows back")
+        fxType(view, "甲")
+        try require(!view.isPickerActive, "The picker took rows again")
+        enter()
+        try fxSettled(host, view)
+        try require(try text().hasSuffix("，@一二三四五六七八九十甲\n") && view.picker == nil && (try elementNames(page)) == names,
+                    "Return in an inert picker did not type a new line: \(try text().debugDescription)")
+        // Punctuation, a space and an e-mail address.
+        fxType(view, "@")
+        fxType(view, "码头")
+        try require(view.isPickerActive, "码头 did not offer ＋ rows")
+        fxType(view, "。")
+        try require(view.picker == nil, "“。” did not close the picker")
+        fxType(view, "@")
+        fxType(view, "码头")
+        fxType(view, " ")
+        try require(view.picker == nil, "A space did not close the picker")
+        fxType(view, "kai@")
+        try require(view.picker == nil, "An e-mail address opened the picker")
+        try fxSettled(host, view)
+        try require(try elementNames(page) == names, "An element was created")
         try page.close()
     }
 

@@ -102,9 +102,12 @@ waits until they have: every tab in its place,
 while only each pane's shown tab opens its body; the others open theirs, in
 place, when selected. Pages that no longer exist (trashed, purged, a deleted
 project's) are left out silently; restoring records no 最近 and writes
-nothing to the journal. A restore that was refused, could not read a list or
-was overtaken by another switch saves nothing, so it never erases the stored
-tabs. At launch the project selected last (`lastProject`)
+nothing to the journal. A restore never erases the stored tabs: pages of a
+list that could not be read (reported as 部分标签未能恢复) stay in every later
+save of the project, each after the page it followed, until a restore
+completes; a restore refused while navigation is held keeps the stored tabs
+in every save and runs again once navigation is possible, unless the project
+has tabs by then; one overtaken by another switch saves nothing. At launch the project selected last (`lastProject`)
 opens with its tabs; without one, or once it is gone, the 项目书架 opens.
 
 ## Bounded acceptance
@@ -148,7 +151,7 @@ after quitting and relaunching. The ignored
 and complete bundle fingerprints, including the Debug dylib. This is targeted
 desktop interaction, not desktop XCTest or physical keyboard/IME evidence.
 
-Six `--tabs-nav-only` cases in `native/apple/Tests/TabsNavigationAcceptance.swift`
+Seven `--tabs-nav-only` cases in `native/apple/Tests/TabsNavigationAcceptance.swift`
 ([binding report](acceptance/p2b-binding.json)) drive the real tab host,
 panes, tab buttons, menu layout, settings store and tab session: 后退 and 前进
 across kinds and panes (also by ⌘[ and ⌘]), a closed tab and a gone pane, a
@@ -162,7 +165,10 @@ journal rows from navigation, restore or switching; 解除分屏 saving the
 right pane's unsaved 摘要, element name and 情节规划格 cell and a refused cell
 keeping both panes; ⌘W showing another pane's tab or a restored one instead
 of closing the window; a refused and an overtaken restore and a refused
-switch leaving the saved tabs, unopened tabs and 项目主页 as they were; and a
-forgotten project leaving 后退. The chapter read before closing, and holding
+switch leaving the saved tabs, unopened tabs and 项目主页 as they were, a save
+during the refusal keeping them and the refused restore running once
+navigation is possible; a restore whose drift list cannot be read keeping the
+drift at its place through a later save until a complete restore brings it
+back; and a forgotten project leaving 后退. The chapter read before closing, and holding
 navigation until the tabs are back, are AppDelegate wiring outside these
 headless cases.

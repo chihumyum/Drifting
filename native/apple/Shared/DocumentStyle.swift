@@ -258,14 +258,53 @@ enum DocumentStyle {
 
     /// The paragraph style of a block under the current typography. An
     /// indented block shifts whole by `indentWidth` and keeps its first-line
-    /// indent; alignment is the block's `textAlign`.
-    static func paragraphStyle(kind: String, depth: Int, textAlign: String? = nil, indent: Int = 0) -> NSParagraphStyle {
+    /// indent; alignment is the block's `textAlign`. Quotes and list items
+    /// indent by `containerIndent`; a quote also ends two em short of the
+    /// right edge. Only root paragraphs take 设置's first-line indent.
+    static func paragraphStyle(kind: String, depth: Int, textAlign: String? = nil, indent: Int = 0,
+                               containers: [String] = []) -> NSParagraphStyle {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = typography.lineSpacing; paragraph.paragraphSpacing = typography.paragraphSpacing
-        paragraph.headIndent = CGFloat(depth) * 12 + indentWidth(indent, size: typography.size)
+        paragraph.headIndent = containerIndent(containers, depth: depth, size: typography.size) + indentWidth(indent, size: typography.size)
         paragraph.firstLineHeadIndent = paragraph.headIndent + (kind == "paragraph" && depth == 0 ? typography.paragraphIndent : 0)
+        if containers.contains("blockquote") { paragraph.tailIndent = -typography.size * 2 }
         paragraph.alignment = alignment(textAlign)
         return paragraph
+    }
+
+    /// Two em of the body size per enclosing quote and per list level; the
+    /// list marker hangs in the last list level's room. Without container
+    /// names (an older projection) a nesting level is 12 points.
+    static func containerIndent(_ containers: [String], depth: Int, size: CGFloat) -> CGFloat {
+        guard !containers.isEmpty else { return CGFloat(depth) * 12 }
+        return CGFloat(containers.filter { $0 == "blockquote" || $0 == "listItem" }.count) * size * 2
+    }
+
+    /// The marker a list item's first paragraph or heading shows: its number
+    /// in an ordered list (`1.`), else a bullet by level (•, ◦, ▪). Later
+    /// paragraphs of the same item show none.
+    static func listMarker(_ blocks: [NativeBlock], at index: Int) -> String? {
+        let block = blocks[index]
+        guard block.listDepth > 0, let kind = block.listKind else { return nil }
+        if index > 0, blocks[index - 1].container == block.container { return nil }
+        if kind == "orderedList" { return "\(block.listNumber ?? 1)." }
+        return ["•", "◦", "▪"][(block.listDepth - 1) % 3]
+    }
+
+    /// The attribute that carries a list item's marker on the item's first
+    /// character, or on the line break after an empty item; the text system
+    /// never shows it as text (`ListMarkerTextView` draws it).
+    static let listMarkerKey = NSAttributedString.Key("DriftingListMarker")
+    /// On the last line break: the empty list item after it, which has no
+    /// character of its own, shows this marker.
+    static let trailingListMarkerKey = NSAttributedString.Key("DriftingTrailingListMarker")
+
+    /// The marker of the text's last block when that block is an empty list
+    /// item (it has no character to carry the marker).
+    static func trailingMarker(_ projection: NativeProjection) -> DocumentListMarker? {
+        guard let last = projection.blocks.indices.last, projection.blocks[last].range.length == 0,
+              let text = listMarker(projection.blocks, at: last) else { return nil }
+        return DocumentListMarker(projection.blocks[last], text: text)
     }
 
     /// One indent level is two em of the body size, as the renderer's
@@ -282,7 +321,7 @@ enum DocumentStyle {
     }
 
     static func paragraphStyle(_ block: NativeBlock) -> NSParagraphStyle {
-        paragraphStyle(kind: block.kind, depth: block.depth, textAlign: block.textAlign, indent: block.indent)
+        paragraphStyle(kind: block.kind, depth: block.depth, textAlign: block.textAlign, indent: block.indent, containers: block.containers)
     }
 
     /// Plain body text as editors set it: the settings preview uses this.
@@ -315,7 +354,7 @@ enum DocumentStyle {
                 // The separator has the default font/color, even after a heading.
                 let separator = end < storage.length && (projection.text as NSString).character(at: end) == 10 ? 1 : 0
                 let range = NSRange(location: block.range.location, length: block.range.length + separator)
-                apply(projection, to: storage, range: range, blocks: [block], links: links)
+                apply(projection, to: storage, range: range, indices: index...index, links: links)
                 return .block(index)
             }
         }
@@ -325,7 +364,8 @@ enum DocumentStyle {
 
     /// Without a directory every link keeps the default link style.
     static func apply(_ projection: NativeProjection, to storage: NSTextStorage, links: EntityLinkDirectory? = nil) {
-        apply(projection, to: storage, range: NSRange(location: 0, length: storage.length), blocks: projection.blocks, links: links)
+        apply(projection, to: storage, range: NSRange(location: 0, length: storage.length),
+              indices: projection.blocks.startIndex..<projection.blocks.endIndex, links: links)
     }
 
     /// `#RRGGBB` as an sRGB colour, or nil for a value this view cannot draw.
@@ -353,25 +393,43 @@ enum DocumentStyle {
         }
     }
 
-    private static func apply(_ projection: NativeProjection, to storage: NSTextStorage,
-                              range: NSRange, blocks: [NativeBlock], links: EntityLinkDirectory?) {
+    private static func apply<Indices: Sequence>(_ projection: NativeProjection, to storage: NSTextStorage,
+                                                 range: NSRange, indices: Indices, links: EntityLinkDirectory?) where Indices.Element == Int {
         storage.beginEditing()
         var plain: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: PlatformColor.labelColorForDocument]
         if let language = typography.language { plain[languageKey] = language }
         storage.setAttributes(plain, range: range)
         let text = storage.string as NSString
-        for block in blocks {
+        for index in indices {
+            let block = projection.blocks[index]
             let style = paragraphStyle(block)
             var base: [NSAttributedString.Key: Any] = [.paragraphStyle: style]
             if block.kind == "heading" { base[.font] = font(size: fontSize(block), weight: .semibold) }
             if block.kind == "codeBlock" { base[.font] = font(size: typography.codeSize, monospaced: true) }
-            if !block.editable { base[.foregroundColor] = PlatformColor.secondaryLabelColorForDocument }
+            // A quote is set in the secondary colour: indentation and
+            // typography, never a bar.
+            if !block.editable || block.quoteDepth > 0 { base[.foregroundColor] = PlatformColor.secondaryLabelColorForDocument }
             storage.addAttributes(base, range: block.range.nsRange)
             // The separator ends the block's paragraph: an empty block's caret
             // follows its alignment and indent. Font and colour stay plain.
             let end = NSMaxRange(block.range.nsRange)
-            if end < NSMaxRange(range), end >= range.location, end < text.length, text.character(at: end) == 10 {
+            let separated = end < NSMaxRange(range) && end >= range.location && end < text.length && text.character(at: end) == 10
+            if separated {
                 storage.addAttribute(.paragraphStyle, value: style, range: NSRange(location: end, length: 1))
+            }
+            // A list item's marker rides on its first character, or on the
+            // line break after it when it is empty.
+            if let marker = listMarker(projection.blocks, at: index) {
+                let value = DocumentListMarker(block, text: marker)
+                if block.range.length > 0 {
+                    storage.addAttribute(listMarkerKey, value: value, range: NSRange(location: block.range.location, length: 1))
+                } else if separated {
+                    storage.addAttribute(listMarkerKey, value: value, range: NSRange(location: end, length: 1))
+                }
+            }
+            // The empty last item has no character: the break before it says so.
+            if index == projection.blocks.count - 2, separated, let trailing = trailingMarker(projection) {
+                storage.addAttribute(trailingListMarkerKey, value: trailing, range: NSRange(location: end, length: 1))
             }
             for run in block.runs {
                 var attrs: [NSAttributedString.Key: Any] = [:]
@@ -412,6 +470,7 @@ enum DocumentStyle {
     private static func sameBlock(_ left: NativeBlock, _ right: NativeBlock) -> Bool {
         left.id == right.id && left.kind == right.kind && left.depth == right.depth
             && left.container == right.container && left.editable == right.editable
+            && left.containers == right.containers && left.listNumber == right.listNumber
             && left.structuralAttributes == right.structuralAttributes
             && left.headingLevel == right.headingLevel && left.textAlign == right.textAlign && left.indent == right.indent
     }
@@ -466,6 +525,146 @@ enum DocumentStyle {
         character == "\n" || character == "\r" || character == "\r\n" || character == "\u{2028}" || character == "\u{2029}"
     }
 }
+
+/// A list item's marker as `DocumentStyle` sets it: the text (`1.`, `•`),
+/// where the item's text starts (its first-line indent) and the size and
+/// colour to draw it in. Equal markers compare equal, as attribute values.
+final class DocumentListMarker: NSObject {
+    let text: String
+    let indent: CGFloat
+    let size: CGFloat
+    let muted: Bool
+
+    init(text: String, indent: CGFloat, size: CGFloat, muted: Bool) {
+        self.text = text; self.indent = indent; self.size = size; self.muted = muted
+    }
+
+    convenience init(_ block: NativeBlock, text: String) {
+        let size = block.kind == "heading" ? DocumentStyle.typography.headingSize(block.headingLevel) : DocumentStyle.typography.size
+        self.init(text: text, indent: DocumentStyle.paragraphStyle(block).firstLineHeadIndent, size: size, muted: block.quoteDepth > 0)
+    }
+
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? DocumentListMarker else { return false }
+        return text == other.text && indent == other.indent && size == other.size && muted == other.muted
+    }
+    override var hash: Int { text.hashValue ^ indent.hashValue ^ size.hashValue }
+    override var description: String { "DocumentListMarker(\(text) at \(indent))" }
+}
+
+#if os(macOS)
+/// A prose text view that draws each list item's marker
+/// (`DocumentStyle.listMarkerKey`) in the room its first line leaves before
+/// the text, right-aligned half an em before it. The marker is not text: the
+/// prose, the caret and selections never include it. Works with the text
+/// engine the view has (TextKit 2 by default; TextKit 1 once something
+/// asks for its layout manager) and never switches it.
+class ListMarkerTextView: NSTextView {
+    /// The marker of a text that is one empty list item, which has no
+    /// character to carry it.
+    var emptyTextMarker: DocumentListMarker? {
+        didSet { if emptyTextMarker != oldValue { needsDisplay = true } }
+    }
+    /// The markers drawn since this was last cleared, for acceptance.
+    var drawnMarkers: [String] = []
+
+    /// Drawn with the background, beside the text: overriding `draw(_:)`
+    /// would switch the view to TextKit 1.
+    override func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        drawListMarkers(in: rect)
+    }
+
+    private func drawListMarkers(in dirtyRect: NSRect) {
+        guard let storage = textStorage else { return }
+        let text = storage.string as NSString
+        let origin = textContainerOrigin
+        func trailing() -> DocumentListMarker? {
+            guard text.length > 0, text.character(at: text.length - 1) == 10 else { return nil }
+            return storage.attribute(DocumentStyle.trailingListMarkerKey, at: text.length - 1, effectiveRange: nil) as? DocumentListMarker
+        }
+        func marker(at index: Int) -> DocumentListMarker? {
+            guard index < text.length, index == 0 || text.character(at: index - 1) == 10 else { return nil }
+            return storage.attribute(DocumentStyle.listMarkerKey, at: index, effectiveRange: nil) as? DocumentListMarker
+        }
+        if let manager = textLayoutManager, let content = manager.textContentManager {
+            // TextKit 2: the paragraphs laid out across the dirty rect; each
+            // starts a layout fragment.
+            let documentStart = content.documentRange.location
+            func lineRect(at location: NSTextLocation) -> NSRect? {
+                var found: NSRect?
+                manager.enumerateTextSegments(in: NSTextRange(location: location), type: .standard, options: [.rangeNotRequired]) { _, rect, _, _ in
+                    found = rect; return false
+                }
+                return found
+            }
+            if text.length == 0 {
+                if let empty = emptyTextMarker, let rect = lineRect(at: documentStart) { draw(empty, lineTop: origin.y + rect.minY, dirtyRect: dirtyRect) }
+                return
+            }
+            let start = manager.textLayoutFragment(for: CGPoint(x: 0, y: max(0, dirtyRect.minY - origin.y)))?.rangeInElement.location ?? documentStart
+            manager.enumerateTextLayoutFragments(from: start, options: [.ensuresLayout]) { fragment in
+                let frame = fragment.layoutFragmentFrame
+                if frame.minY + origin.y > dirtyRect.maxY { return false }
+                let index = content.offset(from: documentStart, to: fragment.rangeInElement.location)
+                if let item = marker(at: index), let line = fragment.textLineFragments.first {
+                    let top = origin.y + frame.minY + line.typographicBounds.minY
+                    draw(item, lineTop: top, baseline: top + line.glyphOrigin.y, dirtyRect: dirtyRect)
+                }
+                if content.offset(from: documentStart, to: fragment.rangeInElement.endLocation) >= text.length, let last = trailing(),
+                   let rect = lineRect(at: content.documentRange.endLocation) {
+                    draw(last, lineTop: origin.y + rect.minY, dirtyRect: dirtyRect)
+                }
+                return true
+            }
+        } else if let manager = layoutManager, let container = textContainer {
+            // TextKit 1: the line fragments across the dirty rect.
+            if text.length == 0 {
+                if let empty = emptyTextMarker {
+                    manager.ensureLayout(for: container)
+                    draw(empty, lineTop: origin.y + manager.extraLineFragmentRect.minY, dirtyRect: dirtyRect)
+                }
+                return
+            }
+            let glyphs = manager.glyphRange(forBoundingRect: dirtyRect.offsetBy(dx: -origin.x, dy: -origin.y), in: container)
+            var characters = manager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+            // An empty paragraph's line break may sit just past the glyphs drawn.
+            if NSMaxRange(characters) < text.length { characters.length += 1 }
+            storage.enumerateAttribute(DocumentStyle.listMarkerKey, in: characters) { value, range, _ in
+                guard value is DocumentListMarker else { return }
+                for index in range.location..<NSMaxRange(range) {
+                    guard let item = marker(at: index) else { continue }
+                    let glyph = manager.glyphIndexForCharacter(at: index)
+                    guard glyph < manager.numberOfGlyphs else { continue }
+                    let line = manager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+                    draw(item, lineTop: origin.y + line.minY, baseline: origin.y + line.minY + manager.location(forGlyphAt: glyph).y,
+                         dirtyRect: dirtyRect)
+                }
+            }
+            if NSMaxRange(characters) >= text.length, let last = trailing() {
+                draw(last, lineTop: origin.y + manager.extraLineFragmentRect.minY, dirtyRect: dirtyRect)
+            }
+        }
+    }
+
+    /// The marker right-aligned half an em before where the line's text
+    /// starts, on the line's baseline (or its top plus the ascender).
+    private func draw(_ marker: DocumentListMarker, lineTop: CGFloat, baseline: CGFloat? = nil, dirtyRect: NSRect) {
+        let font = DocumentStyle.font(size: marker.size)
+        let string = NSAttributedString(string: marker.text, attributes: [
+            .font: font, .foregroundColor: marker.muted ? NSColor.secondaryLabelColor : NSColor.labelColor,
+        ])
+        let width = ceil(string.size().width)
+        let padding = textContainer?.lineFragmentPadding ?? 0
+        let x = textContainerOrigin.x + padding + marker.indent - marker.size * 0.5 - width
+        let top = (baseline ?? lineTop + font.ascender) - font.ascender
+        let rect = NSRect(x: x, y: top, width: width + 2, height: ceil(font.ascender - font.descender) + 2)
+        guard rect.intersects(dirtyRect) else { return }
+        string.draw(with: rect, options: [.usesLineFragmentOrigin])
+        drawnMarkers.append(marker.text)
+    }
+}
+#endif
 
 private extension PlatformColor {
     static var labelColorForDocument: PlatformColor {

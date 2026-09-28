@@ -299,13 +299,20 @@ final class DocumentStore {
             switch result {
             case .success(let value): self.state = value; self.needsRefresh = true; self.reportSave(value); self.pump()
             case .failure(let error):
-                if let lab = error as? LabError, case .formattingUnavailable = lab {
+                if let lab = error as? LabError, case .formattingUnavailable(let reason) = lab {
                     // Rejected before mutation: keep the existing input bases.
-                    self.status(error.localizedDescription); self.pump()
+                    // A quote or list refusal says what to do instead.
+                    let message = action.isContainer
+                        ? self.projection?.containerRefusal(action, in: range, reason: reason) ?? error.localizedDescription
+                        : error.localizedDescription
+                    self.lastFormatRefusal = message
+                    self.status(message); self.pump()
                 } else { self.fail(error.localizedDescription) }
             }
         }
     }
+    /// The last formatting refusal shown, for acceptance.
+    private(set) var lastFormatRefusal: String?
     /// Sets (`href`) or removes (nil) the range's URL link in one undo unit.
     /// A refusal before mutation keeps the input bases, like formatting.
     func link(range: NSRange, href: String?, revision: UInt64, completion: ((Error?) -> Void)? = nil) {
@@ -543,6 +550,12 @@ enum NativeLayout {
             guard selected.allSatisfy({ ["paragraph", "heading"].contains($0.kind) }) else {
                 return "此操作涉及尚未支持的结构，已保留原文"
             }
+            // Rust joins across containers only inside quotes: blocks of
+            // different list items (or a list item and a paragraph beside the
+            // list) are never merged or deleted across.
+            if Set(selected.map(\.container)).count > 1, selected.contains(where: { $0.listDepth > 0 }) {
+                return "列表项之间不能合并或跨项删除，列表和旁边的段落也不能合并。可以先取消列表，或只在一个项目内编辑"
+            }
             var merged: [String: String] = [:]
             for block in selected {
                 for (key, value) in block.structuralAttributes {
@@ -601,7 +614,7 @@ enum NativeLayout {
                 let keeps = (id != nil && id == survivor.id) || kind == "heading" || (change.text == "\n" && kind == survivor.kind)
                 inserted.append(NativeBlock(id: id, kind: kind, depth: survivor.depth, container: rightParentHint ? last.container : survivor.container,
                     structuralAttributes: merged, range: NativeRange(location: at, length: length), editable: true, runs: [],
-                    attributes: keeps ? survivor.attributes : nil))
+                    attributes: keeps ? survivor.attributes : nil, containers: survivor.containers, listNumber: survivor.listNumber))
                 at += length + 1
             }
             blocks.replaceSubrange(firstIndex...lastIndex, with: inserted)

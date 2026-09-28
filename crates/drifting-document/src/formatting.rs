@@ -25,6 +25,9 @@ pub enum NativeFormatAction {
     AlignRight,
     IndentIncrease,
     IndentDecrease,
+    Blockquote,
+    BulletList,
+    OrderedList,
 }
 
 /// The deepest block indent, as the renderer's paragraph indent allows.
@@ -136,7 +139,10 @@ fn mark_spans<T: ReadTxn>(
 }
 
 /// The first and last block a selection touches; a caret touches one.
-fn selected_blocks(view: &NativeProjection, range: &NativeRange) -> Result<(usize, usize), String> {
+pub(crate) fn selected_blocks(
+    view: &NativeProjection,
+    range: &NativeRange,
+) -> Result<(usize, usize), String> {
     validate_range(&view.text, range.location, range.length)?;
     let end = range.location + range.length;
     let first = view
@@ -246,6 +252,15 @@ impl DocumentSession {
         }
         if let Some(key) = request.action.block_attribute() {
             return self.format_block_attribute(request, key);
+        }
+        let container = match request.action {
+            NativeFormatAction::Blockquote => Some("blockquote"),
+            NativeFormatAction::BulletList => Some("bulletList"),
+            NativeFormatAction::OrderedList => Some("orderedList"),
+            _ => None,
+        };
+        if let Some(tag) = container {
+            return self.format_container(request, tag);
         }
         let view = self.native_projection()?;
         let (first, last) = selected_blocks(&view, &request.range)?;

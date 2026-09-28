@@ -109,7 +109,8 @@ final class WholeBookActRow: WholeBookRow {
 /// A read-only body: the chapter's prose styled as the editor styles it,
 /// sized to its text at the row's width. A click asks for the editor there.
 final class WholeBookPreviewText: NSView {
-    let textView = NSTextView()
+    /// Draws list markers as the editor does.
+    let textView = ListMarkerTextView()
     private var measuredWidth: CGFloat = -1
     private(set) var textHeight: CGFloat = 0
     private var heightConstraint: NSLayoutConstraint!

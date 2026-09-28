@@ -876,6 +876,42 @@ fn workspace_alignment_indent_underline_and_links_persist_through_cold_reopen() 
 }
 
 #[test]
+fn workspace_quotes_and_lists_wrap_lift_and_survive_cold_reopen() {
+    let mut fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    insert(handle, "引文一\n引文二\n清单");
+    let quoted = format_document(handle, "blockquote", json!({"location":0,"length":7}));
+    assert_eq!(quoted["saved"], true);
+    let listed = format_document(handle, "orderedList", json!({"location":8,"length":0}));
+    let blocks = listed["projection"]["blocks"].clone();
+    assert_eq!(blocks[0]["containers"], json!(["blockquote"]));
+    assert_eq!(blocks[1]["containers"], json!(["blockquote"]));
+    assert_eq!(blocks[2]["containers"], json!(["orderedList", "listItem"]));
+    assert_eq!(blocks[2]["listNumber"], 1);
+    // A quote around a list item is a formatting refusal that writes nothing.
+    let current = state(handle);
+    let refused = rejected(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":8,"length":0},
+        "action":"blockquote"}}));
+    assert!(
+        refused.starts_with("NATIVE_FORMATTING_UNAVAILABLE:"),
+        "{refused}"
+    );
+    assert_eq!(
+        state(handle)["projection"]["revision"],
+        current["projection"]["revision"]
+    );
+    fixture.close();
+    fixture.workspace = success(json!({"operation":"workspaceOpen","directory":fixture.directory}))
+        ["handle"]
+        .as_u64()
+        .unwrap();
+    let reopened = fixture.open(0);
+    assert_eq!(reopened["document"]["projection"]["blocks"], blocks);
+    fixture.close();
+}
+
+#[test]
 fn workspace_formatting_rejection_preserves_input_and_save_failure_retries_once() {
     let fixture = Fixture::new();
     let handle = fixture.open(0)["handle"].as_u64().unwrap();

@@ -322,6 +322,24 @@ struct ProsePickerSession: Equatable {
     var range: NSRange { NSRange(location: trigger, length: 1 + (query as NSString).length) }
 }
 
+/// Markdown-style starts: “> ” (引用), “- ”, “+ ” or “* ” (无序列表) and
+/// “1. ” (有序列表) typed as the whole text before the caret in a root
+/// paragraph, full-width forms and the ideographic space included.
+enum ProseMarkdownStarts {
+    static let spaces: Set<Character> = [" ", "\u{3000}"]
+    private static let markers: [(String, NativeFormatAction)] = [
+        (">", .blockquote), ("＞", .blockquote), ("-", .bulletList), ("－", .bulletList), ("+", .bulletList), ("＋", .bulletList),
+        ("*", .bulletList), ("＊", .bulletList), ("1.", .orderedList), ("1．", .orderedList), ("１.", .orderedList), ("１．", .orderedList),
+    ]
+
+    /// The format a block's text before the caret asks for, if any.
+    static func action(for prefix: String) -> NativeFormatAction? {
+        guard let last = prefix.last, spaces.contains(last) else { return nil }
+        let marker = String(prefix.dropLast())
+        return markers.first { $0.0 == marker }?.1
+    }
+}
+
 enum ProsePickers {
     /// “/” opens the slash menu at the start of an empty paragraph; the
     /// full-width ／ and 、 (what the / key types with the Pinyin input
@@ -332,7 +350,10 @@ enum ProsePickers {
     static let maximumMentions = 30
     static let maximumQuery = 40
     /// Whitespace and sentence punctuation end a query and close the picker.
-    static let queryEnds = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，。！？；：、,.!?;:"))
+    static let queryEnds = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，。！？；：、,.!?;:…"))
+    /// ＋ 新建设定 rows alone keep the @ picker open only for a query this
+    /// short (UTF-16 units): a name being typed, not a sentence.
+    static let maximumCreateQuery = 10
 
     /// An ASCII letter or digit before “@” makes it part of an address.
     static func opensMention(after previous: unichar?) -> Bool {
@@ -342,11 +363,13 @@ enum ProsePickers {
 
     private static let slash: [(NativeFormatAction, [String])] = [
         (.paragraph, ["paragraph", "body", "p"]), (.heading1, ["heading1", "h1"]), (.heading2, ["heading2", "h2"]),
-        (.heading3, ["heading3", "h3"]), (.alignCenter, ["center"]), (.alignRight, ["right"]),
+        (.heading3, ["heading3", "h3"]), (.blockquote, ["quote", "blockquote", "yinyong"]),
+        (.bulletList, ["bullet", "ul", "list", "wuxu"]), (.orderedList, ["ordered", "ol", "number", "youxu"]),
+        (.alignCenter, ["center"]), (.alignRight, ["right"]),
     ]
 
-    /// 正文, 标题 1–3, 居中 and 右对齐 whose title contains the query, or
-    /// whose keyword starts with it (h1, center …).
+    /// 正文, 标题 1–3, 引用, 无序列表, 有序列表, 居中 and 右对齐 whose title
+    /// contains the query, or whose keyword starts with it (h1, quote, ol …).
     static func slashItems(query: String) -> [ProsePickerItem] {
         let q = query.lowercased()
         return slash.filter { action, keywords in
@@ -355,11 +378,11 @@ enum ProsePickers {
     }
 
     /// Names containing the query (ignoring case): exact matches, then
-    /// prefixes, then the rest, elements before chapters, at most 30. None
-    /// means no rows: ＋ 新建设定「…」 alone never keeps the picker open. After
+    /// prefixes, then the rest, elements before chapters, at most 30. After
     /// the names, a query no element is named or aliased and the link pass
     /// does not already resolve adds ＋ 新建设定「…」 for each category when
-    /// `canCreate`.
+    /// `canCreate`; without names only while the query is at most
+    /// `maximumCreateQuery` units long. No rows leave the picker inert.
     static func mentionItems(query: String, source: ProseMentionSource, canCreate: Bool) -> [ProsePickerItem] {
         let q = query.lowercased()
         func rank(_ entry: ProseMentionSource.Entry) -> Int? {
@@ -374,8 +397,8 @@ enum ProsePickers {
             ProsePickerItem(title: $0.entry.name, detail: $0.entry.detail,
                             action: .mention(name: $0.entry.name, kind: $0.entry.kind, id: $0.entry.id))
         }
-        guard !items.isEmpty else { return [] }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !items.isEmpty || (trimmed as NSString).length <= maximumCreateQuery else { return [] }
         let named = source.entries.contains { $0.kind == .element && $0.name.lowercased() == trimmed.lowercased() }
         if canCreate, !trimmed.isEmpty, !named, !source.linkedNames.contains(trimmed) {
             items += source.categories.map {

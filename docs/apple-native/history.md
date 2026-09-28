@@ -42,7 +42,7 @@ versions without a reason or count show neither. The preview's heading
 repeats both. The preview
 shows the selected version read-only in the editors' typography with its
 formatting — headings, bold, italic, underline, strike, URL and entity links,
-alignment and block indent — from `workspaceHistory {"action":"preview"}`
+alignment, block indent, quotes and list markers — from `workspaceHistory {"action":"preview"}`
 (the version's native projection, read when it is first selected; a version
 of another body is refused with “不属于”, and a failed read shows plain text).
 It is compared with the current body paragraph by paragraph (a replaced

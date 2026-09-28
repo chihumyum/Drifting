@@ -1,6 +1,6 @@
 import AppKit
 
-final class ProseTextView: NSTextView {
+final class ProseTextView: ListMarkerTextView {
     /// The text starts this far down; a taller container inset only adds
     /// room below the text (打字机滚动's tail).
     static let topInset: CGFloat = 20
@@ -102,7 +102,8 @@ final class ProseTextView: NSTextView {
         #selector(heading2Prose(_:)): .heading2, #selector(heading3Prose(_:)): .heading3,
         #selector(alignLeftProse(_:)): .alignLeft, #selector(alignCenterProse(_:)): .alignCenter,
         #selector(alignRightProse(_:)): .alignRight, #selector(indentProse(_:)): .indentIncrease,
-        #selector(outdentProse(_:)): .indentDecrease,
+        #selector(outdentProse(_:)): .indentDecrease, #selector(blockquoteProse(_:)): .blockquote,
+        #selector(bulletListProse(_:)): .bulletList, #selector(orderedListProse(_:)): .orderedList,
         // AppKit's own rich-text actions reach the same commands, never the storage.
         #selector(NSText.underline(_:)): .underline, #selector(NSText.alignLeft(_:)): .alignLeft,
         #selector(NSText.alignCenter(_:)): .alignCenter, #selector(NSText.alignRight(_:)): .alignRight,
@@ -135,6 +136,9 @@ final class ProseTextView: NSTextView {
     @objc func alignRightProse(_ sender: Any?) { format(.alignRight) }
     @objc func indentProse(_ sender: Any?) { format(.indentIncrease) }
     @objc func outdentProse(_ sender: Any?) { format(.indentDecrease) }
+    @objc func blockquoteProse(_ sender: Any?) { format(.blockquote) }
+    @objc func bulletListProse(_ sender: Any?) { format(.bulletList) }
+    @objc func orderedListProse(_ sender: Any?) { format(.orderedList) }
     override func underline(_ sender: Any?) { format(.underline) }
     override func alignLeft(_ sender: Any?) { format(.alignLeft) }
     override func alignCenter(_ sender: Any?) { format(.alignCenter) }
@@ -232,6 +236,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private let outdentButton = NSButton(title: "减少缩进", target: nil, action: nil)
     private let indentButton = NSButton(title: "增加缩进", target: nil, action: nil)
     private let linkButton = NSButton(title: "链接…", target: nil, action: nil)
+    /// 引用, 无序列表 and 有序列表: on while every touched block is in one.
+    private let containerButtons = NativeFormatAction.containers.map { NSButton(title: $0.title, target: nil, action: nil) }
     /// ⌘F in this editor: the find bar with incremental search, ⌘G, ⇧⌘G and
     /// ⌘E; no 替换. Nil in the 全书长卷's rows, where find is not offered.
     private(set) var textFinder: NSTextFinder?
@@ -407,6 +413,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         linkButton.target = self; linkButton.action = #selector(beginLink)
         linkButton.setAccessibilityIdentifier("format-link")
         linkButton.toolTip = "为选中的文字添加或修改网址链接（⌘K）"
+        for (button, action) in zip(containerButtons, NativeFormatAction.containers) {
+            button.setButtonType(.pushOnPushOff)
+            button.target = self; button.action = #selector(toggleContainer(_:))
+            button.setAccessibilityIdentifier(action.accessibilityID)
+        }
+        containerButtons[0].toolTip = "把所在段落设为引用，或取消引用（也可在段首输入“> ”）"
+        containerButtons[1].toolTip = "把所在段落设为无序列表，或取消列表（也可在段首输入“- ”）"
+        containerButtons[2].toolTip = "把所在段落设为有序列表，或取消列表（也可在段首输入“1. ”）"
         blockMenu.addItems(withTitles: NativeFormatAction.blocks.map(\.title))
         blockMenu.setAccessibilityIdentifier("format-block")
         blockMenu.setAccessibilityLabel("段落样式")
@@ -417,13 +431,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, discardButton])
         toolbar.spacing = 8
         let formats = NSStackView(views: [boldButton, italicButton, underlineButton, strikeButton, blockMenu, alignMenu,
-                                          outdentButton, indentButton, linkButton])
+                                          outdentButton, indentButton] + containerButtons + [linkButton])
         formats.spacing = 8
         // A narrow pane drops the last controls first; the 格式 menu and the
         // context menu keep every command.
         formats.setClippingResistancePriority(.defaultLow, for: .horizontal)
-        for (control, priority) in [(underlineButton, 700), (strikeButton, 700), (alignMenu, 600), (outdentButton, 500),
-                                    (indentButton, 500), (linkButton, 400)] as [(NSView, Float)] {
+        let priorities = [(underlineButton, 700), (strikeButton, 700), (alignMenu, 600), (outdentButton, 500),
+                          (indentButton, 500), (linkButton, 400)] as [(NSView, Float)] + containerButtons.map({ ($0 as NSView, Float(450)) })
+        for (control, priority) in priorities {
             formats.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: priority), for: control)
         }
         status.textColor = .secondaryLabelColor
@@ -533,6 +548,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             styledProjection = projection
             onStyleUpdate?(lastStyleUpdate)
         }
+        // A text that is one empty list item has no character to carry its marker.
+        textView.emptyTextMarker = projection.text.isEmpty ? DocumentStyle.trailingMarker(projection) : nil
         comments.stringValue = projection.comments.map(\.summary).joined(separator: "\n")
         if reportedComments != projection.comments { reportedComments = projection.comments; onComments?() }
         if let anchored = binding.resolvedSelection(in: projection) { selection = anchored }
@@ -712,6 +729,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         guard let projection = styledProjection, let storage = textView.textStorage else { return }
         guard !textView.hasMarkedText(), NativeText.identical(textView.string, projection.text) else { styledProjection = nil; return }
         DocumentStyle.apply(projection, to: storage, links: linkDirectory)
+        textView.emptyTextMarker = projection.text.isEmpty ? DocumentStyle.trailingMarker(projection) : nil
         lastStyleUpdate = .full
         onStyleUpdate?(.full)
     }
@@ -938,13 +956,24 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
               session.kind == .mention || slashAllowed(trigger: session.trigger, caret: caret) else { closePicker(); return }
         let items = session.kind == .slash ? ProsePickers.slashItems(query: query)
             : ProsePickers.mentionItems(query: query, source: mentionSource?() ?? .empty, canCreate: onCreateElement != nil)
-        guard !items.isEmpty else { closePicker(); return }
         if query != session.query || items != session.items { session.selected = 0; session.navigated = false }
         session.query = query; session.items = items
-        session.selected = min(session.selected, items.count - 1)
+        session.selected = max(0, min(session.selected, items.count - 1))
+        guard !items.isEmpty else {
+            // The slash menu closes. The @ picker goes inert: hidden, keys
+            // left to the text, shown again when ⌫ brings back a query
+            // that names something.
+            if session.kind == .slash { closePicker(); return }
+            picker = session
+            if pickerPopover.isShown { pickerPopover.performClose(nil) }
+            return
+        }
         picker = session
         showPicker()
     }
+
+    /// An open picker with rows (not an inert @ session).
+    var isPickerActive: Bool { picker?.items.isEmpty == false }
 
     /// The slash menu opens only at the start of an otherwise empty
     /// paragraph or heading, with the caret at its end.
@@ -1075,12 +1104,15 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// blocks the selection touched when it was given. Any later input or
     /// key command, a click in the prose, a failed draft or save, and a
     /// render that removed one of those blocks drop it.
-    private func formatWhenIdle(_ action: NativeFormatAction) {
-        if canPerformFormat(action) { performFormat(action); return }
+    /// False when it neither ran nor waits.
+    @discardableResult
+    private func formatWhenIdle(_ action: NativeFormatAction) -> Bool {
+        if canPerformFormat(action) { performFormat(action); return true }
         deferredFormat = nil
         guard binding.store.hasQueuedInput, binding.canEdit, !binding.hasFailedDraft,
-              NativeText.identical(binding.displayedText, textView.string) else { return }
+              NativeText.identical(binding.displayedText, textView.string) else { return false }
         deferredFormat = DeferredBlockFormat(action: action, selection: textView.selectedRange(), blocks: binding.displayedBlocks)
+        return deferredFormat != nil
     }
 
     private func runDeferredFormat() {
@@ -1180,7 +1212,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private func formatMenuItem() -> NSMenuItem {
         let submenu = NSMenu(title: "格式")
         let groups: [[MacMenuCommand]] = [[.bold, .italic, .underline, .strike], [.bodyText, .heading1, .heading2, .heading3],
-                                          [.alignLeft, .alignCenter, .alignRight], [.indentIncrease, .indentDecrease], [.link, .removeLink]]
+                                          [.blockquote, .bulletList, .orderedList], [.alignLeft, .alignCenter, .alignRight],
+                                          [.indentIncrease, .indentDecrease], [.link, .removeLink]]
         for (index, group) in groups.enumerated() {
             if index > 0 { submenu.addItem(.separator()) }
             for command in group {
@@ -1236,12 +1269,24 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
         guard !isInteractionLocked, let replacementString else { return false }
         let allowed = binding.prepareInput(affectedCharRange, replacement: replacementString, marked: textView.hasMarkedText())
-        if allowed { textFinder?.noteClientStringWillChange(); pendingReplacement = replacementString }
+        if allowed {
+            textFinder?.noteClientStringWillChange(); pendingReplacement = replacementString
+            // Typing on in the block a waiting command was given for (also
+            // an input method's marked text) keeps it; a new line or an edit
+            // elsewhere drops it.
+            if let deferred = deferredFormat,
+               !deferred.survives(affectedCharRange, replacement: replacementString, in: textView.string, blocks: binding.displayedBlocks) {
+                deferredFormat = nil
+            }
+        }
         return allowed
     }
 
     /// Tab and ⇧Tab indent the block (never a tab character), as in the
-    /// renderer; ↑, ↓, Return and Esc drive an open picker.
+    /// renderer; ↑, ↓, Return and Esc drive an open picker. Return on an
+    /// empty last quote paragraph or list item, and ⌫ at the start of a
+    /// quote's first paragraph or of the first or last list item, take the
+    /// block out of its quote or list.
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if !textView.hasMarkedText(), pickerCommand(commandSelector) { return true }
         switch commandSelector {
@@ -1251,6 +1296,14 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
                 formatWhenIdle(commandSelector == #selector(NSResponder.insertTab(_:)) ? .indentIncrease : .indentDecrease)
             }
             return true
+        case #selector(NSResponder.insertNewline(_:)):
+            if let action = containerExit(onReturn: true), formatWhenIdle(action) { return true }
+            deferredFormat = nil
+            return false
+        case #selector(NSResponder.deleteBackward(_:)):
+            if let action = containerExit(onReturn: false), formatWhenIdle(action) { return true }
+            deferredFormat = nil
+            return false
         default:
             // Every other key command moves the caret or edits: a block
             // command still waiting for input no longer applies.
@@ -1258,9 +1311,69 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             return false
         }
     }
+
+    /// The quote or list a key takes the caret's block out of, if any.
+    /// Return: an empty paragraph that is the last of its quote, or an empty
+    /// list item's only paragraph when the item is its list's last. ⌫ at the
+    /// start of a quote's first paragraph, or of a list item's only
+    /// paragraph when the item is its list's first or last. Rust decides; a
+    /// block in a nested quote or list, or with a selection, keeps the
+    /// ordinary key.
+    private func containerExit(onReturn: Bool) -> NativeFormatAction? {
+        guard !textView.hasMarkedText(), !isInteractionLocked, textView.isEditable, binding.canEdit, !binding.hasFailedDraft,
+              NativeText.identical(binding.displayedText, textView.string) else { return nil }
+        let selection = textView.selectedRange()
+        let blocks = binding.displayedBlocks
+        guard selection.length == 0, let index = NativeLayout.index(selection.location, blocks: blocks) else { return nil }
+        let block = blocks[index]
+        guard block.acceptsBlockAttributes, let kind = block.rootContainer,
+              onReturn ? block.range.length == 0 : selection.location == block.range.location else { return nil }
+        let previous = index > 0 ? blocks[index - 1] : nil
+        let next = blocks.indices.contains(index + 1) ? blocks[index + 1] : nil
+        let action: NativeFormatAction = kind == "blockquote" ? .blockquote : (kind == "orderedList" ? .orderedList : .bulletList)
+        if kind == "blockquote" {
+            return onReturn ? (next?.container == block.container ? nil : action) : (previous?.container == block.container ? nil : action)
+        }
+        // A list item: the item's only paragraph.
+        guard previous?.container != block.container, next?.container != block.container else { return nil }
+        // The last item (the next block is not an item of this shape), or
+        // with ⌫ also the first.
+        let last = next?.containers != block.containers, first = previous?.containers != block.containers
+        return (onReturn ? last : last || first) ? action : nil
+    }
+
+    /// Markdown-style starts, as in the renderer: “> ”, “- ” (“+ ”, “* ”)
+    /// or “1. ” typed as the whole text before the caret in a root
+    /// paragraph removes the marker through the input path, then applies
+    /// 引用 or the list once that input lands (two undo units), as a slash
+    /// row does. Checked once the keystroke has finished.
+    private func scheduleMarkdownStart(typed: String) {
+        guard let space = typed.last, ProseMarkdownStarts.spaces.contains(space), !textView.hasMarkedText(), !isInteractionLocked,
+              NativeText.identical(binding.displayedText, textView.string) else { return }
+        let selection = textView.selectedRange()
+        let blocks = binding.displayedBlocks
+        guard selection.length == 0, let index = NativeLayout.index(selection.location, blocks: blocks) else { return }
+        let block = blocks[index]
+        guard block.editable, block.kind == "paragraph", block.containers.isEmpty, block.depth == 0,
+              selection.location > block.range.location else { return }
+        let marker = NSRange(location: block.range.location, length: selection.location - block.range.location)
+        let snapshot = textView.string
+        guard let action = ProseMarkdownStarts.action(for: (snapshot as NSString).substring(with: marker)) else { return }
+        pendingMarkdownStarts += 1
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingMarkdownStarts -= 1
+            // Only while the marker and the caret after it are as typed.
+            guard NativeText.identical(self.textView.string, snapshot), self.textView.selectedRange() == selection,
+                  !self.textView.hasMarkedText(), self.replaceThroughInput(marker, with: "") else { return }
+            self.formatWhenIdle(action)
+        }
+    }
+    /// Markdown starts typed but not yet checked, for acceptance.
+    private(set) var pendingMarkdownStarts = 0
+
     func textDidChange(_ notification: Notification) {
         guard !rendering else { return }
-        deferredFormat = nil
         closeLinkPreview()
         let text = textView.string, marked = textView.hasMarkedText()
         if marked { styledProjection = nil }
@@ -1272,6 +1385,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         let typed = marked ? nil : pendingReplacement
         if !marked { pendingReplacement = nil }
         updatePicker(typed: typed)
+        if let typed { scheduleMarkdownStart(typed: typed) }
         onEdited?()
     }
     func textViewDidChangeSelection(_ notification: Notification) {
@@ -1339,6 +1453,10 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         }
         outdentButton.isEnabled = canPerformFormat(.indentDecrease)
         indentButton.isEnabled = canPerformFormat(.indentIncrease)
+        for (button, action) in zip(containerButtons, NativeFormatAction.containers) {
+            button.isEnabled = canPerformFormat(action)
+            button.state = formatState(action) == .on ? .on : .off
+        }
         linkButton.isEnabled = canEditLink
     }
     private func performFormat(_ action: NativeFormatAction) {
@@ -1353,6 +1471,11 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     @objc private func strikeProse() { performFormat(.strike) }
     @objc private func indentProse() { performFormat(.indentIncrease) }
     @objc private func outdentProse() { performFormat(.indentDecrease) }
+    @objc private func toggleContainer(_ sender: NSButton) {
+        guard let index = containerButtons.firstIndex(of: sender) else { return }
+        performFormat(NativeFormatAction.containers[index])
+        updateFormatControls()
+    }
     @objc private func alignBlock() {
         guard NativeFormatAction.alignments.indices.contains(alignMenu.indexOfSelectedItem) else { return }
         performFormat(NativeFormatAction.alignments[alignMenu.indexOfSelectedItem])
@@ -1396,7 +1519,8 @@ struct DeferredBlockFormat {
 
     /// After a render: a named block must still exist. Other input moves an
     /// unnamed block's range and drops the command when it touches that
-    /// block; a render of the same text (the reply) names it. Nil when the
+    /// block; this view's own input (already in its text) moves or resizes
+    /// it; a render of the same text (the reply) names it. Nil when the
     /// command no longer applies.
     func following(_ changes: [NativeTextChange], replaced: Bool, blocks: [NativeBlock]) -> DeferredBlockFormat? {
         var next = self
@@ -1410,12 +1534,40 @@ struct DeferredBlockFormat {
                     guard NSMaxRange(change.range) < target.range.location || change.range.location > NSMaxRange(target.range) else { return nil }
                     target.range = change.mapSelection(target.range)
                 }
-            } else if let found = NativeLayout.index(target.range.location, blocks: blocks), blocks[found].range.nsRange == target.range {
-                target.id = blocks[found].id
+            } else {
+                for change in changes { target.range = Self.moved(target.range, by: change) }
+                if let found = NativeLayout.index(target.range.location, blocks: blocks), blocks[found].range.nsRange == target.range {
+                    target.id = blocks[found].id
+                }
             }
             next.targets[index] = target
         }
         return next
+    }
+
+    /// A block's range after an edit: one inside it (its ends included)
+    /// resizes it, one before it moves it.
+    private static func moved(_ range: NSRange, by change: NativeTextChange) -> NSRange {
+        let delta = (change.text as NSString).length - change.range.length
+        if change.range.location > NSMaxRange(range) { return range }
+        if change.range.location < range.location { return NSRange(location: max(0, range.location + delta), length: range.length) }
+        return NSRange(location: range.location, length: max(0, range.length + delta))
+    }
+
+    /// Whether the command still applies after an edit of the text: the
+    /// edit neither adds nor removes a line break, and it lies in a block
+    /// from the first to the last it was given for.
+    func survives(_ range: NSRange, replacement: String, in text: String, blocks: [NativeBlock]) -> Bool {
+        let string = text as NSString
+        guard !replacement.contains("\n"), range.location >= 0, NSMaxRange(range) <= string.length,
+              !string.substring(with: range).contains("\n") else { return false }
+        var start = range.location
+        while start > 0, string.character(at: start - 1) != 10 { start -= 1 }
+        let starts = targets.compactMap { target in
+            target.id.map { id in blocks.first { $0.id == id }?.range.location } ?? target.range.location
+        }
+        guard let first = starts.min(), let last = starts.max() else { return false }
+        return start >= first && start <= last
     }
 
     /// Whether the selection touches exactly the blocks the command was given for.

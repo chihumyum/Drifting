@@ -18,6 +18,7 @@ struct NativeRange: Decodable, Equatable {
 enum NativeFormatAction: String, CaseIterable {
     case bold, italic, underline, strike, paragraph, heading1, heading2, heading3
     case alignLeft, alignCenter, alignRight, indentIncrease, indentDecrease
+    case blockquote, bulletList, orderedList
 
     /// Marks toggle over selected text; a caret has nothing to mark.
     var isMark: Bool { Self.marks.contains(self) }
@@ -25,6 +26,9 @@ enum NativeFormatAction: String, CaseIterable {
     /// Alignment and indent set one attribute of each paragraph or heading
     /// the selection touches (a caret takes its block).
     var isBlockAttribute: Bool { Self.alignments.contains(self) || self == .indentIncrease || self == .indentDecrease }
+    /// 引用, 无序列表 and 有序列表 toggle a root container around the
+    /// paragraphs and headings the selection touches (a caret takes its block).
+    var isContainer: Bool { Self.containers.contains(self) }
     var title: String {
         switch self {
         case .bold: return "加粗"
@@ -40,6 +44,9 @@ enum NativeFormatAction: String, CaseIterable {
         case .alignRight: return "右对齐"
         case .indentIncrease: return "增加缩进"
         case .indentDecrease: return "减少缩进"
+        case .blockquote: return "引用"
+        case .bulletList: return "无序列表"
+        case .orderedList: return "有序列表"
         }
     }
     var accessibilityID: String { "format-\(rawValue)" }
@@ -48,6 +55,7 @@ enum NativeFormatAction: String, CaseIterable {
     static let marks: [NativeFormatAction] = [.bold, .italic, .underline, .strike]
     static let blocks: [NativeFormatAction] = [.paragraph, .heading1, .heading2, .heading3]
     static let alignments: [NativeFormatAction] = [.alignLeft, .alignCenter, .alignRight]
+    static let containers: [NativeFormatAction] = [.blockquote, .bulletList, .orderedList]
 }
 
 /// How much of a selection has a format, for menu checkmarks.
@@ -139,11 +147,51 @@ struct NativeBlock: Decodable {
     let editable: Bool
     var runs: [NativeRun]
     var attributes: NativeBlockAttributes? = nil
+    /// Enclosing `blockquote`, `bulletList`, `orderedList` and `listItem`
+    /// tags, outermost first; empty at the root.
+    var containers: [String] = []
+    /// The number of the nearest enclosing ordered-list item.
+    var listNumber: Int? = nil
     var headingLevel: Int { attributes?.level ?? 1 }
     var textAlign: String? { attributes?.textAlign }
     var indent: Int { attributes?.indent ?? 0 }
     /// Alignment and indent apply to paragraphs and headings.
     var acceptsBlockAttributes: Bool { editable && (kind == "paragraph" || kind == "heading") }
+    var quoteDepth: Int { containers.filter { $0 == "blockquote" }.count }
+    var listDepth: Int { containers.filter { $0 == "listItem" }.count }
+    /// `bulletList` or `orderedList`: the innermost list holding the block.
+    var listKind: String? { containers.last { $0 == "bulletList" || $0 == "orderedList" } }
+    /// A paragraph or heading directly in a root quote (`blockquote`) or in
+    /// an item of a root list (`bulletList`/`orderedList`): the shapes
+    /// 引用 and the lists lift out of.
+    var rootContainer: String? {
+        if containers == ["blockquote"] { return "blockquote" }
+        if containers.count == 2, containers[1] == "listItem", containers[0] == "bulletList" || containers[0] == "orderedList" {
+            return containers[0]
+        }
+        return nil
+    }
+}
+
+extension NativeBlock {
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, depth, container, structuralAttributes, range, editable, runs, attributes, containers, listNumber
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(String.self, forKey: .id)
+        kind = try values.decode(String.self, forKey: .kind)
+        depth = try values.decode(Int.self, forKey: .depth)
+        container = try values.decode(String.self, forKey: .container)
+        structuralAttributes = try values.decode([String: String].self, forKey: .structuralAttributes)
+        range = try values.decode(NativeRange.self, forKey: .range)
+        editable = try values.decode(Bool.self, forKey: .editable)
+        runs = try values.decode([NativeRun].self, forKey: .runs)
+        attributes = try values.decodeIfPresent(NativeBlockAttributes.self, forKey: .attributes)
+        // Display hints: a projection without them draws the block at the root.
+        containers = (try? values.decodeIfPresent([String].self, forKey: .containers)) ?? []
+        listNumber = (try? values.decodeIfPresent(Int.self, forKey: .listNumber)) ?? nil
+    }
 }
 struct NativeProjection: Decodable {
     let revision: UInt64
@@ -217,7 +265,45 @@ extension NativeProjection {
         case .alignLeft, .alignCenter, .alignRight:
             return blockState({ $0.textAlign == action.textAlign }, considered: \.acceptsBlockAttributes)
         case .indentIncrease, .indentDecrease: return .off
+        case .blockquote, .bulletList, .orderedList:
+            return blockState({ $0.containers.contains(action.rawValue) }, considered: \.acceptsBlockAttributes)
         }
+    }
+
+    /// Why Rust refused 引用 or a list over a range, in Chinese with what to
+    /// do instead, read from the blocks the range touches. `reason` is the
+    /// core's own (English) refusal.
+    func containerRefusal(_ action: NativeFormatAction, in range: NSRange, reason: String) -> String {
+        let kept = "正文和选区已保留。"
+        guard let indices = blockIndices(touching: range) else { return "当前选区暂时无法设为\(action.title)。" + kept }
+        let touched = Array(blocks[indices])
+        let list = action != .blockquote
+        if touched.contains(where: { !$0.acceptsBlockAttributes }) { return "引用和列表只能用于正文段落和标题。" + kept }
+        if reason.contains("Lift the first or last") {
+            return (list ? "只能取消列表开头或结尾的项目，或整个列表；中间的项目不能单独移出。"
+                : "只能取消引用开头或结尾的段落，或整段引用；中间的段落不能单独移出。") + kept
+        }
+        if list, let other = touched.first(where: { $0.listKind != nil && $0.listKind != action.rawValue }) {
+            let name = other.listKind == "orderedList" ? "有序列表" : "无序列表"
+            return "所选段落在\(name)里。请先取消列表再切换列表类型。" + kept
+        }
+        if !list, touched.contains(where: { $0.listKind != nil }) { return "列表项不能直接设为引用。请先取消列表，再设为引用。" + kept }
+        if list, touched.contains(where: { $0.quoteDepth > 0 }) { return "引用中的段落不能直接设为列表。请先取消引用，再设为列表。" + kept }
+        if touched.contains(where: { $0.containers.isEmpty }), touched.contains(where: { !$0.containers.isEmpty }) {
+            return "所选段落有的在引用或列表里，有的不在。请只选其中一种再试。" + kept
+        }
+        if touched.contains(where: { $0.rootContainer == nil && !$0.containers.isEmpty }) {
+            return "嵌套的引用或列表暂时不能在这里切换。" + kept
+        }
+        // An item holding several paragraphs cannot leave its list.
+        let crowded = indices.contains { index in
+            blocks[index].listDepth > 0 && [index - 1, index + 1].contains {
+                blocks.indices.contains($0) && blocks[$0].container == blocks[index].container
+            }
+        }
+        if list, crowded { return "这个列表项有不止一段，暂时不能取消列表。可以先把几段合并成一段。" + kept }
+        if reason.contains("consecutive") { return "请选择相邻的段落。" + kept }
+        return "当前选区暂时无法设为\(action.title)。" + kept
     }
 
     /// Whether alignment and indent can apply: every touched block is an
@@ -536,7 +622,7 @@ final class DocumentBinding {
     }
     func canFormat(_ action: NativeFormatAction, range: NSRange) -> Bool {
         guard let projection = commandProjection(range) else { return false }
-        if action.isBlockAttribute { return projection.acceptsBlockAttributes(in: range) }
+        if action.isBlockAttribute || action.isContainer { return projection.acceptsBlockAttributes(in: range) }
         return !action.requiresSelection || range.length > 0
     }
     func format(_ action: NativeFormatAction, range: NSRange) {

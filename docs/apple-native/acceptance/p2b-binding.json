@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T18:46:57.884Z",
+  "generatedAt": "2026-09-28T20:18:58.734Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "e754a7f7f664587a6a1d94fdfbe918f2368c28c7",
+    "commit": "bd42e93cf4119875fbd7d7b0bedf5a1a9f03a41c",
     "dirty": true,
-    "fingerprint": "c149de64621c4ca6b4c2d25b4094642704b7e26bd5d6ee85346c750e63dff431"
+    "fingerprint": "07abedc7bf568e4d4f6d7d30478eedfca46b26cb5683e2e0f2702f2438cdee38"
   },
   "cases": [
     {
@@ -1015,6 +1015,14 @@
       "status": "passed"
     },
     {
+      "name": "AppKit typing straight after choosing a slash row or pressing Tab, while the removed “/query” or the typed text is still queued, keeps the waiting heading or indent for its block, also when an input method's marked text starts the typing, while a new line still drops it",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit ＋ 新建设定 rows alone keep the @ picker open for a short query, so a mistyped name is corrected with ⌫ back to the element's row; a longer query naming nothing leaves the picker inert, hidden and not taking Return, until ⌫ brings rows back, while sentence punctuation, a space and an e-mail address still close or never open it",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 后退 and 前进 (⌘[ ⌘]) step through the chapter, element, drift, category, storyline and 项目主页 pages the window showed in the panes that showed them, reopen a closed tab in its pane or in the active pane once that pane is gone, skip a trashed and a purged page, drop the pages ahead after a new visit, hold while input is queued or composing or a 情节规划格 edit is on its way, start a new history on a project switch and write nothing to the journal",
       "status": "passed"
     },
@@ -1036,6 +1044,10 @@
     },
     {
       "name": "AppKit a refused restore and one overtaken by another project's switch restore nothing and leave the saved tabs as they were, a switch refused by a tab that cannot close keeps the project's restored tabs and 项目主页 and saves nothing, and forgetting a deleted project drops its pages from 后退 and 前进",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit a restore whose drift list cannot be read puts back the other tabs, says so and keeps the unread page at its place in every later save until a complete restore brings it back, and a restore refused while navigation is held keeps the stored tabs through a save and is tried again once navigation is possible",
       "status": "passed"
     },
     {
@@ -1064,6 +1076,26 @@
     },
     {
       "name": "AppKit 历史版本 preview reads the selected version from Rust's projection and sets it with its headings, bold, italic, underline, strike, URL links, centred alignment and block indent, keeps marking text the current body lacks on a green wash and striking text the version lacks, falls back to plain text when the marks are off, and another body's version is refused",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 引用, 无序列表 and 有序列表 toggle through the 格式 menu, shortcuts assigned in 设置 › 快捷键, the toolbar, the prose context menu's 格式 submenu and the slash menu, checked for the caret's block, each as one undo unit that keeps the text, block IDs and a comment anchored on the wrapped paragraph, with both panes drawing the quote indent and the numbered and bulleted markers, and all of it survives a cold reopen",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit typing “> ”, “- ”, “* ” or “1. ” as the whole text before the caret in a root paragraph (also an empty chapter, and with text after the caret) removes the marker through the input path and then quotes or lists the paragraph as two undo units, also when typing goes on at once, while “3. ”, a marker inside a sentence and a marker in a quote change nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Rust's quote and list refusals (the middle of a quote or list, the other list kind, a quote around a list item, a list inside a quote, a mixed selection, an item of two paragraphs) show Chinese guidance and write nothing, and deleting across list items is refused before input is queued, leaving no failed draft",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Return in a non-empty list item adds a paragraph to the same item and in a quote a paragraph to the quote; Return on an empty last list item or empty last quote paragraph, also typed while input is queued, and ⌫ at the start of a quote's first paragraph or of the first or last list item take the block out as one undo unit each, while ⌫ at a middle item is refused before input is queued",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 打印 and the PDF export set quotes muted and indented and list items with their numbers and bullets from the live projection; the 全书长卷's editor rows and read-only previews and the 历史版本 preview draw the same markers",
       "status": "passed"
     }
   ],

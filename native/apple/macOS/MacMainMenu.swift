@@ -98,6 +98,7 @@ enum MacMenuCommand: String, CaseIterable {
     case copilot = "edit.copilot", history = "edit.history"
     case bold = "format.bold", italic = "format.italic", underline = "format.underline", strike = "format.strike"
     case bodyText = "format.paragraph", heading1 = "format.heading1", heading2 = "format.heading2", heading3 = "format.heading3"
+    case blockquote = "format.blockquote", bulletList = "format.bulletList", orderedList = "format.orderedList"
     case alignLeft = "format.alignLeft", alignCenter = "format.alignCenter", alignRight = "format.alignRight"
     case indentIncrease = "format.indentIncrease", indentDecrease = "format.indentDecrease"
     case link = "format.link", removeLink = "format.removeLink"
@@ -152,6 +153,9 @@ enum MacMenuCommand: String, CaseIterable {
         case .heading1: return "标题 1"
         case .heading2: return "标题 2"
         case .heading3: return "标题 3"
+        case .blockquote: return "引用"
+        case .bulletList: return "无序列表"
+        case .orderedList: return "有序列表"
         case .alignLeft: return "左对齐"
         case .alignCenter: return "居中"
         case .alignRight: return "右对齐"
@@ -183,6 +187,9 @@ enum MacMenuCommand: String, CaseIterable {
     /// standard (⌘F, ⌘G, ⇧⌘G, ⌘E; ⌘{ ⌘| ⌘}), so 故事图谱 is ⌃⌘G; indent has
     /// Tab and ⇧Tab in the editor, leaving ⌘[ and ⌘] for 后退 and 前进;
     /// ⌥⌘← and ⌥⌘→ move between tabs and ⌘W closes the tab, as in Safari.
+    /// 引用 and the lists start without one: Mac apps disagree (Notes'
+    /// ⇧⌘7 is a bulleted list, the renderer's is numbered, and its quote
+    /// key ⇧⌘B is the 全书长卷 here); typing “> ”, “- ” or “1. ” works.
     var defaultShortcut: MenuShortcut {
         let command: NSEvent.ModifierFlags = .command, shift: NSEvent.ModifierFlags = [.command, .shift]
         let option: NSEvent.ModifierFlags = [.command, .option]
@@ -264,6 +271,9 @@ enum MacMenuCommand: String, CaseIterable {
         case .heading1: return #selector(ProseTextView.heading1Prose(_:))
         case .heading2: return #selector(ProseTextView.heading2Prose(_:))
         case .heading3: return #selector(ProseTextView.heading3Prose(_:))
+        case .blockquote: return #selector(ProseTextView.blockquoteProse(_:))
+        case .bulletList: return #selector(ProseTextView.bulletListProse(_:))
+        case .orderedList: return #selector(ProseTextView.orderedListProse(_:))
         case .alignLeft: return #selector(ProseTextView.alignLeftProse(_:))
         case .alignCenter: return #selector(ProseTextView.alignCenterProse(_:))
         case .alignRight: return #selector(ProseTextView.alignRightProse(_:))
@@ -298,6 +308,9 @@ enum MacMenuCommand: String, CaseIterable {
         case .heading1: return .heading1
         case .heading2: return .heading2
         case .heading3: return .heading3
+        case .blockquote: return .blockquote
+        case .bulletList: return .bulletList
+        case .orderedList: return .orderedList
         case .alignLeft: return .alignLeft
         case .alignCenter: return .alignCenter
         case .alignRight: return .alignRight
@@ -332,7 +345,7 @@ enum MacMainMenu {
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, nil, .find, .findNext, .findPrevious, .findSelection, nil,
                 .search, .elements, .storylines, .drifts, .relationTypes, nil, .addComment, .comments, .copilot, nil, .history]),
         ("格式", [.bold, .italic, .underline, .strike, nil, .bodyText, .heading1, .heading2, .heading3, nil,
-                .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
+                .blockquote, .bulletList, .orderedList, nil, .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
         ("视图", [.projectHome, nil, .back, .forward, .previousTab, .nextTab, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,
                 .trash]),
         ("帮助", [.diagnostics]),
@@ -358,6 +371,12 @@ enum MacMainMenu {
                 item.tag = command.tag
                 if command == .indentIncrease || command == .indentDecrease {
                     item.toolTip = command == .indentIncrease ? "在正文中也可按 Tab" : "在正文中也可按 ⇧Tab"
+                }
+                switch command {
+                case .blockquote: item.toolTip = "也可在段首输入“> ”"
+                case .bulletList: item.toolTip = "也可在段首输入“- ”或“* ”"
+                case .orderedList: item.toolTip = "也可在段首输入“1. ”"
+                default: break
                 }
                 submenu.addItem(item)
             }

@@ -14,7 +14,9 @@ extension BindingAcceptance {
         "AppKit switching projects saves and closes the shown project's tabs through the close path, a tab that cannot close keeping the project and naming the tab, restores the other project's tabs with their split and text and back again with a new 后退 history, writes nothing to the journal, and 设置 › 快捷键 lists 关闭标签 (⌘W, fixed), 后退, 前进, 上一个标签 and 下一个标签",
         "AppKit 解除分屏 first saves the right pane's unsaved 摘要, element name and 情节规划格 cell, also for pages both panes show, and a refused cell keeps both panes and says why; ⌘W with the active pane empty shows another pane's tab or a restored tab instead of closing the window, which closes only without tabs",
         "AppKit a refused restore and one overtaken by another project's switch restore nothing and leave the saved tabs as they were, a switch refused by a tab that cannot close keeps the project's restored tabs and 项目主页 and saves nothing, and forgetting a deleted project drops its pages from 后退 and 前进",
+        restoreKeepsPagesCase,
     ]
+    static let restoreKeepsPagesCase = "AppKit a restore whose drift list cannot be read puts back the other tabs, says so and keeps the unread page at its place in every later save until a complete restore brings it back, and a restore refused while navigation is held keeps the stored tabs through a save and is tried again once navigation is possible"
 
     static func tabsNavigationAcceptance() throws -> [String] {
         let saved = (DocumentStore.entityLinkDelay, MacChapterWorkspace.backlinkDelay, WordCountModel.refreshDelay,
@@ -34,6 +36,7 @@ extension BindingAcceptance {
         try tabsProjectSwitch()
         try tabsMergeAndClose()
         try tabsRestoreGuards()
+        try tabsRestoreKeepsUnread()
         return tabsNavigationCases
     }
 
@@ -961,13 +964,22 @@ extension BindingAcceptance {
         let saved = try require(value: settings.tabSession(projectID: first.id), "第一部's tabs were not saved")
         try require(saved.panes.first?.tabs.count == 2 && !host.hasTabs(projectID: first.id), "The switch kept 第一部's tabs")
 
-        // Refused (navigation held): nothing restored, nothing saved.
+        // Refused (navigation held): nothing restored, and a save meanwhile
+        // keeps the stored tabs; once navigation is possible it runs again.
         host.lockViews(true)
         let refused = try harness.step(settling: false) { session.enter(first, completion: $0) }
+        try require(refused != nil && !host.hasTabs(projectID: first.id) && settings.tabSession(projectID: first.id) == saved
+                    && session.unrestored[first.id]?.whole == true, "A refused restore saved \(String(describing: settings.tabSession(projectID: first.id)))")
+        session.saveNow()
+        try require(settings.tabSession(projectID: first.id) == saved, "A save after the refusal dropped the stored tabs")
         host.lockViews(false)
+        try wait { host.hasTabs(projectID: first.id) && session.unrestored[first.id] == nil }
         try harness.settled()
-        try require(refused != nil && !host.hasTabs(projectID: first.id) && settings.tabSession(projectID: first.id) == saved,
-                    "A refused restore saved \(String(describing: settings.tabSession(projectID: first.id)))")
+        try require(host.tabTitles(pane: 0) == ["晨雾", "午潮"] && settings.tabSession(projectID: first.id)?.panes.map(\.tabs) == saved.panes.map(\.tabs),
+                    "The retried restore put back \(host.tabTitles(pane: 0))")
+        try harness.show(second)
+        try require(!host.hasTabs(projectID: first.id) && settings.tabSession(projectID: first.id)?.panes.map(\.tabs) == saved.panes.map(\.tabs),
+                    "Switching away after the retry lost 第一部's tabs")
 
         // Overtaken by another switch before its lists were read: nothing mixes in.
         var overtaken = false
@@ -1010,6 +1022,46 @@ extension BindingAcceptance {
         host.forget(projectID: first.id)
         try require(host.historyTitles.titles.isEmpty && !host.canGoBack && !host.canGoForward,
                     "The forgotten project stayed in 后退: \(host.historyTitles)")
+        try harness.quit()
+    }
+
+    /// A list that cannot be read leaves its pages out of the restore but in
+    /// the stored tabs, at their places, until a complete restore.
+    private static func tabsRestoreKeepsUnread() throws {
+        let harness = try TabsHarness()
+        defer { harness.cleanup() }
+        let host = harness.host, session = harness.session, settings = harness.settings
+        let (first, chapters) = try harness.project("未读第一部", chapters: ["晨雾", "午潮", "暮钟"])
+        let (second, _) = try harness.project("未读第二部", chapters: ["序章"])
+        let pages = try harness.pages(first)
+        let page = { (kind: RecentPage.Kind, id: String) in RecentPage(kind: kind, id: id) }
+        try harness.show(first)
+        try harness.open(first, .chapter(chapters[0]))
+        try harness.open(first, .drift(pages.drift))
+        try harness.open(first, .chapter(chapters[1]))
+        try harness.show(second)
+        let stored = [page(.chapter, chapters[0].id), page(.drift, pages.drift.id), page(.chapter, chapters[1].id)]
+        try require(settings.tabSession(projectID: first.id)?.panes.first?.tabs == stored && !host.hasTabs(projectID: first.id),
+                    "第一部's tabs were not saved: \(String(describing: settings.tabSession(projectID: first.id)))")
+
+        // The drift list cannot be read: the chapters come back, the drift stays stored.
+        try WorkspaceRemoteProseFixture.execute(in: harness.directory, sql: "ALTER TABLE drift_group RENAME TO drift_group_unreadable")
+        let partial = try harness.step { done in session.leave(for: first) { _ in session.enter(first, completion: done) } }
+        try require(partial?.localizedDescription.hasPrefix("部分标签未能恢复") == true && host.tabTitles(pane: 0) == ["晨雾", "午潮"],
+                    "The partial restore read “\(partial?.localizedDescription ?? "")” with \(host.tabTitles(pane: 0))")
+        try require(session.unrestored[first.id]?.pages == [page(.drift, pages.drift.id)]
+                    && settings.tabSession(projectID: first.id)?.panes.first?.tabs == stored, "The partial restore dropped the unread drift")
+        // A tab change saves the new tab and keeps the drift at its place.
+        try harness.open(first, .chapter(chapters[2]))
+        try wait { settings.tabSession(projectID: first.id)?.panes.first?.tabs == stored + [page(.chapter, chapters[2].id)] }
+        try require(host.tabTitles(pane: 0) == ["晨雾", "午潮", "暮钟"], "The host shows \(host.tabTitles(pane: 0))")
+
+        // Readable again: a complete restore brings the drift back and forgets it.
+        try WorkspaceRemoteProseFixture.execute(in: harness.directory, sql: "ALTER TABLE drift_group_unreadable RENAME TO drift_group")
+        try harness.show(second)
+        try harness.show(first)
+        try require(host.tabTitles(pane: 0) == ["晨雾", "旧信", "午潮", "暮钟"] && session.unrestored[first.id] == nil,
+                    "The complete restore put back \(host.tabTitles(pane: 0))")
         try harness.quit()
     }
 
