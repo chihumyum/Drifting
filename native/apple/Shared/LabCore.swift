@@ -78,7 +78,7 @@ enum LabError: LocalizedError {
         case .patchUnavailable(let reason): return LabError.patchMessage(reason)
         case .trashUnavailable(let reason): return LabError.trashMessage(reason)
         case .plotGridUnavailable(let reason): return LabError.plotGridMessage(reason)
-        case .workspaceUnavailable(let reason): return WorkspaceRecoveryStatus.headline(stopped: WorkspaceRecoveryStatus.isStoppedUpgrade(reason))
+        case .workspaceUnavailable(let reason): return WorkspaceRecoveryStatus.headline(reason: reason)
         }
     }
 
@@ -913,13 +913,25 @@ struct WorkspaceRecoveryStatus: Decodable, Equatable {
 
     static let stoppedPrefix = "database-recovery:"
     static func isStoppedUpgrade(_ reason: String) -> Bool { reason.hasPrefix(stoppedPrefix) }
-    /// An upgrade stopped before activation: the previous database is untouched.
+    /// An upgrade stopped: it has a recovery session.
     var upgradeStopped: Bool { recoverySessionId != nil }
+    /// The upgraded database replaced the previous one and then failed to
+    /// verify (`activated-database-*`): only the safety copy is the old one.
+    static func isActivated(code: String) -> Bool { code.hasPrefix("activated-database-") }
 
-    /// What happened, in one line.
-    static func headline(stopped: Bool) -> String {
-        stopped ? "升级本地资料库时停止，之前的资料库保持原样。" : "无法打开本地资料库。"
+    /// What happened, in one line, from an open error before its status is read.
+    static func headline(reason: String) -> String {
+        guard isStoppedUpgrade(reason) else { return headline(stopped: false, code: "") }
+        return headline(stopped: true, code: String(reason.split(separator: ":").last ?? ""))
     }
+
+    static func headline(stopped: Bool, code: String) -> String {
+        if !stopped { return "无法打开本地资料库。" }
+        if isActivated(code: code) { return "升级后的本地资料库没有通过校验。" }
+        return "升级本地资料库时停止，之前的资料库保持原样。"
+    }
+
+    var headline: String { Self.headline(stopped: upgradeStopped, code: code) }
 }
 
 private struct WorkspaceRecoveryRestored: Decodable { let migrationsApplied: Int }

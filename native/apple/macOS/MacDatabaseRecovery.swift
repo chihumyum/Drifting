@@ -9,10 +9,13 @@ import UniformTypeIdentifiers
 enum DatabaseRecoveryText {
     static func detail(_ status: WorkspaceRecoveryStatus) -> String {
         if status.safetyBackup != nil {
+            if WorkspaceRecoveryStatus.isActivated(code: status.code) {
+                return "升级后的资料库已替换了之前的资料库，但没有通过校验。请用升级前经过校验的安全副本重建资料库。在此之前不会打开或写入任何项目。"
+            }
             return "升级前已为资料库做了一份经过校验的安全副本。可以再试一次打开，或用安全副本重建资料库。在此之前不会打开或写入任何项目。"
         }
         if status.upgradeStopped {
-            return "这次升级的恢复记录无法校验，没有可用的安全副本。可以再试一次打开；问题持续时，请拷贝诊断信息。"
+            return "这次升级的安全副本或恢复记录无法校验（可能被移动或损坏），不能用它重建资料库。如果移动过安全副本，请放回原处后重试；问题持续时，请拷贝诊断信息。"
         }
         return "可以再试一次打开；问题持续时，请拷贝诊断信息。在此之前不会打开或写入任何项目。"
     }
@@ -244,7 +247,7 @@ final class MacDatabaseRecoveryWindowController: NSWindowController, NSWindowDel
     func show(_ error: Error, notice message: String? = nil, completion: (() -> Void)? = nil) {
         let reason = (error as? LabError)?.diagnosticDescription ?? error.localizedDescription
         failure = reason
-        headline.stringValue = WorkspaceRecoveryStatus.headline(stopped: WorkspaceRecoveryStatus.isStoppedUpgrade(reason))
+        headline.stringValue = WorkspaceRecoveryStatus.headline(reason: reason)
         showNotice(message)
         setBusy(true)
         workspace.recoveryStatus(error: reason) { [weak self] result in
@@ -266,7 +269,7 @@ final class MacDatabaseRecoveryWindowController: NSWindowController, NSWindowDel
 
     private func apply(_ status: WorkspaceRecoveryStatus) {
         self.status = status
-        headline.stringValue = WorkspaceRecoveryStatus.headline(stopped: status.upgradeStopped)
+        headline.stringValue = status.headline
         detail.stringValue = DatabaseRecoveryText.detail(status)
         codeValue.stringValue = status.code
         versionValue.stringValue = DatabaseRecoveryText.versions(status)
@@ -380,8 +383,8 @@ final class MacDatabaseRecoveryWindowController: NSWindowController, NSWindowDel
     static func copy(_ source: URL, to destination: URL, sha256: String) throws {
         let manager = FileManager.default
         let partial = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).partial")
-        try manager.copyItem(at: source, to: partial)
         do {
+            try manager.copyItem(at: source, to: partial)
             let digest = SHA256.hash(data: try Data(contentsOf: partial, options: .mappedIfSafe)).map { String(format: "%02x", $0) }.joined()
             guard digest == sha256.lowercased() else { throw LabError.message("安全副本校验不一致") }
             if manager.fileExists(atPath: destination.path) {

@@ -2,7 +2,8 @@ import AppKit
 
 /// 今日 / 连续天数 / 本周 / 本月 from the 今日字数 ledger's days against the
 /// 写作计划's daily goal. The streak counts consecutive days with positive
-/// words ending today, or yesterday while nothing is written today yet.
+/// words ending today, or yesterday while nothing is written today yet;
+/// past the ledger's 31 kept days it continues with the carried run.
 /// Weeks start on Monday; the ledger keeps 31 days, a whole month.
 struct ProjectHomeRhythm: Equatable {
     let today: Int
@@ -15,14 +16,17 @@ struct ProjectHomeRhythm: Equatable {
     let weekTarget: Int
     let monthTarget: Int
 
-    init(days: [String: Int], now: Date, calendar: Calendar, plan: WritingPlan, dayKey: (Date) -> String) {
+    init(days: [String: Int], carried: DailyStreakCarry? = nil, now: Date, calendar: Calendar, plan: WritingPlan,
+         dayKey: (Date) -> String) {
         let start = calendar.startOfDay(for: now)
         func words(_ date: Date) -> Int { days[dayKey(date)] ?? 0 }
         func day(_ offset: Int, from date: Date) -> Date { calendar.date(byAdding: .day, value: offset, to: date) ?? date }
         let todayWords = words(start)
         var streak = 0
         var cursor = todayWords > 0 ? start : day(-1, from: start)
-        while words(cursor) > 0, streak < 400 { streak += 1; cursor = day(-1, from: cursor) }
+        while words(cursor) > 0 { streak += 1; cursor = day(-1, from: cursor) }
+        // The run reaches the days no longer kept: it continues there.
+        if streak > 0, let carried, carried.through == dayKey(cursor) { streak += carried.days }
         var mondays = calendar
         mondays.firstWeekday = 2
         /// The words of each day from the interval's start through today.
@@ -330,7 +334,8 @@ final class ProjectHomeModel {
     }
 
     var rhythm: ProjectHomeRhythm {
-        ProjectHomeRhythm(days: settings.dailyWords(projectID: projectID), now: settings.now(), calendar: settings.calendar,
+        ProjectHomeRhythm(days: settings.dailyWords(projectID: projectID), carried: settings.dailyStreak(projectID: projectID),
+                          now: settings.now(), calendar: settings.calendar,
                           plan: settings.writingPlan(projectID: projectID), dayKey: settings.dayKey)
     }
 

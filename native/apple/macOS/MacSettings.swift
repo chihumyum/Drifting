@@ -22,6 +22,13 @@ extension NSColor {
 
 /// What 设置 stores: appearance, editor typesetting and language. Values are
 /// clamped on read, so a hand-edited or older file still opens.
+/// A run of consecutive days with positive words, `days` long, whose last
+/// day `through` (`yyyy-MM-dd`) is no longer kept in the daily ledger.
+struct DailyStreakCarry: Codable, Equatable {
+    var through: String
+    var days: Int
+}
+
 struct LabSettings: Codable, Equatable {
     enum Theme: String, Codable, CaseIterable { case light, dark, system }
     enum FontSource: String, Codable, CaseIterable { case systemSerif, systemSans, systemMono, systemCustom, imported }
@@ -71,6 +78,10 @@ struct LabSettings: Codable, Equatable {
     /// by command identifier (`file.print`); an empty key removes the
     /// default. Commands without an entry keep their default.
     var shortcuts: [String: MenuShortcut] = [:]
+    /// 项目主页 › 连续天数 beyond the kept days: per project, the run of
+    /// consecutive days with positive words that ended on the newest day
+    /// already dropped from `dailyWords` (none when that run broke).
+    var dailyStreaks: [String: DailyStreakCarry] = [:]
     /// 项目主页 › 最近: per project, the last pages this device opened,
     /// newest first (identities only; titles are read live).
     var recentPages: [String: [RecentPage]] = [:]
@@ -87,7 +98,7 @@ struct LabSettings: Codable, Equatable {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
-        case recentPages
+        case recentPages, dailyStreaks
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -108,6 +119,7 @@ struct LabSettings: Codable, Equatable {
         elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
                                                                 forKey: .elementOverviewViewports)) ?? [:]
         dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
+        dailyStreaks = (try? values.decodeIfPresent([String: DailyStreakCarry].self, forKey: .dailyStreaks)) ?? [:]
         bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
         plotPlanners = (try? values.decodeIfPresent([String: [String: PlotPlannerSetting]].self, forKey: .plotPlanners)) ?? [:]
         copilot = (try? values.decodeIfPresent(CopilotSettings.self, forKey: .copilot)) ?? CopilotSettings()
@@ -525,6 +537,8 @@ final class LabSettingsStore {
         scheduleRollover()
     }
 
+    /// Drops days older than the kept ones; a run of written days that
+    /// reaches the dropped edge carries its length in `dailyStreaks`.
     @discardableResult
     private func pruneDailyWords() -> Bool {
         let start = calendar.startOfDay(for: now())
@@ -533,10 +547,34 @@ final class LabSettingsStore {
         var pruned = false
         for (projectID, days) in settings.dailyWords {
             let kept = days.filter { $0.key >= oldest }
-            if kept.count != days.count { pruned = true; settings.dailyWords[projectID] = kept.isEmpty ? nil : kept }
+            guard kept.count != days.count else { continue }
+            pruned = true
+            var carry = settings.dailyStreaks[projectID]
+            for (day, words) in days.filter({ $0.key < oldest }).sorted(by: { $0.key < $1.key }) {
+                if words > 0 {
+                    let continues = carry.map { dayKey(offset: 1, from: $0.through) == day } ?? false
+                    carry = DailyStreakCarry(through: day, days: continues ? (carry?.days ?? 0) + 1 : 1)
+                } else {
+                    carry = nil
+                }
+            }
+            settings.dailyStreaks[projectID] = carry
+            settings.dailyWords[projectID] = kept.isEmpty ? nil : kept
         }
         return pruned
     }
+
+    /// The `yyyy-MM-dd` `offset` local days from another one.
+    func dayKey(offset: Int, from key: String) -> String? {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12)),
+              let moved = calendar.date(byAdding: .day, value: offset, to: date) else { return nil }
+        return dayKey(moved)
+    }
+
+    /// The run of written days carried beyond the kept ones, for 连续天数.
+    func dailyStreak(projectID: String) -> DailyStreakCarry? { settings.dailyStreaks[projectID] }
 
     private func scheduleRollover() {
         rolloverTimer?.invalidate()
@@ -590,13 +628,15 @@ final class LabSettingsStore {
     /// (their Keychain secrets are removed by the caller).
     func forgetProject(_ projectID: String) {
         guard settings.writingPlans[projectID] != nil || settings.elementOverviewViewports[projectID] != nil
-            || settings.dailyWords[projectID] != nil || settings.bottomTimelines[projectID] != nil
+            || settings.dailyWords[projectID] != nil || settings.dailyStreaks[projectID] != nil
+            || settings.bottomTimelines[projectID] != nil
             || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil
             || settings.recentPages[projectID] != nil else { return }
         settings.recentPages.removeValue(forKey: projectID)
         settings.writingPlans.removeValue(forKey: projectID)
         settings.elementOverviewViewports.removeValue(forKey: projectID)
         settings.dailyWords.removeValue(forKey: projectID)
+        settings.dailyStreaks.removeValue(forKey: projectID)
         settings.bottomTimelines.removeValue(forKey: projectID)
         settings.plotPlanners.removeValue(forKey: projectID)
         settings.mcpServers.removeValue(forKey: projectID)

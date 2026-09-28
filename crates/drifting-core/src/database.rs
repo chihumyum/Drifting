@@ -251,28 +251,39 @@ impl DatabaseGateway {
             };
         };
 
-        read_recovery_receipt(&self.inner.database_directory, session_id)
-            .map(|receipt| DatabaseOpenFailure {
-                code: receipt.error_code.clone(),
-                message: "The local library upgrade stopped before activation. Your previous database is still available.".into(),
-                recovery_session_id: Some(receipt.recovery_session_id.clone()),
-                source_version: receipt.source_version.clone(),
-                target_version: receipt.target_version.clone(),
-                safety_backup: Some(DatabaseSafetyBackupSummary {
-                    backup_id: receipt.backup_id,
-                    sha256: receipt.backup_sha256,
-                    size_bytes: receipt.backup_size_bytes,
-                    created_at_ms: receipt.created_at_ms,
-                }),
-            })
-            .unwrap_or_else(|_| DatabaseOpenFailure {
+        // The error names the stage that stopped; the receipt may still
+        // hold an earlier one. A copy is offered only once it verifies.
+        let Ok(receipt) = read_recovery_receipt(&self.inner.database_directory, session_id) else {
+            return DatabaseOpenFailure {
                 code: fallback_code.to_owned(),
                 message: "The local library upgrade is incomplete and its recovery receipt could not be verified.".into(),
                 recovery_session_id: Some(session_id.to_owned()),
                 source_version: None,
                 target_version: env!("CARGO_PKG_VERSION").into(),
                 safety_backup: None,
-            })
+            };
+        };
+        let verified = verify_recovery_backup(&self.inner.database_directory, &receipt).is_ok();
+        let message = if !verified {
+            "The local library upgrade is incomplete and its safety copy could not be verified."
+        } else if fallback_code.starts_with("activated-database-") {
+            "The upgraded local library could not be verified. Restore the safety copy made before the upgrade."
+        } else {
+            "The local library upgrade stopped before activation. Your previous database is still available."
+        };
+        DatabaseOpenFailure {
+            code: fallback_code.to_owned(),
+            message: message.into(),
+            recovery_session_id: Some(receipt.recovery_session_id.clone()),
+            source_version: receipt.source_version.clone(),
+            target_version: receipt.target_version.clone(),
+            safety_backup: verified.then(|| DatabaseSafetyBackupSummary {
+                backup_id: receipt.backup_id,
+                sha256: receipt.backup_sha256,
+                size_bytes: receipt.backup_size_bytes,
+                created_at_ms: receipt.created_at_ms,
+            }),
+        }
     }
 
     fn request<T>(&self, create_request: impl FnOnce(Response<T>) -> Request) -> DatabaseResult<T> {

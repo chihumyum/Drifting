@@ -131,6 +131,34 @@ fn workspace_recovery_reports_retries_and_restores_the_safety_copy() {
     let opened = success(json!({"operation":"workspaceOpen","directory":directory}));
     assert_eq!(opened["projects"][0]["name"], "合成写作项目");
     success(json!({"operation":"workspaceClose","handle":opened["handle"]}));
+    // A copy that no longer verifies is not offered, and the code is the
+    // error's own.
+    let error = failing_open(&directory);
+    let status = recovery(&directory, json!({"action":"status","error":error}));
+    let session = status["recoverySessionId"].as_str().unwrap().to_string();
+    let backup = status["safetyBackup"]["backupId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let file = recovery(
+        &directory,
+        json!({"action":"backupFile","recoverySessionId":session,"backupId":backup}),
+    )["path"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let aside = directory.join("moved-safety-copy.sqlite");
+    std::fs::rename(&file, &aside).unwrap();
+    let error = rejected(json!({"operation":"workspaceOpen","directory":directory}));
+    assert!(error.ends_with(":safety-backup-invalid"), "{error}");
+    let missing = recovery(&directory, json!({"action":"status","error":error}));
+    assert_eq!(missing["code"], "safety-backup-invalid");
+    assert_eq!(missing["recoverySessionId"], json!(session));
+    assert_eq!(missing["safetyBackup"], Value::Null);
+    std::fs::rename(&aside, &file).unwrap();
+    let opened = success(json!({"operation":"workspaceOpen","directory":directory}));
+    assert_eq!(opened["projects"][0]["name"], "合成写作项目");
+    success(json!({"operation":"workspaceClose","handle":opened["handle"]}));
     // Any other open failure has no safety copy to offer.
     let other = recovery(
         &directory,

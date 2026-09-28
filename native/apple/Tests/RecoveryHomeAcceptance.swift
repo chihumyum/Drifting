@@ -228,6 +228,23 @@ extension BindingAcceptance {
         try wait { second != nil && retrying.controller?.status != nil && retrying.controller?.busy == false }
         guard let retryController = retrying.controller else { throw LabError.message("The second failure showed no 恢复") }
         defer { retryController.onOpened = nil; retryController.window?.close() }
+        // A safety copy moved away no longer verifies: it is not offered, and the code is the open's own.
+        guard let secondSession = retryController.status?.recoverySessionId,
+              let secondBackup = retryController.status?.safetyBackup else { throw LabError.message("The second failure has no safety copy") }
+        let copy: URL = try elementResult { third.recoveryBackupFile(sessionID: secondSession, backupID: secondBackup.backupId, completion: $0) }
+        let aside = root.appendingPathComponent("moved-safety-copy.sqlite")
+        try FileManager.default.moveItem(at: copy, to: aside)
+        let unverifiedReads = retryController.statusReads
+        retryController.retry()
+        try wait { retryController.statusReads > unverifiedReads && !retryController.busy }
+        try require(retryController.status?.code == "safety-backup-invalid" && retryController.status?.safetyBackup == nil
+            && retryController.codeValue.stringValue == "safety-backup-invalid"
+            && retryController.backupValue.stringValue == "没有可用的安全副本"
+            && retryController.detail.stringValue.contains("无法校验")
+            && !retryController.restoreButton.isEnabled && !retryController.exportButton.isEnabled
+            && retryController.retryButton.isEnabled && retryController.revealButton.isEnabled && reopened == nil,
+            "A moved safety copy reads \(retryController.codeValue.stringValue) / \(retryController.backupValue.stringValue) / \(retryController.detail.stringValue)")
+        try FileManager.default.moveItem(at: aside, to: copy)
         unsetenv(databaseFault)
         retryController.retry()
         try wait { reopened != nil }
@@ -519,6 +536,25 @@ extension BindingAcceptance {
         harness.settings.checkDay()
         try require(rhythm("today") == "0 / 100 字 · 0%" && rhythm("streak") == "0 天" && rhythm("week") == "1,020 / 700 字"
             && rhythm("month") == "0 / 3,100 字 · 写作 0 天", "October reads \(page.rhythmValues.mapValues(\.stringValue))")
+        // A 40-day run outlives the 31 kept days: the dropped days carry its length.
+        for offset in 0..<40 {
+            let date = calendar.date(byAdding: .day, value: offset, to: day(10, 3))!
+            harness.settings.now = { date }
+            harness.settings.recordWords(10, projectID: project.id)
+        }
+        try require(rhythm("streak") == "40 天" && harness.settings.dailyWords(projectID: project.id).count == 31
+            && harness.settings.dailyStreak(projectID: project.id) == DailyStreakCarry(through: "2026-10-11", days: 9),
+            "A 40-day run reads \(rhythm("streak")) with \(String(describing: harness.settings.dailyStreak(projectID: project.id)))")
+        // The next morning it still counts until the day ends unwritten; a gap then ends it.
+        let after = calendar.date(byAdding: .day, value: 40, to: day(10, 3))!
+        harness.settings.now = { after }
+        harness.settings.checkDay()
+        try require(rhythm("streak") == "40 天", "Before writing the next day the streak reads \(rhythm("streak"))")
+        let later = calendar.date(byAdding: .day, value: 2, to: after)!
+        harness.settings.now = { later }
+        harness.settings.checkDay()
+        harness.settings.recordWords(10, projectID: project.id)
+        try require(rhythm("streak") == "1 天", "After a gap the streak reads \(rhythm("streak"))")
         harness.settings.now = Date.init
 
         // Storyline tracks: chapters in book order as status-coloured items that open the chapter.

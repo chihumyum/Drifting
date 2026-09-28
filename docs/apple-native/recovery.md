@@ -14,7 +14,7 @@ is told what to do. Native only; no Tauri interoperability is kept.
   a plain message.
 - `workspaceRecovery {directory, command}` works on the same lab directory
   and is refused while a workspace is open there. `command.action`:
-  `status {error}` reads the failure (`code`, `recoverySessionId?`,
+  `status {error}` reads the failure (`code` from the error, `recoverySessionId?`,
   `sourceVersion?`, `targetVersion`, `safetyBackup? {backupId, sha256,
   sizeBytes, createdAtMs}`; a plain failure is `database-open-failed`
   without a session or copy); `restore {recoverySessionId, backupId}`
@@ -37,10 +37,14 @@ the main window shows only once the workspace opened. On an open failure the
 main window, 项目书架 and 诊断摘要 close, menu commands other than 设置 and 退出
 are off, and 退出 needs no workspace close.
 
-The window says 升级本地资料库时停止，之前的资料库保持原样 (a recovery session)
-or 无法打开本地资料库, the error code, the versions (未知 for an unknown earlier
+The window says 升级本地资料库时停止，之前的资料库保持原样 (a recovery session),
+升级后的本地资料库没有通过校验 (`activated-database-*`: the upgraded database
+already replaced the previous one, so only the safety copy is the old one) or
+无法打开本地资料库, the error code, the versions (未知 for an unknown earlier
 version) and the safety copy's size, time and first 12 hex digits of its
-SHA-256.
+SHA-256. The status reports the code of the failure that just happened and
+offers the copy only while it verifies (size and SHA-256); a copy that was
+moved or damaged is not offered, and the window says so.
 
 - **重试** opens again; a failure re-reads the status and says so.
 - **恢复安全副本…** asks first (取消 writes nothing), saying the library is
@@ -65,5 +69,7 @@ the status, the database bytes and later reads stay untouched, export equals
 the copy and leaves it in place, the folder is the copy's, diagnostics hold
 no path or title; 重试 with the fault still set updates the window;
 restore after 取消 and 恢复 opens the project with its chapter text; a
-second failure is opened by 重试 once the fault is gone; a plain failure
+second failure with its copy moved away is `safety-backup-invalid` without
+a copy (restore and export off) and is opened by 重试 once the copy is back
+and the fault is gone; a plain failure
 turns the copy buttons off. The variable is unset on every exit.

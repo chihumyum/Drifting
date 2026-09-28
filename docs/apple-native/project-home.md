@@ -31,7 +31,9 @@ Closing the workspace and deleting the project close it.
 - **写作节奏.** 今日, 连续天数, 本周 and 本月 from the 今日字数 days in
   `settings.json` against the 写作计划's daily goal: the streak counts
   consecutive days with positive words ending today, or yesterday while
-  today has none; weeks start on Monday; 本周 and 本月 target the daily goal
+  today has none, and continues past the kept days through the run carried
+  when they were dropped (`dailyStreaks`: its last dropped day and length);
+  weeks start on Monday; 本周 and 本月 target the daily goal
   times the days of the week or month, and 本月 names the days written. The
   ledger keeps 31 days, a whole month ([whole book](whole-book.md)).
 - **故事线.** Each live storyline with its member chapters in book order as
