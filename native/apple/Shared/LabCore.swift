@@ -380,6 +380,11 @@ final class LabCore {
         return sharedDocument?.hasPendingWork == true
     }
 
+    fileprivate var hasQueuedDocumentInput: Bool {
+        precondition(Thread.isMainThread)
+        return sharedDocument?.hasQueuedInput == true
+    }
+
     func retainPendingDocument(_ store: DocumentStore, needed: Bool) {
         pendingDocument = needed ? store : nil
     }
@@ -874,6 +879,77 @@ struct WorkspaceAgentProse: Decodable {
     let live: Bool
 }
 
+/// `workspaceAgent readProjection`: a body's text, blocks and marks for
+/// printing, read from its open owner (`live`, with text not saved yet) or
+/// from stored prose. Display hints only; the marks stay in Yrs.
+struct WorkspaceBodyProjection: Decodable {
+    struct Marks: Decodable {
+        /// Mark names without y-prosemirror's overlap suffix.
+        let names: Set<String>
+        /// A `link` mark's address.
+        let href: String?
+        private struct Keys: CodingKey {
+            let stringValue: String
+            var intValue: Int? { nil }
+            init?(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { return nil }
+        }
+        private struct Link: Decodable { let href: String? }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: Keys.self)
+            var names = Set<String>(), href: String?
+            for key in values.allKeys {
+                let name = key.stringValue.replacingOccurrences(of: "--[a-zA-Z0-9+/=]{8}$", with: "", options: .regularExpression)
+                names.insert(name)
+                if name == "link", href == nil { href = (try? values.decode(Link.self, forKey: key))?.href }
+            }
+            self.names = names
+            self.href = href
+        }
+    }
+    struct Run: Decodable {
+        let range: NativeRange
+        let attributes: Marks
+    }
+    struct Block: Decodable {
+        let kind: String
+        /// Nesting inside quotes and lists (a list item adds two levels).
+        let depth: Int
+        /// The parent element: blocks of one quote or list item share it.
+        let container: String
+        let range: NativeRange
+        let runs: [Run]
+        /// A heading's level.
+        let level: Int?
+        private enum CodingKeys: String, CodingKey { case kind, depth, container, range, runs, attributes }
+        private struct Attributes: Decodable {
+            let level: Double?
+            private enum CodingKeys: String, CodingKey { case level }
+            init(from decoder: Decoder) throws {
+                level = try? decoder.container(keyedBy: CodingKeys.self).decode(Double.self, forKey: .level)
+            }
+        }
+        init(kind: String, depth: Int = 0, container: String = "", range: NativeRange, runs: [Run] = [], level: Int? = nil) {
+            self.kind = kind; self.depth = depth; self.container = container; self.range = range; self.runs = runs; self.level = level
+        }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            kind = try values.decode(String.self, forKey: .kind)
+            depth = (try? values.decode(Int.self, forKey: .depth)) ?? 0
+            container = (try? values.decode(String.self, forKey: .container)) ?? ""
+            range = try values.decode(NativeRange.self, forKey: .range)
+            runs = (try? values.decode([Run].self, forKey: .runs)) ?? []
+            level = (try? values.decode(Attributes.self, forKey: .attributes))?.level.map { Int($0) }
+        }
+    }
+    struct Projection: Decodable {
+        let text: String
+        let blocks: [Block]
+    }
+    let projection: Projection
+    let live: Bool
+}
+
 /// `workspaceAgent applyChanges`: `handle` is the open owner that adopted the
 /// revision, or nil when a temporary owner applied, saved and closed.
 struct WorkspaceAgentApplied: Decodable {
@@ -913,6 +989,9 @@ final class LabWorkspaceCore {
     private var remoteDeliveryInFlight = 0
     private(set) var isChangingOwners = false
     var hasPendingDocuments: Bool { owners.values.contains { $0.core.hasPendingDocumentWork } }
+    /// Input a view accepted that Rust has not applied yet (queued, sending
+    /// or composing). A failed save is not queued: its text is in the owner.
+    var hasQueuedInput: Bool { owners.values.contains { $0.core.hasQueuedDocumentInput } }
     /// Open Rust owners with a Swift wrapper, e.g. to keep the 全书长卷 bounded.
     var openDocumentCount: Int { owners.count }
     func hasOpenDocument(_ scope: DocumentScope) -> Bool { owners[scope] != nil }
@@ -1933,6 +2012,17 @@ final class LabWorkspaceCore {
         perform(completion) {
             try self.request("workspaceAgent", fields: ["projectId": projectID,
                 "command": ["action": "readProse", "target": ["kind": kind, "id": id]]])
+        }
+    }
+
+    /// A body's styled projection for printing and PDF export: live from its
+    /// open owner, else stored. A read only: no owner opens, nothing is
+    /// written. Queued input is not in it yet; callers wait for it first.
+    func readProjection(projectID: String, kind: String, id: String,
+                        completion: @escaping (Result<WorkspaceBodyProjection, Error>) -> Void) {
+        perform(completion) {
+            try self.request("workspaceAgent", fields: ["projectId": projectID,
+                "command": ["action": "readProjection", "target": ["kind": kind, "id": id]]])
         }
     }
 

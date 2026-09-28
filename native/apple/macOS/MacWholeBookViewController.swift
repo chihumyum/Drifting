@@ -440,6 +440,8 @@ final class MacWholeBookViewController: NSViewController {
     func frame(ofChapter id: String) -> NSRect? { slotsByKey["chapter:\(id)"]?.frame }
     /// Chapters with an editor, in reading order.
     var attachedChapterIDs: [String] { attachedRows.map(\.chapter.id) }
+    /// The chapter whose editor has the keyboard focus, e.g. for 打印….
+    var focusedChapter: BookChapter? { attachedRows.first { $0.isFocused }?.chapter }
     /// Chapters whose owner is kept for undo without an editor, least recently edited first.
     var keptChapterIDs: [String] { keptOwners.compactMap { if case .chapter(let chapter) = $0.scope { return chapter.chapterID }; return nil } }
     /// Titles of chapters whose owner could not be closed and is tried again later.

@@ -1,9 +1,10 @@
-# Materials library, portraits, import and export
+# Materials library, portraits, import, export and printing
 
 The materials library (素材库) holds images and PDFs imported into the app's
 own asset store, links and text notes. Elements can carry a portrait. Text can
-be imported into a new chapter, drift or element, and the book exported as
-Markdown or plain text. Native only; no Tauri interoperability is kept.
+be imported into a new chapter, drift or element, the book exported as
+Markdown, plain text or PDF, and a page printed. Native only; no Tauri
+interoperability is kept.
 
 ## Domain contract
 
@@ -111,6 +112,44 @@ backslashed components, and duplicates refuse the whole export. Files are
 UTF-8 in subfolders, never overwriting. An alert reports the count and offers
 在访达中显示. Reading writes no journal row; images and PDFs are not included.
 
+## Printing and PDF
+
+文件 › 打印… (⌘P) prints the focused page (the chapter being written in the
+全书长卷, else the active tab's chapter, drift, element, category or
+storyline) through the standard print panel, so 存储为 PDF… works there. The
+page title heads the first page and the body follows in the editor's
+typography (`DocumentStyle.typography`: 设置's face, size, line height,
+first-line indent and manuscript language), in black whatever the
+appearance. Each page's header holds the title and the page number; pages
+lay out again when the panel's paper or orientation changes.
+
+文件 › 导出 PDF… asks for a destination and writes the whole book in outline
+order: a title page with the project's name and summary, a page per act, and
+every chapter from a new page under its heading, with the book title and the
+page number in the header (none on the title and act pages). The paper is
+A4 or Letter as set in 文件 › 页面设置… (any other paper means A4). Body
+headings are set one level below the chapter heading; bold, italic, strike,
+inline and block code, quotes, lists, rules and links are styled, entity
+links are plain text and comments are not marked.
+
+Bodies come from `workspaceAgent readProjection` (`{projection:{text,
+blocks}, live}`): an open owner gives its live text, including text whose
+save failed. Nothing opens an owner or writes a journal row. Both commands
+first wait up to three seconds for input still on its way to Rust (queued,
+sending or composing), then refuse in Chinese. The export reads the project,
+the outline and each chapter in turn, then sets and writes pages for about
+25 ms per run-loop turn. A sheet shows the chapters read and the pages
+written, with 取消. The PDF is written in a temporary folder and moved to the
+destination only when complete, so cancelling or failing leaves no file and
+an existing file untouched.
+
+Limits: the projection names no container kind, so blocks at an odd depth
+are set as quotes and at an even depth as bulleted list items (ordered lists
+are bulleted, and a quote inside a list item is told from a list inside a
+quote by depth alone). Quartz's PDF text extraction reads some CJK glyphs as
+Kangxi radicals when text is copied or searched (Songti's 口 as ⼜); the
+pages render correctly. Links are styled but not clickable.
+
 ## Acceptance
 
 Core tests cover the asset store protocol and the library, portrait and
@@ -138,3 +177,17 @@ and save panels, the Quick Look window and devices are not covered.
 (the second with `-2`), compares every written file with the archive, checks
 subfolders, front matter and wiki links, 在访达中显示 and that no journal row
 was written, and refuses four escaping paths without writing anything.
+
+`--print-keys-only` ([binding report](acceptance/p2b-binding.json)) typesets a
+synthetic projection of every block kind and mark; prints a drift and an
+element page through `NSPrintOperation` to PDF files (no panel), on Letter
+and again after the operation's paper changes to A4; exports books to a
+temporary folder and reads them back with PDFKit: page count and paper, the
+title page, act pages, chapters from new pages, headers with the title and
+page number, body text in order, bold and italic font traits in 设置's family,
+size, line pitch and first-line indent, an entity-linked name as plain text,
+and an open chapter's text whose save failed; no journal row and no new owner.
+It cancels while reading and while typesetting (no file at or beside the
+destination, an earlier file untouched), checks the progress reported, and
+waits for queued input before reading. The print panel, a printer and the
+progress sheet on screen are not covered.

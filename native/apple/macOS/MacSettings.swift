@@ -64,6 +64,10 @@ struct LabSettings: Codable, Equatable {
     /// 设置 › 写作助手 › MCP 扩展: each project's servers, keyed by project
     /// identity. Secret values are in the Keychain, never here.
     var mcpServers: [String: [AgentMcpServerConfig]] = [:]
+    /// 设置 › 快捷键: menu commands whose shortcut the author changed, keyed
+    /// by command identifier (`file.print`); an empty key removes the
+    /// default. Commands without an entry keep their default.
+    var shortcuts: [String: MenuShortcut] = [:]
 
     static let fontSizes: ClosedRange<Double> = 12...28
     static let lineHeights: ClosedRange<Double> = 1.0...2.0
@@ -76,7 +80,7 @@ struct LabSettings: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling
-        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, copilot, mcpServers
+        case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, copilot, mcpServers, shortcuts
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -100,6 +104,9 @@ struct LabSettings: Codable, Equatable {
         bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
         copilot = (try? values.decodeIfPresent(CopilotSettings.self, forKey: .copilot)) ?? CopilotSettings()
         mcpServers = (try? values.decodeIfPresent([String: [AgentMcpServerConfig]].self, forKey: .mcpServers)) ?? [:]
+        // One unreadable shortcut does not take the others with it.
+        let shortcutValues = (try? values.decodeIfPresent([String: LenientShortcut].self, forKey: .shortcuts)) ?? [:]
+        shortcuts = shortcutValues.compactMapValues(\.value)
         self = normalized()
     }
 
@@ -114,7 +121,15 @@ struct LabSettings: Codable, Equatable {
         if next.fontSource == .systemCustom, next.systemFontFamily.isEmpty { next.fontSource = .systemSerif }
         if next.fontSource == .imported, next.importedFont == nil { next.fontSource = .systemSerif }
         next.copilot = copilot.normalized()
+        // A shortcut no command may take (no ⌘ or ⌃, or reserved by the
+        // system) is dropped; the command keeps its default.
+        next.shortcuts = shortcuts.filter { MacShortcuts.refusal($0.value) == nil }
         return next
+    }
+
+    private struct LenientShortcut: Decodable {
+        let value: MenuShortcut?
+        init(from decoder: Decoder) throws { value = try? MenuShortcut(from: decoder) }
     }
 
     /// The manuscript language as a BCP 47 tag for CoreText.
@@ -356,6 +371,34 @@ final class LabSettingsStore {
         settings.mcpServers[projectID] = servers.isEmpty ? nil : servers
         save()
         NotificationCenter.default.post(name: Self.mcpDidChange, object: self, userInfo: ["projectID": projectID])
+        changed()
+    }
+
+    // MARK: Shortcuts
+
+    /// 设置 › 快捷键 changed; `object` is the store. Menus apply it at once.
+    static let shortcutsDidChange = Notification.Name("LabSettingsStoreShortcutsDidChange")
+
+    /// Saves a command's shortcut; nil, or its default, removes the
+    /// override. The caller checks the rules first (`MacShortcuts`).
+    /// Typesetting is not applied again.
+    func setShortcut(_ shortcut: MenuShortcut?, for command: MacMenuCommand) {
+        var next = settings.shortcuts
+        if let shortcut, shortcut != command.defaultShortcut { next[command.rawValue] = shortcut }
+        else { next.removeValue(forKey: command.rawValue) }
+        setShortcuts(next)
+    }
+
+    /// 全部还原: every command of this menu returns to its default.
+    func resetAllShortcuts() {
+        setShortcuts(settings.shortcuts.filter { MacMenuCommand(rawValue: $0.key) == nil })
+    }
+
+    private func setShortcuts(_ next: [String: MenuShortcut]) {
+        guard next != settings.shortcuts else { changed(); return }
+        settings.shortcuts = next
+        save()
+        NotificationCenter.default.post(name: Self.shortcutsDidChange, object: self)
         changed()
     }
 

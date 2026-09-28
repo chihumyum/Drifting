@@ -154,6 +154,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private lazy var markdownExport = MacMarkdownFolderExport(workspace: workspace)
     /// 帮助 › 诊断摘要….
     private var diagnostics: MacDiagnosticsWindowController?
+    /// 文件 › 打印… and 导出 PDF….
+    private lazy var printing = MacPrintCoordinator(workspace: workspace)
+    /// Keeps the menu's key equivalents on 设置 › 快捷键.
+    private var shortcuts: MacShortcutApplier?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -174,128 +178,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func installMenu() {
-        let menu = NSMenu(), appItem = NSMenuItem(), appMenu = NSMenu()
-        let settings = appMenu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
-        settings.target = self
-        appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "退出 Drifting Native Lab", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        appItem.submenu = appMenu
-        menu.addItem(appItem)
-        let file = NSMenuItem(title: "文件", action: nil, keyEquivalent: ""), fileMenu = NSMenu(title: "文件")
-        let save = fileMenu.addItem(withTitle: "保存正文", action: #selector(saveDocument), keyEquivalent: "s")
-        save.target = self
-        fileMenu.addItem(.separator())
-        // ⇧⌘I belongs to Copilot 分析, as in the renderer.
-        let profile = fileMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "i")
-        profile.keyEquivalentModifierMask = [.command, .option]
-        profile.target = self
-        let deleteProject = fileMenu.addItem(withTitle: "删除项目…", action: #selector(deleteSelectedProject), keyEquivalent: "")
-        deleteProject.target = self
-        fileMenu.addItem(.separator())
-        let importItem = fileMenu.addItem(withTitle: "导入…", action: #selector(importFile), keyEquivalent: "o")
-        importItem.keyEquivalentModifierMask = [.command, .shift]
-        importItem.target = self
-        let exportItem = fileMenu.addItem(withTitle: "导出全书…", action: #selector(exportBook), keyEquivalent: "")
-        exportItem.target = self
-        let exportFolder = fileMenu.addItem(withTitle: "导出为 Markdown 文件夹…", action: #selector(exportMarkdownFolderMenu), keyEquivalent: "")
-        exportFolder.target = self
-        file.submenu = fileMenu
-        menu.addItem(file)
-        let projectItem = NSMenuItem(title: "项目", action: nil, keyEquivalent: ""), projectMenu = NSMenu(title: "项目")
-        let shelfItem = projectMenu.addItem(withTitle: "项目书架…", action: #selector(showShelf), keyEquivalent: "p")
-        shelfItem.keyEquivalentModifierMask = [.command, .shift]
-        shelfItem.target = self
-        let projectTrash = projectMenu.addItem(withTitle: "回收站", action: #selector(showTrashMenu), keyEquivalent: "")
-        projectTrash.target = self
-        projectMenu.addItem(.separator())
-        let projectProfile = projectMenu.addItem(withTitle: "项目资料…", action: #selector(showProjectProfile), keyEquivalent: "")
-        projectProfile.target = self
-        let projectDelete = projectMenu.addItem(withTitle: "删除项目…", action: #selector(deleteSelectedProject), keyEquivalent: "")
-        projectDelete.target = self
-        projectItem.submenu = projectMenu
-        menu.addItem(projectItem)
-        let edit = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""), editMenu = NSMenu(title: "编辑")
-        editMenu.addItem(withTitle: "撤销", action: #selector(ProseTextView.undo(_:)), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "重做", action: #selector(ProseTextView.redo(_:)), keyEquivalent: "z")
-        redo.keyEquivalentModifierMask = [.command, .shift]
-        for (title, action, key) in [("剪切", "cut:", "x"), ("复制", "copy:", "c"), ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a")] {
-            editMenu.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
-        }
-        edit.submenu = editMenu
-        menu.addItem(edit)
-        let search = editMenu.addItem(withTitle: "项目搜索", action: #selector(showSearch), keyEquivalent: "f")
-        search.keyEquivalentModifierMask = [.command, .shift]
-        search.target = self
-        let elements = editMenu.addItem(withTitle: "设定库", action: #selector(showElements), keyEquivalent: "e")
-        elements.keyEquivalentModifierMask = [.command, .shift]
-        elements.target = self
-        let storylines = editMenu.addItem(withTitle: "故事线", action: #selector(showStorylines), keyEquivalent: "l")
-        storylines.keyEquivalentModifierMask = [.command, .shift]
-        storylines.target = self
-        let drifts = editMenu.addItem(withTitle: "漂流", action: #selector(showDrifts), keyEquivalent: "d")
-        drifts.keyEquivalentModifierMask = [.command, .shift]
-        drifts.target = self
-        let relationTypes = editMenu.addItem(withTitle: "关系类型…", action: #selector(showRelationTypes), keyEquivalent: "r")
-        relationTypes.keyEquivalentModifierMask = [.command, .shift]
-        relationTypes.target = self
-        editMenu.addItem(.separator())
-        // Nil-targeted: the focused editor pane validates its own selection.
-        let addComment = editMenu.addItem(withTitle: "添加批注…", action: #selector(ProseTextView.addProseComment(_:)), keyEquivalent: "m")
-        addComment.keyEquivalentModifierMask = [.command, .option]
-        let comments = editMenu.addItem(withTitle: "批注列表", action: #selector(showComments), keyEquivalent: "")
-        comments.target = self
-        // Nil-targeted: the focused chapter (or drift) body asks its project's Copilot.
-        let copilot = editMenu.addItem(withTitle: "Copilot 分析", action: #selector(ProseTextView.copilotAnalyze(_:)), keyEquivalent: "i")
-        copilot.keyEquivalentModifierMask = [.command, .shift]
-        editMenu.addItem(.separator())
-        let history = editMenu.addItem(withTitle: "历史版本…", action: #selector(showHistory), keyEquivalent: "y")
-        history.keyEquivalentModifierMask = [.command, .option]
-        history.target = self
-        let format = NSMenuItem(title: "格式", action: nil, keyEquivalent: ""), formatMenu = NSMenu(title: "格式")
-        formatMenu.addItem(withTitle: "加粗", action: #selector(ProseTextView.boldProse(_:)), keyEquivalent: "b")
-        formatMenu.addItem(withTitle: "斜体", action: #selector(ProseTextView.italicProse(_:)), keyEquivalent: "i")
-        format.submenu = formatMenu
-        menu.addItem(format)
-        let view = NSMenuItem(title: "视图", action: nil, keyEquivalent: ""), viewMenu = NSMenu(title: "视图")
-        let agent = viewMenu.addItem(withTitle: "写作助手", action: #selector(toggleAgent), keyEquivalent: "a")
-        agent.keyEquivalentModifierMask = [.command, .option]
-        agent.target = self
-        agentMenuItem = agent
-        let materials = viewMenu.addItem(withTitle: "素材库", action: #selector(showMaterials), keyEquivalent: "m")
-        materials.keyEquivalentModifierMask = [.command, .shift]
-        materials.target = self
-        let review = viewMenu.addItem(withTitle: "审阅", action: #selector(showReview), keyEquivalent: "r")
-        review.keyEquivalentModifierMask = [.command, .option]
-        review.target = self
-        let board = viewMenu.addItem(withTitle: "备忘与素材", action: #selector(showBoard), keyEquivalent: "t")
-        board.keyEquivalentModifierMask = [.command, .option]
-        board.target = self
-        let graph = viewMenu.addItem(withTitle: "故事图谱", action: #selector(showStoryGraph), keyEquivalent: "g")
-        graph.keyEquivalentModifierMask = [.command, .shift]
-        graph.target = self
-        let wholeBook = viewMenu.addItem(withTitle: "全书长卷", action: #selector(showWholeBook), keyEquivalent: "b")
-        wholeBook.keyEquivalentModifierMask = [.command, .shift]
-        wholeBook.target = self
-        let overview = viewMenu.addItem(withTitle: "设定总览", action: #selector(showElementOverview), keyEquivalent: "e")
-        overview.keyEquivalentModifierMask = [.command, .option]
-        overview.target = self
-        viewMenu.addItem(.separator())
-        let timeline = viewMenu.addItem(withTitle: "底部时间轴", action: #selector(toggleBottomTimeline), keyEquivalent: "b")
-        timeline.keyEquivalentModifierMask = [.command, .option]
-        timeline.target = self
-        timelineMenuItem = timeline
-        viewMenu.addItem(.separator())
-        let trash = viewMenu.addItem(withTitle: "回收站", action: #selector(showTrashMenu), keyEquivalent: "")
-        trash.target = self
-        view.submenu = viewMenu
-        menu.addItem(view)
-        let help = NSMenuItem(title: "帮助", action: nil, keyEquivalent: ""), helpMenu = NSMenu(title: "帮助")
-        let diagnosticsItem = helpMenu.addItem(withTitle: "诊断摘要…", action: #selector(showDiagnostics), keyEquivalent: "")
-        diagnosticsItem.target = self
-        help.submenu = helpMenu
-        menu.addItem(help)
-        NSApp.helpMenu = helpMenu
+        // One layout builds the menu and 设置 › 快捷键 lists it; editor
+        // commands (undo, format, 添加批注…, Copilot 分析) stay nil-targeted
+        // so the focused editor pane validates its own selection.
+        let actions: [MacMenuCommand: MacMainMenu.Action] = [
+            .settings: .init(#selector(showSettings), self),
+            .save: .init(#selector(saveDocument), self),
+            .fileProfile: .init(#selector(showProjectProfile), self),
+            .fileDeleteProject: .init(#selector(deleteSelectedProject), self),
+            .importFile: .init(#selector(importFile), self),
+            .exportBook: .init(#selector(exportBook), self),
+            .exportMarkdownFolder: .init(#selector(exportMarkdownFolderMenu), self),
+            .exportPDF: .init(#selector(exportPDF), self),
+            .pageSetup: .init(#selector(pageSetup), self),
+            .print: .init(#selector(printPage), self),
+            .shelf: .init(#selector(showShelf), self),
+            .projectTrash: .init(#selector(showTrashMenu), self),
+            .projectProfile: .init(#selector(showProjectProfile), self),
+            .projectDelete: .init(#selector(deleteSelectedProject), self),
+            .search: .init(#selector(showSearch), self),
+            .elements: .init(#selector(showElements), self),
+            .storylines: .init(#selector(showStorylines), self),
+            .drifts: .init(#selector(showDrifts), self),
+            .relationTypes: .init(#selector(showRelationTypes), self),
+            .comments: .init(#selector(showComments), self),
+            .history: .init(#selector(showHistory), self),
+            .agent: .init(#selector(toggleAgent), self),
+            .materials: .init(#selector(showMaterials), self),
+            .review: .init(#selector(showReview), self),
+            .board: .init(#selector(showBoard), self),
+            .storyGraph: .init(#selector(showStoryGraph), self),
+            .wholeBook: .init(#selector(showWholeBook), self),
+            .elementOverview: .init(#selector(showElementOverview), self),
+            .bottomTimeline: .init(#selector(toggleBottomTimeline), self),
+            .trash: .init(#selector(showTrashMenu), self),
+            .diagnostics: .init(#selector(showDiagnostics), self),
+        ]
+        let menu = MacMainMenu.build(actions)
+        agentMenuItem = MacMainMenu.item(.agent, in: menu)
+        timelineMenuItem = MacMainMenu.item(.bottomTimeline, in: menu)
+        NSApp.helpMenu = MacMainMenu.submenu("帮助", in: menu)
         NSApp.mainMenu = menu
+        // Stored shortcuts apply now and after every change in 设置 › 快捷键.
+        shortcuts = MacShortcutApplier(store: settingsStore, menu: menu)
     }
 
     private func buildWorkspace() {
@@ -418,6 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.reviewModels[projectID]?.load()
         }
         markdownExport.onStatus = { [weak self] message in self?.status.stringValue = message }
+        printing.onStatus = { [weak self] message in self?.status.stringValue = message }
         transfer.onStatus = { [weak self] message in self?.status.stringValue = message }
         transfer.onImported = { [weak self] project, entity in self?.adoptImported(entity, project: project) }
         NSLayoutConstraint.activate([
@@ -2490,6 +2416,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         let name = projects.first { $0.id == project.id }?.name ?? project.name
         transfer.beginExport(project: WorkspaceProject(id: project.id, name: name), window: window)
+    }
+
+    // MARK: 打印与 PDF
+
+    /// 文件 › 打印… (⌘P): the focused chapter of the 全书长卷, else the
+    /// active tab's chapter, drift or page, through the print panel.
+    @objc private func printPage() {
+        guard !loading else { return }
+        let target: MacPrintCoordinator.Target
+        if let panel = wholeBookPanel, panel.isKeyWindow, let controller = wholeBookController,
+           let chapter = controller.focusedChapter {
+            target = .init(projectID: controller.project.id, kind: "chapter", id: chapter.id, title: chapter.title)
+        } else if let page = chapterWorkspace.activeHistoryTarget {
+            target = .init(projectID: page.projectID, kind: page.kind, id: page.id, title: page.title)
+        } else {
+            status.stringValue = "请先打开一个章节、漂流、设定、分类或故事线页面，再打印。"; return
+        }
+        printing.print(target, window: window)
+    }
+
+    /// 文件 › 导出 PDF…: the whole book as a PDF through a save panel.
+    @objc private func exportPDF() {
+        guard !loading, let project = currentProject ?? selectedProject else {
+            status.stringValue = "请先选择一个项目，再导出 PDF。"; return
+        }
+        printing.beginPDFExport(project: namedProject(project), window: window)
+    }
+
+    /// 文件 › 页面设置…: the paper 打印… starts with and 导出 PDF… uses (A4 or Letter).
+    @objc private func pageSetup() {
+        NSPageLayout().beginSheet(with: NSPrintInfo.shared, modalFor: window, delegate: nil, didEnd: nil, contextInfo: nil)
     }
 
     /// An imported chapter joins the chapter list before its page opens.

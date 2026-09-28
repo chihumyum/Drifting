@@ -528,7 +528,7 @@
         "DOCX/Markdown import/export parity and synthetic asset fixtures"
       ],
       "milestone": "P5",
-      "status": "Mac-Markdown-text-and-Word-import-and-Markdown-text-export-implemented",
+      "status": "Mac-Markdown-text-and-Word-import-and-Markdown-text-export-implemented; Mac-page-printing-and-whole-book-PDF-export-implemented",
       "decisionTask": "D8"
     },
     {
@@ -546,7 +546,7 @@
         "preferences, provider controls, accessibility and errors"
       ],
       "milestone": "P5/P6",
-      "status": "Mac-editor-preferences-fonts-writing-plans-provider-keys-and-Copilot-settings-implemented; localization-planned",
+      "status": "Mac-editor-preferences-fonts-writing-plans-provider-keys-Copilot-settings-and-menu-shortcuts-implemented; localization-planned",
       "decisionTask": null
     },
     {

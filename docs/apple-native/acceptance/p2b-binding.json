@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T00:51:49.849Z",
+  "generatedAt": "2026-09-28T01:55:24.635Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "30439d6d99bdf1666e299890f3f7d28ab4747dcc",
+    "commit": "ab4e6a8ac28b85ef95c8d9bfb48fe64c9a588ee1",
     "dirty": true,
-    "fingerprint": "da10723fd3a320a9893b084d41ee1e68d02c7bf68c19a9c3abf4d1c564e52aa0"
+    "fingerprint": "2d6780e17950681e921bfa2720ff82a9f7014ff288e40dce6c6c2bb4abac98b1"
   },
   "cases": [
     {
@@ -856,6 +856,30 @@
     },
     {
       "name": "AppKit MCP Streamable HTTP runs the handshake with JSON and SSE responses, sends the session id and protocol version on later requests and a secret Authorization header only from the Keychain, calls a tool, reconnects after an expired session without replaying the call and sends DELETE when disabled",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit print typesetting sets headings, bold and italic, strike, inline and block code, quotes by odd depth, bulleted lists by even depth with continuation paragraphs, links and a rule from a projection, entity links and unsupported blocks as plain text or nothing, in black whatever the appearance",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 打印 prints the focused drift and element page from readProjection in 设置's typography under the page title with the title and page number in every page's header through NSPrintOperation, lays out again for the operation's paper, reads an open owner's live text, opens no owner and writes no journal row",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 导出 PDF writes the whole book in reading order on A4 or Letter from the print setup: a title page with name and summary, act pages, every chapter from a new page, shifted body headings, bold and italic as font traits, entity links as plain text, the book title and page numbers in the header, 设置's font, size, line height and first-line indent, and an open chapter's unsaved text, with no journal row and no new owner",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 导出 PDF reports reading and typesetting progress, waits for queued input and includes it, 取消 while reading or typesetting leaves no file at or beside the destination and keeps an existing file untouched, and a finished export replaces it",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设置 › 快捷键 lists the installed menu's commands by menu with ⇧⌘I for Copilot 分析 and ⌥⌘I for 项目资料, records a pressed combination into the menu item's key equivalent at once so the menu performs it, refuses a conflict, system-reserved and text-editing shortcuts and one without ⌘ or ⌃ while recording continues, cancels with Esc, removes with ⌫, and resets one (refusing a default another command now uses) and all",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 快捷键 persist in settings.json and apply to a new menu and the settings window at relaunch, while a hand-edited file's reserved, unreadable and conflicting entries fall back without losing the others or an unknown command's entry",
       "status": "passed"
     }
   ],

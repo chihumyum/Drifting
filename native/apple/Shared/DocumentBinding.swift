@@ -217,6 +217,8 @@ final class DocumentBinding {
     var onEntityLinks: (() -> Void)?
     var state: LabDocumentState? { store.state }
     var hasUnsubmittedDraft: Bool { composing || failed }
+    /// Marked text of an input method that is not committed yet.
+    var isComposing: Bool { composing }
     var hasFailedDraft: Bool { failed }
     var hasPendingWork: Bool { store.hasPendingWork }
     var canEdit: Bool { attached && store.canEdit && !failed }

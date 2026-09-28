@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// 设置 (⌘,): 外观, 编辑器, 语言, 写作助手 and Copilot（实验） as toolbar tabs, as Mac settings windows
+/// 设置 (⌘,): 外观, 编辑器, 语言, 快捷键, 写作助手 and Copilot（实验） as toolbar tabs, as Mac settings windows
 /// are. Every control writes through `LabSettingsStore` at once, which saves
 /// and applies it: open editors restyle in place and every window follows
 /// the theme. Controls follow the store, so a refusal never leaves one
@@ -15,6 +15,7 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     /// 写作助手 › MCP 扩展, shown as the second tab of the 写作助手 pane.
     let mcpPane: MacMcpSettingsViewController
     let copilotPane: MacCopilotSettingsViewController
+    let shortcutPane: MacShortcutSettingsViewController
     private let tabs = NSTabViewController()
 
     init(store: LabSettingsStore) {
@@ -24,11 +25,12 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
         languagePane = MacLanguageSettingsViewController(store: store)
         copilotPane = MacCopilotSettingsViewController(store: store)
         mcpPane = MacMcpSettingsViewController(store: store)
+        shortcutPane = MacShortcutSettingsViewController(store: store)
         agentPane.mcpPane = mcpPane
         tabs.tabStyle = .toolbar
         for (controller, label, symbol) in [(appearancePane as NSViewController, "外观", "paintbrush"),
                                             (editorPane, "编辑器", "textformat"), (languagePane, "语言", "globe"),
-                                            (agentPane, "写作助手", "text.bubble"), (copilotPane, "Copilot（实验）", "sparkles")] {
+                                            (shortcutPane, "快捷键", "keyboard"), (agentPane, "写作助手", "text.bubble"), (copilotPane, "Copilot（实验）", "sparkles")] {
             let item = NSTabViewItem(viewController: controller)
             item.label = label
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -51,7 +53,12 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func refresh() {
         appearancePane.refresh(); editorPane.refresh(); languagePane.refresh(); agentPane.refresh(); copilotPane.refresh()
-        mcpPane.refresh()
+        mcpPane.refresh(); shortcutPane.refresh()
+    }
+
+    /// Shows the 快捷键 tab.
+    func showShortcutPane() {
+        tabs.selectedTabViewItemIndex = tabs.tabViewItems.firstIndex { $0.viewController === shortcutPane } ?? 0
     }
 
     /// Shows the 写作助手 tab.
@@ -72,6 +79,7 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         appearancePane.accentWell.deactivate()
+        shortcutPane.endRecording()
     }
 }
 

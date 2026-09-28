@@ -48,6 +48,9 @@ final class DocumentStore {
         sending || !pending.isEmpty || needsRefresh || failure != nil || state?.saved == false || remoteBlock != nil
     }
     var hasPendingWork: Bool { hasPendingCommits || !failedInputs.isEmpty || bindings.allObjects.contains { $0.hasUnsubmittedDraft } }
+    /// Input on its way to Rust: queued, being sent, or still composing. A
+    /// failed save or a failed draft is not: Rust's owner has what it applied.
+    var hasQueuedInput: Bool { sending || !pending.isEmpty || bindings.allObjects.contains { $0.isComposing } }
     var canEdit: Bool { !core.isSuspended && !core.isClosed && state != nil && failure == nil && state?.saved == true && remoteBlock == nil }
     var viewCount: Int { bindings.allObjects.count }
 
