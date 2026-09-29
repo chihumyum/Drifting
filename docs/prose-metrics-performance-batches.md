@@ -92,7 +92,9 @@ repeat median regresses 7.3%; the very-long-chapter first median regresses 19.9%
 Some samples vary substantially. Exact projections, seed behavior, authoritative
 state and write-free repeats all pass, as do nine candidate integration tests.
 Fewer requests alone are insufficient evidence to ship this change. The product
-retains Batch 1; the candidate is archived pending the author's next direction.
+retains Batch 1; the candidate is archived. At the author's request, the next
+module tested was [whole-book search](rust-book-search-benchmark.md); that Rust
+reuse candidate also lacks a speed advantage and is not integrated.
 
 Reports are snapshots of their respective batches. Run an earlier report's
 source check at the commit that produced it; subsequent service changes

@@ -1,0 +1,2652 @@
+{
+  "schemaVersion": 1,
+  "kind": "rust-book-search-benchmark",
+  "measuredAt": "2026-09-29T17:02:04.864Z",
+  "source": {
+    "fingerprint": "bb1bd54f00cc4e93c04828d173ec4ea6e890e7432afbd3fe31c00674a57db7d4",
+    "files": 126
+  },
+  "artifact": {
+    "binarySha256": "7291015f2dbd52d8b72c8e3ef29e751b51d4543d9954ebd38575a286eb811b5f",
+    "lockSha256": "40e4b418ea7cdc2c311bf7bdeb20fc2b1f95ec6fdcb533e7878a45d63f8bbcf9"
+  },
+  "repetitions": 7,
+  "limitations": [
+    "Calls production collectBookMatches and production native_search_ranges, with a benchmark-only Rust adapter for identical chapter/block traversal and excerpts.",
+    "Node/V8 and Release Rust, not WKWebView/JSC or real Tauri IPC. JSON-lines replace IPC; database loading, DOM highlights, scrolling, input latency and cancellation are excluded.",
+    "The resident Rust lane loads all JSON documents once outside query timing. Product synchronization/invalidation of such a resident cache is not implemented. This deliberately favorable case is reported separately from sending documents per query.",
+    "Both engines parse body JSON and build complete match/excerpt arrays on every query. Internal Rust time excludes request decoding, result serialization and transport; end-to-end time includes them and the UTF-16 excerpt adapter.",
+    "Three alternating warmup triples precede seven measured triples per workload. Explicit Node GC precedes each lane. No OS-cache flush or browser responsiveness acceptance."
+  ],
+  "environment": {
+    "cpu": "Apple M3 Pro",
+    "os": "darwin",
+    "release": "27.0.0",
+    "arch": "arm64",
+    "node": "v24.19.0",
+    "garbageCollectionBeforeSample": true,
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  },
+  "results": [
+    {
+      "scenario": {
+        "name": "small-book",
+        "nodes": 20,
+        "units": 5000
+      },
+      "query": {
+        "name": "dense-case-insensitive",
+        "text": "HELLO"
+      },
+      "residentLoadMs": 288.8269579999999,
+      "inputSha256": "e4931b55dd9a2bb319bb0454ebe1109eef4e3e697c034084d11fd95cc713d8fb",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 0.8327500000000327,
+        "internalMedianMs": 0.83199999999988,
+        "samples": [
+          {
+            "elapsedMs": 0.9975420000000668,
+            "internalMs": 0.996417000000065,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.746791999999914,
+            "internalMs": 0.7459169999999631,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.9910409999999956,
+            "internalMs": 0.9899579999998878,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.6634999999998854,
+            "internalMs": 0.662499999999909,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.9878750000000309,
+            "internalMs": 0.987250000000131,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.6609579999999369,
+            "internalMs": 0.6603330000000369,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.8327500000000327,
+            "internalMs": 0.83199999999988,
+            "matches": 3600,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 7.1157499999999345,
+        "internalMedianMs": 2.997,
+        "samples": [
+          {
+            "elapsedMs": 7.423000000000002,
+            "internalMs": 3.221,
+            "matches": 3600,
+            "sentBytes": 53,
+            "receivedBytes": 991473
+          },
+          {
+            "elapsedMs": 7.1638329999998405,
+            "internalMs": 3.03125,
+            "matches": 3600,
+            "sentBytes": 54,
+            "receivedBytes": 991476
+          },
+          {
+            "elapsedMs": 7.1157499999999345,
+            "internalMs": 2.8439170000000003,
+            "matches": 3600,
+            "sentBytes": 54,
+            "receivedBytes": 991487
+          },
+          {
+            "elapsedMs": 7.07545899999991,
+            "internalMs": 2.945833,
+            "matches": 3600,
+            "sentBytes": 54,
+            "receivedBytes": 991477
+          },
+          {
+            "elapsedMs": 7.2377500000000055,
+            "internalMs": 3.1298329999999996,
+            "matches": 3600,
+            "sentBytes": 54,
+            "receivedBytes": 991487
+          },
+          {
+            "elapsedMs": 6.771874999999909,
+            "internalMs": 2.7645,
+            "matches": 3600,
+            "sentBytes": 54,
+            "receivedBytes": 991475
+          },
+          {
+            "elapsedMs": 7.0715000000000146,
+            "internalMs": 2.997,
+            "matches": 3600,
+            "sentBytes": 54,
+            "receivedBytes": 991474
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 7.563875000000053,
+        "internalMedianMs": 2.5395830000000004,
+        "samples": [
+          {
+            "elapsedMs": 7.57224999999994,
+            "internalMs": 2.554083,
+            "matches": 3600,
+            "sentBytes": 192297,
+            "receivedBytes": 991476
+          },
+          {
+            "elapsedMs": 7.789999999999964,
+            "internalMs": 2.708292,
+            "matches": 3600,
+            "sentBytes": 192298,
+            "receivedBytes": 991477
+          },
+          {
+            "elapsedMs": 7.563875000000053,
+            "internalMs": 2.5395830000000004,
+            "matches": 3600,
+            "sentBytes": 192298,
+            "receivedBytes": 991487
+          },
+          {
+            "elapsedMs": 7.4978329999999005,
+            "internalMs": 2.490208,
+            "matches": 3600,
+            "sentBytes": 192298,
+            "receivedBytes": 991477
+          },
+          {
+            "elapsedMs": 7.377666999999974,
+            "internalMs": 2.492292,
+            "matches": 3600,
+            "sentBytes": 192298,
+            "receivedBytes": 991477
+          },
+          {
+            "elapsedMs": 7.726791999999932,
+            "internalMs": 2.6375,
+            "matches": 3600,
+            "sentBytes": 192298,
+            "receivedBytes": 991475
+          },
+          {
+            "elapsedMs": 7.504374999999982,
+            "internalMs": 2.470625,
+            "matches": 3600,
+            "sentBytes": 192298,
+            "receivedBytes": 991477
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "small-book",
+        "nodes": 20,
+        "units": 5000
+      },
+      "query": {
+        "name": "rare",
+        "text": "稀有灯塔"
+      },
+      "residentLoadMs": 288.8269579999999,
+      "inputSha256": "e4931b55dd9a2bb319bb0454ebe1109eef4e3e697c034084d11fd95cc713d8fb",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 0.39362499999992906,
+        "internalMedianMs": 0.3932079999999587,
+        "samples": [
+          {
+            "elapsedMs": 0.3948330000000624,
+            "internalMs": 0.394457999999986,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.39362499999992906,
+            "internalMs": 0.3932079999999587,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.384708000000046,
+            "internalMs": 0.38437500000009095,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.38916599999993196,
+            "internalMs": 0.38879100000008293,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.37429100000008475,
+            "internalMs": 0.3740410000000338,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.39658300000019153,
+            "internalMs": 0.3963330000001406,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.39650000000006,
+            "internalMs": 0.39629200000013043,
+            "matches": 20,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 1.8059169999999085,
+        "internalMedianMs": 1.663833,
+        "samples": [
+          {
+            "elapsedMs": 1.4795829999998205,
+            "internalMs": 1.3145,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4135
+          },
+          {
+            "elapsedMs": 1.7269160000000738,
+            "internalMs": 1.4624169999999999,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4147
+          },
+          {
+            "elapsedMs": 1.8605420000001232,
+            "internalMs": 1.691583,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 1.8984999999997854,
+            "internalMs": 1.724291,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 1.8059169999999085,
+            "internalMs": 1.663833,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 1.872041999999965,
+            "internalMs": 1.728167,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 1.6052910000000793,
+            "internalMs": 1.434333,
+            "matches": 20,
+            "sentBytes": 61,
+            "receivedBytes": 4137
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 2.4049999999999727,
+        "internalMedianMs": 1.2760420000000001,
+        "samples": [
+          {
+            "elapsedMs": 2.321374999999989,
+            "internalMs": 1.259459,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 2.4049999999999727,
+            "internalMs": 1.3628749999999998,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4147
+          },
+          {
+            "elapsedMs": 2.552249999999958,
+            "internalMs": 1.420417,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 2.913124999999809,
+            "internalMs": 1.258542,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4137
+          },
+          {
+            "elapsedMs": 2.2634169999998903,
+            "internalMs": 1.2760420000000001,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4147
+          },
+          {
+            "elapsedMs": 2.49741599999993,
+            "internalMs": 1.3856249999999999,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4147
+          },
+          {
+            "elapsedMs": 2.3157920000001013,
+            "internalMs": 1.247875,
+            "matches": 20,
+            "sentBytes": 192305,
+            "receivedBytes": 4137
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "small-book",
+        "nodes": 20,
+        "units": 5000
+      },
+      "query": {
+        "name": "absent",
+        "text": "找不到的合成查询"
+      },
+      "residentLoadMs": 288.8269579999999,
+      "inputSha256": "e4931b55dd9a2bb319bb0454ebe1109eef4e3e697c034084d11fd95cc713d8fb",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 0.3864579999999478,
+        "internalMedianMs": 0.38629199999991215,
+        "samples": [
+          {
+            "elapsedMs": 0.3856670000000122,
+            "internalMs": 0.3852919999999358,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.3945420000000013,
+            "internalMs": 0.3942500000000564,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.3852919999999358,
+            "internalMs": 0.3849999999999909,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.3864579999999478,
+            "internalMs": 0.38629199999991215,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.3930000000000291,
+            "internalMs": 0.39287500000000364,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.3859589999999571,
+            "internalMs": 0.3856670000000122,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 0.413291000000072,
+            "internalMs": 0.412708000000066,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 1.8520000000000891,
+        "internalMedianMs": 1.719417,
+        "samples": [
+          {
+            "elapsedMs": 1.8583329999999023,
+            "internalMs": 1.7322920000000002,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 1.7107920000000831,
+            "internalMs": 1.59,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 54
+          },
+          {
+            "elapsedMs": 1.8240829999999733,
+            "internalMs": 1.6850829999999999,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 1.9785839999999553,
+            "internalMs": 1.84925,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 57
+          },
+          {
+            "elapsedMs": 1.3983749999999873,
+            "internalMs": 1.264958,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 1.9231669999999212,
+            "internalMs": 1.7853750000000002,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 1.8520000000000891,
+            "internalMs": 1.719417,
+            "matches": 0,
+            "sentBytes": 73,
+            "receivedBytes": 58
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 2.28841599999987,
+        "internalMedianMs": 1.250333,
+        "samples": [
+          {
+            "elapsedMs": 2.1964159999999993,
+            "internalMs": 1.2536660000000002,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 2.2097499999999854,
+            "internalMs": 1.250042,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 2.28841599999987,
+            "internalMs": 1.247292,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 2.556833000000097,
+            "internalMs": 1.2637919999999998,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 2.281290999999783,
+            "internalMs": 1.24175,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 57
+          },
+          {
+            "elapsedMs": 2.3318329999999605,
+            "internalMs": 1.250333,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 2.31579099999999,
+            "internalMs": 1.2694169999999998,
+            "matches": 0,
+            "sentBytes": 192317,
+            "receivedBytes": 68
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "novel",
+        "nodes": 200,
+        "units": 5000
+      },
+      "query": {
+        "name": "dense-case-insensitive",
+        "text": "HELLO"
+      },
+      "residentLoadMs": 7.639208000000053,
+      "inputSha256": "295e1fa9204c5431f2b89f6dc623b4bae03de80ac0280ad45ecb13bee758a017",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 7.199082999999973,
+        "internalMedianMs": 7.198499999999967,
+        "samples": [
+          {
+            "elapsedMs": 7.3621250000001055,
+            "internalMs": 7.361875000000055,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 7.014624999999796,
+            "internalMs": 7.014125000000149,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 7.667500000000018,
+            "internalMs": 7.666917000000012,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.880499999999756,
+            "internalMs": 6.880166999999801,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.775166999999783,
+            "internalMs": 6.774582999999893,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 7.199082999999973,
+            "internalMs": 7.198499999999967,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 7.410875000000033,
+            "internalMs": 7.410542000000078,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 66.47841699999981,
+        "internalMedianMs": 25.240125,
+        "samples": [
+          {
+            "elapsedMs": 65.1736249999999,
+            "internalMs": 25.277458,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 66.47841699999981,
+            "internalMs": 25.851458,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 65.44500000000016,
+            "internalMs": 25.174249999999997,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982667
+          },
+          {
+            "elapsedMs": 66.5652500000001,
+            "internalMs": 26.368834,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 65.94516699999986,
+            "internalMs": 25.226499999999998,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982667
+          },
+          {
+            "elapsedMs": 68.52479200000016,
+            "internalMs": 25.130042,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 67.38487499999974,
+            "internalMs": 25.240125,
+            "matches": 36000,
+            "sentBytes": 54,
+            "receivedBytes": 9982658
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 72.8923749999999,
+        "internalMedianMs": 25.147625,
+        "samples": [
+          {
+            "elapsedMs": 71.73941700000023,
+            "internalMs": 25.18575,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982657
+          },
+          {
+            "elapsedMs": 72.8923749999999,
+            "internalMs": 25.147625,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 74.05904099999998,
+            "internalMs": 24.902333,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 74.45633299999963,
+            "internalMs": 25.774042,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982658
+          },
+          {
+            "elapsedMs": 71.93833300000006,
+            "internalMs": 24.995041999999998,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982667
+          },
+          {
+            "elapsedMs": 71.70445900000004,
+            "internalMs": 25.036709000000002,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982667
+          },
+          {
+            "elapsedMs": 73.02641700000004,
+            "internalMs": 25.202042000000002,
+            "matches": 36000,
+            "sentBytes": 1922938,
+            "receivedBytes": 9982667
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "novel",
+        "nodes": 200,
+        "units": 5000
+      },
+      "query": {
+        "name": "rare",
+        "text": "稀有灯塔"
+      },
+      "residentLoadMs": 7.639208000000053,
+      "inputSha256": "295e1fa9204c5431f2b89f6dc623b4bae03de80ac0280ad45ecb13bee758a017",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 3.338999999999942,
+        "internalMedianMs": 3.3387919999995574,
+        "samples": [
+          {
+            "elapsedMs": 3.316791999999623,
+            "internalMs": 3.3164170000000013,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.403542000000016,
+            "internalMs": 3.4032090000000608,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.2704170000006343,
+            "internalMs": 3.27020900000025,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.338999999999942,
+            "internalMs": 3.3387919999995574,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.7514170000004015,
+            "internalMs": 3.7510419999998703,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.318250000000262,
+            "internalMs": 3.318125000000691,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.473041000000194,
+            "internalMs": 3.4728329999998095,
+            "matches": 200,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 13.246791999999914,
+        "internalMedianMs": 12.879042,
+        "samples": [
+          {
+            "elapsedMs": 13.246791999999914,
+            "internalMs": 12.878459,
+            "matches": 200,
+            "sentBytes": 61,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 13.237500000000182,
+            "internalMs": 12.879042,
+            "matches": 200,
+            "sentBytes": 61,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 13.099500000000262,
+            "internalMs": 12.758708,
+            "matches": 200,
+            "sentBytes": 61,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 13.302082999999584,
+            "internalMs": 12.920625,
+            "matches": 200,
+            "sentBytes": 61,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 12.90454200000022,
+            "internalMs": 12.541291,
+            "matches": 200,
+            "sentBytes": 61,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 13.25958300000002,
+            "internalMs": 12.928833000000001,
+            "matches": 200,
+            "sentBytes": 62,
+            "receivedBytes": 41248
+          },
+          {
+            "elapsedMs": 13.529665999999452,
+            "internalMs": 13.138834000000001,
+            "matches": 200,
+            "sentBytes": 62,
+            "receivedBytes": 41248
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 19.508584000000155,
+        "internalMedianMs": 12.492792000000001,
+        "samples": [
+          {
+            "elapsedMs": 19.445958000000246,
+            "internalMs": 12.422417,
+            "matches": 200,
+            "sentBytes": 1922945,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 19.489832999999635,
+            "internalMs": 12.47975,
+            "matches": 200,
+            "sentBytes": 1922945,
+            "receivedBytes": 41237
+          },
+          {
+            "elapsedMs": 19.508584000000155,
+            "internalMs": 12.492792000000001,
+            "matches": 200,
+            "sentBytes": 1922945,
+            "receivedBytes": 41247
+          },
+          {
+            "elapsedMs": 20.361957999999504,
+            "internalMs": 12.577833,
+            "matches": 200,
+            "sentBytes": 1922945,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 19.450959000000694,
+            "internalMs": 12.376,
+            "matches": 200,
+            "sentBytes": 1922945,
+            "receivedBytes": 41235
+          },
+          {
+            "elapsedMs": 20.021582999999737,
+            "internalMs": 12.586083,
+            "matches": 200,
+            "sentBytes": 1922945,
+            "receivedBytes": 41238
+          },
+          {
+            "elapsedMs": 19.737166000000798,
+            "internalMs": 12.571166999999999,
+            "matches": 200,
+            "sentBytes": 1922946,
+            "receivedBytes": 41248
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "novel",
+        "nodes": 200,
+        "units": 5000
+      },
+      "query": {
+        "name": "absent",
+        "text": "找不到的合成查询"
+      },
+      "residentLoadMs": 7.639208000000053,
+      "inputSha256": "295e1fa9204c5431f2b89f6dc623b4bae03de80ac0280ad45ecb13bee758a017",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 3.544875000000502,
+        "internalMedianMs": 3.5446670000001177,
+        "samples": [
+          {
+            "elapsedMs": 3.428208000000268,
+            "internalMs": 3.427958000000217,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.4666669999996884,
+            "internalMs": 3.4664169999996375,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.8192920000001322,
+            "internalMs": 3.8191670000005615,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.576999999999316,
+            "internalMs": 3.576708999999937,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.4759159999994154,
+            "internalMs": 3.4756659999993644,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.720582999999351,
+            "internalMs": 3.7202909999996336,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.544875000000502,
+            "internalMs": 3.5446670000001177,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 12.867083000000093,
+        "internalMedianMs": 12.718542,
+        "samples": [
+          {
+            "elapsedMs": 12.867083000000093,
+            "internalMs": 12.718542,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 13.345833000000312,
+            "internalMs": 13.193458999999999,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 13.286833000000115,
+            "internalMs": 13.116582999999999,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 13.226666999999907,
+            "internalMs": 13.025125000000001,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 12.849708000000646,
+            "internalMs": 12.6755,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 12.77979200000027,
+            "internalMs": 12.639707999999999,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 12.830167000000074,
+            "internalMs": 12.677624999999999,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 19.73845799999981,
+        "internalMedianMs": 12.640333,
+        "samples": [
+          {
+            "elapsedMs": 19.940292000000227,
+            "internalMs": 12.674375,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 19.62054100000023,
+            "internalMs": 12.740708,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 19.73845799999981,
+            "internalMs": 12.597833,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 20.166207999999642,
+            "internalMs": 13.226999999999999,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 19.570042000000285,
+            "internalMs": 12.571666,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 19.503875000000335,
+            "internalMs": 12.640333,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 20.094250000000102,
+            "internalMs": 12.607541999999999,
+            "matches": 0,
+            "sentBytes": 1922958,
+            "receivedBytes": 69
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "large-library",
+        "nodes": 1000,
+        "units": 5000
+      },
+      "query": {
+        "name": "dense-case-insensitive",
+        "text": "HELLO"
+      },
+      "residentLoadMs": 37.53825000000052,
+      "inputSha256": "68f856a6b83774ab4c71a6a840c02fbf57c9293085595459bc811251fddcbea1",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 39.37383399999999,
+        "internalMedianMs": 39.373209000001225,
+        "samples": [
+          {
+            "elapsedMs": 40.72858300000007,
+            "internalMs": 40.72783299999901,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 39.06516600000032,
+            "internalMs": 39.064540999999736,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 42.84074999999939,
+            "internalMs": 42.83991699999933,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 38.41600000000108,
+            "internalMs": 38.41533300000083,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 39.43366699999933,
+            "internalMs": 39.432833000000755,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 38.70904200000041,
+            "internalMs": 38.708167000000685,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 39.37383399999999,
+            "internalMs": 39.373209000001225,
+            "matches": 180000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 350.0943750000006,
+        "internalMedianMs": 126.79879199999999,
+        "samples": [
+          {
+            "elapsedMs": 349.0175419999996,
+            "internalMs": 126.804166,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071460
+          },
+          {
+            "elapsedMs": 349.3612499999999,
+            "internalMs": 126.79879199999999,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 365.0725829999992,
+            "internalMs": 130.482458,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071460
+          },
+          {
+            "elapsedMs": 350.0943750000006,
+            "internalMs": 126.22662500000001,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 357.0831249999992,
+            "internalMs": 127.435709,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071460
+          },
+          {
+            "elapsedMs": 355.679666,
+            "internalMs": 126.54520799999999,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 348.5994579999988,
+            "internalMs": 125.98833300000001,
+            "matches": 180000,
+            "sentBytes": 55,
+            "receivedBytes": 50071468
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 388.35649999999987,
+        "internalMedianMs": 126.64349999999999,
+        "samples": [
+          {
+            "elapsedMs": 386.3899170000004,
+            "internalMs": 126.64695900000001,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 387.9515420000007,
+            "internalMs": 126.64349999999999,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 389.6785830000008,
+            "internalMs": 125.814916,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071460
+          },
+          {
+            "elapsedMs": 389.78549999999996,
+            "internalMs": 125.387,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071457
+          },
+          {
+            "elapsedMs": 388.35649999999987,
+            "internalMs": 128.71616699999998,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 384.8224590000009,
+            "internalMs": 126.25533399999999,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071468
+          },
+          {
+            "elapsedMs": 397.0689160000002,
+            "internalMs": 126.76941599999999,
+            "matches": 180000,
+            "sentBytes": 9615739,
+            "receivedBytes": 50071468
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "large-library",
+        "nodes": 1000,
+        "units": 5000
+      },
+      "query": {
+        "name": "rare",
+        "text": "稀有灯塔"
+      },
+      "residentLoadMs": 37.53825000000052,
+      "inputSha256": "68f856a6b83774ab4c71a6a840c02fbf57c9293085595459bc811251fddcbea1",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 16.508333000001585,
+        "internalMedianMs": 16.50787499999933,
+        "samples": [
+          {
+            "elapsedMs": 16.93158299999959,
+            "internalMs": 16.930999999998676,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.231250000000728,
+            "internalMs": 16.23045799999818,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.370999999999185,
+            "internalMs": 16.370707999998558,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.892582999997103,
+            "internalMs": 16.892041999999492,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.843958000001294,
+            "internalMs": 16.843583000001672,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.339749999999185,
+            "internalMs": 16.339209000001574,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.508333000001585,
+            "internalMs": 16.50787499999933,
+            "matches": 1000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 64.50691700000243,
+        "internalMedianMs": 63.32599999999999,
+        "samples": [
+          {
+            "elapsedMs": 63.72691599999962,
+            "internalMs": 62.560041999999996,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206848
+          },
+          {
+            "elapsedMs": 64.08666699999958,
+            "internalMs": 62.930709,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206839
+          },
+          {
+            "elapsedMs": 63.81658299999981,
+            "internalMs": 62.65625,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206838
+          },
+          {
+            "elapsedMs": 64.90533300000243,
+            "internalMs": 63.632958,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206839
+          },
+          {
+            "elapsedMs": 65.47950000000128,
+            "internalMs": 64.24974999999999,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206847
+          },
+          {
+            "elapsedMs": 64.59579099999974,
+            "internalMs": 63.413708,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206839
+          },
+          {
+            "elapsedMs": 64.50691700000243,
+            "internalMs": 63.32599999999999,
+            "matches": 1000,
+            "sentBytes": 62,
+            "receivedBytes": 206847
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 97.67266599999857,
+        "internalMedianMs": 62.55883299999999,
+        "samples": [
+          {
+            "elapsedMs": 96.7745419999992,
+            "internalMs": 62.55883299999999,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206847
+          },
+          {
+            "elapsedMs": 96.48954100000265,
+            "internalMs": 62.451874999999994,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206848
+          },
+          {
+            "elapsedMs": 96.79249999999956,
+            "internalMs": 62.466834,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206839
+          },
+          {
+            "elapsedMs": 97.67266599999857,
+            "internalMs": 62.62950000000001,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206847
+          },
+          {
+            "elapsedMs": 99.49954100000105,
+            "internalMs": 62.537375000000004,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206848
+          },
+          {
+            "elapsedMs": 99.34883300000001,
+            "internalMs": 63.14579200000001,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206847
+          },
+          {
+            "elapsedMs": 103.24595799999952,
+            "internalMs": 67.478375,
+            "matches": 1000,
+            "sentBytes": 9615746,
+            "receivedBytes": 206839
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "large-library",
+        "nodes": 1000,
+        "units": 5000
+      },
+      "query": {
+        "name": "absent",
+        "text": "找不到的合成查询"
+      },
+      "residentLoadMs": 37.53825000000052,
+      "inputSha256": "68f856a6b83774ab4c71a6a840c02fbf57c9293085595459bc811251fddcbea1",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 16.4900000000016,
+        "internalMedianMs": 16.48962500000198,
+        "samples": [
+          {
+            "elapsedMs": 20.217625000001135,
+            "internalMs": 20.217083000003186,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 17.460666999999376,
+            "internalMs": 17.460124999997788,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.284707999999227,
+            "internalMs": 16.284625000000233,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.43341700000019,
+            "internalMs": 16.433124999999563,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.34083400000236,
+            "internalMs": 16.340125000002445,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.79987500000061,
+            "internalMs": 16.799167000001034,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 16.4900000000016,
+            "internalMs": 16.48962500000198,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 65.26525000000038,
+        "internalMedianMs": 65.0775,
+        "samples": [
+          {
+            "elapsedMs": 63.901207999999315,
+            "internalMs": 63.696541999999994,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 64.11966600000233,
+            "internalMs": 63.933458,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 65.26525000000038,
+            "internalMs": 65.0775,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 67.1451249999991,
+            "internalMs": 66.96287500000001,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 67.88283299999966,
+            "internalMs": 67.67925,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 59
+          },
+          {
+            "elapsedMs": 66.13695800000278,
+            "internalMs": 65.865833,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 64.20275000000038,
+            "internalMs": 64.0175,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 58
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 101.76416700000118,
+        "internalMedianMs": 63.670208,
+        "samples": [
+          {
+            "elapsedMs": 97.91579199999978,
+            "internalMs": 63.670208,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 105.68062500000087,
+            "internalMs": 68.4985,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 58
+          },
+          {
+            "elapsedMs": 101.76416700000118,
+            "internalMs": 67.27037499999999,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 68
+          },
+          {
+            "elapsedMs": 99.34804200000144,
+            "internalMs": 63.646958000000005,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 96.77649999999994,
+            "internalMs": 63.177082999999996,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 102.16491699999824,
+            "internalMs": 63.186125,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 121.90195799999856,
+            "internalMs": 79.580708,
+            "matches": 0,
+            "sentBytes": 9615758,
+            "receivedBytes": 60
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "very-long-chapters",
+        "nodes": 5,
+        "units": 200000
+      },
+      "query": {
+        "name": "dense-case-insensitive",
+        "text": "HELLO"
+      },
+      "residentLoadMs": 11.62054100000023,
+      "inputSha256": "1cf01bac55f48ea40c5c2fc0a75bd145365e1d21eb5c6c841c3234d6f1f5f454",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 6.667417000000569,
+        "internalMedianMs": 6.6666670000013255,
+        "samples": [
+          {
+            "elapsedMs": 11.998999999999796,
+            "internalMs": 11.997415999998339,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.619582999999693,
+            "internalMs": 6.618708000001789,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.073916999997891,
+            "internalMs": 6.073083999999653,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 8.2219159999986,
+            "internalMs": 8.22149999999965,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 9.895000000000437,
+            "internalMs": 9.894458999999188,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.142125000002125,
+            "internalMs": 6.141707999999198,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.667417000000569,
+            "internalMs": 6.6666670000013255,
+            "matches": 36000,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 81.79887500000041,
+        "internalMedianMs": 28.977958,
+        "samples": [
+          {
+            "elapsedMs": 83.87254200000098,
+            "internalMs": 30.623792,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 89.05749999999898,
+            "internalMs": 35.708957999999996,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936273
+          },
+          {
+            "elapsedMs": 79.63566699999865,
+            "internalMs": 27.170583,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 83.26212499999747,
+            "internalMs": 28.977958,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 81.79887500000041,
+            "internalMs": 29.380916,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 71.9622500000005,
+            "internalMs": 28.885541,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 73.43799999999828,
+            "internalMs": 26.302540999999998,
+            "matches": 36000,
+            "sentBytes": 55,
+            "receivedBytes": 9936273
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 93.77129200000127,
+        "internalMedianMs": 30.018875,
+        "samples": [
+          {
+            "elapsedMs": 106.91366699999708,
+            "internalMs": 35.41004100000001,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936272
+          },
+          {
+            "elapsedMs": 95.50058300000092,
+            "internalMs": 32.555042,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 93.77129200000127,
+            "internalMs": 28.858915999999997,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936273
+          },
+          {
+            "elapsedMs": 97.1394169999985,
+            "internalMs": 29.701874999999998,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936273
+          },
+          {
+            "elapsedMs": 89.83212500000081,
+            "internalMs": 30.018875,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 87.11545900000056,
+            "internalMs": 30.339542,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936264
+          },
+          {
+            "elapsedMs": 82.06999999999971,
+            "internalMs": 26.912333,
+            "matches": 36000,
+            "sentBytes": 1888469,
+            "receivedBytes": 9936264
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "very-long-chapters",
+        "nodes": 5,
+        "units": 200000
+      },
+      "query": {
+        "name": "rare",
+        "text": "稀有灯塔"
+      },
+      "residentLoadMs": 11.62054100000023,
+      "inputSha256": "1cf01bac55f48ea40c5c2fc0a75bd145365e1d21eb5c6c841c3234d6f1f5f454",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 3.7186250000013388,
+        "internalMedianMs": 3.718124999999418,
+        "samples": [
+          {
+            "elapsedMs": 3.4507919999996375,
+            "internalMs": 3.4502919999977166,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.7186250000013388,
+            "internalMs": 3.718124999999418,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 4.385000000002037,
+            "internalMs": 4.384500000000116,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.3138340000004973,
+            "internalMs": 3.313084000001254,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 4.621582999996463,
+            "internalMs": 4.620874999996886,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.257333000001381,
+            "internalMs": 3.257000000001426,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 4.9068330000009155,
+            "internalMs": 4.906416000001627,
+            "matches": 5,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 14.765082999998413,
+        "internalMedianMs": 14.501375000000001,
+        "samples": [
+          {
+            "elapsedMs": 14.019000000000233,
+            "internalMs": 13.581583,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 15.054000000000087,
+            "internalMs": 14.610125,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 14.074082999999519,
+            "internalMs": 13.467542,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 14.765082999998413,
+            "internalMs": 14.56625,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1083
+          },
+          {
+            "elapsedMs": 14.159292000000278,
+            "internalMs": 13.865291000000001,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1093
+          },
+          {
+            "elapsedMs": 15.079750000000786,
+            "internalMs": 14.501375000000001,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1093
+          },
+          {
+            "elapsedMs": 16.97833299999911,
+            "internalMs": 16.461,
+            "matches": 5,
+            "sentBytes": 62,
+            "receivedBytes": 1081
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 21.67962500000067,
+        "internalMedianMs": 13.2645,
+        "samples": [
+          {
+            "elapsedMs": 20.763374999998632,
+            "internalMs": 12.226209,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 24.55145900000207,
+            "internalMs": 14.308292,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 22.228792000001704,
+            "internalMs": 14.479166,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 21.67962500000067,
+            "internalMs": 12.938708,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 20.75279099999898,
+            "internalMs": 13.2645,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1082
+          },
+          {
+            "elapsedMs": 20.948333000000275,
+            "internalMs": 12.683584,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1084
+          },
+          {
+            "elapsedMs": 22.81120799999917,
+            "internalMs": 13.833207999999999,
+            "matches": 5,
+            "sentBytes": 1888476,
+            "receivedBytes": 1093
+          }
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "very-long-chapters",
+        "nodes": 5,
+        "units": 200000
+      },
+      "query": {
+        "name": "absent",
+        "text": "找不到的合成查询"
+      },
+      "residentLoadMs": 11.62054100000023,
+      "inputSha256": "1cf01bac55f48ea40c5c2fc0a75bd145365e1d21eb5c6c841c3234d6f1f5f454",
+      "exactTimedParity": true,
+      "javascript": {
+        "medianMs": 4.302958000000217,
+        "internalMedianMs": 4.302583000000595,
+        "samples": [
+          {
+            "elapsedMs": 4.302958000000217,
+            "internalMs": 4.302583000000595,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.522500000002765,
+            "internalMs": 3.522333000000799,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.4275410000009288,
+            "internalMs": 3.42699999999968,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 6.752958000000945,
+            "internalMs": 6.7523330000003625,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 4.554916999997658,
+            "internalMs": 4.554166999998415,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 3.335791000001336,
+            "internalMs": 3.3350830000017595,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          },
+          {
+            "elapsedMs": 4.33324999999968,
+            "internalMs": 4.332624999999098,
+            "matches": 0,
+            "sentBytes": 0,
+            "receivedBytes": 0
+          }
+        ]
+      },
+      "residentRust": {
+        "medianMs": 14.227500000000873,
+        "internalMedianMs": 13.81625,
+        "samples": [
+          {
+            "elapsedMs": 13.49420900000041,
+            "internalMs": 13.060708,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 14.227500000000873,
+            "internalMs": 13.712917,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 13.068540999996912,
+            "internalMs": 12.891417,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 14.019208999998227,
+            "internalMs": 13.81625,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 59
+          },
+          {
+            "elapsedMs": 14.546458999997412,
+            "internalMs": 14.332125,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 14.414166000002297,
+            "internalMs": 14.178583,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 14.57325000000128,
+            "internalMs": 14.157124999999999,
+            "matches": 0,
+            "sentBytes": 74,
+            "receivedBytes": 69
+          }
+        ]
+      },
+      "transferredRust": {
+        "medianMs": 20.968666000000667,
+        "internalMedianMs": 13.463833,
+        "samples": [
+          {
+            "elapsedMs": 20.29608400000143,
+            "internalMs": 12.976334000000001,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 69
+          },
+          {
+            "elapsedMs": 24.038875000002008,
+            "internalMs": 15.136584,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 20.143208000001323,
+            "internalMs": 12.289833,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 20.046792000001005,
+            "internalMs": 12.952,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 57
+          },
+          {
+            "elapsedMs": 20.968666000000667,
+            "internalMs": 13.463833,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 22.094207999998616,
+            "internalMs": 13.821208,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 60
+          },
+          {
+            "elapsedMs": 21.98675000000003,
+            "internalMs": 14.194334,
+            "matches": 0,
+            "sentBytes": 1888488,
+            "receivedBytes": 60
+          }
+        ]
+      }
+    }
+  ],
+  "compatibility": [
+    {
+      "name": "ascii-case",
+      "text": "Hello hello",
+      "query": "HELLO",
+      "equal": true,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "Hello hello",
+            "matchStart": 0,
+            "matchEnd": 5
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "Hello hello",
+            "matchStart": 6,
+            "matchEnd": 11
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "Hello hello",
+            "matchStart": 0,
+            "matchEnd": 5
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "Hello hello",
+            "matchStart": 6,
+            "matchEnd": 11
+          }
+        }
+      ]
+    },
+    {
+      "name": "cjk",
+      "text": "海风灯塔 海风",
+      "query": "海风",
+      "equal": true,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "海风灯塔 海风",
+            "matchStart": 0,
+            "matchEnd": 2
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "海风灯塔 海风",
+            "matchStart": 5,
+            "matchEnd": 7
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "海风灯塔 海风",
+            "matchStart": 0,
+            "matchEnd": 2
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "海风灯塔 海风",
+            "matchStart": 5,
+            "matchEnd": 7
+          }
+        }
+      ]
+    },
+    {
+      "name": "emoji",
+      "text": "甲👩🏽‍🚀乙👩🏽‍🚀",
+      "query": "👩🏽‍🚀",
+      "equal": true,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "甲👩🏽‍🚀乙👩🏽‍🚀",
+            "matchStart": 1,
+            "matchEnd": 8
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "甲👩🏽‍🚀乙👩🏽‍🚀",
+            "matchStart": 9,
+            "matchEnd": 16
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "甲👩🏽‍🚀乙👩🏽‍🚀",
+            "matchStart": 1,
+            "matchEnd": 8
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "甲👩🏽‍🚀乙👩🏽‍🚀",
+            "matchStart": 9,
+            "matchEnd": 16
+          }
+        }
+      ]
+    },
+    {
+      "name": "combining",
+      "text": "É É é",
+      "query": "é",
+      "equal": true,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "É É é",
+            "matchStart": 0,
+            "matchEnd": 2
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "É É é",
+            "matchStart": 5,
+            "matchEnd": 7
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "É É é",
+            "matchStart": 0,
+            "matchEnd": 2
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "É É é",
+            "matchStart": 5,
+            "matchEnd": 7
+          }
+        }
+      ]
+    },
+    {
+      "name": "turkish-expansion-offset",
+      "text": "İ target",
+      "query": "target",
+      "equal": false,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "İ target",
+            "matchStart": 3,
+            "matchEnd": 9
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "İ target",
+            "matchStart": 2,
+            "matchEnd": 8
+          }
+        }
+      ]
+    },
+    {
+      "name": "greek-final-sigma",
+      "text": "ΟΣ",
+      "query": "ος",
+      "equal": false,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "ΟΣ",
+            "matchStart": 0,
+            "matchEnd": 2
+          }
+        }
+      ],
+      "rust": []
+    },
+    {
+      "name": "padded-query",
+      "text": "x needle y needle z",
+      "query": " needle ",
+      "equal": false,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "x needle y needle z",
+            "matchStart": 1,
+            "matchEnd": 9
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "x needle y needle z",
+            "matchStart": 10,
+            "matchEnd": 18
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "x needle y needle z",
+            "matchStart": 2,
+            "matchEnd": 8
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "… needle y needle z",
+            "matchStart": 11,
+            "matchEnd": 17
+          }
+        }
+      ]
+    },
+    {
+      "name": "whitespace-query",
+      "text": "x  y",
+      "query": " ",
+      "equal": false,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "x  y",
+            "matchStart": 1,
+            "matchEnd": 2
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "x  y",
+            "matchStart": 2,
+            "matchEnd": 3
+          }
+        }
+      ],
+      "rust": []
+    },
+    {
+      "name": "literal-regex-characters",
+      "text": "甲[x].*乙[x].*",
+      "query": "[x].*",
+      "equal": true,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "甲[x].*乙[x].*",
+            "matchStart": 1,
+            "matchEnd": 6
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "甲[x].*乙[x].*",
+            "matchStart": 7,
+            "matchEnd": 12
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "甲[x].*乙[x].*",
+            "matchStart": 1,
+            "matchEnd": 6
+          }
+        },
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 1,
+          "excerpt": {
+            "text": "甲[x].*乙[x].*",
+            "matchStart": 7,
+            "matchEnd": 12
+          }
+        }
+      ]
+    },
+    {
+      "name": "excerpt-surrogate-boundary",
+      "text": "aaaaaaaaa🚀xxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy🚀",
+      "query": "needle",
+      "equal": true,
+      "javascript": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "…\ude80xxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ud83d…",
+            "matchStart": 11,
+            "matchEnd": 17
+          }
+        }
+      ],
+      "rust": [
+        {
+          "nodeId": "synthetic-probe",
+          "chapterIndex": 0,
+          "kind": "body",
+          "blockId": "synthetic-block",
+          "occurrence": 0,
+          "excerpt": {
+            "text": "…\ude80xxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ud83d…",
+            "matchStart": 11,
+            "matchEnd": 17
+          }
+        }
+      ]
+    }
+  ]
+}
