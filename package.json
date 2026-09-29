@@ -51,6 +51,8 @@
     "test": "vitest run",
     "test:renderer-architecture": "vitest run src/renderer/architecture/renderer-boundaries.test.ts",
     "perf:renderer": "node scripts/run-renderer-performance.mjs",
+    "perf:prose-metrics": "node --expose-gc --conditions=import --import=tsx scripts/benchmark-prose-metrics.ts",
+    "perf:prose-metrics:check": "node --expose-gc --conditions=import --import=tsx scripts/benchmark-prose-metrics.ts --check",
     "perf:renderer:lifecycle": "node scripts/run-renderer-lifecycle.mjs",
     "perf:renderer:check": "node scripts/check-renderer-performance.mjs",
     "perf:renderer:settings": "node scripts/run-renderer-deferred-settings.mjs",

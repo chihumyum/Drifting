@@ -77,6 +77,10 @@ concurrent Yjs merge materialization.
 
 ## Manual and platform boundary
 
+The [Rust reuse benchmark](prose-metrics-rust-benchmark.md) measures the existing
+whole-project reconcilers and records their compatibility differences. Its
+service timings do not establish a production replacement or UI acceptance.
+
 Desktop visual review should confirm that project, storyline, node, stats and
 status surfaces say “统计中” during reconciliation, then converge without a
 visible stale non-zero count. iOS and Android share the data/materialization
