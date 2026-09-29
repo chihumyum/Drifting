@@ -91,9 +91,12 @@ policy and usage record, answered whole.
   one. 接受 applies it through the body's live owner with
   `workspaceAgent applyChanges` (Copilot's Agent identity, one undo step
   that ⌘Z undoes). When the popover opens, the target is widened with its
-  neighbours until it is unique; 接受 needs exactly that text once and is
-  otherwise refused, writing nothing, even if the original text alone
-  occurs once elsewhere. 重写 asks again with the same instruction; 放弃
+  neighbours until it is the only match, counting overlapping ones (the
+  last “哈哈” of “哈哈哈” widens to “哈哈哈”); 接受 needs exactly that text
+  once, overlapping matches counted, and is otherwise refused, writing
+  nothing, even if the original text alone occurs once elsewhere. The
+  widening is sent as `contextBefore` and `contextAfter` (UTF-16 lengths):
+  Rust keeps it exactly and revises only the target between it. 重写 asks again with the same instruction; 放弃
   writes nothing.
 - **问**: the question, the text and its neighbours (with earlier questions
   and answers of the popover) go to the model; the answer shows in the
@@ -161,6 +164,7 @@ Agent provenance and one undo, a changed target refused writing nothing,
 放弃, a refused continuation, 问 with a follow-up writing nothing; paragraph
 breaks and U+3000 indents kept outside the rewrite, a white-space-only reply
 as 没有修改, a moved target applied to its own copy and a changed one refused
-although its text occurs once elsewhere; and the summary's 放弃 and 接受 (one
+although its text occurs once elsewhere, the last of overlapping repeats
+applied there; and the summary's 放弃 and 接受 (one
 `field.set node`) shown on the chapter page, 接受 refused with the preview
 kept after the stored summary changed, with every request's usage recorded.

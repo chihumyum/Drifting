@@ -380,6 +380,14 @@ final class MacWholeBookViewController: NSViewController {
 
     let jumpButton = NSPopUpButton(frame: .zero, pullsDown: true)
     let statsButton = NSButton(title: "统计", target: nil, action: nil)
+    /// One set of 撤销 … 链接… controls for the chapter being edited: they act
+    /// on the editor that last took the keyboard while it stays attached.
+    let formatControls = ProseFormatControls(identifierPrefix: "whole-book-")
+    /// “正在编辑：第 3 章 标题”, or how to start.
+    let editingLabel = NSTextField(labelWithString: "")
+    /// The editor the controls act on, and its chapter.
+    private(set) weak var formatTarget: NativeDocumentView?
+    private(set) var formatTargetChapterID: String?
     let statusLabel = NSTextField(wrappingLabelWithString: "")
     let scrollView = NSScrollView()
     let documentView = WholeBookDocumentView()
@@ -413,6 +421,9 @@ final class MacWholeBookViewController: NSViewController {
     private var ownerOperation = false
     private var previewLoading: String?
     private var previews: [String: NSAttributedString] = [:]
+    /// The projection a read-only text was styled from, so a new 链接样式
+    /// styles it again; text read as plain prose has none.
+    private var previewProjections: [String: NativeProjection] = [:]
     private var previewOrder: [String] = []
     private var anchor: (key: String, offset: CGFloat)?
     private var restoringAnchor = false
@@ -515,6 +526,15 @@ final class MacWholeBookViewController: NSViewController {
         title.setContentCompressionResistancePriority(.init(1), for: .horizontal)
         let toolbar = NSStackView(views: [title, NSView(), jumpButton, statsButton, close])
         toolbar.spacing = 10
+        editingLabel.textColor = .secondaryLabelColor
+        editingLabel.lineBreakMode = .byTruncatingTail
+        editingLabel.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        editingLabel.setAccessibilityIdentifier("whole-book-editing")
+        let history = formatControls.historyRow
+        let formatBar = NSStackView(views: [history, editingLabel])
+        formatBar.spacing = 16
+        formatBar.setAccessibilityIdentifier("whole-book-format-bar")
+        showFormatTarget()
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.setAccessibilityIdentifier("whole-book-status")
         scrollView.hasVerticalScroller = true
@@ -524,7 +544,7 @@ final class MacWholeBookViewController: NSViewController {
         scrollView.setAccessibilityIdentifier("whole-book-scroll")
         documentView.setAccessibilityIdentifier("whole-book-document")
         scrollView.documentView = documentView
-        let stack = NSStackView(views: [toolbar, statusLabel, scrollView])
+        let stack = NSStackView(views: [toolbar, formatBar, formatControls.formatsRow, statusLabel, scrollView])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
@@ -535,6 +555,10 @@ final class MacWholeBookViewController: NSViewController {
             stack.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             toolbar.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 16),
             toolbar.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -16),
+            formatBar.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 16),
+            formatBar.trailingAnchor.constraint(lessThanOrEqualTo: stack.trailingAnchor, constant: -16),
+            formatControls.formatsRow.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 16),
+            formatControls.formatsRow.trailingAnchor.constraint(lessThanOrEqualTo: stack.trailingAnchor, constant: -16),
             statusLabel.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 16),
             statusLabel.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -16),
             scrollView.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -544,6 +568,7 @@ final class MacWholeBookViewController: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: clip)
         NotificationCenter.default.addObserver(self, selector: #selector(typographyChanged), name: DocumentStyle.typographyDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesChanged), name: MacEditorPreferences.didChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(linkStyleChanged), name: DocumentStyle.linkStyleDidChange, object: nil)
         statsPopover.behavior = .transient
         statsPopover.animates = false
         model.observe(self) { [weak self] in self?.modelChanged() }
@@ -627,6 +652,7 @@ final class MacWholeBookViewController: NSViewController {
         slots = next; slotsByKey = byKey
         slotIndex = Dictionary(uniqueKeysWithValues: slots.enumerated().map { ($1.key, $0) })
         chapterSlots = slots.filter { if case .chapter = $0.item { return true }; return false }
+        showFormatTarget()
         let loaded = counts != nil
         for row in chapterSlots.compactMap(\.chapterRow) { row.showWords(counts?.count(nodeID: row.chapter.id), loaded: loaded) }
         placeRows()
@@ -829,7 +855,7 @@ final class MacWholeBookViewController: NSViewController {
     /// 设置 changed the typography: read-only text is styled again from the
     /// chapters, and every row is measured again; editors restyle themselves.
     @objc private func typographyChanged() {
-        previews.removeAll(); previewOrder.removeAll()
+        previews.removeAll(); previewOrder.removeAll(); previewProjections.removeAll()
         for slot in chapterSlots {
             slot.height = nil
             if let row = slot.chapterRow, !row.isAttached {
@@ -840,6 +866,19 @@ final class MacWholeBookViewController: NSViewController {
         for slot in slots { slot.height = nil }
         placeRows()
         schedulePass()
+    }
+
+    /// 设置's 链接样式 changed: read-only text set from a projection is
+    /// styled again and shown at once; editors restyle themselves.
+    @objc private func linkStyleChanged() {
+        guard isViewLoaded, !isShutDown else { return }
+        for (chapterID, projection) in previewProjections { previews[chapterID] = styled(projection) }
+        for slot in chapterSlots {
+            guard let row = slot.chapterRow, !row.isAttached, row.shown == .preview,
+                  previewProjections[row.chapter.id] != nil, let text = previews[row.chapter.id] else { continue }
+            row.showPreview(text)
+            rowChanged(row)
+        }
     }
 
     // MARK: Word counts and statuses
@@ -1112,6 +1151,15 @@ final class MacWholeBookViewController: NSViewController {
             self.schedulePass()
         }
         view.onHeightChange = { [weak self, weak row] in if let self, let row { self.rowChanged(row) } }
+        // The shared controls follow the editor that takes the keyboard.
+        view.onFocus = { [weak self, weak view, weak row] in
+            guard let self, let view, let row else { return }
+            self.setFormatTarget(view, chapterID: row.chapter.id)
+        }
+        view.onControlsChanged = { [weak self, weak view] in
+            guard let self, let view, view === self.formatTarget else { return }
+            self.formatControls.refresh()
+        }
         view.onEdited = { [weak self, weak view, weak row] in
             self?.lastEdit = Date()
             if let self, let row { self.editCount += 1; self.edits[row.chapter.id] = self.editCount }
@@ -1125,6 +1173,26 @@ final class MacWholeBookViewController: NSViewController {
     private func disconnect(_ view: NativeDocumentView) {
         host?.releaseExternal(view)
         view.onOpenLink = nil; view.onActivity = nil; view.onEdited = nil; view.onHeightChange = nil
+        view.onFocus = nil; view.onControlsChanged = nil
+        if formatTarget === view { setFormatTarget(nil, chapterID: nil) }
+    }
+
+    // MARK: Shared controls
+
+    /// The controls act on this editor from now on, and name its chapter.
+    private func setFormatTarget(_ view: NativeDocumentView?, chapterID: String?) {
+        formatTarget = view
+        formatTargetChapterID = view == nil ? nil : chapterID
+        formatControls.target = view
+        formatControls.refresh()
+        showFormatTarget()
+    }
+
+    private func showFormatTarget() {
+        let chapter = formatTargetChapterID.flatMap { id in chapterSlots.lazy.compactMap { slot -> BookChapter? in
+            if case .chapter(let chapter) = slot.item, chapter.id == id { return chapter }; return nil
+        }.first }
+        editingLabel.stringValue = chapter.map { "正在编辑：第 \($0.number) 章 \($0.title)" } ?? "点按一章的正文开始编辑，格式按钮作用于该章。"
     }
 
     /// Detaches an editor with nothing in flight; its owner is closed later
@@ -1142,7 +1210,7 @@ final class MacWholeBookViewController: NSViewController {
         row.removeEditor()
         if let projection {
             let text = styled(projection)
-            remember(text, for: row.chapter.id)
+            remember(text, for: row.chapter.id, projection: projection)
             row.showPreview(text)
         } else {
             row.showPlaceholder(height: estimatedBodyHeight(chapterID: row.chapter.id, row: row))
@@ -1254,18 +1322,21 @@ final class MacWholeBookViewController: NSViewController {
         return storage
     }
 
-    private func remember(_ text: NSAttributedString, for chapterID: String) {
+    private func remember(_ text: NSAttributedString, for chapterID: String, projection: NativeProjection? = nil) {
         previews[chapterID] = text
+        previewProjections[chapterID] = projection
         previewOrder.removeAll { $0 == chapterID }
         previewOrder.append(chapterID)
         while previewOrder.count > Self.previewLimit {
             let old = previewOrder.removeFirst()
             previews.removeValue(forKey: old)
+            previewProjections.removeValue(forKey: old)
         }
     }
 
     private func forgetPreview(_ chapterID: String) {
         previews.removeValue(forKey: chapterID)
+        previewProjections.removeValue(forKey: chapterID)
         previewOrder.removeAll { $0 == chapterID }
     }
 

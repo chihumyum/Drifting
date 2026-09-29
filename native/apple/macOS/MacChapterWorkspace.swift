@@ -1117,6 +1117,28 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate, NSPopoverDelegate 
     /// The project's last counts, if read; never starts a read.
     func wordCountLibrary(projectID: String) -> WordCountLibrary? { wordCountModels[projectID]?.library }
 
+    /// The window's status line for the project: the active chapter's or
+    /// drift's count, the active chapter's 主线 with its chapters' total, a
+    /// storyline page's chapters, then the book.
+    func wordStatusLine(projectID: String) -> String {
+        var focus = WordCountFocus.none
+        if activeProject?.id == projectID {
+            if let chapter = activeChapter {
+                if let library = storylineLibraries[projectID], let primary = library.primary(chapterID: chapter.id) {
+                    focus = .chapter(chapter.id, storyline: primary.name,
+                                     chapterIDs: library.chapters(storylineID: primary.id).map(\.chapterId))
+                } else {
+                    focus = .node(chapter.id)
+                }
+            } else if let drift = activeDrift {
+                focus = .node(drift.id)
+            } else if let storyline = activeStoryline, let library = storylineLibraries[projectID] {
+                focus = .storyline(library.chapters(storylineID: storyline.id).map(\.chapterId))
+            }
+        }
+        return WordCountText.statusLine(wordCountLibrary(projectID: projectID), focus: focus)
+    }
+
     /// Every open chapter and drift page of the project shows its count.
     private func applyWordCounts(projectID: String, library: WordCountLibrary) {
         for tab in allTabs where tab.project.id == projectID { showWordCount(of: tab) }

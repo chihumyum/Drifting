@@ -553,9 +553,15 @@ final class VoiceDictation {
     }
 
     /// Starts recording: the key first, then the microphone permission
-    /// (explained and asked only when macOS has not been asked yet).
+    /// (explained and asked only when macOS has not been asked yet). While
+    /// pieces wait for 重试 nothing starts: a new recording would wait
+    /// behind them, so they are retried or given up first (`discardFailed`).
     func start() {
         guard phase == .idle else { return }
+        guard failed.isEmpty else {
+            error = "还有 \(failed.count) 段录音等待重试。请先重试，或放弃它们后再开始新的录音。"
+            changed(); return
+        }
         error = nil; needsSetup = false; corrections = []; inserted = []
         do {
             guard let key = try SpeechCredentials.key(secrets) else {
@@ -658,6 +664,13 @@ final class VoiceDictation {
         failed = []
         phase = .transcribing
         pump()
+        changed()
+    }
+
+    /// 放弃: drops the pieces kept for 重试, so a new recording can start.
+    func discardFailed() {
+        guard phase == .idle, !failed.isEmpty else { return }
+        failed = []; error = nil
         changed()
     }
 

@@ -71,11 +71,14 @@ with their edges), −, the zoom, +, 重置 and 关闭. The status line gives gu
 - **Card popovers.** A click on a card opens a small popover under it: an
   element's name, “设定 · 分类 · 组”, its 摘要 and at most six key facts (the
   rest counted, “另有 N 项，在设定页查看”); a pill's “章节 · § 03 · 草稿” or a
-  drift's “漂流 · 漂浮中” and 摘要; and 打开. Return saves the summary, trimmed
-  as pages do, in one original through the tab host (`updateElement`'s
-  summary, or `setNodeSummary`), so pages and the card follow; an unchanged
-  summary writes nothing, and a newer summary from elsewhere reaches a
-  popover not being edited. Esc, a click elsewhere and 打开 close it after
+  drift's “漂流 · 漂浮中” and 摘要; and 打开. Return saves the summary as its
+  page does (an element's as typed, a chapter's or drift's trimmed) in one
+  original through the tab host (`updateElement`'s summary, or
+  `setNodeSummary`), so pages and the card follow; only a change to what
+  was shown is written, so closing a popover untouched writes nothing even
+  when the stored summary has spaces around it, and a newer summary from
+  elsewhere reaches a popover not being edited. A closed popover lets go of
+  its `NSPopover`. Esc, a click elsewhere and 打开 close it after
   saving a changed summary; panning, scrolling, zooming and a drag close it
   too, and a card that left the canvas closes it without writing.
 - **关系类型.** The toolbar menu lists the author's relation types in
@@ -158,7 +161,8 @@ Two of the three cases in `native/apple/Tests/CanvasAcceptance.swift`
 (`--canvas-only`) cover the overview's card popovers (element, pill and
 drift contents, one `field.set element` or `field.set node` per changed
 summary with the page and the card following, a summary changed elsewhere,
-nothing for an unchanged one, Esc, 打开 and scrolling) and 关系类型 (colours
+nothing for an unchanged one or an untouched close of a spaced one, a
+change of spacing written as typed, Esc, 打开 and scrolling) and 关系类型 (colours
 by creation order, hiding with a selected edge, per-project persistence
 through a cold relaunch, no journal writes).
 

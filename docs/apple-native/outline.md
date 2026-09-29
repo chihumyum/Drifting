@@ -40,7 +40,9 @@ The AppKit window and UIKit chapter/editor screens expose an “整书大纲” 
 It keeps the existing project and chapter lists available. The panel presents
 act separators and chapters in core order, expands chapters on demand, and labels
 headings as 场／拍／注. Swift owns disclosure and presentation state; it does not
-reimplement act membership or heading hierarchy.
+reimplement act membership or heading hierarchy. On the Mac, resting on a
+chapter row shows its card (写作状态, words and 摘要), as the chapter list
+does ([workspace](workspace.md#chapter-hover-previews)).
 
 Clicking a chapter opens it through the existing workspace transition. Clicking
 a heading in another chapter first completes that same transition, then resolves

@@ -144,6 +144,41 @@ architecture. It is read-only, pretty and key-sorted JSON; 拷贝 copies it and
 存储为… saves a `.json` file; the window says plainly that it holds no book
 content.
 
+## Chapter hover previews
+
+Resting the pointer on a chapter row of the sidebar's chapter list, or on a
+chapter row of the 整书大纲, for half a second (a little longer than a
+link's 220 ms, so moving across a list does not flash cards) shows the
+chapter's card in a popover beside the row, as a link's 悬停卡片 reads it:
+the title, “章节 · 写作状态 · 1,234 字” and the 摘要 (暂无摘要 when empty),
+without 点击打开 since the row opens the chapter. Another row replaces it;
+leaving the list, scrolling, a click or a reload closes it. Trashed-list
+rows, act and heading rows have none. It reads `workspaceMetadata node` and
+the counts only, and never takes the keyboard.
+
+## Status line
+
+The window's trailing status reads “当前 1,234 字 · 主线「北境」5,678 字 ·
+全书 12,345 字” for the active chapter: its count, its 主线 (primary
+storyline) and the total of that storyline's chapters (every member, as its
+page counts them; 统计中… while one is uncounted), then the book. A chapter
+without storylines, or before memberships are read, shows 当前 and 全书; a
+drift page 当前 and 全书; a storyline page 故事线 and 全书
+([word counts](word-counts.md)). It follows saves, membership changes and
+storyline renames at once (`MacChapterWorkspace.wordStatusLine`).
+
+## 欢迎使用
+
+At launch, while the lab has no projects, a 欢迎使用 sheet on the main window
+says what Drifting is (chapters, 设定, 故事线, 漂流 and automatic links), that
+the book stays on this Mac without an account, and that the writing
+assistant and Copilot are experimental and use the author's own keys. 新建项目
+asks for a name as the project list does; 导入… creates a project first and
+then opens the import panel ([library](library.md)); 稍后 closes it. Each
+ends the sheet before it runs. 不再显示 is saved at once as `welcomeHidden`
+in `settings.json`; with it, or with any project, launch opens the project
+selected last or the 项目书架 as before (`MacLaunchChoice`).
+
 ## Bounded acceptance
 
 Run `pnpm apple:workspace:acceptance` for shared command/bridge integration and
@@ -170,6 +205,13 @@ UI/build dimensions separate. Agreed scenarios are:
 - Native UI creates, renames and reorders chapters, continues undo/redo on the same
   prose owner, uses the heading menu, switches chapters and restores names, order,
   prose and heading structure after restart.
+- Chapter hover previews, the status line's 主线 total and 欢迎使用
+  (`--polish-only` in the [binding report](acceptance/p2b-binding.json)):
+  the list and outline cards' content, delay, replacement and absence
+  without journal writes; the line following typing in two chapters, a
+  membership change, a rename and a chapter without storylines; the launch
+  choice with and without projects or 不再显示, the sheet's text and
+  buttons, and `welcomeHidden` through a cold store.
 - The 项目书架 and 诊断摘要 (`--trash-shelf-only` in the
   [binding report](acceptance/p2b-binding.json)): listing and order after an
   edit, create, rename (a blank name refused), open, delete through the sheet

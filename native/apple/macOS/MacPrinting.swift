@@ -186,7 +186,7 @@ final class PrintTypesetter {
             }
         }
         // An indented paragraph or heading shifts whole, keeping its first-line indent.
-        let shift = block.kind == "codeBlock" ? 0 : DocumentStyle.indentWidth(block.indent, size: typography.size)
+        let shift = block.kind == "codeBlock" ? 0 : DocumentStyle.indentWidth(block.indent, size: typography.size, step: typography.indentStep)
         if shift > 0 {
             paragraph.headIndent += shift; paragraph.firstLineHeadIndent += shift
             paragraph.tabStops = paragraph.tabStops.map { NSTextTab(textAlignment: $0.alignment, location: $0.location + shift) }

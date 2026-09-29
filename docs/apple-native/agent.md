@@ -354,11 +354,14 @@ composer for the author to review before sending (`VoiceDictation.swift`).
   故事线, 章节 and 灵感 titles, at most 6,000 characters. Redirects are
   refused. Pieces transcribe in order; a failed one is kept for 重试 and the
   pieces after it wait behind it, so 重试 inserts them in spoken order.
+  While pieces wait, no new recording starts behind them: the mic asks
+  重试, 放弃并录音 or 取消, and 放弃 beside 重试 gives them up.
 - A change of audio device (the engine's configuration change) ends the
   recording: what was captured is transcribed and the panel says why.
 - Quitting, or closing the window (which quits), asks first while dictation
-  records, transcribes or keeps pieces for 重试: 退出 drops them, 取消 keeps
-  them.
+  records, transcribes or keeps pieces for 重试: 取消 keeps them; 退出 lets
+  the workspace close and drops them only once the close succeeded, so a
+  refused close keeps them.
 - Proper nouns are restored like the renderer's pinyin layer: a run of Han
   characters that sounds like an element name or alias or a storyline name
   takes the project's spelling; a run matching two names is left.
@@ -496,9 +499,12 @@ reports, after a compaction) and Max · 1M 上下文 per model and stored; and
 context, key only in the header), the pane's masked key and its Keychain
 label, the one-time explanation, proper-noun correction (and everyday words
 left alone), 重试 of a failed piece and the one held behind it in spoken
-order, a device change ending the recording (a posted engine configuration
-change and a synthetic source), the panel's quit check while recording,
-transcribing or keeping pieces and not otherwise, and a denied microphone.
+order, the mic asking about kept pieces (取消 recording nothing, 放弃并录音
+giving them up), a device change ending the recording (a posted engine
+configuration change and a synthetic source), the panel's quit check while
+recording, transcribing or keeping pieces and not otherwise (退出 keeping
+the audio until the panel is told the close succeeded), and a denied
+microphone.
 Its Copilot 修改 cases are in [Copilot](copilot.md#acceptance).
 
 Physical keyboard input, the microphone, a real device change, live

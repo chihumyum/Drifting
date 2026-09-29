@@ -29,6 +29,8 @@ struct DocumentTypography: Equatable {
     var paragraphSpacing: CGFloat = 12
     /// Extra first-line indent of top-level paragraphs, in points.
     var paragraphIndent: CGFloat = 0
+    /// One Tab indent level (`indent`), in em of the body size.
+    var indentStep: CGFloat = 2
     /// BCP 47 language of the manuscript (glyph forms, fallback fonts and
     /// line breaking); nil leaves it to the system.
     var language: String? = nil
@@ -51,6 +53,36 @@ struct DocumentTypography: Equatable {
         default: return "Songti SC"
         }
     }
+}
+
+/// How entity links are drawn (设置 › 编辑器 › 链接样式). Presentation only:
+/// marks, opening, hover cards and trashed or missing targets are the same
+/// in every mode.
+struct EntityLinkStyle: Equatable {
+    enum Mode: String, Codable, CaseIterable {
+        /// 按分类着色: an element link takes its category's colour, others
+        /// (and an element without a category) the default link colour.
+        case contextual
+        /// 按类型着色: one colour per target kind.
+        case kind
+        /// 仅悬停时显示: prose at rest; the link under the pointer shows as
+        /// 按分类着色 draws it.
+        case hover
+        /// 不着色: the prose colour with a quiet underline.
+        case prose
+    }
+    /// The kinds a native link can target.
+    enum Kind: String, CaseIterable { case element, chapter, drift }
+
+    var mode: Mode = .contextual
+    /// `#RRGGBB` per kind for 按类型着色; a kind without an entry uses its default.
+    var colors: [Kind: String] = [:]
+
+    static let standard = EntityLinkStyle()
+    /// The renderer's defaults for 按类型.
+    static let defaultColors: [Kind: String] = [.element: "#8B72C6", .chapter: "#5B93C7", .drift: "#9B6BAA"]
+
+    func color(for kind: Kind) -> String { colors[kind] ?? Self.defaultColors[kind] ?? "#5B93C7" }
 }
 
 /// A link target as the workspace currently knows it: an element (with its
@@ -160,6 +192,17 @@ enum DocumentStyle {
     }
     static let typographyDidChange = Notification.Name("DocumentStyleTypographyDidChange")
 
+    /// How entity links are drawn in every body editor, the 全书长卷 and the
+    /// 历史版本 preview. Main thread only; a change posts `linkStyleDidChange`
+    /// and open views restyle their prose (text, selection and history stay).
+    static var linkStyle = EntityLinkStyle.standard {
+        didSet {
+            guard linkStyle != oldValue else { return }
+            NotificationCenter.default.post(name: linkStyleDidChange, object: nil)
+        }
+    }
+    static let linkStyleDidChange = Notification.Name("DocumentStyleLinkStyleDidChange")
+
     private struct FontKey: Hashable {
         let size: CGFloat
         let weight: CGFloat
@@ -265,7 +308,8 @@ enum DocumentStyle {
                                containers: [String] = []) -> NSParagraphStyle {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = typography.lineSpacing; paragraph.paragraphSpacing = typography.paragraphSpacing
-        paragraph.headIndent = containerIndent(containers, depth: depth, size: typography.size) + indentWidth(indent, size: typography.size)
+        paragraph.headIndent = containerIndent(containers, depth: depth, size: typography.size)
+            + indentWidth(indent, size: typography.size, step: typography.indentStep)
         paragraph.firstLineHeadIndent = paragraph.headIndent + (kind == "paragraph" && depth == 0 ? typography.paragraphIndent : 0)
         if containers.contains("blockquote") { paragraph.tailIndent = -typography.size * 2 }
         // A rule's caret sits in the middle, under its line.
@@ -312,9 +356,12 @@ enum DocumentStyle {
         return DocumentListMarker(projection.blocks[last], text: text)
     }
 
-    /// One indent level is two em of the body size, as the renderer's
-    /// `--editor-indent-step`; levels past eight are clamped.
-    static func indentWidth(_ level: Int, size: CGFloat) -> CGFloat { CGFloat(min(max(level, 0), 8)) * size * 2 }
+    /// One indent level is `step` em of the body size (设置's Tab 缩进, two by
+    /// default), as the renderer's `--editor-indent-step`; levels past eight
+    /// are clamped.
+    static func indentWidth(_ level: Int, size: CGFloat, step: CGFloat = 2) -> CGFloat {
+        CGFloat(min(max(level, 0), 8)) * size * step
+    }
 
     /// A block's `textAlign` as a paragraph alignment; left is natural.
     static func alignment(_ textAlign: String?) -> NSTextAlignment {
@@ -385,17 +432,46 @@ enum DocumentStyle {
         #endif
     }
 
-    /// Element links take their category colour, chapter links the default
-    /// blue; trashed targets are dimmed without underline; missing ones are
+    /// Live links follow `linkStyle` (by default an element link takes its
+    /// category colour, a chapter or drift link the default blue); trashed
+    /// targets are dimmed without underline in every mode; missing ones are
     /// plain prose.
     private static func linkAttributes(_ marks: NativeMarks, links: EntityLinkDirectory?) -> [NSAttributedString.Key: Any] {
         switch links?.presentation(of: marks.links) ?? .live(nil) {
         case .live(let target):
-            return [.foregroundColor: target?.colorHex.flatMap { linkColor(hex: $0) } ?? PlatformColor.systemBlue,
-                    .underlineStyle: NSUnderlineStyle.single.rawValue]
+            let underline = NSUnderlineStyle.single.rawValue
+            switch linkStyle.mode {
+            case .contextual: return [.foregroundColor: contextualColor(target), .underlineStyle: underline]
+            case .kind:
+                // Without a resolved target the mark still names its kind.
+                let kind: EntityLinkStyle.Kind? = target.map { target in
+                    switch target.kind {
+                    case .element: return .element
+                    case .chapter: return .chapter
+                    case .drift: return .drift
+                    }
+                } ?? marks.links.first.flatMap { $0.kind == "element" ? .element : ($0.kind == "node" ? .chapter : nil) }
+                let color = kind.flatMap { linkColor(hex: linkStyle.color(for: $0)) } ?? PlatformColor.systemBlue
+                return [.foregroundColor: color, .underlineStyle: underline]
+            // The block's own colour (a quote's secondary text) stays.
+            case .hover: return [:]
+            case .prose: return [.underlineStyle: underline, .underlineColor: PlatformColor.tertiaryLabelColorForDocument]
+            }
         case .trashed: return [.foregroundColor: PlatformColor.secondaryLabelColorForDocument]
         case .plain: return [:]
         }
+    }
+
+    /// 按分类着色: the element's category colour, else the default link colour.
+    private static func contextualColor(_ target: EntityLinkTarget?) -> PlatformColor {
+        target?.colorHex.flatMap { linkColor(hex: $0) } ?? PlatformColor.systemBlue
+    }
+
+    /// 仅悬停时显示: what the link under the pointer shows, as 按分类着色
+    /// draws it; nil for trashed, missing or unlinked text.
+    static func hoverLinkAttributes(_ links: [NativeEntityLink], directory: EntityLinkDirectory?) -> [NSAttributedString.Key: Any]? {
+        guard !links.isEmpty, case .live(let target) = directory?.presentation(of: links) ?? .live(nil) else { return nil }
+        return [.foregroundColor: contextualColor(target), .underlineStyle: NSUnderlineStyle.single.rawValue]
     }
 
     private static func apply<Indices: Sequence>(_ projection: NativeProjection, to storage: NSTextStorage,
@@ -750,6 +826,13 @@ private extension PlatformColor {
         return .secondaryLabelColor
         #else
         return .secondaryLabel
+        #endif
+    }
+    static var tertiaryLabelColorForDocument: PlatformColor {
+        #if os(macOS)
+        return .tertiaryLabelColor
+        #else
+        return .tertiaryLabel
         #endif
     }
 }

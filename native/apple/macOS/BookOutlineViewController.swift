@@ -21,6 +21,11 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
     var canNavigate: (() -> Bool)?
     var onClose: (() -> Void)?
+    /// Reads a chapter row's 悬停预览 (写作状态, words and 摘要), as link hover
+    /// cards read it; without one the card shows the title alone.
+    var hoverCardSource: ((EntityLinkTarget, @escaping (EntityHoverCardContent) -> Void) -> Void)?
+    /// Resting on a chapter row shows its card beside the panel.
+    private(set) var hoverPreview: TableHoverPreview?
     private let table = NSTableView()
     private let status = NSTextField(wrappingLabelWithString: "")
     private var rows: [WorkspaceOutlineModel.Row] = []
@@ -60,10 +65,22 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         model.onChange = { [weak self] in self?.reload() }
+        let preview = TableHoverPreview(table: table)
+        preview.target = { [weak self] row in
+            guard let self, self.rows.indices.contains(row), self.rows[row].isChapter else { return nil }
+            let entry = self.rows[row].entry
+            return EntityLinkTarget(kind: .chapter, id: entry.id, name: entry.title)
+        }
+        preview.source = { [weak self] target, done in
+            guard let source = self?.hoverCardSource else { done(EntityHoverCardContent(target: target)); return }
+            source(target, done)
+        }
+        hoverPreview = preview
         reload()
     }
 
     private func reload() {
+        hoverPreview?.close()
         rows = model.rows
         status.stringValue = model.status
         table.reloadData()
@@ -333,6 +350,7 @@ final class BookOutlineViewController: NSViewController, NSTableViewDataSource, 
         rows[row].navigable && !model.busy && canNavigate?() == true
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
+        hoverPreview?.close()
         guard rows.indices.contains(table.selectedRow) else { return }
         let item = rows[table.selectedRow]
         table.deselectAll(nil)

@@ -327,10 +327,11 @@ final class ElementOverviewModel {
         endpoint.kind == "element" ? element(id: endpoint.id)?.summary : nodes[endpoint.id]?.summary
     }
 
-    /// Writes a card's summary (trimmed, as pages do) in one original and
-    /// adopts the reply; the stored summary writes nothing.
+    /// Writes a card's summary in one original, as its page writes it (an
+    /// element's as typed, a chapter's or drift's trimmed), and adopts the
+    /// reply; the stored summary writes nothing.
     func setSummary(of endpoint: RelationEndpoint, to text: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let summary = ElementText.trimmed(text)
+        let summary = endpoint.kind == "element" ? text : ElementText.trimmed(text)
         guard summary != self.summary(of: endpoint) else { completion(.success(summary)); return }
         requests += 1
         if endpoint.kind == "element" {

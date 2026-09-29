@@ -110,17 +110,7 @@ extension BindingAcceptance {
         }
 
         /// AppDelegate.updateWordStatus over the active tab.
-        func statusLine() -> String {
-            var focus = WordCountFocus.none
-            if host.activeProject?.id == project.id {
-                if let id = host.activeChapter?.id ?? host.activeDrift?.id {
-                    focus = .node(id)
-                } else if let storyline = host.activeStoryline, let memberships = host.storylineLibrary(projectID: project.id) {
-                    focus = .storyline(memberships.chapters(storylineID: storyline.id).map(\.chapterId))
-                }
-            }
-            return WordCountText.statusLine(library, focus: focus)
-        }
+        func statusLine() -> String { host.wordStatusLine(projectID: project.id) }
 
         func chapterPage(_ id: String) -> MacChapterPageView? {
             host.retainedChapterPage(pane: 0, scope: ChapterScope(projectID: project.id, chapterID: id))

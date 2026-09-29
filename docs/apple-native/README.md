@@ -125,7 +125,8 @@ new elements and element patches from newly written paragraphs as
 suggestions the author accepts or rejects in 审阅, and Copilot 修改 (⌃⌘I) for
 local rewrites with a preview, questions about a passage and chapter
 summaries written only on 接受, a whole-book
-outline, a continuous whole-book editor with statistics and a writing plan,
+outline, a continuous whole-book editor with statistics, a writing plan and
+one set of editor controls for the chapter being edited,
 an element overview of categories around the chapter band with relation edges,
 card popovers on the 故事图谱 and the 设定总览 (title, status or category, the
 摘要 edited in place, an element's key facts and 打开), relation edges between
@@ -152,8 +153,12 @@ where it opens, find in the editor (⌘F, no
 replace), an @ picker that inserts and links names, project search over chapters,
 summaries, drifts, elements, categories, storylines and materials, today's
 words against the daily goal, one 回收站 per project with 彻底删除, hover cards
-on entity links, typewriter scrolling at a chosen height, 设置's 段间距, 版心宽度
-and 自动链接设定名称, a 项目书架 of every project, import of several files or a
+on entity links, typewriter scrolling at a chosen height, 设置's 段间距, 版心宽度,
+自动链接设定名称, Tab 缩进, 光标颜色 and 链接样式 (按分类着色, 按类型着色,
+仅悬停时显示, 不着色) in every editor, the 全书长卷 and the 历史版本 preview,
+chapter hover cards in the chapter list and the 整书大纲, the active
+chapter's 主线 and its total in the status line, a first-run 欢迎使用 sheet
+while the lab has no projects, a 项目书架 of every project, import of several files or a
 folder, Markdown folder export of one or every project, printing of the focused
 page and PDF export of the whole book, a 全书长卷 that reopens where it was read,
 a 历史版本 preview with the version's formatting,

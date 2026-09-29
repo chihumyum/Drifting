@@ -16,6 +16,16 @@ and paragraph spacing and 打字机位置 follow 设置 as editors do. Its toolb
 the sidebar and a chapter or heading in the 整书大纲 scroll it there, and the
 heading takes the caret.
 
+Below the toolbar one set of editor controls (撤销, 重做, 重试保存, 放弃窗口草稿,
+then 加粗 … 链接…, the same class a tab's editor has) serves the whole book;
+rows have none of their own. They act on the chapter being edited: the
+attached chapter whose editor last took the keyboard, named beside them
+(“正在编辑：第 3 章 标题”). They follow its selection, history and save
+state, act on that chapter only through its editor's commands, and turn off
+(“点按一章的正文开始编辑…”) once that editor leaves the book (released far
+away, the chapter trashed, the panel closed). The 格式 menu and the context
+menu act on the focused editor as before.
+
 The book comes from Rust's outline rows (acts, including empty ones, and
 chapters) and each chapter's status from the chapter list. An act separator
 is the act's name on a wash in its colour (stored with 幕颜色, else the
@@ -65,8 +75,8 @@ Right-clicking a chapter offers its 写作状态.
   gives these views the link directory, link passes and the @ picker's names,
   and counts their saved bodies. A ⌘-clicked entity link closes the panel and
   opens the target as a tab; a URL link opens in the browser. A read-only row
-  set from the last projection draws them like the editor; one read as plain
-  text does not.
+  set from the last projection draws them like the editor and follows 设置's
+  链接样式 at once (it keeps that projection); one read as plain text does not.
 
 **Reading position.** The panel reports the row at the top of the viewport
 (`chapter:<id>` or `act:<id>`) and the offset into it once scrolling or a
@@ -131,10 +141,9 @@ version restores, and chapter trash and restore do not count.
 
 ## Not ported
 
-Find in the long view (`AllChaptersFindPanel`), the 大纲轨道, scrollbar markers
-and a shared toolbar for the focused chapter are not offered here (tabs have
-the rail and markers: [page statistics](page-stats.md)). Each attached chapter
-keeps its own editor controls; its horizontal rules are drawn as centred
+Find in the long view (`AllChaptersFindPanel`), the 大纲轨道 and scrollbar
+markers are not offered here (tabs have the rail and markers:
+[page statistics](page-stats.md)). Horizontal rules are drawn as centred
 lines, in editor rows and read-only previews alike.
 
 ## Acceptance
@@ -174,6 +183,12 @@ real controllers, tab host, Rust workspace and SQLite:
   31 kept days, no journal writes, and a cold relaunch that counts nothing twice.
 
 Physical input, desktop XCTest and a visible panel on screen are not covered.
+`--polish-only` checks the shared controls on a three-chapter book: no row
+has its own, they wait until a chapter's editor takes the keyboard, follow
+it (named in the bar) and its selection, apply 加粗, 段落样式 and 撤销 to the
+second chapter and 增加缩进 to the first with the others untouched (three
+prose originals), and turn off once the editors leave; and 链接样式 and
+光标颜色 in the book's editors and a read-only row.
 `--small-items-only` scrolls a 24-chapter book, checks the reported position
 and `settings.json`, the position reported on closing, another project's own
 position, a cold relaunch opening at the same chapter and offset, and a

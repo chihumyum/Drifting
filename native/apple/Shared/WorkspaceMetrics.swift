@@ -134,13 +134,15 @@ enum WordCountFocus: Equatable {
     case none
     /// The active chapter or drift page (`bottomStatusBar.currentWords`).
     case node(String)
+    /// The active chapter, with its 主线's name and that storyline's chapters.
+    case chapter(String, storyline: String, chapterIDs: [String])
     /// The active storyline page's chapters (`bottomStatusBar.storylineWords`).
     case storyline([String])
 }
 
 extension WordCountText {
-    /// “当前 1,234 字 · 全书 5,678 字”. An uncounted node shows only the book;
-    /// an incomplete storyline shows 统计中….
+    /// “当前 1,234 字 · 主线「北境」5,678 字 · 全书 12,345 字”. An uncounted
+    /// node shows no 当前; an incomplete storyline shows 统计中….
     static func statusLine(_ library: WordCountLibrary?, focus: WordCountFocus) -> String {
         guard let library else { return pending }
         var parts: [String] = []
@@ -148,6 +150,9 @@ extension WordCountText {
         case .none: break
         case .node(let id):
             if let count = library.count(nodeID: id) { parts.append("当前 \(grouped(count)) 字") }
+        case .chapter(let id, let name, let ids):
+            if let count = library.count(nodeID: id) { parts.append("当前 \(grouped(count)) 字") }
+            parts.append("主线「\(name)」" + (library.total(chapterIDs: ids).map { "\(grouped($0)) 字" } ?? counting))
         case .storyline(let ids):
             parts.append(library.total(chapterIDs: ids).map { "故事线 \(grouped($0)) 字" } ?? "故事线 \(counting)")
         }

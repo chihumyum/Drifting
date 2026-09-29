@@ -17,6 +17,9 @@ enum MacEditorPreferences {
     /// 版心宽度: the widest the prose column of a body editor and the 全书长卷
     /// grows, in points; nil fills the pane (the headless default).
     static var columnWidth: CGFloat? { didSet { if columnWidth != oldValue { post() } } }
+    /// 光标颜色: the insertion point of every body editor; nil keeps the text
+    /// system's own (the headless default).
+    static var caretColor: NSColor? { didSet { if caretColor != oldValue { post() } } }
     private static func post() { NotificationCenter.default.post(name: didChange, object: nil) }
 }
 
@@ -73,6 +76,17 @@ struct LabSettings: Codable, Equatable {
     /// 自动链接设定名称: while on, settled typing links element names,
     /// aliases and chapter titles; off adds no new links, existing ones stay.
     var autoEntityLinks = true
+    /// Tab 缩进: one indent level, in characters of the body size (1–4, default 2).
+    var indentStep = 2
+    /// 光标颜色 `#RRGGBB`; nil follows 界面强调色 (the system accent without one).
+    var caretColor: String?
+    /// 链接样式 of entity links (`contextual`, `kind`, `hover`, `prose`).
+    var entityLinkStyle: EntityLinkStyle.Mode = .contextual
+    /// 按类型着色's colours that differ from the defaults, by kind
+    /// (`element`, `chapter`, `drift`) as `#RRGGBB`.
+    var entityLinkColors: [String: String] = [:]
+    /// 欢迎使用 · 不再显示: the sheet no longer opens at launch.
+    var welcomeHidden = false
     /// The list filter of each storyline or category page, per project and
     /// page (`storyline:<id>`, `category:<id>`); 全部 has no entry.
     var listFilters: [String: [String: String]] = [:]
@@ -130,6 +144,7 @@ struct LabSettings: Codable, Equatable {
     static let paragraphSpacings: ClosedRange<Double> = 0...2.5
     static let columnWidths: ClosedRange<Double> = 480...1280
     static let typewriterPositions: ClosedRange<Double> = 25...75
+    static let indentSteps: ClosedRange<Int> = 1...4
     /// The page kinds with a 大纲轨道.
     static let railKinds: Set<String> = ["chapter", "drift", "element", "storyline", "category"]
     static let locales: [(code: String, name: String)] = [
@@ -141,6 +156,7 @@ struct LabSettings: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling, typewriterPosition, paragraphSpacing, columnWidth, autoEntityLinks, listFilters, wholeBookPositions
+        case indentStep, caretColor, entityLinkStyle, entityLinkColors, welcomeHidden
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
         case recentPages, dailyStreaks, tabSessions, lastProject, outlineRails, stickyNotes, relationFilters
     }
@@ -163,6 +179,13 @@ struct LabSettings: Codable, Equatable {
         paragraphSpacing = (try? values.decodeIfPresent(Double.self, forKey: .paragraphSpacing)) ?? 0.7
         columnWidth = (try? values.decodeIfPresent(Double.self, forKey: .columnWidth)) ?? 760
         autoEntityLinks = (try? values.decodeIfPresent(Bool.self, forKey: .autoEntityLinks)) ?? true
+        indentStep = (try? values.decodeIfPresent(Int.self, forKey: .indentStep)) ?? 2
+        caretColor = (try? values.decodeIfPresent(String.self, forKey: .caretColor)) ?? nil
+        entityLinkStyle = (try? values.decodeIfPresent(EntityLinkStyle.Mode.self, forKey: .entityLinkStyle)) ?? .contextual
+        // One unreadable colour drops alone.
+        let colorValues = (try? values.decodeIfPresent([String: LenientString].self, forKey: .entityLinkColors)) ?? [:]
+        entityLinkColors = colorValues.compactMapValues(\.value)
+        welcomeHidden = (try? values.decodeIfPresent(Bool.self, forKey: .welcomeHidden)) ?? false
         // One unreadable project or page drops alone.
         let filterValues = (try? values.decodeIfPresent([String: LenientFilters].self, forKey: .listFilters)) ?? [:]
         listFilters = filterValues.mapValues(\.value).filter { !$0.value.isEmpty }
@@ -209,6 +232,14 @@ struct LabSettings: Codable, Equatable {
         next.listFilters = listFilters.mapValues { $0.filter { ListFilter.known($0.value) && $0.value != ListFilter.all } }
             .filter { !$0.value.isEmpty }
         if let accent = accentColor, DocumentStyle.linkColor(hex: accent) == nil { next.accentColor = nil }
+        next.caretColor = caretColor.flatMap(Self.hex)
+        next.indentStep = min(max(indentStep, Self.indentSteps.lowerBound), Self.indentSteps.upperBound)
+        // Only known kinds with a readable colour that differs from the default.
+        next.entityLinkColors = entityLinkColors.reduce(into: [:]) { result, entry in
+            guard let kind = EntityLinkStyle.Kind(rawValue: entry.key), let hex = Self.hex(entry.value),
+                  hex != EntityLinkStyle.defaultColors[kind] else { return }
+            result[entry.key] = hex
+        }
         if !Self.locales.contains(where: { $0.code == manuscriptLocale }) { next.manuscriptLocale = "zh-CN" }
         if next.fontSource == .systemCustom, next.systemFontFamily.isEmpty { next.fontSource = .systemSerif }
         if next.fontSource == .imported, next.importedFont == nil { next.fontSource = .systemSerif }
@@ -223,6 +254,20 @@ struct LabSettings: Codable, Equatable {
         next.relationFilters = relationFilters.mapValues { $0.filter { canvases.contains($0.key) }.mapValues { Array(Set($0)).sorted() }
             .filter { !$0.value.isEmpty } }.filter { !$0.value.isEmpty }
         return next
+    }
+
+    /// `#RRGGBB` in upper case, or nil for a value that is not one.
+    static func hex(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("#"), trimmed.count == 7, DocumentStyle.linkColor(hex: trimmed) != nil else { return nil }
+        return trimmed.uppercased()
+    }
+
+    /// The entity link style these settings describe.
+    var linkStyle: EntityLinkStyle {
+        var colors: [EntityLinkStyle.Kind: String] = [:]
+        for (key, value) in entityLinkColors { if let kind = EntityLinkStyle.Kind(rawValue: key) { colors[kind] = value } }
+        return EntityLinkStyle(mode: entityLinkStyle, colors: colors)
     }
 
     /// A finite value rounded to `step` inside `range`; anything else is `fallback`.
@@ -492,13 +537,24 @@ final class LabSettingsStore {
     }
 
     /// 还原推荐样式: the system serif at 17 pt, line height 1.5, no indent,
-    /// 段间距 0.7 and 版心宽度 760. An imported font stays available.
+    /// Tab 缩进 of two characters, 段间距 0.7 and 版心宽度 760. An imported
+    /// font stays available.
     func resetTypesetting() {
         fontNotice = nil
         update {
             $0.fontSource = .systemSerif; $0.fontSize = 17; $0.lineHeight = 1.5; $0.paragraphIndent = .none
-            $0.paragraphSpacing = 0.7; $0.columnWidth = 760
+            $0.indentStep = 2; $0.paragraphSpacing = 0.7; $0.columnWidth = 760
         }
+    }
+
+    // MARK: 欢迎使用
+
+    /// Saves 不再显示 at once; an unchanged value writes nothing. Editors and
+    /// the settings window are not told.
+    func setWelcomeHidden(_ hidden: Bool) {
+        guard settings.welcomeHidden != hidden else { return }
+        settings.welcomeHidden = hidden
+        save()
     }
 
     /// 使用: an installed family by its name or its localized name.
@@ -1030,6 +1086,7 @@ final class LabSettingsStore {
         typography.language = settings.languageTag
         typography.paragraphSpacing = (CGFloat(settings.paragraphSpacing) * typography.size).rounded()
         typography.paragraphIndent = typography.size * CGFloat(LabSettings.Indent.allCases.firstIndex(of: settings.paragraphIndent) ?? 0)
+        typography.indentStep = CGFloat(settings.indentStep)
         var fallback: String?
         switch settings.fontSource {
         case .systemSerif: typography.face = .systemSerif
@@ -1073,9 +1130,12 @@ final class LabSettingsStore {
         MacEditorPreferences.typewriterPosition = CGFloat(settings.typewriterPosition / 100)
         MacEditorPreferences.columnWidth = CGFloat(settings.columnWidth)
         DocumentStore.automaticEntityLinks = settings.autoEntityLinks
+        DocumentStyle.linkStyle = settings.linkStyle
         let accent = settings.accentColor.flatMap { DocumentStyle.linkColor(hex: $0) }
         let accentChanged = accent != MacEditorPreferences.accentColor
         MacEditorPreferences.accentColor = accent
+        // 跟随强调色: the 界面强调色, else the system accent.
+        MacEditorPreferences.caretColor = settings.caretColor.flatMap { DocumentStyle.linkColor(hex: $0) } ?? accent ?? .controlAccentColor
         var appearance: NSAppearance?
         switch settings.theme {
         case .light: appearance = NSAppearance(named: .aqua)
@@ -1097,6 +1157,8 @@ final class LabSettingsStore {
         MacEditorPreferences.typewriterScrolling = nil
         MacEditorPreferences.typewriterPosition = nil
         MacEditorPreferences.columnWidth = nil
+        MacEditorPreferences.caretColor = nil
+        DocumentStyle.linkStyle = .standard
         DocumentStore.automaticEntityLinks = true
         NSApplication.shared.appearance = nil
     }

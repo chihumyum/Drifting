@@ -255,6 +255,45 @@ fn workspace_agent_revisions_replace_only_the_changed_span() {
         "changes":[{"currentText":"真相","revisedText":"真相"}],"agent":call("call-same")}),
     ));
     assert_eq!(unchanged["applied"], 0);
+    // With context, only the target between it is narrowed: the target's own
+    // “吧” goes and the bold context “吧” stays.
+    edit(handle, "走吧吧。");
+    let current = state(handle);
+    success(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":2,"length":1},"action":"bold"}}));
+    let scoped = success(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"走吧吧。","revisedText":"走吧。","contextAfter":2}],
+        "agent":call("call-context")}),
+    ));
+    let runs = scoped["document"]["projection"]["blocks"][0]["runs"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let bold: Vec<_> = runs
+        .iter()
+        .filter(|run| run["attributes"].get("bold").is_some())
+        .map(|run| run["range"]["location"].as_u64())
+        .collect();
+    // (The edit helper prepends, so the earlier bold 真相 follows.)
+    assert_eq!(
+        scoped["document"]["projection"]["text"]
+            .as_str()
+            .unwrap()
+            .split('他')
+            .next(),
+        Some("走吧。")
+    );
+    assert_eq!(bold[0], Some(1));
+    // A revision that does not keep its context is refused.
+    let error = rejected(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"走吧。","revisedText":"走！","contextAfter":1}],
+        "agent":call("call-outside")}),
+    ));
+    assert!(error.contains("超出"), "{error}");
     // Surrogate pairs are never split.
     edit(handle, "🙂🙂");
     let emoji = success(agent(

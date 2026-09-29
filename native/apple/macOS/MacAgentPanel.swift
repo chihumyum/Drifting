@@ -29,6 +29,8 @@ final class MacAgentPanelView: NSView {
     let micButton = NSButton(title: "听写", target: nil, action: nil)
     let dictationLabel = NSTextField(labelWithString: "")
     let dictationRetryButton = NSButton(title: "重试", target: nil, action: nil)
+    /// 放弃: gives up the pieces kept for 重试.
+    let dictationDiscardButton = NSButton(title: "放弃", target: nil, action: nil)
     let dictationSetupButton = NSButton(title: "设置…", target: nil, action: nil)
     private let dictationRow = NSStackView()
     /// The composer's dictation, set by the owner; nil hides the button.
@@ -101,6 +103,7 @@ final class MacAgentPanelView: NSView {
                                      (stopAfterToolButton, "agent-stop-after-tool", #selector(stopAfterTool)),
                                      (micButton, "agent-dictation", #selector(toggleDictation)),
                                      (dictationRetryButton, "agent-dictation-retry", #selector(retryDictation)),
+                                     (dictationDiscardButton, "agent-dictation-discard", #selector(discardDictationPieces)),
                                      (dictationSetupButton, "agent-dictation-setup", #selector(openSpeechSettings)),
                                      (continueButton, "agent-continue", #selector(continueTask))] {
             button.target = self; button.action = action
@@ -184,7 +187,7 @@ final class MacAgentPanelView: NSView {
         dictationLabel.lineBreakMode = .byTruncatingTail
         dictationLabel.setContentCompressionResistancePriority(.init(1), for: .horizontal)
         dictationLabel.setAccessibilityIdentifier("agent-dictation-status")
-        for view in [dictationLabel, NSView(), dictationRetryButton, dictationSetupButton] { dictationRow.addArrangedSubview(view) }
+        for view in [dictationLabel, NSView(), dictationRetryButton, dictationDiscardButton, dictationSetupButton] { dictationRow.addArrangedSubview(view) }
         dictationRow.spacing = 6
         dictationRow.isHidden = true
         memorySections.present = { [weak self] alert, done in self?.present(alert, done) }
@@ -696,6 +699,8 @@ final class MacAgentPanelView: NSView {
         dictationLabel.textColor = dictation.error != nil ? .systemRed : .secondaryLabelColor
         dictationRetryButton.isHidden = dictation.failedPieces == 0
         dictationRetryButton.isEnabled = dictation.phase == .idle
+        dictationDiscardButton.isHidden = dictation.failedPieces == 0
+        dictationDiscardButton.isEnabled = dictation.phase == .idle
         dictationSetupButton.isHidden = !dictation.needsSetup
         dictationRow.isHidden = status == nil && dictation.failedPieces == 0 && !dictation.needsSetup
         if dictation.phase == .recording, dictationTimer == nil {
@@ -709,16 +714,40 @@ final class MacAgentPanelView: NSView {
 
     @objc func toggleDictation() {
         guard let dictation, controller != nil else { return }
-        if dictation.phase == .recording { dictation.stop() } else { dictation.start() }
+        if dictation.phase == .recording { dictation.stop() }
+        else if dictation.phase == .idle, dictation.failedPieces > 0 { askAboutFailedPieces(dictation) }
+        else { dictation.start() }
         updateDictationControls()
     }
 
+    /// Pieces wait for 重试: a new recording would wait behind them, so the
+    /// mic asks first. 重试 transcribes them; 放弃并录音 drops them and records.
+    private func askAboutFailedPieces(_ dictation: VoiceDictation) {
+        let alert = NSAlert()
+        alert.messageText = "先处理等待重试的录音？"
+        alert.informativeText = "还有 \(dictation.failedPieces) 段录音没有转写成功。重试会先转写它们并按说话顺序插入；放弃会丢弃它们，然后开始新的录音。"
+        alert.addButton(withTitle: "重试")
+        alert.addButton(withTitle: "放弃并录音")
+        alert.addButton(withTitle: "取消")
+        present(alert) { [weak self, weak dictation] response in
+            guard let dictation else { return }
+            switch response {
+            case .alertFirstButtonReturn: dictation.retry()
+            case .alertSecondButtonReturn: dictation.discardFailed(); dictation.start()
+            default: break
+            }
+            self?.updateDictationControls()
+        }
+    }
+
     @objc func retryDictation() { dictation?.retry(); updateDictationControls() }
+    @objc func discardDictationPieces() { dictation?.discardFailed(); updateDictationControls() }
 
     /// Before the app quits (or its window closes, which quits it): asks
     /// while dictation is recording, transcribing or keeps pieces for 重试.
-    /// 退出 drops them; 取消 keeps everything as it is. Answers at once
-    /// when nothing would be lost.
+    /// 取消 keeps everything as it is; 退出 lets the caller close, and the
+    /// audio is dropped (`discardDictation`) only once the close succeeded,
+    /// so a refused close keeps it. Answers at once when nothing would be lost.
     func confirmQuitDuringDictation(_ decide: @escaping (Bool) -> Void) {
         guard let dictation, let warning = dictation.quitWarning else { decide(true); return }
         let alert = NSAlert()
@@ -727,12 +756,12 @@ final class MacAgentPanelView: NSView {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "退出")
         alert.addButton(withTitle: "取消")
-        present(alert) { [weak dictation] response in
-            guard response == .alertFirstButtonReturn else { decide(false); return }
-            dictation?.cancel()
-            decide(true)
-        }
+        present(alert) { response in decide(response == .alertFirstButtonReturn) }
     }
+
+    /// The workspace closed after 退出: the recording and every piece not
+    /// yet transcribed are dropped.
+    func discardDictation() { dictation?.cancel() }
 
     @objc private func openSpeechSettings() { onOpenSpeechSettings?() }
 

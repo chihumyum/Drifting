@@ -226,6 +226,177 @@ private final class ProseScrollView: NSScrollView {
     }
 }
 
+/// An editor's controls: 撤销, 重做, 重试保存 and 放弃窗口草稿, then the format
+/// row (加粗 … 链接…). Each tab's editor has its own above its prose; the
+/// 全书长卷 has one for the chapter being edited. Every control acts on
+/// `target` through the commands the 格式 menu uses and shows its state;
+/// without a target every control is off.
+final class ProseFormatControls: NSObject {
+    weak var target: NativeDocumentView? { didSet { if target !== oldValue { refresh() } } }
+    let undoButton = NSButton(title: "撤销", target: nil, action: nil)
+    let redoButton = NSButton(title: "重做", target: nil, action: nil)
+    let retryButton = NSButton(title: "重试保存", target: nil, action: nil)
+    let discardButton = NSButton(title: "放弃窗口草稿", target: nil, action: nil)
+    let boldButton = NSButton(title: "加粗", target: nil, action: nil)
+    let italicButton = NSButton(title: "斜体", target: nil, action: nil)
+    let underlineButton = NSButton(title: "下划线", target: nil, action: nil)
+    let strikeButton = NSButton(title: "删除线", target: nil, action: nil)
+    let blockMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    let alignMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    let outdentButton = NSButton(title: "减少缩进", target: nil, action: nil)
+    let indentButton = NSButton(title: "增加缩进", target: nil, action: nil)
+    let linkButton = NSButton(title: "链接…", target: nil, action: nil)
+    /// 引用, 无序列表 and 有序列表: on while every touched block is in one.
+    let containerButtons = NativeFormatAction.containers.map { NSButton(title: $0.title, target: nil, action: nil) }
+    /// 撤销, 重做, 重试保存 and 放弃窗口草稿.
+    let historyRow: NSStackView
+    /// The format commands; a narrow row drops its last controls first.
+    let formatsRow: NSStackView
+    /// Refreshes, for acceptance.
+    private(set) var refreshes = 0
+
+    /// `prefix` sets the controls apart from an editor's own (the 全书长卷's
+    /// “whole-book-format-bold”).
+    init(identifierPrefix prefix: String = "") {
+        historyRow = NSStackView(views: [undoButton, redoButton, retryButton, discardButton])
+        historyRow.spacing = 8
+        formatsRow = NSStackView(views: [boldButton, italicButton, underlineButton, strikeButton, blockMenu, alignMenu,
+                                         outdentButton, indentButton] + containerButtons + [linkButton])
+        formatsRow.spacing = 8
+        super.init()
+        undoButton.target = self; undoButton.action = #selector(undo)
+        redoButton.target = self; redoButton.action = #selector(redo)
+        undoButton.setAccessibilityIdentifier("\(prefix)undo-prose")
+        redoButton.setAccessibilityIdentifier("\(prefix)redo-prose")
+        retryButton.target = self; retryButton.action = #selector(retry)
+        retryButton.setAccessibilityIdentifier("\(prefix)retry-prose")
+        discardButton.target = self; discardButton.action = #selector(discard); discardButton.isHidden = true
+        discardButton.setAccessibilityIdentifier("\(prefix)discard-prose-draft")
+        for (button, action) in [(boldButton, NativeFormatAction.bold), (italicButton, .italic), (underlineButton, .underline),
+                                 (strikeButton, .strike), (outdentButton, .indentDecrease), (indentButton, .indentIncrease)] {
+            button.target = self; button.action = #selector(format(_:))
+            button.setAccessibilityIdentifier("\(prefix)format-\(action.rawValue)")
+        }
+        alignMenu.addItems(withTitles: NativeFormatAction.alignments.map(\.title))
+        alignMenu.setAccessibilityIdentifier("\(prefix)format-align")
+        alignMenu.setAccessibilityLabel("对齐")
+        for (index, action) in NativeFormatAction.alignments.enumerated() {
+            alignMenu.item(at: index)?.setAccessibilityIdentifier(prefix + action.accessibilityID)
+        }
+        alignMenu.target = self; alignMenu.action = #selector(alignBlock)
+        outdentButton.toolTip = "减少所在段落的缩进（⇧Tab）"
+        indentButton.toolTip = "增加所在段落的缩进（Tab）"
+        linkButton.target = self; linkButton.action = #selector(editLink)
+        linkButton.setAccessibilityIdentifier("\(prefix)format-link")
+        linkButton.toolTip = "为选中的文字添加或修改网址链接（⌘K）"
+        for (button, action) in zip(containerButtons, NativeFormatAction.containers) {
+            button.setButtonType(.pushOnPushOff)
+            button.target = self; button.action = #selector(toggleContainer(_:))
+            button.setAccessibilityIdentifier(prefix + action.accessibilityID)
+        }
+        containerButtons[0].toolTip = "把所在段落设为引用，或取消引用（也可在段首输入“> ”）"
+        containerButtons[1].toolTip = "把所在段落设为无序列表，或取消列表（也可在段首输入“- ”）"
+        containerButtons[2].toolTip = "把所在段落设为有序列表，或取消列表（也可在段首输入“1. ”）"
+        blockMenu.addItems(withTitles: NativeFormatAction.blocks.map(\.title))
+        blockMenu.setAccessibilityIdentifier("\(prefix)format-block")
+        blockMenu.setAccessibilityLabel("段落样式")
+        for (index, action) in NativeFormatAction.blocks.enumerated() {
+            blockMenu.item(at: index)?.setAccessibilityIdentifier(prefix + action.accessibilityID)
+        }
+        blockMenu.target = self; blockMenu.action = #selector(formatBlock)
+        // A narrow pane drops the last controls first; the 格式 menu and the
+        // context menu keep every command.
+        formatsRow.setClippingResistancePriority(.defaultLow, for: .horizontal)
+        let priorities = [(underlineButton, 700), (strikeButton, 700), (alignMenu, 600), (outdentButton, 500),
+                          (indentButton, 500), (linkButton, 400)] as [(NSView, Float)] + containerButtons.map({ ($0 as NSView, Float(450)) })
+        for (control, priority) in priorities {
+            formatsRow.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: priority), for: control)
+        }
+        refresh()
+    }
+
+    /// Every control follows the target's selection, history and save state.
+    func refresh() {
+        refreshes += 1
+        guard let view = target else {
+            for control in [undoButton, redoButton, retryButton, boldButton, italicButton, underlineButton, strikeButton,
+                            outdentButton, indentButton, linkButton] + containerButtons as [NSControl] + [blockMenu, alignMenu] {
+                control.isEnabled = false
+            }
+            for button in containerButtons { button.state = .off }
+            discardButton.isHidden = true
+            retryButton.title = "重试保存"
+            blockMenu.select(nil); blockMenu.title = "段落样式"
+            alignMenu.select(nil); alignMenu.title = "对齐"
+            return
+        }
+        undoButton.isEnabled = view.canPerformHistory(redo: false)
+        redoButton.isEnabled = view.canPerformHistory(redo: true)
+        boldButton.isEnabled = view.canPerformFormat(.bold)
+        italicButton.isEnabled = view.canPerformFormat(.italic)
+        underlineButton.isEnabled = view.canPerformFormat(.underline)
+        strikeButton.isEnabled = view.canPerformFormat(.strike)
+        blockMenu.isEnabled = view.canPerformFormat(.paragraph)
+        if let action = view.selectedBlockFormat {
+            blockMenu.selectItem(withTitle: action.title)
+        } else {
+            blockMenu.select(nil)
+            blockMenu.title = "段落样式"
+        }
+        alignMenu.isEnabled = view.canPerformFormat(.alignLeft)
+        if let current = NativeFormatAction.alignments.first(where: { view.formatState($0) == .on }) {
+            alignMenu.selectItem(withTitle: current.title)
+        } else {
+            alignMenu.select(nil)
+            alignMenu.title = "对齐"
+        }
+        outdentButton.isEnabled = view.canPerformFormat(.indentDecrease)
+        indentButton.isEnabled = view.canPerformFormat(.indentIncrease)
+        for (button, action) in zip(containerButtons, NativeFormatAction.containers) {
+            button.isEnabled = view.canPerformFormat(action)
+            button.state = view.formatState(action) == .on ? .on : .off
+        }
+        linkButton.isEnabled = view.canEditLink
+        discardButton.isHidden = !view.binding.hasFailedDraft
+        discardButton.isEnabled = !view.isInteractionLocked && !view.binding.hasRemoteBlock
+        retryButton.isEnabled = !view.isInteractionLocked
+        retryButton.title = view.binding.hasRemoteBlock ? "重试应用" : "重试保存"
+    }
+
+    @objc private func undo() { target?.undoProse() }
+    @objc private func redo() { target?.redoProse() }
+    @objc private func retry() { target?.retrySave() }
+    @objc private func discard() { target?.discardDraft() }
+    @objc private func editLink() { target?.beginLink() }
+    @objc private func format(_ sender: NSButton) {
+        let action: NativeFormatAction?
+        switch sender {
+        case boldButton: action = .bold
+        case italicButton: action = .italic
+        case underlineButton: action = .underline
+        case strikeButton: action = .strike
+        case outdentButton: action = .indentDecrease
+        case indentButton: action = .indentIncrease
+        default: action = nil
+        }
+        guard let action else { return }
+        target?.performFormat(action)
+    }
+    @objc private func toggleContainer(_ sender: NSButton) {
+        guard let index = containerButtons.firstIndex(of: sender) else { return }
+        target?.performFormat(NativeFormatAction.containers[index])
+        refresh()
+    }
+    @objc private func alignBlock() {
+        guard NativeFormatAction.alignments.indices.contains(alignMenu.indexOfSelectedItem) else { return }
+        target?.performFormat(NativeFormatAction.alignments[alignMenu.indexOfSelectedItem])
+    }
+    @objc private func formatBlock() {
+        guard NativeFormatAction.blocks.indices.contains(blockMenu.indexOfSelectedItem) else { return }
+        target?.performFormat(NativeFormatAction.blocks[blockMenu.indexOfSelectedItem])
+    }
+}
+
 final class NativeDocumentView: NSView, NSTextViewDelegate {
     let binding: DocumentBinding
     let textView = ProseTextView()
@@ -239,21 +410,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     var onEdited: (() -> Void)?
     private let status = NSTextField(wrappingLabelWithString: "正在打开正文…")
     private let comments = NSTextField(wrappingLabelWithString: "")
-    private let undoButton = NSButton(title: "撤销", target: nil, action: nil)
-    private let redoButton = NSButton(title: "重做", target: nil, action: nil)
-    private let retryButton = NSButton(title: "重试保存", target: nil, action: nil)
-    private let discardButton = NSButton(title: "放弃窗口草稿", target: nil, action: nil)
-    private let boldButton = NSButton(title: "加粗", target: nil, action: nil)
-    private let italicButton = NSButton(title: "斜体", target: nil, action: nil)
-    private let underlineButton = NSButton(title: "下划线", target: nil, action: nil)
-    private let strikeButton = NSButton(title: "删除线", target: nil, action: nil)
-    private let blockMenu = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let alignMenu = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let outdentButton = NSButton(title: "减少缩进", target: nil, action: nil)
-    private let indentButton = NSButton(title: "增加缩进", target: nil, action: nil)
-    private let linkButton = NSButton(title: "链接…", target: nil, action: nil)
-    /// 引用, 无序列表 and 有序列表: on while every touched block is in one.
-    private let containerButtons = NativeFormatAction.containers.map { NSButton(title: $0.title, target: nil, action: nil) }
+    /// This editor's own 撤销 … 链接… rows above the prose; none in a body
+    /// that grows with its text (the 全书长卷 has one set for all its rows).
+    private(set) var controls: ProseFormatControls?
+    /// The editor's history, save state or the selection's formats may
+    /// have changed: controls outside it (the 全书长卷's) read them again.
+    var onControlsChanged: (() -> Void)?
     /// ⌘F in this editor: the find bar with incremental search, ⌘G, ⇧⌘G and
     /// ⌘E; no 替换. Nil in the 全书长卷's rows, where find is not offered.
     private(set) var textFinder: NSTextFinder?
@@ -288,6 +450,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     private var rendering = false
     /// The text system's own selection colours, used without an accent.
     private lazy var defaultSelection = textView.selectedTextAttributes
+    /// The text system's own insertion point colour, used without settings.
+    private lazy var defaultCaret = textView.insertionPointColor
+    /// 仅悬停时显示: the link drawn in its colour under the pointer, and the
+    /// attributes that range had before.
+    private var hoverHighlight: (range: NSRange, saved: NSAttributedString)?
+    /// The link range drawn in its colour under the pointer, for acceptance.
+    var hoverHighlightRange: NSRange? { hoverHighlight?.range }
     private var styledProjection: NativeProjection?
     private var reportedComments: [NativeComment]?
     private(set) var lastStyleUpdate = DocumentStyle.Update.full
@@ -444,71 +613,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         linkPreview.behavior = .semitransient
         linkPreview.animates = false
         scroll.documentView = textView
-        undoButton.target = self; undoButton.action = #selector(undoProse)
-        redoButton.target = self; redoButton.action = #selector(redoProse)
-        undoButton.setAccessibilityIdentifier("undo-prose")
-        redoButton.setAccessibilityIdentifier("redo-prose")
-        retryButton.target = self; retryButton.action = #selector(retrySave)
-        discardButton.target = self; discardButton.action = #selector(discardDraft); discardButton.isHidden = true
-        discardButton.setAccessibilityIdentifier("discard-prose-draft")
-        boldButton.target = self; boldButton.action = #selector(boldProse)
-        italicButton.target = self; italicButton.action = #selector(italicProse)
-        boldButton.setAccessibilityIdentifier("format-bold")
-        italicButton.setAccessibilityIdentifier("format-italic")
-        underlineButton.target = self; underlineButton.action = #selector(underlineProse)
-        strikeButton.target = self; strikeButton.action = #selector(strikeProse)
-        underlineButton.setAccessibilityIdentifier("format-underline")
-        strikeButton.setAccessibilityIdentifier("format-strike")
-        alignMenu.addItems(withTitles: NativeFormatAction.alignments.map(\.title))
-        alignMenu.setAccessibilityIdentifier("format-align")
-        alignMenu.setAccessibilityLabel("对齐")
-        for (index, action) in NativeFormatAction.alignments.enumerated() {
-            alignMenu.item(at: index)?.setAccessibilityIdentifier(action.accessibilityID)
-        }
-        alignMenu.target = self; alignMenu.action = #selector(alignBlock)
-        outdentButton.target = self; outdentButton.action = #selector(outdentProse)
-        indentButton.target = self; indentButton.action = #selector(indentProse)
-        outdentButton.setAccessibilityIdentifier("format-indentDecrease")
-        indentButton.setAccessibilityIdentifier("format-indentIncrease")
-        outdentButton.toolTip = "减少所在段落的缩进（⇧Tab）"
-        indentButton.toolTip = "增加所在段落的缩进（Tab）"
-        linkButton.target = self; linkButton.action = #selector(beginLink)
-        linkButton.setAccessibilityIdentifier("format-link")
-        linkButton.toolTip = "为选中的文字添加或修改网址链接（⌘K）"
-        for (button, action) in zip(containerButtons, NativeFormatAction.containers) {
-            button.setButtonType(.pushOnPushOff)
-            button.target = self; button.action = #selector(toggleContainer(_:))
-            button.setAccessibilityIdentifier(action.accessibilityID)
-        }
-        containerButtons[0].toolTip = "把所在段落设为引用，或取消引用（也可在段首输入“> ”）"
-        containerButtons[1].toolTip = "把所在段落设为无序列表，或取消列表（也可在段首输入“- ”）"
-        containerButtons[2].toolTip = "把所在段落设为有序列表，或取消列表（也可在段首输入“1. ”）"
-        blockMenu.addItems(withTitles: NativeFormatAction.blocks.map(\.title))
-        blockMenu.setAccessibilityIdentifier("format-block")
-        blockMenu.setAccessibilityLabel("段落样式")
-        for (index, action) in NativeFormatAction.blocks.enumerated() {
-            blockMenu.item(at: index)?.setAccessibilityIdentifier(action.accessibilityID)
-        }
-        blockMenu.target = self; blockMenu.action = #selector(formatBlock)
-        let toolbar = NSStackView(views: [undoButton, redoButton, retryButton, discardButton])
-        toolbar.spacing = 8
-        let formats = NSStackView(views: [boldButton, italicButton, underlineButton, strikeButton, blockMenu, alignMenu,
-                                          outdentButton, indentButton] + containerButtons + [linkButton])
-        formats.spacing = 8
-        // A narrow pane drops the last controls first; the 格式 menu and the
-        // context menu keep every command.
-        formats.setClippingResistancePriority(.defaultLow, for: .horizontal)
-        let priorities = [(underlineButton, 700), (strikeButton, 700), (alignMenu, 600), (outdentButton, 500),
-                          (indentButton, 500), (linkButton, 400)] as [(NSView, Float)] + containerButtons.map({ ($0 as NSView, Float(450)) })
-        for (control, priority) in priorities {
-            formats.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: priority), for: control)
-        }
         status.textColor = .secondaryLabelColor
         status.setAccessibilityIdentifier("document-status")
         comments.textColor = .secondaryLabelColor
         comments.setAccessibilityIdentifier("document-comments")
         comments.isHidden = !allowsComments
-        let stack = NSStackView(views: [toolbar, formats, scroll, comments, status])
+        if !growsWithText { controls = ProseFormatControls() }
+        let stack = NSStackView(views: (controls.map { [$0.historyRow, $0.formatsRow] } ?? []) + [scroll, comments, status])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -553,6 +664,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
                                                name: DocumentStyle.typographyDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(editorPreferencesChanged),
                                                name: MacEditorPreferences.didChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(linkStyleChanged),
+                                               name: DocumentStyle.linkStyleDidChange, object: nil)
+        controls?.target = self
         binding.onProjection = { [weak self] in self?.render($0, changes: $1) }
         binding.onStatus = { [weak self] in self?.status.stringValue = $0 }
         binding.onEntityLinks = { [weak self] in self?.onEntityLinks?() }
@@ -597,6 +711,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     private func render(_ projection: NativeProjection, changes: [NativeTextChange]) {
         guard !textView.hasMarkedText() else { styledProjection = nil; return }
+        // The highlighted link's attributes come back before the text changes.
+        clearHoverHighlight()
         if !changes.isEmpty { closeLinkPreview() }
         rendering = true
         var selection = textView.selectedRange()
@@ -841,7 +957,10 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     @objc private func editorPreferencesChanged() { applyEditorPreferences() }
 
-    /// Spelling and the selection wash follow 设置.
+    /// 设置 › 编辑器 › 链接样式 changed: the prose restyles in place.
+    @objc private func linkStyleChanged() { restyleLinks() }
+
+    /// Spelling, the selection wash and the caret colour follow 设置.
     private func applyEditorPreferences() {
         if let spelling = MacEditorPreferences.spellChecking, textView.isContinuousSpellCheckingEnabled != spelling {
             textView.isContinuousSpellCheckingEnabled = spelling
@@ -849,6 +968,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         var selected = defaultSelection
         if let accent = MacEditorPreferences.accentColor { selected[.backgroundColor] = accent.withAlphaComponent(0.28) }
         textView.selectedTextAttributes = selected
+        let caret = MacEditorPreferences.caretColor ?? defaultCaret
+        if textView.insertionPointColor != caret { textView.insertionPointColor = caret }
         updateTextInsets()
     }
 
@@ -969,6 +1090,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// changed. Marked text keeps its temporary styling; the next render
     /// after commit is full.
     private func restyleLinks() {
+        clearHoverHighlight()
         guard let projection = styledProjection, let storage = textView.textStorage else { return }
         guard !textView.hasMarkedText(), NativeText.identical(textView.string, projection.text) else { styledProjection = nil; return }
         DocumentStyle.apply(projection, to: storage, links: linkDirectory)
@@ -998,6 +1120,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// Resting on a link opens its preview after `linkPreviewDelay`; leaving
     /// it closes the preview at once. Composition never shows one.
     private func hover(at index: Int?) {
+        updateHoverHighlight(at: index)
         guard let index, !textView.hasMarkedText(), linkTargets(at: index).first != nil, let range = linkRange(at: index) else {
             closeLinkPreview(); return
         }
@@ -1011,6 +1134,55 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         }
         hoverTimer = timer
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.linkPreviewDelay, execute: timer)
+    }
+
+    /// 仅悬停时显示: the link under the pointer is drawn as 按分类着色 draws
+    /// it, the whole link across its runs; leaving it restores the prose.
+    /// Only while the prose is settled: nothing queued or marked, the text
+    /// as last styled. Any edit restores it first (`clearHoverHighlight`).
+    private func updateHoverHighlight(at index: Int?) {
+        guard DocumentStyle.linkStyle.mode == .hover, let index, !textView.hasMarkedText(), !binding.hasPendingWork,
+              let projection = styledProjection, NativeText.identical(textView.string, projection.text),
+              let storage = textView.textStorage, let (range, links) = entityLinkRange(at: index, in: projection),
+              let attributes = DocumentStyle.hoverLinkAttributes(links, directory: linkDirectory),
+              NSMaxRange(range) <= storage.length else { clearHoverHighlight(); return }
+        guard hoverHighlight?.range != range else { return }
+        clearHoverHighlight()
+        hoverHighlight = (range, storage.attributedSubstring(from: range))
+        storage.addAttributes(attributes, range: range)
+    }
+
+    /// Puts back the attributes the highlighted link had. Called before any
+    /// text change, so the range still holds the same text.
+    private func clearHoverHighlight() {
+        guard let (range, saved) = hoverHighlight else { return }
+        hoverHighlight = nil
+        guard let storage = textView.textStorage, NSMaxRange(range) <= storage.length,
+              storage.attributedSubstring(from: range).string == saved.string else {
+            // The next render styles everything again.
+            styledProjection = nil; return
+        }
+        storage.beginEditing()
+        saved.enumerateAttributes(in: NSRange(location: 0, length: saved.length)) { attributes, part, _ in
+            storage.setAttributes(attributes, range: NSRange(location: range.location + part.location, length: part.length))
+        }
+        storage.endEditing()
+    }
+
+    /// The whole entity link around a character: the adjacent runs of its
+    /// block that carry the same link marks.
+    private func entityLinkRange(at index: Int, in projection: NativeProjection) -> (NSRange, [NativeEntityLink])? {
+        guard let block = projection.blocks.first(where: { $0.range.location <= index && index < NSMaxRange($0.range.nsRange) }),
+              let at = block.runs.firstIndex(where: { $0.range.location <= index && index < NSMaxRange($0.range.nsRange) }) else { return nil }
+        let links = block.runs[at].attributes.links
+        guard !links.isEmpty else { return nil }
+        var first = at, last = at
+        while first > 0, block.runs[first - 1].attributes.links == links,
+              NSMaxRange(block.runs[first - 1].range.nsRange) == block.runs[first].range.location { first -= 1 }
+        while last + 1 < block.runs.count, block.runs[last + 1].attributes.links == links,
+              block.runs[last + 1].range.location == NSMaxRange(block.runs[last].range.nsRange) { last += 1 }
+        let start = block.runs[first].range.location
+        return (NSRange(location: start, length: NSMaxRange(block.runs[last].range.nsRange) - start), links)
     }
 
     /// Opens the preview of the first target at a character now: name and
@@ -1629,6 +1801,7 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
         guard !isInteractionLocked, let replacementString else { return false }
+        clearHoverHighlight()
         let allowed = binding.prepareInput(affectedCharRange, replacement: replacementString, marked: textView.hasMarkedText())
         if allowed {
             textFinder?.noteClientStringWillChange(); pendingReplacement = replacementString
@@ -1791,8 +1964,10 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         // Keyboard caret moves follow the typewriter line; clicks do not.
         if NSApp.currentEvent?.type == .keyDown { scheduleTypewriterAlignment() }
         if picker != nil { updatePicker(typed: nil) }
+        // The controls follow the caret; typed text refreshes them with its reply.
+        if !marked, !binding.hasPendingWork { updateFormatControls() }
     }
-    private func canPerformHistory(redo: Bool) -> Bool {
+    func canPerformHistory(redo: Bool) -> Bool {
         guard !isInteractionLocked, binding.canEdit, !binding.hasPendingWork, !textView.hasMarkedText(),
               let projection = binding.state?.projection else { return false }
         return redo ? projection.canRedo : projection.canUndo
@@ -1803,18 +1978,11 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         alignAfterRender = typewriterEnabled
         binding.history(redo: redo)
     }
-    private func canPerformFormat(_ action: NativeFormatAction) -> Bool {
+    func canPerformFormat(_ action: NativeFormatAction) -> Bool {
         !isInteractionLocked && !textView.hasMarkedText() && binding.canFormat(action, range: textView.selectedRange())
     }
-    private func updateActions() {
-        undoButton.isEnabled = canPerformHistory(redo: false)
-        redoButton.isEnabled = canPerformHistory(redo: true)
-        updateFormatControls()
-        discardButton.isHidden = !binding.hasFailedDraft
-        discardButton.isEnabled = !isInteractionLocked && !binding.hasRemoteBlock
-        retryButton.isEnabled = !isInteractionLocked
-        retryButton.title = binding.hasRemoteBlock ? "重试应用" : "重试保存"
-    }
+    /// The controls follow history, drafts, saves and the selection.
+    private func updateActions() { updateFormatControls() }
     private func updateEditability() {
         // AppKit cancels marked text when isEditable becomes false. A retained
         // remote block must preserve that native draft; input delegates still
@@ -1823,65 +1991,26 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.isEditable = !isInteractionLocked && binding.canEdit
     }
     private func focus() { onFocus?(); window?.makeFirstResponder(textView) }
-    private func formatState(_ action: NativeFormatAction) -> NativeFormatState {
+    /// How much of the selection has the format, for checkmarks and buttons.
+    func formatState(_ action: NativeFormatAction) -> NativeFormatState {
         binding.formatState(action, range: textView.selectedRange())
     }
+    /// The block style of the selection's first block (正文, 标题 1–3), if any.
+    var selectedBlockFormat: NativeFormatAction? { binding.blockFormat(at: textView.selectedRange()) }
     private func updateFormatControls() {
-        boldButton.isEnabled = canPerformFormat(.bold)
-        italicButton.isEnabled = canPerformFormat(.italic)
-        underlineButton.isEnabled = canPerformFormat(.underline)
-        strikeButton.isEnabled = canPerformFormat(.strike)
-        blockMenu.isEnabled = canPerformFormat(.paragraph)
-        if let action = binding.blockFormat(at: textView.selectedRange()) {
-            blockMenu.selectItem(withTitle: action.title)
-        } else {
-            blockMenu.select(nil)
-            blockMenu.title = "段落样式"
-        }
-        alignMenu.isEnabled = canPerformFormat(.alignLeft)
-        if let current = NativeFormatAction.alignments.first(where: { formatState($0) == .on }) {
-            alignMenu.selectItem(withTitle: current.title)
-        } else {
-            alignMenu.select(nil)
-            alignMenu.title = "对齐"
-        }
-        outdentButton.isEnabled = canPerformFormat(.indentDecrease)
-        indentButton.isEnabled = canPerformFormat(.indentIncrease)
-        for (button, action) in zip(containerButtons, NativeFormatAction.containers) {
-            button.isEnabled = canPerformFormat(action)
-            button.state = formatState(action) == .on ? .on : .off
-        }
-        linkButton.isEnabled = canEditLink
+        controls?.refresh()
+        onControlsChanged?()
     }
-    private func performFormat(_ action: NativeFormatAction) {
+    func performFormat(_ action: NativeFormatAction) {
         guard canPerformFormat(action) else { return }
         let range = textView.selectedRange()
         focus()
         binding.format(action, range: range)
     }
-    @objc private func boldProse() { performFormat(.bold) }
-    @objc private func italicProse() { performFormat(.italic) }
-    @objc private func underlineProse() { performFormat(.underline) }
-    @objc private func strikeProse() { performFormat(.strike) }
-    @objc private func indentProse() { performFormat(.indentIncrease) }
-    @objc private func outdentProse() { performFormat(.indentDecrease) }
-    @objc private func toggleContainer(_ sender: NSButton) {
-        guard let index = containerButtons.firstIndex(of: sender) else { return }
-        performFormat(NativeFormatAction.containers[index])
-        updateFormatControls()
-    }
-    @objc private func alignBlock() {
-        guard NativeFormatAction.alignments.indices.contains(alignMenu.indexOfSelectedItem) else { return }
-        performFormat(NativeFormatAction.alignments[alignMenu.indexOfSelectedItem])
-    }
-    @objc private func formatBlock() {
-        guard NativeFormatAction.blocks.indices.contains(blockMenu.indexOfSelectedItem) else { return }
-        performFormat(NativeFormatAction.blocks[blockMenu.indexOfSelectedItem])
-    }
     @objc func undoProse() { performHistory(redo: false) }
     @objc func redoProse() { performHistory(redo: true) }
-    @objc private func retrySave() { guard !isInteractionLocked else { return }; focus(); binding.retrySave() }
-    @objc private func discardDraft() { guard !isInteractionLocked else { return }; focus(); binding.discardDraft() }
+    @objc func retrySave() { guard !isInteractionLocked else { return }; focus(); binding.retrySave() }
+    @objc func discardDraft() { guard !isInteractionLocked else { return }; focus(); binding.discardDraft() }
 }
 
 /// A block command (Tab, ⇧Tab, a slash row) given while typed text was still

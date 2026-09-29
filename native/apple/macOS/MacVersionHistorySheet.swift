@@ -23,6 +23,9 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
     var presentAlert: ((NSAlert, @escaping (NSApplication.ModalResponse) -> Void) -> Void)?
     /// Called once the sheet ends.
     var onFinish: (() -> Void)?
+    /// The project's link targets: the preview draws entity links as the
+    /// editors do, in 设置's 链接样式. Without one they keep the default style.
+    var linkDirectory: EntityLinkDirectory? { didSet { if linkDirectory != oldValue { showPreview() } } }
 
     var errorMessage: String? { model.statusIsError ? model.status : nil }
 
@@ -120,8 +123,14 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
             previewScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 240),
         ])
         model.onChange = { [weak self] in self?.reload() }
+        NotificationCenter.default.addObserver(self, selector: #selector(linkStyleChanged), name: DocumentStyle.linkStyleDidChange, object: nil)
         reload()
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    /// 设置's 链接样式 changed: the preview is set again.
+    @objc private func linkStyleChanged() { showPreview() }
 
     /// Presents the sheet on a window; without one it stays ready for
     /// programmatic use (acceptance).
@@ -219,7 +228,8 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
         previewTitle.stringValue = "\(VersionHistoryTime.exact(entry.createdAt)) 的版本" + (entry.meta?.displayName.map { " · \($0)" } ?? "")
             + (entry.meta?.reasonLabel.map { " · \($0)" } ?? "") + (entry.meta?.wordCountText.map { " · \($0)" } ?? "")
         let segments = diffCheckbox.state == .on ? model.segments(of: entry) : nil
-        if let projection = model.preview(of: entry), let styled = Self.attributed(projection: projection, segments: segments) {
+        if let projection = model.preview(of: entry),
+           let styled = Self.attributed(projection: projection, segments: segments, links: linkDirectory) {
             previewView.textStorage?.setAttributedString(styled)
         } else {
             previewView.textStorage?.setAttributedString(Self.attributed(segments: segments, version: entry.text))
@@ -240,11 +250,12 @@ final class VersionHistorySheet: NSObject, NSTableViewDataSource, NSTableViewDel
     /// segments marked against the current text: text the current body lacks
     /// on a green wash, and text the version lacks inserted struck through in
     /// the style around it. Nil when the segments do not spell the projection.
-    static func attributed(projection: NativeProjection, segments: [ProseDiff.Segment]?) -> NSAttributedString? {
+    static func attributed(projection: NativeProjection, segments: [ProseDiff.Segment]?,
+                           links: EntityLinkDirectory? = nil) -> NSAttributedString? {
         // Styled as an editor's storage is: fonts are fixed lazily when the
         // preview lays out, so the runs keep the fonts DocumentStyle chose.
         let styled = LazyStyledText(text: projection.text)
-        DocumentStyle.apply(projection, to: styled)
+        DocumentStyle.apply(projection, to: styled, links: links)
         // Comment highlights are not part of a version's comparison.
         styled.removeAttribute(.backgroundColor, range: NSRange(location: 0, length: styled.length))
         guard let segments else { return styled }

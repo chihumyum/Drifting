@@ -81,8 +81,9 @@ A click on a chapter or drift card (a press and release without a drag)
 opens a small popover under it: the title, “章节 · § 03 · 草稿” or “漂流 ·
 漂浮中”, the 摘要 read once and editable in place, and 打开. Return saves the
 summary, trimmed as pages do, with one `setNodeSummary` through the tab
-host, so open pages follow; an unchanged summary writes nothing, and ⌥Return
-adds a line. Esc, a click elsewhere and 打开 close it after saving a changed
+host, so open pages follow; only a change to what was shown is written (an
+unchanged or whitespace-only one writes nothing), and ⌥Return adds a line.
+A closed popover lets go of its `NSPopover`, which held it as content. Esc, a click elsewhere and 打开 close it after saving a changed
 summary; a drag or a double-click (which opens the page) closes it too, and
 a card that left the canvas closes it without writing. Markers have none.
 
@@ -174,7 +175,8 @@ drive the card popovers and 关系类型 of both canvases: the chapter and drift
 popovers (the summary read once, Return writing one `field.set node` that
 the page shows, unchanged and whitespace-only summaries and a second close
 writing nothing, Esc saving, 打开, a drag closing it, a trashed chapter
-dismissing it without writing, a marker without one), and the edges in
+dismissing it without writing and letting go of its `NSPopover`, a marker
+without one), and the edges in
 their types' colours with arrows, hiding and showing types and 全部显示
 without journal writes, colours kept across a rename, and each canvas's
 choice in `settings.json` through a cold relaunch. Popovers are built but

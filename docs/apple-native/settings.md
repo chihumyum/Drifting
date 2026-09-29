@@ -16,6 +16,12 @@ interoperability is kept.
   or out-of-range value falls back to its default or is clamped (size 12–28 pt,
   line height 1.0–2.0, 段间距 0–2.5, 版心宽度 480–1280 pt, 打字机位置 25–75%);
   an unreadable file means defaults and a message in 设置.
+- 光标颜色 is `caretColor` (`#RRGGBB`; none follows 界面强调色), Tab 缩进
+  `indentStep` (1–4 characters, default 2), 链接样式 `entityLinkStyle`
+  (`contextual`, `kind`, `hover`, `prose`) and the 按类型着色 colours that
+  differ from the defaults under `entityLinkColors` by kind (`element`,
+  `chapter`, `drift`); 欢迎使用's 不再显示 is `welcomeHidden`
+  ([workspace](workspace.md#欢迎使用)). An unreadable value falls back alone.
 - The same file keeps each project's 写作计划 under `writingPlans`, edited in
   项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
 - Each page's 情节规划格 dock (shown and height) is under `plotPlanners`
@@ -61,7 +67,8 @@ interoperability is kept.
 - 外观: 主题 浅色, 深色 or 跟随系统 (the default, as Mac apps do; the renderer
   defaults to light) sets the application appearance, so every window and panel
   follows at once. 界面强调色 (default: the system accent) tints the selected
-  text, the selected tab and panel selection washes; never the caret.
+  text, the selected tab and panel selection washes, and the caret unless
+  编辑器 › 光标颜色 has its own colour.
 - 编辑器: 创作内容字体 is 系统衬线 (default: New York, with CJK in Songti SC or TC,
   Hiragino Mincho or AppleMyungjo by manuscript language), 系统无衬线, 系统等宽, an
   installed family (picked from the list or typed, localized names accepted) or
@@ -70,11 +77,12 @@ interoperability is kept.
   size × 行距 − the face's natural line height); 段间距 is the space after each
   paragraph in multiples of the size (default 0.7, the earlier 12 pt at 17 pt;
   also in printing); 段首缩进 indents top-level body paragraphs by one or two
-  characters. 版心宽度 (default 760 pt, the 全书长卷's earlier column) is the
+  characters; Tab 缩进 is one indent level (Tab, ⇧Tab, 增加缩进) in
+  characters, 1–4 (default 2; also in printing), the stored level unchanged. 版心宽度 (default 760 pt, the 全书长卷's earlier column) is the
   widest the prose column grows: a wider pane centres it with equal side
   insets, a narrower one keeps the 20-point margins; the 全书长卷 sets its
-  column the same way. 还原推荐样式 restores serif, 17 pt, 1.5, no indent, 段间距
-  0.7 and 版心宽度 760. A preview shows the result. Only bodies (chapter, element,
+  column the same way. 还原推荐样式 restores serif, 17 pt, 1.5, no indent, Tab
+  缩进 2, 段间距 0.7 and 版心宽度 760. A preview shows the result. Only bodies (chapter, element,
   storyline, drift) use the prose font; page headers and all UI keep the system
   font.
 - 打字机滚动 (编辑器 › 书写, default off) keeps the caret line at 打字机位置
@@ -88,6 +96,18 @@ interoperability is kept.
   inset under an unchanged top origin, not a scroll view inset, which the text
   system would treat as covered); the 全书长卷 aligns its long scroll without
   extra room, so near the end of the book the line sits lower.
+- 光标颜色 (编辑器 › 书写): 跟随强调色 (default: the 界面强调色, else the
+  system accent) or 自定义, starting from the renderer's #6B7FA6, in every body
+  editor, hidden tabs and the 全书长卷.
+- 链接样式 (编辑器 › 书写) draws entity links in every editor, the 全书长卷
+  (editors and read-only rows) and the 历史版本 preview: 按分类着色 (default:
+  an element's category colour, others the default blue), 按类型着色 (设定,
+  章节 and 漂流 each in a colour, defaults #8B72C6, #5B93C7 and #9B6BAA,
+  edited in the 类型颜色 row shown only then, 恢复默认颜色), 仅悬停时显示
+  (prose at rest; the link under the pointer, all of it, shows as 按分类着色,
+  restored when the pointer leaves or before any edit) and 不着色 (the prose
+  colour with a grey underline). Trashed targets stay dimmed; opening, hover
+  cards and marks are unchanged ([entity links](entity-links.md#mac-interaction)).
 - 自动链接设定名称 (编辑器 › 书写, default on): the [link pass](entity-links.md)
   after settled typing, on opening a body and after names change. Off, no pass
   runs, so typed names, new names and names inserted with the @ picker (which
@@ -156,7 +176,14 @@ interoperability is kept.
   not installed, and a file that is not TTF/OTF, empty, too large or unreadable,
   are refused in Chinese and nothing changes.
 - Without settings (the headless suites) editors keep their earlier defaults:
-  the system sans at 17 pt, line spacing 6, no indent, text-system spelling.
+  the system sans at 17 pt, line spacing 6, no indent, text-system spelling
+  and caret, 按分类着色.
+- The 编辑器 pane scrolls within 700 points, so the window fits a small screen.
+
+Not ported from the renderer's panels: 日期与数字 (stored, read nowhere),
+the entity-link interaction switch (stored, no control), 自动保存's toggle
+and interval (every input is saved at once), and 按类型's colours for
+补丁, 类目 and 故事线 links, which native bodies never contain.
 
 ## Acceptance
 
@@ -201,3 +228,13 @@ The Copilot pane, its storage and relaunch are covered by the
 a long chapter and in an element page, marked text unpublished and one undo
 exact, a hand scroll kept until the next keystroke, nothing aligned once off,
 and the choice in `settings.json` and the 设置 checkbox.
+`--polish-only` ([polish cases](acceptance/p2b-binding.json)) drives 光标颜色
+through the 外观 and 编辑器 panes (the system accent, a 界面强调色, 自定义
+and a chosen colour in pane editors, a hidden tab and the 全书长卷, back to
+跟随强调色), Tab 缩进 1, 2 and 4 on an indented paragraph with the stored
+level unchanged and 还原推荐样式, each 链接样式 on element, chapter and drift
+links (a hidden tab, the 全书长卷's editor and a read-only row set from its
+projection, the 历史版本 preview), the 类型颜色 row, hover in and out and
+typing while a link shows its colour, with text, selection, revision and
+history kept and no journal writes, `settings.json`, cold stores, hand-edited
+values falling back one by one, and the pane scrolling.

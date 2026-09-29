@@ -21,6 +21,13 @@ pub(crate) struct ProseChange {
     /// Adds `revisedText` as new paragraphs at the end (`currentText` empty).
     #[serde(default)]
     append: bool,
+    /// UTF-16 lengths of unchanged context at the start and end of
+    /// `currentText` that only make it unique; `revisedText` keeps them and
+    /// only the text between them is revised.
+    #[serde(default)]
+    context_before: u32,
+    #[serde(default)]
+    context_after: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -167,15 +174,14 @@ impl WorkspaceSession {
                     turn_id: agent.turn_id.clone(),
                     call_id: agent.call_id.clone(),
                 };
-                let changes: Vec<(String, String, bool, bool)> = changes
+                let changes: Vec<AgentChange> = changes
                     .iter()
-                    .map(|c| {
-                        (
-                            c.current_text.clone(),
-                            c.revised_text.clone(),
-                            c.all_occurrences,
-                            c.append,
-                        )
+                    .map(|c| AgentChange {
+                        current: c.current_text.clone(),
+                        revised: c.revised_text.clone(),
+                        all: c.all_occurrences,
+                        append: c.append,
+                        context: (c.context_before, c.context_after),
                     })
                     .collect();
                 // An open body is revised in place; otherwise a temporary

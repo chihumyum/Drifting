@@ -7,8 +7,8 @@ import AppKit
 /// built and driven but not shown. Every name is synthetic.
 extension BindingAcceptance {
     static let canvasCases = [
-        "AppKit 故事图谱 card popovers: a click on a chapter or drift card (not a drag, not a marker) shows its title, § number and status or 漂流 status and the summary read once; an edited summary is written trimmed on Return as one field.set node original that the chapter page shows, an unchanged or whitespace-only change and a second close write nothing, Esc closes it saving a changed summary as one more original, 打开 opens the drift page and closes it, a drag closes it, and a chapter trashed elsewhere dismisses it without writing",
-        "AppKit 设定总览 card popovers: a click on an element card shows its name, category and group, its summary and at most six key facts with the rest counted, and a chapter pill or drift card its status and summary; an edited element summary is written as one field.set element original that the element page and the card follow, a summary changed elsewhere reaches a clean popover, an unchanged one writes nothing, Esc closes it saving, 打开 saves a changed chapter summary as one field.set node original and opens the chapter, a drift card's 打开 opens the drift, and scrolling closes the popover",
+        "AppKit 故事图谱 card popovers: a click on a chapter or drift card (not a drag, not a marker) shows its title, § number and status or 漂流 status and the summary read once; an edited summary is written trimmed on Return as one field.set node original that the chapter page shows, an unchanged or whitespace-only change and a second close write nothing, Esc closes it saving a changed summary as one more original, 打开 opens the drift page and closes it, a drag closes it, and a chapter trashed elsewhere dismisses it without writing; a closed or dismissed popover lets go of its NSPopover",
+        "AppKit 设定总览 card popovers: a click on an element card shows its name, category and group, its summary and at most six key facts with the rest counted, and a chapter pill or drift card its status and summary; an edited element summary is written as one field.set element original that the element page and the card follow, a summary changed elsewhere reaches a clean popover, an unchanged one writes nothing and closing it untouched writes nothing even with spaces around the stored summary, while a change of spacing is written as typed as the element page writes it, Esc closes it saving, a closed popover is released, 打开 saves a changed chapter summary as one field.set node original and opens the chapter, a drift card's 打开 opens the drift, and scrolling closes the popover",
         "AppKit 关系类型 on both canvases lists the author's relation types in creation order (also after a rename) with a system-colour swatch and the count each canvas can draw; the 故事图谱 draws chapter and drift relations as edges in their type's colour with arrows for directed types, the 设定总览 colours its edges the same way, and on either canvas unchecking a type hides its edges (a selected edge is deselected and no longer hit) while checking it or 全部显示 shows them again, writing nothing to the journal; each canvas keeps its own choice per project in settings.json through a cold relaunch",
     ]
 
@@ -410,8 +410,8 @@ extension BindingAcceptance {
         graph.refresh()
         try wait { canvas.cardViews[north.id] == nil }
         try harness.settled()
-        try require(controller.cardPopover == nil && !popover.isShown && popover.writes == 0,
-                    "The trashed chapter's popover stayed or wrote: \(controller.cardPopover.map { $0.endpoint.key } ?? "none") shown \(popover.isShown) writes \(popover.writes) same \(controller.cardPopover === popover)")
+        try require(controller.cardPopover == nil && !popover.isShown && popover.writes == 0 && popover.popover.contentViewController == nil,
+                    "The trashed chapter's popover stayed, wrote or is still held: \(controller.cardPopover.map { $0.endpoint.key } ?? "none") shown \(popover.isShown) writes \(popover.writes) same \(controller.cardPopover === popover)")
         try require(try harness.journal.originals(since: next).count == 1, "Dismissing the popover wrote")
         // A timeline marker has no popover.
         graph.axis = .narrative
@@ -450,7 +450,7 @@ extension BindingAcceptance {
                     && lines.last == "另有 2 项，在设定页查看" && !popover.factsLabel.isHidden,
                     "The element popover differs: \(popover.detailLabel.stringValue) / \(lines)")
         try require(harness.opened.isEmpty, "A click on the card opened its page")
-        harness.type("  旧港的守灯人 ", in: popover)
+        harness.type("旧港的守灯人", in: popover)
         try harness.settled()
         try require(popover.writes == 0, "An unchanged summary was sent")
         // An edited summary: one original; the page and the card follow.
@@ -460,19 +460,36 @@ extension BindingAcceptance {
         try harness.journal.expect([["field.set element"]], since: mark, "The element summary")
         try wait { harness.host.activeElementPage?.summaryView.string == "旧港的守灯人，也是信使。" }
         try require(model.scene.card(zhouCard)?.detail == "旧港的守灯人，也是信使。", "The card does not show the new summary")
-        // A summary changed elsewhere reaches the clean popover.
+        // A summary changed elsewhere, with spaces around it, reaches the
+        // clean popover; closing it untouched writes nothing.
         var next = try harness.journal.mark()
+        let spaced = " 旧港的守灯人。 "
         let changed: WorkspaceElementReply<WorkspaceElement> = try elementResult {
-            harness.host.setElementSummary(projectID: harness.project.id, elementID: zhou.id, summary: "旧港的守灯人。", completion: $0)
+            harness.host.setElementSummary(projectID: harness.project.id, elementID: zhou.id, summary: spaced, completion: $0)
         }
-        try require(changed.result?.summary == "旧港的守灯人。", "The summary was not changed elsewhere")
-        try wait { popover.summaryView.string == "旧港的守灯人。" && popover.storedSummary == "旧港的守灯人。" }
+        try require(changed.result?.summary == spaced, "The summary was not changed elsewhere: \(changed.result?.summary.debugDescription ?? "")")
+        try wait { popover.summaryView.string == spaced && popover.storedSummary == spaced }
+        harness.type(spaced, in: popover, then: #selector(NSResponder.cancelOperation(_:)))
+        try require(controller.cardPopover == nil && popover.writes == 1, "Closing untouched sent the summary again")
+        try harness.settled()
+        try harness.journal.expect([["field.set element"]], since: next, "Elsewhere, then an untouched close")
+        // The closed popover lets go of its NSPopover (which held it as its
+        // content), so neither keeps the other alive; the reopened one writes
+        // a change of spacing as typed, as the element page writes it.
+        let closed = popover
+        try require(closed.popover.contentViewController == nil, "The closed popover is still held by its NSPopover")
+        try harness.click(card: zhouCard)
+        popover = try harness.loaded(controller.cardPopover)
+        try require(popover !== closed && popover.popover.contentViewController === popover, "The card did not open a new popover")
+        harness.type("旧港的守灯人。", in: popover)
+        try wait { popover.storedSummary == "旧港的守灯人。" && model.element(id: zhou.id)?.summary == "旧港的守灯人。" }
         // Esc closes it, saving a changed summary.
         harness.type("旧港的守灯人，常去北塔。", in: popover, then: #selector(NSResponder.cancelOperation(_:)))
         try require(controller.cardPopover == nil, "Esc did not close the popover")
         try wait { model.element(id: zhou.id)?.summary == "旧港的守灯人，常去北塔。" }
         try harness.settled()
-        try harness.journal.expect([["field.set element"], ["field.set element"]], since: next, "Elsewhere, then Esc")
+        try harness.journal.expect([["field.set element"], ["field.set element"], ["field.set element"]], since: next,
+                                   "Elsewhere, spacing, then Esc")
 
         // A chapter pill: its status; 打开 saves a changed summary and opens.
         next = try harness.journal.mark()

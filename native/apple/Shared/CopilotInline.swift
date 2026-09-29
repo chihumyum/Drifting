@@ -91,14 +91,16 @@ struct CopilotInlineTarget: Equatable {
     }
 
     /// The text before and after `range` that, widened a character at a
-    /// time on each side, makes it occur once in `text`. Nil when no
-    /// context within 400 characters on each side does.
+    /// time on each side, makes it occur once in `text`, counting
+    /// overlapping matches (the last “哈哈” of “哈哈哈” is not unique), with
+    /// that one match where the range is. Nil when no context within 400
+    /// characters on each side does.
     static func unique(_ range: NSRange, in text: String) -> (prefix: String, suffix: String)? {
         let string = text as NSString
         guard NSMaxRange(range) <= string.length else { return nil }
         var widened = range
         for _ in 0..<400 {
-            if AgentWorkspaceTools.occurrences(of: string.substring(with: widened), in: text).count == 1 {
+            if matches(of: string.substring(with: widened), in: text) == [widened.location] {
                 let prefix = string.substring(with: NSRange(location: widened.location, length: range.location - widened.location))
                 let suffix = string.substring(with: NSRange(location: NSMaxRange(range), length: NSMaxRange(widened) - NSMaxRange(range)))
                 return (prefix, suffix)
@@ -115,6 +117,14 @@ struct CopilotInlineTarget: Equatable {
             }
         }
         return nil
+    }
+
+    /// Every UTF-16 offset where `needle` starts in `text`, overlapping
+    /// matches included.
+    static func matches(of needle: String, in text: String) -> [Int] {
+        let haystack = Array(text.utf16), pattern = Array(needle.utf16)
+        guard !pattern.isEmpty, pattern.count <= haystack.count else { return [] }
+        return (0...(haystack.count - pattern.count)).filter { haystack[$0..<($0 + pattern.count)].elementsEqual(pattern) }
     }
 }
 
@@ -467,11 +477,15 @@ final class CopilotInlineSession {
                 refuse(AgentApplyRefusal(prose.error!).message, false); return
             }
             // Exactly the text around the target as it was when it was made,
-            // once; never another copy of the original elsewhere.
-            guard AgentWorkspaceTools.occurrences(of: target.anchor, in: body.text).count == 1 else {
+            // once even counting overlapping matches; never another copy of
+            // the original elsewhere.
+            guard CopilotInlineTarget.matches(of: target.anchor, in: body.text).count == 1 else {
                 refuse("原文在生成修改后已经改变，这处修改没有应用。请重新选择文字后再试。", false); return
             }
-            let change = AgentProseChange(currentText: target.anchor, revisedText: target.prefix + edited + target.suffix)
+            // The context only makes the target unique: Rust keeps it exactly
+            // and narrows the revision inside it.
+            let change = AgentProseChange(currentText: target.anchor, revisedText: target.prefix + edited + target.suffix,
+                                          contextBefore: target.prefix.utf16.count, contextAfter: target.suffix.utf16.count)
             let identity = ["sessionId": "copilot-inline", "turnId": "copilot-inline-" + UUID().uuidString.lowercased(),
                             "callId": "copilot-edit-" + UUID().uuidString.lowercased()]
             self.workspace.agentApplyChanges(projectID: projectID, kind: target.kind.rawValue, id: target.id, changes: [change.payload],

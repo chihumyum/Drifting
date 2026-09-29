@@ -202,7 +202,7 @@ impl LabSession {
     /// undoes the ones already applied.
     fn apply_agent_changes(
         &mut self,
-        changes: &[(String, String, bool, bool)],
+        changes: &[AgentChange],
         identity: drifting_core::prose::AgentIdentity,
     ) -> Result<usize, String> {
         if self.document.active_drafts() > 0 || self.document.active_input_compositions() > 0 {
@@ -214,12 +214,20 @@ impl LabSession {
         }
         let view = self.document.native_projection()?;
         let text: Vec<u16> = view.text.encode_utf16().collect();
-        let mut ranges: Vec<(u32, u32, String)> = Vec::new();
-        let appends = changes.iter().filter(|change| change.3).count();
+        // (location, length, revised, context before, context after)
+        let mut ranges: Vec<(u32, u32, String, u32, u32)> = Vec::new();
+        let appends = changes.iter().filter(|change| change.append).count();
         if appends > 1 || (appends == 1 && changes.len() > 1) {
             return Err("追加正文时不能同时修改其他原文".into());
         }
-        for (current, revised, all, append) in changes {
+        for AgentChange {
+            current,
+            revised,
+            all,
+            append,
+            context: (before, after),
+        } in changes
+        {
             if *append {
                 // New paragraphs after the last block; an empty body takes
                 // the text in its seed paragraph.
@@ -234,12 +242,22 @@ impl LabSession {
                 } else {
                     format!("\n{revised}")
                 };
-                ranges.push((text.len() as u32, 0, inserted));
+                ranges.push((text.len() as u32, 0, inserted, 0, 0));
                 continue;
             }
             let needle: Vec<u16> = current.encode_utf16().collect();
             if needle.is_empty() {
                 return Err("要修改的原文不能为空".into());
+            }
+            // The context must be inside the original and kept by the revision.
+            let wanted: Vec<u16> = revised.encode_utf16().collect();
+            let (before, after) = (*before as usize, *after as usize);
+            if before + after > needle.len()
+                || before + after > wanted.len()
+                || wanted[..before] != needle[..before]
+                || wanted[wanted.len() - after..] != needle[needle.len() - after..]
+            {
+                return Err("修改超出了要修改的范围".into());
             }
             let mut found = Vec::new();
             let mut at = 0;
@@ -261,11 +279,15 @@ impl LabSession {
                 }
                 _ => {}
             }
-            ranges.extend(
-                found
-                    .into_iter()
-                    .map(|start| (start, needle.len() as u32, revised.clone())),
-            );
+            ranges.extend(found.into_iter().map(|start| {
+                (
+                    start,
+                    needle.len() as u32,
+                    revised.clone(),
+                    before as u32,
+                    after as u32,
+                )
+            }));
         }
         ranges.sort_by_key(|range| range.0);
         if ranges
@@ -275,12 +297,17 @@ impl LabSession {
             return Err("要修改的原文相互重叠".into());
         }
         let mut applied = 0;
-        for (location, length, revised) in ranges.iter().rev() {
-            // Only the differing span is replaced, so the text around it keeps
-            // its marks, entity links and item identity.
+        for (location, length, revised, before, after) in ranges.iter().rev() {
+            // Only the differing span inside the context is replaced, so the
+            // text around it keeps its marks, entity links and item identity.
+            let (before, after) = (*before as usize, *after as usize);
             let original = &text[*location as usize..(*location + *length) as usize];
             let replacement: Vec<u16> = revised.encode_utf16().collect();
-            let (from, cut, insert) = narrowed(original, &replacement);
+            let (from, cut, insert) = narrowed(
+                &original[before..original.len() - after],
+                &replacement[before..replacement.len() - after],
+            );
+            let from = from + before as u32;
             if cut == 0 && insert.is_empty() {
                 continue;
             }
@@ -1623,6 +1650,16 @@ pub unsafe extern "C" fn drifting_lab_free(value: *mut c_char) {
     if !value.is_null() {
         drop(unsafe { CString::from_raw(value) });
     }
+}
+
+/// One accepted Agent change as the owner applies it.
+pub(crate) struct AgentChange {
+    pub current: String,
+    pub revised: String,
+    pub all: bool,
+    pub append: bool,
+    /// Unchanged context lengths (UTF-16) at the ends of `current`.
+    pub context: (u32, u32),
 }
 
 /// The span of `original` that differs from `revised`: the start offset,

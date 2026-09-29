@@ -97,10 +97,12 @@ final class RelationFilterButton: NSPopUpButton {
 
 /// The small popover a card of the 故事图谱 or the 设定总览 opens: its title,
 /// its status or category, the summary editable in place, an element's key
-/// facts and 打开. The summary commits (trimmed) on Return, when the field
-/// ends editing and when the popover closes; an unchanged one writes
-/// nothing. Esc closes the popover. It is its own window above the panel;
-/// a panel that is not on screen (acceptance) keeps it unshown.
+/// facts and 打开. The summary commits on Return, when the field ends
+/// editing and when the popover closes, only when the author changed what
+/// was shown: an element's as typed (as its page writes it), a chapter's
+/// or drift's trimmed. Esc closes the popover. It is its own window above
+/// the panel; a panel that is not on screen (acceptance) keeps it unshown.
+/// Closing lets go of the popover, so neither keeps the other alive.
 final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDelegate {
     struct Content: Equatable {
         var title: String
@@ -260,15 +262,16 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
 
     // MARK: Commit and close
 
-    /// Sends a changed summary, trimmed; the stored one, or the one already
-    /// on its way, writes nothing.
+    /// Sends a summary the author changed from the one shown: an element's
+    /// as typed, a chapter's or drift's trimmed (a change of spacing alone
+    /// writes nothing). The one already on its way writes nothing.
     func commit() {
         guard let storedSummary, let onCommit else { return }
-        let summary = ElementText.trimmed(summaryView.string)
-        guard summary != storedSummary, summary != sending else { return }
+        let typed = summaryView.string
+        let summary = endpoint.kind == "element" ? typed : ElementText.trimmed(typed)
+        guard typed != storedSummary, summary != storedSummary, summary != sending else { return }
         sending = summary
         writes += 1
-        let typed = summaryView.string
         onCommit(summary) { [self] result in
             sending = nil
             switch result {
@@ -289,6 +292,7 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
         guard isShown else { return }
         isShown = false
         if popover.isShown { popover.performClose(nil) }
+        release()
         onClosed?()
     }
 
@@ -298,7 +302,14 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
         isShown = false
         popover.delegate = nil
         if popover.isShown { popover.close() }
+        release()
         onClosed?()
+    }
+
+    /// The popover holds this controller as its content: let go, so both go.
+    private func release() {
+        guard !popover.isShown else { return }
+        popover.contentViewController = nil
     }
 
     @objc func openPage() {
@@ -312,6 +323,7 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
     func popoverWillClose(_ notification: Notification) { commit() }
 
     func popoverDidClose(_ notification: Notification) {
+        release()
         guard isShown else { return }
         isShown = false
         onClosed?()

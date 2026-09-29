@@ -14,10 +14,10 @@ extension BindingAcceptance {
         "AppKit 在当前工具后停止 lets the running tool finish and records its result, marks the calls after it as not run and ends the turn without another request; pressed while the reply streams, the reply is kept and none of its tool calls run",
         "AppKit the context indicator shows the latest request's reported input plus output against the window compaction counts with and its 70% threshold (an estimate marked 约 before any report or after a compaction), and Max · 1M 上下文 is offered only for models declaring 1M, switches the window between 200,000 and the declared one and is stored with the conversation",
         "AppKit Copilot 修改 (编辑 menu ⌃⌘I and the prose context menu, only while Copilot is on) opens on the selection or the caret's paragraph: 局部修改 sends the instruction, the text and its neighbours with the key only in the auth header, previews removed and added text, 重写 asks again, 接受 applies it through the chapter's live owner as one Agent-provenance edit that one ⌘Z undoes, a target changed meanwhile is refused writing nothing, 放弃 writes nothing and a request to continue the story is refused without a request; 问 answers in the popover with follow-ups and writes nothing",
-        "AppKit Copilot 修改 leaves a selection's leading or trailing paragraph break and a paragraph's U+3000 indent outside the rewrite, so 接受 keeps the break and the indent, puts back the inner indent a rewrite with as many lines dropped, and reads a reply that differs only by white space as 没有修改; 接受 needs the text that made the target unique when it was made, so a target moved by an edit elsewhere lands on its own copy and one changed meanwhile is refused writing nothing although the original text occurs once elsewhere",
+        "AppKit Copilot 修改 leaves a selection's leading or trailing paragraph break and a paragraph's U+3000 indent outside the rewrite, so 接受 keeps the break and the indent, puts back the inner indent a rewrite with as many lines dropped, and reads a reply that differs only by white space as 没有修改; 接受 needs the text that made the target unique when it was made, so a target moved by an edit elsewhere lands on its own copy and one changed meanwhile is refused writing nothing although the original text occurs once elsewhere; the last of overlapping repeats (哈哈 in 哈哈哈) is widened until it is the only overlapping match and 接受 lands there, sending the widening as context that stays exactly",
         "AppKit Copilot 修改's 生成章节摘要 proposes a summary from the chapter body beside the current one; 放弃 writes nothing and 接受 writes it with setNodeSummary as one field.set original that the chapter page shows, 接受 after the stored summary changed is refused writing nothing and keeps the preview, and Copilot's usage records every request",
         "AppKit 听写 in the composer needs the DashScope key from 设置 › 模型服务 › 语音转写 (kept in the Keychain store under its own 语音转写 Key label, shown masked), explains and asks for the microphone only on first use, records a synthetic 16 kHz PCM buffer, sends it as a WAV data URI with the project's names as recognition context and the key only in the authorization header, restores proper nouns from element names and aliases, inserts the text into the composer, and refuses a denied microphone in Chinese",
-        "AppKit 听写 keeps a failed piece and every piece after it for 重试, which inserts them in spoken order; an audio device change ends the recording and transcribes what was captured, saying why in Chinese; the panel's quit check, which quitting or closing the window runs, asks while dictation records, transcribes or keeps pieces for 重试 (退出 drops them, 取消 keeps them) and not otherwise; and name correction needs matching tones for two-character names and keeps ü apart from u, so 黎明, 路人 and 知识 stay while 林蓝 becomes 林岚 and longer names still match without tones",
+        "AppKit 听写 keeps a failed piece and every piece after it for 重试, which inserts them in spoken order; an audio device change ends the recording and transcribes what was captured, saying why in Chinese; while pieces wait for 重试 a new recording does not start behind them: the mic asks to 重试 or 放弃并录音 (取消 records nothing) and 放弃 gives them up; the panel's quit check, which quitting or closing the window runs, asks while dictation records, transcribes or keeps pieces for 重试 and not otherwise, 取消 keeping them and 退出 leaving them until the close has succeeded, when they are dropped; and name correction needs matching tones for two-character names and keeps ü apart from u, so 黎明, 路人 and 知识 stay while 林蓝 becomes 林岚 and longer names still match without tones",
     ]
 
     static func assistantExtrasAcceptance() throws -> [String] {
@@ -558,6 +558,27 @@ extension BindingAcceptance {
                     && changed.contains("他说：好。") && (try harness.journal.originals(since: mark)).isEmpty,
                     "A changed target landed elsewhere: \(view.textView.string.debugDescription)")
         inline.close()
+
+        // Overlapping repeats: the last “哈哈” of “哈哈哈” is not unique by
+        // itself; widened until it is the only overlapping match, 接受 lands
+        // there and the widening stays exactly.
+        try harness.type(view, "\n哈哈哈")
+        try harness.settle(view)
+        inline = try extrasInlineLast(harness, view, select: "哈哈")
+        let laugh = inline.session.target
+        let laughAt = (view.textView.string as NSString).range(of: "哈哈", options: .backwards).location
+        try require(laugh.original == "哈哈" && laugh.range.location == laughAt && laugh.prefix == "哈" && laugh.suffix.isEmpty
+                    && CopilotInlineTarget.matches(of: "哈哈", in: view.textView.string) == [laughAt - 1, laughAt]
+                    && CopilotInlineTarget.matches(of: laugh.anchor, in: view.textView.string) == [laughAt - 1],
+                    "The overlapping target was not widened: \(laugh.anchor)")
+        try extrasEdit(inline, ["editedText": "嘿嘿", "refused": false, "reason": ""])
+        mark = try harness.journal.mark()
+        inline.accept()
+        try wait { if case .applied = inline.session.phase { return true }; return false }
+        try harness.settle(view)
+        try require(view.textView.string.hasSuffix("\n哈嘿嘿") && (try harness.journal.originals(since: mark)).count == 1,
+                    "The overlapping target landed elsewhere: \(view.textView.string.debugDescription)")
+        inline.close()
         try harness.close()
     }
 
@@ -787,6 +808,18 @@ extension BindingAcceptance {
         let keptQuit = quit(.alertSecondButtonReturn)
         try require(keptQuit.alert?.informativeText.contains("2 段录音没有转写成功") == true && keptQuit.proceed == false && dictation.failedPieces == 2,
                     "The quit check with kept pieces differs")
+        // A new recording would wait behind them: the mic asks first, and 取消 records nothing.
+        let startsBefore = audio.starts, asked = alerts.count
+        response = .alertThirdButtonReturn
+        harness.panel.micButton.performClick(nil)
+        response = .alertFirstButtonReturn
+        try require(alerts.count == asked + 1 && alerts.last?.messageText == "先处理等待重试的录音？"
+                    && alerts.last?.buttons.map(\.title) == ["重试", "放弃并录音", "取消"] && dictation.phase == .idle
+                    && dictation.failedPieces == 2 && audio.starts == startsBefore && AgentStubProtocol.requests.count == 1
+                    && !harness.panel.dictationDiscardButton.isHidden, "The mic did not ask about the kept pieces")
+        dictation.start()
+        try require(dictation.phase == .idle && audio.starts == startsBefore && dictation.error?.contains("2 段录音等待重试") == true,
+                    "A recording started behind the kept pieces")
         harness.panel.dictationRetryButton.performClick(nil)
         try wait { AgentStubProtocol.requests.count == 2 }
         // Transcribing: the quit check asks.
@@ -824,15 +857,29 @@ extension BindingAcceptance {
         RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         try require(reasons == [AudioEngineSource.deviceChanged], "The engine's configuration change was not reported once: \(reasons)")
 
-        // 退出 drops the recording; nothing is sent.
-        AgentStubProtocol.reset([])
+        // A failed piece, then 放弃并录音: it is given up and a new recording starts.
+        AgentStubProtocol.reset([extrasASR("", status: 500)])
         harness.panel.micButton.performClick(nil)
         try wait { dictation.phase == .recording }
         audio.push(4_000)
+        harness.panel.micButton.performClick(nil)
+        try wait { dictation.phase == .idle && dictation.failedPieces == 1 }
+        response = .alertSecondButtonReturn
+        harness.panel.micButton.performClick(nil)
+        response = .alertFirstButtonReturn
+        try wait { dictation.phase == .recording }
+        try require(dictation.failedPieces == 0 && harness.panel.dictationDiscardButton.isHidden && AgentStubProtocol.requests.count == 1,
+                    "放弃并录音 did not give up the piece and record")
+        // 退出 keeps the recording until the close has succeeded; then it is dropped and nothing is sent.
+        audio.push(4_000)
         let leave = quit(.alertFirstButtonReturn)
         RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        try require(leave.alert != nil && leave.proceed == true && dictation.phase == .idle && dictation.failedPieces == 0 && dictation.quitWarning == nil
-                    && AgentStubProtocol.requests.isEmpty && harness.panel.micButton.title == "听写", "退出 did not drop the recording")
+        try require(leave.alert != nil && leave.proceed == true && dictation.phase == .recording && dictation.quitWarning != nil,
+                    "退出 dropped the recording before the close succeeded")
+        harness.panel.discardDictation()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        try require(dictation.phase == .idle && dictation.failedPieces == 0 && dictation.quitWarning == nil
+                    && AgentStubProtocol.requests.count == 1 && harness.panel.micButton.title == "听写", "The closed workspace did not drop the recording")
 
         // A denied microphone is refused in Chinese and records nothing.
         let starts = audio.starts

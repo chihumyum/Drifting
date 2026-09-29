@@ -56,13 +56,17 @@ struct EntityHoverCardContent: Equatable {
         }.prefix(factLimit).map { $0 }
     }
 
+    /// What an empty summary reads: an element's 简介, a chapter's or
+    /// drift's 摘要 (the renderer's “暂无摘要”).
+    var emptySummary: String { kind == .element ? "暂无简介" : "暂无摘要" }
+
     /// Every line in reading order, as the card shows it.
     var lines: [String] {
         var lines = [title]
         if !meta.isEmpty { lines.append(meta.joined(separator: " · ")) }
         if let aliases { lines.append(aliases) }
         let brief = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trashed { lines.append(brief.isEmpty ? "暂无简介" : brief) }
+        if !trashed { lines.append(brief.isEmpty ? emptySummary : brief) }
         lines += facts
         if let counts { lines.append(counts) }
         return lines
@@ -86,6 +90,8 @@ final class EntityHoverCardController: NSViewController {
     let portrait = NSImageView()
     private(set) var labels: [NSTextField] = []
     var onOpen: (() -> Void)?
+    /// “点击打开” under the card; a list row's preview (the row opens it) has none.
+    var showsOpenHint = true
 
     init(content: EntityHoverCardContent) {
         self.content = content
@@ -129,13 +135,13 @@ final class EntityHoverCardController: NSViewController {
         if let aliases = content.aliases { views.append(label(aliases, size: 11, color: .secondaryLabelColor)) }
         if !content.trashed {
             let brief = content.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-            let summary = label(brief.isEmpty ? "暂无简介" : brief, size: 12, color: brief.isEmpty ? .tertiaryLabelColor : .labelColor)
+            let summary = label(brief.isEmpty ? content.emptySummary : brief, size: 12, color: brief.isEmpty ? .tertiaryLabelColor : .labelColor)
             summary.maximumNumberOfLines = 5
             views.append(summary)
         }
         for fact in content.facts { views.append(label(fact, size: 11)) }
         if let counts = content.counts { views.append(label(counts, size: 11, color: .secondaryLabelColor)) }
-        if !content.trashed { views.append(label("点击打开", size: 10, color: .tertiaryLabelColor)) }
+        if !content.trashed, showsOpenHint { views.append(label("点击打开", size: 10, color: .tertiaryLabelColor)) }
         let stack = NSStackView(views: views)
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
         stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
@@ -159,5 +165,113 @@ final class EntityHoverCardController: NSViewController {
         field.refusesFirstResponder = true
         labels.append(field)
         return field
+    }
+}
+
+/// A list's 悬停预览, like a tooltip: resting on a row for `delay` shows its
+/// chapter's card (title, 写作状态, words and 摘要) in a popover beside the
+/// row; another row, leaving the list, scrolling or a click closes it.
+/// Reads only, and never takes the keyboard: the list keeps its selection.
+final class TableHoverPreview: NSResponder, NSPopoverDelegate {
+    /// A little longer than a link's 220 ms, so moving across a list does not
+    /// flash cards.
+    static var delay: TimeInterval = 0.5
+    let table: NSTableView
+    /// The row's target, or nil for a row without a preview.
+    var target: ((Int) -> EntityLinkTarget?)?
+    /// Reads the card, as link hover cards read it.
+    var source: ((EntityLinkTarget, @escaping (EntityHoverCardContent) -> Void) -> Void)?
+    /// The row whose card is waiting or shown.
+    private(set) var hoveredRow: Int?
+    private(set) var hoveredTarget: EntityLinkTarget?
+    /// The card shown for `hoveredRow`; set even when the list is not on
+    /// screen, where no popover can be shown.
+    private(set) var content: EntityHoverCardContent?
+    private(set) var controller: EntityHoverCardController?
+    private let popover = NSPopover()
+    private var timer: DispatchWorkItem?
+    private var area: NSTrackingArea?
+    /// The card is waiting for its delay or its read.
+    var isPending: Bool { timer != nil || (hoveredTarget != nil && content == nil) }
+
+    init(table: NSTableView) {
+        self.table = table
+        super.init()
+        popover.behavior = .semitransient
+        popover.animates = false
+        popover.delegate = self
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        table.addTrackingArea(area)
+        self.area = area
+        if let clip = table.enclosingScrollView?.contentView {
+            clip.postsBoundsChangedNotifications = true
+            NotificationCenter.default.addObserver(self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification, object: clip)
+        }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        if let area { table.removeTrackingArea(area) }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let row = table.row(at: table.convert(event.locationInWindow, from: nil))
+        hover(row: row >= 0 ? row : nil)
+    }
+    override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
+    override func mouseExited(with event: NSEvent) { hover(row: nil) }
+    @objc private func scrolled() { close() }
+
+    /// The pointer rests on a row (nil: on none). A new row starts the delay;
+    /// the same row keeps its card.
+    func hover(row: Int?) {
+        let next = row.flatMap { target?($0) }
+        guard row != hoveredRow || next?.id != hoveredTarget?.id else { return }
+        close()
+        guard let row, let next else { return }
+        hoveredRow = row; hoveredTarget = next
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.hoveredRow == row, self.hoveredTarget?.id == next.id else { return }
+            self.timer = nil
+            self.show(row: row, target: next)
+        }
+        timer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.delay, execute: work)
+    }
+
+    private func show(row: Int, target: EntityLinkTarget) {
+        guard let source else { present(EntityHoverCardContent(target: target), row: row); return }
+        source(target) { [weak self] content in
+            guard let self, self.hoveredRow == row, self.hoveredTarget?.id == target.id else { return }
+            self.present(content, row: row)
+        }
+    }
+
+    private func present(_ content: EntityHoverCardContent, row: Int) {
+        let controller = EntityHoverCardController(content: content)
+        controller.showsOpenHint = false
+        self.content = content; self.controller = controller
+        popover.contentViewController = controller
+        guard let window = table.window, window.isVisible, row < table.numberOfRows else { return }
+        popover.show(relativeTo: table.rect(ofRow: row), of: table, preferredEdge: .maxX)
+    }
+
+    /// Closes the card or stops the one waiting.
+    func close() {
+        timer?.cancel(); timer = nil
+        hoveredRow = nil; hoveredTarget = nil; content = nil; controller = nil
+        if popover.isShown { popover.performClose(nil) }
+        popover.contentViewController = nil
+    }
+
+    /// Closed by itself (a click elsewhere): the row shows its card again
+    /// the next time the pointer rests on it.
+    func popoverDidClose(_ notification: Notification) {
+        guard !popover.isShown else { return }
+        timer?.cancel(); timer = nil
+        hoveredRow = nil; hoveredTarget = nil; content = nil; controller = nil
+        popover.contentViewController = nil
     }
 }

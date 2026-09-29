@@ -62,8 +62,10 @@ The wording and number formats follow the renderer's zh-CN strings:
   it at the end of its title line. It reads 统计中… until the project's counts
   arrive.
 - The window's status line sits at the trailing end of the message line:
-  “当前 1,234 字 · 全书 5,678 字” for a chapter or drift page, “故事线 … 字” on a
-  storyline page, and the book alone otherwise. The book total sums chapters
+  “当前 1,234 字 · 全书 5,678 字” for a chapter or drift page, with a
+  chapter's 主线 and its total between them (“主线「北境」3,456 字”,
+  [workspace](workspace.md#status-line)), “故事线 … 字” on a storyline page,
+  and the book alone otherwise. The book total sums chapters
   only. It shows 统计中… until every live chapter has a count, and 正文统计中
   before the first read.
 - 项目资料 shows “全书 1,234 字” under the status counts.
@@ -105,6 +107,7 @@ change no `updated_at`.
   and the outline, and restore returns it. After a cold reopen the first page
   shows 统计中… until the reconcile returns the same counts.
 
-The chapter list and the status line are part of the app window, which the
-acceptance binary does not build. The window was checked in an offscreen render.
+The chapter list and the window are part of the app, which the acceptance
+binary does not build; the status line's text comes from the tab host
+(`wordStatusLine`), which the suites read. The window was checked in an offscreen render.
 Remote receipts, physical input, desktop XCTest and devices are not covered.

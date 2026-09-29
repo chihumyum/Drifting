@@ -163,7 +163,7 @@
         "project home, tabs, split, focus, navigation, mounted session ownership; recoverable chapter trash closes owners only after commit and restores retained prose into a new incarnation; a database that does not open shows recovery instead of the workspace and opens nothing"
       ],
       "milestone": "P5/P6",
-      "status": "local-writing-tabs-two-pane-chapter-trash-whole-book-editor-project-deletion-project-home-and-database-recovery-window-implemented",
+      "status": "local-writing-tabs-two-pane-chapter-trash-whole-book-editor-with-shared-editor-controls-chapter-hover-previews-project-deletion-project-home-first-run-welcome-and-database-recovery-window-implemented",
       "decisionTask": null
     },
     {
@@ -298,7 +298,7 @@
         "synthetic corpus counting parity; preserve Apache-2.0 provenance"
       ],
       "milestone": "P3",
-      "status": "Rust-word-count-port-whole-book-statistics-and-Mac-today's-words-implemented; Mac-page-statistics-implemented",
+      "status": "Rust-word-count-port-whole-book-statistics-and-Mac-today's-words-implemented; Mac-page-statistics-and-status-line-primary-storyline-total-implemented",
       "decisionTask": "D6"
     },
     {
@@ -546,7 +546,7 @@
         "preferences, provider controls, accessibility and errors"
       ],
       "milestone": "P5/P6",
-      "status": "Mac-editor-preferences-fonts-paragraph-spacing-column-width-typewriter-position-auto-link-toggle-list-filters-writing-plans-provider-keys-model-services-and-speech-transcription-key-Copilot-settings-and-menu-shortcuts-implemented; localization-planned",
+      "status": "Mac-editor-preferences-fonts-paragraph-spacing-column-width-typewriter-position-auto-link-toggle-caret-colour-entity-link-styles-Tab-indent-list-filters-writing-plans-provider-keys-model-services-and-speech-transcription-key-Copilot-settings-menu-shortcuts-and-welcome-choice-implemented; localization-planned",
       "decisionTask": null
     },
     {

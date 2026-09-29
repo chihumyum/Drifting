@@ -87,6 +87,7 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         appearancePane.accentWell.deactivate()
+        editorPane.deactivateWells()
         shortcutPane.endRecording()
     }
 }
@@ -166,6 +167,37 @@ enum SettingsLayout {
         return label
     }
 
+    /// A pane taller than `height` scrolls inside a window of that height,
+    /// so the settings window fits a small screen.
+    static func scrolling(_ page: NSView, height: CGFloat) -> NSView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true; scroll.drawsBackground = false; scroll.borderType = .noBorder
+        let document = AgentFlippedView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+        page.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(page)
+        scroll.documentView = document
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.addSubview(scroll)
+        let fitted = min(height, ceil(page.fittingSize.height))
+        NSLayoutConstraint.activate([
+            page.leadingAnchor.constraint(equalTo: document.leadingAnchor),
+            page.topAnchor.constraint(equalTo: document.topAnchor),
+            page.bottomAnchor.constraint(equalTo: document.bottomAnchor),
+            document.trailingAnchor.constraint(equalTo: page.trailingAnchor),
+            document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: container.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            container.widthAnchor.constraint(equalToConstant: width + 16),
+            container.heightAnchor.constraint(equalToConstant: max(fitted, 200)),
+        ])
+        return container
+    }
+
     static func storageLabel() -> NSTextField {
         let label = detail("")
         label.textColor = .systemRed
@@ -207,7 +239,7 @@ final class MacAppearanceSettingsViewController: NSViewController {
         let grid = SettingsLayout.grid([
             ("主题", [themeControl, SettingsLayout.detail("跟随系统时随 macOS 的浅色或深色外观切换。所有窗口与面板一同变化。")]),
             ("界面强调色", [SettingsLayout.line([accentWell, accentValue, accentReset]),
-                       SettingsLayout.detail("用于选中的文字、当前标签与面板中的选中状态，不影响正文光标颜色。")]),
+                       SettingsLayout.detail("用于选中的文字、当前标签与面板中的选中状态；正文光标默认也跟随它，可在“编辑器 › 光标颜色”中另选。")]),
         ])
         view = SettingsLayout.page([grid, storageMessage])
         refresh()
@@ -277,10 +309,27 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
                                             maxValue: LabSettings.typewriterPositions.upperBound, target: nil, action: nil)
     let typewriterPositionValue = NSTextField(labelWithString: "")
     let autoLinkCheckbox = NSButton(checkboxWithTitle: "自动链接设定名称", target: nil, action: nil)
+    let indentStepControl = NSSegmentedControl(labels: LabSettings.indentSteps.map { "\($0) 字符" }, trackingMode: .selectOne,
+                                               target: nil, action: nil)
+    let caretModeControl = NSSegmentedControl(labels: ["跟随强调色", "自定义"], trackingMode: .selectOne, target: nil, action: nil)
+    let caretWell = NSColorWell(style: .minimal)
+    let caretValue = NSTextField(labelWithString: "")
+    let linkStyleControl = NSSegmentedControl(labels: ["按分类着色", "按类型着色", "仅悬停时显示", "不着色"], trackingMode: .selectOne,
+                                              target: nil, action: nil)
+    /// 按类型着色's colour of 设定, 章节 and 漂流 links.
+    let linkColorWells = EntityLinkStyle.Kind.allCases.map { _ in NSColorWell(style: .minimal) }
+    let linkColorValues = EntityLinkStyle.Kind.allCases.map { _ in NSTextField(labelWithString: "") }
+    let linkColorReset = NSButton(title: "恢复默认颜色", target: nil, action: nil)
+    /// The first caret colour 自定义 offers: the renderer's default caret.
+    static let customCaretDefault = "#6B7FA6"
+    static let linkKindNames: [EntityLinkStyle.Kind: String] = [.element: "设定", .chapter: "章节", .drift: "漂流"]
     let autosaveText = SettingsLayout.detail("每次输入提交后立即保存到本机，没有需要设置的间隔。历史版本在保存时最多每 15 分钟记录一次，关闭页面时也会记录。")
     private let storageMessage = SettingsLayout.storageLabel()
     /// The font rows; the message row shows only with a message.
     private var fontsGrid: NSGridView?
+    /// The 书写 rows; 类型颜色 shows only with 按类型着色.
+    private(set) var writingGrid: NSGridView?
+    static let linkColorRow = 4
     /// Picks the font file to import; by default an open panel.
     var chooseFontFile: ((@escaping (URL?) -> Void) -> Void)?
 
@@ -353,6 +402,28 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         typewriterCheckbox.target = self; typewriterCheckbox.action = #selector(typewriterChanged)
         typewriterCheckbox.setAccessibilityIdentifier("settings-typewriter")
         autosaveText.setAccessibilityIdentifier("settings-autosave")
+        indentStepControl.target = self; indentStepControl.action = #selector(indentStepChanged)
+        indentStepControl.setAccessibilityIdentifier("settings-indent-step")
+        caretModeControl.target = self; caretModeControl.action = #selector(caretModeChanged)
+        caretModeControl.setAccessibilityIdentifier("settings-caret-mode")
+        caretWell.target = self; caretWell.action = #selector(caretColorChanged)
+        caretWell.setAccessibilityIdentifier("settings-caret-color")
+        caretValue.setAccessibilityIdentifier("settings-caret-value")
+        linkStyleControl.target = self; linkStyleControl.action = #selector(linkStyleChanged)
+        linkStyleControl.setAccessibilityIdentifier("settings-link-style")
+        for (index, kind) in EntityLinkStyle.Kind.allCases.enumerated() {
+            linkColorWells[index].target = self; linkColorWells[index].action = #selector(linkColorChanged(_:))
+            linkColorWells[index].setAccessibilityIdentifier("settings-link-color-\(kind.rawValue)")
+            linkColorWells[index].setAccessibilityLabel("\(Self.linkKindNames[kind] ?? "")链接颜色")
+            linkColorValues[index].setAccessibilityIdentifier("settings-link-color-value-\(kind.rawValue)")
+        }
+        linkColorReset.bezelStyle = .rounded; linkColorReset.controlSize = .small
+        linkColorReset.target = self; linkColorReset.action = #selector(resetLinkColors)
+        linkColorReset.setAccessibilityIdentifier("settings-link-color-reset")
+        for label in [caretValue] + linkColorValues {
+            label.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            label.textColor = .secondaryLabelColor
+        }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -374,7 +445,8 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
             paragraphSpacingSlider.widthAnchor.constraint(equalToConstant: 200),
             columnWidthSlider.widthAnchor.constraint(equalToConstant: 200),
             typewriterPositionSlider.widthAnchor.constraint(equalToConstant: 200),
-        ])
+            caretWell.widthAnchor.constraint(equalToConstant: 44), caretWell.heightAnchor.constraint(equalToConstant: 24),
+        ] + linkColorWells.flatMap { [$0.widthAnchor.constraint(equalToConstant: 36), $0.heightAnchor.constraint(equalToConstant: 22)] })
         let fonts = SettingsLayout.grid([
             ("创作内容字体", [fontPopup, SettingsLayout.detail("作用于章节、设定、故事线与漂流的正文；界面始终使用系统字体。字体选择只保存在本机。")]),
             ("系统字体", [SettingsLayout.line([familyField, useFamilyButton]),
@@ -389,6 +461,7 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
             ("段间距", [SettingsLayout.line([paragraphSpacingSlider, paragraphSpacingValue]),
                      SettingsLayout.detail("段落之间的距离，以字号为单位；只影响编辑视图、全书长卷和打印。")]),
             ("段首缩进", [indentControl, SettingsLayout.detail("只作用于正文段落；标题、引用与列表不缩进。")]),
+            ("Tab 缩进", [indentStepControl, SettingsLayout.detail("按 Tab 给段落整体缩进一级的宽度，⇧Tab 退回一级；打印也按这个宽度。")]),
             ("版心宽度", [SettingsLayout.line([columnWidthSlider, columnWidthValue]),
                       SettingsLayout.detail("正文一栏最宽多少；窗口更宽时正文居中，更窄时随窗口收窄。全书长卷也按这个宽度排版。")]),
             ("", [resetButton]),
@@ -398,18 +471,30 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
                     SettingsLayout.detail("输入时让光标所在行停在编辑区的固定高度，所有正文编辑器和全书长卷都适用；手动滚动不受影响，下次输入时再回到这一高度。")]),
             ("打字机位置", [SettingsLayout.line([typewriterPositionSlider, typewriterPositionValue]),
                        SettingsLayout.detail("光标所在行距编辑区顶部的比例：25% 靠上，50% 居中，75% 靠下。打字机滚动打开时生效。")]),
+            ("光标颜色", [SettingsLayout.line([caretModeControl, caretWell, caretValue]),
+                      SettingsLayout.detail("正文输入光标的颜色。跟随强调色时随“外观 › 界面强调色”变化，未设置时为系统强调色。")]),
+            ("链接样式", [linkStyleControl,
+                      SettingsLayout.detail("正文里设定、章节和漂流链接的样子。按分类着色：设定用所属分类的颜色，其他用默认蓝色；按类型着色：每类链接一种颜色；仅悬停时显示：平时与正文相同，指针停在链接上时才显示颜色；不着色：正文颜色加灰色下划线。链接照常可以 ⌘-点按打开并显示悬停卡片。")]),
+            ("类型颜色", [SettingsLayout.line(EntityLinkStyle.Kind.allCases.enumerated().flatMap { index, kind -> [NSView] in
+                          [NSTextField(labelWithString: Self.linkKindNames[kind] ?? ""), linkColorWells[index], linkColorValues[index]]
+                      } + [linkColorReset])]),
             ("设定链接", [autoLinkCheckbox,
                       SettingsLayout.detail("输入停下后，把正文中出现的设定名称、别名和章节标题自动链接到对应页面。关闭后不再新增链接（用 @ 插入的名称也不链接），已有的链接保留。")]),
         ])
+        writingGrid = writing
         let saving = SettingsLayout.grid([("自动保存", [autosaveText])])
         let previewHeading = SettingsLayout.heading("预览"), fontHeading = SettingsLayout.heading("字体")
         let typesettingHeading = SettingsLayout.heading("排版"), savingHeading = SettingsLayout.heading("保存")
         let writingHeading = SettingsLayout.heading("书写")
         let sections: [NSView] = [previewHeading, wash, fontHeading, fonts, typesettingHeading, typesetting, writingHeading, writing,
                                   savingHeading, saving, storageMessage]
-        view = SettingsLayout.page(sections, spacing: [1: 22, 3: 22, 5: 22, 7: 22])
+        // The pane is taller than a small screen: it scrolls.
+        view = SettingsLayout.scrolling(SettingsLayout.page(sections, spacing: [1: 22, 3: 22, 5: 22, 7: 22]), height: 700)
         refresh()
     }
+
+    /// The 光标颜色 and 类型颜色 wells let go of the colour panel.
+    func deactivateWells() { ([caretWell] + linkColorWells).forEach { $0.deactivate() } }
 
     func refresh() {
         let settings = store.settings
@@ -450,6 +535,28 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         typewriterPositionValue.stringValue = "\(Int(settings.typewriterPosition))%"
         typewriterPositionSlider.isEnabled = settings.typewriterScrolling
         autoLinkCheckbox.state = settings.autoEntityLinks ? .on : .off
+        indentStepControl.selectedSegment = settings.indentStep - LabSettings.indentSteps.lowerBound
+        let caret = settings.caretColor
+        caretModeControl.selectedSegment = caret == nil ? 0 : 1
+        caretWell.isEnabled = caret != nil
+        if let caret, let color = DocumentStyle.linkColor(hex: caret) {
+            if MacAppearanceSettingsViewController.hex(caretWell.color) != caret { caretWell.color = color }
+            caretValue.stringValue = caret
+        } else {
+            caretWell.color = MacEditorPreferences.caretColor ?? .labAccent
+            caretValue.stringValue = settings.accentColor.map { "界面强调色 \($0)" } ?? "系统强调色"
+        }
+        linkStyleControl.selectedSegment = EntityLinkStyle.Mode.allCases.firstIndex(of: settings.entityLinkStyle) ?? 0
+        let style = settings.linkStyle
+        for (index, kind) in EntityLinkStyle.Kind.allCases.enumerated() {
+            let hex = style.color(for: kind)
+            if MacAppearanceSettingsViewController.hex(linkColorWells[index].color) != hex, let color = DocumentStyle.linkColor(hex: hex) {
+                linkColorWells[index].color = color
+            }
+            linkColorValues[index].stringValue = hex
+        }
+        linkColorReset.isEnabled = !settings.entityLinkColors.isEmpty
+        writingGrid?.row(at: Self.linkColorRow).isHidden = settings.entityLinkStyle != .kind
         preview.textStorage?.setAttributedString(NSAttributedString(string: Self.previewText.joined(separator: "\n"),
                                                                     attributes: DocumentStyle.bodyAttributes))
         SettingsLayout.storage(storageMessage, store)
@@ -525,6 +632,34 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         store.update { $0.paragraphIndent = indents[indentControl.selectedSegment] }
     }
     @objc func resetTypesetting() { store.resetTypesetting() }
+    @objc func indentStepChanged() {
+        let step = indentStepControl.selectedSegment + LabSettings.indentSteps.lowerBound
+        guard LabSettings.indentSteps.contains(step) else { return }
+        store.update { $0.indentStep = step }
+    }
+    /// 自定义 starts from the renderer's default caret colour; 跟随强调色
+    /// forgets the chosen one.
+    @objc func caretModeChanged() {
+        let custom = caretModeControl.selectedSegment == 1
+        store.update { $0.caretColor = custom ? ($0.caretColor ?? Self.customCaretDefault) : nil }
+        if !custom { caretWell.deactivate() }
+    }
+    @objc func caretColorChanged() {
+        let hex = MacAppearanceSettingsViewController.hex(caretWell.color)
+        store.update { $0.caretColor = hex }
+    }
+    @objc func linkStyleChanged() {
+        let modes = EntityLinkStyle.Mode.allCases
+        guard modes.indices.contains(linkStyleControl.selectedSegment) else { return }
+        store.update { $0.entityLinkStyle = modes[linkStyleControl.selectedSegment] }
+    }
+    @objc func linkColorChanged(_ sender: NSColorWell) {
+        guard let index = linkColorWells.firstIndex(of: sender) else { return }
+        let kind = EntityLinkStyle.Kind.allCases[index]
+        let hex = MacAppearanceSettingsViewController.hex(sender.color)
+        store.update { $0.entityLinkColors[kind.rawValue] = hex }
+    }
+    @objc func resetLinkColors() { store.update { $0.entityLinkColors = [:] } }
 }
 
 // MARK: 语言

@@ -186,13 +186,22 @@ struct AgentProseChange: Codable, Equatable {
     /// `revisedText` becomes new paragraphs at the end of the body;
     /// `currentText` is empty. Rust allows one append per call, alone.
     var append: Bool
+    /// UTF-16 lengths of unchanged context at the start and end of
+    /// `currentText` that only make it unique (Copilot 修改); `revisedText`
+    /// keeps them and only the text between them is revised.
+    var contextBefore: Int
+    var contextAfter: Int
 
-    init(currentText: String, revisedText: String, allOccurrences: Bool = false, append: Bool = false) {
+    init(currentText: String, revisedText: String, allOccurrences: Bool = false, append: Bool = false,
+         contextBefore: Int = 0, contextAfter: Int = 0) {
         self.currentText = currentText; self.revisedText = revisedText
         self.allOccurrences = allOccurrences; self.append = append
+        self.contextBefore = contextBefore; self.contextAfter = contextAfter
     }
 
     static func appending(_ text: String) -> AgentProseChange { AgentProseChange(currentText: "", revisedText: text, append: true) }
+
+    private enum CodingKeys: String, CodingKey { case currentText, revisedText, allOccurrences, append, contextBefore, contextAfter }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -200,11 +209,26 @@ struct AgentProseChange: Codable, Equatable {
         revisedText = try container.decode(String.self, forKey: .revisedText)
         allOccurrences = try container.decodeIfPresent(Bool.self, forKey: .allOccurrences) ?? false
         append = try container.decodeIfPresent(Bool.self, forKey: .append) ?? false
+        contextBefore = try container.decodeIfPresent(Int.self, forKey: .contextBefore) ?? 0
+        contextAfter = try container.decodeIfPresent(Int.self, forKey: .contextAfter) ?? 0
+    }
+
+    /// Stored transcripts keep their earlier shape: context only when set.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(currentText, forKey: .currentText)
+        try container.encode(revisedText, forKey: .revisedText)
+        try container.encode(allOccurrences, forKey: .allOccurrences)
+        try container.encode(append, forKey: .append)
+        if contextBefore > 0 { try container.encode(contextBefore, forKey: .contextBefore) }
+        if contextAfter > 0 { try container.encode(contextAfter, forKey: .contextAfter) }
     }
 
     var payload: [String: Any] {
         var payload: [String: Any] = ["currentText": currentText, "revisedText": revisedText, "allOccurrences": allOccurrences]
         if append { payload["append"] = true }
+        if contextBefore > 0 { payload["contextBefore"] = contextBefore }
+        if contextAfter > 0 { payload["contextAfter"] = contextAfter }
         return payload
     }
 }

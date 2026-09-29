@@ -79,8 +79,13 @@ library reply changes live names or aliases (create, rename, alias edit,
 restore) or the chapter titles change (create, rename, restore).
 
 Links resolve against the project's live and trashed elements and chapters.
-Element links take their category colour (the default blue without a live
-category), chapter links the default blue, both underlined; links to trashed
+Live links follow 设置 › 编辑器 › 链接样式 ([settings](settings.md)): by
+default element links take their category colour (the default blue without
+a live category), chapter and drift links the default blue, both
+underlined; 按类型着色 gives each kind a colour, 仅悬停时显示 draws links as
+prose until the pointer rests on one (the whole link, until it leaves or an
+edit begins), and 不着色 keeps the prose colour with a grey underline. Links
+to trashed
 targets are drawn in the secondary label colour without underline and cannot be
 opened; links whose target no longer exists (e.g. [purged](trash.md)) read as
 plain prose with no card or click, the mark left unrewritten. ⌘-click on a
@@ -91,7 +96,9 @@ Resting on a link for 220 ms in any editor (tabs, both panes, the 全书长卷) 
 the 设定悬停卡片. An element's card shows its name with the portrait thumbnail,
 category and group, up to three aliases, the summary (暂无简介 when empty), the
 first three facts and “有效补丁 N · 被 M 个章节和页面引用”; a chapter's or drift's
-shows its title, kind, writing status, words and summary. The tab host fills it
+shows its title, kind, writing status, words and summary (暂无摘要 when empty).
+The chapter list and the 整书大纲 show the same chapter card on hover
+([workspace](workspace.md#chapter-hover-previews)). The tab host fills it
 from the library it holds and one read each of `workspacePatches patches`
 (valid ones counted), `workspaceElements backlinks`, `workspaceLibrary`
 portraits, or `workspaceMetadata node` and the word counts (`workspaceMetrics`

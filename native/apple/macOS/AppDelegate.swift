@@ -112,6 +112,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     private var profileStats: (popover: NSPopover, controller: MacBookStatsViewController)?
     /// 历史版本… of the active page's body.
     private var historySheet: VersionHistorySheet?
+    /// A chapter row's 悬停预览 in the chapter list.
+    private var chapterHoverPreview: TableHoverPreview?
+    /// 欢迎使用, at launch while the lab has no projects.
+    private var welcomeSheet: MacWelcomeSheet?
     /// 审阅 and the 备忘与素材 board share one model per project.
     private var reviewPanel: ReviewPanel?
     private var reviewController: MacReviewViewController?
@@ -274,6 +278,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         let chapterMenu = NSMenu()
         chapterMenu.delegate = self
         chapterTable.menu = chapterMenu
+        // Resting on a chapter row shows its 摘要, 写作状态 and words.
+        let preview = TableHoverPreview(table: chapterTable)
+        preview.target = { [weak self] row in
+            guard let self, !self.showingTrash, self.chapters.indices.contains(row) else { return nil }
+            let chapter = self.chapters[row]
+            return EntityLinkTarget(kind: .chapter, id: chapter.id, name: chapter.title)
+        }
+        preview.source = { [weak self] target, done in
+            guard let self, let project = self.selectedProject else { done(EntityHoverCardContent(target: target)); return }
+            self.chapterWorkspace.hoverCard(for: target, projectID: project.id, completion: done)
+        }
+        chapterHoverPreview = preview
         let projectMenu = NSMenu()
         projectMenu.delegate = self
         projectTable.menu = projectMenu
@@ -634,6 +650,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     /// Redraws chapter rows and keeps the selection.
     private func reloadChapterRows() {
+        chapterHoverPreview?.close()
         updatingSelection = true
         let selected = chapterTable.selectedRowIndexes
         chapterTable.reloadData()
@@ -641,20 +658,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         updatingSelection = false
     }
 
-    /// “当前 1,234 字 · 全书 5,678 字” for the active chapter or drift page, the
-    /// storyline's chapters on a storyline page, otherwise the book alone.
+    /// “当前 1,234 字 · 主线「北境」5,678 字 · 全书 12,345 字” for the active
+    /// chapter, the count of a drift page, the storyline's chapters on a
+    /// storyline page, otherwise the book alone.
     private func updateWordStatus() {
         guard let project = currentProject ?? selectedProject else { wordStatus.stringValue = ""; return }
-        var focus = WordCountFocus.none
-        if currentProject?.id == project.id {
-            if let id = currentChapter?.id ?? chapterWorkspace.activeDrift?.id {
-                focus = .node(id)
-            } else if let storyline = chapterWorkspace.activeStoryline,
-                      let memberships = chapterWorkspace.storylineLibrary(projectID: project.id) {
-                focus = .storyline(memberships.chapters(storylineID: storyline.id).map(\.chapterId))
-            }
-        }
-        wordStatus.stringValue = WordCountText.statusLine(chapterWorkspace.wordCountLibrary(projectID: project.id), focus: focus)
+        wordStatus.stringValue = chapterWorkspace.wordStatusLine(projectID: project.id)
     }
 
     // MARK: Writing assistant
@@ -908,6 +917,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         if table === projectTable, projects.indices.contains(table.selectedRow) {
             selectProject(projects[table.selectedRow])
         } else if table === chapterTable {
+            chapterHoverPreview?.close()
             updateControls()
             if !showingTrash, chapters.indices.contains(table.selectedRow), let selectedProject {
                 // With the 全书长卷 open, a chapter row scrolls it there.
@@ -999,15 +1009,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         showWorkspaceWindow()
         guard selectedProject == nil else { return }
         // The project selected last opens with its tabs; without one (or
-        // once it is gone) the 项目书架 offers them all.
-        if let last = tabSession.launchProject(in: projects), let index = projects.firstIndex(where: { $0.id == last.id }) {
+        // once it is gone) the 项目书架 offers them all, and a lab without
+        // projects says 欢迎使用 first.
+        switch MacLaunchChoice.choose(projects: projects, last: tabSession.launchProject(in: projects), store: settingsStore) {
+        case .project(let last):
+            guard let index = projects.firstIndex(where: { $0.id == last.id }) else { return }
             updatingSelection = true
             projectTable.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
             updatingSelection = false
             selectProject(last)
-        } else {
-            showShelf()
+        case .welcome: showWelcome()
+        case .shelf: showShelf()
         }
+    }
+
+    /// 欢迎使用 on the main window: 新建项目 asks for a name; 导入… creates a
+    /// project first and then imports into it.
+    private func showWelcome() {
+        guard welcomeSheet == nil else { return }
+        let sheet = MacWelcomeSheet(store: settingsStore)
+        welcomeSheet = sheet
+        sheet.onFinish = { [weak self] in self?.welcomeSheet = nil }
+        sheet.onCreate = { [weak self] in self?.createProject() }
+        sheet.onImport = { [weak self] in
+            self?.createNamedProject { [weak self] in self?.importFile() }
+        }
+        sheet.begin(in: window)
     }
 
     private func showWorkspaceWindow() {
@@ -2752,6 +2779,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.status.stringValue = "已恢复“\(target.title)”的历史版本。恢复前的正文已存为新版本，可以撤销。"
         }
         let sheet = VersionHistorySheet(model: model)
+        // Entity links in the preview are drawn as the editors draw them.
+        sheet.linkDirectory = chapterWorkspace.linkDirectory(projectID: target.projectID)
         historySheet = sheet
         sheet.onFinish = { [weak self] in self?.historySheet = nil }
         sheet.begin(in: window)
@@ -2919,6 +2948,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             self?.timelineDock.actsChanged(projectID: project.id)
         }
         let controller = BookOutlineViewController(model: model)
+        // Resting on a chapter row shows its 摘要, 写作状态 and words.
+        controller.hoverCardSource = { [weak self] target, done in
+            self?.chapterWorkspace.hoverCard(for: target, projectID: project.id, completion: done)
+        }
         controller.onBindDrift = { [weak model] entry, drift in
             drifts.bindAct(actID: entry.id, driftID: drift?.id) { result in
                 switch result {
@@ -3206,7 +3239,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
     }
 
-    @objc private func createProject() {
+    @objc private func createProject() { createNamedProject(then: nil) }
+
+    /// Asks for a name, creates the project and shows it; `then` runs once
+    /// it is shown.
+    private func createNamedProject(then: (() -> Void)?) {
         askName(project: true) { [weak self] name in
             guard let self else { return }
             self.setLoading(true)
@@ -3221,7 +3258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                     self.projectTable.reloadData()
                     self.projectTable.selectRowIndexes(IndexSet(integer: self.projects.count - 1), byExtendingSelection: false)
                     self.updatingSelection = false
-                    self.selectProject(project)
+                    self.selectProject(project, then: then)
                     self.shelf?.model.load()
                 case .failure(let error): self.status.stringValue = error.localizedDescription
                 }
@@ -3360,7 +3397,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { return false }
         agentPanel.confirmQuitDuringDictation { [weak self] proceed in
             guard proceed else { return }
-            self?.closeWorkspace { success in if success { self?.window.performClose(nil) } }
+            // Dictation's audio goes only once the workspace has closed.
+            self?.closeWorkspace { success in
+                guard success else { return }
+                self?.agentPanel.discardDictation()
+                self?.window.performClose(nil)
+            }
         }
         return false
     }
@@ -3387,7 +3429,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // Audio still recording, transcribing or kept for 重试 is lost on quit.
         agentPanel.confirmQuitDuringDictation { [weak self] proceed in
             guard proceed, let self else { sender.reply(toApplicationShouldTerminate: false); return }
-            self.closeWorkspace { success in sender.reply(toApplicationShouldTerminate: success) }
+            // Dictation's audio goes only once the workspace has closed.
+            self.closeWorkspace { success in
+                if success { self.agentPanel.discardDictation() }
+                sender.reply(toApplicationShouldTerminate: success)
+            }
         }
         return .terminateLater
     }
