@@ -190,6 +190,38 @@ function normalizeBlob(input: unknown): Uint8Array {
   throw new Error('Unsupported blob format when reading yjs data');
 }
 
+export const YJS_DOCUMENT_READ_BATCH_SIZE = 16;
+
+export interface PersistedYjsDocument {
+  snapshot: Uint8Array | null;
+  updates: Uint8Array[];
+  revision: number;
+}
+
+/** Read a bounded group at one SQLite revision boundary, without materializing prose. */
+export async function readPersistedYjsDocuments(
+  tx: DbExecutor,
+  docIds: readonly string[],
+): Promise<Map<string, PersistedYjsDocument>> {
+  assertActiveDatabaseTransaction(tx);
+  if (docIds.length > YJS_DOCUMENT_READ_BATCH_SIZE) {
+    throw new Error('Yjs document read batch exceeds its bounded size');
+  }
+  const result = new Map<string, PersistedYjsDocument>(
+    docIds.map(id => [id, { snapshot: null, updates: [], revision: 0 }]),
+  );
+  if (!docIds.length) return result;
+  const snapshots = await tx.select().from(yjsSnapshots).where(inArray(yjsSnapshots.docId, [...docIds]));
+  const updates = await tx.select().from(yjsUpdates)
+    .where(inArray(yjsUpdates.docId, [...docIds])).orderBy(asc(yjsUpdates.id));
+  const revisions = await tx.select().from(YjsDocumentRevisionTable)
+    .where(inArray(YjsDocumentRevisionTable.docId, [...docIds]));
+  for (const row of snapshots) result.get(row.docId)!.snapshot = normalizeBlob(row.stateBlob);
+  for (const row of updates) result.get(row.docId)!.updates.push(normalizeBlob(row.updateBlob));
+  for (const row of revisions) result.get(row.docId)!.revision = row.revision;
+  return result;
+}
+
 function blobsEqual(left: Uint8Array, right: Uint8Array): boolean {
   return (
     left.byteLength === right.byteLength &&

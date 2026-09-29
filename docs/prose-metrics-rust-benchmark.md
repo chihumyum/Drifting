@@ -19,7 +19,11 @@ Scratch sources, logs, databases and binaries live in the ignored
 `.local-data/prose-metrics-benchmark/` directory. All prose is synthetic; the
 runner creates a fresh directory and never opens the author's library.
 
-## Measured result, 2026-09-30
+## Initial measured result, 2026-09-30
+
+The initial results below are preserved at commit `da38cba3`. As the renderer is
+optimized, new runs update the generated report; the paired before/after results
+and current decisions live in [performance batches](prose-metrics-performance-batches.md).
 
 Apple M3 Pro, 36 GiB, macOS kernel 27.0.0, Node 24.19.0, Rust 1.96.0,
 SQLite 3.46.0. Median elapsed milliseconds across five repetitions:

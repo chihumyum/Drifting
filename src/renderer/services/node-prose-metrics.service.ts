@@ -10,10 +10,14 @@ import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
 import { BookNodeTable, NodeContentTable } from '../schema/drizzle';
 import { createBookContentRepository } from '../sqlite-repo/content-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
-import { createYjsRepository } from '../sqlite-repo/yjs-repo';
+import {
+  createYjsRepository, readPersistedYjsDocuments, YJS_DOCUMENT_READ_BATCH_SIZE,
+  type PersistedYjsDocument,
+} from '../sqlite-repo/yjs-repo';
 import { useDataStore } from '../store/data-store';
 import { useProseMetricsStatusStore } from '../store/prose-metrics-status-store';
-import type { DbExecutor } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
+import { getLiveYDoc } from '../lib/yjs-doc-registry';
 import {
   createYjsProsePersistenceCoordinator,
   type YjsProsePersistenceBase,
@@ -96,19 +100,43 @@ export async function deriveCanonicalNodeProseProjection(
   const doc = new Y.Doc({ gc: false });
   try {
     Y.applyUpdate(doc, base.stateUpdate, 'prose-metric');
-    const document = yDocToProsemirrorJSON(doc, 'default');
-    const contentJson = JSON.stringify(document);
-    const metric = await deriveProseMetric(document);
-    return {
-      nodeId,
-      contentJson,
-      outlineJson: serializeOutline(extractOutline(contentJson)),
-      wordCount: metric.wordCount,
-      wordCountBasisKind: base.sourceKind === 'seed' ? 'seed' : 'yjs',
-      wordCountBasisHash: metric.basisHash,
-      wordCountBasisRevision: base.sourceKind === 'seed' ? null : base.revision,
-      wordCountBasisServerSeq: null,
-    };
+    return await projectYDoc(nodeId, doc, base.sourceKind === 'seed' ? null : base.revision);
+  } finally {
+    doc.destroy();
+  }
+}
+
+async function projectYDoc(nodeId: string, doc: Y.Doc, revision: number | null): Promise<CanonicalNodeProseProjection> {
+  const document = yDocToProsemirrorJSON(doc, 'default');
+  const contentJson = JSON.stringify(document);
+  const metric = await deriveProseMetric(document);
+  return {
+    nodeId, contentJson,
+    outlineJson: serializeOutline(extractOutline(contentJson)),
+    wordCount: metric.wordCount,
+    wordCountBasisKind: revision === null ? 'seed' : 'yjs',
+    wordCountBasisHash: metric.basisHash,
+    wordCountBasisRevision: revision,
+    wordCountBasisServerSeq: null,
+  };
+}
+
+async function captureBatchedNodeProjection(
+  projectId: string, nodeId: string, persisted: PersistedYjsDocument | undefined,
+): Promise<CanonicalNodeProseProjection> {
+  const docId = proseDocId('node', nodeId);
+  // Live sessions retain their flush/capture lifecycle. Empty state also uses
+  // the coordinator's seed and corrupt-revision checks.
+  if (getLiveYDoc(docId) || !persisted || (!persisted.snapshot && !persisted.updates.length)) {
+    return captureNodeProjection(projectId, nodeId);
+  }
+  const doc = new Y.Doc({ gc: false });
+  try {
+    if (persisted.snapshot) Y.applyUpdate(doc, persisted.snapshot, 'prose-metric');
+    for (const update of persisted.updates) Y.applyUpdate(doc, update, 'prose-metric');
+    const projection = await projectYDoc(nodeId, doc, persisted.revision);
+    // A tab may have opened while projection/hash work yielded.
+    return getLiveYDoc(docId) ? captureNodeProjection(projectId, nodeId) : projection;
   } finally {
     doc.destroy();
   }
@@ -238,15 +266,32 @@ export async function materializeCanonicalNodeProse(
   fallbackContentJson?: string | null,
   options: { touchNodeUpdatedAt?: boolean; publishToDataStore?: boolean } = {},
 ): Promise<CanonicalNodeProseProjection> {
+  return materializeNodeProse(projectId, nodeId, fallbackContentJson, options);
+}
+
+async function materializeNodeProse(
+  projectId: string,
+  nodeId: string,
+  fallbackContentJson: string | null | undefined,
+  options: { touchNodeUpdatedAt?: boolean; publishToDataStore?: boolean },
+  initialCapture?: () => Promise<CanonicalNodeProseProjection>,
+): Promise<CanonicalNodeProseProjection> {
   let lastConflict: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const projection = await captureNodeProjection(projectId, nodeId, fallbackContentJson);
+    const projection = attempt === 0 && initialCapture
+      ? await initialCapture()
+      : await captureNodeProjection(projectId, nodeId, fallbackContentJson);
     try {
       const [node, content] = await Promise.all([
         createBookNodeSqliteRepository(projectId).findById(nodeId),
         createBookContentRepository(undefined, projectId).findByNodeId(nodeId),
       ]);
       if (node && canReuseCanonicalProjection(node, content, projection)) {
+        if (initialCapture) {
+          const actual = await createYjsRepository().getRevision(proseDocId('node', nodeId));
+          const expected = projection.wordCountBasisRevision ?? 0;
+          if (actual !== expected) throw new NodeProseMetricRevisionConflictError(nodeId, expected, actual);
+        }
         return {
           ...projection,
           wordCountBasisKind: node.wordCountBasisKind!,
@@ -276,27 +321,34 @@ async function reconcileProject(
   const status = useProseMetricsStatusStore.getState();
   status.setStatus(projectId, 'reconciling');
   const nodes = await createBookNodeSqliteRepository(projectId).findAll();
-  let cursor = 0;
-  const workers = Array.from(
-    { length: Math.min(MAX_RECONCILE_CONCURRENCY, Math.max(1, nodes.length)) },
-    async () => {
-      while (cursor < nodes.length) {
-        const node = nodes[cursor++];
-        try {
-          await materializeCanonicalNodeProse(projectId, node.id, undefined, {
-            touchNodeUpdatedAt: false,
-            publishToDataStore: options.publishToDataStore,
-          });
-        } catch (error) {
-          // A concurrent user delete is not a reconciliation failure: the row
-          // left the active project while this bounded scan was in flight.
-          if (!(await createBookNodeSqliteRepository(projectId).findById(node.id))) continue;
-          throw error;
+  for (let offset = 0; offset < nodes.length; offset += YJS_DOCUMENT_READ_BATCH_SIZE) {
+    const batch = nodes.slice(offset, offset + YJS_DOCUMENT_READ_BATCH_SIZE);
+    const closedIds = batch.map(node => proseDocId('node', node.id)).filter(id => !getLiveYDoc(id));
+    const persisted = closedIds.length
+      ? await getDb().transaction(tx => readPersistedYjsDocuments(tx, closedIds))
+      : new Map<string, PersistedYjsDocument>();
+    let cursor = 0;
+    const workers = Array.from(
+      { length: Math.min(MAX_RECONCILE_CONCURRENCY, batch.length) },
+      async () => {
+        while (cursor < batch.length) {
+          const node = batch[cursor++];
+          try {
+            await materializeNodeProse(projectId, node.id, undefined, {
+              touchNodeUpdatedAt: false,
+              publishToDataStore: options.publishToDataStore,
+            }, () => captureBatchedNodeProjection(projectId, node.id, persisted.get(proseDocId('node', node.id))));
+          } catch (error) {
+            // A concurrent user delete is not a reconciliation failure: the row
+            // left the active project while this bounded scan was in flight.
+            if (!(await createBookNodeSqliteRepository(projectId).findById(node.id))) continue;
+            throw error;
+          }
         }
-      }
-    },
-  );
-  await Promise.all(workers);
+      },
+    );
+    await Promise.all(workers);
+  }
   useProseMetricsStatusStore.getState().setStatus(projectId, 'ready');
 }
 

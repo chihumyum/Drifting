@@ -1,0 +1,1733 @@
+{
+  "schemaVersion": 1,
+  "kind": "tauri-prose-metrics-batch-benchmark",
+  "measuredAt": "2026-09-29T16:41:47.276Z",
+  "source": {
+    "fingerprint": "9b83fdffafee734c2d468d07fa36e80d548274bf02d6488be1f44ca39e478734",
+    "files": 1648
+  },
+  "baseline": {
+    "commit": "da38cba3f77776b3da395385f355e2810af1a97f",
+    "file": "src/renderer/services/node-prose-metrics.service.ts",
+    "sha256": "32880572b556d7b53346aad2a4c5470fed2253c47a63e556d0c93ff258c0861c",
+    "scope": "Frozen service only; both lanes share the current unchanged behavior of imported dependencies and the same Rust gateway."
+  },
+  "repetitions": 5,
+  "artifact": {
+    "binarySha256": "51804e74ea0ea05cd5604905a48cb8c43d602e0791c7f8f60898140ef1726993",
+    "lockSha256": "9d93425c22caac8e6ffb1944ddde0e564f0dce9659828ad27fa94f8db773f302",
+    "originalGatewaySha256": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+    "instrumentedGatewaySha256": "b85ca1b2c194aacdde6eb6f87532ef6d67b402392d410f0fcd71be9b545f86a0"
+  },
+  "environment": {
+    "os": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "node": "v24.19.0",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  },
+  "limitations": [
+    "Paired Node/V8 service measurements, not WKWebView/JSC, real Tauri IPC, paint or input latency.",
+    "Both lanes use the same Release Rust DatabaseGateway, WAL/NORMAL SQLite and JSON-lines transport. One warmup then five alternating paired first/repeat samples; OS caches are not flushed.",
+    "Only the service implementation is frozen at the baseline commit; its imported dependencies use the current checkout. Dependency changes must be reviewed separately before interpreting an A/B result.",
+    "Timed synthetic closed documents only. Live/concurrent paths are covered separately by integration tests, not these timings."
+  ],
+  "scenarios": [
+    {
+      "scenario": {
+        "name": "small-book",
+        "nodes": 20,
+        "units": 5000,
+        "tail": 8
+      },
+      "fixtureSha256": "fcb6b8c037e242b08f9e704bf71e1d482d3bba67982e71c25cf65f4b37857497",
+      "baseline": {
+        "first": {
+          "medianMs": 111.03245900000002,
+          "minMs": 106.85349999999744,
+          "maxMs": 117.08516700000109,
+          "gatewayRequests": [
+            361,
+            361,
+            361,
+            361,
+            361
+          ],
+          "changedRows": [
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "samples": [
+            {
+              "elapsedMs": 112.20679200000086,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 377319,
+                "receivedBytes": 1646488
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 117.08516700000109,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 377488,
+                "receivedBytes": 1646591
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 111.03245900000002,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 377488,
+                "receivedBytes": 1646591
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 106.85349999999744,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 377488,
+                "receivedBytes": 1646591
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 106.8595830000013,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 377488,
+                "receivedBytes": 1646591
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 82.84074999999939,
+          "minMs": 80.43950000000041,
+          "maxMs": 87.53816600000027,
+          "gatewayRequests": [
+            201,
+            201,
+            201,
+            201,
+            201
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 83.18145899999945,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 65498,
+                "receivedBytes": 1403169
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 87.53816600000027,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 65498,
+                "receivedBytes": 1403169
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 82.84074999999939,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 65498,
+                "receivedBytes": 1403169
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 80.7745419999992,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 65498,
+                "receivedBytes": 1403169
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 80.43950000000041,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 65498,
+                "receivedBytes": 1403169
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "candidate": {
+        "first": {
+          "medianMs": 62.985499999998865,
+          "minMs": 61.17466600000262,
+          "maxMs": 64.52966699999888,
+          "gatewayRequests": [
+            231,
+            231,
+            231,
+            231,
+            231
+          ],
+          "changedRows": [
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "samples": [
+            {
+              "elapsedMs": 62.985499999998865,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 344080,
+                "receivedBytes": 1406323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 64.52966699999888,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 344080,
+                "receivedBytes": 1406323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 63.237082999998165,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 344080,
+                "receivedBytes": 1406323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 61.39820899999904,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 344080,
+                "receivedBytes": 1406323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 61.17466600000262,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 344080,
+                "receivedBytes": 1406323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 33.397124999999505,
+          "minMs": 32.678374999999505,
+          "maxMs": 33.89479100000244,
+          "gatewayRequests": [
+            91,
+            91,
+            91,
+            91,
+            91
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 33.53162500000144,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38290,
+                "receivedBytes": 1147361
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 33.397124999999505,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38290,
+                "receivedBytes": 1147361
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 33.89479100000244,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38290,
+                "receivedBytes": 1147361
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 33.20783300000039,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38290,
+                "receivedBytes": 1147361
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 32.678374999999505,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38290,
+                "receivedBytes": 1147361
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "exactProjectionParity": true,
+      "nonProjectionStateUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "novel",
+        "nodes": 200,
+        "units": 5000,
+        "tail": 8
+      },
+      "fixtureSha256": "d0e2bcee25b28586c657defb025f83dc1fc48a374b9f9514590e9e428786c1cb",
+      "baseline": {
+        "first": {
+          "medianMs": 943.3477500000008,
+          "minMs": 937.3755839999976,
+          "maxMs": 954.2856249999968,
+          "gatewayRequests": [
+            3601,
+            3601,
+            3601,
+            3601,
+            3601
+          ],
+          "changedRows": [
+            200,
+            200,
+            200,
+            200,
+            200
+          ],
+          "samples": [
+            {
+              "elapsedMs": 954.2856249999968,
+              "rustElapsedMs": null,
+              "gatewayRequests": 3601,
+              "transport": {
+                "calls": 3601,
+                "sentBytes": 3774759,
+                "receivedBytes": 16469989
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 943.3477500000008,
+              "rustElapsedMs": null,
+              "gatewayRequests": 3601,
+              "transport": {
+                "calls": 3601,
+                "sentBytes": 3774759,
+                "receivedBytes": 16469989
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 937.3755839999976,
+              "rustElapsedMs": null,
+              "gatewayRequests": 3601,
+              "transport": {
+                "calls": 3601,
+                "sentBytes": 3774759,
+                "receivedBytes": 16469989
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 945.4141670000026,
+              "rustElapsedMs": null,
+              "gatewayRequests": 3601,
+              "transport": {
+                "calls": 3601,
+                "sentBytes": 3774759,
+                "receivedBytes": 16469989
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 940.1091249999954,
+              "rustElapsedMs": null,
+              "gatewayRequests": 3601,
+              "transport": {
+                "calls": 3601,
+                "sentBytes": 3774759,
+                "receivedBytes": 16469989
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 685.1604169999991,
+          "minMs": 675.7285839999968,
+          "maxMs": 689.572208000005,
+          "gatewayRequests": [
+            2001,
+            2001,
+            2001,
+            2001,
+            2001
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 685.1604169999991,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2001,
+              "transport": {
+                "calls": 2001,
+                "sentBytes": 651859,
+                "receivedBytes": 14033209
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 678.8572080000013,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2001,
+              "transport": {
+                "calls": 2001,
+                "sentBytes": 651859,
+                "receivedBytes": 14033209
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 675.7285839999968,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2001,
+              "transport": {
+                "calls": 2001,
+                "sentBytes": 651859,
+                "receivedBytes": 14033209
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 686.0545839999977,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2001,
+              "transport": {
+                "calls": 2001,
+                "sentBytes": 651859,
+                "receivedBytes": 14033209
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 689.572208000005,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2001,
+              "transport": {
+                "calls": 2001,
+                "sentBytes": 651859,
+                "receivedBytes": 14033209
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "candidate": {
+        "first": {
+          "medianMs": 521.1618339999986,
+          "minMs": 517.3082500000019,
+          "maxMs": 526.9602500000001,
+          "gatewayRequests": [
+            2266,
+            2266,
+            2266,
+            2266,
+            2266
+          ],
+          "changedRows": [
+            200,
+            200,
+            200,
+            200,
+            200
+          ],
+          "samples": [
+            {
+              "elapsedMs": 525.5139579999995,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2266,
+              "transport": {
+                "calls": 2266,
+                "sentBytes": 3431414,
+                "receivedBytes": 14063610
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 521.1618339999986,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2266,
+              "transport": {
+                "calls": 2266,
+                "sentBytes": 3431414,
+                "receivedBytes": 14063610
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 526.9602500000001,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2266,
+              "transport": {
+                "calls": 2266,
+                "sentBytes": 3431414,
+                "receivedBytes": 14063610
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 519.0828750000001,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2266,
+              "transport": {
+                "calls": 2266,
+                "sentBytes": 3431414,
+                "receivedBytes": 14063610
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            },
+            {
+              "elapsedMs": 517.3082500000019,
+              "rustElapsedMs": null,
+              "gatewayRequests": 2266,
+              "transport": {
+                "calls": 2266,
+                "sentBytes": 3431414,
+                "receivedBytes": 14063610
+              },
+              "sqliteChangedRowsIncludingTriggers": 800,
+              "changedRows": 200
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 277.67254200000025,
+          "minMs": 275.56324999999924,
+          "maxMs": 280.69679200000246,
+          "gatewayRequests": [
+            866,
+            866,
+            866,
+            866,
+            866
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 278.5368329999983,
+              "rustElapsedMs": null,
+              "gatewayRequests": 866,
+              "transport": {
+                "calls": 866,
+                "sentBytes": 370714,
+                "receivedBytes": 11471630
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 280.69679200000246,
+              "rustElapsedMs": null,
+              "gatewayRequests": 866,
+              "transport": {
+                "calls": 866,
+                "sentBytes": 370714,
+                "receivedBytes": 11471630
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 277.67254200000025,
+              "rustElapsedMs": null,
+              "gatewayRequests": 866,
+              "transport": {
+                "calls": 866,
+                "sentBytes": 370714,
+                "receivedBytes": 11471630
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 275.95950000000084,
+              "rustElapsedMs": null,
+              "gatewayRequests": 866,
+              "transport": {
+                "calls": 866,
+                "sentBytes": 370714,
+                "receivedBytes": 11471630
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 275.56324999999924,
+              "rustElapsedMs": null,
+              "gatewayRequests": 866,
+              "transport": {
+                "calls": 866,
+                "sentBytes": 370714,
+                "receivedBytes": 11471630
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "exactProjectionParity": true,
+      "nonProjectionStateUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "large-library",
+        "nodes": 1000,
+        "units": 5000,
+        "tail": 8
+      },
+      "fixtureSha256": "1a94a3864743d5add34075f8924a7563a35714a353c35b75b34480d3e3c1a8fe",
+      "baseline": {
+        "first": {
+          "medianMs": 4517.149458,
+          "minMs": 4472.93525000001,
+          "maxMs": 5312.537499999991,
+          "gatewayRequests": [
+            18001,
+            18001,
+            18001,
+            18001,
+            18001
+          ],
+          "changedRows": [
+            1000,
+            1000,
+            1000,
+            1000,
+            1000
+          ],
+          "samples": [
+            {
+              "elapsedMs": 4517.149458,
+              "rustElapsedMs": null,
+              "gatewayRequests": 18001,
+              "transport": {
+                "calls": 18001,
+                "sentBytes": 18897893,
+                "receivedBytes": 82376137
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 4530.507249999995,
+              "rustElapsedMs": null,
+              "gatewayRequests": 18001,
+              "transport": {
+                "calls": 18001,
+                "sentBytes": 18900160,
+                "receivedBytes": 82376550
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 5312.537499999991,
+              "rustElapsedMs": null,
+              "gatewayRequests": 18001,
+              "transport": {
+                "calls": 18001,
+                "sentBytes": 18900160,
+                "receivedBytes": 82376550
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 4508.787832999995,
+              "rustElapsedMs": null,
+              "gatewayRequests": 18001,
+              "transport": {
+                "calls": 18001,
+                "sentBytes": 18900160,
+                "receivedBytes": 82376550
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 4472.93525000001,
+              "rustElapsedMs": null,
+              "gatewayRequests": 18001,
+              "transport": {
+                "calls": 18001,
+                "sentBytes": 18900160,
+                "receivedBytes": 82376550
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 3249.4095830000006,
+          "minMs": 3134.9007090000086,
+          "maxMs": 4454.894625000001,
+          "gatewayRequests": [
+            10001,
+            10001,
+            10001,
+            10001,
+            10001
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 4231.664874999995,
+              "rustElapsedMs": null,
+              "gatewayRequests": 10001,
+              "transport": {
+                "calls": 10001,
+                "sentBytes": 3270660,
+                "receivedBytes": 70181890
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 3249.4095830000006,
+              "rustElapsedMs": null,
+              "gatewayRequests": 10001,
+              "transport": {
+                "calls": 10001,
+                "sentBytes": 3270660,
+                "receivedBytes": 70181890
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 4454.894625000001,
+              "rustElapsedMs": null,
+              "gatewayRequests": 10001,
+              "transport": {
+                "calls": 10001,
+                "sentBytes": 3270660,
+                "receivedBytes": 70181890
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 3217.1829169999983,
+              "rustElapsedMs": null,
+              "gatewayRequests": 10001,
+              "transport": {
+                "calls": 10001,
+                "sentBytes": 3270660,
+                "receivedBytes": 70181890
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 3134.9007090000086,
+              "rustElapsedMs": null,
+              "gatewayRequests": 10001,
+              "transport": {
+                "calls": 10001,
+                "sentBytes": 3270660,
+                "receivedBytes": 70181890
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "candidate": {
+        "first": {
+          "medianMs": 2542.319749999995,
+          "minMs": 2494.448875000002,
+          "maxMs": 3142.1772090000013,
+          "gatewayRequests": [
+            11316,
+            11316,
+            11316,
+            11316,
+            11316
+          ],
+          "changedRows": [
+            1000,
+            1000,
+            1000,
+            1000,
+            1000
+          ],
+          "samples": [
+            {
+              "elapsedMs": 3142.1772090000013,
+              "rustElapsedMs": null,
+              "gatewayRequests": 11316,
+              "transport": {
+                "calls": 11316,
+                "sentBytes": 17170932,
+                "receivedBytes": 70336399
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 2531.695000000007,
+              "rustElapsedMs": null,
+              "gatewayRequests": 11316,
+              "transport": {
+                "calls": 11316,
+                "sentBytes": 17170932,
+                "receivedBytes": 70336399
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 2651.013208000004,
+              "rustElapsedMs": null,
+              "gatewayRequests": 11316,
+              "transport": {
+                "calls": 11316,
+                "sentBytes": 17170932,
+                "receivedBytes": 70336399
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 2494.448875000002,
+              "rustElapsedMs": null,
+              "gatewayRequests": 11316,
+              "transport": {
+                "calls": 11316,
+                "sentBytes": 17170932,
+                "receivedBytes": 70336399
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            },
+            {
+              "elapsedMs": 2542.319749999995,
+              "rustElapsedMs": null,
+              "gatewayRequests": 11316,
+              "transport": {
+                "calls": 11316,
+                "sentBytes": 17170932,
+                "receivedBytes": 70336399
+              },
+              "sqliteChangedRowsIncludingTriggers": 4000,
+              "changedRows": 1000
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 1297.8940839999996,
+          "minMs": 1288.8502500000031,
+          "maxMs": 1312.7753749999974,
+          "gatewayRequests": [
+            4316,
+            4316,
+            4316,
+            4316,
+            4316
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 1300.948000000004,
+              "rustElapsedMs": null,
+              "gatewayRequests": 4316,
+              "transport": {
+                "calls": 4316,
+                "sentBytes": 1853432,
+                "receivedBytes": 57366739
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 1288.8502500000031,
+              "rustElapsedMs": null,
+              "gatewayRequests": 4316,
+              "transport": {
+                "calls": 4316,
+                "sentBytes": 1853432,
+                "receivedBytes": 57366739
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 1312.7753749999974,
+              "rustElapsedMs": null,
+              "gatewayRequests": 4316,
+              "transport": {
+                "calls": 4316,
+                "sentBytes": 1853432,
+                "receivedBytes": 57366739
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 1293.605958,
+              "rustElapsedMs": null,
+              "gatewayRequests": 4316,
+              "transport": {
+                "calls": 4316,
+                "sentBytes": 1853432,
+                "receivedBytes": 57366739
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 1297.8940839999996,
+              "rustElapsedMs": null,
+              "gatewayRequests": 4316,
+              "transport": {
+                "calls": 4316,
+                "sentBytes": 1853432,
+                "receivedBytes": 57366739
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "exactProjectionParity": true,
+      "nonProjectionStateUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "long-chapters",
+        "nodes": 20,
+        "units": 50000,
+        "tail": 16
+      },
+      "fixtureSha256": "85e67eae9afa68076ba05e1ab8911824b8ea18ec2d0bde893115a24a222893cd",
+      "baseline": {
+        "first": {
+          "medianMs": 464.4230830000015,
+          "minMs": 453.5564579999773,
+          "maxMs": 471.03349999999045,
+          "gatewayRequests": [
+            361,
+            361,
+            361,
+            361,
+            361
+          ],
+          "changedRows": [
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "samples": [
+            {
+              "elapsedMs": 464.5437499999971,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 2415470,
+                "receivedBytes": 15115323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 464.4230830000015,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 2415470,
+                "receivedBytes": 15115323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 471.03349999999045,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 2415470,
+                "receivedBytes": 15115323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 460.4336670000048,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 2415470,
+                "receivedBytes": 15115323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 453.5564579999773,
+              "rustElapsedMs": null,
+              "gatewayRequests": 361,
+              "transport": {
+                "calls": 361,
+                "sentBytes": 2415470,
+                "receivedBytes": 15115323
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 420.68216700002085,
+          "minMs": 417.5874579999945,
+          "maxMs": 425.55420799998683,
+          "gatewayRequests": [
+            201,
+            201,
+            201,
+            201,
+            201
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 425.55420799998683,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 66060,
+                "receivedBytes": 12837561
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 421.75058300001547,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 66060,
+                "receivedBytes": 12837561
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 420.68216700002085,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 66060,
+                "receivedBytes": 12837561
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 417.5874579999945,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 66060,
+                "receivedBytes": 12837561
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 418.7631659999897,
+              "rustElapsedMs": null,
+              "gatewayRequests": 201,
+              "transport": {
+                "calls": 201,
+                "sentBytes": 66060,
+                "receivedBytes": 12837561
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "candidate": {
+        "first": {
+          "medianMs": 261.57962499998393,
+          "minMs": 259.99137499998324,
+          "maxMs": 269.56441600000835,
+          "gatewayRequests": [
+            231,
+            231,
+            231,
+            231,
+            231
+          ],
+          "changedRows": [
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "samples": [
+            {
+              "elapsedMs": 259.99137499998324,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 2381658,
+                "receivedBytes": 12838919
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 261.57962499998393,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 2381658,
+                "receivedBytes": 12838919
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 264.464541000023,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 2381658,
+                "receivedBytes": 12838919
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 269.56441600000835,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 2381658,
+                "receivedBytes": 12838919
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            },
+            {
+              "elapsedMs": 260.67754199999035,
+              "rustElapsedMs": null,
+              "gatewayRequests": 231,
+              "transport": {
+                "calls": 231,
+                "sentBytes": 2381658,
+                "receivedBytes": 12838919
+              },
+              "sqliteChangedRowsIncludingTriggers": 80,
+              "changedRows": 20
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 210.14895800000522,
+          "minMs": 208.91041700000642,
+          "maxMs": 218.1042090000119,
+          "gatewayRequests": [
+            91,
+            91,
+            91,
+            91,
+            91
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 208.91041700000642,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38488,
+                "receivedBytes": 10544737
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 209.6826669999864,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38488,
+                "receivedBytes": 10544737
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 216.35766700000386,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38488,
+                "receivedBytes": 10544737
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 218.1042090000119,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38488,
+                "receivedBytes": 10544737
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 210.14895800000522,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 38488,
+                "receivedBytes": 10544737
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "exactProjectionParity": true,
+      "nonProjectionStateUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "very-long-chapters",
+        "nodes": 5,
+        "units": 200000,
+        "tail": 16
+      },
+      "fixtureSha256": "a650eb289961d5cd7d46a89c9a31d6e23b47e1e27d3e38bb3e5bcf0480c74096",
+      "baseline": {
+        "first": {
+          "medianMs": 432.82600000000093,
+          "minMs": 424.4290000000037,
+          "maxMs": 444.2846659999923,
+          "gatewayRequests": [
+            91,
+            91,
+            91,
+            91,
+            91
+          ],
+          "changedRows": [
+            5,
+            5,
+            5,
+            5,
+            5
+          ],
+          "samples": [
+            {
+              "elapsedMs": 427.20087500000955,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 2291750,
+                "receivedBytes": 14935540
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 424.4290000000037,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 2291750,
+                "receivedBytes": 14935540
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 432.82600000000093,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 2291750,
+                "receivedBytes": 14935540
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 441.4163750000007,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 2291750,
+                "receivedBytes": 14935540
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 444.2846659999923,
+              "rustElapsedMs": null,
+              "gatewayRequests": 91,
+              "transport": {
+                "calls": 91,
+                "sentBytes": 2291750,
+                "receivedBytes": 14935540
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 394.7538749999949,
+          "minMs": 387.1159580000094,
+          "maxMs": 409.2310410000209,
+          "gatewayRequests": [
+            51,
+            51,
+            51,
+            51,
+            51
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 387.1159580000094,
+              "rustElapsedMs": null,
+              "gatewayRequests": 51,
+              "transport": {
+                "calls": 51,
+                "sentBytes": 17010,
+                "receivedBytes": 12678720
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 394.7538749999949,
+              "rustElapsedMs": null,
+              "gatewayRequests": 51,
+              "transport": {
+                "calls": 51,
+                "sentBytes": 17010,
+                "receivedBytes": 12678720
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 407.4369159999769,
+              "rustElapsedMs": null,
+              "gatewayRequests": 51,
+              "transport": {
+                "calls": 51,
+                "sentBytes": 17010,
+                "receivedBytes": 12678720
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 391.199249999976,
+              "rustElapsedMs": null,
+              "gatewayRequests": 51,
+              "transport": {
+                "calls": 51,
+                "sentBytes": 17010,
+                "receivedBytes": 12678720
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 409.2310410000209,
+              "rustElapsedMs": null,
+              "gatewayRequests": 51,
+              "transport": {
+                "calls": 51,
+                "sentBytes": 17010,
+                "receivedBytes": 12678720
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "candidate": {
+        "first": {
+          "medianMs": 243.93483400001423,
+          "minMs": 242.15287499999977,
+          "maxMs": 253.08641599997645,
+          "gatewayRequests": [
+            61,
+            61,
+            61,
+            61,
+            61
+          ],
+          "changedRows": [
+            5,
+            5,
+            5,
+            5,
+            5
+          ],
+          "samples": [
+            {
+              "elapsedMs": 242.15287499999977,
+              "rustElapsedMs": null,
+              "gatewayRequests": 61,
+              "transport": {
+                "calls": 61,
+                "sentBytes": 2283819,
+                "receivedBytes": 12679213
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 253.08641599997645,
+              "rustElapsedMs": null,
+              "gatewayRequests": 61,
+              "transport": {
+                "calls": 61,
+                "sentBytes": 2283819,
+                "receivedBytes": 12679213
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 244.0268330000108,
+              "rustElapsedMs": null,
+              "gatewayRequests": 61,
+              "transport": {
+                "calls": 61,
+                "sentBytes": 2283819,
+                "receivedBytes": 12679213
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 243.23749999998836,
+              "rustElapsedMs": null,
+              "gatewayRequests": 61,
+              "transport": {
+                "calls": 61,
+                "sentBytes": 2283819,
+                "receivedBytes": 12679213
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            },
+            {
+              "elapsedMs": 243.93483400001423,
+              "rustElapsedMs": null,
+              "gatewayRequests": 61,
+              "transport": {
+                "calls": 61,
+                "sentBytes": 2283819,
+                "receivedBytes": 12679213
+              },
+              "sqliteChangedRowsIncludingTriggers": 20,
+              "changedRows": 5
+            }
+          ]
+        },
+        "repeat": {
+          "medianMs": 214.38558299999568,
+          "minMs": 209.52304100000765,
+          "maxMs": 215.94516699999804,
+          "gatewayRequests": [
+            26,
+            26,
+            26,
+            26,
+            26
+          ],
+          "changedRows": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "samples": [
+            {
+              "elapsedMs": 214.75487499998417,
+              "rustElapsedMs": null,
+              "gatewayRequests": 26,
+              "transport": {
+                "calls": 26,
+                "sentBytes": 10639,
+                "receivedBytes": 10418288
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 215.94516699999804,
+              "rustElapsedMs": null,
+              "gatewayRequests": 26,
+              "transport": {
+                "calls": 26,
+                "sentBytes": 10639,
+                "receivedBytes": 10418288
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 214.38558299999568,
+              "rustElapsedMs": null,
+              "gatewayRequests": 26,
+              "transport": {
+                "calls": 26,
+                "sentBytes": 10639,
+                "receivedBytes": 10418288
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 209.52304100000765,
+              "rustElapsedMs": null,
+              "gatewayRequests": 26,
+              "transport": {
+                "calls": 26,
+                "sentBytes": 10639,
+                "receivedBytes": 10418288
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            },
+            {
+              "elapsedMs": 214.08279200000106,
+              "rustElapsedMs": null,
+              "gatewayRequests": 26,
+              "transport": {
+                "calls": 26,
+                "sentBytes": 10639,
+                "receivedBytes": 10418288
+              },
+              "sqliteChangedRowsIncludingTriggers": 0,
+              "changedRows": 0
+            }
+          ]
+        }
+      },
+      "exactProjectionParity": true,
+      "nonProjectionStateUnchanged": true
+    }
+  ],
+  "seedOnlyExactParity": true
+}

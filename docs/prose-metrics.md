@@ -1,6 +1,6 @@
 # Canonical prose metrics
 
-Updated: 2026-08-15
+Updated: 2026-09-30
 
 Drifting treats `book_node.word_count` as a rebuildable materialized projection,
 never as an independent prose truth. Live and durable Yjs state owns prose;
@@ -30,7 +30,9 @@ immediate count because it reads live Yjs prose directly.
   renderer-owned Yjs command transaction and durable receipt boundary.
 - Snapshot restore and seed-only prose initialization run the same materializer
   after the Yjs COVER/write operation.
-- Project boot performs bounded, idempotent reconciliation (four workers). The
+- Project boot performs bounded, idempotent reconciliation (four workers,
+  snapshots/tails/revisions prefetched for at most 16 closed documents). Open
+  documents retain the live persistence coordinator and its flush lifecycle. The
   project shelf also reconciles pending local projects with two projects in
   flight, using a SQLite-only mode so nodes from another book never enter the
   mounted workspace store. Reconciliation never changes Yjs prose or
@@ -80,6 +82,8 @@ concurrent Yjs merge materialization.
 The [Rust reuse benchmark](prose-metrics-rust-benchmark.md) measures the existing
 whole-project reconcilers and records their compatibility differences. Its
 service timings do not establish a production replacement or UI acceptance.
+The [Tauri performance batches](prose-metrics-performance-batches.md) record the
+compatible optimizations, paired measurements and regression boundaries.
 
 Desktop visual review should confirm that project, storyline, node, stats and
 status surfaces say “统计中” during reconciliation, then converge without a

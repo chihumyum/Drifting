@@ -48,7 +48,7 @@ function sourceFiles() {
   return [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0'))]
     .filter(file => file && existsSync(file) && (
       /^(crates\/(drifting-core|drifting-document|drifting-prose)\/|vendor\/yrs\/|drizzle\/|src\/renderer\/|packages\/prose-metrics\/)/u.test(file)
-      || ['scripts/benchmark-prose-metrics.ts', 'scripts/prose-metrics-benchmark.rs', 'scripts/apple-workspace-metrics-check.ts',
+      || ['scripts/benchmark-prose-metrics.ts', 'scripts/benchmark-prose-metrics-batches.ts', 'scripts/prose-metrics-benchmark.rs', 'scripts/apple-workspace-metrics-check.ts',
         'scripts/apple-performance-rustc-wrapper.sh', 'package.json', 'pnpm-lock.yaml'].includes(file)
     )).sort();
 }
@@ -251,7 +251,7 @@ function rowDifferences(a: Row[], b: Row[]) {
 }
 
 type Engine = 'renderer' | 'rust';
-async function measure(host: Host, engine: Engine) {
+async function measure(host: Host, engine: Engine, reconcile = reconcileProjectProseMetrics) {
   const totalChanges = async () => {
     const value = await host.invoke('database_query', { sql: 'SELECT total_changes()', parameters: [] }) as { rows: { value: string }[][] };
     return Number(value.rows[0][0].value);
@@ -262,7 +262,7 @@ async function measure(host: Host, engine: Engine) {
   const traffic = { ...host.traffic };
   const start = performance.now();
   let rustElapsedMs: number | null = null;
-  if (engine === 'renderer') await reconcileProjectProseMetrics(PROJECT, { publishToDataStore: false });
+  if (engine === 'renderer') await reconcile(PROJECT, { publishToDataStore: false });
   else {
     const value = await host.invoke('reconcile', { projectId: PROJECT }) as { failures: unknown[]; rustElapsedMs: number };
     assert.deepEqual(value.failures, []);
@@ -433,4 +433,9 @@ async function main() {
   } finally { release(); await host.stop(); }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+export { root, sha, NOW, PROJECT, scenarios, limitations, provenance, writeJson, buildHost, Host, seedFixture, inspect, rowDifferences, measure, summary };
+export type { Row, Sample };
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}
