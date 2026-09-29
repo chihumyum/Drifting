@@ -46,6 +46,58 @@ pnpm perf:prose-metrics:batch --baseline=da38cba3 --output=docs/acceptance/prose
 pnpm perf:prose-metrics:batch --baseline=da38cba3 --output=docs/acceptance/prose-metrics-batch-1.json --check
 ```
 
+## Candidate batch 2: duplicate projection queries (not adopted)
+
+A scoped join reads the active node, cached body and durable revision together.
+An unchanged projection can be checked against that revision without additional
+round trips. Changed projections still use a transaction and revision CAS, but
+reuse the node update's `RETURNING` row and upsert only the derived body/outline
+columns. Existing content timestamps, creation time and plot-grid bytes are
+preserved. A missing cache is created; another project's node is rejected;
+a node deleted during prefetch is skipped. Failure to write the cache rolls back
+the node metrics in the same transaction.
+
+In the experiment, the shared row mapper is exported without changing existing repository methods.
+The paired baseline is the Batch 1 service at `20a91767`; imported dependency
+behavior is otherwise unchanged. Additional file-backed tests cover missing
+caches, plot-grid/recency preservation, rollback, project scope and deletion.
+
+```sh
+# In an isolated checkout at 20a91767, apply the archived candidate first:
+git apply --unidiff-zero docs/acceptance/prose-metrics-batch-2.patch
+pnpm perf:prose-metrics:batch --baseline=20a91767 --output=docs/acceptance/prose-metrics-batch-2.json
+pnpm perf:prose-metrics:batch --baseline=20a91767 --output=docs/acceptance/prose-metrics-batch-2.json --check
+git apply -R --unidiff-zero docs/acceptance/prose-metrics-batch-2.patch
+```
+
+The [candidate patch](acceptance/prose-metrics-batch-2.patch) contains the complete
+service, mapper and regression-test changes. Copy this patch and its report into
+that checkout from the evidence commit before following the commands above.
+Its [generated report](acceptance/prose-metrics-batch-2.json) fingerprints the
+candidate with the patch applied, not the accepted product source.
+
+Five-repeat paired medians, milliseconds:
+
+| Bodies × UTF-16 units | Batch 1 first | Candidate first | Batch 1 repeat | Candidate repeat |
+| --- | ---: | ---: | ---: | ---: |
+| 20 × 5,000 | 64.1 | 59.8 | 33.7 | 34.5 |
+| 200 × 5,000 | 584.1 | 513.8 | 288.7 | 288.5 |
+| 1,000 × 5,000 | 3,078.2 | 2,757.1 | 1,411.3 | 1,514.3 |
+| 20 × 50,000 | 299.3 | 281.9 | 228.7 | 232.9 |
+| 5 × 200,000 | 258.9 | 310.5 | 225.6 | 239.0 |
+
+At 200 bodies, first-pass requests drop from 2,266 to 1,266 and repeat requests
+from 866 to 266, but wall time does not improve consistently. The thousand-body
+repeat median regresses 7.3%; the very-long-chapter first median regresses 19.9%.
+Some samples vary substantially. Exact projections, seed behavior, authoritative
+state and write-free repeats all pass, as do nine candidate integration tests.
+Fewer requests alone are insufficient evidence to ship this change. The product
+retains Batch 1; the candidate is archived pending the author's next direction.
+
+Reports are snapshots of their respective batches. Run an earlier report's
+source check at the commit that produced it; subsequent service changes
+intentionally invalidate the earlier source fingerprint.
+
 ## Measurement contract
 
 The paired runner loads the original service source blob from the specified Git

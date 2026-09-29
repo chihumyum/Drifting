@@ -1,0 +1,146 @@
+diff --git a/src/renderer/services/node-prose-metrics-batch.integration.test.ts b/src/renderer/services/node-prose-metrics-batch.integration.test.ts
+index 954ba1a6..cae0758a 100644
+--- a/src/renderer/services/node-prose-metrics-batch.integration.test.ts
++++ b/src/renderer/services/node-prose-metrics-batch.integration.test.ts
+@@ -14 +14 @@ import * as durability from './yjs-local-durability.service';
+-import { deriveCanonicalNodeProseProjection, reconcileProjectProseMetrics } from './node-prose-metrics.service';
++import { deriveCanonicalNodeProseProjection, persistNodeProseProjectionInTransaction, reconcileProjectProseMetrics } from './node-prose-metrics.service';
+@@ -151,0 +152,41 @@ describe('bounded prose metrics with product SQLite', () => {
++
++  it('creates a missing cache and preserves an existing plot grid and content recency', async () => {
++    const { db, gateway, doc, rows } = await fixture(2);
++    await db.delete(NodeContentTable).where(eq(NodeContentTable.nodeId, 'node-0'));
++    const grid = JSON.stringify({ synthetic: ['keep this projection'] });
++    await db.update(NodeContentTable).set({ plotGridJson: grid }).where(eq(NodeContentTable.nodeId, 'node-1'));
++    await reconcile();
++    const projection = await expected(doc, 3);
++    expect(rows()).toHaveLength(2);
++    expect(rows()[0]).toMatchObject({ content_json: projection.contentJson, updated_at: NOW });
++    expect(gateway.database.prepare("SELECT plot_grid_json,updated_at FROM node_content WHERE node_id='node-1'").get())
++      .toMatchObject({ plot_grid_json: grid, updated_at: NOW });
++  });
++
++  it('rolls back the metric row when the content upsert fails and rejects another project', async () => {
++    const { db, gateway, doc, rows } = await fixture();
++    const before = rows();
++    gateway.failNextExecute(sql => sql.startsWith('insert into "node_content"'), 'synthetic cache failure');
++    await expect(reconcile()).rejects.toMatchObject({ cause: { message: 'synthetic cache failure' } });
++    expect(rows()).toEqual(before);
++    await expect(db.transaction(async tx => persistNodeProseProjectionInTransaction(tx, {
++      ...await expected(doc, 3), projectId: 'another-project', updatedAt: NOW, touchNodeUpdatedAt: false,
++    }))).rejects.toThrow('no longer exists');
++    expect(rows()).toEqual(before);
++    await reconcile();
++    expect(rows()[0]).toMatchObject({ word_count_basis_revision: 3 });
++  });
++
++  it('does not revive a node deleted after batch capture', async () => {
++    const { gateway, rows } = await fixture();
++    const before = rows()[0];
++    const original = yjsRepo.readPersistedYjsDocuments;
++    vi.spyOn(yjsRepo, 'readPersistedYjsDocuments').mockImplementationOnce(async (tx, ids) => {
++      const captured = await original(tx, ids);
++      await tx.update(BookNodeTable).set({ deletedAt: NOW }).where(eq(BookNodeTable.id, 'node-0'));
++      return captured;
++    });
++    await reconcile();
++    expect(rows()[0]).toEqual(before);
++    expect(gateway.database.prepare("SELECT deleted_at FROM book_node WHERE id='node-0'").get()!.deleted_at).toBe(NOW);
++  });
+diff --git a/src/renderer/services/node-prose-metrics.service.ts b/src/renderer/services/node-prose-metrics.service.ts
+index a6539544..755071c1 100644
+--- a/src/renderer/services/node-prose-metrics.service.ts
++++ b/src/renderer/services/node-prose-metrics.service.ts
+@@ -10 +10 @@ import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
+-import { BookNodeTable, NodeContentTable } from '../schema/drizzle';
++import { BookNodeTable, NodeContentTable, YjsDocumentRevisionTable } from '../schema/drizzle';
+@@ -12 +12 @@ import { createBookContentRepository } from '../sqlite-repo/content-repo';
+-import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
++import { createBookNodeSqliteRepository, toBookNode } from '../sqlite-repo/node-repo';
+@@ -162,28 +161,0 @@ export async function persistNodeProseProjectionInTransaction(
+-  const contentRepo = createBookContentRepository(tx, input.projectId);
+-  const existingContent = await contentRepo.findByNodeId(input.nodeId);
+-  let content;
+-  if (existingContent && input.touchNodeUpdatedAt === false) {
+-    await tx
+-      .update(NodeContentTable)
+-      .set({ contentJson: input.contentJson, outlineJson: input.outlineJson })
+-      .where(eq(NodeContentTable.nodeId, input.nodeId));
+-    content = {
+-      ...existingContent,
+-      contentJson: input.contentJson,
+-      outlineJson: input.outlineJson,
+-    };
+-  } else {
+-    content = existingContent
+-      ? await contentRepo.updateByNodeId(input.nodeId, {
+-          contentJson: input.contentJson,
+-          outlineJson: input.outlineJson,
+-          updatedAt: input.updatedAt,
+-        })
+-      : await contentRepo.create({
+-          nodeId: input.nodeId,
+-          contentJson: input.contentJson,
+-          outlineJson: input.outlineJson,
+-        });
+-  }
+-  if (!content) throw new Error(`Node content ${input.nodeId} could not be materialized.`);
+-
+@@ -209,2 +181,28 @@ export async function persistNodeProseProjectionInTransaction(
+-  const node = await createBookNodeSqliteRepository(input.projectId, tx).findById(input.nodeId);
+-  if (!node) throw new Error(`Node ${input.nodeId} could not be reloaded.`);
++  const node = toBookNode(rows[0]);
++  if (input.touchNodeUpdatedAt === false) {
++    // The scoped UPDATE above proves that the node is active in this project.
++    // Upsert only derived fields; existing recency and plot-grid bytes survive.
++    await tx.insert(NodeContentTable).values({
++      nodeId: input.nodeId, contentJson: input.contentJson, outlineJson: input.outlineJson,
++      createdAt: input.updatedAt, updatedAt: input.updatedAt,
++    }).onConflictDoUpdate({
++      target: NodeContentTable.nodeId,
++      set: { contentJson: input.contentJson, outlineJson: input.outlineJson },
++    });
++    return { node, contentJson: input.contentJson, outlineJson: input.outlineJson };
++  }
++  const contentRepo = createBookContentRepository(tx, input.projectId);
++  const existingContent = await contentRepo.findByNodeId(input.nodeId);
++  const content = existingContent
++    ? await contentRepo.updateByNodeId(input.nodeId, {
++        contentJson: input.contentJson,
++        outlineJson: input.outlineJson,
++        updatedAt: input.updatedAt,
++      })
++    : await contentRepo.create({
++        nodeId: input.nodeId,
++        contentJson: input.contentJson,
++        outlineJson: input.outlineJson,
++      });
++
++  if (!content) throw new Error(`Node content ${input.nodeId} could not be materialized.`);
+@@ -285,4 +283,9 @@ async function materializeNodeProse(
+-      const [node, content] = await Promise.all([
+-        createBookNodeSqliteRepository(projectId).findById(nodeId),
+-        createBookContentRepository(undefined, projectId).findByNodeId(nodeId),
+-      ]);
++      const [row] = await getDb().select({ node: BookNodeTable, content: NodeContentTable,
++        revision: YjsDocumentRevisionTable.revision,
++      }).from(BookNodeTable)
++        .leftJoin(NodeContentTable, eq(NodeContentTable.nodeId, BookNodeTable.id))
++        .leftJoin(YjsDocumentRevisionTable, eq(YjsDocumentRevisionTable.docId, proseDocId('node', nodeId)))
++        .where(and(eq(BookNodeTable.id, nodeId), eq(BookNodeTable.projectId, projectId), isNull(BookNodeTable.deletedAt)))
++        .limit(1);
++      const node = row ? toBookNode(row.node) : null;
++      const content = row?.content ? { contentJson: row.content.contentJson ?? '{}', outlineJson: row.content.outlineJson ?? '[]' } : null;
+@@ -291 +294 @@ async function materializeNodeProse(
+-          const actual = await createYjsRepository().getRevision(proseDocId('node', nodeId));
++          const actual = row.revision ?? 0;
+@@ -344 +347 @@ async function reconcileProject(
+-            if (!(await createBookNodeSqliteRepository(projectId).findById(node.id))) continue;
++            if (!(await createBookNodeSqliteRepository(projectId).findAll([node.id])).length) continue;
+diff --git a/src/renderer/sqlite-repo/node-repo.ts b/src/renderer/sqlite-repo/node-repo.ts
+index a8403a84..45debd76 100644
+--- a/src/renderer/sqlite-repo/node-repo.ts
++++ b/src/renderer/sqlite-repo/node-repo.ts
+@@ -82 +82 @@ export interface BookNodeRepository {
+-function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
++export function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
