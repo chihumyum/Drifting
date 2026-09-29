@@ -1,0 +1,872 @@
+{
+  "schemaVersion": 1,
+  "kind": "database-statement-cache-benchmark",
+  "measuredAt": "2026-09-29T17:21:08.290Z",
+  "source": {
+    "renderer": {
+      "fingerprint": "9b83fdffafee734c2d468d07fa36e80d548274bf02d6488be1f44ca39e478734",
+      "files": 1648
+    },
+    "harness": "4c3ad4caefb9a91cbe697dc209656dea799b951feb0377bd1002d8042e2c8ed1",
+    "baselineGateway": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+    "candidateGateway": "506554cfa760e0a850025bb1a3a3539f826e1131db5adb9a83693d720a5b022b"
+  },
+  "repetitions": 9,
+  "warmups": 3,
+  "artifacts": {
+    "baseline": {
+      "binarySha256": "48b86066b1faaade64e8e599b09a7ceca6871f10a446ceee3c49db3cf311deea",
+      "instrumentedGatewaySha256": "ffae0c0e1197c847699b595ff58781c7abde35a332084b9842d39b078861e368",
+      "lockSha256": "b72013d80ebf4f2fe2a609549be15417a4dd0e2f5de6219bebda069ae63c4642"
+    },
+    "candidate": {
+      "binarySha256": "d4c7b304e98974ec50adc11df57885c332545dd4db5cbdb15979b7bfbf7bd522",
+      "instrumentedGatewaySha256": "25403b85ecb712cfb01425aefe89c8f8a30a7fc3a9d964c3f4801a40e89a576f",
+      "lockSha256": "b72013d80ebf4f2fe2a609549be15417a4dd0e2f5de6219bebda069ae63c4642"
+    }
+  },
+  "environment": {
+    "os": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "node": "v24.19.0",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "garbageCollectionBeforeSample": true
+  },
+  "limitations": [
+    "Real renderer services/repositories, Drizzle proxy and wire codec on Node/V8, against a Release drifting-core DatabaseGateway. JSON-lines pipes replace Tauri IPC; no WKWebView, UI, typing or product startup claims.",
+    "Candidate changes only query/execute prepare to prepare_cached and connection cache capacity to 128 in an owned scratch source tree. Both lanes retain identical SQL, worker ownership, transaction boundaries and WAL/NORMAL settings.",
+    "SQLite service time includes bind/prepare/step/row conversion inside query_sql and execute_sql; excludes gateway waiting, transaction begin/commit, JSON and renderer work. Identical scratch-only timers instrument both lanes.",
+    "Three unreported warmup pairs, then nine alternating paired samples on fresh database copies. Every sample begins with a fresh connection/cache; repeated operations warm it naturally. Metrics-repeat is primed outside timing. Node GC is outside timing; OS caches are not flushed.",
+    "Node-heavy synthetic projects: secondary workspace collections are empty. Yjs tests exercise repository append/CAS transactions, not live sessions, the authored journal, sync, compaction or crash/power-loss durability.",
+    "Every paired result and complete database contents must agree after normalizing created_at/updated_at timestamps. Parallel metric workers can assign projection-change revisions to nodes in different orders: compare their revision multiset and entity coverage separately. Yjs revisions, BLOB bytes, provenance, replacement revisions and final projection clocks remain exact. No claim about schema-change/cache-invalidation correctness; this is a performance candidate, not an accepted implementation."
+  ],
+  "performanceGate": {
+    "minimumMedianImprovement": 0.1,
+    "minimumWinningPairFraction": 0.75,
+    "minimumBenefitingWorkloads": 2,
+    "maximumMedianRegression": 0.05
+  },
+  "performanceGatePassed": false,
+  "scenarios": [
+    {
+      "scenario": {
+        "name": "node-point-reads",
+        "nodes": 1000,
+        "count": 1000
+      },
+      "baseline": {
+        "medianMs": 127.26249999999709,
+        "sqliteServiceMedianMs": 14.784126,
+        "samples": [
+          {
+            "elapsedMs": 126.2118330000012,
+            "sqliteServiceMs": 14.643862,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 129.93845899999724,
+            "sqliteServiceMs": 15.171933,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 130.29616700000042,
+            "sqliteServiceMs": 15.15626,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 116.70070800000394,
+            "sqliteServiceMs": 14.551968,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 118.89641700000357,
+            "sqliteServiceMs": 14.464342,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 154.72308299999713,
+            "sqliteServiceMs": 18.023137,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 127.26249999999709,
+            "sqliteServiceMs": 14.784126,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 128.36691699999938,
+            "sqliteServiceMs": 14.885091,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 122.78504100000282,
+            "sqliteServiceMs": 14.597862,
+            "gatewayRequests": 1000
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 115.77716599999985,
+        "sqliteServiceMedianMs": 5.945982,
+        "samples": [
+          {
+            "elapsedMs": 113.16066699999647,
+            "sqliteServiceMs": 6.018744,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 147.3391249999986,
+            "sqliteServiceMs": 8.012041,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 118.21016699999745,
+            "sqliteServiceMs": 5.854381,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 115.77716599999985,
+            "sqliteServiceMs": 5.949513,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 115.84429200000159,
+            "sqliteServiceMs": 5.807701,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 116.00650000000314,
+            "sqliteServiceMs": 5.748555,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 112.622583999997,
+            "sqliteServiceMs": 5.945982,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 112.1843330000047,
+            "sqliteServiceMs": 5.901714,
+            "gatewayRequests": 1000
+          },
+          {
+            "elapsedMs": 113.02029200000106,
+            "sqliteServiceMs": 6.055573,
+            "gatewayRequests": 1000
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": 0.09024916216479717,
+        "winningPairs": 8,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    },
+    {
+      "scenario": {
+        "name": "workspace-200",
+        "nodes": 200,
+        "count": 20
+      },
+      "baseline": {
+        "medianMs": 105.47745799999393,
+        "sqliteServiceMedianMs": 12.072171,
+        "samples": [
+          {
+            "elapsedMs": 99.81274999999732,
+            "sqliteServiceMs": 11.706908,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 112.90129200000229,
+            "sqliteServiceMs": 12.794711,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 114.17329199999949,
+            "sqliteServiceMs": 13.465912,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 109.9320000000007,
+            "sqliteServiceMs": 12.930206,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 119.70100000000093,
+            "sqliteServiceMs": 14.829875,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 103.99387500000012,
+            "sqliteServiceMs": 12.072171,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 102.57304100000329,
+            "sqliteServiceMs": 11.686327,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 105.47745799999393,
+            "sqliteServiceMs": 11.536243,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 101.62750000000233,
+            "sqliteServiceMs": 11.580369,
+            "gatewayRequests": 460
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 100.32504199999676,
+        "sqliteServiceMedianMs": 7.007587,
+        "samples": [
+          {
+            "elapsedMs": 109.60087500000373,
+            "sqliteServiceMs": 7.745796,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 105.20570900000166,
+            "sqliteServiceMs": 7.264257,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 113.80200000000332,
+            "sqliteServiceMs": 7.381042,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 109.80854099999851,
+            "sqliteServiceMs": 7.457446,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 96.51120799999626,
+            "sqliteServiceMs": 6.636314,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 97.34075000000303,
+            "sqliteServiceMs": 6.67171,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 99.41470799999661,
+            "sqliteServiceMs": 6.773002,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 99.02850000000035,
+            "sqliteServiceMs": 6.642845,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 100.32504199999676,
+            "sqliteServiceMs": 7.007587,
+            "gatewayRequests": 460
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": 0.0488485037248193,
+        "winningPairs": 8,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    },
+    {
+      "scenario": {
+        "name": "workspace-1000",
+        "nodes": 1000,
+        "count": 20
+      },
+      "baseline": {
+        "medianMs": 376.0573749999894,
+        "sqliteServiceMedianMs": 27.850839,
+        "samples": [
+          {
+            "elapsedMs": 425.6625420000055,
+            "sqliteServiceMs": 31.457635,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 404.460791000005,
+            "sqliteServiceMs": 28.454622,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 385.22683400000096,
+            "sqliteServiceMs": 28.363539,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 365.8919579999929,
+            "sqliteServiceMs": 27.821706,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 372.49708299999475,
+            "sqliteServiceMs": 27.610114,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 349.98004100000253,
+            "sqliteServiceMs": 27.850839,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 376.0573749999894,
+            "sqliteServiceMs": 27.554003,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 342.5948749999952,
+            "sqliteServiceMs": 27.22158,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 389.4262500000041,
+            "sqliteServiceMs": 28.848329,
+            "gatewayRequests": 460
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 359.9827499999956,
+        "sqliteServiceMedianMs": 20.952919,
+        "samples": [
+          {
+            "elapsedMs": 391.2928749999992,
+            "sqliteServiceMs": 21.095336,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 391.97733300000255,
+            "sqliteServiceMs": 21.437503,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 346.40766599999915,
+            "sqliteServiceMs": 20.897831,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 356.1935839999933,
+            "sqliteServiceMs": 20.735256,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 340.6299169999984,
+            "sqliteServiceMs": 20.723125,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 383.0132500000036,
+            "sqliteServiceMs": 23.26621,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 361.0778750000027,
+            "sqliteServiceMs": 21.804919,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 359.9827499999956,
+            "sqliteServiceMs": 20.952919,
+            "gatewayRequests": 460
+          },
+          {
+            "elapsedMs": 336.66016699999454,
+            "sqliteServiceMs": 20.651504,
+            "gatewayRequests": 460
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": 0.04274513962129922,
+        "winningPairs": 7,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    },
+    {
+      "scenario": {
+        "name": "yjs-append",
+        "nodes": 200,
+        "count": 200
+      },
+      "baseline": {
+        "medianMs": 150.11045900000317,
+        "sqliteServiceMedianMs": 7.214743,
+        "samples": [
+          {
+            "elapsedMs": 148.0721249999915,
+            "sqliteServiceMs": 6.993283,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 152.77275000000373,
+            "sqliteServiceMs": 7.214743,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 150.11045900000317,
+            "sqliteServiceMs": 7.049993,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 149.0454999999929,
+            "sqliteServiceMs": 7.283202,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 144.63312499999302,
+            "sqliteServiceMs": 6.768667,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 152.00283300000592,
+            "sqliteServiceMs": 7.484955,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 153.03308300000208,
+            "sqliteServiceMs": 7.383183,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 150.0225000000064,
+            "sqliteServiceMs": 7.216814,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 150.2208329999994,
+            "sqliteServiceMs": 7.17828,
+            "gatewayRequests": 1200
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 146.3624589999963,
+        "sqliteServiceMedianMs": 4.263827,
+        "samples": [
+          {
+            "elapsedMs": 146.3624589999963,
+            "sqliteServiceMs": 4.243552,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 145.5409159999981,
+            "sqliteServiceMs": 4.179462,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 150.02858299999207,
+            "sqliteServiceMs": 4.594538,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 141.72275000000081,
+            "sqliteServiceMs": 4.022628,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 146.26191699999617,
+            "sqliteServiceMs": 4.50875,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 143.66887500000303,
+            "sqliteServiceMs": 4.124941,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 147.36033299998962,
+            "sqliteServiceMs": 4.376843,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 147.80770800000755,
+            "sqliteServiceMs": 4.361292,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 146.56666700000642,
+            "sqliteServiceMs": 4.263827,
+            "gatewayRequests": 1200
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": 0.024968280191633996,
+        "winningPairs": 8,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    },
+    {
+      "scenario": {
+        "name": "yjs-cas",
+        "nodes": 200,
+        "count": 200
+      },
+      "baseline": {
+        "medianMs": 150.15787499998987,
+        "sqliteServiceMedianMs": 7.350448,
+        "samples": [
+          {
+            "elapsedMs": 148.86020900000585,
+            "sqliteServiceMs": 7.453319,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 150.15787499998987,
+            "sqliteServiceMs": 7.000962,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 163.33016599999974,
+            "sqliteServiceMs": 8.591004,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 205.62591699999757,
+            "sqliteServiceMs": 11.640926,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 175.8225000000093,
+            "sqliteServiceMs": 9.486079,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 148.66870799999742,
+            "sqliteServiceMs": 6.992833,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 148.21437499999593,
+            "sqliteServiceMs": 7.258507,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 151.04637500000536,
+            "sqliteServiceMs": 7.120529,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 149.1962499999936,
+            "sqliteServiceMs": 7.350448,
+            "gatewayRequests": 1200
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 149.0504590000055,
+        "sqliteServiceMedianMs": 4.422898,
+        "samples": [
+          {
+            "elapsedMs": 151.56262500000594,
+            "sqliteServiceMs": 4.347797,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 144.77970800000185,
+            "sqliteServiceMs": 4.398406,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 168.9961670000048,
+            "sqliteServiceMs": 5.111296,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 168.64483300001302,
+            "sqliteServiceMs": 5.844151,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 149.0504590000055,
+            "sqliteServiceMs": 4.857261,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 145.74816600000486,
+            "sqliteServiceMs": 4.458202,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 143.63166600000113,
+            "sqliteServiceMs": 4.125166,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 146.0255829999951,
+            "sqliteServiceMs": 4.401771,
+            "gatewayRequests": 1200
+          },
+          {
+            "elapsedMs": 152.3758749999979,
+            "sqliteServiceMs": 4.422898,
+            "gatewayRequests": 1200
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": 0.007375011134011067,
+        "winningPairs": 6,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    },
+    {
+      "scenario": {
+        "name": "metrics-first",
+        "nodes": 200,
+        "count": 1
+      },
+      "baseline": {
+        "medianMs": 593.5896660000144,
+        "sqliteServiceMedianMs": 60.152614,
+        "samples": [
+          {
+            "elapsedMs": 584.3202920000185,
+            "sqliteServiceMs": 57.424881,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 584.0150420000136,
+            "sqliteServiceMs": 57.884202,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 594.929999999993,
+            "sqliteServiceMs": 60.384382,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 593.5896660000144,
+            "sqliteServiceMs": 60.152614,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 580.5773750000226,
+            "sqliteServiceMs": 57.621066,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 587.5047910000139,
+            "sqliteServiceMs": 58.047668,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 622.2487919999985,
+            "sqliteServiceMs": 63.454603,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 606.6314169999969,
+            "sqliteServiceMs": 61.480946,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 597.4748750000144,
+            "sqliteServiceMs": 60.96982,
+            "gatewayRequests": 2266
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 559.8767909999879,
+        "sqliteServiceMedianMs": 27.258847,
+        "samples": [
+          {
+            "elapsedMs": 542.855499999976,
+            "sqliteServiceMs": 25.515956,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 549.3837910000002,
+            "sqliteServiceMs": 26.074734,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 566.8583340000187,
+            "sqliteServiceMs": 28.047469,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 559.8767909999879,
+            "sqliteServiceMs": 27.258847,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 547.351834000001,
+            "sqliteServiceMs": 26.283401,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 565.1337500000081,
+            "sqliteServiceMs": 27.373562,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 552.972958999977,
+            "sqliteServiceMs": 26.475356,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 581.0129580000066,
+            "sqliteServiceMs": 29.003394,
+            "gatewayRequests": 2266
+          },
+          {
+            "elapsedMs": 576.6472500000091,
+            "sqliteServiceMs": 28.3679,
+            "gatewayRequests": 2266
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": 0.05679491563120598,
+        "winningPairs": 9,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    },
+    {
+      "scenario": {
+        "name": "metrics-repeat",
+        "nodes": 200,
+        "count": 1
+      },
+      "baseline": {
+        "medianMs": 292.3615839999984,
+        "sqliteServiceMedianMs": 16.548744,
+        "samples": [
+          {
+            "elapsedMs": 290.8534590000054,
+            "sqliteServiceMs": 16.548744,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 295.3271250000107,
+            "sqliteServiceMs": 16.958721,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 293.02054199998383,
+            "sqliteServiceMs": 16.345825,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 313.3624580000178,
+            "sqliteServiceMs": 18.359995,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 293.9998750000086,
+            "sqliteServiceMs": 16.819289,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 281.81641699999454,
+            "sqliteServiceMs": 14.710054,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 292.3615839999984,
+            "sqliteServiceMs": 16.746445,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 291.53041700000176,
+            "sqliteServiceMs": 16.094126,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 281.6349169999885,
+            "sqliteServiceMs": 15.086611,
+            "gatewayRequests": 866
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 296.5047079999931,
+        "sqliteServiceMedianMs": 11.422652,
+        "samples": [
+          {
+            "elapsedMs": 280.0935420000169,
+            "sqliteServiceMs": 10.136024,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 291.55816700001014,
+            "sqliteServiceMs": 11.38358,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 400.02108299999963,
+            "sqliteServiceMs": 16.41954,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 299.64783299999544,
+            "sqliteServiceMs": 11.422467,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 292.35416700001224,
+            "sqliteServiceMs": 11.422652,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 333.7619999999879,
+            "sqliteServiceMs": 12.810541,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 299.8776249999937,
+            "sqliteServiceMs": 12.003168,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 296.5047079999931,
+            "sqliteServiceMs": 12.120271,
+            "gatewayRequests": 866
+          },
+          {
+            "elapsedMs": 289.5356669999892,
+            "sqliteServiceMs": 10.714823,
+            "gatewayRequests": 866
+          }
+        ]
+      },
+      "assessment": {
+        "medianImprovement": -0.014171232565201697,
+        "winningPairs": 4,
+        "clearBenefit": false,
+        "regression": false
+      },
+      "resultParity": true,
+      "databaseParity": true
+    }
+  ]
+}
