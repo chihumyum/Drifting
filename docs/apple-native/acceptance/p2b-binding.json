@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-28T22:37:12.483Z",
+  "generatedAt": "2026-09-29T00:07:21.397Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "8f3d5809319ba88de11e9b9c6758cbfea0727184",
+    "commit": "d8f6071001f60bd603fdfd0383b1597139cf8400",
     "dirty": true,
-    "fingerprint": "83c2ee30a16c80ca2127a9e904ddae94d26ac40414bfdc6eb90d94da1ad582d7"
+    "fingerprint": "e433e233e1b72704d278eaa8691c231435835cd2a819497eb4018fea256a5fe5"
   },
   "cases": [
     {
@@ -447,7 +447,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 63 tools and the key only in its auth header",
+      "name": "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 64 tools and the key only in its auth header",
       "status": "passed"
     },
     {
@@ -475,7 +475,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 写作助手 registers 63 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
+      "name": "AppKit 写作助手 registers 64 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
       "status": "passed"
     },
     {
@@ -1087,6 +1087,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit a writing-assistant revision of a closed chapter or element reaches what shows it: a chapter still at its 章节模版 revised to the same length becomes 已写, a closed element whose body the assistant fills becomes 已填写 on its category page, and 统计 reads every body again instead of its cached link index; 统计 opened again while a stale index is being read settles instead of staying at 统计中…, a closed 统计 no longer follows settles, and unchanged statistics are not drawn again",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 引用, 无序列表 and 有序列表 toggle through the 格式 menu, shortcuts assigned in 设置 › 快捷键, the toolbar, the prose context menu's 格式 submenu and the slash menu, checked for the caret's block, each as one undo unit that keeps the text, block IDs and a comment anchored on the wrapped paragraph, with both panes drawing the quote indent and the numbered and bulleted markers, and all of it survives a cold reopen",
       "status": "passed"
     },
@@ -1115,6 +1119,14 @@
       "status": "passed"
     },
     {
+      "name": "AppKit a list built one paragraph at a time joins the list right before it (one list numbered 1–3, one undo unit each) and a paragraph right before a list joins it at the start; ⌫ in the empty paragraph a Return left after the list and ⌦ at the end of the list's last item remove that paragraph as one undo unit with the caret at the item's end; a heading made a list is refused with Chinese guidance writing nothing (the slash menu does not offer lists there) while 引用 still takes it; and the undo refusal over another writer's text reads in Chinese",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit rule and list review fixes: ⌫ removing a rule with typing right after it keeps the typed text in order and the caret after it (a stale rule caret is dropped), ⌦ before a rule keeps the caret where it was, a format refusal over read-only content no longer reads as a rule refusal, and Return after an item's paragraph followed by a nested list keeps the ordinary new line instead of splitting the item",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 统计 of a chapter (from its header button) and of a drift (from 视图 › 页面统计) shows the place in the book (第 2 章 / 共 3 章 and its act), canonical words, paragraphs, sentences (CJK and Latin ends, an ellipsis mid-paragraph and at its end), 对白比 over “”, 「」 and straight quotes, the elements the body links with counts (most first; a click opens the element), the chapters and drifts it cites and the bodies that cite it, all as computed by hand, reading every body without opening an owner or writing to the journal",
       "status": "passed"
     },
@@ -1136,6 +1148,38 @@
     },
     {
       "name": "AppKit 便笺栏: 放入便笺栏 in a note's ⋯ in 审阅 pins it to its page's margin (a floating TODO offers none), several stack with the newest on top and 展开 spreads them, a card opens its note and selects a passage's text, a changed body and a resolve show on the card, a deleted note leaves, 移出 and 清空便笺栏 unpin, and the pins and 展开 are kept per page in settings.json through a cold relaunch",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit scrollbar ticks are measured (laying the text out) only when the ticks, the strip or the column change or much of the text does: a typing pause reuses the measured positions while each tick's anchor still follows the text, and a new note measures again",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit ask_user pauses the turn on a question card with its choices and an answer field (the composer's button becomes 回答 and an empty answer is refused); 回答 from a choice or the composer returns the answer as the tool result and the turn continues with one more request; 停止 leaves the card 未回答, records the question and the calls after it as not run and ends the turn; a question still waiting when the panel is reopened reads 未回答, and the registry lists 64 tools",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 补充 while a turn runs is queued below the streamed reply, sent to the model at its next call as the author's message with a runtime note (never in the earlier request), shown as 你（补充） in the same turn without renaming the conversation, makes one more call when the reply had already ended, and returns to the composer when the turn is stopped first",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 在当前工具后停止 lets the running tool finish and records its result, marks the calls after it as not run and ends the turn without another request; pressed while the reply streams, the reply is kept and none of its tool calls run",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit the context indicator shows the latest request's reported input plus output against the window compaction counts with and its 70% threshold (an estimate marked 约 before any report or after a compaction), and Max · 1M 上下文 is offered only for models declaring 1M, switches the window between 200,000 and the declared one and is stored with the conversation",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot 修改 (编辑 menu ⌃⌘I and the prose context menu, only while Copilot is on) opens on the selection or the caret's paragraph: 局部修改 sends the instruction, the text and its neighbours with the key only in the auth header, previews removed and added text, 重写 asks again, 接受 applies it through the chapter's live owner as one Agent-provenance edit that one ⌘Z undoes, a target changed meanwhile is refused writing nothing, 放弃 writes nothing and a request to continue the story is refused without a request; 问 answers in the popover with follow-ups and writes nothing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit Copilot 修改's 生成章节摘要 proposes a summary from the chapter body beside the current one; 放弃 writes nothing and 接受 writes it with setNodeSummary as one field.set original that the chapter page shows, and Copilot's usage records every request",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 听写 in the composer needs the DashScope key from 设置 › 模型服务 › 语音转写 (kept in the Keychain store, shown masked), explains and asks for the microphone only on first use, records a synthetic 16 kHz PCM buffer, sends it as a WAV data URI with the project's names as recognition context and the key only in the authorization header, restores proper nouns from element names and aliases, inserts the text into the composer, keeps a failed piece for 重试 while later pieces land, and refuses a denied microphone in Chinese",
       "status": "passed"
     }
   ],

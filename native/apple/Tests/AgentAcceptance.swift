@@ -16,6 +16,9 @@ final class AgentStubProtocol: URLProtocol {
         var chunk = 7
         /// Extra response headers, e.g. Retry-After.
         var headers: [String: String] = [:]
+        /// Seconds before the response starts, on the loading thread's run
+        /// loop; the request is captured at once.
+        var delay: TimeInterval = 0
     }
     struct Captured {
         let url: URL
@@ -63,6 +66,22 @@ final class AgentStubProtocol: URLProtocol {
         let reply = Self.replies.isEmpty ? nil : Self.replies.removeFirst()
         Self.lock.unlock()
         guard let reply else { client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable)); return }
+        if reply.delay > 0 {
+            pending = reply
+            perform(#selector(deliverPending), with: nil, afterDelay: reply.delay)
+            return
+        }
+        deliver(reply)
+    }
+
+    private var pending: Reply?
+    @objc private func deliverPending() {
+        guard let reply = pending else { return }
+        pending = nil
+        deliver(reply)
+    }
+
+    private func deliver(_ reply: Reply) {
         if let failure = reply.failure { client?.urlProtocol(self, didFailWithError: URLError(failure)); return }
         let response = HTTPURLResponse(url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1",
                                        headerFields: ["content-type": reply.status == 200 ? "text/event-stream" : "application/json"]
@@ -78,7 +97,10 @@ final class AgentStubProtocol: URLProtocol {
         if !reply.hold { client?.urlProtocolDidFinishLoading(self) }
     }
 
-    override func stopLoading() { Self.lock.lock(); Self.stoppedCount += 1; Self.lock.unlock() }
+    override func stopLoading() {
+        if pending != nil { pending = nil; NSObject.cancelPreviousPerformRequests(withTarget: self) }
+        Self.lock.lock(); Self.stoppedCount += 1; Self.lock.unlock()
+    }
 }
 
 /// Synthetic provider streams.
@@ -306,7 +328,7 @@ extension BindingAcceptance {
         try agentAppend()
         try agentPersistence()
         return [
-            "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 63 tools and the key only in its auth header",
+            "AppKit 写作助手 streams one reply from each of DeepSeek, Anthropic and OpenAI through a stubbed URLProtocol, renders its Markdown-light text, and sends each provider's request shape with the model, the Chinese system prompt, the open-chapter line, all 64 tools and the key only in its auth header",
             "AppKit 写作助手 runs a DeepSeek thinking tool loop of list_chapters, read_chapter of the open chapter's live text and an answer, replays reasoning_content inside the turn, shows each tool as an activity line and stops cleanly after 24 tool rounds",
             "AppKit revise_chapter proposal changes nothing until 接受, then applies through Rust into the open editor as one undo step with Agent provenance for its session, turn and call; 拒绝 leaves the text, a refused original shows Rust's message, and the next turn tells the model every outcome",
             "AppKit 停止 mid-stream keeps the partial reply and closes the request, and a missing key, HTTP 401, HTTP 429 and an offline network show Chinese errors without sending or storing the key",
@@ -401,7 +423,7 @@ extension BindingAcceptance {
                 names = (body["tools"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String == "function" ? $0["name"] as? String : nil }
                 try require(request.headers["authorization"] == "Bearer synthetic-openai-key-0003", "OpenAI key was not in its auth header")
             }
-            try require(names == AgentToolRegistry.all.map(\.name) && names.count == 63 && names.contains("revise_chapter"),
+            try require(names == AgentToolRegistry.all.map(\.name) && names.count == 64 && names.contains("revise_chapter"),
                 "\(provider) did not send the tool definitions: \(names)")
             // Parsed and rendered.
             guard let reply = harness.lastReply else { throw LabError.message("\(provider) reply was not recorded") }

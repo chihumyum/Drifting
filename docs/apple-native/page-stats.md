@@ -47,9 +47,12 @@ count model, `workspaceOutline` (book order and acts), the libraries the tab
 host holds, and a link index of every live chapter and drift read with
 `readProjection` one body at a time: live from an open owner, else stored.
 No owner opens and nothing is written. The index is kept per project until a
-chapter or drift body saves, the chapter or drift lists change, a remote
-original is accepted or a version is restored; statistics open at the time
-follow.
+chapter or drift body saves, the writing assistant or Copilot revises one
+(also closed), the chapter or drift lists change, a remote original is
+accepted or a version is restored; statistics open at the time follow. A read
+that went stale while it ran is read again for everyone waiting, so 统计中…
+always settles. Closing the popover lets its statistics go; unchanged
+statistics are not drawn again.
 
 ## 大纲轨道
 
@@ -84,7 +87,10 @@ over the text container's inset and left of a scroller that takes room:
 
 A tick sits at its anchor line's share of the laid-out text height and is
 placed shortly after the prose settles, so ticks follow typing, undo, both
-panes and remote changes. Clicking a tick selects its anchor and scrolls it
+panes and remote changes. Measuring lays the text out, so it happens only
+when the ticks, the strip, the text column or much of the text (over 5%)
+change; a typing pause keeps the measured heights while each tick's anchor
+follows the text. Clicking a tick selects its anchor and scrolls it
 into view; clicks between ticks reach the prose. 审阅, the chapter's 批注
 panel and Copilot decisions reach the ticks through the project's comment
 rows; the writing assistant announces changes of its pending revisions
@@ -114,7 +120,7 @@ project and page, e.g. `node:<id>`); deleting the project removes them.
 
 ## Acceptance
 
-Six programmatic AppKit cases in `native/apple/Tests/ReadingAidsAcceptance.swift`
+Seven programmatic AppKit cases in `native/apple/Tests/ReadingAidsAcceptance.swift`
 (`--reading-aids-only`; [binding report](acceptance/p2b-binding.json)) drive
 the real tab host, pages, editors, Rust workspace and SQLite with synthetic
 prose: every statistic of a chapter, a drift, an element, a category and a
@@ -129,5 +135,8 @@ a click selecting the anchor, and a pending revision ticked and cleared by
 拒绝; and the 便笺栏 from ⋯ in 审阅 (none for a floating TODO), stacking and
 展开, a card selecting its passage, an edit, a resolve and a delete reaching
 the cards, 移出 and 清空便笺栏, and the pins in `settings.json` through a cold
-relaunch. Physical clicks, the popover on screen and the ticks' pixels are not
-covered.
+relaunch; and a typing pause not measuring the ticks again while a new note
+does. `--small-items-only` covers 统计 reading the bodies again after an
+assistant revision of a closed chapter, a stale read settling and a closed
+popover let go. Physical clicks, the popover on screen and the ticks' pixels
+are not covered.

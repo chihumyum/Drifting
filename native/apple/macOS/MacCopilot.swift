@@ -29,6 +29,9 @@ final class MacCopilotSettingsViewController: NSViewController {
         补丁建议还会发送段落中提到的设定（最多 12 个）的编号、名称、别名、分类和简介（截短到 80 字），\
         它们已有补丁（每个最多 10 条）的标题（没有标题时是补丁正文的开头 30 字），以及你拒绝过的补丁的设定名称和标题。\
         不会发送整本书或其他章节。费用、隐私、数据留存和训练条款都由该服务决定。它不会修改正文，每条建议都要你接受或拒绝。
+        编辑 › Copilot 修改（⌃⌘I）只在你使用时发送：局部修改发送所选文字（或光标所在段落）、前后各约 600 字的上下文和你的修改要求；\
+        问发送同样的文字和上下文、你的问题以及此前的问答；生成章节摘要发送这个章节或灵感的标题和正文（过长时只发开头和结尾，共约 16000 字）。\
+        修改和摘要都要你点“接受”才会写入，可以撤销。
         """
     let privacyText = SettingsLayout.detail(MacCopilotSettingsViewController.privacyNote)
     private let storageMessage = SettingsLayout.storageLabel()

@@ -36,6 +36,75 @@ enum AgentContextBudget {
     static func limit(window: Int) -> Int { Int(Double(window) * threshold) }
 }
 
+/// What the context indicator shows for a conversation: the tokens the
+/// model read and wrote at its latest request (the provider's own usage
+/// report, input including cached tokens plus output), against the window
+/// compaction counts with, and the compaction threshold. Before any report,
+/// or once a compaction replaced the history that report covered, the
+/// next request's estimate stands in, marked as such.
+struct AgentContextUsage: Equatable {
+    /// The window compaction counts against.
+    let window: Int
+    /// Older turns are compacted above this many estimated input tokens.
+    let threshold: Int
+    /// Reported input and output of the latest request, or the estimate.
+    let used: Int
+    let reported: Bool
+    let input: Int?
+    let cached: Int?
+    let output: Int?
+    /// The next request's estimated input tokens, as compaction counts it.
+    let estimate: Int?
+    let compactions: Int
+
+    var fraction: Double { window > 0 ? min(1, Double(used) / Double(window)) : 0 }
+
+    /// 12.3% or 0.4%, one decimal below 10%.
+    var percentText: String {
+        let percent = fraction * 100
+        return percent < 10 ? String(format: "%.1f%%", percent) : "\(Int(percent.rounded()))%"
+    }
+
+    /// 上下文 1,234 / 200,000（0.6%）, or 约 … before a usage report.
+    var text: String {
+        let used = AgentUsageTotals.format(self.used), window = AgentUsageTotals.format(self.window)
+        return "上下文 \(reported ? "" : "约 ")\(used) / \(window)（\(percentText)）"
+    }
+
+    /// The detail lines shown on demand.
+    var detail: [String] {
+        var lines: [String] = []
+        if reported {
+            let cachedText = cached.map { "（缓存 \(AgentUsageTotals.format($0))）" } ?? ""
+            lines.append("最近一次请求：输入 \(input.map(AgentUsageTotals.format) ?? "未知")\(cachedText) · 输出 \(output.map(AgentUsageTotals.format) ?? "未知")，由模型服务报告")
+        } else {
+            lines.append("还没有模型服务报告的用量，显示的是按压缩规则估算的下一次请求。")
+        }
+        if let estimate { lines.append("下一次请求估算：约 \(AgentUsageTotals.format(estimate)) tokens") }
+        lines.append("上下文窗口 \(AgentUsageTotals.format(window)) tokens；估算超过 \(AgentUsageTotals.format(threshold))（70%）时压缩较早的对话")
+        lines.append(compactions > 0 ? "本对话已压缩 \(compactions) 次" : "本对话还没有压缩过")
+        return lines
+    }
+
+    /// The latest request's report after the last compaction, else the estimate.
+    static func of(_ conversation: AgentConversation, window: Int, estimate: Int?) -> AgentContextUsage {
+        let marker = conversation.messages.lastIndex { $0.compaction != nil }
+        let compactions = conversation.messages.filter { $0.compaction != nil }.count
+        let latest = conversation.messages.indices.last { index in
+            conversation.messages[index].role == .assistant && conversation.messages[index].usage?.inputTokens != nil
+                && (marker.map { index > $0 } ?? true)
+        }.flatMap { conversation.messages[$0].usage }
+        let threshold = AgentContextBudget.limit(window: window)
+        if let latest, let input = latest.inputTokens {
+            return AgentContextUsage(window: window, threshold: threshold, used: input + (latest.outputTokens ?? 0), reported: true,
+                                     input: input, cached: latest.cachedTokens, output: latest.outputTokens, estimate: estimate,
+                                     compactions: compactions)
+        }
+        return AgentContextUsage(window: window, threshold: threshold, used: estimate ?? 0, reported: false, input: nil, cached: nil,
+                                 output: nil, estimate: estimate, compactions: compactions)
+    }
+}
+
 /// A compaction the conversation records at the point it happened: the
 /// model reads `summary` in place of every message up to `through`.
 struct AgentCompaction: Codable, Equatable {
@@ -83,7 +152,9 @@ enum AgentCompactor {
         let marker = messages.lastIndex { $0.compaction != nil }
         let previous = marker.flatMap { messages[$0].compaction }
         let start = previous.flatMap { compaction in messages.firstIndex { $0.id == compaction.through }.map { $0 + 1 } } ?? 0
-        let turns = messages.indices.filter { $0 >= start && messages[$0].role == .user }
+        // A 补充 belongs to the turn it was added to; only the author's
+        // turn-starting messages split the history.
+        let turns = messages.indices.filter { $0 >= start && messages[$0].role == .user && messages[$0].steer != true }
         guard turns.count > keepTurns else { return nil }
         let split = turns[turns.count - keepTurns]
         let covered = messages[start..<split].filter { $0.compaction == nil && $0.role != .notice }

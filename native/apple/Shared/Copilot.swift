@@ -946,6 +946,9 @@ final class CopilotController {
         if current(run), !call.isFinished { self.run?.call = call }
     }
 
+    /// Copilot 修改's requests are recorded with the analysis runs'.
+    func recordInlineUsage(_ choice: AgentModelChoice, _ reported: AgentUsage?) { recordUsage(choice, reported) }
+
     private func recordUsage(_ choice: AgentModelChoice, _ reported: AgentUsage?) {
         usage.append(AgentUsageRecord(provider: choice.provider, model: choice.model, purpose: .copilot, usage: reported))
         store.saveCopilotUsage(usage)

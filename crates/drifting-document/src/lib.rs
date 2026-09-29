@@ -254,6 +254,9 @@ impl DocumentSession {
         self.apply_history(true)
     }
     fn apply_history(&mut self, redo: bool) -> Result<bool, String> {
+        if !redo {
+            self.refuse_undo_over_foreign_text()?;
+        }
         let relocation = self
             .relocation_history_handle(redo)
             .map(|handle| relocation_history::prepare(self, &handle, redo))

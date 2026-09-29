@@ -13,6 +13,8 @@ extension BindingAcceptance {
         "AppKit 便笺栏: 放入便笺栏 in a note's ⋯ in 审阅 pins it to its page's margin (a floating TODO offers none), several stack with the newest on top and 展开 spreads them, a card opens its note and selects a passage's text, a changed body and a resolve show on the card, a deleted note leaves, 移出 and 清空便笺栏 unpin, and the pins and 展开 are kept per page in settings.json through a cold relaunch",
     ]
 
+    static let readingAidsMarkerLayoutCase = "AppKit scrollbar ticks are measured (laying the text out) only when the ticks, the strip or the column change or much of the text does: a typing pause reuses the measured positions while each tick's anchor still follows the text, and a new note measures again"
+
     static func readingAidsAcceptance() throws -> [String] {
         let saved = (DocumentStore.entityLinkDelay, MacChapterWorkspace.backlinkDelay, WordCountModel.refreshDelay, NativeDocumentView.markerDelay)
         defer {
@@ -30,7 +32,7 @@ extension BindingAcceptance {
         try raMarkers()
         try raProposals()
         try raStickyNotes()
-        return readingAidsCases
+        return readingAidsCases + [readingAidsMarkerLayoutCase]
     }
 
     // MARK: Harness
@@ -508,10 +510,19 @@ extension BindingAcceptance {
         try harness.type(view, "（新增的开头）", at: 0)
         try harness.settled(view, twin)
         try wait { view.markers.first?.range.location == before.location + 7 && twin.markers.first?.range.location == before.location + 7 }
+        // A typing pause reuses the measured positions; the anchor follows.
+        let layouts = view.markerLayouts, anchored = view.markers[0].range.location
+        try harness.type(view, "又", at: 0)
+        try harness.settled(view, twin)
+        try require(view.markerLayouts == layouts && view.markers.first?.range.location == anchored + 1,
+                    "A typing pause measured the ticks again (\(view.markerLayouts - layouts)) or lost the anchor")
+        let fresh = try note(10, "新的批注（合成）")
+        try wait { view.markers.map(\.id).contains(fresh.id) }
+        try require(view.markerLayouts > layouts, "A new note did not measure the ticks")
         // A click selects the anchor.
-        try require(view.revealMarker(view.markers[0]) && view.textView.selectedRange() == view.markers[0].range,
+        try require(view.revealMarker(view.markers[1]) && view.textView.selectedRange() == view.markers[1].range,
                     "The tick did not select its anchor")
-        try require((view.textView.string as NSString).substring(with: view.markers[0].range) == "第30", "The tick names other text")
+        try require((view.textView.string as NSString).substring(with: view.markers[1].range) == "第30", "The tick names other text")
         // The 全书长卷's rows have no strip.
         let row = NativeDocumentView(core: host.activeCore!, minimumTextHeight: 48, growsWithText: true)
         try require(row.markerStrip == nil, "A long page's row has scrollbar markers")

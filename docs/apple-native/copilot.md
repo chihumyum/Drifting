@@ -2,9 +2,11 @@
 
 Copilot reads what the author has just written and proposes new elements
 (设定抽取) and element state changes (补丁建议) as suggestions in 审阅. It
-never writes prose; every suggestion waits for 接受 or 拒绝. Native only: no
-Tauri interoperability is kept, and the renderer's inline popover, bottom
-menu, summaries and hosted tiers are not ported.
+never writes prose on its own; every suggestion waits for 接受 or 拒绝, and
+[Copilot 修改](#copilot-修改) rewrites, answers or summarises only when the
+author asks and writes only on 接受. Native only: no Tauri interoperability is
+kept; the renderer's bottom menu, rolling section summaries, 本次执行 of
+refused new content and hosted tiers are not ported.
 
 ## Settings
 
@@ -20,7 +22,9 @@ the lab's `settings.json`; off by default.
 - 输出语言: 跟随手稿, 简体中文, 繁體中文, English, 日本語, 한국어, Français.
 - 在灵感中启用 (default off): drift bodies are analysed too.
 - The pane lists everything sent to the chosen provider and says that
-  costs, privacy and retention follow that provider: the analysed paragraphs
+  costs, privacy and retention follow that provider (Copilot 修改 included:
+  the text, its neighbours and the instruction or questions, or the body for
+  a summary): the analysed paragraphs
   (at most 12 and 6,000 characters); for 设定抽取 every live element name and
   alias, every category name and the rejected element names; for 补丁建议 the
   mentioned elements' identities, names, aliases, categories and summaries
@@ -66,6 +70,32 @@ the lab's `settings.json`; off by default.
 - A failed run keeps its paragraphs for the next one. The status beside
   历史版本… reads Copilot 正在分析…, Copilot 已提出 N 条建议, Copilot 没有新建议 or
   Copilot 出错：….
+
+## Copilot 修改
+
+编辑 › Copilot 修改… (⌃⌘I, since ⇧⌘I is Copilot 分析) and the prose context
+menu of a chapter or drift open a popover at the selection, or at the
+caret's paragraph, while Copilot is on (`CopilotInline.swift`,
+`MacCopilotInline.swift`). Requests use Copilot's provider, model, key, retry
+policy and usage record, answered whole.
+
+- **局部修改**: the instruction, the text and about 600 characters of the
+  paragraphs above and below go to the model, which returns only the
+  rewritten text (same language and paragraph count, no new story content).
+  A plain request to continue the story is refused without a request. The
+  preview marks removed text struck on a red wash and added text on a green
+  one. 接受 applies it through the body's live owner with
+  `workspaceAgent applyChanges` (Copilot's Agent identity, one undo step
+  that ⌘Z undoes), the replaced text widened with its neighbours until it is
+  unique; it is refused, writing nothing, when that text changed meanwhile.
+  重写 asks again with the same instruction; 放弃 writes nothing.
+- **问**: the question, the text and its neighbours (with earlier questions
+  and answers of the popover) go to the model; the answer shows in the
+  popover and nothing is written.
+- **生成章节摘要** (生成摘要 for a drift): the title and body (over 16,000
+  characters, its start and end) go to the model; the proposal shows beside
+  the current summary. 接受 writes it with `setNodeSummary` (one `field.set`
+  original); 放弃 writes nothing.
 
 ## Review
 
@@ -116,3 +146,11 @@ second create, 拒绝 refused while what that 接受 created is live and
 recorded once it is in the trash, typing during a request, cancellation on
 close, retries and errors, the privacy note's list and the drift switch.
 Live providers, physical input and panels on screen are not covered.
+Copilot 修改 is covered by two cases in
+`native/apple/Tests/AssistantExtrasAcceptance.swift` (`--assistant-extras-only`):
+off by default, the menu (⌃⌘I) and context item, the edit request (text,
+neighbours, key only in the auth header), the diff preview, 重写, 接受 with
+Agent provenance and one undo, a changed target refused writing nothing,
+放弃, a refused continuation, 问 with a follow-up writing nothing, and the
+summary's 放弃 and 接受 (one `field.set node`) shown on the chapter page,
+with every request's usage recorded.

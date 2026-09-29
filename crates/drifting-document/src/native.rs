@@ -186,6 +186,9 @@ impl DocumentSession {
                 block.range.location <= end && end <= block.range.location + block.range.length
             })
             .ok_or("No text block at selection end")?;
+        if let Some(result) = self.remove_empty_root_after_container(&view, &edit, first, last)? {
+            return Ok(result);
+        }
         let block = &view.blocks[first];
         if !block.editable {
             return Err("Unsupported block is preserved read-only".into());
@@ -200,6 +203,7 @@ impl DocumentSession {
                 after,
                 forward: map.clone(),
                 relocation,
+                rebuilt: false,
             };
             return Ok((map, Some(lineage)));
         }
@@ -454,5 +458,56 @@ mod tests {
         assert!(!doc.undo());
         assert!(doc.redo());
         assert_eq!(doc.native_projection().unwrap().text, "甲星河乙\n尾段");
+    }
+}
+
+impl DocumentSession {
+    /// Deleting only the separator between the last block of a quote or list
+    /// and an empty top-level paragraph after it removes that paragraph (⌫
+    /// right after leaving a list, or forward delete at its end). Other
+    /// joins across containers keep their existing rules.
+    fn remove_empty_root_after_container(
+        &mut self,
+        view: &NativeProjection,
+        edit: &NativeReplacement,
+        first: usize,
+        last: usize,
+    ) -> Result<Option<(crate::NativeEditMap, Option<crate::lineage::Lineage>)>, String> {
+        let (left, right) = (&view.blocks[first], &view.blocks[last]);
+        if !edit.text.is_empty()
+            || edit.range.length != 1
+            || last != first + 1
+            || edit.range.location != left.range.location + left.range.length
+            || left.containers.is_empty()
+            || !right.containers.is_empty()
+            || !right.editable
+            || right.kind != "paragraph"
+            || right.range.length != 0
+        {
+            return Ok(None);
+        }
+        let Some(id) = right.id.as_deref() else {
+            return Ok(None);
+        };
+        let txn = self.doc.transact();
+        let element = self.find_block(&txn, id)?;
+        let Some(index) = self
+            .root
+            .children(&txn)
+            .position(|node| matches!(node, XmlOut::Element(ref e) if *e == element))
+        else {
+            return Ok(None);
+        };
+        drop(txn);
+        {
+            let mut txn = self.doc.transact_mut_with(LOCAL);
+            self.root.remove_range(&mut txn, index as u32, 1);
+        }
+        self.undo.reset();
+        self.revision += 1;
+        Ok(Some((
+            crate::NativeEditMap::new(view, &self.native_projection()?, edit),
+            None,
+        )))
     }
 }

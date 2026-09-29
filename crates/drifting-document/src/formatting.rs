@@ -472,6 +472,7 @@ impl DocumentSession {
                 after: self.capture_lineage(&after.blocks[first..=last])?,
                 forward: mapping.clone(),
                 relocation: None,
+                rebuilt: true,
             })
         } else {
             None

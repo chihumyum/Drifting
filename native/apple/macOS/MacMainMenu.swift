@@ -95,7 +95,7 @@ enum MacMenuCommand: String, CaseIterable {
     case find = "edit.find", findNext = "edit.findNext", findPrevious = "edit.findPrevious", findSelection = "edit.findSelection"
     case search = "edit.search", elements = "edit.elements", storylines = "edit.storylines", drifts = "edit.drifts"
     case relationTypes = "edit.relationTypes", addComment = "edit.addComment", comments = "edit.comments"
-    case copilot = "edit.copilot", history = "edit.history"
+    case copilot = "edit.copilot", copilotInline = "edit.copilotInline", history = "edit.history"
     case bold = "format.bold", italic = "format.italic", underline = "format.underline", strike = "format.strike"
     case bodyText = "format.paragraph", heading1 = "format.heading1", heading2 = "format.heading2", heading3 = "format.heading3"
     case blockquote = "format.blockquote", bulletList = "format.bulletList", orderedList = "format.orderedList"
@@ -146,6 +146,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .addComment: return "添加批注…"
         case .comments: return "批注列表"
         case .copilot: return "Copilot 分析"
+        case .copilotInline: return "Copilot 修改…"
         case .history: return "历史版本…"
         case .bold: return "加粗"
         case .italic: return "斜体"
@@ -224,6 +225,8 @@ enum MacMenuCommand: String, CaseIterable {
         case .relationTypes: return MenuShortcut(key: "r", flags: shift)
         case .addComment: return MenuShortcut(key: "m", flags: option)
         case .copilot: return MenuShortcut(key: "i", flags: shift)
+        // ⇧⌘I is Copilot 分析, so Copilot 修改 takes ⌃⌘I.
+        case .copilotInline: return MenuShortcut(key: "i", flags: [.command, .control])
         case .history: return MenuShortcut(key: "y", flags: option)
         case .bold: return MenuShortcut(key: "b", flags: command)
         case .italic: return MenuShortcut(key: "i", flags: command)
@@ -268,6 +271,7 @@ enum MacMenuCommand: String, CaseIterable {
         case .selectAll: return #selector(NSText.selectAll(_:))
         case .addComment: return #selector(ProseTextView.addProseComment(_:))
         case .copilot: return #selector(ProseTextView.copilotAnalyze(_:))
+        case .copilotInline: return #selector(ProseTextView.copilotInlineEdit(_:))
         case .bold: return #selector(ProseTextView.boldProse(_:))
         case .italic: return #selector(ProseTextView.italicProse(_:))
         case .underline: return #selector(ProseTextView.underlineProse(_:))
@@ -349,7 +353,7 @@ enum MacMainMenu {
                 nil, .pageSetup, .print]),
         ("项目", [.shelf, .projectTrash, nil, .projectProfile, .projectDelete]),
         ("编辑", [.undo, .redo, .cut, .copy, .paste, .selectAll, nil, .find, .findNext, .findPrevious, .findSelection, nil,
-                .search, .elements, .storylines, .drifts, .relationTypes, nil, .addComment, .comments, .copilot, nil, .history]),
+                .search, .elements, .storylines, .drifts, .relationTypes, nil, .addComment, .comments, .copilot, .copilotInline, nil, .history]),
         ("格式", [.bold, .italic, .underline, .strike, nil, .bodyText, .heading1, .heading2, .heading3, nil,
                 .blockquote, .bulletList, .orderedList, .insertRule, nil, .alignLeft, .alignCenter, .alignRight, nil, .indentIncrease, .indentDecrease, nil, .link, .removeLink]),
         ("视图", [.projectHome, nil, .back, .forward, .previousTab, .nextTab, nil, .agent, .materials, .review, .board, .storyGraph, .wholeBook, .elementOverview, nil, .bottomTimeline, .plotPlanner, nil,

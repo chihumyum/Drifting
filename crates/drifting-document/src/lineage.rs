@@ -25,6 +25,32 @@ struct Block {
 pub(crate) struct Layout(Vec<Block>);
 
 impl Layout {
+    pub(crate) fn block_ids(&self) -> Vec<String> {
+        self.0.iter().map(|block| block.id.clone()).collect()
+    }
+
+    /// Whether any text item here was created by another client and is not
+    /// among `earlier`'s items (text another writer added since `earlier`).
+    pub(crate) fn has_new_foreign_items(&self, earlier: &Self, local: yrs::ClientID) -> bool {
+        let known: Vec<(yrs::ClientID, u32, u32)> = earlier
+            .0
+            .iter()
+            .flat_map(|block| &block.spans)
+            .map(|span| (span.id.client, span.id.clock, span.id.clock + span.length))
+            .collect();
+        self.0.iter().flat_map(|block| &block.spans).any(|span| {
+            if span.id.client == local {
+                return false;
+            }
+            // Every unit of the span must lie in a known item run.
+            (span.id.clock..span.id.clock + span.length).any(|clock| {
+                !known.iter().any(|(client, start, end)| {
+                    *client == span.id.client && *start <= clock && clock < *end
+                })
+            })
+        })
+    }
+
     /// Item splitting is an internal storage detail. Compare continuous clocks,
     /// text-type identities and lengths rather than the current run boundaries.
     pub(crate) fn same_items(&self, other: &Self) -> bool {
@@ -58,6 +84,9 @@ pub(crate) struct Lineage {
     pub after: Layout,
     pub forward: NativeEditMap,
     pub relocation: Option<crate::relocation_history::HistoryHandle>,
+    /// The edit rebuilt whole leaves under their public IDs (heading, quote
+    /// or list changes); undoing it restores the originals beside them.
+    pub rebuilt: bool,
 }
 
 impl Span {

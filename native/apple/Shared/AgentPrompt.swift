@@ -6,7 +6,7 @@ import Foundation
 /// the project's 作者规则 and the conversation's 工作记忆 and 任务计划, and a
 /// note on the project's MCP tools when there are any.
 enum AgentPrompt {
-    static let version = 6
+    static let version = 7
 
     private static func clean(_ value: String, _ limit: Int) -> String {
         let text = value.replacingOccurrences(of: "\u{0000}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,6 +28,8 @@ enum AgentPrompt {
             "revise_* 只替换已有文字：修改前先读取最新正文，currentText 必须是最新正文中逐字存在的连续片段（包括标点和空格），并且足够长、能唯一定位；同一个提案里的多处修改不能重叠。需要新段落时，在 revisedText 中使用换行符。",
             "在正文末尾续写新段落（包括写入空白正文）用 append_to_body，每行成为一个新段落。新建章节时可以用 create_chapter 的 text 附带开头正文。",
             "作者消息前的【运行提示】由应用自动附加：作者当前打开的页面，以及此前修改提案的处理结果（已接受、已拒绝或应用失败及原因）。被拒绝的提案不要原样重复提出；应用失败时先重新读取正文，再判断是否需要重新提出。",
+            "需要作者做决定、而读取工具查不到答案时，可以用 ask_user 问作者一个具体的问题（可以给 2–6 个选项）；作者回答后本轮继续，没有回答时本轮停止。不要用它确认修改提案，也不要为能读到的事实提问。",
+            "作者可以在你工作时补充或纠正要求：它们作为作者消息出现在本轮中（前面附有【运行提示】），请结合它们继续当前任务，不要重新开始已经完成的步骤。",
             "工具失败时只重试一次；同一处原文第二次失败，就停止修改那一处，继续其他工作，并在回复里简短说明。",
             "不要自行设定全书的风格、情节、设定、视角、时态、语气或范围要求；这些由作者决定，只来自作者的请求和项目字段。",
             "思考保持简短，围绕作品本身：故事、人物、连贯性、结构和语言。材料足够时就行动，不要反复复核已经确定的决定，也不要复述整章内容。",

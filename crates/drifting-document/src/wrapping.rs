@@ -19,8 +19,13 @@ struct LeafCopy {
 }
 
 enum Change {
-    /// Wrap root children `index..index + copies.len()` in a new container.
-    Wrap { index: u32 },
+    /// Wrap root children `index..index + copies.len()` in a new container,
+    /// or join the container of the same kind right before them (appending)
+    /// or right after them (prepending).
+    Wrap {
+        index: u32,
+        join: Option<(XmlElementRef, bool)>,
+    },
     /// Lift children `start..start + copies.len()` of the root container at
     /// `container_index`, which holds `length` children.
     Lift {
@@ -91,6 +96,9 @@ impl DocumentSession {
             if !matches!(block.kind.as_str(), "paragraph" | "heading") {
                 return Err("Quotes and lists apply to paragraphs and headings".into());
             }
+            if tag != "blockquote" && block.kind == "heading" {
+                return Err("A heading cannot become a list item".into());
+            }
             leaves.push(self.editable_block(&txn, block.id.as_deref().ok_or("Missing block ID")?)?);
         }
         let list = tag != "blockquote";
@@ -148,9 +156,17 @@ impl DocumentSession {
                 .map(|leaf| root_index(&self.root, &txn, leaf))
                 .collect::<Option<_>>()
                 .ok_or("Block left the root")?;
-            Change::Wrap {
-                index: consecutive(&indices).ok_or("Select consecutive blocks")?,
-            }
+            let index = consecutive(&indices).ok_or("Select consecutive blocks")?;
+            let same = |at: u32| match self.root.get(&txn, at) {
+                Some(XmlOut::Element(element)) if element.tag().as_ref() == tag => Some(element),
+                _ => None,
+            };
+            let join = index
+                .checked_sub(1)
+                .and_then(same)
+                .map(|element| (element, true))
+                .or_else(|| same(index + indices.len() as u32).map(|element| (element, false)));
+            Change::Wrap { index, join }
         } else {
             return Err("Quotes and lists wrap top-level paragraphs and headings".into());
         };
@@ -197,24 +213,40 @@ impl DocumentSession {
                 }
             };
             match change {
-                Change::Wrap { index } => {
-                    let wrapper = root.insert(&mut txn, index, XmlElementPrelim::empty(tag));
-                    for copy in copies {
+                Change::Wrap { index, join } => {
+                    let (wrapper, first_at, originals) = match join {
+                        Some((container, true)) => {
+                            let end = container.len(&txn);
+                            (container, end, index)
+                        }
+                        Some((container, false)) => (container, 0, index),
+                        None => (
+                            root.insert(&mut txn, index, XmlElementPrelim::empty(tag)),
+                            0,
+                            index + 1,
+                        ),
+                    };
+                    for (n, copy) in copies.into_iter().enumerate() {
                         let wrapper = wrapper.clone();
+                        let at = first_at + n as u32;
                         build(
                             &mut txn,
                             &move |txn, leaf_tag| {
-                                let host = if list {
-                                    wrapper.push_back(txn, XmlElementPrelim::empty("listItem"))
+                                if list {
+                                    let item = wrapper.insert(
+                                        txn,
+                                        at,
+                                        XmlElementPrelim::empty("listItem"),
+                                    );
+                                    item.push_back(txn, XmlElementPrelim::empty(leaf_tag))
                                 } else {
-                                    wrapper.clone()
-                                };
-                                host.push_back(txn, XmlElementPrelim::empty(leaf_tag))
+                                    wrapper.insert(txn, at, XmlElementPrelim::empty(leaf_tag))
+                                }
                             },
                             copy,
                         );
                     }
-                    root.remove_range(&mut txn, index + 1, count);
+                    root.remove_range(&mut txn, originals, count);
                 }
                 Change::Lift {
                     container,
@@ -267,6 +299,7 @@ impl DocumentSession {
             after: self.capture_lineage(&after.blocks[first..=last])?,
             forward: mapping.clone(),
             relocation: None,
+            rebuilt: true,
         };
         self.finish_local_edit(
             comments,
@@ -366,6 +399,7 @@ impl DocumentSession {
             after: self.capture_lineage(&after.blocks[first..=last])?,
             forward: mapping.clone(),
             relocation: None,
+            rebuilt: true,
         };
         self.finish_local_edit(
             comments,

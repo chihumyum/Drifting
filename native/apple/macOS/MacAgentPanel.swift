@@ -19,6 +19,22 @@ final class MacAgentPanelView: NSView {
     let composer = AgentComposerTextView()
     let sendButton = NSButton(title: "发送", target: nil, action: nil)
     let stopButton = NSButton(title: "停止", target: nil, action: nil)
+    /// Ends the turn once the running tool returns.
+    let stopAfterToolButton = NSButton(title: "在当前工具后停止", target: nil, action: nil)
+    /// Tokens the latest request used against the model's context window.
+    let contextLabel = NSTextField(labelWithString: "")
+    /// Max · 1M 上下文 for models that declare a 1M window.
+    let maxContextCheckbox = NSButton(checkboxWithTitle: "Max · 1M 上下文", target: nil, action: nil)
+    /// 听写: records, transcribes and inserts into the composer.
+    let micButton = NSButton(title: "听写", target: nil, action: nil)
+    let dictationLabel = NSTextField(labelWithString: "")
+    let dictationRetryButton = NSButton(title: "重试", target: nil, action: nil)
+    let dictationSetupButton = NSButton(title: "设置…", target: nil, action: nil)
+    private let dictationRow = NSStackView()
+    /// The composer's dictation, set by the owner; nil hides the button.
+    var dictation: VoiceDictation? { didSet { bindDictation() } }
+    /// Opens 设置 › 模型服务 (the transcription key).
+    var onOpenSpeechSettings: (() -> Void)?
     /// Shown after the round limit stopped a turn with unfinished plan steps.
     let continueButton = NSButton(title: "继续", target: nil, action: nil)
     let memorySections = AgentMemorySectionsView()
@@ -29,6 +45,8 @@ final class MacAgentPanelView: NSView {
     private let scroll = NSScrollView()
     private let documentView = AgentFlippedView()
     private var streamingRow: AgentMessageRow?
+    /// 补充 queued for the model's next call, after the streamed row.
+    private var queuedRows: [NSView] = []
     /// What the transcript shows: its conversation, messages in order and
     /// each shown proposal as drawn. Appends and proposal changes update
     /// only the rows they touch.
@@ -42,6 +60,12 @@ final class MacAgentPanelView: NSView {
         /// MCP and memory approval cards by message, as drawn, and whether
         /// each could still be answered.
         var approvals: [String: ApprovalDrawn]
+        /// Question cards by message, as drawn.
+        var questions: [String: QuestionDrawn]
+    }
+    private struct QuestionDrawn: Equatable {
+        let question: AgentQuestion
+        let answerable: Bool
     }
     private struct ApprovalDrawn: Equatable {
         let invocation: AgentMcpInvocation?
@@ -74,6 +98,10 @@ final class MacAgentPanelView: NSView {
                                      (settingsButton, "agent-settings", #selector(openSettings)),
                                      (sendButton, "agent-send", #selector(send)),
                                      (stopButton, "agent-stop", #selector(stop)),
+                                     (stopAfterToolButton, "agent-stop-after-tool", #selector(stopAfterTool)),
+                                     (micButton, "agent-dictation", #selector(toggleDictation)),
+                                     (dictationRetryButton, "agent-dictation-retry", #selector(retryDictation)),
+                                     (dictationSetupButton, "agent-dictation-setup", #selector(openSpeechSettings)),
                                      (continueButton, "agent-continue", #selector(continueTask))] {
             button.target = self; button.action = action
             button.setAccessibilityIdentifier(id)
@@ -98,6 +126,17 @@ final class MacAgentPanelView: NSView {
         modelRow.spacing = 6
         let reasoningRow = NSStackView(views: [thinkingPopup, effortPopup])
         reasoningRow.spacing = 6
+        contextLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        contextLabel.textColor = .secondaryLabelColor
+        contextLabel.lineBreakMode = .byTruncatingTail
+        contextLabel.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        contextLabel.setAccessibilityIdentifier("agent-context")
+        maxContextCheckbox.target = self; maxContextCheckbox.action = #selector(pickMaxContext)
+        maxContextCheckbox.controlSize = .small
+        maxContextCheckbox.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        maxContextCheckbox.setAccessibilityIdentifier("agent-max-context")
+        let contextRow = NSStackView(views: [contextLabel, NSView(), maxContextCheckbox])
+        contextRow.spacing = 6
 
         transcript.orientation = .vertical; transcript.alignment = .leading; transcript.spacing = 10
         transcript.translatesAutoresizingMaskIntoConstraints = false
@@ -133,13 +172,30 @@ final class MacAgentPanelView: NSView {
         sendButton.keyEquivalent = ""
         continueButton.toolTip = "按任务计划开始新的一轮"
         continueButton.isHidden = true
+        stopButton.toolTip = "立即停止：正在生成的回复保留已收到的部分，正在运行的工具完成后其余工具不再执行"
+        stopAfterToolButton.toolTip = "让正在运行的工具安全完成后结束本轮，不再调用模型或其他工具"
+        stopAfterToolButton.isHidden = true
+        micButton.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "听写")
+        micButton.imagePosition = .imageLeading
+        micButton.toolTip = "听写：录音后转写到输入框，并按本项目的设定名校正专有名词"
+        micButton.isHidden = true
+        dictationLabel.font = .systemFont(ofSize: 11)
+        dictationLabel.textColor = .secondaryLabelColor
+        dictationLabel.lineBreakMode = .byTruncatingTail
+        dictationLabel.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        dictationLabel.setAccessibilityIdentifier("agent-dictation-status")
+        for view in [dictationLabel, NSView(), dictationRetryButton, dictationSetupButton] { dictationRow.addArrangedSubview(view) }
+        dictationRow.spacing = 6
+        dictationRow.isHidden = true
         memorySections.present = { [weak self] alert, done in self?.present(alert, done) }
-        let footer = NSStackView(views: [statusLabel, NSView(), stopButton, continueButton, sendButton])
+        let footer = NSStackView(views: [micButton, statusLabel, NSView(), stopAfterToolButton, stopButton, continueButton, sendButton])
         footer.spacing = 6
 
-        let stack = NSStackView(views: [header, conversationRow, manageRow, modelRow, reasoningRow, memorySections, scroll, composerScroll, footer])
+        let stack = NSStackView(views: [header, conversationRow, manageRow, modelRow, reasoningRow, contextRow, memorySections, scroll,
+                                        composerScroll, dictationRow, footer])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
-        stack.setCustomSpacing(12, after: reasoningRow)
+        stack.setCustomSpacing(6, after: reasoningRow)
+        stack.setCustomSpacing(12, after: contextRow)
         stack.setCustomSpacing(12, after: memorySections)
         stack.setCustomSpacing(10, after: scroll)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -153,6 +209,8 @@ final class MacAgentPanelView: NSView {
             conversationRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             modelRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             reasoningRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            contextRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            dictationRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             memorySections.widthAnchor.constraint(equalTo: stack.widthAnchor),
             providerPopup.widthAnchor.constraint(equalToConstant: 104),
             thinkingPopup.widthAnchor.constraint(equalToConstant: 118),
@@ -200,6 +258,7 @@ final class MacAgentPanelView: NSView {
     func reload() {
         reloadConversations()
         reloadChoice()
+        updateContext()
         memorySections.reloadConversation()
         if let controller, let conversation = controller.current, let rendered, rendered.conversation == conversation.id,
            !rendered.messages.isEmpty, conversation.messages.count >= rendered.messages.count,
@@ -215,6 +274,7 @@ final class MacAgentPanelView: NSView {
     private func rebuild() {
         for child in transcript.arrangedSubviews { transcript.removeArrangedSubview(child); child.removeFromSuperview() }
         streamingRow = nil
+        queuedRows = []
         rendered = nil
         guard let controller else {
             emptyLabel.stringValue = "选择一个项目后，写作助手会在这里工作。"
@@ -231,9 +291,23 @@ final class MacAgentPanelView: NSView {
         if let conversation {
             for message in messages { rows(for: message, in: conversation, shown: &shown).forEach(add) }
             rendered = Rendered(conversation: conversation.id, messages: messages.map(\.id), proposals: shown,
-                                memories: Self.memories(conversation.messages), approvals: approvals(conversation.messages))
+                                memories: Self.memories(conversation.messages), approvals: approvals(conversation.messages),
+                                questions: questions(conversation.messages))
         }
         addStreamingRow()
+    }
+
+    private func questions(_ messages: [AgentMessage]) -> [String: QuestionDrawn] {
+        Dictionary(messages.compactMap { message in
+            message.question.map { (message.id, QuestionDrawn(question: $0, answerable: controller?.waitingQuestion == message.id)) }
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func questionCard(_ messageID: String, _ question: AgentQuestion) -> AgentQuestionCard {
+        let answerable = controller?.waitingQuestion == messageID && question.state == .waiting
+        return AgentQuestionCard(messageID: messageID, question: question, answerable: answerable) { [weak self] answer in
+            self?.controller?.answerQuestion(messageID, answer: answer)
+        }
     }
 
     private func approvals(_ messages: [AgentMessage]) -> [String: ApprovalDrawn] {
@@ -274,12 +348,17 @@ final class MacAgentPanelView: NSView {
             if let invocation = approval.invocation { replace("agent-mcp-approval-\(id)", with: approvalCard(id, invocation)) }
             if let memory = approval.memory { replace("agent-memory-approval-\(id)", with: memoryApprovalCard(id, memory)) }
         }
+        let asked = questions(conversation.messages)
+        for (id, drawnQuestion) in asked where previous.questions[id] != nil && previous.questions[id] != drawnQuestion {
+            replace("agent-question-\(id)", with: questionCard(id, drawnQuestion.question))
+        }
+        removeQueuedRows()
         if let streamingRow { transcript.removeArrangedSubview(streamingRow); streamingRow.removeFromSuperview(); self.streamingRow = nil }
         for message in conversation.messages.dropFirst(previous.messages.count) {
             rows(for: message, in: conversation, shown: &shown).forEach(add)
         }
         rendered = Rendered(conversation: conversation.id, messages: conversation.messages.map(\.id), proposals: shown,
-                            memories: Self.memories(conversation.messages), approvals: drawn)
+                            memories: Self.memories(conversation.messages), approvals: drawn, questions: asked)
         addStreamingRow()
     }
 
@@ -304,7 +383,8 @@ final class MacAgentPanelView: NSView {
     private func rows(for message: AgentMessage, in conversation: AgentConversation, shown: inout [String: AgentProposal]) -> [NSView] {
         switch message.role {
         case .user:
-            return [AgentMessageRow(identifier: "agent-message-\(message.id)", heading: "你", text: message.text, markdown: false, wash: true)]
+            return [AgentMessageRow(identifier: "agent-message-\(message.id)", heading: message.steer == true ? "你（补充）" : "你",
+                                    text: message.text, markdown: false, wash: true)]
         case .assistant:
             guard !message.text.isEmpty else { return [] }
             return [AgentMessageRow(identifier: "agent-message-\(message.id)", heading: nil, text: message.text, markdown: true, wash: false)]
@@ -320,6 +400,7 @@ final class MacAgentPanelView: NSView {
             }
             return views
         case .notice:
+            if let question = message.question { return [questionCard(message.id, question)] }
             if let invocation = message.mcp { return [approvalCard(message.id, invocation)] }
             if let request = message.memoryApproval { return [memoryApprovalCard(message.id, request)] }
             if let compaction = message.compaction {
@@ -349,25 +430,79 @@ final class MacAgentPanelView: NSView {
         view.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
     }
 
-    /// Only the streamed row and the status line change per delta.
+    /// Only the streamed row, the queued 补充 and the status line change per delta.
     func updateStreaming() {
         if let controller, let row = streamingRow {
             let text = controller.streamingText
             row.show(text.isEmpty ? (controller.streamingThinking.isEmpty ? "" : "（正在思考…）") : text, markdown: true)
             row.isHidden = text.isEmpty && controller.streamingThinking.isEmpty
         }
+        showQueuedSteers()
+        // 补充 a turn did not deliver go back into the composer.
+        if let unsent = controller?.takeUnsentSteers() {
+            let current = composer.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            composer.string = current.isEmpty ? unsent : composer.string + "\n" + unsent
+        }
         updateControls()
         scrollToEnd()
+    }
+
+    private func removeQueuedRows() {
+        for row in queuedRows { transcript.removeArrangedSubview(row); row.removeFromSuperview() }
+        queuedRows = []
+    }
+
+    /// 补充 waiting for the model's next call, below the streamed row.
+    private func showQueuedSteers() {
+        let steers = controller?.queuedSteers ?? []
+        if queuedRows.count == steers.count, zip(queuedRows, steers).allSatisfy({ ($0 as? AgentMessageRow)?.plainText == $1 }) { return }
+        removeQueuedRows()
+        for (index, text) in steers.enumerated() {
+            let row = AgentMessageRow(identifier: "agent-steer-queued-\(index)", heading: "你（补充，等待送达）", text: text, markdown: false, wash: true)
+            row.alphaValue = 0.7
+            queuedRows.append(row)
+            add(row)
+        }
+    }
+
+    /// The context indicator: the latest request's tokens against the window.
+    private func updateContext() {
+        let choice = controller?.current?.choice.normalized() ?? .standard
+        maxContextCheckbox.state = choice.maxContext ? .on : .off
+        maxContextCheckbox.toolTip = choice.offersMaxContext
+            ? "开启后按当前模型声明的完整上下文窗口（最高约 100 万 token）计算，较晚才压缩较早的对话；关闭时按 20 万 token 标准窗口。只影响之后的请求。"
+            : "当前模型不支持 100 万 token 上下文。"
+        guard let usage = controller?.contextUsage(estimate: controller?.isRunning != true) else {
+            contextLabel.stringValue = controller == nil ? "" : "上下文 —"
+            contextLabel.toolTip = nil
+            return
+        }
+        contextLabel.stringValue = usage.text
+        contextLabel.toolTip = usage.detail.joined(separator: "\n")
+        contextLabel.textColor = usage.fraction >= 0.9 ? .systemRed : usage.fraction >= 0.7 ? .systemOrange : .secondaryLabelColor
     }
 
     private func updateControls() {
         let running = controller?.isRunning == true
         let hasProject = controller != nil
-        statusLabel.stringValue = controller?.activity ?? (running ? "正在回复…" : hasProject ? "⌘↩ 发送" : "")
+        let asking = controller?.waitingQuestion != nil
+        if controller?.isStoppingAfterTool == true {
+            statusLabel.stringValue = "将在当前工具完成后停止…"
+        } else {
+            statusLabel.stringValue = controller?.activity ?? (running ? "正在回复…" : hasProject ? "⌘↩ 发送" : "")
+        }
+        sendButton.title = asking ? "回答" : running ? "补充" : "发送"
+        sendButton.toolTip = asking ? "把输入框里的文字作为对写作助手问题的回答"
+            : running ? "把补充或纠正加入当前任务，在写作助手下一次调用模型时送达" : nil
+        composer.setAccessibilityLabel(asking ? "回答写作助手的问题" : running ? "补充或纠正正在执行的任务" : "给写作助手的消息")
         stopButton.isHidden = !running
         stopButton.isEnabled = running && controller?.isStopping != true
+        stopAfterToolButton.isHidden = !running
+        stopAfterToolButton.isEnabled = running && controller?.isStopping != true && controller?.isStoppingAfterTool != true
         continueButton.isHidden = controller?.canContinue != true
-        sendButton.isEnabled = hasProject && !running && !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let typed = !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let steerable = running && controller?.isStopping != true && controller?.isStoppingAfterTool != true
+        sendButton.isEnabled = hasProject && typed && (!running || asking || steerable)
         composer.isEditable = hasProject
         for control in [conversationPopup, newButton, providerPopup, modelPopup] as [NSControl] { control.isEnabled = hasProject && !running }
         // A conversation is renamed or deleted once it is written (a
@@ -378,7 +513,9 @@ final class MacAgentPanelView: NSView {
         let model = controller?.current?.choice.option ?? AgentModelChoice.standard.option
         thinkingPopup.isEnabled = hasProject && !running && model.reasoning.thinkingModes.count > 1
         effortPopup.isEnabled = hasProject && !running && !model.reasoning.efforts.isEmpty
+        maxContextCheckbox.isEnabled = hasProject && !running && AgentModelChoice.offersMaxContext(model)
         settingsButton.isEnabled = true
+        updateDictationControls()
     }
 
     private func reloadConversations() {
@@ -437,13 +574,30 @@ final class MacAgentPanelView: NSView {
 
     // MARK: Actions
 
+    /// 发送 starts a turn; while one runs it is 补充 (queued for the next
+    /// call), and while a question waits it is 回答.
     @objc func send() {
-        guard let controller, controller.send(composer.string) else { return }
+        guard let controller else { return }
+        let text = composer.string
+        if let waiting = controller.waitingQuestion {
+            if let refusal = controller.answerQuestion(waiting, answer: text) { statusLabel.stringValue = refusal; return }
+        } else if controller.isRunning {
+            guard controller.steer(text) else { return }
+        } else {
+            guard controller.send(text) else { return }
+        }
         composer.string = ""
         updateControls()
     }
 
     @objc func stop() { controller?.stop() }
+
+    @objc func stopAfterTool() { controller?.stopAfterTool() }
+
+    @objc private func pickMaxContext() {
+        var next = choice; next.maxContext = maxContextCheckbox.state == .on
+        controller?.setChoice(next)
+    }
 
     @objc func continueTask() {
         guard let controller, controller.continueTask() else { return }
@@ -495,6 +649,73 @@ final class MacAgentPanelView: NSView {
     }
 
     @objc private func openSettings() { onOpenSettings?() }
+
+    // MARK: Dictation
+
+    private var dictationTimer: Timer?
+
+    private func bindDictation() {
+        dictation?.onInsert = { [weak self] text in self?.insertDictated(text) }
+        dictation?.onChange = { [weak self] in self?.updateDictationControls() }
+        dictation?.explainPermission = { [weak self] proceed in self?.explainMicrophone(proceed) }
+        updateDictationControls()
+    }
+
+    /// Dictated text goes at the end of the composer, on its own line.
+    private func insertDictated(_ text: String) {
+        let current = composer.string
+        composer.string = current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? text
+            : current.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression) + "\n" + text
+        composer.didChangeText()
+        updateControls()
+    }
+
+    /// Asked once, before macOS's own prompt: why the microphone is needed.
+    private func explainMicrophone(_ proceed: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "允许写作助手使用麦克风？"
+        alert.informativeText = "听写会用麦克风录下你说的话，转写成文字放进写作助手的输入框，由你核对后再发送。录音只在转写时发送到你在 设置 › 模型服务 › 语音转写 中填写 Key 的阿里云百炼（DashScope），同时附上本项目的设定名、故事线、章节和灵感标题以校正专有名词；录音不会保存在这台 Mac 上。接下来 macOS 会请你确认。"
+        alert.addButton(withTitle: "继续")
+        alert.addButton(withTitle: "取消")
+        present(alert) { response in proceed(response == .alertFirstButtonReturn) }
+    }
+
+    func updateDictationControls() {
+        guard let dictation else {
+            micButton.isHidden = true; dictationRow.isHidden = true
+            dictationTimer?.invalidate(); dictationTimer = nil
+            return
+        }
+        micButton.isHidden = false
+        micButton.isEnabled = controller != nil && dictation.phase != .transcribing
+        micButton.title = dictation.phase == .recording ? "停止" : "听写"
+        micButton.image = NSImage(systemSymbolName: dictation.phase == .recording ? "stop.circle" : "mic",
+                                  accessibilityDescription: dictation.phase == .recording ? "停止录音" : "听写")
+        let status = dictation.statusText
+        dictationLabel.stringValue = status ?? ""
+        dictationLabel.textColor = dictation.error != nil ? .systemRed : .secondaryLabelColor
+        dictationRetryButton.isHidden = dictation.failedPieces == 0
+        dictationRetryButton.isEnabled = dictation.phase == .idle
+        dictationSetupButton.isHidden = !dictation.needsSetup
+        dictationRow.isHidden = status == nil && dictation.failedPieces == 0 && !dictation.needsSetup
+        if dictation.phase == .recording, dictationTimer == nil {
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.updateDictationControls() }
+            RunLoop.main.add(timer, forMode: .common)
+            dictationTimer = timer
+        } else if dictation.phase != .recording {
+            dictationTimer?.invalidate(); dictationTimer = nil
+        }
+    }
+
+    @objc func toggleDictation() {
+        guard let dictation, controller != nil else { return }
+        if dictation.phase == .recording { dictation.stop() } else { dictation.start() }
+        updateDictationControls()
+    }
+
+    @objc func retryDictation() { dictation?.retry(); updateDictationControls() }
+
+    @objc private func openSpeechSettings() { onOpenSpeechSettings?() }
 
     private var choice: AgentModelChoice { controller?.current?.choice ?? .standard }
 
@@ -897,6 +1118,107 @@ final class AgentMemoryApprovalCard: NSView, AgentTranscriptRow {
     }
 }
 
+/// `ask_user`: the model's question with its choices, an answer field and
+/// 回答 while the turn waits for it; afterwards the answer, or 未回答 when
+/// the turn was stopped first.
+final class AgentQuestionCard: NSView, AgentTranscriptRow {
+    let question: AgentQuestion
+    let answerField = NSTextField()
+    let answerButton = NSButton(title: "回答", target: nil, action: nil)
+    let stateLabel = NSTextField(labelWithString: "")
+    private(set) var choiceButtons: [NSButton] = []
+    private let answer: (String) -> String?
+    private(set) var plainText = ""
+    let messageLabel = NSTextField(wrappingLabelWithString: "")
+
+    init(messageID: String, question: AgentQuestion, answerable: Bool, answer: @escaping (String) -> String?) {
+        self.question = question; self.answer = answer
+        super.init(frame: .zero)
+        wantsLayer = true
+        setAccessibilityIdentifier("agent-question-\(messageID)")
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        let heading = "写作助手的问题"
+        setAccessibilityLabel(heading)
+        let title = NSTextField(labelWithString: heading)
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        stateLabel.stringValue = question.stateLabel
+        stateLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        stateLabel.textColor = question.state == .answered ? .systemGreen : question.state == .unanswered ? .secondaryLabelColor : .systemOrange
+        stateLabel.setAccessibilityIdentifier("agent-question-state-\(messageID)")
+        let text = AgentApprovalText.field(question.question, "agent-question-text-\(messageID)")
+        text.isSelectable = true
+        var views: [NSView] = [title, stateLabel, text]
+        var lines = [heading, question.stateLabel, question.question]
+        if question.state == .waiting {
+            if !question.choices.isEmpty {
+                let choices = NSStackView()
+                choices.orientation = .vertical; choices.alignment = .leading; choices.spacing = 4
+                for (index, choice) in question.choices.enumerated() {
+                    let button = NSButton(title: choice, target: self, action: #selector(pressChoice(_:)))
+                    button.bezelStyle = .rounded; button.controlSize = .small
+                    button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+                    button.tag = index
+                    button.isEnabled = answerable
+                    button.setAccessibilityIdentifier("agent-question-choice-\(messageID)-\(index)")
+                    choiceButtons.append(button)
+                    choices.addArrangedSubview(button)
+                }
+                views.append(choices)
+                lines += question.choices.map { "· " + $0 }
+            }
+            answerField.placeholderString = question.choices.isEmpty ? "写下你的回答" : "或者写下你的回答"
+            answerField.isEnabled = answerable
+            answerField.setAccessibilityIdentifier("agent-question-field-\(messageID)")
+            answerField.target = self; answerField.action = #selector(pressAnswer)
+            answerButton.target = self; answerButton.action = #selector(pressAnswer)
+            answerButton.bezelStyle = .rounded; answerButton.controlSize = .small
+            answerButton.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+            answerButton.isEnabled = answerable
+            answerButton.setAccessibilityIdentifier("agent-question-answer-\(messageID)")
+            let row = NSStackView(views: [answerField, answerButton])
+            row.spacing = 6
+            views.append(row)
+            answerField.widthAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
+        } else if let given = question.answer {
+            let answered = AgentApprovalText.field("你的回答：\(given)", "agent-question-answered-\(messageID)")
+            answered.isSelectable = true
+            views.append(answered); lines.append(answered.stringValue)
+        } else if question.state == .unanswered {
+            let note = AgentApprovalText.field("本轮已停止，这个问题没有回答。", "agent-question-unanswered-\(messageID)")
+            note.textColor = .secondaryLabelColor
+            views.append(note); lines.append(note.stringValue)
+        }
+        messageLabel.font = .systemFont(ofSize: 11)
+        messageLabel.textColor = .systemRed
+        messageLabel.isHidden = true
+        messageLabel.setAccessibilityIdentifier("agent-question-message-\(messageID)")
+        views.append(messageLabel)
+        plainText = lines.joined(separator: "\n")
+        AgentApprovalText.install(views, in: self, after: stateLabel, fill: [text, messageLabel])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func submit(_ text: String) {
+        if let refusal = answer(text) {
+            messageLabel.stringValue = refusal
+            messageLabel.isHidden = false
+        }
+    }
+
+    @objc func pressAnswer() { submit(answerField.stringValue) }
+    @objc private func pressChoice(_ sender: NSButton) {
+        guard question.choices.indices.contains(sender.tag) else { return }
+        submit(question.choices[sender.tag])
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.cornerRadius = 8
+        layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(question.state == .waiting ? 0.10 : 0.06).cgColor
+    }
+}
+
 /// Shared pieces of the approval cards.
 enum AgentApprovalText {
     static func field(_ text: String, _ identifier: String) -> NSTextField {
@@ -1229,6 +1551,8 @@ extension MacChapterWorkspace {
     func adoptAgentEffect(_ effect: AgentWorkspaceEffect) {
         switch effect {
         case .prose(let projectID, let kind, let id, let live):
+            // 统计, 章节模版 checks and category fill states follow the body.
+            bodyChangedElsewhere(projectID: projectID, kind: kind, id: id)
             if live {
                 // The open owner adopted the revision; its new text links
                 // entity names like typed text, and is counted once it settles.

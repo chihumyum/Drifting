@@ -39,8 +39,24 @@ enum AgentToolRegistry {
     ]
 
     /// Every tool, reads first: the prose tools, then the domain tools
-    /// (`AgentDomainTools.swift`) and the memory tools (`AgentMemory.swift`).
-    static let all: [AgentToolDefinition] = proseReads + domainReads + memoryReads + proseWrites + domainWrites + memoryWrites
+    /// (`AgentDomainTools.swift`), the memory tools (`AgentMemory.swift`)
+    /// and `ask_user`, which the runtime answers from the author.
+    static let all: [AgentToolDefinition] = proseReads + domainReads + memoryReads + controlTools + proseWrites + domainWrites + memoryWrites
+
+    /// Tools the runtime itself answers: `ask_user` pauses the turn on a
+    /// question card until the author answers (the answer is its result) or
+    /// stops the turn. It reads and writes nothing of the book.
+    static let controlTools: [AgentToolDefinition] = [
+        AgentToolDefinition(name: "ask_user",
+                            description: "暂停本轮，向作者提一个具体的问题，可以附带 2–6 个选项；作者回答后本轮继续，回答作为这个工具的结果返回。只在确实需要作者做决定、而读取工具查不到答案时使用；不要用它确认修改提案（提案本身就会等作者接受或拒绝），也不要连续追问。",
+                            schema: object([
+                                "question": ["type": "string", "maxLength": AgentQuestion.questionLimit,
+                                             "description": "给作者的一个具体问题，说清楚需要作者决定什么。"],
+                                "choices": ["type": "array", "minItems": 2, "maxItems": 6,
+                                            "items": ["type": "string", "maxLength": AgentQuestion.choiceLimit, "description": "一个候选答案。"],
+                                            "description": "可选的候选答案；作者也可以不选，自己写回答。"],
+                            ], required: ["question"]), access: .read),
+    ]
 
     static let proseReads: [AgentToolDefinition] = [
         AgentToolDefinition(name: "list_chapters", description: "按书中顺序列出全部章节：编号、标题、顺序、写作状态、字数和摘要。",
@@ -213,6 +229,7 @@ final class AgentWorkspaceTools {
         case "list_drifts": return "正在列出漂流…"
         case "read_drift": return title.map { "正在读取漂流「\($0)」…" } ?? "正在读取漂流…"
         case "project_overview": return "正在读取项目概况…"
+        case "ask_user": return "正在向你提问…"
         default: return AgentMemoryTools.progress(call.name) ?? domainProgress(call.name, title: title) ?? "正在准备修改提案…"
         }
     }

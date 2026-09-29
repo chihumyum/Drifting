@@ -110,16 +110,21 @@ that chapters created in it (新建章节 on its page or in the 故事线 panel)
 from, list filters on storyline pages (全部, 已写, 未起) and category pages (已填写,
 未填写) remembered per page, drifts with groups and act notes that
 convert into chapters or elements, a 情节规划格 (plot planner) docked below a
-chapter's or drift's prose, a writing assistant whose 63 tools read the project and propose prose, element, patch,
+chapter's or drift's prose, a writing assistant whose 64 tools read the project, ask the author (ask_user) and propose prose, element, patch,
 storyline, relation, note/TODO, chapter, drift and project changes the author
 reviews, with 作者规则, per-conversation 工作记忆 and 任务计划 (继续 after the
 round limit), context compaction, automatic retries and token usage in
-设置 › 写作助手 › 用量, per-project MCP servers (local commands and
+设置 › 写作助手 › 用量, 补充 while it works, 在当前工具后停止, a context
+indicator with Max · 1M 上下文 for 1M models, and 听写 into its composer
+(DashScope Qwen3-ASR with the key in 设置 › 模型服务 › 语音转写, proper nouns
+corrected from the project's names), per-project MCP servers (local commands and
 Streamable HTTP) in 设置 › 写作助手 › MCP 扩展 whose tools the author allows,
 asks for or disables and whose results only reach the model, an
 experimental Copilot (off by default) that proposes
 new elements and element patches from newly written paragraphs as
-suggestions the author accepts or rejects in 审阅, a whole-book
+suggestions the author accepts or rejects in 审阅, and Copilot 修改 (⌃⌘I) for
+local rewrites with a preview, questions about a passage and chapter
+summaries written only on 接受, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with
@@ -131,8 +136,9 @@ other side and merge the panes, ⌥⌘←/⌥⌘→, ⌘W, drag to reorder, 后�
 project at launch), formatting (bold, italic, underline,
 strike, headings, alignment, Tab indent and URL links from the 格式 menu, the
 toolbar and the context menu), quotes and bulleted and numbered lists (also
-typed as “> ”, “- ” or “1. ”, Return starting the next item and ending the
-list on an empty last item, ⌫ at the start, drawn with markers in every
+typed as “> ”, “- ” or “1. ”, joining an adjacent one of the same kind,
+Return starting the next item and ending the list on an empty last item, ⌫ at
+the start and ⌫ or ⌦ removing the empty paragraph after it, drawn with markers in every
 editor, the 全书长卷, the 历史版本 preview and print), horizontal rules
 (分隔线, from 格式 and the slash menu, removed by ⌫, ⌦ or their context menu,
 drawn as a centred line everywhere), a slash menu offering what applies
@@ -161,8 +167,8 @@ goes through shared Rust domain commands, transactions and canonical journals;
 views of one chapter share its document owner and history while keeping their
 own selections. Remote prose and chapter
 originals are received through the shared native queue without replacing live
-editors. The writing assistant keeps provider API keys and MCP secrets in the
-lab's own Keychain service (`Drifting Native Lab`); the production Keychain
+editors. The writing assistant keeps provider API keys, MCP secrets and the
+transcription key in the lab's own Keychain service (`Drifting Native Lab`); the production Keychain
 service and URL scheme are not used.
 
 The editor is an acceptance prototype, not desktop feature parity. Physical IME,

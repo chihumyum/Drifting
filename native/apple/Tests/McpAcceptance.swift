@@ -396,7 +396,7 @@ extension BindingAcceptance {
         let names = mcpToolNames(body)
         let echo = (body["tools"] as? [[String: Any]] ?? []).first { ($0["function"] as? [String: Any])?["name"] as? String == "mcp__lore__echo" }
         let parameters = (echo?["function"] as? [String: Any])?["parameters"] as? [String: Any]
-        try require(names.count == 63 + 7 && names.suffix(7) == ["mcp__lore__echo", "mcp__lore__media", "mcp__lore__probe", "mcp__lore__pid",
+        try require(names.count == 64 + 7 && names.suffix(7) == ["mcp__lore__echo", "mcp__lore__media", "mcp__lore__probe", "mcp__lore__pid",
                                                                    "mcp__lore__crash", "mcp__lore__slow", "mcp__lore__fail"]
             && !names.contains { $0.contains("bad_schema") } && (parameters?["required"] as? [String]) == ["text"]
             && ((echo?["function"] as? [String: Any])?["description"] as? String)?.hasPrefix("［MCP · lore 资料］重复一段文字。") == true,

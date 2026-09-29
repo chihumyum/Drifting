@@ -100,13 +100,23 @@ enum AgentProviderCatalog {
     }
 }
 
-/// A conversation's provider, model, thinking mode and effort. Values are
+/// A conversation's provider, model, thinking mode and effort, and whether
+/// it uses the model's full 1M context (Max · 1M 上下文). Values are
 /// normalized against the catalog, as the renderer's `normalizeAgentProvider*`.
 struct AgentModelChoice: Codable, Equatable {
+    /// The standard window, as the renderer's planner: a larger declared
+    /// window is used only with Max · 1M 上下文.
+    static let standardContextWindow = 200_000
+    static let maxContextWindow = 1_000_000
+
     var provider: AgentProviderID
     var model: String
     var thinking: AgentThinking
     var effort: AgentEffort
+    /// Max · 1M 上下文: the model's declared window (up to about 1M tokens)
+    /// instead of the 200k standard window. Only models that declare 1M
+    /// offer it; it changes when older turns are compacted, nothing sent.
+    var maxContext = false
 
     static var standard: AgentModelChoice {
         let model = AgentProviderCatalog.option(AgentProviderCatalog.defaultProvider).models[0]
@@ -121,7 +131,19 @@ struct AgentModelChoice: Codable, Equatable {
         let reasoning = model.reasoning
         return AgentModelChoice(provider: provider, model: model.value,
             thinking: reasoning.thinkingModes.contains(thinking) ? thinking : reasoning.defaultThinking,
-            effort: reasoning.efforts.contains(effort) ? effort : reasoning.defaultEffort)
+            effort: reasoning.efforts.contains(effort) ? effort : reasoning.defaultEffort,
+            maxContext: maxContext && Self.offersMaxContext(model))
+    }
+
+    /// Whether a model declares a window of about 1M tokens.
+    static func offersMaxContext(_ model: AgentModelOption) -> Bool { model.contextWindowTokens >= maxContextWindow }
+    var offersMaxContext: Bool { Self.offersMaxContext(option) }
+
+    /// The window compaction and the context indicator count against: the
+    /// declared one with Max · 1M 上下文, else at most the standard 200k.
+    var contextWindow: Int {
+        let declared = option.contextWindowTokens
+        return normalized().maxContext ? declared : min(declared, Self.standardContextWindow)
     }
 
     /// Another provider starts at its first model with that model's defaults.
@@ -141,6 +163,19 @@ struct AgentModelChoice: Codable, Equatable {
     var label: String {
         var parts = [provider.label, option.short]
         if thinkingEnabled { parts.append("思考·\(effort.label)") }
+        if normalized().maxContext { parts.append("1M 上下文") }
         return parts.joined(separator: " · ")
+    }
+}
+
+extension AgentModelChoice {
+    private enum CodingKeys: String, CodingKey { case provider, model, thinking, effort, maxContext }
+
+    /// Conversations written before Max · 1M 上下文 read as the standard window.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(provider: try values.decode(AgentProviderID.self, forKey: .provider), model: try values.decode(String.self, forKey: .model),
+                  thinking: try values.decode(AgentThinking.self, forKey: .thinking), effort: try values.decode(AgentEffort.self, forKey: .effort),
+                  maxContext: (try? values.decodeIfPresent(Bool.self, forKey: .maxContext)) ?? false)
     }
 }

@@ -5,9 +5,12 @@ Rust workspace and proposes prose, chapter, element, patch, storyline,
 relation, note/TODO, drift and project changes that the author accepts or
 rejects in the conversation. It keeps its own memory: the project's 作者规则
 and each conversation's 工作记忆 and 任务计划, compacts long conversations,
-retries transient failures and records token usage. The author's MCP
-servers add external tools whose results only go back to the model
-([MCP 扩展](#mcp-扩展)).
+retries transient failures and records token usage. It can ask the author a
+question mid-turn, takes 补充 while it works, stops after the running tool on
+request and shows how full its context is. The author's MCP servers add
+external tools whose results only go back to the model
+([MCP 扩展](#mcp-扩展)); 听写 fills the composer from the microphone
+([听写](#听写)).
 
 ## Scope
 
@@ -28,8 +31,12 @@ servers add external tools whose results only go back to the model
   items) is replayed only inside the current turn's tool loop.
 - Not ported:
   - the ChatGPT-subscription `openai-codex` route (needs OAuth);
-  - plugin tools, MCP resources, prompts and sampling, `ask_user` and
-    `read_tool_result`;
+  - plugin tools, MCP resources, prompts and sampling, and `read_tool_result`;
+  - 允许危险操作 (the renderer's switch that lets deletions skip per-call
+    approval, beside its 正文改动需审阅 auto mode): here every write, deletions
+    included, is a proposal the author accepts, and there is no auto-apply
+    mode, so the switch would make trash and deletion the only unreviewed
+    writes;
   - the renderer's long-task runtime beyond the native plan (manifests,
     review results, automatic continuation) and its project-wide Working
     Memory document (the native note is per conversation);
@@ -46,8 +53,8 @@ servers add external tools whose results only go back to the model
 
 The registry is `AgentToolRegistry` (`native/apple/Shared/AgentTools.swift`,
 domain tools in `AgentDomainTools.swift`, `AgentDomainReads.swift` and
-`AgentDomainWrites.swift`, memory tools in `AgentMemory.swift`): 63 tools,
-22 reads, 34 writes and 7 memory writes. Each has a name, a Chinese
+`AgentDomainWrites.swift`, memory tools in `AgentMemory.swift`): 64 tools,
+23 reads (with `ask_user`), 34 writes and 7 memory writes. Each has a name, a Chinese
 description, a strict JSON schema (`additionalProperties: false`) and its
 access. Before a tool runs its arguments are checked against the schema:
 unknown, missing and mistyped arguments, enums, integers and their minimum,
@@ -71,6 +78,7 @@ optional argument counts as absent.
 | read | `list_materials`, `read_material` (title, kind, notes, link, text; never bytes or paths) | `workspaceLibrary library` |
 | read | `project_overview` (summary, facts, chapter and word counts, element, category, storyline, drift, relation, open TODO and material counts) | `workspaceMetadata`, `workspaceMetrics` and the libraries |
 | read | `list_author_rules`, `read_working_memory`, `read_task_plan` | the controller's memory; no Rust call |
+| read | `ask_user` (a question, optionally 2–6 choices) | answered by the author on a question card; no Rust call |
 | write | `revise_chapter`, `revise_element`, `revise_category`, `revise_drift`, `revise_storyline` (replace existing text) | `workspaceAgent applyChanges` |
 | write | `append_to_body` (new paragraphs at the end of a chapter, element, category, drift or storyline body) | `applyChanges` with one `append` change |
 | write | `create_chapter` (title and optional opening text), `set_chapter_summary` | `workspaceCreateChapter` then one `append`; `setNodeSummary` |
@@ -99,7 +107,26 @@ be stored.
 The loop is model → tool calls → results → model until the model finishes.
 It stops after 24 tool rounds. 停止 cancels the stream and keeps the partial
 reply. A tool that is already running finishes, and the remaining calls are
-recorded as not run. Each turn's user message is preceded by a runtime note
+recorded as not run. 在当前工具后停止 instead lets the running tool (or MCP
+call) finish and records its result, marks the calls after it as not run
+and makes no further request (已在当前工具完成后停止。); pressed while the
+reply streams, the reply is kept and none of its tool calls run; with only a
+card or a retry backoff waiting it stops at once.
+
+- **ask_user** pauses the turn on a question card (写作助手的问题) with the
+  question, its choices and an answer field; the composer's button reads 回答.
+  回答 (a choice, the field or the composer; an empty answer is refused)
+  returns `{"answer": …}` as the tool result and the turn continues. 停止
+  leaves the card 未回答, records the question and the calls after it as not
+  run and ends the turn; a card still waiting when the app closed reopens
+  as 未回答.
+- **补充**: while a turn runs, the composer's button reads 补充. The text is
+  queued (shown below the streamed reply) and delivered at the model's next
+  call as the author's message in the same turn, after a runtime note
+  (作者在本轮进行中补充了以下要求…), shown as 你（补充）; a reply that had
+  already ended makes one more call for it. A turn that stops or ends first
+  puts undelivered 补充 back into the composer. Compaction counts turns by
+  the author's turn-starting messages only. Each turn's user message is preceded by a runtime note
 (【运行提示】) with the page the author has open (作者当前打开：《…》),
 proposal outcomes and rule undos that have not yet been reported. Every
 request's system prompt ends with the current 作者规则, 工作记忆 and 任务计划.
@@ -213,6 +240,17 @@ is refused in Chinese.
   `Retry-After`); 400, 401, 403 and 404 are not. The status line shows
   重试中（n/3） and 停止 ends the wait at once. A failed attempt adopts
   nothing, so no tool call or proposal runs twice.
+- **Context indicator.** Under the model choice the panel shows 上下文
+  used / window (percent): the latest request's reported input (cached
+  included) plus output, against the window compaction counts with; its
+  tooltip names the report, the next request's estimate, the 70% threshold
+  and how often the conversation was compacted. Before any report, or once a
+  compaction replaced what the report covered, the estimate stands in (约).
+- **Max · 1M 上下文** (per conversation, stored with its model choice) is
+  offered for models declaring about 1M tokens (Claude Sonnet 5, GPT-5.6):
+  the window is then the declared one; otherwise, and for every other model,
+  it is the renderer's 200,000 standard window. It changes only when older
+  turns are compacted and what the indicator counts against, nothing sent.
 - **Usage.** Each request that the provider answered records its input,
   cached and output tokens from the usage fields (DeepSeek `prompt_tokens` and
   `prompt_cache_hit_tokens`; Anthropic `input_tokens` plus cache reads and
@@ -295,6 +333,34 @@ renderer's `agent_mcp_server` fields, stored natively):
   results only reach the model, and any change still goes through a proposal
   (or, for rules, working memory and the task plan, the author's 允许).
 
+## 听写
+
+The composer's 听写 button records the microphone (AVAudioEngine, converted
+to 16 kHz mono PCM) and 停止 ends it; the text lands at the end of the
+composer for the author to review before sending (`VoiceDictation.swift`).
+
+- The key is the author's DashScope (阿里云百炼) key for Qwen3-ASR, set in
+  设置 › 模型服务 › 语音转写 and kept in the Keychain (`Drifting Native Lab`,
+  account `byok.dashscope`), shown masked; without it the panel says so and
+  offers 设置…. It is not an LLM key and never reaches a model provider.
+- The first recording explains, in Chinese, why the microphone is needed and
+  what is sent, then macOS asks; a denied microphone is refused with where
+  to allow it. Nothing is recorded to disk.
+- Each piece (at most 180 s) is sent as a WAV data URI to DashScope's
+  multimodal generation endpoint (`qwen3-asr-flash`, inverse text
+  normalization off) with the key only in the `authorization` header and the
+  project's names as recognition context: 设定 with categories and aliases,
+  故事线, 章节 and 灵感 titles, at most 6,000 characters. Redirects are
+  refused. Pieces transcribe in order; a failed one is kept for 重试 while
+  later ones still land.
+- Proper nouns are restored as the renderer does: a run of Han characters
+  that sounds like an element name or alias or a storyline name (toneless
+  pinyin; for names of three or more syllables also z/zh, c/ch, s/sh, n/l,
+  -n/-ng) takes the project's spelling; a run matching two names is left.
+  Readings come from macOS's Mandarin transliteration, so a polyphone is
+  matched by its reading alone or in the name, not by every reading the
+  renderer's dictionary knows.
+
 ## Persistence
 
 - Conversations are stored per project under
@@ -323,7 +389,8 @@ renderer's `agent_mcp_server` fields, stored natively):
   unsigned lab uses the file keychain.
 - Keys go only into the provider's auth header (`authorization` or
   `x-api-key`). They are never written to conversation files, errors or logs.
-- MCP secrets use the same service with `mcp.…` accounts ([MCP 扩展](#mcp-扩展)).
+- MCP secrets use the same service with `mcp.…` accounts ([MCP 扩展](#mcp-扩展)),
+  and the transcription key `byok.dashscope` ([听写](#听写)).
 - The sheet shows only `已保存 ····<last four>`.
 - Missing keys, HTTP 401/403/404/429/5xx, network failures and broken streams
   map to Chinese messages (after retries where they apply). Error bodies are
@@ -341,7 +408,7 @@ alone) through the real panel, tab host and Rust workspace:
 
 It covers:
 
-- one streamed reply per provider, including the request shape, all 63 tools,
+- one streamed reply per provider, including the request shape, all 64 tools,
   the rendering and where the key is sent;
 - a DeepSeek thinking tool loop with `reasoning_content` replay and the
   24-round bound;
@@ -410,4 +477,18 @@ an open notification answer, `\r`-only and newline-free standard error,
 quitting during a shutdown window, and rule, note, plan, step and
 constraint writes after an MCP result.
 
-Physical keyboard input and live providers are not exercised.
+`native/apple/Tests/AssistantExtrasAcceptance.swift` (`--assistant-extras-only`)
+covers the extras through the same panel, host and stub (with delayed stub
+replies): `ask_user` answered from a choice and the composer, an empty answer
+refused, 停止 leaving it 未回答 and a reopen reading 未回答; 补充 absent from
+the earlier request and delivered at the next, after a finished reply, and
+returned to the composer on 停止; 在当前工具后停止 during a tool and during
+the stream; the indicator's numbers (estimate, DeepSeek and Anthropic
+reports, after a compaction) and Max · 1M 上下文 per model and stored; and
+听写 with a synthetic tone, a stubbed ASR endpoint (request shape, WAV,
+context, key only in the header), the pane's masked key, the one-time
+explanation, proper-noun correction, 重试 of a failed piece and a denied
+microphone. Its Copilot 修改 cases are in [Copilot](copilot.md#acceptance).
+
+Physical keyboard input, the microphone, live providers and the live ASR
+service are not exercised.

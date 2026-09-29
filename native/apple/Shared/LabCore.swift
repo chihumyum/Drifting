@@ -58,6 +58,10 @@ enum LabError: LocalizedError {
         case .message(let text): return text
         case .pendingRemoteUpdate:
             return "有已保存但尚未应用的远端更新。原始数据已保留，当前暂不打开文档。"
+        case .historyUnavailable(let reason) where reason.contains("another writer's text is in the blocks this undo would rebuild"):
+            // Undoing a heading, quote or list change would duplicate blocks
+            // someone else has since typed into.
+            return "标题、引用或列表的这次改动之后，这些段落里加入了来自其他来源（远端或写作助手）的文字，撤销会让段落重复，所以没有撤销。当前文字已保留，可以继续编辑。"
         case .historyUnavailable:
             return "远端修改影响了这次操作，暂时无法撤销或重做。当前文字已保留，可以继续编辑。"
         case .formattingUnavailable(let reason): return LabError.formattingMessage(reason)
@@ -385,6 +389,10 @@ enum LabError: LocalizedError {
     /// Formatting and link refusals happen before the prose changes; known
     /// core reasons get specific guidance, the exact text stays diagnostic.
     private static func formattingMessage(_ reason: String) -> String {
+        if reason.contains("preserved read-only") {
+            return reason.hasPrefix("documentRule ") ? "只读内容处不能插入分隔线。请把光标放在正文段落里。"
+                : "所选范围包含只读的内容（例如分隔线或暂不支持的内容），不能在这里设置格式或链接。正文和选区已保留。"
+        }
         let known: [(String, String)] = [
             ("http, https or mailto", "链接地址需要以 http://、https:// 或 mailto: 开头，且不能包含空格。正文和选区已保留。"),
             ("Select text before adding a link", "请先选中要加链接的文字。"),
@@ -393,7 +401,6 @@ enum LabError: LocalizedError {
             ("rule has no identity", "这条分隔线没有标识，已保留原样。"),
             ("rule alone in a quote or list", "引用或列表里只有这条分隔线，暂时不能删除。"),
             ("No text block at the caret", "请先把光标放在正文段落里，再插入分隔线。"),
-            ("preserved read-only", "只读内容处不能插入分隔线。请把光标放在正文段落里。"),
             ("list item to split", "请把光标放在列表项里。"),
             ("require a paragraph or heading", "只有正文段落和标题可以对齐或缩进。正文和选区已保留。"),
             ("Document changed", "正文已变化，请重新选择后再试。"),
@@ -537,7 +544,9 @@ final class LabCore {
             }
             if ["documentFormat", "documentLink", "documentRule"].contains(request["operation"] as? String ?? ""),
                reason.hasPrefix("NATIVE_FORMATTING_UNAVAILABLE:") {
-                throw LabError.formattingUnavailable(reason: reason)
+                // Rule refusals are named, so their guidance never answers
+                // a format or link refusal with the same core reason.
+                throw LabError.formattingUnavailable(reason: request["operation"] as? String == "documentRule" ? "documentRule " + reason : reason)
             }
             if ["documentComments", "documentCreateComment", "documentUpdateCommentBody", "documentSetCommentResolved"]
                 .contains(request["operation"] as? String ?? "") {

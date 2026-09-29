@@ -141,10 +141,41 @@ struct AgentMessage: Codable, Equatable {
     /// Notice rows asking to change 作者规则 or 工作记忆 in a turn that
     /// received an MCP result: the change and the author's decision.
     var memoryApproval: AgentMemoryApproval?
+    /// Notice rows of `ask_user`: the question, its choices and the answer.
+    var question: AgentQuestion?
+    /// User rows the author added with 补充 while the turn ran; they are
+    /// part of that turn, not the start of a new one.
+    var steer: Bool?
     var createdAt: Date
 
     init(id: String = UUID().uuidString, role: Role, turnID: String, text: String, createdAt: Date = Date()) {
         self.id = id; self.role = role; self.turnID = turnID; self.text = text; self.createdAt = createdAt
+    }
+}
+
+/// A question the model asked with `ask_user`. The turn waits on it: 回答
+/// returns the answer as the tool result and the turn continues; 停止, or a
+/// turn that ended otherwise, leaves it unanswered. Kept on a notice row,
+/// never sent to the model as such.
+struct AgentQuestion: Codable, Equatable {
+    enum State: String, Codable { case waiting, answered, unanswered }
+
+    static let questionLimit = 1_000
+    static let choiceLimit = 80
+    static let answerLimit = 4_000
+
+    var callID: String
+    var question: String
+    var choices: [String]
+    var state: State
+    var answer: String?
+
+    var stateLabel: String {
+        switch state {
+        case .waiting: return "等待你的回答"
+        case .answered: return "已回答"
+        case .unanswered: return "未回答"
+        }
     }
 }
 
@@ -396,10 +427,12 @@ final class AgentConversationStore {
                 for index in conversation.proposals.indices where conversation.proposals[index].state == .applying {
                     conversation.proposals[index].state = .pending
                 }
-                // An MCP call or a memory write still waiting when the app stopped was never made.
+                // An MCP call or a memory write still waiting when the app stopped was never made,
+                // and a question still waiting was never answered.
                 for index in conversation.messages.indices {
                     if conversation.messages[index].mcp?.state == .waiting { conversation.messages[index].mcp?.state = .cancelled }
                     if conversation.messages[index].memoryApproval?.state == .waiting { conversation.messages[index].memoryApproval?.state = .cancelled }
+                    if conversation.messages[index].question?.state == .waiting { conversation.messages[index].question?.state = .unanswered }
                 }
                 return conversation
             }.sorted { $0.updatedAt > $1.updatedAt }

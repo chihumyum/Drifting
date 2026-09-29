@@ -13,7 +13,7 @@ enum WorkspaceTabTarget {
 /// Two panes own their tab views; the shared workspace owns chapter, element,
 /// storyline, drift and category cores. Removing a view from the hierarchy
 /// never detaches its input/history binding.
-final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
+final class MacChapterWorkspace: NSView, NSSplitViewDelegate, NSPopoverDelegate {
     private final class Tab {
         var project: WorkspaceProject
         var target: WorkspaceTabTarget
@@ -304,6 +304,10 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     /// Copilot's quiet status (正在分析… / 已提出 N 条建议 / 出错：…) beside
     /// 历史版本… of the active pane; nil hides it.
     var copilotStatus: String? { didSet { if copilotStatus != oldValue { showCopilotStatus() } } }
+    /// The open Copilot 修改 popover, one at a time.
+    var copilotInline: MacCopilotInlineController?
+    /// The workspace core, for helpers in other files.
+    var workspaceCore: LabWorkspaceCore { workspace }
     /// A patch's source link opened a chapter or drift; select its anchored
     /// text once shown, while it is still there.
     private var pendingPatchReveal: (view: NativeDocumentView, patch: WorkspacePatch)?
@@ -424,6 +428,11 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         // projections only a reconcile writes.
         workspace.onRemoteOriginal = { [weak self] projectID in
             self?.linkIndexChanged(projectID: projectID)
+            // Any body may have changed: 章节模版 checks and the category
+            // pages' fill states are read again.
+            self?.templateChecks[projectID] = nil
+            self?.showStorylineChapters(projectID: projectID)
+            self?.refreshListedElementBodies(projectID: projectID)
             self?.wordCountModels[projectID]?.reconcile()
             self?.refreshPlotGrids(projectID: projectID)
             self?.onRemoteOriginal?(projectID)
@@ -1412,6 +1421,38 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.elementBodies[projectID, default: [:]][id] = (try? result.get().text) ?? ""
             then()
         }
+    }
+
+    /// A body changed without an editor of this host saving it (a writing
+    /// assistant or Copilot revision of a closed page): the 统计 link index
+    /// and its 章节模版 check go stale, and an element's fill state on open
+    /// category pages is read again.
+    func bodyChangedElsewhere(projectID: String, kind: String, id: String) {
+        if kind == "chapter" || kind == "drift" {
+            linkIndexChanged(projectID: projectID)
+            templateChecks[projectID]?[id] = nil
+            showStorylineChapters(projectID: projectID)
+        }
+        guard kind == "element" else { return }
+        guard listedElementIDs(projectID: projectID).contains(id) else { elementBodies[projectID]?[id] = nil; return }
+        readElementBody(projectID: projectID, id: id) { [weak self] in
+            guard let self else { return }
+            for tab in self.allTabs where tab.project.id == projectID && tab.categoryPage != nil { self.showElements(of: tab) }
+        }
+    }
+
+    /// Storyline pages of the project list their chapters again (已写 and
+    /// 未起 are compared with the template again where it was cleared).
+    private func showStorylineChapters(projectID: String) {
+        for tab in allTabs where tab.project.id == projectID {
+            if let page = tab.storylinePage { showChapters(of: page, projectID: projectID) }
+        }
+    }
+
+    /// Every element body open category pages list, read again.
+    private func refreshListedElementBodies(projectID: String) {
+        elementBodies[projectID] = nil
+        if allTabs.contains(where: { $0.project.id == projectID && $0.categoryPage != nil }) { refreshElementBodies(projectID: projectID) }
     }
 
     /// An element body settled at a new revision: only that body is read
@@ -3688,6 +3729,8 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
     // MARK: 页面统计
 
     private let statsPopover = NSPopover()
+    /// The 统计 popover, for acceptance.
+    var pageStatsPopover: NSPopover { statsPopover }
     /// The statistics shown, while their page is open.
     private(set) var pageStatsController: MacPageStatsViewController?
     private weak var statsTab: Tab?
@@ -3727,6 +3770,7 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
         statsTab = tab
         statsPopover.behavior = .transient
         statsPopover.animates = false
+        statsPopover.delegate = self
         statsPopover.contentViewController = controller
         _ = controller.view
         statsPopover.contentSize = controller.preferredContentSize
@@ -3742,6 +3786,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
             self.refreshStats()
             self.withLinkIndex(projectID: projectID) { [weak self] _ in self?.refreshStats() }
         }
+    }
+
+    /// A closed 统计 no longer follows settles or index reads.
+    func popoverDidClose(_ notification: Notification) {
+        guard (notification.object as? NSPopover) === statsPopover else { return }
+        pageStatsController = nil
+        statsTab = nil
     }
 
     /// Shows the open statistics again from what is known now.
@@ -3776,8 +3827,14 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 + drifts.map { ("drift", $0.id, $0.title, Int?.none) }
             self.readBodies(projectID: projectID, targets[...], read: [], unreadable: []) { bodies, unreadable in
                 let index = BookLinkIndex(bodies: bodies, unreadable: unreadable)
-                if self.linkIndexGenerations[projectID] ?? 0 == generation { self.linkIndexes[projectID] = index }
                 let waiting = self.linkIndexWaiters.removeValue(forKey: projectID) ?? []
+                guard self.linkIndexGenerations[projectID] ?? 0 == generation else {
+                    // A body changed while they were read: read them again
+                    // for everyone waiting, so none is left at 统计中….
+                    waiting.forEach { self.withLinkIndex(projectID: projectID, $0) }
+                    return
+                }
+                self.linkIndexes[projectID] = index
                 waiting.forEach { $0(index) }
             }
         }
@@ -4305,6 +4362,12 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
                 guard let self, let view else { return }
                 self.copilot?(projectID)?.analyze(kind: kind, id: id, store: view.binding.store, selection: selection)
             }
+            tab.view.canCopilotInline = { [weak self] in self?.copilot?(projectID)?.allowsInline == true }
+            tab.view.onCopilotInline = { [weak self, weak tab] selection in
+                guard let self, let tab else { return }
+                self.beginCopilotInline(view: tab.view, projectID: projectID, kind: kind, id: id,
+                                        title: tab.chapter?.title ?? tab.drift?.title ?? "", selection: selection)
+            }
         }
         if let nodeID = tab.nodeID {
             // 新建补丁… from a chapter or drift selection.
@@ -4482,10 +4545,13 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate {
 
     private func disconnect(_ tab: Tab) {
         if let (kind, id) = copilotBody(of: tab), !allTabs.contains(where: { $0 !== tab && $0.scope == tab.scope }) {
-            // The body's last tab: a Copilot run reading it stops.
+            // The body's last tab: a Copilot run reading it stops, and so
+            // does its Copilot 修改 popover.
             copilot?(tab.project.id)?.closed(kind: kind, id: id)
+            if let inline = copilotInline, inline.session.target.kind == kind, inline.session.target.id == id { inline.close() }
         }
         tab.view.onEdited = nil; tab.view.canCopilotAnalyze = nil; tab.view.onCopilotAnalyze = nil
+        tab.view.canCopilotInline = nil; tab.view.onCopilotInline = nil
         tab.view.onScroll = nil; tab.view.onRendered = nil; tab.rail.onChoose = nil
         let sticky = tab.pageFrame.stickyRail
         sticky.onOpen = nil; sticky.onUnpin = nil; sticky.onClear = nil; sticky.onExpand = nil

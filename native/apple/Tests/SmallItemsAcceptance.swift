@@ -9,6 +9,8 @@ import AppKit
 /// workspace and SQLite, wired as AppDelegate wires them. Windows are never
 /// on screen; every name, body and file is synthetic and generated here.
 extension BindingAcceptance {
+    static let smallAgentRevisionCase = "AppKit a writing-assistant revision of a closed chapter or element reaches what shows it: a chapter still at its 章节模版 revised to the same length becomes 已写, a closed element whose body the assistant fills becomes 已填写 on its category page, and 统计 reads every body again instead of its cached link index; 统计 opened again while a stale index is being read settles instead of staying at 统计中…, a closed 统计 no longer follows settles, and unchanged statistics are not drawn again"
+
     static let smallItemsCases = [
         "AppKit 章节模版 on a storyline page is edited in the template sheet (a heading, a paragraph with bold on a selected range, Return adding a row), writes one field.set storyline on 保存 and nothing when unchanged or cancelled, and 新建章节 on the page and 新建章节… in the 故事线 panel create the chapter with that storyline as its 主线 and its body from the template, listed on the page, told to the chapter list and opened; 清空模版 returns new chapters to an empty body, an unknown or trashed storyline is refused before anything is written, and templates and chapters survive a cold reopen",
         "AppKit a storyline page filters its chapters by 全部, 已写 and 未起 from the canonical word counts (following typing in a chapter) and a category page lists its 设定 and filters them by 已填写 and 未填写 (简介, a 字段 value beyond the 模板字段, or body text beyond the 新设定模版, following a body edit); each page's filter is kept per page in settings.json, another view of the page follows, and both come back after a cold relaunch",
@@ -51,7 +53,8 @@ extension BindingAcceptance {
         try smallHistoryPreview()
         try smallImportFixes()
         try smallListFixes()
-        return smallItemsCases
+        try smallAgentRevisions()
+        return smallItemsCases + [smallAgentRevisionCase]
     }
 
     // MARK: Harness
@@ -1198,6 +1201,101 @@ extension BindingAcceptance {
         try wait { statuses.last?.contains("已导入“天晴了。”") == true }
         try require(try chapterCount() == beforeSingle + 1 && statuses.last?.contains("但未能加入故事线") == true,
                     "The single file imported \(try chapterCount() - beforeSingle) times: \(statuses.last ?? "")")
+        try harness.close()
+    }
+
+    // MARK: Assistant revisions of closed bodies
+
+    private static func smallAgentRevisions() throws {
+        let harness = try SmallHarness()
+        defer { harness.remove() }
+        let project = try harness.project("助手修改合成项目")
+        let workspace = harness.workspace, host = harness.host
+        /// A writing-assistant change to a closed body, adopted as the panel adopts one.
+        func revise(_ kind: String, _ id: String, _ change: AgentProseChange) throws {
+            let agent = ["sessionId": "agent-synthetic", "turnId": "turn-" + UUID().uuidString, "callId": "call-" + UUID().uuidString]
+            let applied: WorkspaceAgentApplied = try elementResult {
+                workspace.agentApplyChanges(projectID: project.id, kind: kind, id: id, changes: [change.payload], agent: agent, completion: $0)
+            }
+            try require(applied.handle == nil, "The \(kind) was open")
+            host.adoptAgentEffect(.prose(projectID: project.id, kind: kind, id: id, live: false))
+        }
+
+        // A chapter still at its 章节模版, revised to the same length.
+        let line = try harness.storyline(project, "主线")
+        let _: WorkspaceStorylineReply<WorkspaceStoryline> = try elementResult {
+            workspace.setStorylineChapterTemplate(projectID: project.id, storylineID: line.id,
+                                                  blocks: [.paragraph("开场。"), .paragraph("冲突：")], completion: $0)
+        }
+        let templated: WorkspaceChapter = try elementResult {
+            workspace.createChapter(projectID: project.id, title: "照模版", storylineID: line.id, completion: $0)
+        }
+        let other = try harness.chapter(project, "港口", ["雾很大。"])
+        host.chaptersChanged(projectID: project.id)
+        host.wordCounts(projectID: project.id, refresh: true)
+        try wait { host.wordCountLibrary(projectID: project.id)?.count(nodeID: templated.id) == 4 }
+        try harness.open(project, .storyline(line))
+        guard let storylinePage = host.activeStorylinePage else { throw LabError.message("The storyline page did not open") }
+        let chapters = storylinePage.chaptersView
+        func entry(_ id: String) -> StorylineChaptersView.Entry? { chapters.listed.first { $0.chapter.id == id } }
+        try wait { entry(templated.id)?.atTemplate == true }
+        try revise("chapter", templated.id, AgentProseChange(currentText: "开场", revisedText: "开端"))
+        try wait { entry(templated.id)?.written == true && entry(templated.id)?.atTemplate == false }
+
+        // A closed element the assistant fills turns 已填写.
+        let category: WorkspaceElementReply<WorkspaceElementCategory> = try elementResult {
+            workspace.createElementCategory(projectID: project.id, name: "地点", completion: $0)
+        }
+        guard let places = category.result else { throw LabError.message("No category") }
+        let created: WorkspaceElementReply<WorkspaceElement> = try elementResult {
+            workspace.createElement(projectID: project.id, categoryID: places.id, name: "码头", completion: $0)
+        }
+        guard let dock = created.result else { throw LabError.message("No element") }
+        host.applyElementLibrary(projectID: project.id, library: created.library)
+        try harness.open(project, .category(places))
+        guard let categoryPage = host.activeCategoryPage else { throw LabError.message("The category page did not open") }
+        try wait { categoryPage.elementsView.ready && categoryPage.elementsView.listed.first { $0.element.id == dock.id }?.filled == false }
+        try revise("element", dock.id, .appending("东边的码头常年起雾。"))
+        try wait { categoryPage.elementsView.listed.first { $0.element.id == dock.id }?.filled == true }
+
+        // 统计 reads the bodies again after a revision of a closed chapter.
+        let otherView = try harness.open(project, .chapter(other))
+        host.showPageStats()
+        guard let first = host.pageStatsController else { throw LabError.message("统计 did not open") }
+        try wait { first.stats.value("page-stats-backlinks") != WordCountText.counting }
+        let reads = host.linkIndexBodyReads
+        host.showPageStats()
+        guard let cached = host.pageStatsController else { throw LabError.message("统计 did not open again") }
+        try wait { cached.stats.value("page-stats-backlinks") != WordCountText.counting }
+        try require(host.linkIndexBodyReads == reads, "A kept link index was read again")
+        try revise("chapter", templated.id, AgentProseChange(currentText: "冲突：", revisedText: "冲突：雾。"))
+        host.showPageStats()
+        guard let fresh = host.pageStatsController else { throw LabError.message("统计 did not open after the revision") }
+        try wait { fresh.stats.value("page-stats-backlinks") != WordCountText.counting }
+        try require(host.linkIndexBodyReads > reads, "The revision did not make 统计 read the bodies again")
+
+        // Opened again while a now stale index is being read: it settles.
+        for index in 1...24 { _ = try harness.chapter(project, "潮汐\(index)", ["潮水退去。"]) }
+        host.chaptersChanged(projectID: project.id)
+        try harness.settled()
+        host.bodyChangedElsewhere(projectID: project.id, kind: "chapter", id: templated.id)
+        let before = host.linkIndexBodyReads
+        host.showPageStats()
+        try wait { host.linkIndexBodyReads > before }
+        host.bodyChangedElsewhere(projectID: project.id, kind: "chapter", id: templated.id)
+        host.showPageStats()
+        guard let pending = host.pageStatsController else { throw LabError.message("统计 did not open while reading") }
+        do { try wait { pending.stats.value("page-stats-backlinks") != WordCountText.counting } } catch {
+            throw LabError.message("统计 stayed at 统计中… after a stale read")
+        }
+        // Unchanged statistics are not drawn again; a closed 统计 is let go.
+        let renders = pending.renders
+        pending.show(pending.stats)
+        try require(pending.renders == renders, "Unchanged statistics were drawn again")
+        host.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: host.pageStatsPopover))
+        try require(host.pageStatsController == nil, "A closed 统计 is still followed")
+        try harness.type(otherView, "潮水涨了。")
+        try require(pending.renders == renders, "A closed 统计 was drawn after a settle")
         try harness.close()
     }
 

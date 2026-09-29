@@ -126,6 +126,23 @@ final class AgentChatController {
     /// Turns that have received an MCP tool result: their memory writes
     /// wait for the author's 允许.
     private var mcpTurns: Set<String> = []
+    /// An `ask_user` question waiting for the author's 回答.
+    private var question: PendingQuestion?
+    private struct PendingQuestion {
+        let conversationID: String
+        let messageID: String
+        let answer: (String) -> Void
+        let cancel: () -> Void
+    }
+    /// 补充 the author sent while the turn ran, oldest first; each is
+    /// delivered as the author's message at the model's next call.
+    private(set) var queuedSteers: [String] = []
+    /// 补充 a turn ended before it could deliver; the panel puts them back
+    /// into the composer (`takeUnsentSteers`).
+    private(set) var unsentSteers: String?
+    /// 在当前工具后停止: the running tool finishes, then the turn ends
+    /// without another model call or tool.
+    private(set) var isStoppingAfterTool = false
 
     var current: AgentConversation? { conversations.first { $0.id == currentID } }
 
@@ -348,18 +365,167 @@ final class AgentChatController {
             approval.cancel()
             return
         }
+        // A question waiting for 回答 stays unanswered.
+        if let question {
+            self.question = nil
+            question.cancel()
+            return
+        }
         if let summaryCall { summaryCall.cancel() }
         if let stream { stream.cancel() }
         // Its completion records the cancellation and ends the turn.
         if let mcpCall { mcpCall.cancel() }
     }
 
-    private func window(_ choice: AgentModelChoice) -> Int { contextWindow?(choice) ?? choice.option.contextWindowTokens }
+    private func window(_ choice: AgentModelChoice) -> Int { contextWindow?(choice) ?? choice.contextWindow }
+
+    // MARK: Running turn: 补充, 在当前工具后停止, ask_user
+
+    /// 补充 while a turn runs: queued and delivered as the author's message
+    /// at the model's next call (a turn whose reply already ended makes one
+    /// more call for it). False when nothing was queued.
+    @discardableResult
+    func steer(_ text: String) -> Bool {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isRunning, !isStopping, !isStoppingAfterTool, question == nil, !text.isEmpty else { return false }
+        queuedSteers.append(text)
+        notify(.streaming)
+        return true
+    }
+
+    /// The 补充 a stopped or ended turn did not deliver, once.
+    func takeUnsentSteers() -> String? {
+        defer { unsentSteers = nil }
+        return unsentSteers
+    }
+
+    /// 在当前工具后停止: a running tool (or MCP call) finishes and is
+    /// recorded, the calls after it are not run and no further request is
+    /// made. A reply still streaming completes but its tool calls are not
+    /// run. With nothing that could finish (a retry backoff, an approval
+    /// card or a question), it stops at once.
+    func stopAfterTool() {
+        guard isRunning, !isStopping, !isStoppingAfterTool else { return }
+        if retryWork != nil || approval != nil || question != nil { stop(); return }
+        isStoppingAfterTool = true
+        notify(.streaming)
+    }
+
+    private static let stoppedAfterTool = "已在当前工具完成后停止。"
+
+    /// The question card waiting for 回答.
+    var waitingQuestion: String? { question?.messageID }
+
+    /// 回答 on the question card (or the composer while it waits): the
+    /// answer is the tool's result and the turn continues. Returns why it
+    /// was refused.
+    @discardableResult
+    func answerQuestion(_ messageID: String, answer: String) -> String? {
+        guard let question, question.messageID == messageID, isRunning, !isStopping else { return "这个问题已经不在等待回答。" }
+        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return "回答不能为空。" }
+        guard text.count <= AgentQuestion.answerLimit else { return "回答最多 \(AgentQuestion.answerLimit) 字。" }
+        self.question = nil
+        question.answer(text)
+        return nil
+    }
+
+    private func setQuestion(_ id: String, _ messageID: String, _ change: (inout AgentQuestion) -> Void) {
+        update(id) { conversation in
+            guard let index = conversation.messages.firstIndex(where: { $0.id == messageID }), conversation.messages[index].question != nil else { return }
+            change(&conversation.messages[index].question!)
+        }
+        notify(.transcript)
+    }
+
+    /// `ask_user`: a checked question becomes a card and the turn waits. 回答
+    /// continues it; 停止 leaves the card 未回答 and ends the turn.
+    private func askUser(_ calls: [AgentToolCall], at position: Int, id: String, turnID: String, number: Int, run: Int) {
+        let call = calls[position]
+        let next: () -> Void = { [weak self] in self?.runTools(calls, at: position + 1, id: id, turnID: turnID, number: number, run: run) }
+        let arguments: [String: Any]
+        switch AgentWorkspaceTools.validated(call) {
+        case .failure(let refusal): appendTool(id, turnID: turnID, call: call, refusal.outcome); next(); return
+        case .success(let valid): arguments = valid
+        }
+        let text = (arguments["question"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let choices = (arguments["choices"] as? [String] ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard !text.isEmpty else {
+            appendTool(id, turnID: turnID, call: call, .failure("问题不能为空。请写清楚需要作者决定什么。", activity: "提问失败")); next(); return
+        }
+        guard !choices.contains(where: \.isEmpty), Set(choices).count == choices.count else {
+            appendTool(id, turnID: turnID, call: call, .failure("选项不能为空，也不能重复。", activity: "提问失败")); next(); return
+        }
+        var card = AgentMessage(role: .notice, turnID: turnID, text: "写作助手的问题：\(text)")
+        card.question = AgentQuestion(callID: call.id, question: text, choices: choices, state: .waiting, answer: nil)
+        let cardID = card.id
+        update(id) { $0.messages.append(card); $0.updatedAt = Date() }
+        question = PendingQuestion(conversationID: id, messageID: cardID, answer: { [weak self] answer in
+            guard let self, run == self.generation, self.isRunning else { return }
+            self.setQuestion(id, cardID) { $0.state = .answered; $0.answer = answer }
+            self.appendTool(id, turnID: turnID, call: call, AgentToolOutcome(ok: true, content: AgentJSONText.encode(["answer": answer]),
+                                                                           activity: "已把你的回答交给写作助手", proposal: nil))
+            next()
+        }, cancel: { [weak self] in
+            guard let self else { return }
+            self.setQuestion(id, cardID) { $0.state = .unanswered }
+            self.update(id) { conversation in
+                var result = AgentMessage(role: .tool, turnID: turnID, text: "作者没有回答这个问题，本轮已停止。")
+                result.callID = call.id; result.toolName = call.name; result.ok = false; result.activity = "问题未回答"
+                conversation.messages.append(result)
+                for rest in calls[(position + 1)...] {
+                    var skipped = AgentMessage(role: .tool, turnID: turnID, text: "作者停止了本轮，这个工具没有执行。")
+                    skipped.callID = rest.id; skipped.toolName = rest.name; skipped.ok = false
+                    conversation.messages.append(skipped)
+                }
+            }
+            self.finish(id, notice: "已停止。", error: false)
+        })
+        activity = "等待你回答写作助手的问题…"
+        notify(.transcript)
+        notify(.streaming)
+    }
+
+    /// Queued 补充 become the author's messages in the running turn.
+    private func deliverSteers(_ id: String, turnID: String) {
+        guard !queuedSteers.isEmpty else { return }
+        let steers = queuedSteers
+        queuedSteers = []
+        update(id) { conversation in
+            for text in steers {
+                var message = AgentMessage(role: .user, turnID: turnID, text: text)
+                message.context = "【运行提示】作者在本轮进行中补充了以下要求，请结合它继续当前任务。"
+                message.steer = true
+                conversation.messages.append(message)
+            }
+            conversation.updatedAt = Date()
+        }
+        notify(.transcript)
+    }
+
+    /// The context indicator's numbers for the current conversation: the
+    /// latest reported request against the window compaction uses, with
+    /// the next request's estimate.
+    /// Without `estimate` (while a turn runs, where every tool result would
+    /// serialize the whole request again) the estimate is made only when
+    /// there is no report to show.
+    func contextUsage(estimate: Bool = true) -> AgentContextUsage? {
+        guard let conversation = current else { return nil }
+        let choice = conversation.choice.normalized()
+        let reported = AgentContextUsage.of(conversation, window: window(choice), estimate: nil)
+        if !estimate, reported.reported { return reported }
+        let request = AgentModelRequest(choice: choice, apiKey: "", system: systemPrompt(for: conversation), messages: conversation.messages,
+                                        turnID: "", tools: toolDefinitions, sessionID: conversation.id)
+        return AgentContextUsage.of(conversation, window: window(choice), estimate: AgentContextBudget.estimate(request))
+    }
 
     private func round(_ id: String, turnID: String, number: Int, run: Int, attempt: Int = 0, compacted: Bool = false) {
         guard run == generation, isRunning else { return }
         guard !isStopping else { finish(id, notice: "已停止。", error: false); return }
+        guard !isStoppingAfterTool else { finish(id, notice: Self.stoppedAfterTool, error: false); return }
         guard number <= Self.maxToolRounds else { roundLimit(id); return }
+        guard index(id) != nil else { finish(id, notice: nil, error: false); return }
+        deliverSteers(id, turnID: turnID)
         guard let conversation = conversations.first(where: { $0.id == id }) else { finish(id, notice: nil, error: false); return }
         let choice = conversation.choice.normalized()
         let key: String?
@@ -506,6 +672,9 @@ final class AgentChatController {
         notify(.transcript)
         if !reply.toolCalls.isEmpty {
             runTools(reply.toolCalls, at: 0, id: id, turnID: turnID, number: number, run: run)
+        } else if !queuedSteers.isEmpty, !isStopping, !isStoppingAfterTool, reply.stop != .maxTokens, reply.stop != .contentFilter {
+            // A 补充 arrived while the reply was written: one more call reads it.
+            round(id, turnID: turnID, number: number + 1, run: run)
         } else if reply.stop == .maxTokens {
             finish(id, notice: "回复达到了长度上限，已被截断。", error: false)
         } else if reply.stop == .contentFilter {
@@ -517,6 +686,22 @@ final class AgentChatController {
 
     private func runTools(_ calls: [AgentToolCall], at position: Int, id: String, turnID: String, number: Int, run: Int) {
         guard run == generation, isRunning else { return }
+        // 在当前工具后停止: nothing after the tool that was running.
+        if position < calls.count, isStoppingAfterTool, !isStopping {
+            update(id) { conversation in
+                for call in calls[position...] {
+                    var result = AgentMessage(role: .tool, turnID: turnID, text: "作者要求在当前工具完成后停止，这个工具没有执行。")
+                    result.callID = call.id; result.toolName = call.name; result.ok = false
+                    conversation.messages.append(result)
+                }
+            }
+            finish(id, notice: Self.stoppedAfterTool, error: false)
+            return
+        }
+        if position < calls.count, !isStopping, calls[position].name == "ask_user" {
+            askUser(calls, at: position, id: id, turnID: turnID, number: number, run: run)
+            return
+        }
         // Memory tools change only the assistant's memory, at once, except
         // rule, working-memory and plan writes after an MCP result in this turn.
         if position < calls.count, !isStopping, AgentMemoryTools.names.contains(calls[position].name) {
@@ -609,9 +794,18 @@ final class AgentChatController {
             self.approval = nil
             setApprovalState(approval.conversationID, approval.messageID, .cancelled)
         }
+        if let question {
+            self.question = nil
+            setQuestion(question.conversationID, question.messageID) { $0.state = .unanswered }
+        }
+        // 补充 not delivered go back to the author.
+        if !queuedSteers.isEmpty {
+            unsentSteers = ((unsentSteers.map { [$0] } ?? []) + queuedSteers).joined(separator: "\n")
+            queuedSteers = []
+        }
         // One turn runs at a time; its MCP mark ends with it.
         mcpTurns.removeAll()
-        isRunning = false; isStopping = false; runningID = nil
+        isRunning = false; isStopping = false; isStoppingAfterTool = false; runningID = nil
         streamingText = ""; streamingThinking = ""; activity = nil
         notify(.transcript)
         notify(.streaming)

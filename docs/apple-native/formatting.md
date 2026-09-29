@@ -38,7 +38,10 @@ typing-marks state.
   touches (a caret takes its block), keeping text, public block IDs, marks,
   typed metadata and comment anchors (`crates/drifting-document/src/wrapping.rs`).
   Consecutive root blocks are wrapped in one new root container (a list puts
-  each block in its own `listItem`). Blocks that are all direct children of one
+  each block in its own `listItem`), or join a container of the same kind
+  right before them (appended) or else right after them (prepended), so a list
+  built one paragraph at a time is one list. A heading never becomes a list
+  item (引用 still takes it; 标题不能设为列表项…). Blocks that are all direct children of one
   root quote, or each the only paragraph of an item of one root list of that
   kind, are lifted to the root when they are the first ones, the last ones or
   all of it. Anything else refuses before mutation: the middle of a quote or
@@ -103,13 +106,22 @@ duplicate operation.
   list's last, lifts it out (ends the quote or list, one undo unit): Return
   twice after an item's text ends the list. ⌫ at the start of a quote's first
   paragraph, or of the only paragraph of a list's first or last item, lifts
-  it out instead of joining it to the paragraph before. ⌫ at a middle item,
-  and any deletion across list items or between a list and the paragraph
-  beside it, is refused before input is queued (列表项之间不能合并…), as Rust
-  would refuse it.
+  it out instead of joining it to the paragraph before. ⌫ in the empty
+  paragraph right after a quote or list (Return twice left it there), or ⌦ at
+  the end of the container's last block before it, deletes only the separator
+  and Rust removes that paragraph (one undo unit, the caret at the item's
+  end). ⌫ at a middle item, and any other deletion across list items or
+  between a list and the paragraph beside it, is refused before input is
+  queued (列表项之间不能合并…), as Rust would refuse it. Return after an item's
+  paragraph that a nested list follows (imported) is an ordinary new line.
+  Undoing a heading, quote or list change over blocks another writer has since
+  typed into is refused in Chinese (撤销会让段落重复…), since it would duplicate
+  block IDs.
 - **分隔线**: 格式 › 插入分隔线 (no default shortcut), the context menu's 格式
   submenu and the slash menu's 分隔线 insert a rule through `documentRule`;
-  the caret goes where Rust puts it. A rule's context menu offers 删除分隔线;
+  the caret goes where Rust puts it, unless typing already followed the edit
+  (then the caret stays after the typed text); ⌦ keeps the caret where it was.
+  A rule's context menu offers 删除分隔线;
   ⌫ at the start of the paragraph right after a rule, or ⌦ at the end of the
   one right before it (or either key on the rule), removes it, also when
   given while typed text is on its way (it waits like a slash row). Typing
@@ -232,7 +244,7 @@ duplicate operation.
   its input is queued keeping the heading or indent, and a mistyped @ query
   corrected with ⌫, an inert picker not taking Return. `--style-only` and the
   older formatting cases keep the incremental-style reference.
-- `--quotes-lists-only` (seven AppKit cases in
+- `--quotes-lists-only` (nine AppKit cases in
   `native/apple/Tests/QuotesListsAcceptance.swift`) covers each toggle by
   menu, an assigned shortcut, the toolbar, the context submenu and the slash
   menu with checkmarks, one undo unit each, block IDs and a comment on a
@@ -250,7 +262,11 @@ duplicate operation.
   with the caret where Rust puts it, typing over a rule refused, the line
   drawn centred with its character hidden in both panes, the 全书长卷, the
   历史版本 preview and print, and a cold reopen; and slash rows by place, a
-  row that stopped applying keeping “/”, and the drawing log's bound.
+  row that stopped applying keeping “/”, and the drawing log's bound; a list
+  built one paragraph at a time (and a paragraph joining at its start), ⌫ and
+  ⌦ removing the empty paragraph after a list, a heading made a list refused,
+  typing right after ⌫ on a rule keeping its order and caret, ⌦'s caret, the
+  read-only refusal wording and the nested-list Return check.
 - Not covered: physical keys and clicks, the popovers and find bar on screen,
   typing into the find bar's field, input-method composition inside a
   picker's query, the markers' pixels (the tests record which markers each view

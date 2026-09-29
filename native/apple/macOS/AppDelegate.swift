@@ -430,6 +430,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         agentPanel.translatesAutoresizingMaskIntoConstraints = false
         agentPanel.isHidden = true
         agentPanel.onOpenSettings = { [weak self] in self?.showAgentSettings() }
+        // 听写 in the composer: the author's DashScope key, the open
+        // project's names for recognition and correction.
+        let dictation = VoiceDictation(secrets: agentCredentials)
+        dictation.context = { [weak self] done in
+            guard let self, let project = self.currentProject ?? self.selectedProject else { done(.empty); return }
+            VoiceRecognitionContext.read(workspace: self.workspace, projectID: project.id, projectName: project.name, completion: done)
+        }
+        agentPanel.dictation = dictation
+        agentPanel.onOpenSpeechSettings = { [weak self] in
+            self?.showSettings()
+            self?.settingsWindow?.showModelServicesPane()
+        }
         content.addSubview(agentPanel)
         // The panel takes the trailing edge only while shown; the editor
         // (and its split panes) keeps the remaining width.
@@ -817,7 +829,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         guard agentSettings == nil else { return }
         let sheet = MacAgentSettingsSheet(credentials: agentCredentials)
         agentSettings = sheet
-        sheet.onFinish = { [weak self] in self?.agentSettings = nil; self?.settingsWindow?.copilotPane.refresh() }
+        sheet.onFinish = { [weak self] in
+            self?.agentSettings = nil
+            self?.settingsWindow?.copilotPane.refresh(); self?.settingsWindow?.modelServicesPane.refresh()
+        }
         sheet.begin(in: window)
     }
 
@@ -3226,6 +3241,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
             controller.mcpPane.projectExists = { [weak self] id in self?.projects.contains { $0.id == id } == true }
             controller.copilotPane.credentials = agentCredentials
             controller.copilotPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
+            controller.modelServicesPane.credentials = agentCredentials
+            controller.modelServicesPane.secrets = agentCredentials
+            controller.modelServicesPane.onManageKeys = { [weak self] in self?.showAgentSettings() }
         }
         settingsWindow = controller
         if controller.window?.isVisible != true { controller.window?.center() }

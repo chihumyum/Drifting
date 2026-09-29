@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// 设置 (⌘,): 外观, 编辑器, 语言, 快捷键, 写作助手 and Copilot（实验） as toolbar tabs, as Mac settings windows
+/// 设置 (⌘,): 外观, 编辑器, 语言, 快捷键, 模型服务, 写作助手 and Copilot（实验） as toolbar tabs, as Mac settings windows
 /// are. Every control writes through `LabSettingsStore` at once, which saves
 /// and applies it: open editors restyle in place and every window follows
 /// the theme. Controls follow the store, so a refusal never leaves one
@@ -16,6 +16,8 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
     let mcpPane: MacMcpSettingsViewController
     let copilotPane: MacCopilotSettingsViewController
     let shortcutPane: MacShortcutSettingsViewController
+    /// Provider keys and 语音转写.
+    let modelServicesPane = MacModelServicesSettingsViewController()
     private let tabs = NSTabViewController()
 
     init(store: LabSettingsStore) {
@@ -30,7 +32,8 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
         tabs.tabStyle = .toolbar
         for (controller, label, symbol) in [(appearancePane as NSViewController, "外观", "paintbrush"),
                                             (editorPane, "编辑器", "textformat"), (languagePane, "语言", "globe"),
-                                            (shortcutPane, "快捷键", "keyboard"), (agentPane, "写作助手", "text.bubble"), (copilotPane, "Copilot（实验）", "sparkles")] {
+                                            (shortcutPane, "快捷键", "keyboard"), (modelServicesPane, "模型服务", "key"),
+                                            (agentPane, "写作助手", "text.bubble"), (copilotPane, "Copilot（实验）", "sparkles")] {
             let item = NSTabViewItem(viewController: controller)
             item.label = label
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -53,7 +56,12 @@ final class MacSettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func refresh() {
         appearancePane.refresh(); editorPane.refresh(); languagePane.refresh(); agentPane.refresh(); copilotPane.refresh()
-        mcpPane.refresh(); shortcutPane.refresh()
+        mcpPane.refresh(); shortcutPane.refresh(); modelServicesPane.refresh()
+    }
+
+    /// Shows 模型服务 (provider keys and 语音转写).
+    func showModelServicesPane() {
+        tabs.selectedTabViewItemIndex = tabs.tabViewItems.firstIndex { $0.viewController === modelServicesPane } ?? 0
     }
 
     /// Shows the 快捷键 tab.

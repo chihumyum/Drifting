@@ -25,6 +25,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Drifting Native Lab
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "写作助手的听写需要使用麦克风：录音会发送到你在 设置 › 模型服务 › 语音转写 中配置的阿里云百炼（DashScope）转写成文字，放进输入框供你核对。录音不会保存在这台 Mac 上。"
   DriftingNativeIOS:
     type: application
     platform: iOS

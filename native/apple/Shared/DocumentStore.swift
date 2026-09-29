@@ -577,6 +577,10 @@ enum NativeLayout {
             return selected.contains { $0.kind == "horizontalRule" } ? "分隔线不能和文字一起改写，可以在它后面的段首按 ⌫ 或用右键菜单删除分隔线"
                 : "未支持的内容已保留，只读区域不能改写"
         }
+        // Deleting just the separator before an empty top-level paragraph
+        // right after a quote or list (⌫ after leaving a list, ⌦ at its end):
+        // Rust removes that paragraph.
+        if removesEmptyParagraphAfterContainer(blocks: blocks, range: range, text: text) { return nil }
         if first != last || (selected[0].kind != "codeBlock" && text.contains("\n")) {
             guard selected.allSatisfy({ ["paragraph", "heading"].contains($0.kind) }) else {
                 return "此操作涉及尚未支持的结构，已保留原文"
@@ -597,6 +601,27 @@ enum NativeLayout {
         }
         if text.contains("\r") || text.contains("\u{2029}") { return "请使用标准换行符" }
         return nil
+    }
+
+    /// Whether a list item's block is its item's last child: the next block
+    /// is outside the item. A deeper block after it (an imported nested
+    /// list) is still inside the item.
+    static func lastInItem(_ blocks: [NativeBlock], at index: Int) -> Bool {
+        guard blocks.indices.contains(index) else { return false }
+        guard index + 1 < blocks.count else { return true }
+        let block = blocks[index], next = blocks[index + 1]
+        return next.container != block.container && next.containers.count <= block.containers.count
+    }
+
+    /// Deleting only the separator between the last block of a quote or list
+    /// and an empty top-level paragraph right after it, which Rust takes as
+    /// removing that paragraph.
+    static func removesEmptyParagraphAfterContainer(blocks: [NativeBlock], range: NSRange, text: String) -> Bool {
+        guard text.isEmpty, range.length == 1, let first = index(range.location, blocks: blocks), first + 1 < blocks.count else { return false }
+        let left = blocks[first], right = blocks[first + 1]
+        return range.location == NSMaxRange(left.range.nsRange) && NSMaxRange(range) == right.range.location
+            && !left.containers.isEmpty && right.containers.isEmpty && right.editable && right.kind == "paragraph"
+            && right.range.length == 0
     }
 
     static func replacing(_ projection: NativeProjection, with change: NativeTextChange) -> NativeProjection {

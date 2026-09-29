@@ -46,6 +46,9 @@ final class ProseTextView: ListMarkerTextView {
     /// 编辑 › Copilot 分析 (⇧⌘I) on this body.
     var canPerformCopilot: (() -> Bool)?
     var performCopilot: (() -> Void)?
+    /// 编辑 › Copilot 修改 (⌃⌘I) on this body.
+    var canPerformCopilotInline: (() -> Bool)?
+    var performCopilotInline: (() -> Void)?
     /// The find bar of this editor; nil where find is not offered (the
     /// 全书长卷's rows).
     weak var textFinder: NSTextFinder?
@@ -168,6 +171,10 @@ final class ProseTextView: ListMarkerTextView {
         guard canPerformCopilot?() == true else { return }
         performCopilot?()
     }
+    @objc func copilotInlineEdit(_ sender: Any?) {
+        guard canPerformCopilotInline?() == true else { return }
+        performCopilotInline?()
+    }
     /// 查找…, 查找下一个, 查找上一个 and 用所选内容查找 name their action by tag.
     override func performTextFinderAction(_ sender: Any?) {
         guard let finder = textFinder, let tag = (sender as? NSValidatedUserInterfaceItem)?.tag,
@@ -195,6 +202,7 @@ final class ProseTextView: ListMarkerTextView {
         if action == #selector(addProseComment(_:)) { return canPerformComment?() == true }
         if action == #selector(insertRuleProse(_:)) { return canInsertRule?() == true }
         if action == #selector(copilotAnalyze(_:)) { return canPerformCopilot?() == true }
+        if action == #selector(copilotInlineEdit(_:)) { return canPerformCopilotInline?() == true }
         if action == #selector(performTextFinderAction(_:)) {
             guard let finder = textFinder, let finderAction = NSTextFinder.Action(rawValue: item.tag) else { return false }
             return finder.validateAction(finderAction)
@@ -303,6 +311,10 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     var onCopilotAnalyze: ((NSRange) -> Void)?
     /// Whether Copilot works in this body now (on, allowed here, idle).
     var canCopilotAnalyze: (() -> Bool)?
+    /// Copilot 修改 at the selection (or the caret's paragraph). Set by the
+    /// tab host for chapter and drift bodies.
+    var onCopilotInline: ((NSRange) -> Void)?
+    var canCopilotInline: (() -> Bool)?
     /// The workspace's elements and chapters. Without one, links keep the
     /// default style and cannot be opened. A change restyles the prose only.
     var linkDirectory: EntityLinkDirectory? {
@@ -366,6 +378,12 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     /// Markers are placed shortly after the prose settles.
     var hasScheduledMarkers: Bool { markerWork != nil }
     static var markerDelay: TimeInterval = 0.3
+    /// The last measured tick positions, reused while only typing changed
+    /// the text: which ticks, the strip and prose widths, the text length
+    /// then, and each tick's fraction. Measuring lays the text out.
+    private var markerLayout: (signature: [String], size: NSSize, width: CGFloat, length: Int, fractions: [CGFloat])?
+    /// Measurements of tick positions, for acceptance.
+    private(set) var markerLayouts = 0
 
     init(core: LabCore, allowsComments: Bool = true, minimumTextHeight: CGFloat = 220, growsWithText: Bool = false) {
         binding = DocumentBinding(core: core)
@@ -415,6 +433,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         textView.performInsertRule = { [weak self] in self?.insertRule() }
         textView.canPerformCopilot = { [weak self] in self?.canRequestCopilot == true }
         textView.performCopilot = { [weak self] in self?.requestCopilot() }
+        textView.canPerformCopilotInline = { [weak self] in self?.canRequestCopilotInline == true }
+        textView.performCopilotInline = { [weak self] in self?.requestCopilotInline() }
         textView.openLink = { [weak self] index in
             guard let self else { return false }
             return self.openLink(at: index) || self.openURLLink(at: index)
@@ -607,8 +627,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         var placedRuleCaret = false
         if let pending = pendingRuleCaret, projection.revision >= pending.revision {
             pendingRuleCaret = nil
-            selection = NSRange(location: pending.caret, length: 0)
-            placedRuleCaret = true
+            // Only the render of the rule reply itself places Rust's caret. A
+            // later revision already holds typed input, whose mapped
+            // selection is where the author is; the reply's caret is stale.
+            if projection.revision == pending.revision {
+                selection = NSRange(location: pending.caret, length: 0)
+                placedRuleCaret = true
+            }
         }
         let length = (projection.text as NSString).length
         let start = min(selection.location, length)
@@ -702,11 +727,27 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             }
         }
         found.sort { ($0.2.location, $0.1) < ($1.2.location, $1.1) }
-        let height = found.isEmpty ? 1 : textView.proseDocumentHeight()
-        strip.markers = found.map { kind, id, range, label in
+        guard !found.isEmpty else { strip.markers = []; markerLayout = nil; return }
+        // Typing alone moves anchors little: the measured positions stay
+        // until the ticks, the widths or much of the text change, so a
+        // typing pause never lays out the whole text.
+        let signature = found.map { "\($0.0.rawValue):\($0.1)" }
+        let width = textView.textContainer?.size.width ?? textView.bounds.width
+        if let layout = markerLayout, layout.signature == signature, layout.size == strip.frame.size, layout.width == width,
+           abs(layout.length - text.length) <= max(200, layout.length / 20) {
+            strip.markers = zip(found, layout.fractions).map { entry, fraction in
+                ProseMarker(kind: entry.0, id: entry.1, range: entry.2, fraction: fraction, label: entry.3)
+            }
+            return
+        }
+        markerLayouts += 1
+        let height = textView.proseDocumentHeight()
+        let markers = found.map { kind, id, range, label in
             let top = textView.proseLineTop(at: range.location) ?? 0
             return ProseMarker(kind: kind, id: id, range: range, fraction: height > 0 ? min(1, max(0, top / height)) : 0, label: label)
         }
+        markerLayout = (signature, strip.frame.size, width, text.length, markers.map(\.fraction))
+        strip.markers = markers
     }
 
     /// A tick's click: its anchor is selected and scrolled into view.
@@ -793,6 +834,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         restyleLinks()
         if !textView.hasMarkedText() { textView.typingAttributes = DocumentStyle.bodyAttributes }
         fitTextHeight()
+        // New typography moves every line: the ticks are measured again.
+        markerLayout = nil
         scheduleMarkers()
     }
 
@@ -1344,7 +1387,8 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         case .insertRule: insertRule()
         case .removeRule(let forward):
             guard let rule = removableRuleBeside(forward: forward) else { return }
-            removeRule(at: rule.range.location)
+            // ⌦ removes what lies after the caret, so the caret stays put.
+            removeRule(at: rule.range.location, keepCaret: forward ? textView.selectedRange().location : nil)
         }
     }
 
@@ -1375,15 +1419,16 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
 
     /// 删除分隔线 (a rule's context menu), ⌫ right after a rule and ⌦ right
     /// before one. The caret follows Rust's reply.
-    func removeRule(at location: Int) {
+    /// `keepCaret`: ⌦ keeps the caret, which lies before the removed rule.
+    func removeRule(at location: Int, keepCaret: Int? = nil) {
         guard !isInteractionLocked, !textView.hasMarkedText(), binding.removableRule(at: location) != nil else { return }
         focus()
-        binding.removeRule(at: location) { [weak self] result in self?.ruleEdited(result) }
+        binding.removeRule(at: location) { [weak self] result in self?.ruleEdited(result, keepCaret: keepCaret) }
     }
 
-    private func ruleEdited(_ result: Result<Int, Error>) {
+    private func ruleEdited(_ result: Result<Int, Error>, keepCaret: Int? = nil) {
         guard case .success(let caret) = result else { return }
-        pendingRuleCaret = (caret, binding.state?.projection.revision ?? 0)
+        pendingRuleCaret = (keepCaret ?? caret, binding.state?.projection.revision ?? 0)
     }
 
     /// The rule ⌫ or ⌦ would remove at the caret, on the idle owner's projection.
@@ -1496,6 +1541,19 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         onCopilotAnalyze?(textView.selectedRange())
     }
 
+    var canRequestCopilotInline: Bool {
+        onCopilotInline != nil && !isInteractionLocked && !textView.hasMarkedText() && canCopilotInline?() == true
+    }
+
+    /// Copilot 修改: the tab host opens its popover at the selection.
+    @objc func requestCopilotInline() {
+        guard canRequestCopilotInline else { return }
+        onCopilotInline?(textView.selectedRange())
+    }
+
+    /// A message in the editor's status line.
+    func showStatus(_ text: String) { status.stringValue = text }
+
     /// The prose context menu's 格式 submenu: the 格式 menu's commands on
     /// this editor, validated and checked against the selection.
     private func formatMenuItem() -> NSMenuItem {
@@ -1548,6 +1606,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
             item.target = self
             item.setAccessibilityIdentifier("context-create-patch")
             item.toolTip = "把选中的文字锚定为一个设定的变化"
+            leading.append(item)
+        }
+        if canRequestCopilotInline {
+            let item = NSMenuItem(title: "Copilot 修改…", action: #selector(requestCopilotInline), keyEquivalent: "")
+            item.target = self
+            item.setAccessibilityIdentifier("context-copilot-inline")
+            item.toolTip = "让 Copilot 局部修改选中的文字（或光标所在段落），就它提问，或生成摘要（⌃⌘I）"
             leading.append(item)
         }
         if canRequestCopilot {
@@ -1657,7 +1722,9 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         let block = blocks[index]
         guard block.acceptsBlockAttributes, block.range.length > 0,
               block.rootContainer == "bulletList" || block.rootContainer == "orderedList" else { return false }
-        return index + 1 == blocks.count || blocks[index + 1].container != block.container
+        // Not its item's last child (a nested list follows inside the item):
+        // Return keeps the ordinary new line.
+        return NativeLayout.lastInItem(blocks, at: index)
     }
 
     /// Markdown-style starts, as in the renderer: “> ”, “- ” (“+ ”, “* ”)

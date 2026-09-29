@@ -148,12 +148,13 @@ fn native_lists_wrap_each_block_in_an_item_number_and_lift() {
     apply(&mut doc, NativeFormatAction::OrderedList, 9, 0).unwrap();
     assert_eq!(shape(&doc)[2], ("c".into(), s(&[]), None));
     assert_eq!(shape(&doc)[1].2, Some(2));
-    // A heading wraps as a bullet item too.
+    // A heading cannot become a list item; a quote takes it.
     apply(&mut doc, NativeFormatAction::Heading2, 9, 0).unwrap();
-    apply(&mut doc, NativeFormatAction::BulletList, 9, 0).unwrap();
+    assert!(apply(&mut doc, NativeFormatAction::BulletList, 9, 0).is_err());
+    apply(&mut doc, NativeFormatAction::Blockquote, 9, 0).unwrap();
     let view = doc.native_projection().unwrap();
     assert_eq!(view.blocks[2].kind, "heading");
-    assert_eq!(view.blocks[2].containers, s(&["bulletList", "listItem"]));
+    assert_eq!(view.blocks[2].containers, s(&["blockquote"]));
     while doc.undo() {}
     assert!(shape(&doc)
         .iter()
@@ -270,4 +271,101 @@ fn native_list_item_split_turns_an_items_new_last_paragraph_into_the_next_item()
         doc.native_projection().unwrap().blocks[1].list_number,
         Some(1)
     );
+}
+
+fn numbers(doc: &DocumentSession) -> Vec<Option<u32>> {
+    doc.native_projection()
+        .unwrap()
+        .blocks
+        .into_iter()
+        .map(|block| block.list_number)
+        .collect()
+}
+
+#[test]
+fn native_lists_built_one_block_at_a_time_join_their_neighbour() {
+    let mut doc = source();
+    apply(&mut doc, NativeFormatAction::OrderedList, 0, 0).unwrap();
+    apply(&mut doc, NativeFormatAction::OrderedList, 5, 0).unwrap();
+    apply(&mut doc, NativeFormatAction::OrderedList, 8, 0).unwrap();
+    assert_eq!(numbers(&doc), vec![Some(1), Some(2), Some(3)]);
+    // One list: selecting all of it lifts it whole.
+    apply(&mut doc, NativeFormatAction::OrderedList, 0, 10).unwrap();
+    assert_eq!(numbers(&doc), vec![None, None, None]);
+    // A block before a list joins it at the front.
+    apply(&mut doc, NativeFormatAction::BulletList, 8, 0).unwrap();
+    apply(&mut doc, NativeFormatAction::BulletList, 5, 0).unwrap();
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.blocks[1].containers, view.blocks[2].containers);
+    apply(&mut doc, NativeFormatAction::BulletList, 5, 5).unwrap();
+    assert!(doc
+        .native_projection()
+        .unwrap()
+        .blocks
+        .iter()
+        .all(|b| b.containers.is_empty()));
+    // Undo after redo still works.
+    assert!(doc.undo());
+    assert!(doc.redo());
+    assert!(doc.undo());
+}
+
+#[test]
+fn native_backspace_after_a_list_removes_the_empty_paragraph_left_behind() {
+    let mut seed = DocumentSession::with_test_client_id(79201).unwrap();
+    for (id, text) in [("a", "开篇"), ("b", "潮汐"), ("e", "")] {
+        seed.edit(Edit::AppendParagraph {
+            id: id.into(),
+            text: text.into(),
+        })
+        .unwrap();
+    }
+    let mut doc = DocumentSession::with_test_client_id(79202).unwrap();
+    doc.apply_remote(&seed.update(None, 1).unwrap(), 1).unwrap();
+    apply(&mut doc, NativeFormatAction::OrderedList, 0, 5).unwrap();
+    assert_eq!(doc.native_projection().unwrap().text, "开篇\n潮汐\n");
+    doc.replace_native(NativeReplacement {
+        revision: doc.revision,
+        range: NativeRange {
+            location: 5,
+            length: 1,
+        },
+        text: String::new(),
+    })
+    .unwrap();
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.text, "开篇\n潮汐");
+    assert_eq!(view.blocks.len(), 2);
+    assert!(doc.undo());
+    assert_eq!(doc.native_projection().unwrap().blocks.len(), 3);
+}
+
+#[test]
+fn native_undo_of_a_wrap_refuses_when_another_writer_typed_into_it() {
+    let mut doc = source();
+    apply(&mut doc, NativeFormatAction::Blockquote, 5, 0).unwrap();
+    let mut peer = DocumentSession::with_test_client_id(79301).unwrap();
+    peer.apply_remote(&doc.update(None, 1).unwrap(), 1).unwrap();
+    peer.replace_native(NativeReplacement {
+        revision: peer.revision,
+        range: NativeRange {
+            location: 5,
+            length: 0,
+        },
+        text: "远".into(),
+    })
+    .unwrap();
+    doc.apply_remote(&peer.update(None, 1).unwrap(), 1).unwrap();
+    let before = doc.semantic().unwrap();
+    let error = doc.try_undo().unwrap_err();
+    assert!(error.starts_with(NATIVE_HISTORY_UNAVAILABLE), "{error}");
+    assert_eq!(doc.semantic().unwrap(), before);
+    let ids: Vec<_> = doc
+        .native_projection()
+        .unwrap()
+        .blocks
+        .into_iter()
+        .map(|block| block.id.unwrap())
+        .collect();
+    assert_eq!(ids, ["a", "b", "c"]);
 }

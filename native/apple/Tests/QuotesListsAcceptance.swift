@@ -17,7 +17,13 @@ extension BindingAcceptance {
         "AppKit 打印 and the PDF export set quotes muted and indented and list items with their numbers and bullets from the live projection; the 全书长卷's editor rows and read-only previews and the 历史版本 preview draw the same markers",
         "AppKit 分隔线 goes in from 格式 › 插入分隔线 after the caret's block (the caret in the new paragraph) and from the slash menu before an empty paragraph, and out through 删除分隔线 in its context menu, ⌫ at the start of the paragraph after it (also while typed text is on its way) and ⌦ at the end of the one before it, each one undo unit with the caret where Rust puts it; typing over it is refused, and it is drawn as a centred thin line, never the placeholder, in both panes, the 全书长卷's editor rows and previews, the 历史版本 preview and print, and survives a cold reopen",
         "AppKit the slash menu in a list item or a quote offers only the formats that apply there, a slash row whose format stopped applying before it was chosen keeps the typed “/”, and the list-marker drawing log stays bounded",
+        quotesListsJoinCase,
+        quotesListsReviewCase,
     ]
+
+    static let quotesListsReviewCase = "AppKit rule and list review fixes: ⌫ removing a rule with typing right after it keeps the typed text in order and the caret after it (a stale rule caret is dropped), ⌦ before a rule keeps the caret where it was, a format refusal over read-only content no longer reads as a rule refusal, and Return after an item's paragraph followed by a nested list keeps the ordinary new line instead of splitting the item"
+
+    static let quotesListsJoinCase = "AppKit a list built one paragraph at a time joins the list right before it (one list numbered 1–3, one undo unit each) and a paragraph right before a list joins it at the start; ⌫ in the empty paragraph a Return left after the list and ⌦ at the end of the list's last item remove that paragraph as one undo unit with the caret at the item's end; a heading made a list is refused with Chinese guidance writing nothing (the slash menu does not offer lists there) while 引用 still takes it; and the undo refusal over another writer's text reads in Chinese"
 
     static func quotesListsAcceptance() throws -> [String] {
         let saved = (DocumentStore.entityLinkDelay, MacChapterWorkspace.backlinkDelay)
@@ -32,6 +38,8 @@ extension BindingAcceptance {
         try qlListItemSplits()
         try qlRules()
         try qlSlashContext()
+        try qlJoinsAndExit()
+        try qlReviewFixes()
         return quotesListsCases
     }
 
@@ -518,6 +526,144 @@ extension BindingAcceptance {
                     "Typing over two items was not refused")
         try qlSettled(host, view)
         try require(try qlRows(page.directory) == rows, "A refused deletion wrote to the document")
+        try page.close()
+    }
+
+    // MARK: Joining lists, leaving them, headings
+
+    private static func qlJoinsAndExit() throws {
+        let page = try qlPage("零。\n甲。\n乙。\n丙。\n标题。\n尾。")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let menu = qlMenu(view)
+        // One paragraph at a time: each joins the list right before it.
+        for text in ["甲", "乙", "丙"] {
+            qlCaret(view, try qlAt(text, in: view) + 1)
+            try qlChoose(menu, .orderedList)
+            try qlSettled(host, view)
+        }
+        try require(try qlShape(core).map(\.number) == [nil, 1, 2, 3, nil, nil]
+                    && Set((try qlShape(core))[1...3].map(\.containers)) == [["orderedList", "listItem"]],
+                    "Lists built one at a time are not one list: \(qlDescribe(core))")
+        try require(try qlDrawnMarkers(view.textView) == ["1.", "2.", "3."], "The joined list does not draw 1–3")
+        view.undoProse(); try qlSettled(host, view)
+        try require(try qlShape(core).map(\.number) == [nil, 1, 2, nil, nil, nil], "One undo did not take only 丙 out: \(qlDescribe(core))")
+        view.redoProse(); try qlSettled(host, view)
+        // A paragraph right before the list joins it at the start.
+        qlCaret(view, try qlAt("零", in: view) + 1)
+        try qlChoose(menu, .orderedList)
+        try qlSettled(host, view)
+        try require(try qlShape(core).map(\.number) == [1, 2, 3, 4, nil, nil], "零 did not join the list at its start: \(qlDescribe(core))")
+        let text = view.textView.string
+
+        // Return after 丙 starts item 5; Return on it ends the list; ⌫ in the
+        // empty paragraph left after the list removes it.
+        let end = try qlAt("丙", in: view) + 2
+        qlCaret(view, end)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        qlKey(view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [2, 2, 2, 2, 0, 0, 0] && (try qlShape(core))[4].text.isEmpty,
+                    "Return twice did not leave an empty paragraph after the list: \(qlDescribe(core))")
+        let rows = try qlRows(page.directory)
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        try require(!view.binding.hasFailedDraft && !(try qlStatus(view)).contains("列表项之间不能合并"),
+                    "⌫ after the list was refused: \(try qlStatus(view))")
+        try qlSettled(host, view)
+        try require(view.textView.string == text && (try qlShape(core)).map(\.number) == [1, 2, 3, 4, nil, nil]
+                    && view.textView.selectedRange() == NSRange(location: end, length: 0) && (try qlRows(page.directory)) != rows,
+                    "⌫ after the list did not remove the empty paragraph: \(qlDescribe(core)) caret \(view.textView.selectedRange())")
+        view.undoProse(); try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [2, 2, 2, 2, 0, 0, 0], "One undo did not bring the empty paragraph back")
+        // ⌦ at the end of the last item removes it too.
+        qlCaret(view, end)
+        qlKey(view, #selector(NSResponder.deleteForward(_:)))
+        try qlSettled(host, view)
+        try require(view.textView.string == text && (try qlShape(core)).map(\.number) == [1, 2, 3, 4, nil, nil]
+                    && view.textView.selectedRange() == NSRange(location: end, length: 0),
+                    "⌦ at the list's end did not remove the empty paragraph: \(qlDescribe(core))")
+
+        // A heading is never made a list item; 引用 still takes it.
+        let heading = try qlAt("标题", in: view)
+        qlCaret(view, heading + 1)
+        try qlChoose(menu, .heading1)
+        try qlSettled(host, view)
+        let blocks = try read(core).projection.blocks
+        guard let headingIndex = NativeLayout.index(heading + 1, blocks: blocks), blocks[headingIndex].kind == "heading" else {
+            throw LabError.message("标题 did not become a heading")
+        }
+        try require(!ProsePickers.slashItems(query: "", blocks: blocks, at: headingIndex).contains { ["有序列表", "无序列表"].contains($0.title) }
+                    && ProsePickers.slashItems(query: "", blocks: blocks, at: headingIndex).contains { $0.title == "引用" },
+                    "The slash menu offers a list on a heading")
+        let before = try qlRows(page.directory), shape = qlDescribe(core)
+        qlCaret(view, heading + 1)
+        try qlChoose(menu, .bulletList)
+        try qlSettled(host, view)
+        let refusal = view.binding.store.lastFormatRefusal ?? ""
+        try require(refusal.contains("标题不能设为列表项") && (try qlStatus(view)).contains("标题不能设为列表项")
+                    && (try qlRows(page.directory)) == before && qlDescribe(core) == shape && !view.binding.hasFailedDraft,
+                    "A heading made a list was not refused: \(refusal)")
+        try qlChoose(menu, .blockquote)
+        try qlSettled(host, view)
+        try require(try qlBlock(core, containing: "标题").containers == ["blockquote"], "引用 did not take the heading")
+        try require(LabError.historyUnavailable(reason: "NATIVE_HISTORY_UNAVAILABLE: another writer's text is in the blocks this undo would rebuild")
+                        .errorDescription?.contains("撤销会让段落重复") == true, "The undo refusal is not in Chinese")
+        try page.close()
+    }
+
+    // MARK: Review fixes
+
+    private static func qlReviewFixes() throws {
+        let page = try qlPage("甲。\n乙。")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let menu = qlMenu(view)
+        // A rule after 甲, the caret in the empty paragraph after it.
+        qlCaret(view, 1)
+        try qlChoose(menu, .insertRule)
+        try qlSettled(host, view)
+        try require(try read(core).projection.text == "甲。\n\u{fffc}\n\n乙。", "The rule was not inserted: \(qlDescribe(core))")
+        // ⌫ removes the rule; “x” and “y” typed at once land in order and
+        // the caret stays after them.
+        let empty = try read(core).projection.blocks[2].range.location
+        qlCaret(view, empty)
+        qlKey(view, #selector(NSResponder.deleteBackward(_:)))
+        view.textView.insertText("x", replacementRange: view.textView.selectedRange())
+        view.textView.insertText("y", replacementRange: view.textView.selectedRange())
+        try qlSettled(host, view)
+        try require(try read(core).projection.text == "甲。\nxy\n乙。" && view.textView.selectedRange() == NSRange(location: 5, length: 0),
+                    "Typing after ⌫ on a rule reads \(view.textView.string.debugDescription) with the caret at \(view.textView.selectedRange())")
+        view.textView.insertText("z", replacementRange: view.textView.selectedRange())
+        try qlSettled(host, view)
+        try require(try read(core).projection.text == "甲。\nxyz\n乙。", "The next key went elsewhere: \(view.textView.string.debugDescription)")
+        // ⌦ at the end of 甲 before a rule keeps the caret at 甲's end.
+        qlCaret(view, 1)
+        try qlChoose(menu, .insertRule)
+        try qlSettled(host, view)
+        qlCaret(view, 2)
+        qlKey(view, #selector(NSResponder.deleteForward(_:)))
+        try qlSettled(host, view)
+        try require(!(try read(core).projection.text).contains("\u{fffc}") && view.textView.selectedRange() == NSRange(location: 2, length: 0),
+                    "⌦ moved the caret to \(view.textView.selectedRange()): \(view.textView.string.debugDescription)")
+        // Read-only refusals: only a rule command reads as one.
+        let format = LabError.formattingUnavailable(reason: "NATIVE_FORMATTING_UNAVAILABLE: Unsupported block is preserved read-only").errorDescription ?? ""
+        let rule = LabError.formattingUnavailable(reason: "documentRule NATIVE_FORMATTING_UNAVAILABLE: Unsupported block is preserved read-only")
+            .errorDescription ?? ""
+        try require(!format.contains("分隔线") || format.contains("例如分隔线"), "A format refusal reads as a rule refusal: \(format)")
+        try require(format.contains("不能在这里设置格式或链接") && rule.contains("不能插入分隔线"), "The read-only refusals differ: \(format) / \(rule)")
+        // An item's paragraph followed by a nested list (as imported) is not
+        // its item's last child: Return does not split the item there.
+        func block(_ location: Int, _ length: Int, _ container: String, _ containers: [String]) -> NativeBlock {
+            NativeBlock(id: nil, kind: "paragraph", depth: containers.count, container: container, structuralAttributes: [:],
+                        range: NativeRange(location: location, length: length), editable: true, runs: [], containers: containers)
+        }
+        let item = ["bulletList", "listItem"], nested = ["bulletList", "listItem", "bulletList", "listItem"]
+        let blocks = [block(0, 1, "a", item), block(2, 0, "a", item), block(3, 1, "b", nested), block(5, 1, "c", item), block(7, 1, "root", [])]
+        let projection = NativeProjection(revision: 1, text: "一\n\n二\n三\n尾", blocks: blocks, comments: [], selections: [], canUndo: false, canRedo: false)
+        try require(!NativeLayout.lastInItem(blocks, at: 0) && !NativeLayout.lastInItem(blocks, at: 1) && NativeLayout.lastInItem(blocks, at: 2)
+                    && NativeLayout.lastInItem(blocks, at: 3) && !projection.canSplitListItem(in: NSRange(location: 2, length: 0))
+                    && !projection.canSplitListItem(in: NSRange(location: 0, length: 0)), "A paragraph before a nested list counts as its item's last")
         try page.close()
     }
 

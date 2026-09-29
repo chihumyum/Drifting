@@ -44,7 +44,7 @@ extension BindingAcceptance {
         try agentToolRefusals()
         try agentActRailBoundaries()
         return [
-            "AppKit 写作助手 registers 63 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
+            "AppKit 写作助手 registers 64 tools with Chinese descriptions and strict object schemas, refuses unknown, missing and mistyped arguments of every tool before it runs, and its relation, comment, material, patch, search, appearance, storyline and overview reads return the synthetic project while writing nothing to the journal",
             "AppKit element page 被引用 lists the drift, element, category and storyline pages that link the element after its chapters, opens a page at its first link, and find_element_appearances reports the same chapters and pages",
             "AppKit 写作助手 domain proposals for elements, categories, patches, storylines, relations, relation types, notes and TODOs, chapters, drifts and project details resolve names exactly, refuse ambiguous names with the candidates, show each changed field on the card, write nothing before 接受, apply exactly the expected originals through Rust on 接受, write nothing on 拒绝, and report each outcome to the model once",
             "AppKit 写作助手 domain proposals whose target changed before 接受 fail with Rust's Chinese reason and write nothing, pending input keeps a chapter rename pending until it settles, and after the project is deleted every write tool's proposal fails without writing",
@@ -230,8 +230,8 @@ extension BindingAcceptance {
             if let items = schema["items"] as? [String: Any] { try strict(items, "\(path)[]") }
         }
         let cjk = { (text: String) in text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) } }
-        try require(AgentToolRegistry.all.count == 63 && Set(AgentToolRegistry.all.map(\.name)).count == 63
-            && AgentToolRegistry.all.filter { $0.access == .read }.count == 22 && AgentToolRegistry.all.filter { $0.access == .memory }.count == 7,
+        try require(AgentToolRegistry.all.count == 64 && Set(AgentToolRegistry.all.map(\.name)).count == 64
+            && AgentToolRegistry.all.filter { $0.access == .read }.count == 23 && AgentToolRegistry.all.filter { $0.access == .memory }.count == 7,
             "The registry differs: \(AgentToolRegistry.all.map(\.name))")
         for tool in AgentToolRegistry.all {
             try require(cjk(tool.description), "\(tool.name) has no Chinese description")

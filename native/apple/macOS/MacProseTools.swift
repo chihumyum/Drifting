@@ -385,6 +385,8 @@ enum ProsePickers {
         let block = blocks[index]
         guard block.acceptsBlockAttributes else { return false }
         if NativeFormatAction.alignments.contains(action) || action.isBlockAttribute { return true }
+        // A heading can be quoted but never becomes a list item.
+        if block.kind == "heading", action == .bulletList || action == .orderedList { return false }
         if block.containers.isEmpty { return true }
         let previous = index > 0 ? blocks[index - 1] : nil
         let next = blocks.indices.contains(index + 1) ? blocks[index + 1] : nil

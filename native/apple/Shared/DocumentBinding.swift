@@ -283,8 +283,7 @@ extension NativeProjection {
         let block = blocks[index]
         guard block.acceptsBlockAttributes, block.rootContainer == "bulletList" || block.rootContainer == "orderedList" else { return false }
         let first = index == 0 || blocks[index - 1].container != block.container
-        let last = index + 1 == blocks.count || blocks[index + 1].container != block.container
-        return !first && last
+        return !first && NativeLayout.lastInItem(blocks, at: index)
     }
 
     /// The horizontal rule (分隔线) holding a UTF-16 location: its one U+FFFC
@@ -327,6 +326,9 @@ extension NativeProjection {
         let touched = Array(blocks[indices])
         let list = action != .blockquote
         if touched.contains(where: { !$0.acceptsBlockAttributes }) { return "引用和列表只能用于正文段落和标题。" + kept }
+        if list, reason.contains("heading cannot become a list item") {
+            return "标题不能设为列表项。可以先把它改为正文（格式 › 正文），再设为列表；引用可以包含标题。" + kept
+        }
         if reason.contains("Lift the first or last") {
             return (list ? "只能取消列表开头或结尾的项目，或整个列表；中间的项目不能单独移出。"
                 : "只能取消引用开头或结尾的段落，或整段引用；中间的段落不能单独移出。") + kept

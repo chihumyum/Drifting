@@ -2,8 +2,8 @@
 
 设置 (app menu, ⌘,) holds the Mac lab's appearance, editor typesetting and
 language preferences, following the renderer's 外观, 编辑器 and 语言 panels,
-menu 快捷键 (the renderer's KeysPanel), the writing assistant's usage and
-[Copilot（实验）](copilot.md).
+menu 快捷键 (the renderer's KeysPanel), 模型服务 (provider keys and 语音转写),
+the writing assistant's usage and [Copilot（实验）](copilot.md).
 Settings are device-local and never synchronized. Native only; no Tauri
 interoperability is kept.
 
@@ -97,6 +97,12 @@ interoperability is kept.
 - 语言: 拼写检查 (default on) toggles continuous spell checking in every body;
   手稿默认语言 (zh-CN, zh-TW, en, ja, ko, fr) sets CoreText's language attribute
   on prose: glyph forms, fallback fonts and line breaking.
+- 模型服务: each provider's key state (已保存 ····末四位 or 未设置) with 管理
+  API Key… (the writing assistant's key sheet), and 语音转写: the DashScope
+  (阿里云百炼) key for Qwen3-ASR that the composer's 听写 uses, saved, shown
+  masked and cleared in the Keychain (`Drifting Native Lab`,
+  `byok.dashscope`), with a note of what dictation sends
+  ([agent](agent.md#听写)). Nothing of it is in `settings.json`.
 - 写作助手: two tabs. 用量 of the open project's conversations and Copilot's
   requests (read only, stored beside the conversations, not in
   `settings.json`; [agent](agent.md)) and 管理 API Key…; MCP 扩展, the open
@@ -110,7 +116,8 @@ interoperability is kept.
   ([copilot](copilot.md#settings)).
 - 快捷键: the installed main menu's commands grouped by menu (应用, 文件, 项目,
   编辑, 格式, 视图, 帮助) with their shortcuts; one layout builds the menu and
-  this list. Defaults include ⌘P 打印…, ⇧⌘P 项目书架…, ⇧⌘I Copilot 分析,
+  this list. Defaults include ⌘P 打印…, ⇧⌘P 项目书架…, ⇧⌘I Copilot 分析, ⌃⌘I
+  Copilot 修改…,
   ⌥⌘I 项目资料…, ⌘F 查找…, ⌘G 查找下一个, ⇧⌘G 查找上一个, ⌘E 用所选内容查找, and
   for [格式](formatting.md) ⌘U 下划线, ⌘K 链接… and the macOS ⌘{ ⌘| ⌘} for
   左对齐, 居中 and 右对齐, pressed and shown with ⇧ (⇧⌘{). 故事图谱 is ⌃⌘G, so

@@ -15,6 +15,50 @@ pub(crate) struct HistoryState {
 pub(crate) struct HistoryMeta(pub Arc<Mutex<Option<HistoryState>>>);
 
 impl DocumentSession {
+    /// Undoing a reconstruction (a heading, quote or list change) deletes the
+    /// rebuilt blocks and restores the originals under the same public IDs.
+    /// Text another writer typed into a rebuilt block would keep it alive
+    /// beside the restored original, duplicating the ID, so such an undo is
+    /// refused before anything changes.
+    pub(crate) fn refuse_undo_over_foreign_text(&self) -> Result<(), String> {
+        let Some(item) = self.undo.undo_stack().last() else {
+            return Ok(());
+        };
+        let ids = match item
+            .meta
+            .0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|h| h.lineage.as_ref())
+        {
+            Some(lineage) if lineage.relocation.is_none() && lineage.rebuilt => {
+                lineage.after.clone()
+            }
+            _ => return Ok(()),
+        };
+        let recorded = ids;
+        let ids = recorded.block_ids();
+        let view = self.native_projection()?;
+        let blocks: Vec<NativeBlock> = view
+            .blocks
+            .into_iter()
+            .filter(|block| block.id.as_ref().is_some_and(|id| ids.contains(id)))
+            .collect();
+        if blocks.is_empty() {
+            return Ok(());
+        }
+        let Ok(current) = self.capture_lineage(&blocks) else {
+            return Ok(());
+        };
+        if current.has_new_foreign_items(&recorded, self.doc.client_id()) {
+            return Err(format!(
+                "{NATIVE_HISTORY_UNAVAILABLE}: another writer's text is in the blocks this undo would rebuild"
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn relocation_history_handle(
         &self,
         redo: bool,

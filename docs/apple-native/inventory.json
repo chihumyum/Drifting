@@ -105,7 +105,7 @@
         "IME, UTF-16 positions, split/merge IDs, marks, opaque data, selection, multi-view"
       ],
       "milestone": "P2",
-      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented; Mac-horizontal-rules-list-item-split-heading-rail-and-scrollbar-markers-implemented",
+      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented; Mac-horizontal-rules-list-item-split-adjacent-list-joins-heading-rail-and-scrollbar-markers-implemented; Mac-Copilot-inline-popover-implemented",
       "decisionTask": "D2/D3/D4"
     },
     {
@@ -420,7 +420,7 @@
         "generated built-in capability inventory, permission/CAS/review/receipt/concurrency parity"
       ],
       "milestone": "P4/P5",
-      "status": "Mac-writing-assistant-63-tools-reviewed-proposals-author-rules-working-memory-task-plans-compaction-retries-and-usage-implemented; Mac-Copilot-element-and-patch-suggestions-implemented-experimental-drift-anchoring-open; Mac-MCP-extensions-implemented",
+      "status": "Mac-writing-assistant-64-tools-reviewed-proposals-ask-user-steering-stop-after-tool-context-indicator-max-1M-author-rules-working-memory-task-plans-compaction-retries-usage-and-dictation-implemented; Mac-Copilot-element-and-patch-suggestions-and-Copilot-inline-edit-ask-and-summary-implemented-experimental; Mac-MCP-extensions-implemented; dangerous-operations-switch-not-applicable-every-write-reviewed",
       "decisionTask": "D7"
     },
     {
@@ -474,7 +474,7 @@
         "namespace isolation, no plaintext fallback, opaque references and reauthorization"
       ],
       "milestone": "P4",
-      "status": "lab-Keychain-namespace-for-provider-keys-implemented; OAuth-planned",
+      "status": "lab-Keychain-namespace-for-provider-MCP-and-speech-transcription-keys-implemented; OAuth-planned",
       "decisionTask": "D5"
     },
     {
@@ -494,7 +494,7 @@
         "PDF preview, image derivatives, microphone permission, capture interruptions"
       ],
       "milestone": "P5",
-      "status": "image-and-PDF-thumbnails-and-Quick-Look-implemented; audio-and-capture-planned",
+      "status": "image-and-PDF-thumbnails-and-Quick-Look-implemented; Mac-dictation-microphone-capture-implemented; other-audio-planned",
       "decisionTask": "D8"
     },
     {
@@ -546,7 +546,7 @@
         "preferences, provider controls, accessibility and errors"
       ],
       "milestone": "P5/P6",
-      "status": "Mac-editor-preferences-fonts-paragraph-spacing-column-width-typewriter-position-auto-link-toggle-list-filters-writing-plans-provider-keys-Copilot-settings-and-menu-shortcuts-implemented; localization-planned",
+      "status": "Mac-editor-preferences-fonts-paragraph-spacing-column-width-typewriter-position-auto-link-toggle-list-filters-writing-plans-provider-keys-model-services-and-speech-transcription-key-Copilot-settings-and-menu-shortcuts-implemented; localization-planned",
       "decisionTask": null
     },
     {

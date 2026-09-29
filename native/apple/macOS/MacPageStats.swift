@@ -298,13 +298,20 @@ final class MacPageStatsViewController: NSViewController {
         render()
     }
 
+    /// Rendered at least once; unchanged statistics are not drawn again.
+    private var rendered = false
+    /// Renders, for acceptance.
+    private(set) var renders = 0
+
     func show(_ stats: PageStats) {
-        guard stats != self.stats || linkButtons.isEmpty && targets.isEmpty else { return }
+        guard stats != self.stats || !rendered else { return }
         self.stats = stats
         if isViewLoaded { render() }
     }
 
     private func render() {
+        rendered = true
+        renders += 1
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
         linkButtons = [:]; targets = [:]
         let title = NSTextField(labelWithString: stats.title)
