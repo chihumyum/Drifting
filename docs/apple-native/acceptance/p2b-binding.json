@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "kind": "apple_native_p2b_first_binding",
   "status": "passed",
-  "generatedAt": "2026-09-29T00:07:21.397Z",
+  "generatedAt": "2026-09-29T01:24:01.155Z",
   "scope": "Headless Swift coordinator, Rust ABI, SQLite and programmatic AppKit text input",
   "source": {
-    "commit": "d8f6071001f60bd603fdfd0383b1597139cf8400",
+    "commit": "b1fb1d0a9f00c29b6e504a79525bd65e7d3d7d4d",
     "dirty": true,
-    "fingerprint": "e433e233e1b72704d278eaa8691c231435835cd2a819497eb4018fea256a5fe5"
+    "fingerprint": "3c3527f29a79f9266691a5a2a85fdae62e623715d772be4c85cc635f26fcb3ed"
   },
   "cases": [
     {
@@ -695,7 +695,7 @@
       "status": "passed"
     },
     {
-      "name": "AppKit 设定总览 opens an element card's page, a legend's 分类页 and a double-clicked chapter pill as tabs in the tab host, a single click on a pill opens nothing, and 移到回收站 from a card's menu trashes the element through the tab host and removes its card and edges",
+      "name": "AppKit 设定总览 opens a double-clicked element card's page, a legend's 分类页 and a double-clicked chapter pill as tabs in the tab host, a single click on a card shows its popover and opens nothing, and 移到回收站 from a card's menu trashes the element through the tab host and removes its card and edges",
       "status": "passed"
     },
     {
@@ -1127,6 +1127,10 @@
       "status": "passed"
     },
     {
+      "name": "AppKit Return on an empty last paragraph of a list's last item ends the list in one step with exitList, one undo unit that keeps the item's other paragraphs in place: in an item of three paragraphs, in a lone empty item (an emptied list goes with it), and pressed twice after an item's text while the first Return is still queued (the waiting exit replaces the split); Return in an empty last paragraph of a middle item keeps the ordinary new line without a refusal, a list in a quote right after an item does not read as nested in it, and the result survives a cold reopen",
+      "status": "passed"
+    },
+    {
       "name": "AppKit 统计 of a chapter (from its header button) and of a drift (from 视图 › 页面统计) shows the place in the book (第 2 章 / 共 3 章 and its act), canonical words, paragraphs, sentences (CJK and Latin ends, an ellipsis mid-paragraph and at its end), 对白比 over “”, 「」 and straight quotes, the elements the body links with counts (most first; a click opens the element), the chapters and drifts it cites and the bodies that cite it, all as computed by hand, reading every body without opening an owner or writing to the journal",
       "status": "passed"
     },
@@ -1175,11 +1179,31 @@
       "status": "passed"
     },
     {
-      "name": "AppKit Copilot 修改's 生成章节摘要 proposes a summary from the chapter body beside the current one; 放弃 writes nothing and 接受 writes it with setNodeSummary as one field.set original that the chapter page shows, and Copilot's usage records every request",
+      "name": "AppKit Copilot 修改 leaves a selection's leading or trailing paragraph break and a paragraph's U+3000 indent outside the rewrite, so 接受 keeps the break and the indent, puts back the inner indent a rewrite with as many lines dropped, and reads a reply that differs only by white space as 没有修改; 接受 needs the text that made the target unique when it was made, so a target moved by an edit elsewhere lands on its own copy and one changed meanwhile is refused writing nothing although the original text occurs once elsewhere",
       "status": "passed"
     },
     {
-      "name": "AppKit 听写 in the composer needs the DashScope key from 设置 › 模型服务 › 语音转写 (kept in the Keychain store, shown masked), explains and asks for the microphone only on first use, records a synthetic 16 kHz PCM buffer, sends it as a WAV data URI with the project's names as recognition context and the key only in the authorization header, restores proper nouns from element names and aliases, inserts the text into the composer, keeps a failed piece for 重试 while later pieces land, and refuses a denied microphone in Chinese",
+      "name": "AppKit Copilot 修改's 生成章节摘要 proposes a summary from the chapter body beside the current one; 放弃 writes nothing and 接受 writes it with setNodeSummary as one field.set original that the chapter page shows, 接受 after the stored summary changed is refused writing nothing and keeps the preview, and Copilot's usage records every request",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 听写 in the composer needs the DashScope key from 设置 › 模型服务 › 语音转写 (kept in the Keychain store under its own 语音转写 Key label, shown masked), explains and asks for the microphone only on first use, records a synthetic 16 kHz PCM buffer, sends it as a WAV data URI with the project's names as recognition context and the key only in the authorization header, restores proper nouns from element names and aliases, inserts the text into the composer, and refuses a denied microphone in Chinese",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 听写 keeps a failed piece and every piece after it for 重试, which inserts them in spoken order; an audio device change ends the recording and transcribes what was captured, saying why in Chinese; the panel's quit check, which quitting or closing the window runs, asks while dictation records, transcribes or keeps pieces for 重试 (退出 drops them, 取消 keeps them) and not otherwise; and name correction needs matching tones for two-character names and keeps ü apart from u, so 黎明, 路人 and 知识 stay while 林蓝 becomes 林岚 and longer names still match without tones",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 故事图谱 card popovers: a click on a chapter or drift card (not a drag, not a marker) shows its title, § number and status or 漂流 status and the summary read once; an edited summary is written trimmed on Return as one field.set node original that the chapter page shows, an unchanged or whitespace-only change and a second close write nothing, Esc closes it saving a changed summary as one more original, 打开 opens the drift page and closes it, a drag closes it, and a chapter trashed elsewhere dismisses it without writing",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 设定总览 card popovers: a click on an element card shows its name, category and group, its summary and at most six key facts with the rest counted, and a chapter pill or drift card its status and summary; an edited element summary is written as one field.set element original that the element page and the card follow, a summary changed elsewhere reaches a clean popover, an unchanged one writes nothing, Esc closes it saving, 打开 saves a changed chapter summary as one field.set node original and opens the chapter, a drift card's 打开 opens the drift, and scrolling closes the popover",
+      "status": "passed"
+    },
+    {
+      "name": "AppKit 关系类型 on both canvases lists the author's relation types in creation order (also after a rename) with a system-colour swatch and the count each canvas can draw; the 故事图谱 draws chapter and drift relations as edges in their type's colour with arrows for directed types, the 设定总览 colours its edges the same way, and on either canvas unchecking a type hides its edges (a selected edge is deselected and no longer hit) while checking it or 全部显示 shows them again, writing nothing to the journal; each canvas keeps its own choice per project in settings.json through a cold relaunch",
       "status": "passed"
     }
   ],

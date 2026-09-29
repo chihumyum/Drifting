@@ -336,12 +336,17 @@ impl DocumentSession {
             })
             .ok_or("Only items of a top-level list split")?;
         let position = child_index(&item, &txn, &leaf).ok_or("Item child moved")?;
-        if position == 0 || position + 1 != item.len(&txn) {
+        let item_index = child_index(&list, &txn, &item).ok_or("List item moved")?;
+        let exit = matches!(request.action, NativeFormatAction::ExitList);
+        if position + 1 != item.len(&txn) || (!exit && position == 0) {
             return Err(
                 "Only the last paragraph of a list item after its first becomes a new item".into(),
             );
         }
-        let item_index = child_index(&list, &txn, &item).ok_or("List item moved")?;
+        if exit && item_index + 1 != list.len(&txn) {
+            return Err("Only the last paragraph of a list's last item leaves the list".into());
+        }
+        let list_index = root_index(&self.root, &txn, &list).ok_or("List left the root")?;
         let text = match (leaf.len(&txn), leaf.get(&txn, 0)) {
             (0, None) => None,
             (1, Some(XmlOut::Text(_))) => Some((
@@ -363,12 +368,21 @@ impl DocumentSession {
         let undo_count = self.undo.undo_stack().len();
         {
             let mut txn = self.doc.transact_mut_with(LOCAL);
-            let next = list.insert(
-                &mut txn,
-                item_index + 1,
-                XmlElementPrelim::empty("listItem"),
-            );
-            let target = next.push_back(&mut txn, XmlElementPrelim::empty(copy.tag.as_str()));
+            let target = if exit {
+                let root = Parent(XmlOut::Fragment(self.root.clone()));
+                root.insert(
+                    &mut txn,
+                    list_index + 1,
+                    XmlElementPrelim::empty(copy.tag.as_str()),
+                )
+            } else {
+                let next = list.insert(
+                    &mut txn,
+                    item_index + 1,
+                    XmlElementPrelim::empty("listItem"),
+                );
+                next.push_back(&mut txn, XmlElementPrelim::empty(copy.tag.as_str()))
+            };
             for (key, value) in copy.attrs {
                 target.insert_attribute(&mut txn, key, value);
             }
@@ -377,7 +391,17 @@ impl DocumentSession {
                 preserve_text_attributes(&text, &mut txn, &attrs);
                 insert_runs(&text, &mut txn, 0, runs);
             }
-            item.remove(&mut txn, position);
+            // An item (and a list) left empty goes with its last paragraph.
+            if item.len(&txn) == 1 {
+                if list.len(&txn) == 1 {
+                    let root = Parent(XmlOut::Fragment(self.root.clone()));
+                    root.remove(&mut txn, list_index);
+                } else {
+                    list.remove(&mut txn, item_index);
+                }
+            } else {
+                item.remove(&mut txn, position);
+            }
         }
         self.undo.reset();
         self.revision += 1;

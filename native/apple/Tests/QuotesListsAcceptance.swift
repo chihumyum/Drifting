@@ -19,7 +19,10 @@ extension BindingAcceptance {
         "AppKit the slash menu in a list item or a quote offers only the formats that apply there, a slash row whose format stopped applying before it was chosen keeps the typed “/”, and the list-marker drawing log stays bounded",
         quotesListsJoinCase,
         quotesListsReviewCase,
+        quotesListsExitCase,
     ]
+
+    static let quotesListsExitCase = "AppKit Return on an empty last paragraph of a list's last item ends the list in one step with exitList, one undo unit that keeps the item's other paragraphs in place: in an item of three paragraphs, in a lone empty item (an emptied list goes with it), and pressed twice after an item's text while the first Return is still queued (the waiting exit replaces the split); Return in an empty last paragraph of a middle item keeps the ordinary new line without a refusal, a list in a quote right after an item does not read as nested in it, and the result survives a cold reopen"
 
     static let quotesListsReviewCase = "AppKit rule and list review fixes: ⌫ removing a rule with typing right after it keeps the typed text in order and the caret after it (a stale rule caret is dropped), ⌦ before a rule keeps the caret where it was, a format refusal over read-only content no longer reads as a rule refusal, and Return after an item's paragraph followed by a nested list keeps the ordinary new line instead of splitting the item"
 
@@ -40,6 +43,7 @@ extension BindingAcceptance {
         try qlSlashContext()
         try qlJoinsAndExit()
         try qlReviewFixes()
+        try qlExitList()
         return quotesListsCases
     }
 
@@ -610,6 +614,147 @@ extension BindingAcceptance {
         try require(LabError.historyUnavailable(reason: "NATIVE_HISTORY_UNAVAILABLE: another writer's text is in the blocks this undo would rebuild")
                         .errorDescription?.contains("撤销会让段落重复") == true, "The undo refusal is not in Chinese")
         try page.close()
+    }
+
+    // MARK: Ending a list from any last item
+
+    /// Return on the empty last paragraph of a list's last item: `exitList`.
+    private static func qlExitList() throws {
+        let page = try qlPage("前文。\n甲\n乙\n丙\n后文。")
+        defer { page.remove() }
+        let (host, view, core) = (page.host, page.view, page.core)
+        let first = try qlAt("甲", in: view), third = try qlAt("丙", in: view)
+        view.binding.format(.bulletList, range: NSRange(location: first, length: third + 1 - first))
+        try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [0, 2, 2, 2, 0], "The list was not set up: \(qlDescribe(core))")
+        func returnKey() { qlKey(view, #selector(NSResponder.insertNewline(_:))) }
+        func container(_ text: String) throws -> String { try qlBlock(core, containing: text).container }
+
+        // An item of three paragraphs: undone splits leave 丙, 丙二 and an
+        // empty paragraph in the last item.
+        qlCaret(view, third + 1)
+        returnKey(); try qlSettled(host, view)
+        view.undoProse(); try qlSettled(host, view)
+        let emptyAfterThird = third + 2
+        qlType(view, "丙二", at: emptyAfterThird)
+        try qlSettled(host, view)
+        qlCaret(view, emptyAfterThird + 2)
+        returnKey(); try qlSettled(host, view)
+        view.undoProse(); try qlSettled(host, view)
+        var blocks = try read(core).projection.blocks
+        let item = try container("丙")
+        try require(blocks.count == 7 && blocks[3].container == item && blocks[4].container == item && blocks[5].container == item
+                    && blocks[5].range.length == 0, "The last item does not hold three paragraphs: \(qlDescribe(core))")
+        let text = view.textView.string, empty = blocks[5].range.location
+        var rows = try qlRows(page.directory)
+        let revision = try read(core).projection.revision
+        qlCaret(view, empty)
+        returnKey()
+        try require(view.deferredFormat == nil, "Return on an idle list waited instead of ending it")
+        try qlSettled(host, view)
+        var shape = try qlShape(core)
+        try require(shape.map(\.containers.count) == [0, 2, 2, 2, 2, 0, 0] && shape[5].text.isEmpty && view.textView.string == text
+                    && (try container("丙")) == item && (try container("丙二")) == item,
+                    "Return on the empty last paragraph did not leave the list: \(qlDescribe(core))")
+        let exited = try read(core).projection.revision
+        try require(exited > revision && (try qlRows(page.directory)) != rows && view.binding.store.lastFormatRefusal == nil,
+                    "The exit was not saved: revision \(revision) → \(exited), refusal \(view.binding.store.lastFormatRefusal ?? "none")")
+        try require(view.textView.selectedRange() == NSRange(location: empty, length: 0), "The caret moved to \(view.textView.selectedRange())")
+        try require(try qlDrawnMarkers(view.textView) == ["•", "•", "•"], "The list draws \(try qlDrawnMarkers(view.textView))")
+        view.undoProse(); try qlSettled(host, view)
+        blocks = try read(core).projection.blocks
+        try require(blocks[5].container == item && blocks[5].range.length == 0 && view.textView.string == text,
+                    "One undo did not put the paragraph back in its item: \(qlDescribe(core))")
+        view.redoProse(); try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [0, 2, 2, 2, 2, 0, 0], "Redo did not end the list again")
+        qlType(view, "尾段", at: empty)
+        try qlSettled(host, view)
+        try require(try qlBlock(core, containing: "尾段").containers.isEmpty, "Text typed after the list went into it")
+
+        // Return twice after 丙二's text, the second while the first is still
+        // queued: the waiting exit replaces the split and the new paragraph
+        // leaves the list.
+        let second = try qlAt("丙二", in: view) + 2
+        rows = try qlRows(page.directory)
+        qlCaret(view, second)
+        returnKey()
+        try require(view.deferredFormat?.action == .splitListItem, "The first Return did not wait to split")
+        returnKey()
+        try require(view.deferredFormat?.action == .exitList, "The second Return did not wait to end the list")
+        try qlSettled(host, view)
+        shape = try qlShape(core)
+        try require(shape.map(\.text) == ["前文。", "甲", "乙", "丙", "丙二", "", "尾段", "后文。"]
+                    && shape.map(\.containers.count) == [0, 2, 2, 2, 2, 0, 0, 0] && (try container("丙二")) == item,
+                    "Return twice did not end the list: \(qlDescribe(core))")
+        try require((try qlStatus(view)) == "正文已保存" && view.binding.store.lastFormatRefusal == nil && (try qlRows(page.directory)) != rows,
+                    "Return twice read \(try qlStatus(view))")
+        view.undoProse(); try qlSettled(host, view)
+        try require(try qlShape(core).map(\.containers.count) == [0, 2, 2, 2, 2, 2, 0, 0], "Undo did not put the queued Return's paragraph back")
+        view.redoProse(); try qlSettled(host, view)
+
+        // A middle item keeps the ordinary Return: 甲's empty last paragraph
+        // (an undone split) gains another and no refusal is shown.
+        qlCaret(view, try qlAt("甲", in: view) + 1)
+        returnKey(); try qlSettled(host, view)
+        view.undoProse(); try qlSettled(host, view)
+        let itemOne = try container("甲")
+        let middle = try qlAt("甲", in: view) + 2
+        try require(try read(core).projection.blocks[2].container == itemOne, "甲's item does not hold an empty paragraph")
+        qlCaret(view, middle)
+        returnKey()
+        try require(view.deferredFormat == nil, "Return in a middle item waited")
+        try qlSettled(host, view)
+        blocks = try read(core).projection.blocks
+        try require(blocks[1...3].allSatisfy { $0.container == itemOne } && view.binding.store.lastFormatRefusal == nil
+                    && (try qlStatus(view)) == "正文已保存", "Return in a middle item did not add a paragraph to it: \(qlDescribe(core))")
+        let expected = try read(core).projection
+
+        // Layout: a paragraph before a nested list, or followed by another
+        // item of the list, is not the list's last.
+        func block(_ location: Int, _ length: Int, _ container: String, _ containers: [String]) -> NativeBlock {
+            NativeBlock(id: nil, kind: "paragraph", depth: containers.count, container: container, structuralAttributes: [:],
+                        range: NativeRange(location: location, length: length), editable: true, runs: [], containers: containers)
+        }
+        let bullet = ["bulletList", "listItem"], nested = ["bulletList", "listItem", "bulletList", "listItem"]
+        let sample = [block(0, 1, "a", bullet), block(2, 0, "a", bullet), block(3, 1, "b", nested), block(5, 0, "c", bullet),
+                      block(6, 0, "d", ["orderedList", "listItem"]), block(7, 1, "root", [])]
+        try require(!NativeLayout.lastOfList(sample, at: 0) && !NativeLayout.lastOfList(sample, at: 1) && NativeLayout.lastOfList(sample, at: 3)
+                    && NativeLayout.lastOfList(sample, at: 4) && !NativeLayout.lastOfList(sample, at: 5),
+                    "The list's last paragraph is misread")
+        // A list in a quote right after an item is not nested in it: the
+        // item's paragraph is its last and the list's last.
+        let quoted = [block(0, 1, "a", bullet), block(2, 1, "q", ["blockquote", "bulletList", "listItem"])]
+        try require(NativeLayout.lastInItem(quoted, at: 0) && NativeLayout.lastOfList(quoted, at: 0),
+                    "A quoted list after an item reads as nested in it")
+        try page.close()
+
+        // Cold reopen keeps the exits.
+        let cold = LabWorkspaceCore(directory: page.directory)
+        let (coldWindow, coldHost) = elementHost(cold)
+        defer { coldWindow.close() }
+        let _: [WorkspaceProject] = try elementResult { cold.projects(completion: $0) }
+        let reopened: NativeDocumentView = try elementResult { coldHost.open(project: page.project, chapter: page.chapter, completion: $0) }
+        try qlSettled(coldHost, reopened)
+        guard let projection = reopened.binding.store.projection else { throw LabError.message("The reopened chapter has no projection") }
+        try require(projection.text == expected.text && projection.blocks.map(\.containers) == expected.blocks.map(\.containers)
+                    && projection.blocks.map(\.id) == expected.blocks.map(\.id), "The ended list did not survive a cold reopen")
+        let closed: Bool = try elementResult { coldHost.close(completion: $0) }
+        try require(closed, "The cold workspace did not close")
+
+        // A lone empty item: the list goes with it.
+        let blank = try qlPage("")
+        defer { blank.remove() }
+        qlType(blank.view, "-")
+        qlType(blank.view, " ")
+        try qlSettled(blank.host, blank.view)
+        try require(try qlShape(blank.core).map(\.containers) == [["bulletList", "listItem"]], "“- ” did not start a list")
+        qlKey(blank.view, #selector(NSResponder.insertNewline(_:)))
+        try qlSettled(blank.host, blank.view)
+        try require(try qlShape(blank.core).map(\.containers) == [[]] && blank.view.textView.string.isEmpty
+                    && (try qlDrawnMarkers(blank.view.textView)).isEmpty, "Return on a lone empty item did not remove the list: \(qlDescribe(blank.core))")
+        blank.view.undoProse(); try qlSettled(blank.host, blank.view)
+        try require(try qlShape(blank.core).map(\.containers) == [["bulletList", "listItem"]], "One undo did not bring the list back")
+        try blank.close()
     }
 
     // MARK: Review fixes

@@ -32,6 +32,24 @@ final class ElementOverviewModel {
     private(set) var requests = 0
     /// The 漂流 row is shown.
     var showsDrifts = false { didSet { if showsDrifts != oldValue { invalidate() } } }
+    /// Relation types whose edges are hidden (关系类型), remembered per
+    /// project in settings.json by the window.
+    var hiddenRelationTypes: Set<String> = [] {
+        didSet {
+            guard hiddenRelationTypes != oldValue else { return }
+            invalidate()
+            onHiddenRelationTypes?(hiddenRelationTypes)
+        }
+    }
+    var onHiddenRelationTypes: ((Set<String>) -> Void)?
+    /// Writes a chapter's or drift's summary through the tab host, so pages
+    /// follow; nil writes through the workspace.
+    var onSetNodeSummary: ((_ nodeID: String, _ summary: String,
+                            _ done: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) -> Void)?
+    /// Writes an element's summary through the tab host; nil writes through
+    /// the workspace.
+    var onSetElementSummary: ((_ elementID: String, _ summary: String,
+                               _ done: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) -> Void)?
     var onChange: (() -> Void)?
     /// A pin or unpin returned the project's complete element library.
     var onElementLibrary: ((WorkspaceElementLibrary) -> Void)?
@@ -62,7 +80,8 @@ final class ElementOverviewModel {
 
     var sceneInput: ElementOverviewScene.Input {
         ElementOverviewScene.Input(library: library, layouts: layouts, book: book, storylines: storylines, nodes: nodes,
-                                   relations: relations.library, drifts: showsDrifts ? unboundDrifts : [])
+                                   relations: relations.library, drifts: showsDrifts ? unboundDrifts : [],
+                                   hiddenRelationTypes: hiddenRelationTypes)
     }
 
     /// Live drifts not bound to a marker or an act, oldest change first.
@@ -298,6 +317,52 @@ final class ElementOverviewModel {
             }
             self.runQueuedRead()
         }
+    }
+
+    // MARK: Summaries
+
+    /// The stored summary a card popover edits: an element's, or a chapter's
+    /// or drift's from the metadata read.
+    func summary(of endpoint: RelationEndpoint) -> String? {
+        endpoint.kind == "element" ? element(id: endpoint.id)?.summary : nodes[endpoint.id]?.summary
+    }
+
+    /// Writes a card's summary (trimmed, as pages do) in one original and
+    /// adopts the reply; the stored summary writes nothing.
+    func setSummary(of endpoint: RelationEndpoint, to text: String, completion: @escaping (Result<String, Error>) -> Void) {
+        let summary = ElementText.trimmed(text)
+        guard summary != self.summary(of: endpoint) else { completion(.success(summary)); return }
+        requests += 1
+        if endpoint.kind == "element" {
+            let done: (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void = { [weak self] result in
+                switch result {
+                case .success(let reply):
+                    guard let stored = reply.result else { completion(.failure(LabError.message("设定结果缺失"))); return }
+                    self?.applyElementLibrary(reply.library)
+                    completion(.success(stored.summary))
+                case .failure(let error): completion(.failure(error))
+                }
+            }
+            if let onSetElementSummary { onSetElementSummary(endpoint.id, summary, done) }
+            else {
+                workspace.updateElement(projectID: projectID, elementID: endpoint.id, changes: WorkspaceElementChanges(summary: summary)) {
+                    [weak self] result in
+                    if case .success(let reply) = result { self?.onElementLibrary?(reply.library) }
+                    done(result)
+                }
+            }
+            return
+        }
+        let done: (Result<WorkspaceNodeMetadata, Error>) -> Void = { [weak self] result in
+            switch result {
+            case .success(let metadata):
+                self?.applyNodeMetadata(metadata)
+                completion(.success(metadata.summary))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+        if let onSetNodeSummary { onSetNodeSummary(endpoint.id, summary, done) }
+        else { workspace.setNodeSummary(projectID: projectID, nodeID: endpoint.id, summary: summary, completion: done) }
     }
 
     // MARK: Relation commands

@@ -31,6 +31,10 @@ pub enum NativeFormatAction {
     /// The caret's paragraph, the last of its list item and not the first,
     /// becomes a new list item after it (Enter in a list item).
     SplitListItem,
+    /// The caret's paragraph, the last of the last item of a top-level list,
+    /// leaves the list to the top level right after it (Enter on an empty
+    /// last paragraph ends the list).
+    ExitList,
 }
 
 /// The deepest block indent, as the renderer's paragraph indent allows.
@@ -265,7 +269,10 @@ impl DocumentSession {
         if let Some(tag) = container {
             return self.format_container(request, tag);
         }
-        if matches!(request.action, NativeFormatAction::SplitListItem) {
+        if matches!(
+            request.action,
+            NativeFormatAction::SplitListItem | NativeFormatAction::ExitList
+        ) {
             return self.split_list_item(request);
         }
         let view = self.native_projection()?;

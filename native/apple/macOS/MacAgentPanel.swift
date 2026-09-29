@@ -715,6 +715,25 @@ final class MacAgentPanelView: NSView {
 
     @objc func retryDictation() { dictation?.retry(); updateDictationControls() }
 
+    /// Before the app quits (or its window closes, which quits it): asks
+    /// while dictation is recording, transcribing or keeps pieces for 重试.
+    /// 退出 drops them; 取消 keeps everything as it is. Answers at once
+    /// when nothing would be lost.
+    func confirmQuitDuringDictation(_ decide: @escaping (Bool) -> Void) {
+        guard let dictation, let warning = dictation.quitWarning else { decide(true); return }
+        let alert = NSAlert()
+        alert.messageText = "退出并丢弃听写录音？"
+        alert.informativeText = warning
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "退出")
+        alert.addButton(withTitle: "取消")
+        present(alert) { [weak dictation] response in
+            guard response == .alertFirstButtonReturn else { decide(false); return }
+            dictation?.cancel()
+            decide(true)
+        }
+    }
+
     @objc private func openSpeechSettings() { onOpenSpeechSettings?() }
 
     private var choice: AgentModelChoice { controller?.current?.choice ?? .standard }

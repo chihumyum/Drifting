@@ -604,13 +604,30 @@ enum NativeLayout {
     }
 
     /// Whether a list item's block is its item's last child: the next block
-    /// is outside the item. A deeper block after it (an imported nested
-    /// list) is still inside the item.
+    /// is outside the item. A deeper block after it whose containers start
+    /// with this block's (an imported nested list) is still inside the item;
+    /// a deeper one elsewhere, such as a list in a quote, is not.
     static func lastInItem(_ blocks: [NativeBlock], at index: Int) -> Bool {
         guard blocks.indices.contains(index) else { return false }
         guard index + 1 < blocks.count else { return true }
         let block = blocks[index], next = blocks[index + 1]
-        return next.container != block.container && next.containers.count <= block.containers.count
+        guard next.container != block.container else { return false }
+        let nested = next.containers.count > block.containers.count
+            && Array(next.containers.prefix(block.containers.count)) == block.containers
+        return !nested
+    }
+
+    /// Whether a paragraph or heading is the last child of the last item of
+    /// a root list, which `exitList` takes out after the list: its item's
+    /// last child, and no item of that list follows it.
+    static func lastOfList(_ blocks: [NativeBlock], at index: Int) -> Bool {
+        guard blocks.indices.contains(index) else { return false }
+        let block = blocks[index]
+        guard block.acceptsBlockAttributes, let list = block.rootContainer, list != "blockquote",
+              lastInItem(blocks, at: index) else { return false }
+        guard index + 1 < blocks.count else { return true }
+        let next = blocks[index + 1].containers
+        return !(next.count >= 2 && next[0] == list && next[1] == "listItem")
     }
 
     /// Deleting only the separator between the last block of a quote or list

@@ -1792,8 +1792,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         }
         closeStoryGraph()
         let name = projects.first { $0.id == project.id }?.name ?? project.name
-        let model = StoryGraphModel(workspace: workspace, projectID: project.id)
+        let model = StoryGraphModel(workspace: workspace, projectID: project.id,
+                                    relations: chapterWorkspace.relations.model(projectID: project.id))
         model.axis = graphAxes[project.id] ?? .book
+        // 关系类型 choices are remembered per project in settings.json.
+        model.hiddenRelationTypes = settingsStore.hiddenRelationTypes(projectID: project.id, canvas: .storyGraph)
+        model.onHiddenRelationTypes = { [weak self] hidden in
+            self?.settingsStore.setHiddenRelationTypes(hidden, projectID: project.id, canvas: .storyGraph)
+        }
+        // A popover's summary goes through the tab host, so pages follow.
+        model.onSetSummary = { [weak self] nodeID, summary, done in
+            guard let self else { done(.failure(LabError.message("窗口已关闭，摘要未保存。"))); return }
+            self.chapterWorkspace.setNodeSummary(projectID: project.id, nodeID: nodeID, summary: summary, completion: done)
+        }
         if let counts = chapterWorkspace.wordCounts(projectID: project.id).library { model.applyWordCounts(counts) }
         model.onChapters = { [weak self] chapters in self?.adoptGraphChapters(chapters, projectID: project.id, fromDock: false) }
         // Story time changed in the graph: the 底部时间轴 reads it again.
@@ -1885,6 +1896,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func closeStoryGraph() {
+        // A card popover's changed summary is saved first.
+        graphController?.closeCardPopover()
         if let model = graphController?.model { graphAxes[model.projectID] = model.axis }
         let panel = graphPanel
         graphPanel = nil; graphController = nil
@@ -1908,6 +1921,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
                                          relations: chapterWorkspace.relations.model(projectID: project.id))
         let viewport = settingsStore.elementOverviewViewport(projectID: project.id)
         model.showsDrifts = viewport?.showsDrifts ?? false
+        // 关系类型 choices are remembered per project in settings.json.
+        model.hiddenRelationTypes = settingsStore.hiddenRelationTypes(projectID: project.id, canvas: .elementOverview)
+        model.onHiddenRelationTypes = { [weak self] hidden in
+            self?.settingsStore.setHiddenRelationTypes(hidden, projectID: project.id, canvas: .elementOverview)
+        }
+        // A popover's summary goes through the tab host, so pages follow.
+        model.onSetNodeSummary = { [weak self] nodeID, summary, done in
+            guard let self else { done(.failure(LabError.message("窗口已关闭，摘要未保存。"))); return }
+            self.chapterWorkspace.setNodeSummary(projectID: project.id, nodeID: nodeID, summary: summary, completion: done)
+        }
+        model.onSetElementSummary = { [weak self] elementID, summary, done in
+            guard let self else { done(.failure(LabError.message("窗口已关闭，摘要未保存。"))); return }
+            self.chapterWorkspace.setElementSummary(projectID: project.id, elementID: elementID, summary: summary, completion: done)
+        }
         // A pin's reply reaches open pages and the 设定库.
         model.onElementLibrary = { [weak self] library in
             guard let self else { return }
@@ -1970,6 +1997,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// Remembers the viewport, then closes the panel.
     private func closeElementOverview() {
         if let controller = overviewController {
+            controller.closeCardPopover()
             settingsStore.setElementOverviewViewport(controller.viewport, projectID: controller.model.projectID)
             controller.endRelationSheet()
         }
@@ -3283,6 +3311,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     private func closeWorkspace(completion: @escaping (Bool) -> Void) {
         guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { completion(false); return }
+        // A canvas card popover's changed summary is queued before the owners close.
+        graphController?.closeCardPopover(); overviewController?.closeCardPopover()
         closingWorkspace = true
         // The 全书长卷 lets go of its owners before the workspace closes.
         guard closeWholeBook(completion: { [weak self] _ in self?.closeWorkspaceOwners(completion: completion) }) else {
@@ -3326,7 +3356,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if workspaceClosed { return true }
-        closeWorkspace { [weak self] success in if success { self?.window.performClose(nil) } }
+        // Closing the window quits: 听写 asks first, as quitting does.
+        guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { return false }
+        agentPanel.confirmQuitDuringDictation { [weak self] proceed in
+            guard proceed else { return }
+            self?.closeWorkspace { success in if success { self?.window.performClose(nil) } }
+        }
         return false
     }
     func windowWillClose(_ notification: Notification) {
@@ -3349,7 +3384,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
         // Nothing opened while 恢复 shows.
         if workspaceClosed || recovery.isRecovering { return .terminateNow }
         guard !closingWorkspace, canLeaveDocument(waitingForPlotGrids: true) else { return .terminateCancel }
-        closeWorkspace { success in sender.reply(toApplicationShouldTerminate: success) }
+        // Audio still recording, transcribing or kept for 重试 is lost on quit.
+        agentPanel.confirmQuitDuringDictation { [weak self] proceed in
+            guard proceed, let self else { sender.reply(toApplicationShouldTerminate: false); return }
+            self.closeWorkspace { success in sender.reply(toApplicationShouldTerminate: success) }
+        }
         return .terminateLater
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

@@ -1034,6 +1034,30 @@ final class MacChapterWorkspace: NSView, NSSplitViewDelegate, NSPopoverDelegate 
         }
     }
 
+    /// Writes a chapter's or drift's summary from a canvas card's popover;
+    /// every open page of it shows the stored summary.
+    func setNodeSummary(projectID: String, nodeID: String, summary: String,
+                        completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        workspace.setNodeSummary(projectID: projectID, nodeID: nodeID, summary: summary) { [weak self] result in
+            if case .success(let metadata) = result { self?.adopt(metadata, projectID: projectID, summaryChanged: true) }
+            completion(result)
+        }
+    }
+
+    /// Writes an element's summary from a canvas card's popover (metadata
+    /// only, like its page header); every open view adopts the library.
+    func setElementSummary(projectID: String, elementID: String, summary: String,
+                           completion: @escaping (Result<WorkspaceElementReply<WorkspaceElement>, Error>) -> Void) {
+        workspace.updateElement(projectID: projectID, elementID: elementID, changes: WorkspaceElementChanges(summary: summary)) {
+            [weak self] result in
+            if case .success(let reply) = result, let self {
+                self.applyElementLibrary(projectID: projectID, library: reply.library)
+                self.onElementLibrary?(projectID, reply.library)
+            }
+            completion(result)
+        }
+    }
+
     /// A new page reads its node's stored summary and status once.
     private func loadMetadata(of tab: Tab) {
         guard let nodeID = tab.nodeID, let editor = tab.metadataEditor else { return }

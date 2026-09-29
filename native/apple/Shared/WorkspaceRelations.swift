@@ -31,6 +31,26 @@ enum RelationKind {
     }
 }
 
+/// The canvases whose relation edges the author filters (关系类型); each
+/// keeps its own hidden types per project.
+enum RelationCanvas: String, CaseIterable {
+    case storyGraph, elementOverview
+}
+
+/// The relation types a canvas lists and colours: author types in creation
+/// order (`createdAt`, then identity), so each keeps its slot in the fixed
+/// palette across launches and renames, and a new type takes the next slot.
+enum RelationTypeLegend {
+    static func ordered(_ library: WorkspaceRelationLibrary) -> [WorkspaceRelationType] {
+        library.types.filter(\.isAuthored).sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// Each listed type's palette slot; a missing or built-in type has none.
+    static func slots(_ library: WorkspaceRelationLibrary) -> [String: Int] {
+        Dictionary(ordered(library).enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+}
+
 /// One end of a relation: `node:<id>`, `element:<id>` and so on.
 struct RelationEndpoint: Hashable {
     let kind: String

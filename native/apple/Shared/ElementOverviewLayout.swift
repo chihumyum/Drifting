@@ -258,6 +258,8 @@ struct ElementOverviewScene {
         var relations = WorkspaceRelationLibrary.empty
         /// Drifts shown in the 漂流 row; empty while it is hidden.
         var drifts: [WorkspaceDrift] = []
+        /// Relation types whose edges are hidden (关系类型).
+        var hiddenRelationTypes: Set<String> = []
     }
 
     enum Kind: Equatable { case element, chapter, drift }
@@ -326,52 +328,21 @@ struct ElementOverviewScene {
     struct Edge: Equatable {
         let relation: WorkspaceRelation
         let type: WorkspaceRelationType?
-        let from: CGPoint
-        let control1: CGPoint
-        let control2: CGPoint
-        let to: CGPoint
-        let directed: Bool
-        let colorHex: String
+        let curve: RelationEdgeCurve
+        /// The type's palette slot (`RelationTypeLegend`); nil draws it neutral.
+        let slot: Int?
         let fromName: String
         let toName: String
         var id: String { relation.id }
-
-        func point(at t: CGFloat) -> CGPoint {
-            let u = 1 - t
-            let a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
-            return CGPoint(x: a * from.x + b * control1.x + c * control2.x + d * to.x,
-                           y: a * from.y + b * control1.y + c * control2.y + d * to.y)
-        }
-
-        var midpoint: CGPoint { point(at: 0.5) }
-
-        /// The distance from a point to the curve, sampled as 24 segments.
-        func distance(to point: CGPoint) -> CGFloat {
-            var best = CGFloat.greatestFiniteMagnitude
-            var previous = from
-            for step in 1...24 {
-                let next = self.point(at: CGFloat(step) / 24)
-                best = min(best, Self.segmentDistance(point, previous, next))
-                previous = next
-            }
-            return best
-        }
-
-        private static func segmentDistance(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
-            let dx = b.x - a.x, dy = b.y - a.y
-            let length = dx * dx + dy * dy
-            let t = length > 0 ? max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length)) : 0
-            return hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
-        }
-
-        /// The arrowhead's two barbs at the end of a directed edge.
-        var arrowBarbs: (CGPoint, CGPoint)? {
-            guard directed else { return nil }
-            let angle = atan2(to.y - control2.y, to.x - control2.x)
-            let size: CGFloat = 7, spread: CGFloat = .pi / 7
-            return (CGPoint(x: to.x - size * cos(angle - spread), y: to.y - size * sin(angle - spread)),
-                    CGPoint(x: to.x - size * cos(angle + spread), y: to.y - size * sin(angle + spread)))
-        }
+        var from: CGPoint { curve.from }
+        var control1: CGPoint { curve.control1 }
+        var control2: CGPoint { curve.control2 }
+        var to: CGPoint { curve.to }
+        var directed: Bool { curve.directed }
+        var midpoint: CGPoint { curve.point(at: 0.5) }
+        func point(at t: CGFloat) -> CGPoint { curve.point(at: t) }
+        func distance(to point: CGPoint) -> CGFloat { curve.distance(to: point) }
+        var arrowBarbs: (CGPoint, CGPoint)? { curve.arrowBarbs }
     }
 
     let boxes: [Box]
@@ -379,7 +350,10 @@ struct ElementOverviewScene {
     let lanes: [Lane]
     let acts: [ActSpan]
     let transits: [Transit]
+    /// The edges drawn: those of hidden relation types are left out.
     let edges: [Edge]
+    /// Edges this scene could draw per relation type, hidden ones included.
+    let relationCounts: [String: Int]
     /// The visible band.
     let bandFrame: CGRect
     /// Rows the band reserves on the grid, including the gap on both sides.
@@ -537,14 +511,20 @@ struct ElementOverviewScene {
 
         let cardIndex = Dictionary(cards.enumerated().map { ($1.key, $0) }, uniquingKeysWith: { first, _ in first })
 
-        // Edges: every relation with an element end whose other end is shown.
+        // Edges: every relation with an element end whose other end is shown,
+        // unless its type is hidden.
         var edges: [Edge] = []
+        var relationCounts: [String: Int] = [:]
+        let typeSlots = RelationTypeLegend.slots(input.relations)
         for relation in input.relations.relations {
             guard relation.fromKind == "element" || relation.toKind == "element",
                   let from = cardIndex[relation.from.key].map({ cards[$0] }), let to = cardIndex[relation.to.key].map({ cards[$0] }) else { continue }
+            relationCounts[relation.relationTypeId, default: 0] += 1
+            guard !input.hiddenRelationTypes.contains(relation.relationTypeId) else { continue }
             let type = input.relations.type(id: relation.relationTypeId)
             let directed = type.map { !$0.isSymmetric } ?? false
-            edges.append(Self.edge(relation, type: type, from: from, to: to, directed: directed))
+            edges.append(Edge(relation: relation, type: type, curve: RelationEdgeCurve(from: from.frame, to: to.frame, directed: directed),
+                              slot: typeSlots[relation.relationTypeId], fromName: from.title, toName: to.title))
         }
 
         var bounds = bandFrame
@@ -558,34 +538,11 @@ struct ElementOverviewScene {
         self.acts = acts
         self.transits = transits
         self.edges = edges
+        self.relationCounts = relationCounts
         self.driftArea = driftArea
         self.bounds = bounds
         self.cardIndex = cardIndex
         boxIndex = Dictionary(boxes.enumerated().map { ($1.key, $0) }, uniquingKeysWith: { first, _ in first })
-    }
-
-    /// `relationEdgePath`: an S-curve between the card centres; a directed
-    /// edge stops short of its target along the dominant axis so the arrow
-    /// meets the card's side.
-    private static func edge(_ relation: WorkspaceRelation, type: WorkspaceRelationType?, from: Card, to: Card, directed: Bool) -> Edge {
-        let start = CGPoint(x: from.frame.midX, y: from.frame.midY)
-        var end = CGPoint(x: to.frame.midX, y: to.frame.midY)
-        let dx = end.x - start.x, dy = end.y - start.y
-        let c1: CGPoint, c2: CGPoint
-        if !directed {
-            let midY = (start.y + end.y) / 2
-            c1 = CGPoint(x: start.x, y: midY); c2 = CGPoint(x: end.x, y: midY)
-        } else if abs(dx) >= abs(dy) {
-            end.x -= (dx < 0 ? -1 : 1) * (to.frame.width / 2 + 6)
-            let midX = (start.x + end.x) / 2
-            c1 = CGPoint(x: midX, y: start.y); c2 = CGPoint(x: midX, y: end.y)
-        } else {
-            end.y -= (dy < 0 ? -1 : 1) * (to.frame.height / 2 + 6)
-            let midY = (start.y + end.y) / 2
-            c1 = CGPoint(x: start.x, y: midY); c2 = CGPoint(x: end.x, y: midY)
-        }
-        return Edge(relation: relation, type: type, from: start, control1: c1, control2: c2, to: end, directed: directed,
-                    colorHex: RelationPalette.color(typeID: relation.relationTypeId), fromName: from.title, toName: to.title)
     }
 
     // MARK: Hit testing
@@ -627,17 +584,79 @@ struct ElementOverviewScene {
     }
 }
 
-/// A relation type's colour, stable across views: the renderer's
-/// `defaultRelationTypeColor` hash over its story hues and a neutral ink.
-enum RelationPalette {
-    static let colors = BookPalette.acts + ["#8A8A8A"]
+/// The renderer's `relationEdgePath` between two cards: an S-curve between
+/// their centres; a directed edge stops short of its target along the
+/// dominant axis so the arrow meets the card's side. The 设定总览 and the
+/// 故事图谱 draw and hit-test relations with it.
+struct RelationEdgeCurve: Equatable {
+    let from: CGPoint
+    let control1: CGPoint
+    let control2: CGPoint
+    let to: CGPoint
+    let directed: Bool
 
-    static func color(typeID: String) -> String {
-        var hash: Int32 = 5381
-        for unit in typeID.utf16 {
-            let sum = Int64(hash &<< 5) + Int64(hash)
-            hash = Int32(truncatingIfNeeded: sum) ^ Int32(unit)
+    init(from source: CGRect, to target: CGRect, directed: Bool) {
+        let start = CGPoint(x: source.midX, y: source.midY)
+        var end = CGPoint(x: target.midX, y: target.midY)
+        let dx = end.x - start.x, dy = end.y - start.y
+        let c1: CGPoint, c2: CGPoint
+        if !directed {
+            let midY = (start.y + end.y) / 2
+            c1 = CGPoint(x: start.x, y: midY); c2 = CGPoint(x: end.x, y: midY)
+        } else if abs(dx) >= abs(dy) {
+            end.x -= (dx < 0 ? -1 : 1) * (target.width / 2 + 6)
+            let midX = (start.x + end.x) / 2
+            c1 = CGPoint(x: midX, y: start.y); c2 = CGPoint(x: midX, y: end.y)
+        } else {
+            end.y -= (dy < 0 ? -1 : 1) * (target.height / 2 + 6)
+            let midY = (start.y + end.y) / 2
+            c1 = CGPoint(x: start.x, y: midY); c2 = CGPoint(x: end.x, y: midY)
         }
-        return colors[Int(abs(Int64(hash)) % Int64(colors.count))]
+        from = start; control1 = c1; control2 = c2; to = end
+        self.directed = directed
+    }
+
+    func point(at t: CGFloat) -> CGPoint {
+        let u = 1 - t
+        let a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
+        return CGPoint(x: a * from.x + b * control1.x + c * control2.x + d * to.x,
+                       y: a * from.y + b * control1.y + c * control2.y + d * to.y)
+    }
+
+    /// The distance from a point to the curve, sampled as 24 segments.
+    func distance(to point: CGPoint) -> CGFloat {
+        var best = CGFloat.greatestFiniteMagnitude
+        var previous = from
+        for step in 1...24 {
+            let next = self.point(at: CGFloat(step) / 24)
+            best = min(best, Self.segmentDistance(point, previous, next))
+            previous = next
+        }
+        return best
+    }
+
+    private static func segmentDistance(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let length = dx * dx + dy * dy
+        let t = length > 0 ? max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length)) : 0
+        return hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+    }
+
+    /// The arrowhead's two barbs at the end of a directed edge.
+    var arrowBarbs: (CGPoint, CGPoint)? {
+        guard directed else { return nil }
+        let angle = atan2(to.y - control2.y, to.x - control2.x)
+        let size: CGFloat = 7, spread: CGFloat = .pi / 7
+        return (CGPoint(x: to.x - size * cos(angle - spread), y: to.y - size * sin(angle - spread)),
+                CGPoint(x: to.x - size * cos(angle + spread), y: to.y - size * sin(angle + spread)))
+    }
+
+    /// Adds the curve and its arrowhead to a path.
+    func add(to path: CGMutablePath) {
+        path.move(to: from)
+        path.addCurve(to: to, control1: control1, control2: control2)
+        if let (left, right) = arrowBarbs {
+            path.move(to: left); path.addLine(to: to); path.addLine(to: right)
+        }
     }
 }

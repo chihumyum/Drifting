@@ -23,6 +23,10 @@ enum NativeFormatAction: String, CaseIterable {
     /// last of its item and not the first, becomes the next item. Not a menu
     /// command; the editor applies it once the Return has landed.
     case splitListItem
+    /// Return on an empty last paragraph of a list's last item: that
+    /// paragraph leaves the list to the top level right after it, and an
+    /// item or list left empty goes with it. Not a menu command.
+    case exitList
 
     /// Marks toggle over selected text; a caret has nothing to mark.
     var isMark: Bool { Self.marks.contains(self) }
@@ -52,6 +56,7 @@ enum NativeFormatAction: String, CaseIterable {
         case .bulletList: return "无序列表"
         case .orderedList: return "有序列表"
         case .splitListItem: return "新列表项"
+        case .exitList: return "结束列表"
         }
     }
     var accessibilityID: String { "format-\(rawValue)" }
@@ -269,7 +274,7 @@ extension NativeProjection {
             return blockState { $0.kind == "heading" && "heading\($0.headingLevel)" == action.rawValue }
         case .alignLeft, .alignCenter, .alignRight:
             return blockState({ $0.textAlign == action.textAlign }, considered: \.acceptsBlockAttributes)
-        case .indentIncrease, .indentDecrease, .splitListItem: return .off
+        case .indentIncrease, .indentDecrease, .splitListItem, .exitList: return .off
         case .blockquote, .bulletList, .orderedList:
             return blockState({ $0.containers.contains(action.rawValue) }, considered: \.acceptsBlockAttributes)
         }
@@ -284,6 +289,13 @@ extension NativeProjection {
         guard block.acceptsBlockAttributes, block.rootContainer == "bulletList" || block.rootContainer == "orderedList" else { return false }
         let first = index == 0 || blocks[index - 1].container != block.container
         return !first && NativeLayout.lastInItem(blocks, at: index)
+    }
+
+    /// Whether `exitList` applies at a caret: its paragraph or heading is
+    /// the last child of the last item of a root list.
+    func canExitList(in range: NSRange) -> Bool {
+        guard range.length == 0, let index = NativeLayout.index(range.location, blocks: blocks) else { return false }
+        return NativeLayout.lastOfList(blocks, at: index)
     }
 
     /// The horizontal rule (分隔线) holding a UTF-16 location: its one U+FFFC
@@ -673,6 +685,7 @@ final class DocumentBinding {
     func canFormat(_ action: NativeFormatAction, range: NSRange) -> Bool {
         guard let projection = commandProjection(range) else { return false }
         if action == .splitListItem { return projection.canSplitListItem(in: range) }
+        if action == .exitList { return projection.canExitList(in: range) }
         if action.isBlockAttribute || action.isContainer { return projection.acceptsBlockAttributes(in: range) }
         return !action.requiresSelection || range.length > 0
     }

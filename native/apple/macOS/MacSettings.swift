@@ -83,6 +83,10 @@ struct LabSettings: Codable, Equatable {
     var writingPlans: [String: WritingPlan] = [:]
     /// Each project's 设定总览 viewport, keyed by project identity.
     var elementOverviewViewports: [String: ElementOverviewViewport] = [:]
+    /// 关系类型 on the 故事图谱 and the 设定总览: per project, then canvas
+    /// (`storyGraph`, `elementOverview`), the relation types whose edges are
+    /// hidden, sorted; a canvas showing every type has no entry.
+    var relationFilters: [String: [String: [String]]] = [:]
     /// 今日字数: per project, the net change in canonical chapter word
     /// counts this device's own saves made on each local calendar day
     /// (`yyyy-MM-dd`), for the last 31 days. See `DailyWordLedger`.
@@ -138,7 +142,7 @@ struct LabSettings: Codable, Equatable {
         case theme, accentColor, fontSource, systemFontFamily, importedFont, fontSize, lineHeight, paragraphIndent, spellcheck, manuscriptLocale
         case typewriterScrolling, typewriterPosition, paragraphSpacing, columnWidth, autoEntityLinks, listFilters, wholeBookPositions
         case writingPlans, elementOverviewViewports, dailyWords, bottomTimelines, plotPlanners, copilot, mcpServers, shortcuts
-        case recentPages, dailyStreaks, tabSessions, lastProject, outlineRails, stickyNotes
+        case recentPages, dailyStreaks, tabSessions, lastProject, outlineRails, stickyNotes, relationFilters
     }
 
     /// Unknown or damaged values fall back to their defaults one by one.
@@ -167,6 +171,9 @@ struct LabSettings: Codable, Equatable {
         writingPlans = (try? values.decodeIfPresent([String: WritingPlan].self, forKey: .writingPlans)) ?? [:]
         elementOverviewViewports = (try? values.decodeIfPresent([String: ElementOverviewViewport].self,
                                                                 forKey: .elementOverviewViewports)) ?? [:]
+        // One unreadable project drops alone.
+        let filterSets = (try? values.decodeIfPresent([String: LenientRelationFilters].self, forKey: .relationFilters)) ?? [:]
+        relationFilters = filterSets.mapValues(\.value)
         dailyWords = (try? values.decodeIfPresent([String: [String: Int]].self, forKey: .dailyWords)) ?? [:]
         dailyStreaks = (try? values.decodeIfPresent([String: DailyStreakCarry].self, forKey: .dailyStreaks)) ?? [:]
         bottomTimelines = (try? values.decodeIfPresent([String: BottomTimelineSetting].self, forKey: .bottomTimelines)) ?? [:]
@@ -212,6 +219,9 @@ struct LabSettings: Codable, Equatable {
         next.outlineRails = outlineRails.filter { Self.railKinds.contains($0.key) && !$0.value }
         next.stickyNotes = stickyNotes.mapValues { $0.mapValues { $0.normalized() }.filter { !$0.value.pinned.isEmpty } }
             .filter { !$0.value.isEmpty }
+        let canvases = Set(RelationCanvas.allCases.map(\.rawValue))
+        next.relationFilters = relationFilters.mapValues { $0.filter { canvases.contains($0.key) }.mapValues { Array(Set($0)).sorted() }
+            .filter { !$0.value.isEmpty } }.filter { !$0.value.isEmpty }
         return next
     }
 
@@ -234,6 +244,13 @@ struct LabSettings: Codable, Equatable {
     private struct LenientString: Decodable {
         let value: String?
         init(from decoder: Decoder) throws { value = try? String(from: decoder) }
+    }
+    private struct LenientRelationFilters: Decodable {
+        let value: [String: [String]]
+        init(from decoder: Decoder) throws {
+            let raw = (try? [String: [LenientString]](from: decoder)) ?? [:]
+            value = raw.mapValues { $0.compactMap(\.value) }
+        }
     }
     private struct LenientPosition: Decodable {
         let value: WholeBookPosition?
@@ -605,6 +622,23 @@ final class LabSettingsStore {
         save()
     }
 
+    // MARK: Relation filters
+
+    /// The relation types whose edges a canvas hides for the project.
+    func hiddenRelationTypes(projectID: String, canvas: RelationCanvas) -> Set<String> {
+        Set(settings.relationFilters[projectID]?[canvas.rawValue] ?? [])
+    }
+
+    /// Saves a canvas's 关系类型 choice at once; an unchanged one writes
+    /// nothing, and showing every type removes the entry.
+    func setHiddenRelationTypes(_ hidden: Set<String>, projectID: String, canvas: RelationCanvas) {
+        guard hiddenRelationTypes(projectID: projectID, canvas: canvas) != hidden else { return }
+        var canvases = settings.relationFilters[projectID] ?? [:]
+        canvases[canvas.rawValue] = hidden.isEmpty ? nil : hidden.sorted()
+        settings.relationFilters[projectID] = canvases.isEmpty ? nil : canvases
+        save()
+    }
+
     // MARK: Bottom timeline
 
     /// Whether the project's 底部时间轴 was left shown, and in which mode.
@@ -912,7 +946,7 @@ final class LabSettingsStore {
 
     /// A deleted project leaves no 写作计划, 设定总览 viewport, 今日字数,
     /// 底部时间轴 or 情节规划格 state, recent pages, tabs, list filters, 全书长卷
-    /// position, 便笺栏 or MCP servers
+    /// position, 便笺栏, 关系类型 choices or MCP servers
     /// behind, nor stays the project that opens at launch (their Keychain
     /// secrets are removed by the caller).
     func forgetProject(_ projectID: String) {
@@ -922,9 +956,10 @@ final class LabSettingsStore {
             || settings.plotPlanners[projectID] != nil || settings.mcpServers[projectID] != nil
             || settings.recentPages[projectID] != nil || settings.tabSessions[projectID] != nil
             || settings.listFilters[projectID] != nil || settings.wholeBookPositions[projectID] != nil
-            || settings.stickyNotes[projectID] != nil
+            || settings.stickyNotes[projectID] != nil || settings.relationFilters[projectID] != nil
             || settings.lastProject == projectID else { return }
         settings.stickyNotes.removeValue(forKey: projectID)
+        settings.relationFilters.removeValue(forKey: projectID)
         settings.listFilters.removeValue(forKey: projectID)
         settings.wholeBookPositions.removeValue(forKey: projectID)
         settings.tabSessions.removeValue(forKey: projectID)

@@ -15,7 +15,7 @@ bold, italic and the paragraph-style menu.
 displayed revision, a global UTF-16 range and one action: `bold`, `italic`,
 `underline`, `strike`, `paragraph`, `heading1`–`heading3`, `alignLeft`,
 `alignCenter`, `alignRight`, `indentIncrease`, `indentDecrease`, `blockquote`,
-`bulletList`, `orderedList` or `splitListItem`. The core
+`bulletList`, `orderedList`, `splitListItem` or `exitList`. The core
 validates the whole selection before mutation; one command is one local
 transaction and one undo unit, also across paragraphs, and a command that
 changes nothing writes nothing and keeps the revision. There is no separate
@@ -52,6 +52,11 @@ typing-marks state.
   that is the last child of an item of a root list, and not its first, moves
   it into a new item right after that one (one undo unit); anything else
   refuses before mutation.
+- **Ending a list**: `exitList` at a caret in the last paragraph or heading
+  of the last item of a root list (the item may hold several paragraphs)
+  moves that block to the top level right after the list; an item or list
+  left empty goes with it (one undo unit). Anything else refuses before
+  mutation.
 
 `DocumentSession::rule_native(NativeRuleEdit)` (`documentRule`,
 `crates/drifting-document/src/rules.rs`) takes the displayed revision, a
@@ -102,18 +107,24 @@ duplicate operation.
   `splitListItem` to it (the waiting-command pattern of the slash menu), so
   the new paragraph is the next item: at an item's end an empty item, in its
   middle the rest of the text. Return on an empty paragraph that is the last
-  of its quote, or on an empty list item holding one paragraph that is its
-  list's last, lifts it out (ends the quote or list, one undo unit): Return
-  twice after an item's text ends the list. ⌫ at the start of a quote's first
-  paragraph, or of the only paragraph of a list's first or last item, lifts
-  it out instead of joining it to the paragraph before. ⌫ in the empty
+  of its quote lifts it out (one undo unit). Return on an empty paragraph
+  that is the last of a list's last item, also in an item of several
+  paragraphs, ends the list in one step with `exitList`: the paragraph goes
+  after the list and an item or list left empty goes with it (one undo
+  unit). Return twice after the last item's text therefore ends the list,
+  also when the second is pressed before the first has landed (the waiting
+  exit replaces the waiting split); in a middle item it stays an ordinary
+  new line. ⌫ at the start of a quote's first paragraph, or of the only
+  paragraph of a list's first or last item, lifts it out instead of joining
+  it to the paragraph before. ⌫ in the empty
   paragraph right after a quote or list (Return twice left it there), or ⌦ at
   the end of the container's last block before it, deletes only the separator
   and Rust removes that paragraph (one undo unit, the caret at the item's
   end). ⌫ at a middle item, and any other deletion across list items or
   between a list and the paragraph beside it, is refused before input is
   queued (列表项之间不能合并…), as Rust would refuse it. Return after an item's
-  paragraph that a nested list follows (imported) is an ordinary new line.
+  paragraph that a nested list follows (imported) is an ordinary new line;
+  a list inside a quote right after an item is not nested in it.
   Undoing a heading, quote or list change over blocks another writer has since
   typed into is refused in Chinese (撤销会让段落重复…), since it would duplicate
   block IDs.
@@ -221,7 +232,8 @@ duplicate operation.
   without a write, headings keeping both), URL links (set, replace, removal
   at a caret, entity links kept, refusals) and quotes and lists (wrap and lift
   as one unit with marks and a comment kept, first or last blocks only, the
-  other kind refused, numbering); bridge tests cover format, history, refusal,
+  other kind refused, numbering, `exitList` from an item of several
+  paragraphs and from a lone item with the emptied list); bridge tests cover format, history, refusal,
   save retry and alignment, indent, underline, links, quotes and lists through
   a cold reopen of the workspace SQLite.
 - `--format-extras-only` (twelve AppKit cases in
@@ -244,7 +256,7 @@ duplicate operation.
   its input is queued keeping the heading or indent, and a mistyped @ query
   corrected with ⌫, an inert picker not taking Return. `--style-only` and the
   older formatting cases keep the incremental-style reference.
-- `--quotes-lists-only` (nine AppKit cases in
+- `--quotes-lists-only` (ten AppKit cases in
   `native/apple/Tests/QuotesListsAcceptance.swift`) covers each toggle by
   menu, an assigned shortcut, the toolbar, the context submenu and the slash
   menu with checkmarks, one undo unit each, block IDs and a comment on a
@@ -266,13 +278,15 @@ duplicate operation.
   built one paragraph at a time (and a paragraph joining at its start), ⌫ and
   ⌦ removing the empty paragraph after a list, a heading made a list refused,
   typing right after ⌫ on a rule keeping its order and caret, ⌦'s caret, the
-  read-only refusal wording and the nested-list Return check.
+  read-only refusal wording and the nested-list Return check; and Return
+  ending a list with `exitList` from an item of three paragraphs, a lone
+  empty item (the list goes too) and twice while the first is queued, one
+  undo unit each, a middle item keeping the new line, a quoted list after an
+  item not read as nested, and a cold reopen.
 - Not covered: physical keys and clicks, the popovers and find bar on screen,
   typing into the find bar's field, input-method composition inside a
   picker's query, the markers' pixels (the tests record which markers each view
   draws), nested quotes and lists (read and drawn, not created; Tab indents,
-  it does not nest an item), and ending a list from an item of several
-  paragraphs (an older item or an undone split), which needs a new core edit.
-  Return pressed again before the first Return's split has landed adds a
-  paragraph to the item instead of ending the list. A rule inserted inside a
-  quote or list goes after the whole quote or list.
+  it does not nest an item), and ending a list from a middle item: Return on
+  its empty last paragraph adds a paragraph to that item. A rule inserted
+  inside a quote or list goes after the whole quote or list.

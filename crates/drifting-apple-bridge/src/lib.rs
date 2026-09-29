@@ -276,16 +276,24 @@ impl LabSession {
         }
         let mut applied = 0;
         for (location, length, revised) in ranges.iter().rev() {
+            // Only the differing span is replaced, so the text around it keeps
+            // its marks, entity links and item identity.
+            let original = &text[*location as usize..(*location + *length) as usize];
+            let replacement: Vec<u16> = revised.encode_utf16().collect();
+            let (from, cut, insert) = narrowed(original, &replacement);
+            if cut == 0 && insert.is_empty() {
+                continue;
+            }
             let revision = self.document.native_projection()?.revision;
             let result = self
                 .document
                 .replace_native(drifting_document::NativeReplacement {
                     revision,
                     range: drifting_document::NativeRange {
-                        location: *location,
-                        length: *length,
+                        location: *location + from,
+                        length: cut,
                     },
-                    text: revised.clone(),
+                    text: String::from_utf16(insert).map_err(|e| e.to_string())?,
                 });
             if let Err(error) = result {
                 for _ in 0..applied {
@@ -1615,6 +1623,36 @@ pub unsafe extern "C" fn drifting_lab_free(value: *mut c_char) {
     if !value.is_null() {
         drop(unsafe { CString::from_raw(value) });
     }
+}
+
+/// The span of `original` that differs from `revised`: the start offset,
+/// the length to cut and the units to insert, never splitting a surrogate
+/// pair.
+fn narrowed<'a>(original: &[u16], revised: &'a [u16]) -> (u32, u32, &'a [u16]) {
+    let mut prefix = original
+        .iter()
+        .zip(revised)
+        .take_while(|(a, b)| a == b)
+        .count();
+    while prefix > 0 && (0xD800..0xDC00).contains(&original[prefix - 1]) {
+        prefix -= 1;
+    }
+    let room = original.len().min(revised.len()) - prefix;
+    let mut suffix = original[prefix..]
+        .iter()
+        .rev()
+        .zip(revised[prefix..].iter().rev())
+        .take(room)
+        .take_while(|(a, b)| a == b)
+        .count();
+    while suffix > 0 && (0xDC00..0xE000).contains(&original[original.len() - suffix]) {
+        suffix -= 1;
+    }
+    (
+        prefix as u32,
+        (original.len() - prefix - suffix) as u32,
+        &revised[prefix..revised.len() - suffix],
+    )
 }
 
 #[cfg(test)]

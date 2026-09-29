@@ -19,7 +19,9 @@ interoperability is kept.
 - The same file keeps each project's 写作计划 under `writingPlans`, edited in
   项目资料 ([whole book](whole-book.md)); saving a plan applies nothing else.
 - Each page's 情节规划格 dock (shown and height) is under `plotPlanners`
-  ([plot planner](plot-planner.md)).
+  ([plot planner](plot-planner.md)), and the relation types each canvas
+  hides under `relationFilters`, per project and canvas (`storyGraph`,
+  `elementOverview`; [timeline](timeline.md#relation-edges-and-关系类型)).
 - The page kinds whose 大纲轨道 is hidden (视图 › 大纲轨道) are under
   `outlineRails` as `{kind: false}` (`chapter`, `drift`, `element`,
   `storyline`, `category`); a kind without an entry shows it, and each

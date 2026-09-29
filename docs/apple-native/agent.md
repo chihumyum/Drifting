@@ -343,6 +343,7 @@ composer for the author to review before sending (`VoiceDictation.swift`).
   设置 › 模型服务 › 语音转写 and kept in the Keychain (`Drifting Native Lab`,
   account `byok.dashscope`), shown masked; without it the panel says so and
   offers 设置…. It is not an LLM key and never reaches a model provider.
+  Keychain Access lists it as `Drifting Native Lab · 语音转写 Key`.
 - The first recording explains, in Chinese, why the microphone is needed and
   what is sent, then macOS asks; a denied microphone is refused with where
   to allow it. Nothing is recorded to disk.
@@ -351,15 +352,21 @@ composer for the author to review before sending (`VoiceDictation.swift`).
   normalization off) with the key only in the `authorization` header and the
   project's names as recognition context: 设定 with categories and aliases,
   故事线, 章节 and 灵感 titles, at most 6,000 characters. Redirects are
-  refused. Pieces transcribe in order; a failed one is kept for 重试 while
-  later ones still land.
-- Proper nouns are restored as the renderer does: a run of Han characters
-  that sounds like an element name or alias or a storyline name (toneless
-  pinyin; for names of three or more syllables also z/zh, c/ch, s/sh, n/l,
-  -n/-ng) takes the project's spelling; a run matching two names is left.
-  Readings come from macOS's Mandarin transliteration, so a polyphone is
-  matched by its reading alone or in the name, not by every reading the
-  renderer's dictionary knows.
+  refused. Pieces transcribe in order; a failed one is kept for 重试 and the
+  pieces after it wait behind it, so 重试 inserts them in spoken order.
+- A change of audio device (the engine's configuration change) ends the
+  recording: what was captured is transcribed and the panel says why.
+- Quitting, or closing the window (which quits), asks first while dictation
+  records, transcribes or keeps pieces for 重试: 退出 drops them, 取消 keeps
+  them.
+- Proper nouns are restored like the renderer's pinyin layer: a run of Han
+  characters that sounds like an element name or alias or a storyline name
+  takes the project's spelling; a run matching two names is left.
+  Two-character names need the same tones; longer ones match toneless
+  pinyin, then z/zh, c/ch, s/sh, n/l and -n/-ng. ü stays apart from u, so
+  everyday words (黎明, 路人, 知识) are not taken for names. Readings come from
+  macOS's Mandarin transliteration, so a polyphone is matched by its reading
+  alone or in the name, not by every reading the renderer's dictionary knows.
 
 ## Persistence
 
@@ -486,9 +493,14 @@ returned to the composer on 停止; 在当前工具后停止 during a tool and d
 the stream; the indicator's numbers (estimate, DeepSeek and Anthropic
 reports, after a compaction) and Max · 1M 上下文 per model and stored; and
 听写 with a synthetic tone, a stubbed ASR endpoint (request shape, WAV,
-context, key only in the header), the pane's masked key, the one-time
-explanation, proper-noun correction, 重试 of a failed piece and a denied
-microphone. Its Copilot 修改 cases are in [Copilot](copilot.md#acceptance).
+context, key only in the header), the pane's masked key and its Keychain
+label, the one-time explanation, proper-noun correction (and everyday words
+left alone), 重试 of a failed piece and the one held behind it in spoken
+order, a device change ending the recording (a posted engine configuration
+change and a synthetic source), the panel's quit check while recording,
+transcribing or keeping pieces and not otherwise, and a denied microphone.
+Its Copilot 修改 cases are in [Copilot](copilot.md#acceptance).
 
-Physical keyboard input, the microphone, live providers and the live ASR
-service are not exercised.
+Physical keyboard input, the microphone, a real device change, live
+providers and the live ASR service are not exercised; the quit and window
+close paths in `AppDelegate` are compiled but not driven.

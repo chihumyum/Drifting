@@ -127,6 +127,11 @@ local rewrites with a preview, questions about a passage and chapter
 summaries written only on 接受, a whole-book
 outline, a continuous whole-book editor with statistics and a writing plan,
 an element overview of categories around the chapter band with relation edges,
+card popovers on the 故事图谱 and the 设定总览 (title, status or category, the
+摘要 edited in place, an element's key facts and 打开), relation edges between
+chapters and drifts on the 故事图谱, and a 关系类型 menu on both canvases that
+hides or shows each type's edges, drawn in a system colour per type and kept
+per project,
 a review panel of notes and TODOs with associations, a 备忘与素材 board with
 library ordering, act colours, project deletion, a bottom timeline dock with
 a draggable act rail,
@@ -137,7 +142,8 @@ project at launch), formatting (bold, italic, underline,
 strike, headings, alignment, Tab indent and URL links from the 格式 menu, the
 toolbar and the context menu), quotes and bulleted and numbered lists (also
 typed as “> ”, “- ” or “1. ”, joining an adjacent one of the same kind,
-Return starting the next item and ending the list on an empty last item, ⌫ at
+Return starting the next item and ending the list from the empty last
+paragraph of its last item, also of an item of several paragraphs, ⌫ at
 the start and ⌫ or ⌦ removing the empty paragraph after it, drawn with markers in every
 editor, the 全书长卷, the 历史版本 preview and print), horizontal rules
 (分隔线, from 格式 and the slash menu, removed by ⌫, ⌦ or their context menu,

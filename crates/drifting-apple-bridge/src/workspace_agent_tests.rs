@@ -214,3 +214,57 @@ fn edit_closed(fixture: &Fixture, chapter: &str, text: &str) {
         json!({"operation":"workspaceCloseChapter","handle":fixture.workspace,"projectId":fixture.project,"chapterId":chapter}),
     );
 }
+
+#[test]
+fn workspace_agent_revisions_replace_only_the_changed_span() {
+    let fixture = Fixture::new();
+    let handle = fixture.open(0)["handle"].as_u64().unwrap();
+    let chapter = fixture.chapters[0].clone();
+    edit(handle, "他终于说出了真相。");
+    let current = state(handle);
+    success(json!({"operation":"documentFormat","handle":handle,"edit":{
+        "revision":current["projection"]["revision"],"range":{"location":6,"length":2},"action":"bold"}}));
+    let applied = success(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"他终于说出了真相。","revisedText":"他终于说出真相。"}],
+        "agent":call("call-narrow")}),
+    ));
+    let block = &applied["document"]["projection"]["blocks"][0];
+    assert_eq!(
+        applied["document"]["projection"]["text"],
+        "他终于说出真相。"
+    );
+    // 真相 keeps its bold; the text before it stays plain.
+    let runs = block["runs"].as_array().unwrap();
+    let bold: Vec<_> = runs
+        .iter()
+        .filter(|run| run["attributes"].get("bold").is_some())
+        .map(|run| {
+            (
+                run["range"]["location"].as_u64(),
+                run["range"]["length"].as_u64(),
+            )
+        })
+        .collect();
+    assert_eq!(bold, vec![(Some(5), Some(2))]);
+    // An unchanged revision writes nothing and applies nothing.
+    let unchanged = success(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"真相","revisedText":"真相"}],"agent":call("call-same")}),
+    ));
+    assert_eq!(unchanged["applied"], 0);
+    // Surrogate pairs are never split.
+    edit(handle, "🙂🙂");
+    let emoji = success(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"🙂🙂","revisedText":"🙂😀"}],"agent":call("call-emoji")}),
+    ));
+    assert!(emoji["document"]["projection"]["text"]
+        .as_str()
+        .unwrap()
+        .starts_with("🙂😀"));
+    fixture.close();
+}

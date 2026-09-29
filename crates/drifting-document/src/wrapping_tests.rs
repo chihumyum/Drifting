@@ -369,3 +369,47 @@ fn native_undo_of_a_wrap_refuses_when_another_writer_typed_into_it() {
         .collect();
     assert_eq!(ids, ["a", "b", "c"]);
 }
+
+#[test]
+fn native_exit_list_moves_the_last_items_last_paragraph_after_the_list() {
+    let mut doc = source();
+    apply(&mut doc, NativeFormatAction::BulletList, 0, 7).unwrap();
+    // Enter at the end of 潮汐 adds an empty paragraph to its item.
+    doc.replace_native(NativeReplacement {
+        revision: doc.revision,
+        range: NativeRange {
+            location: 7,
+            length: 0,
+        },
+        text: "\n".into(),
+    })
+    .unwrap();
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.text, "开篇🙂\n潮汐\n\n夜航");
+    assert_eq!(view.blocks[2].containers, s(&["bulletList", "listItem"]));
+    // Not the last item: refused before anything changes.
+    let revision = doc.revision;
+    assert!(apply(&mut doc, NativeFormatAction::ExitList, 0, 0).is_err());
+    assert_eq!(doc.revision, revision);
+    let log = doc.capture_authored_updates().unwrap();
+    apply(&mut doc, NativeFormatAction::ExitList, 8, 0).unwrap();
+    assert_eq!(log.drain_records().len(), 1);
+    let view = doc.native_projection().unwrap();
+    assert_eq!(view.text, "开篇🙂\n潮汐\n\n夜航");
+    assert_eq!(view.blocks[1].containers, s(&["bulletList", "listItem"]));
+    assert!(view.blocks[2].containers.is_empty());
+    // A single-paragraph last item leaves too, and an emptied list goes.
+    apply(&mut doc, NativeFormatAction::ExitList, 5, 0).unwrap();
+    apply(&mut doc, NativeFormatAction::ExitList, 0, 0).unwrap();
+    assert!(doc
+        .native_projection()
+        .unwrap()
+        .blocks
+        .iter()
+        .all(|b| b.containers.is_empty()));
+    assert!(doc.undo());
+    assert_eq!(
+        doc.native_projection().unwrap().blocks[0].containers,
+        s(&["bulletList", "listItem"])
+    );
+}

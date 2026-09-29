@@ -110,15 +110,19 @@ struct VoiceCorrection: Equatable {
 }
 
 /// Deterministic post-ASR correction, as the renderer's pinyin layer: a run
-/// of Han characters that sounds like a glossary term (toneless pinyin, and
-/// for terms of three or more syllables the common fuzzy merges z/zh, c/ch,
-/// s/sh, n/l and -n/-ng) takes the project's spelling. A run that sounds
-/// like two different terms is left alone. Readings come from macOS's
-/// Mandarin transliteration: each character's own reading, and for glossary
-/// terms also the reading in the term, so a polyphone read differently in
-/// the name still lines up.
+/// of Han characters that sounds like a glossary term takes the project's
+/// spelling. Two-character terms need the same syllables with the same
+/// tones; longer terms match toneless pinyin, then the common fuzzy merges
+/// z/zh, c/ch, s/sh, n/l and -n/-ng. ü stays distinct from u (路 lu, 旅 lv),
+/// so everyday words (黎明, 路人, 知识) are not taken for names that only
+/// sound alike without tones. A run that sounds like two different terms is
+/// left alone. Readings come from macOS's Mandarin transliteration: each
+/// character's own reading, and for glossary terms also the reading in the
+/// term, so a polyphone read differently in the name still lines up.
 enum VoicePinyin {
     static let fuzzyMinimumSyllables = 3
+    /// Terms shorter than this must match with tones.
+    static let tonelessMinimumSyllables = 3
     static let maximumTermCharacters = 8
 
     static func isHan(_ character: Character) -> Bool {
@@ -129,25 +133,47 @@ enum VoicePinyin {
         }
     }
 
-    private static var cache: [Character: String] = [:]
-    private static let lock = NSLock()
+    /// One syllable: toneless with ü as v (旅 → lv, 略 → lve) and as
+    /// transliterated with its tone mark (lǚ).
+    struct Syllable: Hashable {
+        let plain: String
+        let toned: String
 
-    /// The toneless reading of one character, e.g. 岚 → lan.
-    static func reading(_ character: Character) -> String? {
-        lock.lock(); defer { lock.unlock() }
-        if let cached = cache[character] { return cached.isEmpty ? nil : cached }
-        let latin = String(character).applyingTransform(.mandarinToLatin, reverse: false)?
-            .applyingTransform(.stripDiacritics, reverse: false)?.lowercased().trimmingCharacters(in: .whitespaces) ?? ""
-        let value = latin.allSatisfy({ $0.isASCII && $0.isLetter }) ? latin : ""
-        cache[character] = value
-        return value.isEmpty ? nil : value
+        init?(_ latin: String) {
+            let toned = latin.precomposedStringWithCanonicalMapping.lowercased().trimmingCharacters(in: .whitespaces)
+            var folded = String.UnicodeScalarView()
+            for scalar in toned.unicodeScalars {
+                switch scalar {
+                case "ü", "ǖ", "ǘ", "ǚ", "ǜ": folded.append("v")
+                default: folded.append(scalar)
+                }
+            }
+            let plain = String(folded).applyingTransform(.stripDiacritics, reverse: false) ?? ""
+            guard !plain.isEmpty, plain.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
+            self.plain = plain; self.toned = toned
+        }
     }
 
+    private static var cache: [Character: Syllable?] = [:]
+    private static let lock = NSLock()
+
+    /// The reading of one character, e.g. 岚 → lan (lán).
+    static func syllable(_ character: Character) -> Syllable? {
+        lock.lock(); defer { lock.unlock() }
+        if let cached = cache[character] { return cached }
+        let value = String(character).applyingTransform(.mandarinToLatin, reverse: false).flatMap(Syllable.init)
+        cache[character] = .some(value)
+        return value
+    }
+
+    /// The toneless reading of one character, e.g. 岚 → lan, 旅 → lv.
+    static func reading(_ character: Character) -> String? { syllable(character)?.plain }
+
     /// Each syllable of a term read in context, when it splits one per character.
-    static func contextReadings(_ term: String) -> [String]? {
-        let syllables = term.applyingTransform(.mandarinToLatin, reverse: false)?.applyingTransform(.stripDiacritics, reverse: false)?
-            .lowercased().split(separator: " ").map(String.init) ?? []
-        return syllables.count == term.count ? syllables : nil
+    static func contextReadings(_ term: String) -> [Syllable]? {
+        let syllables = (term.applyingTransform(.mandarinToLatin, reverse: false) ?? "").split(separator: " ").map { Syllable(String($0)) }
+        guard syllables.count == term.count, syllables.allSatisfy({ $0 != nil }) else { return nil }
+        return syllables.compactMap { $0 }
     }
 
     static func fuzzy(_ syllable: String) -> String {
@@ -162,6 +188,7 @@ enum VoicePinyin {
         let term: String
         let characters: [Character]
         let readings: [Set<String>]
+        let tonedReadings: [Set<String>]
         let fuzzyReadings: [Set<String>]
     }
 
@@ -172,16 +199,20 @@ enum VoicePinyin {
         guard !text.isEmpty, !terms.isEmpty else { return (text, []) }
         let entries = terms.map { term -> Entry in
             let characters = Array(term), inContext = contextReadings(term)
-            let readings = characters.enumerated().map { index, character -> Set<String> in
-                var set = Set<String>()
-                if let own = reading(character) { set.insert(own) }
+            let syllables = characters.enumerated().map { index, character -> Set<Syllable> in
+                var set = Set<Syllable>()
+                if let own = syllable(character) { set.insert(own) }
                 if let inContext { set.insert(inContext[index]) }
                 return set
             }
-            return Entry(term: term, characters: characters, readings: readings, fuzzyReadings: readings.map { Set($0.map(fuzzy)) })
+            let readings = syllables.map { Set($0.map(\.plain)) }
+            return Entry(term: term, characters: characters, readings: readings, tonedReadings: syllables.map { Set($0.map(\.toned)) },
+                         fuzzyReadings: readings.map { Set($0.map(fuzzy)) })
         }
         let characters = Array(text)
-        let readings = characters.map { isHan($0) ? reading($0).map { Set([$0]) } : nil }
+        let syllables = characters.map { isHan($0) ? syllable($0) : nil }
+        let readings = syllables.map { $0.map { Set([$0.plain]) } }
+        let tonedReadings = syllables.map { $0.map { Set([$0.toned]) } }
         let fuzzyReadings = readings.map { $0.map { Set($0.map(fuzzy)) } }
         var corrections: [VoiceCorrection] = [], output = "", index = 0
         while index < characters.count {
@@ -194,9 +225,11 @@ enum VoicePinyin {
                         let length = entry.characters.count
                         if matched > 0 && length != matched { continue }
                         if index + length > characters.count { continue }
+                        let toned = length < tonelessMinimumSyllables
                         let fits = (0..<length).allSatisfy { offset in
-                            guard let window = fuzzy ? fuzzyReadings[index + offset] : readings[index + offset] else { return false }
-                            let wanted = fuzzy ? entry.fuzzyReadings[offset] : entry.readings[offset]
+                            let window = fuzzy ? fuzzyReadings[index + offset] : toned ? tonedReadings[index + offset] : readings[index + offset]
+                            guard let window else { return false }
+                            let wanted = fuzzy ? entry.fuzzyReadings[offset] : toned ? entry.tonedReadings[offset] : entry.readings[offset]
                             return !window.isDisjoint(with: wanted)
                         }
                         guard fits else { continue }
@@ -272,10 +305,17 @@ final class SystemMicrophone: VoiceMicrophone {
 }
 
 /// The default input through AVAudioEngine, converted to 16 kHz mono Int16.
+/// When the audio hardware or its format changes (a headset plugged in or
+/// out, another default input) the engine stops itself and the tap goes
+/// quiet; the recording then ends with `deviceChanged` so what was captured
+/// is still transcribed.
 final class AudioEngineSource: VoiceAudioSource {
-    private let engine = AVAudioEngine()
+    static let deviceChanged = "音频设备发生了变化（例如接上或拔下了耳机、麦克风），录音已停止，已录下的部分会照常转写。"
+
+    let engine = AVAudioEngine()
     private var converter: AVAudioConverter?
     private var running = false
+    private var configurationObserver: NSObjectProtocol?
 
     func start(onSamples: @escaping ([Int16]) -> Void, onFailure: @escaping (String) -> Void) throws {
         let input = engine.inputNode
@@ -307,9 +347,27 @@ final class AudioEngineSource: VoiceAudioSource {
             throw LabError.message("麦克风没有开始录音：\(error.localizedDescription)")
         }
         running = true
+        watchConfigurationChanges(onFailure: onFailure)
+    }
+
+    /// Reports this engine's configuration change once, on the main queue,
+    /// until `stop`.
+    func watchConfigurationChanges(onFailure: @escaping (String) -> Void) {
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        configurationObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine,
+                                                                       queue: .main) { [weak self] _ in
+            guard let self, let observer = self.configurationObserver else { return }
+            NotificationCenter.default.removeObserver(observer)
+            self.configurationObserver = nil
+            onFailure(Self.deviceChanged)
+        }
     }
 
     func stop() {
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
+            self.configurationObserver = nil
+        }
         guard running else { return }
         running = false
         engine.inputNode.removeTap(onBus: 0)
@@ -413,8 +471,9 @@ final class VoiceTranscriptionCall: NSObject, URLSessionTaskDelegate {
 /// transcribes each piece with the author's DashScope key and inserts the
 /// text, proper nouns corrected, for the author to review before sending.
 /// Pieces are cut every `pieceSeconds` so each stays within the synchronous
-/// API's limits; they transcribe in order, a failed piece is kept for 重试
-/// while later ones still land. Nothing is recorded to disk. Main thread only.
+/// API's limits; they transcribe in order. A failed piece is kept for 重试
+/// and the pieces after it wait behind it, so the text keeps spoken order.
+/// Nothing is recorded to disk. Main thread only.
 final class VoiceDictation {
     enum Phase: Equatable { case idle, recording, transcribing }
 
@@ -449,6 +508,8 @@ final class VoiceDictation {
     private var source: VoiceAudioSource?
     private var buffer: [Int16] = []
     private var pending: [Piece] = []
+    /// A failed piece and every piece cut after it, in spoken order, kept
+    /// for 重试.
     private var failed: [Piece] = []
     private var call: VoiceTranscriptionCall?
     private var recognition = VoiceRecognitionContext.empty
@@ -456,7 +517,19 @@ final class VoiceDictation {
     private var recognitionReady = true
     private var apiKey = ""
 
+    /// Pieces kept for 重试: the failed one and those waiting behind it.
     var failedPieces: Int { failed.count }
+
+    /// Why quitting now would lose audio (recording, transcribing, or
+    /// pieces kept for 重试), in Chinese; nil when nothing would be lost.
+    var quitWarning: String? {
+        switch phase {
+        case .recording: return "听写正在录音。现在退出，这段录音不会转写，也不会保留。"
+        case .transcribing: return "听写还有录音正在转写。现在退出，尚未转写的录音会被丢弃。"
+        case .idle:
+            return failed.isEmpty ? nil : "听写还有 \(failed.count) 段录音没有转写成功，正等待重试。现在退出，这些录音会被丢弃。"
+        }
+    }
 
     init(secrets: AgentSecretStore, network: AgentNetwork = AgentNetwork(), microphone: VoiceMicrophone = SystemMicrophone(),
          makeSource: @escaping () -> VoiceAudioSource = { AudioEngineSource() }) {
@@ -474,6 +547,7 @@ final class VoiceDictation {
         case .transcribing: return "转写中…"
         case .idle:
             if let error { return failed.isEmpty ? error : "\(error)（\(failed.count) 段待重试）" }
+            if !failed.isEmpty { return "\(failed.count) 段录音待重试" }
             return corrections.isEmpty ? nil : "已按设定名校正 \(corrections.count) 处专名"
         }
     }
@@ -587,17 +661,20 @@ final class VoiceDictation {
         changed()
     }
 
-    /// Drops the recording and everything not yet transcribed.
+    /// Drops the recording and everything not yet transcribed, including
+    /// pieces kept for 重试.
     func cancel() {
         source?.stop(); source = nil
         call?.cancel(); call = nil
-        buffer = []; pending = []; recognitionReady = true
+        buffer = []; pending = []; failed = []; error = nil; recognitionReady = true
         phase = .idle; recordingStartedAt = nil
         changed()
     }
 
     private func pump() {
         guard recognitionReady else { return }
+        // Behind a failed piece, later pieces wait for 重试 in spoken order.
+        if !failed.isEmpty, !pending.isEmpty { failed += pending; pending = [] }
         guard call == nil, let piece = pending.first else {
             if call == nil, pending.isEmpty, phase == .transcribing { phase = .idle; changed() }
             return

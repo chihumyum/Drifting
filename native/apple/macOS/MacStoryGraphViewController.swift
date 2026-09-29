@@ -47,8 +47,14 @@ final class MacStoryGraphViewController: NSViewController {
     let addMarkerButton = NSButton(title: "添加标记…", target: nil, action: nil)
     let statusLabel = NSTextField(wrappingLabelWithString: "")
     let scrollView = NSScrollView()
+    /// 关系类型: which relation types' edges are drawn, and their colours.
+    let relationFilter = RelationFilterButton()
     private(set) var canvas: StoryGraphCanvas!
     private var laidOutSize = NSSize.zero
+    /// The popover of the card clicked last, while it is open.
+    private(set) var cardPopover: CanvasCardPopover?
+    /// The metadata read for the open popover's card.
+    private var popoverMetadata: WorkspaceNodeMetadata?
 
     init(model: StoryGraphModel) {
         self.model = model
@@ -68,7 +74,10 @@ final class MacStoryGraphViewController: NSViewController {
         addMarkerButton.toolTip = "在故事时间的末尾添加一个时间标记；也可以在标记行右键，在指定位置添加"
         let close = NSButton(title: "关闭", target: self, action: #selector(closeGraph))
         close.setAccessibilityIdentifier("close-story-graph")
-        let toolbar = NSStackView(views: [axisControl, addMarkerButton, NSView(), close])
+        relationFilter.onToggle = { [weak self] id in self?.model.hiddenRelationTypes.formSymmetricDifference([id]) }
+        relationFilter.onShowAll = { [weak self] in self?.model.hiddenRelationTypes = [] }
+        relationFilter.isHidden = model.relations == nil
+        let toolbar = NSStackView(views: [axisControl, addMarkerButton, relationFilter, NSView(), close])
         toolbar.spacing = 10
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.setAccessibilityIdentifier("graph-status")
@@ -101,6 +110,8 @@ final class MacStoryGraphViewController: NSViewController {
         canvas.onOpenChapter = { [weak self] id in self?.openChapter(id) }
         canvas.onOpenDrift = { [weak self] id in self?.openDrift(id) }
         canvas.onEditMarker = { [weak self] id in self?.renameMarker(id) }
+        canvas.onClickCard = { [weak self] item, view in self?.showCardPopover(item, anchor: view) }
+        canvas.onDragStarted = { [weak self] in self?.closeCardPopover() }
         canvas.menuProvider = { [weak self] target in self?.menu(for: target) }
         model.onChange = { [weak self] in self?.reload() }
         reload()
@@ -113,6 +124,11 @@ final class MacStoryGraphViewController: NSViewController {
         addMarkerButton.isEnabled = model.loaded && !model.busy && model.axis == .narrative
         axisControl.isEnabled = model.loaded
         canvas.render()
+        if let relations = model.relations {
+            relationFilter.update(RelationFilterButton.entries(relations.library, counts: model.relationCounts(shown: canvas.shownNodes),
+                                                               hidden: model.hiddenRelationTypes))
+        }
+        updateCardPopover()
     }
 
     /// A resized panel lays the canvas out again so lanes fill the width.
@@ -127,16 +143,93 @@ final class MacStoryGraphViewController: NSViewController {
         model.axis = axisControl.selectedSegment == 1 ? .narrative : .book
     }
 
-    @objc private func closeGraph() { onClose?() }
+    @objc private func closeGraph() { closeCardPopover(); onClose?() }
 
     private func openChapter(_ id: String) {
         guard let chapter = model.chapter(id: id) else { return }
+        closeCardPopover()
         onOpenChapter?(chapter)
     }
 
     private func openDrift(_ id: String) {
         guard let drift = model.drifts.drift(id: id) else { return }
+        closeCardPopover()
         onOpenDrift?(drift)
+    }
+
+    // MARK: Card popovers
+
+    /// A click on a chapter or drift card: its title, status, summary
+    /// (read once, editable in place) and 打开.
+    func showCardPopover(_ item: StoryGraphCanvas.Item, anchor: NSView) {
+        let id: String
+        switch item {
+        case .chapter(let chapter): id = chapter
+        case .drift(let drift): id = drift
+        case .marker: return
+        }
+        let endpoint = RelationEndpoint(kind: "node", id: id)
+        guard let content = popoverContent(item, metadata: nil) else { return }
+        if let cardPopover, cardPopover.isShown, cardPopover.endpoint == endpoint { return }
+        closeCardPopover()
+        popoverMetadata = nil
+        let popover = CanvasCardPopover(endpoint: endpoint, content: content, summary: nil)
+        popover.onCommit = { [weak self] text, done in
+            guard let self else { done(.failure(LabError.message("故事图谱已关闭，摘要未保存。"))); return }
+            self.model.setSummary(nodeID: id, to: text) { [weak self] result in
+                if case .success(let metadata) = result, self?.cardPopover?.endpoint == endpoint { self?.popoverMetadata = metadata }
+                done(result.map(\.summary))
+            }
+        }
+        popover.onOpen = { [weak self] in
+            if case .chapter = item { self?.openChapter(id) } else { self?.openDrift(id) }
+        }
+        popover.onClosed = { [weak self, weak popover] in
+            if let self, self.cardPopover === popover { self.cardPopover = nil; self.popoverMetadata = nil }
+        }
+        cardPopover = popover
+        popover.show(relativeTo: anchor.bounds, of: anchor)
+        model.metadata(nodeID: id) { [weak self, weak popover] result in
+            guard let self, let popover, self.cardPopover === popover else { return }
+            switch result {
+            case .success(let metadata):
+                self.popoverMetadata = metadata
+                if let content = self.popoverContent(item, metadata: metadata) { popover.update(content: content, summary: metadata.summary) }
+            case .failure(let error): popover.showMessage(error.localizedDescription, error: true)
+            }
+        }
+    }
+
+    /// Commits a changed summary and closes the card popover.
+    func closeCardPopover() { cardPopover?.close() }
+
+    /// What a card's popover shows: its title and “章节 · § 03 · 草稿” or
+    /// “漂流 · 漂浮中”.
+    private func popoverContent(_ item: StoryGraphCanvas.Item, metadata: WorkspaceNodeMetadata?) -> CanvasCardPopover.Content? {
+        switch item {
+        case .chapter(let id):
+            guard let chapter = model.chapter(id: id) else { return nil }
+            let number = (model.bookIndex(of: id) ?? 0) + 1
+            let status = metadata?.writingStatus ?? chapter.writingStatus ?? WritingStatus.draft.rawValue
+            return .init(title: chapter.title.isEmpty ? "未命名章节" : chapter.title,
+                         detail: "章节 · \(String(format: "§ %02d", number)) · \(WritingStatus.label(status))")
+        case .drift(let id):
+            guard let drift = model.drifts.drift(id: id) else { return nil }
+            return .init(title: drift.title.isEmpty ? "未命名漂流" : drift.title,
+                         detail: metadata.map { "漂流 · \(WritingStatus.label($0.writingStatus))" } ?? "漂流")
+        case .marker: return nil
+        }
+    }
+
+    /// Changes elsewhere reach the open popover; a card that left the canvas
+    /// closes it without writing.
+    private func updateCardPopover() {
+        guard let popover = cardPopover, popover.isShown else { return }
+        let id = popover.endpoint.id
+        let item: StoryGraphCanvas.Item = canvas.cardViews[id] != nil ? .chapter(id) : .drift(id)
+        guard canvas.cardViews[id] != nil || canvas.driftViews[id] != nil,
+              let content = popoverContent(item, metadata: popoverMetadata) else { popover.dismiss(); return }
+        popover.update(content: content, summary: popover.storedSummary)
     }
 
     // MARK: Menus
@@ -344,6 +437,10 @@ final class StoryGraphCanvas: NSView {
     let model: StoryGraphModel
     let rail = StoryGraphRail()
     let dropIndicator = StoryGraphBand()
+    /// Relation edges between chapter and drift cards, under the cards.
+    let edgeView = StoryGraphEdgeView()
+    /// The chapters and drifts with a card, whose relations may be drawn.
+    private(set) var shownNodes = Set<String>()
     private(set) var laneBands: [StoryGraphBand] = []
     private let trayBand = StoryGraphBand()
     private let driftBand = StoryGraphBand()
@@ -375,6 +472,9 @@ final class StoryGraphCanvas: NSView {
     var onOpenChapter: ((String) -> Void)?
     var onOpenDrift: ((String) -> Void)?
     var onEditMarker: ((String) -> Void)?
+    /// A chapter or drift card clicked without a drag.
+    var onClickCard: ((Item, NSView) -> Void)?
+    var onDragStarted: (() -> Void)?
     var menuProvider: ((Target) -> NSMenu?)?
 
     init(model: StoryGraphModel) {
@@ -392,6 +492,8 @@ final class StoryGraphCanvas: NSView {
             label.textColor = .tertiaryLabelColor
             addSubview(label)
         }
+        addSubview(edgeView)
+        edgeView.setAccessibilityIdentifier("graph-edges")
         dropIndicator.tint = .labAccent; dropIndicator.alpha = 0.9
         dropIndicator.isHidden = true
         dropIndicator.setAccessibilityIdentifier("graph-drop-indicator")
@@ -544,6 +646,9 @@ final class StoryGraphCanvas: NSView {
             if pendingDrop != drift.id || !model.busy { view.frame = frame }
         }
         for (id, view) in driftViews where !shownDrifts.contains(id) { view.removeFromSuperview(); driftViews[id] = nil }
+        shownNodes = shown.union(shownDrifts)
+        edgeView.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        updateEdges()
         if !model.busy { pendingDrop = nil }
         rail.show(lanes: lanes, lanesTop: lanesTop, narrative: narrative, trayTop: trayTop, driftTop: driftTop,
                   height: height, unplaced: unplaced.count)
@@ -572,6 +677,26 @@ final class StoryGraphCanvas: NSView {
         markerViews[id] = view
         return view
     }
+
+    // MARK: Relation edges
+
+    /// Draws the relations between shown cards whose type is not hidden,
+    /// from the cards' current frames (also while one is dragged).
+    func updateEdges() {
+        guard let relations = model.relations else { edgeView.show([]); return }
+        let library = relations.library
+        let slots = RelationTypeLegend.slots(library)
+        var edges: [StoryGraphEdgeView.Edge] = []
+        for relation in model.nodeRelations where !model.hiddenRelationTypes.contains(relation.relationTypeId) {
+            guard let from = cardFrame(relation.fromId), let to = cardFrame(relation.toId) else { continue }
+            let directed = library.type(id: relation.relationTypeId).map { !$0.isSymmetric } ?? false
+            edges.append(.init(id: relation.id, typeID: relation.relationTypeId, slot: slots[relation.relationTypeId],
+                               curve: RelationEdgeCurve(from: from, to: to, directed: directed)))
+        }
+        edgeView.show(edges)
+    }
+
+    private func cardFrame(_ id: String) -> NSRect? { (cardViews[id] ?? driftViews[id])?.frame }
 
     // MARK: Narrative axis mapping
 
@@ -645,6 +770,7 @@ final class StoryGraphCanvas: NSView {
             drag.moved = true
             view.layer?.zPosition = 10
             (view as? StoryGraphCardView)?.isLifted = true
+            onDragStarted?()
         }
         self.drag = drag
         switch item {
@@ -657,6 +783,8 @@ final class StoryGraphCanvas: NSView {
             view.setFrameOrigin(NSPoint(x: max(M.contentLeft + M.driftMargin, drag.origin.x + dx),
                                         y: max(driftAreaTop + M.driftMargin, drag.origin.y + dy)))
         }
+        // The dragged card's edges follow it.
+        if case .marker = item {} else if shownNodes.contains(item.id) { updateEdges() }
         autoscroll(with: event)
     }
 
@@ -666,7 +794,14 @@ final class StoryGraphCanvas: NSView {
         dropIndicator.isHidden = true
         view.layer?.zPosition = 0
         (view as? StoryGraphCardView)?.isLifted = false
-        guard drag.moved else { return }
+        guard drag.moved else {
+            // A click without a drag shows the card's popover.
+            switch item {
+            case .chapter, .drift: onClickCard?(item, view)
+            case .marker: break
+            }
+            return
+        }
         pendingDrop = item.id
         switch item {
         case .chapter(let id):
@@ -710,6 +845,62 @@ final class StoryGraphBand: NSView {
     override func updateLayer() { layer?.backgroundColor = tint.withAlphaComponent(alpha).cgColor }
     /// Bands never take clicks from the canvas.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+/// The relation edges between cards: one shape layer per palette slot, in
+/// the type's system colour, with an arrowhead for a directed type. It
+/// never takes clicks.
+final class StoryGraphEdgeView: NSView {
+    struct Edge: Equatable {
+        let id: String
+        let typeID: String
+        let slot: Int?
+        let curve: RelationEdgeCurve
+    }
+    private(set) var edges: [Edge] = []
+    private var shapes: [Int: CAShapeLayer] = [:]
+
+    override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override var isFlipped: Bool { true }
+    override var wantsUpdateLayer: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
+    override func updateLayer() { recolor() }
+
+    func show(_ edges: [Edge]) {
+        guard edges != self.edges || shapes.isEmpty != edges.isEmpty else { return }
+        self.edges = edges
+        var paths: [Int: CGMutablePath] = [:]
+        for edge in edges {
+            let slot = edge.slot ?? -1
+            let path = paths[slot] ?? CGMutablePath()
+            edge.curve.add(to: path)
+            paths[slot] = path
+        }
+        for (slot, path) in paths {
+            let shape = shapes[slot] ?? {
+                let shape = CAShapeLayer()
+                shape.fillColor = nil; shape.lineWidth = 1.6; shape.opacity = 0.8; shape.lineCap = .round; shape.lineJoin = .round
+                shape.actions = ["path": NSNull(), "strokeColor": NSNull()]
+                layer?.addSublayer(shape)
+                shapes[slot] = shape
+                return shape
+            }()
+            shape.path = path
+        }
+        for (slot, shape) in shapes where paths[slot] == nil { shape.removeFromSuperlayer(); shapes[slot] = nil }
+        recolor()
+    }
+
+    /// The stroke of each drawn palette slot (-1: no slot), for acceptance.
+    var strokes: [Int: CGColor] { shapes.compactMapValues(\.strokeColor) }
+
+    private func recolor() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            for (slot, shape) in shapes { shape.strokeColor = RelationTypeColors.color(slot: slot < 0 ? nil : slot).cgColor }
+        }
+    }
 }
 
 /// A chapter or drift card: a rounded wash in its lane's colour with a meta

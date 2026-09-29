@@ -49,23 +49,42 @@ The renderer's geometry and solver (`solveSuperElementLayout`) are ported to
 - **Edges.** A relation is drawn when one end is an element card and the other
   a card, a chapter pill or, with the 漂流 row shown, a drift card. Symmetric
   types are S-curves; directed ones end in an arrow at the target's side.
-  Colours follow the renderer's hash of the type over the story hues.
+  Each type has a colour from a fixed palette of system colours, assigned in
+  the order the types were created (as on the [故事图谱](timeline.md)); edges
+  of types hidden in 关系类型 are neither drawn nor hit.
 
 ## Native interaction
 
 视图 › 设定总览 (⌥⌘E) or 总览 in the 设定库 opens a large panel over the window,
-as the 故事图谱 does. Its toolbar shows “N 类 · M 设定 · K 条关系”, 漂流 · N
-(drifts not bound to an act or a timeline marker, with their edges), −, the
-zoom, +, 重置 and 关闭. The status line gives guidance and refusals.
+as the 故事图谱 does. Its toolbar shows “N 类 · M 设定 · K 条关系” (the edges
+drawn), 关系类型, 漂流 · N (drifts not bound to an act or a timeline marker,
+with their edges), −, the zoom, +, 重置 and 关闭. The status line gives guidance and refusals.
 
 - **Pan and zoom.** Drag empty canvas, the band or a pill, or scroll with two
   fingers. Pinch, ⌘-scroll, ⌘+ and ⌘− zoom around the pointer or the centre
   within 40%–200%; ⌘0 and 重置 centre the band at 100%. After a pause, cards in
   view are redrawn at the zoom's resolution.
-- **Opening.** A click on an element card opens its page and a click on a
-  drift card its drift page; a double-click on a pill opens the chapter; a
-  click on a box's legend opens the 分类页. Each opens as a tab and closes the
-  panel, which sits over the editor.
+- **Opening.** A double-click on an element card, a pill or a drift card
+  opens its page (the chapter for a pill); a click on a box's legend opens
+  the 分类页. Each opens as a tab and closes the panel, which sits over the
+  editor.
+- **Card popovers.** A click on a card opens a small popover under it: an
+  element's name, “设定 · 分类 · 组”, its 摘要 and at most six key facts (the
+  rest counted, “另有 N 项，在设定页查看”); a pill's “章节 · § 03 · 草稿” or a
+  drift's “漂流 · 漂浮中” and 摘要; and 打开. Return saves the summary, trimmed
+  as pages do, in one original through the tab host (`updateElement`'s
+  summary, or `setNodeSummary`), so pages and the card follow; an unchanged
+  summary writes nothing, and a newer summary from elsewhere reaches a
+  popover not being edited. Esc, a click elsewhere and 打开 close it after
+  saving a changed summary; panning, scrolling, zooming and a drag close it
+  too, and a card that left the canvas closes it without writing.
+- **关系类型.** The toolbar menu lists the author's relation types in
+  creation order with their colour swatches and how many edges the overview
+  can draw, checked while shown; choosing a type hides or shows its edges
+  (a selected one is deselected) and 全部显示 shows them all. The choice is
+  kept per project in `settings.json` (`relationFilters`, under
+  `elementOverview`), apart from the 故事图谱's, and writes nothing to the
+  journal.
 - **Pinning.** Dragging a box (by its legend, its free area or a card) moves
   the box with its cards; the drop pins it to the cell under it. A drop across
   the band snaps to the nearer side; a drop in place or a click-sized drag
@@ -91,11 +110,11 @@ zoom, +, 重置 and 关闭. The status line gives guidance and refusals.
 
 ## Not ported
 
-- The renderer's element and drift popovers (two-tier editors); native opens
-  the pages instead.
+- The renderer's two-tier popover editors: native popovers edit the summary
+  only and open the page for everything else.
 - 粘带 (a band that sticks to the viewport edge), 聚焦 (edges only for cards in
-  view), hidden relation types, hover and click-focus highlights, and the
-  mobile link mode.
+  view), custom colours per relation type, hover and click-focus highlights,
+  and the mobile link mode.
 - Stored act colours: acts cycle the story hues by position, as in the
   [whole book](whole-book.md).
 - Cards are drawn layers; VoiceOver reads the canvas as one element.
@@ -124,8 +143,9 @@ synthesized mouse, scroll and key events:
   removal with a page's 关系 section following; ⌥-drag, Shift-click and the
   card menu opening 新建关系; a reversed type refused before writing, Rust's
   self-relation refusal in the sheet, and cancelled sheets writing nothing.
-- **Opening.** Element, 分类页 and chapter tabs; a single click on a pill opens
-  nothing; 移到回收站 removes the card and its edges.
+- **Opening.** Element (double-click), 分类页 and chapter tabs; a single click
+  on a card shows its popover and opens nothing; 移到回收站 removes the card
+  and its edges.
 - **Live refresh.** The changes listed above, including drifts with their
   edges and a remote chapter original, without reopening.
 - **Performance.** 60 chapters in three acts and lanes, 20 categories, 300
@@ -133,6 +153,14 @@ synthesized mouse, scroll and key events:
   about 40 ms and later passes (pan, zoom, sharpen, refresh) under 20 ms on
   the development machine in a debug build, all under the 100 ms budget, and nothing
   but the one rename is written to the journal.
+
+Two of the three cases in `native/apple/Tests/CanvasAcceptance.swift`
+(`--canvas-only`) cover the overview's card popovers (element, pill and
+drift contents, one `field.set element` or `field.set node` per changed
+summary with the page and the card following, a summary changed elsewhere,
+nothing for an unchanged one, Esc, 打开 and scrolling) and 关系类型 (colours
+by creation order, hiding with a selected edge, per-project persistence
+through a cold relaunch, no journal writes).
 
 The menu item and panel hosting in `AppDelegate` are built but not driven by
 these cases. Physical trackpad input, desktop XCTest and a visible panel on

@@ -209,9 +209,65 @@ final class StoryGraphModel {
     /// positions; other views of the timeline read it again.
     var onTimeline: (() -> Void)?
 
-    init(workspace: LabWorkspaceCore, projectID: String) {
+    /// The project's shared relation library, whose chapter and drift
+    /// relations the 故事图谱 draws; nil draws none (the 底部时间轴).
+    let relations: RelationLibraryModel?
+    /// Relation types whose edges are hidden (关系类型), remembered per
+    /// project in settings.json by the window.
+    var hiddenRelationTypes: Set<String> = [] {
+        didSet {
+            guard hiddenRelationTypes != oldValue else { return }
+            onChange?()
+            onHiddenRelationTypes?(hiddenRelationTypes)
+        }
+    }
+    var onHiddenRelationTypes: ((Set<String>) -> Void)?
+    /// Writes a chapter's or drift's summary through the tab host, so pages
+    /// follow; nil writes through the workspace.
+    var onSetSummary: ((_ nodeID: String, _ summary: String,
+                        _ done: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) -> Void)?
+
+    init(workspace: LabWorkspaceCore, projectID: String, relations: RelationLibraryModel? = nil) {
         self.workspace = workspace
         self.projectID = projectID
+        self.relations = relations
+        relations?.observe(self) { [weak self] _ in self?.onChange?() }
+    }
+
+    // MARK: Relations and summaries
+
+    /// Relations between two chapters or drifts, the 故事图谱's edges.
+    var nodeRelations: [WorkspaceRelation] {
+        (relations?.library.relations ?? []).filter { $0.fromKind == "node" && $0.toKind == "node" }
+    }
+
+    /// Each type's relations between cards in `shown`, hidden types included.
+    func relationCounts(shown: Set<String>) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for relation in nodeRelations where shown.contains(relation.fromId) && shown.contains(relation.toId) {
+            counts[relation.relationTypeId, default: 0] += 1
+        }
+        return counts
+    }
+
+    /// A chapter's or drift's stored summary and status, read once for its
+    /// card's popover.
+    func metadata(nodeID: String, completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        requests += 1
+        workspace.nodeMetadata(projectID: projectID, nodeID: nodeID, completion: completion)
+    }
+
+    /// Writes a card's summary in one original, trimmed as pages do. Its
+    /// popover sends only a changed summary.
+    func setSummary(nodeID: String, to text: String, completion: @escaping (Result<WorkspaceNodeMetadata, Error>) -> Void) {
+        let summary = ElementText.trimmed(text)
+        beginCommand()
+        let done: (Result<WorkspaceNodeMetadata, Error>) -> Void = { [weak self] result in
+            if case .success(let metadata) = result { self?.applyNodeMetadata(metadata) }
+            completion(result)
+        }
+        if let onSetSummary { onSetSummary(nodeID, summary, done) }
+        else { workspace.setNodeSummary(projectID: projectID, nodeID: nodeID, summary: summary, completion: done) }
     }
 
     func showStatus(_ message: String) { status = message; onChange?() }

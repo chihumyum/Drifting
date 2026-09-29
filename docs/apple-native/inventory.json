@@ -105,7 +105,7 @@
         "IME, UTF-16 positions, split/merge IDs, marks, opaque data, selection, multi-view"
       ],
       "milestone": "P2",
-      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented; Mac-horizontal-rules-list-item-split-adjacent-list-joins-heading-rail-and-scrollbar-markers-implemented; Mac-Copilot-inline-popover-implemented",
+      "status": "inline-and-sibling-native-binding-implemented; cross-container-IME-multiview-gates-open; Mac-plot-planner-dock-implemented; Mac-horizontal-rules-list-item-split-list-exit-adjacent-list-joins-heading-rail-and-scrollbar-markers-implemented; Mac-Copilot-inline-popover-implemented",
       "decisionTask": "D2/D3/D4"
     },
     {
@@ -257,7 +257,7 @@
         "relation types, drift-endpoint rule, timeline/order, pointer/touch and large projects"
       ],
       "milestone": "P5",
-      "status": "Mac-story-graph-timeline-markers-relation-types-element-overview-and-bottom-timeline-dock-implemented",
+      "status": "Mac-story-graph-timeline-markers-relation-types-element-overview-bottom-timeline-dock-canvas-card-popovers-and-relation-type-filters-implemented",
       "decisionTask": null
     },
     {

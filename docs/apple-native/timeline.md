@@ -36,7 +36,7 @@ No SQLite migration is added.
 
 故事图谱 (the sidebar's 故事图谱 beside 上移/下移, and 视图 › 故事图谱, ⌃⌘G) opens a
 large panel over the window. Its toolbar switches the axis between 成书顺序 (the
-default) and 故事时间 and offers 添加标记…. The canvas has one lane per live
+default) and 故事时间 and offers 添加标记… and 关系类型. The canvas has one lane per live
 storyline in authored order, then 未归属 (本书 while there are no storylines);
 lane names, colour dots and chapter counts float at the leading edge while the
 axis scrolls. Chapter cards sit in their primary's lane on a wash of its
@@ -74,6 +74,41 @@ opens the drift page. Opening a page closes the panel, which sits over the
 editor; the axis is remembered per project for the session. Book moves, lane changes and statuses reach the chapter
 list, pages and the outline; changes made elsewhere reach the panel, which also
 reads everything again, without blocking drags, whenever it becomes key.
+
+### Card popovers
+
+A click on a chapter or drift card (a press and release without a drag)
+opens a small popover under it: the title, “章节 · § 03 · 草稿” or “漂流 ·
+漂浮中”, the 摘要 read once and editable in place, and 打开. Return saves the
+summary, trimmed as pages do, with one `setNodeSummary` through the tab
+host, so open pages follow; an unchanged summary writes nothing, and ⌥Return
+adds a line. Esc, a click elsewhere and 打开 close it after saving a changed
+summary; a drag or a double-click (which opens the page) closes it too, and
+a card that left the canvas closes it without writing. Markers have none.
+
+### Relation edges and 关系类型
+
+Relations between two chapters or drifts in the shared relation library
+([relations](relations.md)) are drawn between their cards as the
+[设定总览](element-overview.md) draws its edges: S-curves under the cards in
+the type's colour, with an arrow at the target of a directed type; a dragged
+card's edges follow it. 关系类型 in the toolbar lists the author's relation
+types in creation order, each with its colour swatch and the number of
+relations the graph can draw, checked while shown; choosing a type hides or
+shows its edges and 全部显示 shows them all. The colours are a fixed palette
+of system colours assigned in that order (`RelationTypeLegend`), so a type
+keeps its colour across launches and renames and follows dark mode. The
+choice is kept per project in the lab's `settings.json`
+(`relationFilters`, under `storyGraph`), apart from the 设定总览's, and
+writes nothing to the journal.
+
+### 打散 (not ported)
+
+The renderer's 打散 respaces continuous orders so tiles placed at nearby
+coordinates stop overlapping. Native cards cannot overlap: both axes place
+chapters in fixed slots (the book position, or the rank in story time with
+ties by book order), as does the bottom timeline, so there is nothing to
+spread and the stored orders are left as they are.
 
 ## Bottom timeline (底部时间轴)
 
@@ -133,6 +168,17 @@ captioned, dragged, converting story time, unbound, refused unnamed and
 deleted; drift positions (`tuple.set node`), clamping and opening; a cold
 reopen; and 200 chapters dragged without calls until the drop. Physical drags,
 scrolling and the floating rail are not covered.
+
+Three cases in `native/apple/Tests/CanvasAcceptance.swift` (`--canvas-only`)
+drive the card popovers and 关系类型 of both canvases: the chapter and drift
+popovers (the summary read once, Return writing one `field.set node` that
+the page shows, unchanged and whitespace-only summaries and a second close
+writing nothing, Esc saving, 打开, a drag closing it, a trashed chapter
+dismissing it without writing, a marker without one), and the edges in
+their types' colours with arrows, hiding and showing types and 全部显示
+without journal writes, colours kept across a rename, and each canvas's
+choice in `settings.json` through a cold relaunch. Popovers are built but
+not shown on screen.
 
 Five cases in `native/apple/Tests/BottomTimelineAcceptance.swift`
 (`--bottom-timeline-only`) drive the real dock coordinator, controller and

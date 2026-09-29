@@ -40,9 +40,13 @@ final class MacElementOverviewViewController: NSViewController {
     let edgeSwapButton = NSButton(title: "交换方向", target: nil, action: nil)
     let edgeRemoveButton = NSButton(title: "删除关系", target: nil, action: nil)
     let statusLabel = NSTextField(wrappingLabelWithString: "")
+    /// 关系类型: which relation types' edges are drawn, and their colours.
+    let relationFilter = RelationFilterButton()
     private(set) var canvas: ElementOverviewCanvas!
     /// The open 新建关系 sheet, if any.
     private(set) var relationSheet: OverviewRelationSheet?
+    /// The popover of the card clicked last, while it is open.
+    private(set) var cardPopover: CanvasCardPopover?
     /// The world point centred and the zoom to show first; nil fits the band.
     var initialViewport: ElementOverviewViewport?
 
@@ -78,7 +82,10 @@ final class MacElementOverviewViewController: NSViewController {
         zoomLabel.setAccessibilityIdentifier("overview-zoom")
         let close = NSButton(title: "关闭", target: self, action: #selector(closeOverview))
         close.setAccessibilityIdentifier("close-element-overview")
-        let toolbar = NSStackView(views: [title, metaLabel, NSView(), driftButton, zoomOutButton, zoomLabel, zoomInButton, resetButton, close])
+        relationFilter.onToggle = { [weak self] id in self?.model.hiddenRelationTypes.formSymmetricDifference([id]) }
+        relationFilter.onShowAll = { [weak self] in self?.model.hiddenRelationTypes = [] }
+        let toolbar = NSStackView(views: [title, metaLabel, NSView(), relationFilter, driftButton, zoomOutButton, zoomLabel, zoomInButton,
+                                          resetButton, close])
         toolbar.spacing = 8
         zoomLabel.widthAnchor.constraint(equalToConstant: 46).isActive = true
 
@@ -139,6 +146,9 @@ final class MacElementOverviewViewController: NSViewController {
         canvas.render()
         updateEdgeBar()
         updateZoomLabel()
+        relationFilter.update(RelationFilterButton.entries(model.relations.library, counts: model.scene.relationCounts,
+                                                           hidden: model.hiddenRelationTypes))
+        updateCardPopover()
     }
 
     private var linkHint: String? {
@@ -159,10 +169,10 @@ final class MacElementOverviewViewController: NSViewController {
     @objc private func toggleDrifts() {
         model.showsDrifts = driftButton.state == .on
     }
-    @objc func zoomIn() { canvas.zoom(by: 1.2) }
-    @objc func zoomOut() { canvas.zoom(by: 1 / 1.2) }
-    @objc func resetView() { canvas.resetView() }
-    @objc private func closeOverview() { endRelationSheet(); onClose?() }
+    @objc func zoomIn() { closeCardPopover(); canvas.zoom(by: 1.2) }
+    @objc func zoomOut() { closeCardPopover(); canvas.zoom(by: 1 / 1.2) }
+    @objc func resetView() { closeCardPopover(); canvas.resetView() }
+    @objc private func closeOverview() { closeCardPopover(); endRelationSheet(); onClose?() }
 
     func showStatus(_ text: String, error: Bool = false) { model.showStatus(text, error: error) }
 
@@ -182,6 +192,57 @@ final class MacElementOverviewViewController: NSViewController {
     func openCategory(key: String) {
         guard let category = model.category(id: key) else { return }
         onOpenCategory?(category)
+    }
+
+    // MARK: Card popovers
+
+    /// A click on a card: its title, category or status, summary (editable
+    /// in place), an element's key facts and 打开.
+    func showCardPopover(_ endpoint: RelationEndpoint) {
+        guard let card = model.scene.card(endpoint), let content = popoverContent(endpoint) else { return }
+        if let cardPopover, cardPopover.isShown, cardPopover.endpoint == endpoint { return }
+        closeCardPopover()
+        let popover = CanvasCardPopover(endpoint: endpoint, content: content, summary: model.summary(of: endpoint))
+        popover.onCommit = { [weak self] text, done in
+            guard let self else { done(.failure(LabError.message("设定总览已关闭，摘要未保存。"))); return }
+            self.model.setSummary(of: endpoint, to: text, completion: done)
+        }
+        popover.onOpen = { [weak self] in self?.open(endpoint) }
+        popover.onClosed = { [weak self, weak popover] in
+            if let self, self.cardPopover === popover { self.cardPopover = nil }
+        }
+        cardPopover = popover
+        popover.show(relativeTo: canvas.viewRect(world: card.frame), of: canvas)
+    }
+
+    /// Commits a changed summary and closes the card popover.
+    func closeCardPopover() { cardPopover?.close() }
+
+    /// What a card's popover shows, from the current data.
+    func popoverContent(_ endpoint: RelationEndpoint) -> CanvasCardPopover.Content? {
+        if endpoint.kind == "element" {
+            guard let element = model.element(id: endpoint.id) else { return nil }
+            var detail = ["设定", element.categoryId.flatMap { model.category(id: $0)?.name } ?? "未分类"]
+            if let group = element.groupName, !group.isEmpty { detail.append(group) }
+            return .init(title: element.name.isEmpty ? "未命名设定" : element.name, detail: detail.joined(separator: " · "), facts: element.facts)
+        }
+        if let chapter = model.chapter(id: endpoint.id) {
+            let number = (model.book.chapters.firstIndex { $0.id == chapter.id } ?? 0) + 1
+            let status = model.nodes[chapter.id]?.writingStatus ?? chapter.writingStatus ?? WritingStatus.draft.rawValue
+            return .init(title: chapter.title.isEmpty ? "未命名章节" : chapter.title,
+                         detail: "章节 · \(String(format: "§ %02d", number)) · \(WritingStatus.label(status))")
+        }
+        guard let drift = model.drift(id: endpoint.id) else { return nil }
+        let status = model.nodes[drift.id]?.writingStatus ?? WritingStatus.drifting.rawValue
+        return .init(title: drift.title.isEmpty ? "未命名漂流" : drift.title, detail: "漂流 · \(WritingStatus.label(status))")
+    }
+
+    /// Changes elsewhere reach the open popover; a card that left the
+    /// canvas closes it without writing.
+    private func updateCardPopover() {
+        guard let popover = cardPopover, popover.isShown else { return }
+        guard model.scene.card(popover.endpoint) != nil, let content = popoverContent(popover.endpoint) else { popover.dismiss(); return }
+        popover.update(content: content, summary: model.summary(of: popover.endpoint))
     }
 
     // MARK: Menus
@@ -398,7 +459,8 @@ final class ElementOverviewCanvas: NSView {
     private var laneRules: [CALayer] = []
     private var actLayers: [String: (wash: CALayer, text: OverviewTextLayer)] = [:]
     private var transitLayers: [CAShapeLayer] = []
-    private var edgeLayers: [String: CAShapeLayer] = [:]
+    /// One path per palette slot (-1: a type without one).
+    private var edgeLayers: [Int: CAShapeLayer] = [:]
     private let driftWash = CALayer()
     private let driftCaption = OverviewTextLayer()
     private let emptyCaption = OverviewTextLayer()
@@ -700,31 +762,38 @@ final class ElementOverviewCanvas: NSView {
                                                          size: 11, weight: .semibold, colorRole: .secondary), in: self, scale: scale)
         }
 
-        // Edges, one path per colour, and the selected edge on top.
+        // Edges, one path per relation type colour, and the selected edge on top.
         if let selected = selectedEdge, scene.edge(selected) == nil { selectedEdge = nil }
-        var paths: [String: CGMutablePath] = [:]
+        var paths: [Int: CGMutablePath] = [:]
         for edge in scene.edges where edge.id != selectedEdge {
-            let path = paths[edge.colorHex] ?? CGMutablePath()
-            Self.add(edge, to: path)
-            paths[edge.colorHex] = path
+            let slot = edge.slot ?? -1
+            let path = paths[slot] ?? CGMutablePath()
+            edge.curve.add(to: path)
+            paths[slot] = path
         }
-        for (hex, path) in paths {
-            let layer = edgeLayers[hex] ?? {
+        var strokes: [Int: CGColor] = [:]
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            for slot in Set(paths.keys).union(scene.edges.map { $0.slot ?? -1 }) {
+                strokes[slot] = RelationTypeColors.color(slot: slot < 0 ? nil : slot).cgColor
+            }
+        }
+        for (slot, path) in paths {
+            let layer = edgeLayers[slot] ?? {
                 let layer = CAShapeLayer()
                 layer.fillColor = nil; layer.lineWidth = 1.6; layer.opacity = 0.78; layer.lineCap = .round; layer.lineJoin = .round
                 edgeContainer.addSublayer(layer)
-                edgeLayers[hex] = layer
+                edgeLayers[slot] = layer
                 return layer
             }()
             layer.path = path
-            layer.strokeColor = (ElementSwatch.color(hex: hex) ?? .secondaryLabelColor).cgColor
+            layer.strokeColor = strokes[slot]
         }
-        for (hex, layer) in edgeLayers where paths[hex] == nil { layer.removeFromSuperlayer(); edgeLayers[hex] = nil }
+        for (slot, layer) in edgeLayers where paths[slot] == nil { layer.removeFromSuperlayer(); edgeLayers[slot] = nil }
         if let id = selectedEdge, let edge = scene.edge(id) {
             let path = CGMutablePath()
-            Self.add(edge, to: path)
+            edge.curve.add(to: path)
             selectedEdgeLayer.path = path
-            selectedEdgeLayer.strokeColor = (ElementSwatch.color(hex: edge.colorHex) ?? .labAccent).cgColor
+            selectedEdgeLayer.strokeColor = strokes[edge.slot ?? -1] ?? colors.accent
             selectedEdgeLayer.isHidden = false
         } else {
             selectedEdgeLayer.path = nil
@@ -746,14 +815,6 @@ final class ElementOverviewCanvas: NSView {
         applyTransform()
     }
 
-    private static func add(_ edge: ElementOverviewScene.Edge, to path: CGMutablePath) {
-        path.move(to: edge.from)
-        path.addCurve(to: edge.to, control1: edge.control1, control2: edge.control2)
-        if let (left, right) = edge.arrowBarbs {
-            path.move(to: left); path.addLine(to: edge.to); path.addLine(to: right)
-        }
-    }
-
     private func isDragging(box key: String) -> Bool {
         if case .box(let dragged, _, _)? = gesture, dragged == key, moved { return true }
         return false
@@ -761,6 +822,14 @@ final class ElementOverviewCanvas: NSView {
 
     /// The layer of a card, for acceptance.
     func cardLayer(_ endpoint: RelationEndpoint) -> OverviewCardLayer? { cardLayers[endpoint.key] }
+    /// The stroke of each drawn palette slot's edges, for acceptance.
+    var edgeStrokes: [Int: CGColor] { edgeLayers.compactMapValues(\.strokeColor) }
+
+    /// A world rectangle in view points, e.g. to anchor a card's popover.
+    func viewRect(world rect: CGRect) -> CGRect {
+        let origin = viewPoint(world: rect.origin)
+        return CGRect(x: origin.x, y: origin.y, width: rect.width * zoom, height: rect.height * zoom)
+    }
     func boxLayer(_ key: String) -> OverviewBoxLayer? { boxLayers[key] }
     var cardLayerCount: Int { cardLayers.count }
 
@@ -802,6 +871,7 @@ final class ElementOverviewCanvas: NSView {
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
         let hit = model.scene.hit(worldPoint(view: point), tolerance: 6 / zoom)
+        if let popover = controller?.cardPopover, popover.isShown, endpoint(hit) != popover.endpoint { popover.close() }
         pressed = (hit, point, event.modifierFlags, event.clickCount)
         moved = false
         gesture = nil
@@ -813,6 +883,7 @@ final class ElementOverviewCanvas: NSView {
         if !moved {
             guard hypot(point.x - pressed.point.x, point.y - pressed.point.y) >= 3 else { return }
             moved = true
+            controller?.closeCardPopover()
             gesture = startGesture(pressed.target, at: pressed.point, flags: pressed.flags)
         }
         switch gesture {
@@ -887,11 +958,9 @@ final class ElementOverviewCanvas: NSView {
         if let endpoint = endpoint(hit) {
             if linkSource != nil { finishLink(to: endpoint); return }
             if flags.contains(.shift) { beginLink(from: endpoint); return }
-            switch hit {
-            case .card(.element, _), .card(.drift, _): controller?.open(endpoint)
-            case .card(.chapter, _): if clicks >= 2 { controller?.open(endpoint) }
-            default: break
-            }
+            // A click shows the card's popover; a double-click opens its page.
+            if clicks >= 2 { controller?.closeCardPopover(); controller?.open(endpoint) }
+            else { controller?.showCardPopover(endpoint) }
             return
         }
         switch hit {
@@ -918,6 +987,7 @@ final class ElementOverviewCanvas: NSView {
     // MARK: Scroll, pinch and keys
 
     override func scrollWheel(with event: NSEvent) {
+        controller?.closeCardPopover()
         let point = convert(event.locationInWindow, from: nil)
         if event.modifierFlags.contains(.command) {
             let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 10
@@ -929,6 +999,7 @@ final class ElementOverviewCanvas: NSView {
     }
 
     override func magnify(with event: NSEvent) {
+        controller?.closeCardPopover()
         zoom(by: 1 + event.magnification, around: convert(event.locationInWindow, from: nil))
     }
 
@@ -938,9 +1009,9 @@ final class ElementOverviewCanvas: NSView {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard flags.contains(.command), flags.isSubset(of: [.command, .shift]) else { return super.performKeyEquivalent(with: event) }
         switch event.charactersIgnoringModifiers {
-        case "=", "+": zoom(by: 1.2); return true
-        case "-", "−": zoom(by: 1 / 1.2); return true
-        case "0": resetView(); return true
+        case "=", "+": controller?.closeCardPopover(); zoom(by: 1.2); return true
+        case "-", "−": controller?.closeCardPopover(); zoom(by: 1 / 1.2); return true
+        case "0": controller?.closeCardPopover(); resetView(); return true
         default: return super.performKeyEquivalent(with: event)
         }
     }

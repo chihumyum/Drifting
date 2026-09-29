@@ -1681,12 +1681,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
     }
 
     /// The quote or list a key takes the caret's block out of, if any.
-    /// Return: an empty paragraph that is the last of its quote, or an empty
-    /// list item's only paragraph when the item is its list's last. ⌫ at the
-    /// start of a quote's first paragraph, or of a list item's only
-    /// paragraph when the item is its list's first or last. Rust decides; a
-    /// block in a nested quote or list, or with a selection, keeps the
-    /// ordinary key.
+    /// Return: an empty paragraph that is the last of its quote (lifted), or
+    /// an empty paragraph that is the last of a list's last item, also in an
+    /// item of several paragraphs (`exitList`: it goes after the list, with
+    /// its item when that is left empty). ⌫ at the start of a quote's first
+    /// paragraph, or of a list item's only paragraph when the item is its
+    /// list's first or last. Rust decides; a block in a nested quote or
+    /// list, or with a selection, keeps the ordinary key.
     private func containerExit(onReturn: Bool) -> NativeFormatAction? {
         guard !textView.hasMarkedText(), !isInteractionLocked, textView.isEditable, binding.canEdit, !binding.hasFailedDraft,
               NativeText.identical(binding.displayedText, textView.string) else { return nil }
@@ -1702,12 +1703,13 @@ final class NativeDocumentView: NSView, NSTextViewDelegate {
         if kind == "blockquote" {
             return onReturn ? (next?.container == block.container ? nil : action) : (previous?.container == block.container ? nil : action)
         }
-        // A list item: the item's only paragraph.
+        // Return: the empty last paragraph of the list's last item.
+        if onReturn { return NativeLayout.lastOfList(blocks, at: index) ? .exitList : nil }
+        // ⌫: a list item's only paragraph, in the first or the last item
+        // (the block before or after is not an item of this shape).
         guard previous?.container != block.container, next?.container != block.container else { return nil }
-        // The last item (the next block is not an item of this shape), or
-        // with ⌫ also the first.
         let last = next?.containers != block.containers, first = previous?.containers != block.containers
-        return (onReturn ? last : last || first) ? action : nil
+        return last || first ? action : nil
     }
 
     /// Return in a non-empty list item whose paragraph is its item's last:

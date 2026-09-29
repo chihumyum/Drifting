@@ -5,6 +5,13 @@ import Foundation
 /// What Copilot 修改 works on in a chapter or drift body: the selection, or
 /// the paragraph holding the caret, with the paragraphs around it as local
 /// context. Ranges are UTF-16, in the text as the editor shows it.
+///
+/// The target never starts or ends with white space or a line break: a
+/// selection that takes in a paragraph break, or a paragraph's own indent
+/// (such as U+3000), leaves them outside the rewrite so they stay as they
+/// are. The target is placed by `prefix + original + suffix`, the text
+/// around it widened until it occurs once, as Rust locates changes; 接受
+/// requires exactly that string again.
 struct CopilotInlineTarget: Equatable {
     static let contextLimit = 600
 
@@ -16,6 +23,11 @@ struct CopilotInlineTarget: Equatable {
     /// The paragraphs just above and below, for context only.
     let before: String
     let after: String
+    /// The text just around the target that makes it unique in the body.
+    let prefix: String
+    let suffix: String
+
+    var anchor: String { prefix + original + suffix }
 
     /// 所选文字（12 字） or 光标所在段落（40 字）.
     var label: String { "\(isSelection ? "所选文字" : "光标所在段落")（\(original.count) 字）" }
@@ -34,8 +46,14 @@ struct CopilotInlineTarget: Equatable {
             range = blocks[index].range.nsRange
         }
         guard range.length > 0, NSMaxRange(range) <= string.length else { return nil }
+        // Leading and trailing white space and line breaks stay outside.
+        let visible = CharacterSet.whitespacesAndNewlines.inverted
+        let first = string.rangeOfCharacter(from: visible, options: [], range: range)
+        let last = string.rangeOfCharacter(from: visible, options: .backwards, range: range)
+        guard first.location != NSNotFound, last.location != NSNotFound else { return nil }
+        range = NSRange(location: first.location, length: NSMaxRange(last) - first.location)
         let original = string.substring(with: range)
-        guard !original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        guard let context = unique(range, in: text) else { return nil }
         let texts = blocks.map { block -> (range: NSRange, text: String) in
             let blockRange = block.range.nsRange
             return (blockRange, NSMaxRange(blockRange) <= string.length ? string.substring(with: blockRange) : "")
@@ -55,28 +73,35 @@ struct CopilotInlineTarget: Equatable {
         let beforeText = before.components(separatedBy: "\n").reversed().joined(separator: "\n")
         let after = gather(texts.filter { $0.range.location >= NSMaxRange(range) }.map(\.text))
         return CopilotInlineTarget(kind: kind, id: id, range: range, original: original, isSelection: isSelection,
-                                   before: beforeText, after: after)
+                                   before: beforeText, after: after, prefix: context.prefix, suffix: context.suffix)
     }
 
-    /// Where to replace in the body's current text: the original at its
-    /// range (or its only occurrence if the text moved), widened within the
-    /// text until it is unique, as Rust locates changes. Nil when the
-    /// original is gone or cannot be placed.
-    static func locate(_ original: String, at range: NSRange, in text: String) -> (current: String, prefix: String, suffix: String)? {
+    /// A rewrite with the same number of lines gets back each line's
+    /// leading indent (such as U+3000) where the original had one and the
+    /// rewrite dropped it.
+    func restoringIndents(_ edited: String) -> String {
+        let old = original.components(separatedBy: "\n"), new = edited.components(separatedBy: "\n")
+        guard old.count > 1, old.count == new.count else { return edited }
+        func isIndent(_ character: Character) -> Bool { character.isWhitespace && !character.isNewline }
+        return zip(old, new).map { old, new in
+            let indent = String(old.prefix(while: isIndent))
+            guard !indent.isEmpty, !new.hasPrefix(indent) else { return new }
+            return indent + String(new.drop(while: isIndent))
+        }.joined(separator: "\n")
+    }
+
+    /// The text before and after `range` that, widened a character at a
+    /// time on each side, makes it occur once in `text`. Nil when no
+    /// context within 400 characters on each side does.
+    static func unique(_ range: NSRange, in text: String) -> (prefix: String, suffix: String)? {
         let string = text as NSString
-        var found: NSRange?
-        if NSMaxRange(range) <= string.length, string.substring(with: range) == original { found = range }
-        else {
-            let all = AgentWorkspaceTools.occurrences(of: original, in: text)
-            if all.count == 1 { found = NSRange(location: all[0], length: (original as NSString).length) }
-        }
-        guard let found else { return nil }
-        var widened = found
+        guard NSMaxRange(range) <= string.length else { return nil }
+        var widened = range
         for _ in 0..<400 {
             if AgentWorkspaceTools.occurrences(of: string.substring(with: widened), in: text).count == 1 {
-                let prefix = string.substring(with: NSRange(location: widened.location, length: found.location - widened.location))
-                let suffix = string.substring(with: NSRange(location: NSMaxRange(found), length: NSMaxRange(widened) - NSMaxRange(found)))
-                return (string.substring(with: widened), prefix, suffix)
+                let prefix = string.substring(with: NSRange(location: widened.location, length: range.location - widened.location))
+                let suffix = string.substring(with: NSRange(location: NSMaxRange(range), length: NSMaxRange(widened) - NSMaxRange(range)))
+                return (prefix, suffix)
             }
             let canLeft = widened.location > 0, canRight = NSMaxRange(widened) < string.length
             guard canLeft || canRight else { return nil }
@@ -311,11 +336,12 @@ extension CopilotController {
 /// - 局部修改: the instruction and target go to the model; the preview
 ///   shows removed and added text; 接受 applies it through the body's live
 ///   owner (`workspaceAgent applyChanges`, one undo step with Copilot's
-///   Agent identity), refused when the target changed meanwhile; 重写 asks
-///   again; 放弃 writes nothing.
+///   Agent identity), refused when the target or the text that placed it
+///   changed meanwhile; 重写 asks again; 放弃 writes nothing.
 /// - 问: a question about the target, answered in the popover; writes nothing.
 /// - 生成章节摘要: a summary proposed from the body; 接受 writes it with
-///   `setNodeSummary` (one original); 放弃 writes nothing.
+///   `setNodeSummary` (one original), refused with the preview kept when
+///   the stored summary is no longer the one shown; 放弃 writes nothing.
 /// Main thread only.
 final class CopilotInlineSession {
     enum Mode: String, CaseIterable { case edit, ask, summary }
@@ -395,8 +421,10 @@ final class CopilotInlineSession {
                 }
                 if edit.refused { self.set(.refused(edit.reason.isEmpty ? CopilotInlinePrompt.newContentRefusal : edit.reason)); return }
                 guard !edit.text.isEmpty else { self.set(.failed("模型返回了空白的修改，可以点“重写”再试一次。")); return }
-                guard edit.text != self.target.original else { self.set(.refused("模型没有修改这段文字。可以换个要求再试。")); return }
-                self.set(.edited(original: self.target.original, edited: edit.text, reason: edit.reason))
+                // The reply is trimmed as the target is; inner indents come back.
+                let edited = self.target.restoringIndents(edit.text)
+                guard edited != self.target.original else { self.set(.refused("模型没有修改这段文字。可以换个要求再试。")); return }
+                self.set(.edited(original: self.target.original, edited: edited, reason: edit.reason))
             }
         }
         if call == nil, isWorking { set(.failed("Copilot 不可用。")) }
@@ -438,10 +466,12 @@ final class CopilotInlineSession {
             guard case .success(let body) = prose else {
                 refuse(AgentApplyRefusal(prose.error!).message, false); return
             }
-            guard let place = CopilotInlineTarget.locate(target.original, at: target.range, in: body.text) else {
+            // Exactly the text around the target as it was when it was made,
+            // once; never another copy of the original elsewhere.
+            guard AgentWorkspaceTools.occurrences(of: target.anchor, in: body.text).count == 1 else {
                 refuse("原文在生成修改后已经改变，这处修改没有应用。请重新选择文字后再试。", false); return
             }
-            let change = AgentProseChange(currentText: place.current, revisedText: place.prefix + edited + place.suffix)
+            let change = AgentProseChange(currentText: target.anchor, revisedText: target.prefix + edited + target.suffix)
             let identity = ["sessionId": "copilot-inline", "turnId": "copilot-inline-" + UUID().uuidString.lowercased(),
                             "callId": "copilot-edit-" + UUID().uuidString.lowercased()]
             self.workspace.agentApplyChanges(projectID: projectID, kind: target.kind.rawValue, id: target.id, changes: [change.payload],
@@ -519,18 +549,29 @@ final class CopilotInlineSession {
     }
 
     private func applySummary(_ summary: String) {
+        guard case .summary(let shown, _) = phase else { return }
         let previous = phase
         acceptRefusal = nil
         set(.working("正在应用…"))
-        workspace.setNodeSummary(projectID: projectID, nodeID: target.id, summary: summary) { [weak self] result in
+        let refuse = { [weak self] (message: String) in
+            self?.acceptRefusal = message
+            self?.set(previous)
+        }
+        // The summary the author saw beside the proposal must still be the stored one.
+        workspace.nodeMetadata(projectID: projectID, nodeID: target.id) { [weak self] current in
             guard let self else { return }
-            switch result {
-            case .success(let metadata):
-                self.onWorkspaceEffect?(.nodeMetadata(projectID: self.projectID, metadata: metadata))
-                self.set(.applied("摘要已写入。"))
-            case .failure(let error):
-                self.acceptRefusal = AgentApplyRefusal(error).message
-                self.set(previous)
+            guard case .success(let metadata) = current else { refuse(AgentApplyRefusal(current.error!).message); return }
+            guard metadata.summary == shown else {
+                refuse("摘要在生成后已经改变，这次没有写入。请重新生成后再接受。"); return
+            }
+            self.workspace.setNodeSummary(projectID: self.projectID, nodeID: self.target.id, summary: summary) { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let metadata):
+                    self.onWorkspaceEffect?(.nodeMetadata(projectID: self.projectID, metadata: metadata))
+                    self.set(.applied("摘要已写入。"))
+                case .failure(let error): refuse(AgentApplyRefusal(error).message)
+                }
             }
         }
     }

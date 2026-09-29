@@ -82,20 +82,27 @@ policy and usage record, answered whole.
 - **局部修改**: the instruction, the text and about 600 characters of the
   paragraphs above and below go to the model, which returns only the
   rewritten text (same language and paragraph count, no new story content).
-  A plain request to continue the story is refused without a request. The
+  The target never starts or ends with white space: a selected paragraph
+  break or a paragraph's indent (U+3000) stays outside the rewrite, and an
+  inner line's indent that a rewrite with as many lines dropped is put back.
+  A reply that differs only by white space is 没有修改. A plain request to
+  continue the story is refused without a request. The
   preview marks removed text struck on a red wash and added text on a green
   one. 接受 applies it through the body's live owner with
   `workspaceAgent applyChanges` (Copilot's Agent identity, one undo step
-  that ⌘Z undoes), the replaced text widened with its neighbours until it is
-  unique; it is refused, writing nothing, when that text changed meanwhile.
-  重写 asks again with the same instruction; 放弃 writes nothing.
+  that ⌘Z undoes). When the popover opens, the target is widened with its
+  neighbours until it is unique; 接受 needs exactly that text once and is
+  otherwise refused, writing nothing, even if the original text alone
+  occurs once elsewhere. 重写 asks again with the same instruction; 放弃
+  writes nothing.
 - **问**: the question, the text and its neighbours (with earlier questions
   and answers of the popover) go to the model; the answer shows in the
   popover and nothing is written.
 - **生成章节摘要** (生成摘要 for a drift): the title and body (over 16,000
   characters, its start and end) go to the model; the proposal shows beside
   the current summary. 接受 writes it with `setNodeSummary` (one `field.set`
-  original); 放弃 writes nothing.
+  original), unless the stored summary is no longer the one shown: then it
+  is refused, writing nothing, and the proposal stays. 放弃 writes nothing.
 
 ## Review
 
@@ -146,11 +153,14 @@ second create, 拒绝 refused while what that 接受 created is live and
 recorded once it is in the trash, typing during a request, cancellation on
 close, retries and errors, the privacy note's list and the drift switch.
 Live providers, physical input and panels on screen are not covered.
-Copilot 修改 is covered by two cases in
+Copilot 修改 is covered by three cases in
 `native/apple/Tests/AssistantExtrasAcceptance.swift` (`--assistant-extras-only`):
 off by default, the menu (⌃⌘I) and context item, the edit request (text,
 neighbours, key only in the auth header), the diff preview, 重写, 接受 with
 Agent provenance and one undo, a changed target refused writing nothing,
-放弃, a refused continuation, 问 with a follow-up writing nothing, and the
-summary's 放弃 and 接受 (one `field.set node`) shown on the chapter page,
-with every request's usage recorded.
+放弃, a refused continuation, 问 with a follow-up writing nothing; paragraph
+breaks and U+3000 indents kept outside the rewrite, a white-space-only reply
+as 没有修改, a moved target applied to its own copy and a changed one refused
+although its text occurs once elsewhere; and the summary's 放弃 and 接受 (one
+`field.set node`) shown on the chapter page, 接受 refused with the preview
+kept after the stored summary changed, with every request's usage recorded.

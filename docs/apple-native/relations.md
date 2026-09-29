@@ -76,7 +76,9 @@ An unused type is deleted after confirmation.
 Relation writes change no document owner, input or history. Every reply
 carries the whole library, which updates every open section, the add sheet,
 the panel and the [设定总览](element-overview.md), whose edges select, retype,
-swap, remove and create relations through the same library. Rows resolve names from the tab host's element, chapter, drift
+swap, remove and create relations through the same library; the
+[故事图谱](timeline.md) draws chapter and drift relations from it. Both
+canvases colour edges by type and hide types chosen in 关系类型. Rows resolve names from the tab host's element, chapter, drift
 and storyline libraries, so they follow renames. A trash command, or an
 entity leaving its live list, reads the library again. Rust's Chinese refusals
 are shown as they are; those naming stored identities are restated.

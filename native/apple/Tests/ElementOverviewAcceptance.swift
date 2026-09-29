@@ -347,7 +347,7 @@ extension BindingAcceptance {
         "AppKit 设定总览 shows the book's chapters in book order across the band grouped by act in storyline lanes, category boxes above and below it holding their element cards in groups, 未分类 for elements without a category and an empty category as 空, opens from the 设定库's 总览, and pans by drag and scroll and zooms by ⌘-scroll, ⌘+, ⌘− and ⌘0 within 40%–200% writing nothing",
         "AppKit 设定总览 dragging a category box pins it to the cell under the drop with one original of field.set placements, snaps a box dropped across the band to the nearer side, packs automatic boxes around the pins, writes nothing for a drop in place or a click-sized drag, returns it to the solver with 恢复自动排列 (offered only for pinned boxes), and keeps pins and the viewport (settings.json) through a cold relaunch",
         "AppKit 设定总览 draws relation edges between element cards and chapter pills, selects an edge to show its ends and type and retypes, swaps and removes it through the shared relation library that page 关系 sections follow, creates relations by ⌥-drag, Shift-click and the card menu in the 新建关系 sheet, and refuses a reversed type, a self relation (Rust's Chinese refusal) and a cancelled sheet without writing",
-        "AppKit 设定总览 opens an element card's page, a legend's 分类页 and a double-clicked chapter pill as tabs in the tab host, a single click on a pill opens nothing, and 移到回收站 from a card's menu trashes the element through the tab host and removes its card and edges",
+        "AppKit 设定总览 opens a double-clicked element card's page, a legend's 分类页 and a double-clicked chapter pill as tabs in the tab host, a single click on a card shows its popover and opens nothing, and 移到回收站 from a card's menu trashes the element through the tab host and removes its card and edges",
         "AppKit 设定总览 follows changes made elsewhere without reopening: elements created and categories renamed in the 设定库, an element renamed on its page and recategorised, a category trashed moving its elements to 未分类, a relation added through a page's relation library, chapters created and renamed, a lane change, drifts in the 漂流 row with their edges, and a remote chapter original",
         "AppKit 设定总览 lays out 60 chapters in 3 acts and 3 lanes, 20 categories, 300 elements and 400 relations with the solver under 100 ms and no main-thread pass (open, refresh, pan, zoom, sharpen) over 100 ms in a debug build, and opening, panning and zooming write nothing to the journal",
     ]
@@ -421,8 +421,16 @@ extension BindingAcceptance {
             "Groups differ: \(grouped.groups.map { ($0.name, $0.headerTop, $0.cardRowsTop) })")
         let many = ElementOverviewBox(key: "c", category: nil, elements: elements(40) { _ in "同组" })
         try require((many.widthCells, many.heightCells) == (6, 8) && many.groups.first?.headerTop == nil, "A 40-card box differs")
-        try require(RelationPalette.color(typeID: "type-a") == RelationPalette.color(typeID: "type-a")
-            && RelationPalette.colors.contains(RelationPalette.color(typeID: "type-b")), "Relation colours are unstable")
+        // Relation colours: author types by creation order, whatever their names.
+        func type(_ id: String, _ name: String, _ created: String, locked: Bool = false) -> WorkspaceRelationType {
+            WorkspaceRelationType(id: id, projectId: "p", name: name, normalizedName: name, description: "", orientation: "directed",
+                                  systemKey: locked ? "generic-association" : nil, locked: locked, sourceRole: "", targetRole: "",
+                                  sourceKinds: ["element"], targetKinds: ["element"], createdAt: created, updatedAt: created)
+        }
+        let legend = WorkspaceRelationLibrary(types: [type("t-z", "阿", "2026-01-03"), type("t-a", "中", "2026-01-01"),
+                                                      type("builtin", "Generic association", "2026-01-00", locked: true), type("t-m", "乙", "2026-01-02")],
+                                              relations: [])
+        try require(RelationTypeLegend.slots(legend) == ["t-a": 0, "t-m": 1, "t-z": 2], "Relation colours do not follow creation order")
     }
 
     // MARK: (b) Layout, 设定库 entry, pan and zoom
@@ -802,9 +810,13 @@ extension BindingAcceptance {
         let allies = try harness.relationType("同盟", symmetric: true, roles: ("盟友", ""))
         try harness.relate(harness.element(zhou), harness.element(lan), allies)
         try harness.openOverview()
+        // A click shows the card's popover; a double-click opens its page.
         try harness.click(world: harness.centre(try harness.card(harness.element(zhou)).frame))
+        try require(harness.opened.isEmpty && harness.controller.cardPopover?.endpoint == harness.element(zhou), "A click did not show 老周's popover")
+        try harness.click(world: harness.centre(try harness.card(harness.element(zhou)).frame), clicks: 2)
         try wait { harness.host.tabTitles(pane: 0).contains("老周") && harness.host.canNavigate }
-        try require(harness.opened == ["element:\(zhou.id)"] && harness.host.activeElement?.id == zhou.id, "The card did not open 老周's page")
+        try require(harness.opened == ["element:\(zhou.id)"] && harness.host.activeElement?.id == zhou.id && harness.controller.cardPopover == nil,
+                    "The card did not open 老周's page")
         guard let legend = harness.scene.box(people.id)?.legendFrame else { throw LabError.message("No legend") }
         try harness.click(world: CGPoint(x: legend.minX + 12, y: legend.midY))
         try wait { harness.host.activeCategory?.id == people.id && harness.host.canNavigate }
@@ -812,7 +824,8 @@ extension BindingAcceptance {
         let north = try harness.chapter("北塔")
         let pill = harness.centre(try harness.card(harness.node(north.id)).frame)
         try harness.click(world: pill)
-        try require(harness.opened.count == 2, "A single click on a pill opened a page")
+        try require(harness.opened.count == 2 && harness.controller.cardPopover?.endpoint == harness.node(north.id),
+                    "A single click on a pill opened a page or showed no popover")
         try harness.click(world: pill, clicks: 2)
         try wait { harness.host.activeChapter?.id == north.id && harness.host.canNavigate }
         try require(harness.opened.last == "chapter:\(north.id)" && harness.host.tabTitles(pane: 0) == ["老周", "人物", "北塔"],
@@ -919,7 +932,7 @@ extension BindingAcceptance {
         try require(harness.scene.card(harness.node(drift.id))?.kind == .drift && harness.scene.driftArea != nil
             && harness.scene.edges.contains { $0.relation.fromId == drift.id }, "The 漂流 row or its edge is missing")
         try require(harness.controller.viewport.showsDrifts, "The viewport does not remember the 漂流 row")
-        try harness.click(world: harness.centre(harness.scene.card(harness.node(drift.id))!.frame))
+        try harness.click(world: harness.centre(harness.scene.card(harness.node(drift.id))!.frame), clicks: 2)
         try require(harness.opened.last == "drift:\(drift.id)", "A drift card did not open")
 
         // A remote chapter original arrives.

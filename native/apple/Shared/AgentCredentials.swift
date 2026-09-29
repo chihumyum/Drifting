@@ -10,7 +10,8 @@ protocol AgentCredentialStore: AnyObject {
 }
 
 /// Other secrets of the writing assistant (MCP environment values and
-/// headers) under the same Keychain service, by account name.
+/// headers, the transcription key) under the same Keychain service, by
+/// account name.
 protocol AgentSecretStore: AnyObject {
     func secret(account: String) throws -> String?
     func setSecret(_ value: String, account: String) throws
@@ -37,6 +38,12 @@ enum AgentCredentials {
         return "已保存 ····\(tail)"
     }
 
+    /// What Keychain Access lists a secret as: the transcription key by its
+    /// own name, MCP environment values and headers as MCP 密钥.
+    static func secretLabel(account: String, service: String = service) -> String {
+        "\(service) · \(account == SpeechCredentials.account ? "语音转写 Key" : "MCP 密钥")"
+    }
+
     /// Trims pasted whitespace; an empty key is refused.
     static func normalized(_ key: String) -> String? {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -47,7 +54,8 @@ enum AgentCredentials {
 /// Generic-password items under `Drifting Native Lab` / `byok.<provider>`.
 /// The lab is unsigned, so the macOS file keychain is used rather than the
 /// data-protection keychain (which needs an access-group entitlement).
-/// MCP secrets use the same service with `mcp.…` accounts.
+/// MCP secrets use the same service with `mcp.…` accounts, the transcription
+/// key `byok.dashscope`.
 final class AgentKeychainCredentialStore: AgentCredentialStore, AgentSecretStore {
     private let service: String
 
@@ -75,7 +83,7 @@ final class AgentKeychainCredentialStore: AgentCredentialStore, AgentSecretStore
     func secret(account: String) throws -> String? { try read(account, what: "密钥") }
 
     func setSecret(_ value: String, account: String) throws {
-        try write(value, account: account, label: "\(service) · MCP 密钥", what: "密钥")
+        try write(value, account: account, label: AgentCredentials.secretLabel(account: account, service: service), what: "密钥")
     }
 
     func removeSecret(account: String) throws { try remove(account, what: "密钥") }
@@ -93,7 +101,9 @@ final class AgentKeychainCredentialStore: AgentCredentialStore, AgentSecretStore
 
     private func write(_ value: String, account: String, label: String, what: String) throws {
         let data = Data(value.utf8)
-        let update = SecItemUpdate(query(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        // The label is rewritten too, so an item saved under an older label is corrected.
+        let update = SecItemUpdate(query(account) as CFDictionary,
+                                   [kSecValueData as String: data, kSecAttrLabel as String: label] as CFDictionary)
         if update == errSecSuccess { return }
         guard update == errSecItemNotFound else { throw Self.failure(update, reading: false, what: what) }
         var item = query(account)
