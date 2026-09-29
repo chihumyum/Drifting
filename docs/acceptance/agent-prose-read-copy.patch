@@ -1,0 +1,11 @@
+diff --git a/src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts b/src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts
+index dab29dc4..623eab20 100644
+--- a/src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts
++++ b/src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts
+@@ -353,5 +353 @@ export class YjsProsePersistenceCoordinator {
+-      return {
+-        ...captured.base,
+-        stateVector: copyBytes(captured.base.stateVector),
+-        stateUpdate: copyBytes(captured.base.stateUpdate),
+-      };
++      return captured.base;

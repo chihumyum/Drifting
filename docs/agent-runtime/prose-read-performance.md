@@ -79,6 +79,42 @@ pre-existing skipped test). Lint has zero errors and 70 existing warnings;
 type checks, public boundary, CI contract, generated capability checks and the
 source-matched benchmark verifier also pass.
 
+## Rejected follow-up: returned snapshot copies
+
+After committing the lazy-seed batch at `0d5f6dd6`, a second experiment returned
+the newly captured basis directly instead of cloning its state vector and full
+state update again. It adds no API or SQL changes. The same seven-pair harness
+freezes both baseline modules at that commit.
+
+| Body UTF-16 units | Reads | Baseline ms | Fewer copies ms | Improvement | Faster pairs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 5,000, durable | 20 | 175.98 | 173.55 | 1.38% | 4/7 |
+| 50,000, durable | 10 | 534.02 | 528.27 | 1.08% | 4/7 |
+| 200,000, durable | 5 | 902.80 | 919.85 | -1.89% | 3/7 |
+| 5,000, seed only | 20 | 163.53 | 156.00 | 4.61% | 4/7 |
+
+Reject this follow-up: the end-to-end improvement is small and inconsistent,
+including a regression for very long bodies. Results and durable database rows
+still agree exactly. The prototype was reverted; production source remains
+identical to `0d5f6dd6`. The [report](../acceptance/agent-prose-read-copy-benchmark.json)
+and [zero-context candidate patch](../acceptance/agent-prose-read-copy.patch)
+preserve the experiment. Absolute times across separate runs are not an A/B
+comparison; use the paired baseline within each report.
+
+To reproduce or verify this rejected candidate, apply the patch in an isolated
+checkout of this source state, then run the harness with the explicit baseline:
+
+```sh
+git apply --unidiff-zero docs/acceptance/agent-prose-read-copy.patch
+pnpm exec node --expose-gc --conditions=import --import=tsx scripts/benchmark-agent-prose-reads.ts --baseline=0d5f6dd6 --output=docs/acceptance/agent-prose-read-copy-benchmark.json
+# Add --check to verify the stored candidate report against the patched source.
+git apply --reverse --unidiff-zero docs/acceptance/agent-prose-read-copy.patch
+```
+
+The accepted lazy-seed report remains source-matched after the prototype's
+removal. Its full-suite validation is unchanged because no further product
+source is retained by this follow-up.
+
 ## Other Agent candidates
 
 - Cold `search_prose`: materialization still loops over uncached documents one
