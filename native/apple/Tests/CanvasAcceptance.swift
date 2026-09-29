@@ -367,6 +367,14 @@ extension BindingAcceptance {
         try require(popover.writes == 1 && popover.summaryView.string == "雨夜里，灯塔熄灭。" && popover.messageLabel.stringValue == "摘要已保存。",
                     "The popover did not show the stored summary")
         try wait { harness.host.activeChapterPage?.metadataEditor.summaryText == "雨夜里，灯塔熄灭。" }
+        // A revert committed while a save is on its way is sent after it.
+        let revert = try harness.journal.mark()
+        harness.type("雨夜里，灯塔熄灭了。", in: popover)
+        harness.type("雨夜里，灯塔熄灭。", in: popover)
+        try wait { popover.writes == 3 && popover.storedSummary == "雨夜里，灯塔熄灭。" }
+        try harness.settled()
+        try harness.journal.expect([["field.set node"], ["field.set node"]], since: revert, "A revert during a save")
+        try wait { harness.host.activeChapterPage?.metadataEditor.summaryText == "雨夜里，灯塔熄灭。" }
         // Esc closes it, saving a changed summary as one more original.
         var next = try harness.journal.mark()
         harness.type("雨夜里，北岸的灯塔熄灭。", in: popover, then: #selector(NSResponder.cancelOperation(_:)))

@@ -256,6 +256,9 @@ impl LabSession {
                 || before + after > wanted.len()
                 || wanted[..before] != needle[..before]
                 || wanted[wanted.len() - after..] != needle[needle.len() - after..]
+                // A context edge never splits a surrogate pair.
+                || (before > 0 && (0xD800..0xDC00).contains(&needle[before - 1]))
+                || (after > 0 && (0xDC00..0xE000).contains(&needle[needle.len() - after]))
             {
                 return Err("修改超出了要修改的范围".into());
             }
@@ -270,7 +273,12 @@ impl LabSession {
                 }
             }
             let excerpt: String = current.chars().take(24).collect();
-            match found.len() {
+            // A single change must be unique even counting overlapping
+            // matches (“哈哈” in “哈哈哈”), or it could land on the wrong one.
+            let overlapping = (0..=text.len().saturating_sub(needle.len()))
+                .filter(|at| text[*at..*at + needle.len()] == needle[..])
+                .count();
+            match if *all { found.len() } else { overlapping } {
                 0 => return Err(format!("正文中找不到要修改的原文：“{excerpt}”")),
                 n if n > 1 && !all => {
                     return Err(format!(
@@ -311,16 +319,21 @@ impl LabSession {
             if cut == 0 && insert.is_empty() {
                 continue;
             }
-            let revision = self.document.native_projection()?.revision;
-            let result = self
-                .document
-                .replace_native(drifting_document::NativeReplacement {
-                    revision,
-                    range: drifting_document::NativeRange {
-                        location: *location + from,
-                        length: cut,
-                    },
-                    text: String::from_utf16(insert).map_err(|e| e.to_string())?,
+            // Any failure undoes the ranges already applied in this call.
+            let result = String::from_utf16(insert)
+                .map_err(|e| e.to_string())
+                .and_then(|text| {
+                    let revision = self.document.native_projection()?.revision;
+                    self.document
+                        .replace_native(drifting_document::NativeReplacement {
+                            revision,
+                            range: drifting_document::NativeRange {
+                                location: *location + from,
+                                length: cut,
+                            },
+                            text,
+                        })
+                        .map(|_| ())
                 });
             if let Err(error) = result {
                 for _ in 0..applied {

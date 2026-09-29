@@ -101,7 +101,8 @@ architectural redesign.
 | Page statistics, heading rail, markers, rules, list items and import fixes | `d8f60710` | [page statistics](page-stats.md), [formatting](formatting.md), [library](library.md), [storylines](storylines.md), [categories](categories.md), [tabs and split](tabs-and-split.md), [settings](settings.md) |
 | Assistant extras, Copilot inline, dictation, list and reading-aid fixes | `b1fb1d0a` | [agent](agent.md), [copilot](copilot.md), [settings](settings.md), [formatting](formatting.md), [page statistics](page-stats.md) |
 | Canvas popovers, relation filters, list exit and assistant fixes | `ed1e6862` | [timeline](timeline.md), [element overview](element-overview.md), [relations](relations.md), [formatting](formatting.md), [settings](settings.md), [agent](agent.md), [copilot](copilot.md) |
-| Editor settings, previews, long-page toolbar, welcome and canvas/Copilot fixes | this batch | [settings](settings.md), [entity links](entity-links.md), [whole book](whole-book.md), [workspace](workspace.md), [word counts](word-counts.md), [outline](outline.md), [copilot](copilot.md), [agent](agent.md), [timeline](timeline.md), [element overview](element-overview.md) |
+| Editor settings, previews, long-page toolbar, welcome and canvas/Copilot fixes | `bcb2e8fa` | [settings](settings.md), [entity links](entity-links.md), [whole book](whole-book.md), [workspace](workspace.md), [word counts](word-counts.md), [outline](outline.md), [copilot](copilot.md), [agent](agent.md), [timeline](timeline.md), [element overview](element-overview.md) |
+| Review fixes for colour wells, hover cards, popover saves and Agent change matching | this batch | [settings](settings.md), [workspace](workspace.md), [timeline](timeline.md), [agent](agent.md) |
 
 ## Next batch
 

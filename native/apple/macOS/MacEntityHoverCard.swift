@@ -254,7 +254,9 @@ final class TableHoverPreview: NSResponder, NSPopoverDelegate {
         controller.showsOpenHint = false
         self.content = content; self.controller = controller
         popover.contentViewController = controller
-        guard let window = table.window, window.isVisible, row < table.numberOfRows else { return }
+        guard let window = table.window, window.isVisible, row < table.numberOfRows,
+              // The row still shows the hovered page (a reload may have moved it).
+              let hovered = hoveredTarget, target?(row)?.id == hovered.id else { return }
         popover.show(relativeTo: table.rect(ofRow: row), of: table, preferredEdge: .maxX)
     }
 

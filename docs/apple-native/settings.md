@@ -98,7 +98,8 @@ interoperability is kept.
   extra room, so near the end of the book the line sits lower.
 - 光标颜色 (编辑器 › 书写): 跟随强调色 (default: the 界面强调色, else the
   system accent) or 自定义, starting from the renderer's #6B7FA6, in every body
-  editor, hidden tabs and the 全书长卷.
+  editor, hidden tabs and the 全书长卷. Its colour well (and the 类型颜色
+  wells) report once a colour is chosen, not on every colour-panel tick.
 - 链接样式 (编辑器 › 书写) draws entity links in every editor, the 全书长卷
   (editors and read-only rows) and the 历史版本 preview: 按分类着色 (default:
   an element's category colour, others the default blue), 按类型着色 (设定,

@@ -152,7 +152,9 @@ link's 220 ms, so moving across a list does not flash cards) shows the
 chapter's card in a popover beside the row, as a link's 悬停卡片 reads it:
 the title, “章节 · 写作状态 · 1,234 字” and the 摘要 (暂无摘要 when empty),
 without 点击打开 since the row opens the chapter. Another row replaces it;
-leaving the list, scrolling, a click or a reload closes it. Trashed-list
+leaving the list, scrolling, a click or any reload of the list (trash,
+restore, the 回收站 toggle, a story-graph change) closes it, and a card
+only shows beside a row that still holds its chapter. Trashed-list
 rows, act and heading rows have none. It reads `workspaceMetadata node` and
 the counts only, and never takes the keyboard.
 

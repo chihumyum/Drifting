@@ -136,6 +136,11 @@ request's system prompt ends with the current 作者规则, 工作记忆 and 任
 - A write tool never writes. It checks the target and its input, then adds a
   pending proposal. Missing, ambiguous, overlapping or empty originals, a
   blank append, and a change that would change nothing are refused at once.
+  On 接受 Rust locates each original again (an original that overlaps itself,
+  such as “哈哈” in “哈哈哈”, counts as ambiguous), replaces only the span that
+  differs (inside any `contextBefore`/`contextAfter` a caller names; a context
+  edge may not split a surrogate pair), and undoes ranges already applied if
+  a later one fails.
   The card shows the before and after text of each change, the appended
   paragraphs, the new chapter title with its opening text, or the summary. A
   domain proposal's card lists each field it writes with its value before

@@ -83,7 +83,8 @@ opens a small popover under it: the title, “章节 · § 03 · 草稿” or �
 summary, trimmed as pages do, with one `setNodeSummary` through the tab
 host, so open pages follow; only a change to what was shown is written (an
 unchanged or whitespace-only one writes nothing), and ⌥Return adds a line.
-A closed popover lets go of its `NSPopover`, which held it as content. Esc, a click elsewhere and 打开 close it after saving a changed
+A summary committed while another is still being saved (a revert included)
+is sent after it, never dropped. A closed popover lets go of its `NSPopover`, which held it as content. Esc, a click elsewhere and 打开 close it after saving a changed
 summary; a drag or a double-click (which opens the page) closes it too, and
 a card that left the canvas closes it without writing. Markers have none.
 

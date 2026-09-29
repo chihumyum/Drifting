@@ -125,6 +125,8 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
     private(set) var storedSummary: String?
     /// The summary on its way to Rust.
     private var sending: String?
+    /// A summary committed while `sending` was on its way, sent after it.
+    private var queued: String?
     /// Summary writes sent, for acceptance.
     private(set) var writes = 0
     private(set) var isShown = false
@@ -264,12 +266,23 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
 
     /// Sends a summary the author changed from the one shown: an element's
     /// as typed, a chapter's or drift's trimmed (a change of spacing alone
-    /// writes nothing). The one already on its way writes nothing.
+    /// writes nothing). One committed while another is on its way is sent
+    /// after it (a revert included), never dropped.
     func commit() {
-        guard let storedSummary, let onCommit else { return }
+        guard let storedSummary, onCommit != nil else { return }
         let typed = summaryView.string
         let summary = endpoint.kind == "element" ? typed : ElementText.trimmed(typed)
-        guard typed != storedSummary, summary != storedSummary, summary != sending else { return }
+        let baseline = queued ?? sending ?? storedSummary
+        guard typed != baseline, summary != baseline else { return }
+        if sending != nil {
+            queued = summary
+            return
+        }
+        send(summary, typed: typed)
+    }
+
+    private func send(_ summary: String, typed: String) {
+        guard let onCommit else { return }
         sending = summary
         writes += 1
         onCommit(summary) { [self] result in
@@ -282,6 +295,10 @@ final class CanvasCardPopover: NSViewController, NSPopoverDelegate, NSTextViewDe
                 showMessage("摘要已保存。")
             case .failure(let error):
                 showMessage(error.localizedDescription, error: true)
+            }
+            if let next = queued {
+                queued = nil
+                if next != self.storedSummary { send(next, typed: summaryView.string) }
             }
         }
     }

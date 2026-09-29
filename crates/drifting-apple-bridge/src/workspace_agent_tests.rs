@@ -294,16 +294,33 @@ fn workspace_agent_revisions_replace_only_the_changed_span() {
         "agent":call("call-outside")}),
     ));
     assert!(error.contains("超出"), "{error}");
+    // Text that overlaps itself is ambiguous for a single change.
+    edit(handle, "哈哈哈。");
+    let error = rejected(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"哈哈","revisedText":"嘿嘿"}],"agent":call("call-overlap")}),
+    ));
+    assert!(error.contains("出现了 2 次"), "{error}");
+    // A context edge inside a surrogate pair is refused.
+    edit(handle, "🙂走。");
+    let error = rejected(agent(
+        &fixture,
+        json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
+        "changes":[{"currentText":"🙂走","revisedText":"🙂跑","contextBefore":1}],
+        "agent":call("call-split")}),
+    ));
+    assert!(error.contains("超出"), "{error}");
     // Surrogate pairs are never split.
-    edit(handle, "🙂🙂");
+    edit(handle, "🐱🙂");
     let emoji = success(agent(
         &fixture,
         json!({"action":"applyChanges","target":{"kind":"chapter","id":chapter},
-        "changes":[{"currentText":"🙂🙂","revisedText":"🙂😀"}],"agent":call("call-emoji")}),
+        "changes":[{"currentText":"🐱🙂","revisedText":"🐱😀"}],"agent":call("call-emoji")}),
     ));
     assert!(emoji["document"]["projection"]["text"]
         .as_str()
         .unwrap()
-        .starts_with("🙂😀"));
+        .starts_with("🐱😀"));
     fixture.close();
 }

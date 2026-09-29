@@ -202,8 +202,8 @@
     "sha256": "29e67886e7d5f8d755c6aaa29ab7c82d74f511d7a9b83d74bf0d1f211895fd57"
   },
   "source": {
-    "fingerprint": "415276a96efa38ae074e84fd95665920aeb79ea1cce29b528d7977e109c25e9d",
-    "runtimeFingerprint": "b810a7ee9f3acf2b2dcbb26dd1ce1f13fcb99042336425a03d04410018fa8f63",
+    "fingerprint": "83b411d27b17b87d81e684cc5b32ff4ad7d4d2d54e5256a14a964f96fff390ec",
+    "runtimeFingerprint": "5defe9c2777f8251ba4be7d1165fc7551452f8c9685878b6669a0c6f48fe6549",
     "files": [
       {
         "path": ".github/workflows/ci.yml",
@@ -231,7 +231,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/lib.rs",
-        "sha256": "f1a80cc731c27a86ba1ec38a64c63b88fb6a205d3f5a8864eb635aca8f577c86"
+        "sha256": "c95c0a620390df760cadde826c88d989a319125ab849904cee9be3611e81afe0"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace.rs",
@@ -247,7 +247,7 @@
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_agent_tests.rs",
-        "sha256": "8f7290104f89f6e6036d72b1ef7c9f0dc1a8226a39f56cbfdce976927c10dfb7"
+        "sha256": "634a6c11e9615fdab7bb34c619fafc6b51dff8215924944c58e5780d65c72604"
       },
       {
         "path": "crates/drifting-apple-bridge/src/workspace_archive.rs",
@@ -999,7 +999,7 @@
       },
       {
         "path": "docs/apple-native/agent.md",
-        "sha256": "b3883f77a139aba71120aa849d3b21fb44d0aefe653577312d18f1375fb9aa1a"
+        "sha256": "ca3b5ba9d6002c3b6592eaba8d7b35d4405519c0a1faf25402d92ed3819e8c49"
       },
       {
         "path": "docs/apple-native/architecture.md",
@@ -1087,7 +1087,7 @@
       },
       {
         "path": "docs/apple-native/milestones.md",
-        "sha256": "e9b299e2e43aa4ab3a570e5ada8ffb6e4f3f30c5f284be902da905347d573f9f"
+        "sha256": "0ad063ae4da0391b0e9e476f968361d19c257aa453c51ad793e8018336e5852b"
       },
       {
         "path": "docs/apple-native/native-authoring.md",
@@ -1147,7 +1147,7 @@
       },
       {
         "path": "docs/apple-native/settings.md",
-        "sha256": "d4d217b4cfd287096954bc486da58b0af4937b491424149557e51db6db798f44"
+        "sha256": "5e25f578b5f41b77b459bcb790af199a8f28144da9c5cf22b1aacba2f25a2a1c"
       },
       {
         "path": "docs/apple-native/storylines.md",
@@ -1163,7 +1163,7 @@
       },
       {
         "path": "docs/apple-native/timeline.md",
-        "sha256": "4b93e211b6c61eb2b9338b0e01ed18d909451a043b1afd451be79f5a26c176ad"
+        "sha256": "3cce1058a0cd43c1aed8fe4ca48a3734944ab9fb45febf269c7a36ef2344c140"
       },
       {
         "path": "docs/apple-native/trash.md",
@@ -1179,7 +1179,7 @@
       },
       {
         "path": "docs/apple-native/workspace.md",
-        "sha256": "5f44e2771e4bc69c4dc6cc6c3748a3734980e83eff5bc6992238beb294fae92d"
+        "sha256": "362386249c2a83d8d28908b2e19cd99edd716645608e2b3f8851dd1b0d51b21d"
       },
       {
         "path": "drizzle/0000_local_first_baseline.sql",
@@ -1451,7 +1451,7 @@
       },
       {
         "path": "native/apple/Tests/CanvasAcceptance.swift",
-        "sha256": "c834fe944e49d5d34ac34de52f9a03d15a692bbd1ccd1c9cd96558a806305936"
+        "sha256": "35a446c18b4f671c4be8cf8985e253da64d3c6d5d6404d1785d6b00c5fdea3c0"
       },
       {
         "path": "native/apple/Tests/CategoryAcceptance.swift",
@@ -1711,7 +1711,7 @@
       },
       {
         "path": "native/apple/macOS/AppDelegate.swift",
-        "sha256": "663d646019c91ed98445e9fda1482050aba1a07997859568335459ea56c3dd8b"
+        "sha256": "d86b70df9b42cc5df4ba652ce873f2e40f4bf72aecf77833437347d153c08741"
       },
       {
         "path": "native/apple/macOS/BookOutlineViewController.swift",
@@ -1747,7 +1747,7 @@
       },
       {
         "path": "native/apple/macOS/MacCanvasTools.swift",
-        "sha256": "ed9c0edce6cf53c502709411dc1e9a38f3b16f15240afef97a12b881fcb71c12"
+        "sha256": "8a03558f2311bf0f1a1eb3601c8d4705d1d028fe603c49c12faf9ce6cdb383ec"
       },
       {
         "path": "native/apple/macOS/MacCategoryPageView.swift",
@@ -1823,7 +1823,7 @@
       },
       {
         "path": "native/apple/macOS/MacEntityHoverCard.swift",
-        "sha256": "1d02e7432768dbbdd0f434784a1b59006cd21b73cb63715686c7731400ffcbd0"
+        "sha256": "cc81a3f6e1e17d53e0ceba01772a1a05a8f875c5207565d5f6e980ac32cdaa03"
       },
       {
         "path": "native/apple/macOS/MacMainMenu.swift",
@@ -1911,7 +1911,7 @@
       },
       {
         "path": "native/apple/macOS/MacSettingsWindow.swift",
-        "sha256": "0e7af815e742e44506a3bd87cd5ecf309877e3193733a2caaccbea45abbbefce"
+        "sha256": "70518d68a33217d65906e764fe397ef3fd34ff10b054a529d8ce213e90717bbf"
       },
       {
         "path": "native/apple/macOS/MacShortcutSettings.swift",

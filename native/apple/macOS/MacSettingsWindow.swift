@@ -406,6 +406,10 @@ final class MacEditorSettingsViewController: NSViewController, NSComboBoxDelegat
         indentStepControl.setAccessibilityIdentifier("settings-indent-step")
         caretModeControl.target = self; caretModeControl.action = #selector(caretModeChanged)
         caretModeControl.setAccessibilityIdentifier("settings-caret-mode")
+        // Wells report once a colour is chosen, not on every colour-panel
+        // tick: each report restyles every editor and saves settings.json.
+        caretWell.isContinuous = false
+        linkColorWells.forEach { $0.isContinuous = false }
         caretWell.target = self; caretWell.action = #selector(caretColorChanged)
         caretWell.setAccessibilityIdentifier("settings-caret-color")
         caretValue.setAccessibilityIdentifier("settings-caret-value")

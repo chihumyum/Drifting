@@ -1883,6 +1883,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// A book move in the graph or the 底部时间轴 reorders the chapter list,
     /// the outline and the other of the two.
     private func adoptGraphChapters(_ chapters: [WorkspaceChapter], projectID: String, fromDock: Bool) {
+        // The list is about to change under a chapter's hover card.
+        chapterHoverPreview?.close()
         chapterWorkspace.applyChapters(projectID: projectID, chapters: chapters, trashed: nil)
         wholeBookChanged(projectID: projectID)
         overviewChaptersChanged(projectID: projectID)
@@ -2627,6 +2629,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     /// command: the 回收站 panel and the chapter list's trash follow, and a
     /// chapter restored elsewhere joins the chapter list.
     private func adoptTrash(projectID: String, source: WorkspaceTrashSource) {
+        // The list is about to change under a chapter's hover card.
+        chapterHoverPreview?.close()
         if let model = trashController?.model, model.projectID == projectID { model.apply(source) }
         guard case .chapters(let live, let trashed) = source, selectedProject?.id == projectID else { return }
         trashedChapters = trashed
@@ -3178,6 +3182,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTa
     }
 
     private func refreshChapterList() {
+        // The list is about to change under a chapter's hover card.
+        chapterHoverPreview?.close()
         updatingSelection = true
         chapterTable.reloadData()
         chapterTable.deselectAll(nil)
