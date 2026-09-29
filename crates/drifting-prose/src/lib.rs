@@ -12,6 +12,7 @@ use drifting_document::{
 use std::ops::{Deref, DerefMut};
 mod native_source;
 pub mod remote_sync;
+pub mod search;
 pub mod workspace;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

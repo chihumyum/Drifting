@@ -27,10 +27,29 @@ describe('Tauri database value codec', () => {
       { type: 'integer', value: '42' },
       { type: 'real', value: -3.25 },
       { type: 'text', value: 'text' },
-      { type: 'blob', value: [1, 2, 3] },
-      { type: 'blob', value: [4, 5] },
+      { type: 'blobBase64', value: 'AQID' },
+      { type: 'blobBase64', value: 'BAU=' },
       { type: 'integer', value: '9223372036854775807' },
     ]);
+  });
+
+  it('roundtrips empty, offset and large compact blobs with the WebView fallback', () => {
+    const native = Object.getOwnPropertyDescriptor(Uint8Array.prototype, 'toBase64');
+    Object.defineProperty(Uint8Array.prototype, 'toBase64', { value: undefined, configurable: true });
+    try {
+      for (const size of [0, 1, 2, 3, 256, 8193, 1_000_001]) {
+        const backing = Uint8Array.from({ length: size + 2 }, (_, index) => index % 256);
+        const value = backing.subarray(1, size + 1);
+        expect(decodeDatabaseValue(encodeDatabaseValue(value))).toEqual(value);
+      }
+      for (const value of ['A', 'AB==', 'Zg', 'Zg=', 'Zg===', 'Z g==', 'Zg==\n', '__8=']) {
+        expect(() => decodeDatabaseValue({ type: 'blobBase64', value })).toThrow();
+      }
+      expect(() => decodeDatabaseValue({ type: 'blobBase64', value: [] })).toThrow(/string/);
+    } finally {
+      if (native) Object.defineProperty(Uint8Array.prototype, 'toBase64', native);
+      else Reflect.deleteProperty(Uint8Array.prototype, 'toBase64');
+    }
   });
 
   it('rejects values that JSON or SQLite cannot represent safely', () => {
@@ -63,7 +82,7 @@ describe('Tauri database command adapter', () => {
         sql: 'SELECT ?, ?',
         parameters: [
           { type: 'integer', value: '7' },
-          { type: 'blob', value: [1, 2] },
+          { type: 'blobBase64', value: 'AQI=' },
         ],
         transactionId: '12',
         clientSessionId: 'test-renderer-session',
@@ -73,7 +92,7 @@ describe('Tauri database command adapter', () => {
         rows: [
           [
             { type: 'integer', value: '7' },
-            { type: 'blob', value: [1, 2] },
+            { type: 'blobBase64', value: 'AQI=' },
           ],
         ],
       };

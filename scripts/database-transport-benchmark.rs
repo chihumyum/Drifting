@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::sync::{mpsc, Arc, Mutex};
 
-const CLIENT: &str = "database-cache-benchmark";
+const CLIENT: &str = "database-transport-benchmark";
 
 fn handle(gateway: &DatabaseGateway, message: &Value) -> Result<Value, String> {
     let args = &message["args"];
@@ -36,7 +36,11 @@ fn handle(gateway: &DatabaseGateway, message: &Value) -> Result<Value, String> {
                 tx()?,
                 CLIENT.into(),
             )?;
-            Ok(json!(CompactDatabaseQueryResult::from(result)))
+            Ok(if args["compact"] == true {
+                json!(CompactDatabaseQueryResult::from(result))
+            } else {
+                json!(result)
+            })
         }
         "database_execute" => {
             let parameters: Vec<CompactDatabaseValue> =
@@ -77,7 +81,7 @@ fn main() -> Result<(), String> {
         .nth(1)
         .ok_or("Missing synthetic directory")?;
     if !std::path::Path::new(&directory)
-        .join(".synthetic-database-cache-benchmark")
+        .join(".synthetic-database-transport-benchmark")
         .is_file()
     {
         return Err("Refusing a directory without the synthetic marker".into());

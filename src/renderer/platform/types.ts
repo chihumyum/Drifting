@@ -293,6 +293,7 @@ export interface AssetStorePlatformApi {
 }
 
 export interface ArchivePlatformApi {
+  createTextZip(entries: { path: string; text: string }[]): Promise<Uint8Array>;
   /** Save an app-generated ZIP through the native document picker. */
   save(filename: string, bytes: ArrayBuffer | Uint8Array): Promise<ArchiveSaveResult>;
 }

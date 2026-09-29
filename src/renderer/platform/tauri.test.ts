@@ -203,6 +203,13 @@ describe('tauri native OpenAI and Keychain status transport', () => {
     );
   });
 
+  it('decodes a native binary ZIP response without a JSON number array', async () => {
+    tauriMocks.invoke.mockResolvedValue(Uint8Array.from([80, 75, 3, 4]).buffer);
+    const entries = [{ path: '合成.md', text: '👩🏽‍🚀' }];
+    await expect(tauriPlatform.archive.createTextZip(entries)).resolves.toEqual(Uint8Array.from([80, 75, 3, 4]));
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('archive_create_text_zip', { entries });
+  });
+
   it('passes generated archive bytes to the native save contract', async () => {
     tauriMocks.invoke.mockResolvedValue({ ok: true });
 

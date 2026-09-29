@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "kind": "rust-search-corpus-benchmark",
+  "measuredAt": "2026-09-29T18:34:52.801Z",
+  "source": {
+    "dependencies": {
+      "fingerprint": "ecf065026d395b697340438da9b14f24233cc936bb4280283a7660a2850cae9c",
+      "files": 1659
+    },
+    "harness": "a8a3936bd238f866af0cd6f8bd5d4a418d5e96abc827e018fd79b250cdd8505c",
+    "baselineCommit": "c9de28ba5b5581dd97435ab9b6e70f65ee234884",
+    "baselineSourceSha256": "58588210b65a81c5cac25050b58a322d9c21e599387c75477a41c080a76a603d"
+  },
+  "warmups": 2,
+  "repetitions": 7,
+  "limitations": [
+    "Production collectProseSearchDocuments, real metadata queries, Yjs fallback and bounded revision cache against Release Rust DatabaseGateway. Candidate adds bounded read_search_text calls; baseline corpus module is frozen at c9de28ba, with current compact BLOB transport in both lanes.",
+    "Node/V8 and JSON-lines replace WKWebView/Tauri IPC. Hydration worker is unavailable in Node; no UI responsiveness, typing, provider inference or whole-turn latency claim.",
+    "Two warmup pairs then seven alternating measured pairs on fresh synthetic SQLite copies. Warm case primes the cache outside timing; cold cases clear it. GC is outside timing and OS cache is not flushed.",
+    "Exact complete corpus, ranked outputs for mixed-language queries and full unchanged database contents are checked every pair. Synthetic closed nodes alternate plain and overlapping-mark bodies. Live/seed/unsupported/racing reads are separate regression tests, not timed speedup claims."
+  ],
+  "gate": {
+    "minimumImprovement": 0.2,
+    "minimumBenefitingCases": 2,
+    "minimumWinningPairs": 6,
+    "maximumRegression": 0.05
+  },
+  "accepted": true,
+  "artifact": {
+    "binarySha256": "a17195662ab39c5960a27df11afdaee681221eed263ee83340310b040e801a2d",
+    "lockSha256": "888b6e25f68ef5ec6e069a62545d34df6f01c0f2840eb9f0fc9e8cb7d68824ee",
+    "originalGatewaySha256": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+    "instrumentedGatewaySha256": "b85ca1b2c194aacdde6eb6f87532ef6d67b402392d410f0fcd71be9b545f86a0"
+  },
+  "environment": {
+    "cpu": "Apple M3 Pro",
+    "os": "27.0.0",
+    "node": "v24.19.0"
+  },
+  "scenarios": [
+    {
+      "scenario": {
+        "name": "novel-cold",
+        "nodes": 200,
+        "units": 5000,
+        "tail": 8,
+        "warm": false
+      },
+      "baseline": {
+        "medianMs": 174.7423749999998,
+        "samples": [
+          174.7423749999998,
+          175.2692079999997,
+          173.66575000000012,
+          173.84987499999988,
+          171.98116700000173,
+          175.60699999999997,
+          174.99379099999715
+        ]
+      },
+      "candidate": {
+        "medianMs": 47.809792000000016,
+        "samples": [
+          48.19829199999913,
+          48.87774999999965,
+          47.57800000000134,
+          47.54999999999927,
+          47.809792000000016,
+          47.60408300000199,
+          47.90312500000073
+        ]
+      },
+      "assessment": {
+        "improvement": 0.7263984079419771,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactCorpusAndRankingParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "library-cold",
+        "nodes": 1000,
+        "units": 5000,
+        "tail": 8,
+        "warm": false
+      },
+      "baseline": {
+        "medianMs": 768.2948329999999,
+        "samples": [
+          777.9025839999995,
+          761.2327079999959,
+          770.8230829999957,
+          765.8845829999991,
+          776.2604999999967,
+          759.2293750000026,
+          768.2948329999999
+        ]
+      },
+      "candidate": {
+        "medianMs": 236.31966699999612,
+        "samples": [
+          236.6850830000003,
+          234.97612500000105,
+          237.9629169999971,
+          233.02329199999804,
+          236.31966699999612,
+          233.93466600000102,
+          238.52666699999827
+        ]
+      },
+      "assessment": {
+        "improvement": 0.6924101831100091,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactCorpusAndRankingParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "long-chapters",
+        "nodes": 20,
+        "units": 50000,
+        "tail": 8,
+        "warm": false
+      },
+      "baseline": {
+        "medianMs": 95.24979200000234,
+        "samples": [
+          94.43566699999792,
+          94.83295799999905,
+          94.34991699999955,
+          96.0792500000025,
+          95.51570899999933,
+          96.02825000000303,
+          95.24979200000234
+        ]
+      },
+      "candidate": {
+        "medianMs": 36.873749999998836,
+        "samples": [
+          36.79670900000201,
+          36.75616599999921,
+          36.873749999998836,
+          36.713833000001614,
+          37.01195800000278,
+          37.66762500000186,
+          36.981250000004366
+        ]
+      },
+      "assessment": {
+        "improvement": 0.6128731703687298,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactCorpusAndRankingParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "very-long-chapters",
+        "nodes": 5,
+        "units": 200000,
+        "tail": 8,
+        "warm": false
+      },
+      "baseline": {
+        "medianMs": 87.66412499999569,
+        "samples": [
+          85.69487500000105,
+          89.77812499999709,
+          87.02712500000052,
+          89.78229200000351,
+          87.66412499999569,
+          90.06079200000386,
+          85.49266699999862
+        ]
+      },
+      "candidate": {
+        "medianMs": 35.537791999995534,
+        "samples": [
+          35.41304200000013,
+          35.43908299999748,
+          35.57966699999815,
+          35.3961249999993,
+          35.537791999995534,
+          35.93695899999875,
+          35.61729199999536
+        ]
+      },
+      "assessment": {
+        "improvement": 0.5946141936624898,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactCorpusAndRankingParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "long-tails",
+        "nodes": 100,
+        "units": 5000,
+        "tail": 128,
+        "warm": false
+      },
+      "baseline": {
+        "medianMs": 213.03616700001294,
+        "samples": [
+          213.0580420000042,
+          213.67070899999817,
+          212.21300000000338,
+          213.68754199999967,
+          211.92183300000033,
+          213.03616700001294,
+          212.65466699999524
+        ]
+      },
+      "candidate": {
+        "medianMs": 45.538000000000466,
+        "samples": [
+          45.49458299999242,
+          45.72295899999153,
+          45.538000000000466,
+          45.430042000007234,
+          45.77324999999837,
+          45.390749999991385,
+          45.5882500000007
+        ]
+      },
+      "assessment": {
+        "improvement": 0.7862428683294996,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactCorpusAndRankingParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "novel-warm",
+        "nodes": 200,
+        "units": 5000,
+        "tail": 8,
+        "warm": true
+      },
+      "baseline": {
+        "medianMs": 11.902541999996174,
+        "samples": [
+          12.078166999999667,
+          11.902541999996174,
+          12.025041999993846,
+          11.846749999996973,
+          11.899915999994846,
+          11.858749999999418,
+          12.367124999989755
+        ]
+      },
+      "candidate": {
+        "medianMs": 11.852332999987993,
+        "samples": [
+          11.937417000008281,
+          11.852332999987993,
+          11.955334000012954,
+          11.82949999999255,
+          11.739125000007334,
+          11.888374999994994,
+          11.835416999994777
+        ]
+      },
+      "assessment": {
+        "improvement": 0.004218342603470537,
+        "winningPairs": 6,
+        "benefit": false,
+        "regression": false
+      },
+      "exactCorpusAndRankingParity": true,
+      "databaseUnchanged": true
+    }
+  ]
+}

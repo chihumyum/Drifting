@@ -1,0 +1,413 @@
+{
+  "schemaVersion": 1,
+  "kind": "rust-cold-prose-benchmark",
+  "measuredAt": "2026-09-29T18:33:33.216Z",
+  "source": {
+    "fingerprint": "ecf065026d395b697340438da9b14f24233cc936bb4280283a7660a2850cae9c",
+    "files": 1659
+  },
+  "warmups": 2,
+  "repetitions": 7,
+  "limitations": [
+    "Node/V8 and linear JSON-lines to Release Rust, not WKWebView or Tauri IPC. Renderer lane already uses the improved compact BLOB transport.",
+    "Renderer executes actual getEntityContentJson and docToBlocks. Candidate keeps closed document snapshots/tails inside Rust via ProseRepository and drifting_prose::load_document, then uses DocumentSession::semantic and emits only block text. Both normalize text in JS.",
+    "This times cold document materialization, not warm revision-cached search, ranking, live editor reads or whole Agent turns. Candidate has no product integration. Native semantic projection is probed separately for text parity; write/undo/IME are outside scope.",
+    "Readonly lane uses a throwaway UTF-16 Yrs Doc and the existing checked v1 normalizer, extracting text directly without native edit-session metadata. It does not modify stored data.",
+    "Two warmup triples and seven rotating triples, separate synthetic SQLite copies, GC outside timing, no OS cache flush. Exact block text and normalization, plus complete unchanged database contents, required for every pair."
+  ],
+  "artifact": {
+    "binarySha256": "971fe83209c1ab435bcd61e7dc237d42ec3fbb700f25384800f4cfbeac5437e7",
+    "lockSha256": "888b6e25f68ef5ec6e069a62545d34df6f01c0f2840eb9f0fc9e8cb7d68824ee",
+    "originalGatewaySha256": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+    "instrumentedGatewaySha256": "b85ca1b2c194aacdde6eb6f87532ef6d67b402392d410f0fcd71be9b545f86a0"
+  },
+  "environment": {
+    "cpu": "Apple M3 Pro",
+    "node": "v24.19.0",
+    "os": "27.0.0"
+  },
+  "probes": [
+    {
+      "name": "seed-marks-open-together",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "82a6cdfd7b335b97eb419aeb397e4ef0a75bd4975093aee949ea121b7026f501",
+      "actualSha256": "82a6cdfd7b335b97eb419aeb397e4ef0a75bd4975093aee949ea121b7026f501"
+    },
+    {
+      "name": "seed-italic-then-bold-italic",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "f9ca6d378adafba7c7de88d13d0e9126503bb6d438f4ae7d8197edbc6e6ef300",
+      "actualSha256": "f9ca6d378adafba7c7de88d13d0e9126503bb6d438f4ae7d8197edbc6e6ef300"
+    },
+    {
+      "name": "seed-marks-close-and-reopen",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "51b30932b0274882194f54e3623b17754114701e406807077ed82446bb802fda",
+      "actualSha256": "51b30932b0274882194f54e3623b17754114701e406807077ed82446bb802fda"
+    },
+    {
+      "name": "seed-marks-staggered",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "b0303b336f2ca026c4950f319a393d15e442e6b1dbac7f185a03745699d08651",
+      "actualSha256": "b0303b336f2ca026c4950f319a393d15e442e6b1dbac7f185a03745699d08651"
+    },
+    {
+      "name": "seed-entity-links-overlap",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "fb4a06219508fd716dd6727fd2b871654887f612fb9bd9570a86a1dc554c0184",
+      "actualSha256": "fb4a06219508fd716dd6727fd2b871654887f612fb9bd9570a86a1dc554c0184"
+    },
+    {
+      "name": "seed-adjacent-links",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "f89aaa5d3a88fb03a25249baaccb9c739a4b81319c099daab9116588c44fc4d7",
+      "actualSha256": "f89aaa5d3a88fb03a25249baaccb9c739a4b81319c099daab9116588c44fc4d7"
+    },
+    {
+      "name": "seed-headings-and-outline",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "6cc221ec50c0446655459e96d9f5c78bfd79a71428bc70aeac2de7a8f1f16b6e",
+      "actualSha256": "6cc221ec50c0446655459e96d9f5c78bfd79a71428bc70aeac2de7a8f1f16b6e"
+    },
+    {
+      "name": "seed-blockquote-hardbreak-empty",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "27f921077cebf75f076ad76edda6178426144063c75358674103e380cf07ba9e",
+      "actualSha256": "27f921077cebf75f076ad76edda6178426144063c75358674103e380cf07ba9e"
+    },
+    {
+      "name": "seed-lists-and-code",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "8ef9dc84c822e61b656b8b1ccf43f06539599816f6ddc98f34aa5b721ba9cd7d",
+      "actualSha256": "8ef9dc84c822e61b656b8b1ccf43f06539599816f6ddc98f34aa5b721ba9cd7d"
+    },
+    {
+      "name": "seed-word-count-unicode",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "94b64b7275a47a6f66f9bd87e4a071bde3b493c2858f2222a748b26380300b71",
+      "actualSha256": "94b64b7275a47a6f66f9bd87e4a071bde3b493c2858f2222a748b26380300b71"
+    },
+    {
+      "name": "editor-block-attributes",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "6e990393fb319d4ddceabd8fb09bd2829bdcfc1673bcd3e5565182c51ccce714",
+      "actualSha256": "6e990393fb319d4ddceabd8fb09bd2829bdcfc1673bcd3e5565182c51ccce714"
+    },
+    {
+      "name": "editor-late-id-and-level",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "25351a1144453c06a5ede1406509fd4779e20e1023c027793294d6d54c56e560",
+      "actualSha256": "25351a1144453c06a5ede1406509fd4779e20e1023c027793294d6d54c56e560"
+    },
+    {
+      "name": "editor-mark-applied-later",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "af48a00afa59cbe4b988b1a6607fa386bbea0e720cd6aeb09d7b5f1e23b3a783",
+      "actualSha256": "af48a00afa59cbe4b988b1a6607fa386bbea0e720cd6aeb09d7b5f1e23b3a783"
+    },
+    {
+      "name": "editor-mark-removed-and-reapplied",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111",
+      "actualSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111"
+    },
+    {
+      "name": "editor-entity-link-added-later",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "07201fc02ddccfd4b6ef29a6ac2689f042b0f5182f1a7f25a4c853fa5966c973",
+      "actualSha256": "07201fc02ddccfd4b6ef29a6ac2689f042b0f5182f1a7f25a4c853fa5966c973"
+    },
+    {
+      "name": "yjs-format-later-same-start",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111",
+      "actualSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111"
+    },
+    {
+      "name": "concurrent-format-same-start",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111",
+      "actualSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111"
+    },
+    {
+      "name": "concurrent-format-same-key",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111",
+      "actualSha256": "83f295deeb7c0e455f471fee59994514fa0bc94f1660ece49a26480333088111"
+    },
+    {
+      "name": "concurrent-attributes-two-clients",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "cd65ea2c2ad99e94a85b1b6df72efef9cb2ed0ae933a60c32ce16317f7d7d6aa",
+      "actualSha256": "cd65ea2c2ad99e94a85b1b6df72efef9cb2ed0ae933a60c32ce16317f7d7d6aa"
+    },
+    {
+      "name": "raw-top-level-text-and-empty-text",
+      "textParity": false,
+      "readonlyParity": false,
+      "readonlyUnsupported": true,
+      "expectedSha256": "439083f38956ba51ece90631552c6ea23c5c29570d3d5710e408e77e01ba7375",
+      "actualSha256": "f0a1c5ac54c5c33b12973b5e986a21a6263e77c079ab829abe4cc75632c45cca"
+    },
+    {
+      "name": "raw-fractional-numbers",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "e00e71c16c36d75ab3d0f00c3647ac15d0f62b1fd6bec81dce7c7b5b3cc22d91",
+      "actualSha256": "e00e71c16c36d75ab3d0f00c3647ac15d0f62b1fd6bec81dce7c7b5b3cc22d91"
+    },
+    {
+      "name": "raw-large-number",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+      "actualSha256": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6"
+    },
+    {
+      "name": "raw-integer-like-keys",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+      "actualSha256": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6"
+    },
+    {
+      "name": "raw-non-ascii-format-key",
+      "textParity": true,
+      "readonlyParity": true,
+      "readonlyUnsupported": false,
+      "expectedSha256": "33e16bc480019ee4a86b6fb0c02650dad76f1f880c37c0f56aed865a18a7fcca",
+      "actualSha256": "33e16bc480019ee4a86b6fb0c02650dad76f1f880c37c0f56aed865a18a7fcca"
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario": {
+        "name": "short",
+        "nodes": 2,
+        "units": 5000,
+        "tail": 8,
+        "calls": 20
+      },
+      "renderer": {
+        "medianMs": 19.904458999997587,
+        "samples": [
+          20.71941700000025,
+          20.486250000001746,
+          19.904458999997587,
+          19.551833999998053,
+          20.060207999998966,
+          19.433124999999563,
+          19.345000000001164
+        ]
+      },
+      "rust": {
+        "medianMs": 22.84770800000115,
+        "samples": [
+          23.418417000000773,
+          22.84770800000115,
+          22.895166999998764,
+          22.79791699999987,
+          22.67229099999895,
+          22.709374999998545,
+          23.121500000001106
+        ]
+      },
+      "readonly": {
+        "medianMs": 5.109375,
+        "samples": [
+          5.73266700000022,
+          5.109375,
+          5.112166999999317,
+          5.2537499999998545,
+          4.92475000000195,
+          4.9788750000006985,
+          4.949624999997468
+        ]
+      },
+      "exactParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "long",
+        "nodes": 2,
+        "units": 50000,
+        "tail": 8,
+        "calls": 10
+      },
+      "renderer": {
+        "medianMs": 45.81904199999917,
+        "samples": [
+          44.6585419999974,
+          46.78508299999885,
+          48.32875000000058,
+          45.81904199999917,
+          46.77895799999533,
+          44.32858399999532,
+          45.01954100000148
+        ]
+      },
+      "rust": {
+        "medianMs": 94.55112500000541,
+        "samples": [
+          94.55012499999793,
+          94.52887499999997,
+          94.67625000000044,
+          94.55112500000541,
+          95.49054199999955,
+          94.71837500000402,
+          94.52100000000064
+        ]
+      },
+      "readonly": {
+        "medianMs": 14.114208999999391,
+        "samples": [
+          14.008292000002257,
+          14.363208999999188,
+          14.030750000001717,
+          14.11712500000067,
+          14.191749999998137,
+          14.004750000000058,
+          14.114208999999391
+        ]
+      },
+      "exactParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "very-long",
+        "nodes": 2,
+        "units": 200000,
+        "tail": 8,
+        "calls": 5
+      },
+      "renderer": {
+        "medianMs": 77.48354199999449,
+        "samples": [
+          78.58175000000483,
+          77.99591700000019,
+          77.48354199999449,
+          76.9331250000032,
+          77.27920799999993,
+          76.64995800000179,
+          77.96004099999845
+        ]
+      },
+      "rust": {
+        "medianMs": 182.09441700000025,
+        "samples": [
+          180.92662500000006,
+          182.44604100000288,
+          182.41545800000313,
+          182.3987089999937,
+          182.09441700000025,
+          181.95275000000402,
+          180.7856249999968
+        ]
+      },
+      "readonly": {
+        "medianMs": 25.79329200000211,
+        "samples": [
+          25.438750000001164,
+          25.772250000001804,
+          25.840250000001106,
+          25.702750000004016,
+          25.89549999999872,
+          25.79329200000211,
+          25.844584000005852
+        ]
+      },
+      "exactParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "long-tail",
+        "nodes": 2,
+        "units": 5000,
+        "tail": 128,
+        "calls": 10
+      },
+      "renderer": {
+        "medianMs": 27.478291999999783,
+        "samples": [
+          27.855208000000857,
+          27.97254200000316,
+          27.418375000001106,
+          26.420959000002767,
+          27.514000000002852,
+          27.478291999999783,
+          27.161374999996042
+        ]
+      },
+      "rust": {
+        "medianMs": 125.2925000000032,
+        "samples": [
+          124.66712499999994,
+          125.36233399999765,
+          125.2925000000032,
+          125.18737499999406,
+          125.39695899999788,
+          125.51804099999572,
+          125.03291599999648
+        ]
+      },
+      "readonly": {
+        "medianMs": 4.893541999997979,
+        "samples": [
+          4.893541999997979,
+          4.746333000002778,
+          5.010332999998354,
+          4.895333000000392,
+          4.961999999999534,
+          4.828125,
+          4.862375000004249
+        ]
+      },
+      "exactParity": true,
+      "databaseUnchanged": true
+    }
+  ]
+}

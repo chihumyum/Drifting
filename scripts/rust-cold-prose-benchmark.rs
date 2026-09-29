@@ -3,6 +3,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use drifting_core::database::{DatabaseGateway, TransactionBehavior};
 use drifting_core::database_transport::{CompactDatabaseQueryResult, CompactDatabaseValue};
+use drifting_core::prose::ProseRepository;
 use drifting_document::DocumentSession;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
@@ -39,7 +40,11 @@ fn handle(gateway: &DatabaseGateway, message: &Value) -> Result<Value, String> {
                 tx()?,
                 CLIENT.into(),
             )?;
-            Ok(json!(CompactDatabaseQueryResult::from(result)))
+            Ok(if args["compact"] == true {
+                json!(CompactDatabaseQueryResult::from(result))
+            } else {
+                json!(result)
+            })
         }
         "database_execute" => {
             let parameters: Vec<CompactDatabaseValue> =
@@ -76,6 +81,56 @@ fn handle(gateway: &DatabaseGateway, message: &Value) -> Result<Value, String> {
         "benchmark_counts" => Ok(json!(drifting_core::database::benchmark_request_count(
             false
         ))),
+        "archive_create_text_zip" => {
+            let entries: Vec<drifting_core::archive::TextArchiveEntry> =
+                serde_json::from_value(args["entries"].clone()).map_err(|e| e.to_string())?;
+            Ok(json!(STANDARD.encode(
+                drifting_core::archive::create_text_zip(&entries)?
+            )))
+        }
+        "database_read_prose_search" => {
+            let ids: Vec<String> =
+                serde_json::from_value(args["docIds"].clone()).map_err(|e| e.to_string())?;
+            Ok(json!(drifting_prose::search::read_search_text(
+                gateway, CLIENT, &ids
+            )?))
+        }
+        "readonly_blocks" => {
+            let mut rows = drifting_prose::search::read_search_text(
+                gateway,
+                CLIENT,
+                &[string("docId")?.into()],
+            )?;
+            Ok(json!({"blocks": rows.remove(0).blocks.ok_or("Unsupported fixture")?}))
+        }
+        "probe_readonly" => {
+            let bytes = STANDARD
+                .decode(string("update")?)
+                .map_err(|e| e.to_string())?;
+            Ok(json!(drifting_document::search_text_blocks(&[bytes])?))
+        }
+        "cold_blocks" => {
+            let started = Instant::now();
+            let repo = ProseRepository::new(gateway, CLIENT);
+            let tx = gateway.begin(TransactionBehavior::Deferred, CLIENT.into())?;
+            let captured = (|| {
+                let (document, _) = drifting_prose::load_document(&repo, string("docId")?, tx)?;
+                if document.has_pending() {
+                    return Err("Pending dependencies".into());
+                }
+                text_blocks(&document)
+            })();
+            gateway.rollback(tx, CLIENT.into())?;
+            Ok(json!({"blocks": captured?, "rustMs": started.elapsed().as_secs_f64() * 1000.0}))
+        }
+        "probe_blocks" => {
+            let mut document = DocumentSession::new();
+            let bytes = STANDARD
+                .decode(string("update")?)
+                .map_err(|e| e.to_string())?;
+            document.apply_remote(&bytes, 1)?;
+            Ok(json!(text_blocks(&document)?))
+        }
         "reconcile" => {
             let started = Instant::now();
             let failures = drifting_prose::workspace::reconcile_node_projections(
@@ -101,6 +156,31 @@ fn handle(gateway: &DatabaseGateway, message: &Value) -> Result<Value, String> {
         }
         _ => Err("Unknown benchmark command".into()),
     }
+}
+
+// Candidate adapter intentionally emits only the block text search consumes.
+// Unlike native export it retains empty blocks and ignores hardBreak leaves.
+fn text_blocks(document: &DocumentSession) -> Result<Vec<String>, String> {
+    fn text(node: &Value, out: &mut String) {
+        if node["type"] == "text" {
+            out.push_str(node["text"].as_str().unwrap_or(""));
+        } else if let Some(children) = node["content"].as_array() {
+            for child in children {
+                text(child, out);
+            }
+        }
+    }
+    let value = document.semantic()?;
+    Ok(value["content"]
+        .as_array()
+        .ok_or("Missing content")?
+        .iter()
+        .map(|node| {
+            let mut out = String::new();
+            text(node, &mut out);
+            out
+        })
+        .collect())
 }
 
 fn main() -> Result<(), String> {

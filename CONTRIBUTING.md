@@ -45,6 +45,14 @@ version to be at least the introducing version instead.
 GitHub Actions runs client checks and two Vitest shards independently, then
 reports their aggregate through the stable `client` required-check context.
 The `native` context covers Rust formatting, compilation, and unit tests.
+The Tauri client now requires Rust 1.96 or newer for its read-only Yrs search
+projection; CI and Alpha builds select 1.96.0 explicitly. This does not resume
+the paused Apple frontend migration.
+
+Run `pnpm perf:rust-reuse` to regenerate the synthetic Rust reuse benchmarks
+and `pnpm perf:rust-reuse:check` to verify their source fingerprints and results.
+See [Rust reuse performance](docs/rust-reuse-performance.md) for the measured
+boundaries and rejected candidates.
 Alpha tags are validated only by the exact-SHA release workflow, so they do not
 also start a duplicate ordinary CI run.
 

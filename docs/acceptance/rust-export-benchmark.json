@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "kind": "rust-export-benchmark",
+  "measuredAt": "2026-09-29T18:36:19.808Z",
+  "source": {
+    "dependencies": {
+      "fingerprint": "ecf065026d395b697340438da9b14f24233cc936bb4280283a7660a2850cae9c",
+      "files": 1659
+    },
+    "harness": "61bb228e16dccbf8bb2caa0df92887b68ef283bed6c8bd52bac1be15f7a3ce7e"
+  },
+  "warmups": 2,
+  "repetitions": 7,
+  "limitations": [
+    "Production local SQLite export capture, Yjs snapshot/tail hydration, Markdown relationships/rendering and ZIP creation. Excludes open-editor flush waits and the OS save dialog/write. Both lanes use compact database transport.",
+    "Baseline is production portable JSZip after the whole-string UTF-8 fix. Candidate is production Rust create_text_zip. Exact extracted file paths, all file bytes, CRC, filename, document count and unchanged database contents are checked on every pair.",
+    "Node/V8 and Release Rust with JSON-lines instead of WKWebView/Tauri IPC. Hydration uses the inline fallback. Benchmark returns base64 plus portable JS decode; product returns a binary Tauri response without base64.",
+    "Two warmup pairs then seven alternating measured pairs on fresh synthetic SQLite copies; GC outside timing, no OS cache flush. Node-heavy books with empty secondary collections; rich relationship correctness remains covered by export acceptance tests."
+  ],
+  "environment": {
+    "cpu": "Apple M3 Pro",
+    "os": "27.0.0",
+    "node": "v24.19.0"
+  },
+  "artifact": {
+    "binarySha256": "5fbccd974918d665a494c7d8b7a460f6113e588c4f7adbac8c0512ed467bdf77",
+    "lockSha256": "888b6e25f68ef5ec6e069a62545d34df6f01c0f2840eb9f0fc9e8cb7d68824ee",
+    "originalGatewaySha256": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+    "instrumentedGatewaySha256": "b85ca1b2c194aacdde6eb6f87532ef6d67b402392d410f0fcd71be9b545f86a0"
+  },
+  "gate": {
+    "minimumImprovement": 0.15,
+    "minimumBenefitingCases": 2,
+    "minimumWinningPairs": 6,
+    "maximumRegression": 0.05
+  },
+  "accepted": true,
+  "scenarios": [
+    {
+      "scenario": {
+        "name": "small-book",
+        "nodes": 20,
+        "units": 5000,
+        "tail": 8
+      },
+      "baseline": {
+        "medianMs": 28.152416999999332,
+        "samples": [
+          28.613416000000143,
+          28.284458000000086,
+          28.152416999999332,
+          27.48662499999955,
+          27.743500000000495,
+          27.082125000000815,
+          28.269500000000335
+        ]
+      },
+      "candidate": {
+        "medianMs": 17.648666000000958,
+        "samples": [
+          17.648666000000958,
+          18.083082999999533,
+          17.576332999999067,
+          17.455458000000363,
+          17.709459000001516,
+          17.76879199999894,
+          17.535625000000437
+        ]
+      },
+      "sizes": {
+        "baseline": 14202,
+        "candidate": 13023
+      },
+      "assessment": {
+        "improvement": 0.3731029914766687,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactExtractedParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "novel",
+        "nodes": 200,
+        "units": 5000,
+        "tail": 8
+      },
+      "baseline": {
+        "medianMs": 173.1817090000004,
+        "samples": [
+          172.40366700000232,
+          174.43208300000333,
+          160.96362500000032,
+          174.24895900000047,
+          173.7064999999966,
+          162.03233399999954,
+          173.1817090000004
+        ]
+      },
+      "candidate": {
+        "medianMs": 138.8259169999983,
+        "samples": [
+          139.29516700000022,
+          126.60279100000116,
+          138.8259169999983,
+          139.10245799999757,
+          126.01887500000157,
+          139.34591700000237,
+          122.8293330000015
+        ]
+      },
+      "sizes": {
+        "baseline": 126397,
+        "candidate": 122379
+      },
+      "assessment": {
+        "improvement": 0.1983800263802803,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactExtractedParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "library",
+        "nodes": 1000,
+        "units": 5000,
+        "tail": 8
+      },
+      "baseline": {
+        "medianMs": 722.5905409999978,
+        "samples": [
+          720.9981250000019,
+          713.2793329999986,
+          722.7573340000017,
+          708.557166999999,
+          722.5905409999978,
+          734.0298750000002,
+          724.1760409999988
+        ]
+      },
+      "candidate": {
+        "medianMs": 581.8122909999947,
+        "samples": [
+          585.588208000001,
+          584.911583000001,
+          576.8502080000035,
+          581.8122909999947,
+          579.1233750000029,
+          576.4484169999996,
+          586.7498749999941
+        ]
+      },
+      "sizes": {
+        "baseline": 626284,
+        "candidate": 609638
+      },
+      "assessment": {
+        "improvement": 0.19482437426482102,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactExtractedParity": true,
+      "databaseUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "long-chapters",
+        "nodes": 20,
+        "units": 50000,
+        "tail": 8
+      },
+      "baseline": {
+        "medianMs": 115.64016599999741,
+        "samples": [
+          129.06324999999924,
+          115.72499999999854,
+          111.60941699999967,
+          116.44774999999936,
+          112.55562500000087,
+          115.64016599999741,
+          111.83004200000141
+        ]
+      },
+      "candidate": {
+        "medianMs": 91.45899999998801,
+        "samples": [
+          91.21466700000019,
+          100.88716600000043,
+          90.1842500000057,
+          91.21662500000093,
+          93.93766699999833,
+          94.60991700000159,
+          91.45899999998801
+        ]
+      },
+      "sizes": {
+        "baseline": 23908,
+        "candidate": 21008
+      },
+      "assessment": {
+        "improvement": 0.20910698104679248,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "exactExtractedParity": true,
+      "databaseUnchanged": true
+    }
+  ]
+}

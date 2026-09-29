@@ -1,9 +1,9 @@
 //! Tauri commands only. SQLite ownership and migration/recovery live in drifting-core.
 pub use drifting_core::database::{
     DatabaseCheckpointResult, DatabaseExecuteResult, DatabaseGateway, DatabaseOpenFailure,
-    DatabaseOpenResult, DatabaseQueryResult, DatabaseTransaction, DatabaseValue,
-    TransactionBehavior,
+    DatabaseOpenResult, DatabaseTransaction, TransactionBehavior,
 };
+use drifting_core::database_transport::{CompactDatabaseQueryResult, CompactDatabaseValue};
 use drifting_core::file_io::{durable_replace_file, temporary_sibling};
 use serde::Serialize;
 use std::fs::{self, File};
@@ -179,7 +179,7 @@ pub fn database_recovery_open_backup_directory(
 pub async fn database_execute(
     gateway: State<'_, DatabaseGateway>,
     sql: String,
-    parameters: Option<Vec<DatabaseValue>>,
+    parameters: Option<Vec<CompactDatabaseValue>>,
     transaction_id: Option<String>,
     client_session_id: String,
 ) -> DatabaseResult<DatabaseExecuteResult> {
@@ -188,7 +188,11 @@ pub async fn database_execute(
     run_blocking(move || {
         gateway.execute(
             sql,
-            parameters.unwrap_or_default(),
+            parameters
+                .unwrap_or_default()
+                .into_iter()
+                .map(|value| value.0)
+                .collect(),
             transaction_id,
             client_session_id,
         )
@@ -200,19 +204,40 @@ pub async fn database_execute(
 pub async fn database_query(
     gateway: State<'_, DatabaseGateway>,
     sql: String,
-    parameters: Option<Vec<DatabaseValue>>,
+    parameters: Option<Vec<CompactDatabaseValue>>,
     transaction_id: Option<String>,
     client_session_id: String,
-) -> DatabaseResult<DatabaseQueryResult> {
+) -> DatabaseResult<CompactDatabaseQueryResult> {
     let transaction_id = transaction_id.map(parse_transaction_id).transpose()?;
     let gateway = gateway.inner().clone();
     run_blocking(move || {
-        gateway.query(
-            sql,
-            parameters.unwrap_or_default(),
-            transaction_id,
-            client_session_id,
-        )
+        gateway
+            .query(
+                sql,
+                parameters
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|value| value.0)
+                    .collect(),
+                transaction_id,
+                client_session_id,
+            )
+            .map(CompactDatabaseQueryResult::from)
+    })
+    .await
+}
+
+/// Read-only acceleration for closed search documents; never publishes Yrs
+/// state to the editor or mutates prose/projection rows.
+#[tauri::command]
+pub async fn database_read_prose_search(
+    gateway: State<'_, DatabaseGateway>,
+    doc_ids: Vec<String>,
+    client_session_id: String,
+) -> DatabaseResult<Vec<drifting_prose::search::SearchTextProjection>> {
+    let gateway = gateway.inner().clone();
+    run_blocking(move || {
+        drifting_prose::search::read_search_text(&gateway, &client_session_id, &doc_ids)
     })
     .await
 }

@@ -1,6 +1,8 @@
 //! Drifting client core shared by Tauri and Apple native hosts.
+pub mod archive;
 pub mod asset_store;
 pub mod database;
+pub mod database_transport;
 pub mod file_io;
 pub(crate) mod fractional;
 pub mod original_body_archive;

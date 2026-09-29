@@ -690,6 +690,10 @@ export interface TauriCommandContract {
     args: { projectId: string; assetId: string };
     result: AssetStoreDeleteResult;
   };
+  archive_create_text_zip: {
+    args: { entries: { path: string; text: string }[] };
+    result: NativeBytes;
+  };
   archive_save: {
     args: { filename: string; bytes: number[] };
     result: ArchiveSaveResult;

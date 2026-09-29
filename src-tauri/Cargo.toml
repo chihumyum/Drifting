@@ -8,7 +8,7 @@ repository = "https://github.com/chihumyum/Drifting"
 homepage = "https://github.com/chihumyum/Drifting"
 publish = false
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.96"
 
 [lib]
 name = "drifting_lib"
@@ -19,6 +19,7 @@ tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 drifting-core = { path = "../crates/drifting-core" }
+drifting-prose = { path = "../crates/drifting-prose" }
 base64 = "0.22"
 getrandom = "0.2"
 httpdate = "1"

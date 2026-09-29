@@ -1,3 +1,4 @@
+import { createMarkdownZip, type MarkdownZipEntry } from './markdown-zip';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../domain/entity-kinds';
 import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
@@ -264,8 +265,8 @@ const defaultExportDependencies: RelationalMarkdownExportDependencies = {
 export async function buildRelationalMarkdownArchive(
   source: LocalRelationalMarkdownSource,
   now = new Date(),
+  createZip = createMarkdownZip,
 ): Promise<RelationalMarkdownArchive> {
-  const { default: JSZip } = await import('jszip');
   const books: ExportBook[] = source.books
     .map((book) => ({
       ...book,
@@ -482,17 +483,16 @@ export async function buildRelationalMarkdownArchive(
     }
   }
 
-  const zip = new JSZip();
+  const entries: MarkdownZipEntry[] = [];
   for (const document of documents.values()) {
-    zip.file(document.path, renderDocument(document, documents, relations));
+    entries.push({ path: document.path, text: renderDocument(document, documents, relations) });
   }
-  zip.file(
-    'README.md',
+  entries.push({
+    path: 'README.md', text:
     '# Drifting Markdown 导出\n\n这是本机书库所有项目的关系型 Markdown 导出，面向阅读与迁移。图片和 PDF 二进制文件不包含在内，也不能重新导入 Drifting。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
-  );
-  zip.file(
-    'index.md',
-    [
+  });
+  entries.push({
+    path: 'index.md', text: [
       '# Drifting 书库',
       '',
       ...books.map(
@@ -501,13 +501,9 @@ export async function buildRelationalMarkdownArchive(
       ),
       '',
     ].join('\n'),
-  );
-
-  const bytes = await zip.generateAsync({
-    type: 'uint8array',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
   });
+
+  const bytes = await createZip(entries);
   return {
     bytes,
     filename: `drifting-all-books-markdown-${now.toISOString().slice(0, 10)}.zip`,

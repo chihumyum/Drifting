@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "kind": "rust-archive-benchmark",
+  "source": "fda163016f1764cd090a82a722f712202150eb57b0c57d55b19d238445d45663",
+  "measuredAt": "2026-09-29T18:35:13.818Z",
+  "repetitions": 7,
+  "warmups": 2,
+  "limitations": [
+    "Packing only: synthetic Markdown entries, no prose hydration, metadata rendering or save dialog. Baseline uses current JSZip with whole-string TextEncoder to fix its surrogate-pair chunk bug; candidate uses production create_text_zip.",
+    "Node/V8 JSZip vs Release Rust ZIP/flate2; includes JSON transport and portable base64 decoding. Product uses a binary Tauri response, so this includes an extra encoding step; neither is actual IPC timing.",
+    "Two warmup pairs then seven alternating pairs; exact extracted paths/text and CRC checks each sample. ZIP byte identity and directory-only entries are not required."
+  ],
+  "environment": {
+    "cpu": "Apple M3 Pro",
+    "node": "v24.19.0",
+    "os": "27.0.0"
+  },
+  "binarySha256": "7d882a791a60c13fd637494ab5b4672ac62b1ba10bee56791dee27a7b74d9eb8",
+  "lockSha256": "7b63f085f211da950d19fb54a644e656c653c79ed471bbaf165a902d3277cfa9",
+  "gate": {
+    "minimumImprovement": 0.15,
+    "minimumBenefitingCases": 2,
+    "minimumWinningPairs": 6,
+    "maximumRegression": 0.05
+  },
+  "accepted": true,
+  "scenarios": [
+    {
+      "scenario": {
+        "files": 20,
+        "units": 5000
+      },
+      "js": {
+        "medianMs": 12.465416999999434,
+        "samples": [
+          12.698999999998705,
+          12.814915999999357,
+          12.200916000001598,
+          11.864708999999493,
+          13.188375000001543,
+          12.465416999999434,
+          12.147458999999799
+        ]
+      },
+      "rust": {
+        "medianMs": 2.7990420000005543,
+        "samples": [
+          3.3349580000012793,
+          2.8125419999996666,
+          2.7990420000005543,
+          2.7765419999996084,
+          2.7905829999999696,
+          2.740665999999692,
+          2.8587920000009035
+        ]
+      },
+      "sizes": {
+        "js": 34750,
+        "rust": 31261
+      },
+      "assessment": {
+        "improvement": 0.7754554059442471,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "filesAndContentParity": true
+    },
+    {
+      "scenario": {
+        "files": 200,
+        "units": 5000
+      },
+      "js": {
+        "medianMs": 61.24183300000004,
+        "samples": [
+          59.49341699999968,
+          63.54749999999876,
+          59.581208000001425,
+          62.078583000000435,
+          59.65924999999879,
+          61.91533399999935,
+          61.24183300000004
+        ]
+      },
+      "rust": {
+        "medianMs": 23.6947080000009,
+        "samples": [
+          23.758292000000438,
+          23.62987499999872,
+          23.73175000000083,
+          23.612584000000425,
+          23.773457999999664,
+          23.524625000000015,
+          23.6947080000009
+        ]
+      },
+      "sizes": {
+        "js": 332578,
+        "rust": 314106
+      },
+      "assessment": {
+        "improvement": 0.6130960351888735,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "filesAndContentParity": true
+    },
+    {
+      "scenario": {
+        "files": 1000,
+        "units": 5000
+      },
+      "js": {
+        "medianMs": 262.94366699999955,
+        "samples": [
+          261.881542000001,
+          260.70016600000054,
+          263.38108400000056,
+          264.79370899999776,
+          262.94366699999955,
+          263.609457999999,
+          259.3786250000012
+        ]
+      },
+      "rust": {
+        "medianMs": 116.06520799999817,
+        "samples": [
+          116.10154200000034,
+          116.4050419999985,
+          116.06520799999817,
+          115.90099999999802,
+          115.7654999999977,
+          116.02920799999993,
+          116.50712500000009
+        ]
+      },
+      "sizes": {
+        "js": 1656436,
+        "rust": 1571031
+      },
+      "assessment": {
+        "improvement": 0.5585928753325009,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "filesAndContentParity": true
+    },
+    {
+      "scenario": {
+        "files": 20,
+        "units": 50000
+      },
+      "js": {
+        "medianMs": 53.65629099999933,
+        "samples": [
+          53.81291699999929,
+          54.00312499999927,
+          53.63116699999955,
+          53.581749999997555,
+          54.11104200000045,
+          53.49408399999811,
+          53.65629099999933
+        ]
+      },
+      "rust": {
+        "medianMs": 26.947416999999405,
+        "samples": [
+          26.96008300000176,
+          26.98174999999901,
+          26.947416999999405,
+          26.92316700000083,
+          26.93825000000288,
+          26.990583000002516,
+          26.887542000000394
+        ]
+      },
+      "sizes": {
+        "js": 230343,
+        "rust": 227673
+      },
+      "assessment": {
+        "improvement": 0.49777711992802964,
+        "winningPairs": 7,
+        "benefit": true,
+        "regression": false
+      },
+      "filesAndContentParity": true
+    }
+  ]
+}

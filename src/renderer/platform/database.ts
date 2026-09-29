@@ -11,7 +11,8 @@ export type DatabaseWireValue =
   | { type: 'integer'; value: string }
   | { type: 'real'; value: number }
   | { type: 'text'; value: string }
-  | { type: 'blob'; value: number[] };
+  | { type: 'blob'; value: number[] }
+  | { type: 'blobBase64'; value: string };
 
 export type DatabaseValue = null | number | bigint | string | Uint8Array;
 export type TransactionBehavior = 'deferred' | 'immediate' | 'exclusive';
@@ -96,6 +97,12 @@ export interface DatabaseTransaction {
   id: string;
 }
 
+export interface ProseSearchTextProjection {
+  docId: string;
+  revision: number;
+  blocks: string[] | null;
+}
+
 export interface DatabaseOpenOptions {
   /**
    * Allow a newly-created renderer session to take over the native database
@@ -105,6 +112,7 @@ export interface DatabaseOpenOptions {
 }
 
 export interface DatabasePlatformApi {
+  readProseSearchText?(docIds: readonly string[]): Promise<ProseSearchTextProjection[]>;
   open(databaseName: string, options?: DatabaseOpenOptions): Promise<DatabaseOpenResult>;
   execute(
     sql: string,
@@ -246,6 +254,29 @@ function byteArray(value: unknown, label: string): Uint8Array {
   return Uint8Array.from(bytes);
 }
 
+// Chunking bounds argument count on WebViews without the new typed-array
+// base64 methods. The transport remains independent of Node's Buffer API.
+function encodeBlob(bytes: Uint8Array): string {
+  const native = (bytes as Uint8Array & { toBase64?: () => string }).toBase64;
+  if (native) return native.call(bytes);
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.length; i += 8192) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+  }
+  return btoa(chunks.join(''));
+}
+
+function decodeBlob(value: unknown): Uint8Array {
+  const encoded = stringField(value, 'database base64 blob');
+  // atob accepts whitespace and missing padding; the Rust codec accepts only
+  // canonical padded standard base64. Match that contract in both directions.
+  const binary = atob(encoded);
+  if (btoa(binary) !== encoded) throw new TypeError('database blob must be canonical base64');
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 /** Encode one Drizzle driver parameter into the tagged Rust IPC format. */
 export function encodeDatabaseValue(value: unknown): DatabaseWireValue {
   if (value === null) return { type: 'null' };
@@ -272,10 +303,10 @@ export function encodeDatabaseValue(value: unknown): DatabaseWireValue {
   if (typeof value === 'string') return { type: 'text', value };
 
   if (value instanceof Uint8Array) {
-    return { type: 'blob', value: Array.from(value) };
+    return { type: 'blobBase64', value: encodeBlob(value) };
   }
   if (value instanceof ArrayBuffer) {
-    return { type: 'blob', value: Array.from(new Uint8Array(value)) };
+    return { type: 'blobBase64', value: encodeBlob(new Uint8Array(value)) };
   }
 
   throw new TypeError(`unsupported database parameter: ${describeValue(value)}`);
@@ -304,6 +335,8 @@ export function decodeDatabaseValue(value: unknown): DatabaseValue {
       return stringField(wire.value, 'database text result');
     case 'blob':
       return byteArray(wire.value, 'database blob result');
+    case 'blobBase64':
+      return decodeBlob(wire.value);
     default:
       throw new TypeError(`unknown database value type: ${type}`);
   }
@@ -342,6 +375,26 @@ export function createDatabasePlatform(
   const sessionId = parseClientSessionId(clientSessionId);
 
   return {
+    async readProseSearchText(docIds) {
+      if (docIds.length === 0 || docIds.length > 16 || new Set(docIds).size !== docIds.length) {
+        throw new RangeError('Search capture requires 1 to 16 distinct document identities');
+      }
+      const value = await invokeCommand('database_read_prose_search', {
+        docIds: [...docIds], clientSessionId: sessionId,
+      });
+      if (!Array.isArray(value) || value.length !== docIds.length) {
+        throw new TypeError('Invalid search capture rows');
+      }
+      return value.map((raw, index) => {
+        const row = record(raw, 'search capture row');
+        if (row.docId !== docIds[index] || (row.blocks !== null &&
+          (!Array.isArray(row.blocks) || !row.blocks.every(block => typeof block === 'string')))) {
+          throw new TypeError('Invalid search capture identity or blocks');
+        }
+        return { docId: docIds[index], revision: safeCount(row.revision, 'search capture revision'),
+          blocks: row.blocks as string[] | null };
+      });
+    },
     async open(databaseName, options) {
       try {
         return parseDatabaseOpenResult(

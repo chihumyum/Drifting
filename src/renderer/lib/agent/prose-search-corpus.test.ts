@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDataStore } from '../../store/data-store';
 import type { NodeContent } from '../../domain/node-content';
 import {
@@ -200,6 +200,61 @@ describe('prose search corpus', () => {
     const harness = makeHarness();
     expect(await collectProseSearchDocuments('project-1', harness.deps)).toEqual([]);
     expect(harness.loads).toEqual({ nodeContents: 0, revisions: 0 });
+  });
+
+  it('uses native text for cold durable rows, preserving empty block ordinals and non-node joins', async () => {
+    const harness = makeHarness();
+    harness.contents.set('node-1', contentRow('node-1', 'stale cache'));
+    harness.revisions!.set('node-content:node-1', 7);
+    harness.revisions!.set('element:element-1', 9);
+    const read = vi.fn(async (ids: readonly string[]) => ids.map(docId => ({ docId,
+      revision: harness.revisions!.get(docId)!, blocks: ['Ａ🙂', '', '  ', '尾'] })));
+    harness.deps.readClosedText = read;
+    const rows = await collectProseSearchDocuments('project-1', harness.deps);
+    expect(rows.find(row => row.evidenceId === 'chapter-prose:node-1')!.fields.map(field => [field.block, field.text]))
+      .toEqual([[1, 'Ａ🙂'], [2, ''], [3, '  '], [4, '尾']]);
+    expect(rows.find(row => row.evidenceId === 'element-prose:element-1')!.fields[0].text).toBe('Ａ🙂\n\n  \n\n尾');
+    expect(harness.materialized).toEqual([]);
+    await collectProseSearchDocuments('project-1', harness.deps);
+    expect(read).toHaveBeenCalledOnce();
+  });
+
+  it.each(['unsupported', 'revision-race', 'opened-editor', 'failure'])('falls back safely on %s', async (mode) => {
+    const harness = makeHarness();
+    harness.contents.set('node-1', contentRow('node-1', 'fresh Yjs fallback'));
+    harness.revisions!.set('node-content:node-1', 7);
+    harness.deps.readClosedText = async ids => {
+      if (mode === 'failure') throw new Error('native unavailable');
+      if (mode === 'opened-editor') harness.liveDocIds.add('node-content:node-1');
+      return ids.map(docId => ({ docId, revision: mode === 'revision-race' ? 8 : 7,
+        blocks: mode === 'unsupported' ? null : ['must not use this text'] }));
+    };
+    const rows = await collectProseSearchDocuments('project-1', harness.deps);
+    expect(rows.find(row => row.evidenceId === 'chapter-prose:node-1')!.fields[0].text).toBe('fresh Yjs fallback');
+    expect(harness.materialized).toContain('node:node-1');
+    if (mode === 'opened-editor') {
+      harness.materialized.length = 0;
+      await collectProseSearchDocuments('project-1', harness.deps);
+      expect(harness.materialized).toContain('node:node-1');
+    }
+  });
+
+  it('bounds native captures and bypasses seed-only, live and unavailable-revision documents', async () => {
+    const harness = makeHarness();
+    useDataStore.setState({ bookElements: [], bookNodes: Array.from({ length: 35 }, (_, i) => chapterFixture(`n${i}`, 'Synthetic', i)) });
+    for (let i = 0; i < 35; i++) {
+      harness.contents.set(`n${i}`, contentRow(`n${i}`, 'body'));
+      if (i > 0) harness.revisions!.set(`node-content:n${i}`, 1);
+    }
+    harness.liveDocIds.add('node-content:n1');
+    const read = vi.fn(async (ids: readonly string[]) => ids.map(docId => ({ docId, revision: 1, blocks: ['body'] })));
+    harness.deps.readClosedText = read;
+    await collectProseSearchDocuments('project-1', harness.deps);
+    expect(read.mock.calls.map(([ids]) => ids.length)).toEqual([16, 16, 1]);
+    expect(harness.materialized).toEqual(['node:n0', 'node:n1']);
+    clearProseSearchCorpusCache(); harness.revisions = null; read.mockClear();
+    await collectProseSearchDocuments('project-1', harness.deps);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it('keeps the cache under its character budget by evicting oldest entries', async () => {

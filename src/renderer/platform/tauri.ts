@@ -879,6 +879,9 @@ export const tauriPlatform: PlatformApi = {
   },
 
   archive: {
+    createTextZip: async (entries) => new Uint8Array(toArrayBuffer(
+      await invokeContract('archive_create_text_zip', { entries }),
+    )),
     save: (filename, bytes) =>
       invokeContract('archive_save', { filename, bytes: toNumberArray(bytes) }),
   },

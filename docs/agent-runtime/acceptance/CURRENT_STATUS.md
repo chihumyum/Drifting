@@ -270,3 +270,7 @@ Nothing in this status file overrides the generated inventory. If this prose,
 the generated files, production composition, or machine drift gate disagree,
 the milestone is open until implementation and documentation are repaired in
 the same change.
+
+Closed prose search can capture bounded text projections in shared Rust. Live
+Yjs and the renderer still own editing and the Agent protocol. Performance and
+fallback coverage: [Rust reuse](../../rust-reuse-performance.md).

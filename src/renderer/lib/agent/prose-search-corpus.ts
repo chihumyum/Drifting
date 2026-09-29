@@ -19,6 +19,8 @@
  * per-node findByNodeId N+1.
  */
 import loglevel from 'loglevel';
+import { isTauri } from '@tauri-apps/api/core';
+import { databasePlatform, type ProseSearchTextProjection } from '../../platform/database';
 import { useDataStore } from '../../store/data-store';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
@@ -44,6 +46,8 @@ export interface ProseSearchCorpusDeps {
   /** The entity's CURRENT prose JSON (Yjs truth, cacheJson only as seed). */
   materialize(entityType: ProseEntityType, id: string, cacheJson: string): Promise<string>;
   hasLiveDoc(docId: string): boolean;
+  /** Optional acceleration for bounded closed, durable documents. */
+  readClosedText?(docIds: readonly string[]): Promise<ProseSearchTextProjection[]>;
 }
 
 const defaultDeps: ProseSearchCorpusDeps = {
@@ -62,6 +66,9 @@ const defaultDeps: ProseSearchCorpusDeps = {
   },
   materialize: (entityType, id, cacheJson) => getEntityContentJson(entityType, id, cacheJson),
   hasLiveDoc: (docId) => getLiveYDoc(docId) !== undefined,
+  readClosedText: async (docIds) => isTauri()
+    ? databasePlatform.readProseSearchText!(docIds)
+    : [],
 };
 
 // ---- revision-validated LRU of materialized + normalized fields ------------
@@ -240,6 +247,27 @@ export async function collectProseSearchDocuments(
   }
 
   const documents: AgentContextEvidenceDocument[] = [];
+  const captured = new Map<string, ProseSearchTextProjection>();
+  // Warm cache hits, live documents and seed-only bodies keep their existing
+  // path. Only cold durable misses cross the native boundary, in bounded groups.
+  if (deps.readClosedText && revisions) {
+    const cold = entities.flatMap(entity => {
+      const docId = proseDocId(entity.entityType, entity.id);
+      const revision = revisions.get(docId);
+      return revision && !deps.hasLiveDoc(docId) &&
+        !cacheGet(docId, `r:${revision}|p:${entity.projectionStamp}`) ? [docId] : [];
+    });
+    for (let start = 0; start < cold.length; start += 16) {
+      try {
+        for (const row of await deps.readClosedText(cold.slice(start, start + 16))) {
+          captured.set(row.docId, row);
+        }
+      } catch (error) {
+        log.debug('[prose-search] Native text capture unavailable; using Yjs', error);
+        break;
+      }
+    }
+  }
   for (const entity of entities) {
     const docId = proseDocId(entity.entityType, entity.id);
     const validity =
@@ -248,9 +276,19 @@ export async function collectProseSearchDocuments(
         : null;
     let fields = validity ? cacheGet(docId, validity) : null;
     if (!fields) {
-      const contentJson = await deps.materialize(entity.entityType, entity.id, entity.cacheJson);
-      fields = entity.entityType === 'node' ? nodeFields(contentJson) : proseField(contentJson);
-      if (validity) cachePut(docId, validity, fields);
+      const native = captured.get(docId);
+      if (validity && native?.blocks && native.revision === revisions?.get(docId)) {
+        const texts = entity.entityType === 'node'
+          ? native.blocks : [native.blocks.filter(text => text.length > 0).join('\n\n')];
+        fields = texts.map((text, index) => ({ kind: 'prose' as const, text,
+          ...(entity.entityType === 'node' ? { block: index + 1 } : {}),
+          normalized: normalizeAgentContextEvidenceText(text) }));
+      } else {
+        const contentJson = await deps.materialize(entity.entityType, entity.id, entity.cacheJson);
+        fields = entity.entityType === 'node' ? nodeFields(contentJson) : proseField(contentJson);
+      }
+      // An editor can open while either asynchronous capture is in flight.
+      if (validity && !deps.hasLiveDoc(docId)) cachePut(docId, validity, fields);
     }
     documents.push({ ...entity.envelope, fields });
   }

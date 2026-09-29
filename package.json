@@ -50,6 +50,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:renderer-architecture": "vitest run src/renderer/architecture/renderer-boundaries.test.ts",
+    "perf:rust-reuse": "node scripts/benchmark-rust-reuse.mjs",
+    "perf:rust-reuse:check": "node scripts/benchmark-rust-reuse.mjs --check",
     "perf:renderer": "node scripts/run-renderer-performance.mjs",
     "perf:prose-metrics": "node --expose-gc --conditions=import --import=tsx scripts/benchmark-prose-metrics.ts",
     "perf:prose-metrics:batch": "node --expose-gc --conditions=import --import=tsx scripts/benchmark-prose-metrics-batches.ts",

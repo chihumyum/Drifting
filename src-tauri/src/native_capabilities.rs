@@ -1835,6 +1835,16 @@ fn validate_archive_filename(filename: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn archive_create_text_zip(
+    entries: Vec<drifting_core::archive::TextArchiveEntry>,
+) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || drifting_core::archive::create_text_zip(&entries))
+        .await
+        .map_err(|_| "archive compression task failed".to_string())?
+        .map(tauri::ipc::Response::new)
+}
+
+#[tauri::command]
 pub async fn archive_save(app: AppHandle, filename: String, bytes: Vec<u8>) -> ArchiveSaveResult {
     if let Err(error) = validate_archive_filename(&filename) {
         return ArchiveSaveResult::Failure(ArchiveSaveFailure {
