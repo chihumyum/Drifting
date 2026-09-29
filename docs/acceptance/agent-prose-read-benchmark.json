@@ -1,0 +1,369 @@
+{
+  "schemaVersion": 1,
+  "kind": "agent-prose-read-benchmark",
+  "measuredAt": "2026-09-29T17:38:10.348Z",
+  "source": {
+    "renderer": {
+      "fingerprint": "87de65fc1186b33a2de24b5f008f028b13bcfe6314abf1c49b00659d29b7e56f",
+      "files": 1648
+    },
+    "harness": "510356a90920cc630ec1dd6089be73ea3d114108d46e882e53b2aeff2dc5dc54"
+  },
+  "baseline": {
+    "commit": "167454dd8c0ccb84132eb3139ead526c3821fa1f",
+    "files": [
+      {
+        "file": "src/renderer/lib/agent/runtime/drifting-read-tool-runtime.ts",
+        "sha256": "b8a07b72ac3f58b2b143d994a1d25c2064dfa872a5db565dd94a511dd4cb0b06"
+      },
+      {
+        "file": "src/renderer/lib/agent/runtime/yjs-prose-persistence-coordinator.ts",
+        "sha256": "c74e4e6e4f8192f3dfef28ad0387a8de38cdba29d2f9c00b04d1402217018f6d"
+      }
+    ]
+  },
+  "repetitions": 7,
+  "warmups": 2,
+  "artifact": {
+    "binarySha256": "0a89f94e3e52250df92c22ee86452761061362c5e14572adc6e4ad1d50644d3e",
+    "lockSha256": "9d93425c22caac8e6ffb1944ddde0e564f0dce9659828ad27fa94f8db773f302",
+    "originalGatewaySha256": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+    "instrumentedGatewaySha256": "b85ca1b2c194aacdde6eb6f87532ef6d67b402392d410f0fcd71be9b545f86a0"
+  },
+  "limitations": [
+    "Measures the certified read_node path underneath read_chapter, including both freshness captures, real tool dispatch, result budgeting/paging artifacts and durable read receipts. The public domain wrapper, provider inference and full turn journal are not timed.",
+    "Node/V8 and Release Rust DatabaseGateway, with JSON-lines instead of Tauri IPC. No WKWebView/worker timing: the production hydration client falls back to its inline implementation in Node. No live typing or end-to-end Agent turn speedup claim.",
+    "The read-runtime and prose-persistence-coordinator modules are frozen at the baseline commit. Both lanes share all other current renderer dependencies and the same unchanged gateway, SQL and WAL/NORMAL configuration.",
+    "Two warmup pairs followed by seven alternating measured pairs. Fresh identical SQLite copies prevent receipt replay and paging-quota accumulation across samples. Each sample performs distinct tool calls alternating two closed documents; GC is outside timing and OS caches are not flushed.",
+    "Synthetic plain and overlapping-mark bodies, with eight updates after the snapshot for durable cases. Seed-only bodies have neither snapshots nor updates. Exact provider results, complete durable rows and unchanged non-read-receipt/artifact tables are checked on every pair."
+  ],
+  "environment": {
+    "os": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "node": "v24.19.0",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  },
+  "scenarios": [
+    {
+      "scenario": {
+        "name": "durable-short",
+        "units": 5000,
+        "calls": 20,
+        "seedOnly": false
+      },
+      "baseline": {
+        "medianMs": 216.54941699999836,
+        "minMs": 204.35854200000176,
+        "maxMs": 225.40912500000195,
+        "samples": [
+          {
+            "elapsedMs": 219.1539159999993,
+            "gatewayRequests": 560
+          },
+          {
+            "elapsedMs": 208.8725000000013,
+            "gatewayRequests": 560
+          },
+          {
+            "elapsedMs": 210.1350829999974,
+            "gatewayRequests": 560
+          },
+          {
+            "elapsedMs": 220.5706250000003,
+            "gatewayRequests": 560
+          },
+          {
+            "elapsedMs": 204.35854200000176,
+            "gatewayRequests": 560
+          },
+          {
+            "elapsedMs": 216.54941699999836,
+            "gatewayRequests": 560
+          },
+          {
+            "elapsedMs": 225.40912500000195,
+            "gatewayRequests": 560
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 161.4334170000002,
+        "minMs": 157.31970799999908,
+        "maxMs": 172.99795799999993,
+        "samples": [
+          {
+            "elapsedMs": 164.38279200000034,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 161.4334170000002,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 157.31970799999908,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 157.64112499999828,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 159.33879199999865,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 161.46854099999837,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 172.99795799999993,
+            "gatewayRequests": 520
+          }
+        ]
+      },
+      "exactResultAndDatabaseParity": true,
+      "authorityUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "durable-long",
+        "units": 50000,
+        "calls": 10,
+        "seedOnly": false
+      },
+      "baseline": {
+        "medianMs": 645.5585829999982,
+        "minMs": 623.7095410000002,
+        "maxMs": 754.6255420000016,
+        "samples": [
+          {
+            "elapsedMs": 623.7095410000002,
+            "gatewayRequests": 360
+          },
+          {
+            "elapsedMs": 645.3348339999975,
+            "gatewayRequests": 360
+          },
+          {
+            "elapsedMs": 658.4581660000003,
+            "gatewayRequests": 360
+          },
+          {
+            "elapsedMs": 631.145999999997,
+            "gatewayRequests": 360
+          },
+          {
+            "elapsedMs": 650.3885829999999,
+            "gatewayRequests": 360
+          },
+          {
+            "elapsedMs": 754.6255420000016,
+            "gatewayRequests": 360
+          },
+          {
+            "elapsedMs": 645.5585829999982,
+            "gatewayRequests": 360
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 529.0602499999986,
+        "minMs": 511.0268749999959,
+        "maxMs": 630.333666999999,
+        "samples": [
+          {
+            "elapsedMs": 516.1266250000008,
+            "gatewayRequests": 340
+          },
+          {
+            "elapsedMs": 541.9540420000012,
+            "gatewayRequests": 340
+          },
+          {
+            "elapsedMs": 516.0590000000011,
+            "gatewayRequests": 340
+          },
+          {
+            "elapsedMs": 529.0602499999986,
+            "gatewayRequests": 340
+          },
+          {
+            "elapsedMs": 577.489708000001,
+            "gatewayRequests": 340
+          },
+          {
+            "elapsedMs": 630.333666999999,
+            "gatewayRequests": 340
+          },
+          {
+            "elapsedMs": 511.0268749999959,
+            "gatewayRequests": 340
+          }
+        ]
+      },
+      "exactResultAndDatabaseParity": true,
+      "authorityUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "durable-very-long",
+        "units": 200000,
+        "calls": 5,
+        "seedOnly": false
+      },
+      "baseline": {
+        "medianMs": 1119.5229590000017,
+        "minMs": 1094.2551250000033,
+        "maxMs": 1261.8121670000037,
+        "samples": [
+          {
+            "elapsedMs": 1176.0182080000013,
+            "gatewayRequests": 180
+          },
+          {
+            "elapsedMs": 1094.2551250000033,
+            "gatewayRequests": 180
+          },
+          {
+            "elapsedMs": 1095.2038329999996,
+            "gatewayRequests": 180
+          },
+          {
+            "elapsedMs": 1261.8121670000037,
+            "gatewayRequests": 180
+          },
+          {
+            "elapsedMs": 1138.091250000005,
+            "gatewayRequests": 180
+          },
+          {
+            "elapsedMs": 1116.2278750000041,
+            "gatewayRequests": 180
+          },
+          {
+            "elapsedMs": 1119.5229590000017,
+            "gatewayRequests": 180
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 923.6766669999997,
+        "minMs": 905.4290419999961,
+        "maxMs": 949.0108340000006,
+        "samples": [
+          {
+            "elapsedMs": 912.7641250000015,
+            "gatewayRequests": 170
+          },
+          {
+            "elapsedMs": 923.6766669999997,
+            "gatewayRequests": 170
+          },
+          {
+            "elapsedMs": 905.4290419999961,
+            "gatewayRequests": 170
+          },
+          {
+            "elapsedMs": 949.0108340000006,
+            "gatewayRequests": 170
+          },
+          {
+            "elapsedMs": 919.3241249999992,
+            "gatewayRequests": 170
+          },
+          {
+            "elapsedMs": 947.8937920000026,
+            "gatewayRequests": 170
+          },
+          {
+            "elapsedMs": 931.2787499999977,
+            "gatewayRequests": 170
+          }
+        ]
+      },
+      "exactResultAndDatabaseParity": true,
+      "authorityUnchanged": true
+    },
+    {
+      "scenario": {
+        "name": "seed-short",
+        "units": 5000,
+        "calls": 20,
+        "seedOnly": true
+      },
+      "baseline": {
+        "medianMs": 172.38883299999725,
+        "minMs": 160.00133300000016,
+        "maxMs": 208.0546250000043,
+        "samples": [
+          {
+            "elapsedMs": 169.0552500000049,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 208.0546250000043,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 199.8262079999986,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 172.38883299999725,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 188.64574999999604,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 160.00133300000016,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 163.8080420000042,
+            "gatewayRequests": 520
+          }
+        ]
+      },
+      "candidate": {
+        "medianMs": 183.82445800000278,
+        "minMs": 164.88708400000178,
+        "maxMs": 219.41529200000514,
+        "samples": [
+          {
+            "elapsedMs": 181.30475000000297,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 219.41529200000514,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 164.88708400000178,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 205.26162499999919,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 173.63350000000355,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 183.82445800000278,
+            "gatewayRequests": 520
+          },
+          {
+            "elapsedMs": 186.39216699999815,
+            "gatewayRequests": 520
+          }
+        ]
+      },
+      "exactResultAndDatabaseParity": true,
+      "authorityUnchanged": true
+    }
+  ]
+}

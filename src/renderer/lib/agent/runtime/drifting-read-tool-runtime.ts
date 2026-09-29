@@ -1157,17 +1157,18 @@ function createDefaultProseBaseReader(): NonNullable<
 > {
   const coordinator = createYjsProsePersistenceCoordinator();
   return async (entityId, entityType = 'node') => {
-    const state = useDataStore.getState();
-    const contentJson =
-      entityType === 'node'
-        ? (await createBookContentRepository().findByNodeId(entityId))?.contentJson
-        : entityType === 'element'
-          ? state.bookElements.find((entity) => entity.id === entityId)?.contentJson
-          : entityType === 'storyline'
-            ? state.storylines.find((entity) => entity.id === entityId)?.contentJson
-            : state.bookElementCategories.find((entity) => entity.id === entityId)?.contentJson;
-    const seedStateUpdate = await createYjsProseSeedState(contentJson ?? '{}');
-    const base = await coordinator.readBase(proseDocId(entityType, entityId), seedStateUpdate);
+    const base = await coordinator.readBase(proseDocId(entityType, entityId), async (tx) => {
+      const state = useDataStore.getState();
+      const contentJson =
+        entityType === 'node'
+          ? (await createBookContentRepository(tx).findByNodeId(entityId))?.contentJson
+          : entityType === 'element'
+            ? state.bookElements.find((entity) => entity.id === entityId)?.contentJson
+            : entityType === 'storyline'
+              ? state.storylines.find((entity) => entity.id === entityId)?.contentJson
+              : state.bookElementCategories.find((entity) => entity.id === entityId)?.contentJson;
+      return createYjsProseSeedState(contentJson ?? '{}');
+    });
     return {
       revision: base.revision,
       stateVector: new Uint8Array(base.stateVector),

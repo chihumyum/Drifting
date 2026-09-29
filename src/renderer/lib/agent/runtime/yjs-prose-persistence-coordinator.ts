@@ -346,7 +346,7 @@ export class YjsProsePersistenceCoordinator {
 
   async readBase(
     docId: string,
-    seedStateUpdate?: Uint8Array,
+    seedStateUpdate?: Uint8Array | ((tx: DbExecutor) => Promise<Uint8Array>),
   ): Promise<YjsProsePersistenceBase> {
     const captured = await this.captureDocument(docId, seedStateUpdate);
     try {
@@ -467,7 +467,7 @@ export class YjsProsePersistenceCoordinator {
 
   private async captureDocument(
     docId: string,
-    seedStateUpdate?: Uint8Array,
+    seedStateUpdate?: Uint8Array | ((tx: DbExecutor) => Promise<Uint8Array>),
   ): Promise<CapturedDocument> {
     if (!docId.trim()) throw new Error('docId must be non-empty');
     const live = this.getLiveDocument(docId);
@@ -491,7 +491,13 @@ export class YjsProsePersistenceCoordinator {
               `Yjs document ${docId} has no state; a full Yjs seed is required.`,
             );
           }
-          Y.applyUpdate(doc, seedStateUpdate, 'seed');
+          // Resolve a read-only seed only after proving that authoritative Yjs
+          // state is absent. Its projection read shares this transaction; live
+          // and durable documents never pay for constructing a discarded seed.
+          const seed = typeof seedStateUpdate === 'function'
+            ? await seedStateUpdate(tx)
+            : seedStateUpdate;
+          Y.applyUpdate(doc, seed, 'seed');
         }
         const sourceKind: YjsProseSourceKind = hasState ? 'closed' : 'seed';
         const stateUpdate = Y.encodeStateAsUpdate(doc);

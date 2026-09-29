@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-09-04
+Updated: 2026-09-30
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -122,6 +122,11 @@ pnpm agent:capabilities:check
   inline structures.
 
 ### Review, concurrency, and recovery
+
+- Prose freshness reads build a fallback seed only when authoritative Yjs state
+  is absent. Both basis checks, live flushes and durable read receipts remain;
+  see [paired performance evidence](../prose-read-performance.md) for the
+  measured service scope and browser/provider limitations.
 
 - Prose review is write-first and durable per block. Accept/reject-one and
   accept/reject-all use ordered SQLite decisions and guarded Yjs inverses;

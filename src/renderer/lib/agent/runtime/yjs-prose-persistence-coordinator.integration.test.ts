@@ -287,6 +287,67 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     return { database, coordinator };
   }
 
+  it('resolves a seed lazily in the capture transaction without persisting prose', async () => {
+    const { coordinator } = setup();
+    const bytes = createState([paragraph('seed-block', '合成 seed 👩🏽‍🚀')]);
+    const expected = await coordinator.readBase('node-content:node-1', bytes);
+    const seed = vi.fn(async (tx: DbExecutor) => {
+      const rows = await tx.select().from(NodeContentTable);
+      expect(rows[0].nodeId).toBe('node-1');
+      return bytes;
+    });
+    expect(await coordinator.readBase('node-content:node-1', seed)).toEqual(expected);
+    expect(seed).toHaveBeenCalledTimes(1);
+    expect(queryCount(gateway!, 'yjs_snapshots')).toBe(0);
+    expect(queryCount(gateway!, 'yjs_updates')).toBe(0);
+    expect(queryCount(gateway!, 'yjs_document_revision')).toBe(0);
+  });
+
+  it('does not inspect or construct a seed when durable Yjs exists', async () => {
+    const { coordinator, database } = setup();
+    const bytes = createState([paragraph('durable-block', 'Durable truth')]);
+    await createYjsRepository(database).upsertSnapshot('node-content:node-1', bytes);
+    const expected = await coordinator.readBase('node-content:node-1');
+    const seed = vi.fn(async () => { throw new Error('obsolete projection must not be read'); });
+    expect(await coordinator.readBase('node-content:node-1', seed)).toEqual(expected);
+    expect(seed).not.toHaveBeenCalled();
+  });
+
+  it('keeps live capture and both flushes without resolving the seed', async () => {
+    const live = new Y.Doc({ gc: false });
+    try {
+      replaceYjsProseBlocks(live, [paragraph('live-block', 'Live truth')]);
+      const flush = vi.fn(async () => undefined);
+      const { coordinator } = setup({ live, flushLive: flush });
+      const seed = vi.fn(async () => { throw new Error('live document must not seed'); });
+      const base = await coordinator.readBase('node-content:node-1', seed);
+      expect(base.sourceKind).toBe('live');
+      expect(base.stateHash).toBe(await hashYjsProseState(live));
+      expect(flush).toHaveBeenCalledTimes(2);
+      expect(seed).not.toHaveBeenCalled();
+    } finally { live.destroy(); }
+  });
+
+  it('rejects a corrupt empty revision before resolving a fallback seed', async () => {
+    const { coordinator, database } = setup();
+    await createYjsRepository(database).upsertSnapshot(
+      'node-content:node-1', createState([paragraph('durable-block', 'Truth')]),
+    );
+    gateway!.database.exec('DELETE FROM yjs_snapshots');
+    const seed = vi.fn(async () => createState([paragraph('replacement', 'Must not mask corruption')]));
+    await expect(coordinator.readBase('node-content:node-1', seed)).rejects.toMatchObject({ code: 'CORRUPT_EMPTY_STATE' });
+    expect(seed).not.toHaveBeenCalled();
+  });
+
+  it('releases the capture transaction after a lazy seed failure', async () => {
+    const { coordinator } = setup();
+    const failure = new Error('synthetic invalid seed');
+    await expect(coordinator.readBase('node-content:node-1', async () => { throw failure; })).rejects.toBe(failure);
+    const bytes = createState([paragraph('repaired-seed', 'Valid seed')]);
+    await expect(coordinator.readBase('node-content:node-1', bytes)).resolves.toMatchObject({ sourceKind: 'seed', revision: 0 });
+    expect(queryCount(gateway!, 'yjs_snapshots')).toBe(0);
+  });
+
   it('keeps exact user and Agent revision provenance after update compaction', async () => {
     const { database } = setup();
     const repo = createYjsRepository(database);
