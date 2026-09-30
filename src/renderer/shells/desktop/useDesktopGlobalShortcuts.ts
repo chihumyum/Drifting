@@ -35,6 +35,45 @@ export function useDesktopGlobalShortcuts({
   const lastSingletonShortcut = useRef<{ code: 'Digit2'; at: number } | null>(null);
 
   useEffect(() => {
+    const handleTabSwitch = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      const { bindings } = useShortcutsStore.getState();
+      const previous =
+        matchesAccelerator(event, bindings.prevTab) ||
+        matchesAccelerator(event, 'Mod+Shift+[');
+      const next =
+        matchesAccelerator(event, bindings.nextTab) ||
+        matchesAccelerator(event, 'Mod+Shift+]');
+      if (!previous && !next) return;
+
+      const state = useUiStore.getState();
+      const project = state.tabsByProject[projectId];
+      if (!project || project.openTabs.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const currentIndex = project.activeTabKey
+        ? project.openTabs.findIndex((tab) => tabKey(tab) === project.activeTabKey)
+        : -1;
+      const direction = next ? 1 : -1;
+      const baseIndex = currentIndex === -1 ? (direction > 0 ? -1 : 0) : currentIndex;
+      const nextIndex = (baseIndex + direction + project.openTabs.length) % project.openTabs.length;
+      const nextTab = project.openTabs[nextIndex];
+      if (nextTab.kind === 'create') {
+        state.setActiveTab(projectId, { createId: nextTab.id });
+        navigate(`/project/${projectId}/new`);
+      } else {
+        const target = focusedLeafOf(nextTab);
+        if (target) navigator.activate(target);
+      }
+    };
+
+    // Capture before editor keymaps consume navigation keys, but after the
+    // window-level shortcut recorder has had the chance to consume the event.
+    document.addEventListener('keydown', handleTabSwitch, { capture: true });
+    return () => document.removeEventListener('keydown', handleTabSwitch, { capture: true });
+  }, [navigate, navigator, projectId]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.metaKey || !event.altKey || event.shiftKey || event.ctrlKey) return;
       const dismissSuperView = () => {
@@ -135,32 +174,6 @@ export function useDesktopGlobalShortcuts({
         event.preventDefault();
         navigate(1);
         return;
-      }
-
-      if (
-        matchesAccelerator(event, bindings.prevTab) ||
-        matchesAccelerator(event, bindings.nextTab)
-      ) {
-        const state = useUiStore.getState();
-        const project = state.tabsByProject[projectId];
-        if (!project || project.openTabs.length === 0) return;
-        event.preventDefault();
-        const activeKey = project.activeTabKey;
-        const currentIndex = activeKey
-          ? project.openTabs.findIndex((tab) => tabKey(tab) === activeKey)
-          : -1;
-        const direction = matchesAccelerator(event, bindings.nextTab) ? 1 : -1;
-        const baseIndex = currentIndex === -1 ? (direction > 0 ? -1 : 0) : currentIndex;
-        const nextIndex =
-          (baseIndex + direction + project.openTabs.length) % project.openTabs.length;
-        const nextTab = project.openTabs[nextIndex];
-        if (nextTab.kind === 'create') {
-          state.setActiveTab(projectId, { createId: nextTab.id });
-          navigate(`/project/${projectId}/new`);
-        } else {
-          const target = focusedLeafOf(nextTab);
-          if (target) navigator.activate(target);
-        }
       }
 
       if (matchesAccelerator(event, bindings.closeActiveTab)) {

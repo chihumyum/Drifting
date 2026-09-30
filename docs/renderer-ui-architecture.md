@@ -61,6 +61,20 @@ A tab switch may update route selection and entity-dependent panels, but it
 must not restart `ProjectRuntimeProvider`, invalidate the surrounding shell, or
 destroy the editor session owned by another still-open desktop tab.
 
+Desktop top tabs support both `Cmd+Shift+[` / `Cmd+Shift+]` and the default
+`Cmd+Option+Left` / `Cmd+Option+Right` bindings on macOS (`Ctrl` replaces `Cmd`
+on other desktop platforms). Both follow the visible tab order and wrap at
+either end. With no active tab, right selects the first and left selects the
+last; empty tab lists do nothing. The bracket pair is an additional alias;
+existing customized previous/next bindings remain intact. Shifted `{` / `}`
+events are recognized without changing the unshifted history shortcuts.
+Tab switching runs in document capture so it also works inside the editor,
+while yielding to the window-level shortcut recorder and IME composition.
+Split tabs retain their focused pane, and create tabs use the same route
+transition as clicking the tab. Executable coverage lives in
+`useDesktopGlobalShortcuts.test.ts` and `lib/shortcuts.test.ts`; this is renderer
+acceptance, with physical macOS keyboard verification remaining separate.
+
 ### On-demand PDF and archive libraries
 
 The platform adapter and library image/text previews remain available at app

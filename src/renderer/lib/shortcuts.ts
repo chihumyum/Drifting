@@ -56,6 +56,14 @@ export function matchesAccelerator(event: KeyboardEvent, accelerator: string): b
   if (event.shiftKey !== parsed.shift) return false;
   if (event.altKey !== parsed.alt) return false;
 
+  // Shift changes the bracket keys to braces on common keyboard layouts.
+  // Keep accelerators written as Mod+Shift+[ / ] working in those layouts.
+  if (parsed.shift && (parsed.key === '[' || parsed.key === ']')) {
+    const code = parsed.key === '[' ? 'BracketLeft' : 'BracketRight';
+    const shiftedKey = parsed.key === '[' ? '{' : '}';
+    return event.code === code || event.key === parsed.key || event.key === shiftedKey;
+  }
+
   // Match by event.key (case-insensitive). Letters arrive lowercase unless
   // Shift is held; we normalize both sides.
   return event.key.toLowerCase() === parsed.key.toLowerCase();
