@@ -24,7 +24,7 @@ import { useDataStore } from '../../store/data-store';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookElement } from '../../usecase/useBookElement';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
-import { inferFormat, parseFile, type ImportTarget, type ParsedDoc } from '../../services/import';
+import { inferFormat, orderImportFiles, parseFile, type ImportTarget, type ParsedDoc } from '../../services/import';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
@@ -106,10 +106,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   }, [open, requestClose, running]);
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
-    const arr = Array.from(files).filter((f) => {
+    const arr = orderImportFiles(Array.from(files).filter((f) => {
       const name = f.name.toLowerCase();
       return ACCEPTED_EXTS.some((ext) => name.endsWith(ext));
-    });
+    }));
     if (arr.length === 0) return;
 
     // Append as 'parsing' first so user sees progress.

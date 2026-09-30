@@ -6,7 +6,7 @@
 import { inferFormat, type ImportFormat, type ParsedDoc } from './types';
 
 export type { ImportFormat, ImportTarget, ParsedDoc } from './types';
-export { TARGET_LABEL, TARGET_DESC, inferFormat } from './types';
+export { TARGET_LABEL, TARGET_DESC, inferFormat, orderImportFiles } from './types';
 
 export async function parseFile(file: File): Promise<ParsedDoc> {
   const format = inferFormat(file.name);

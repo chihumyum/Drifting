@@ -45,6 +45,19 @@ export function inferFormat(filename: string): ImportFormat | null {
   return null;
 }
 
+const importPathOrder = new Intl.Collator('en', { numeric: true, sensitivity: 'variant' });
+
+/** File picker enumeration is not ordered, especially for directory uploads. */
+export function orderImportFiles<T extends { name: string; webkitRelativePath?: string }>(
+  files: readonly T[],
+): T[] {
+  return [...files].sort((left, right) => {
+    const a = left.webkitRelativePath || left.name;
+    const b = right.webkitRelativePath || right.name;
+    return importPathOrder.compare(a, b) || (a < b ? -1 : a > b ? 1 : 0);
+  });
+}
+
 /** UI-friendly label per target. */
 export const TARGET_LABEL: Record<ImportTarget, string> = {
   chapter: 'Chapter',
