@@ -2,21 +2,14 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { getDb, type DbClient } from '../lib/db';
 import { events } from '../lib/events';
-import { platform } from '../platform';
 import {
   SyncAppAuthorityTable,
   SyncConnectAttemptTable,
   SyncProviderAccountTable,
   SyncProviderBindingTable,
 } from '../schema/drizzle';
-import { cancelPendingGoogleDriveTransitionFromProduct } from './connect/pending-transition-cancel';
-import { createGoogleDriveDisconnectOrchestrator } from './disconnect';
 import { productSyncRuntimeControl } from './product-runtime-control';
-import { requestGoogleDriveSyncGenerationProvisioning } from './provision';
-import {
-  connectGoogleDriveFromProduct,
-  type ProductGoogleDriveConnectionResult,
-} from './restore';
+import type { ProductGoogleDriveConnectionResult } from './restore';
 
 export interface ProductSyncCommandDependencies {
   readonly database: () => DbClient;
@@ -35,18 +28,18 @@ export interface ProductSyncCommandDependencies {
   readonly nowIso: () => string;
 }
 
+async function rejectSuspendedDrive(): Promise<never> {
+  throw new Error('Google Drive sync is temporarily unavailable');
+}
+
 const defaultDependencies: ProductSyncCommandDependencies = {
   database: getDb,
-  connectGoogleDrive: (database, signal) =>
-    connectGoogleDriveFromProduct({ db: database, signal }),
-  reauthorizeGoogleDrive: (credentialSecretRef) =>
-    platform.googleDrive.reauthorizeAccount(credentialSecretRef),
-  disconnectGoogleDrive: (database, signal) =>
-    createGoogleDriveDisconnectOrchestrator(database).disconnect(signal),
-  cancelPendingGoogleDrive: (database, signal) =>
-    cancelPendingGoogleDriveTransitionFromProduct(database, signal),
+  connectGoogleDrive: rejectSuspendedDrive,
+  reauthorizeGoogleDrive: rejectSuspendedDrive,
+  disconnectGoogleDrive: rejectSuspendedDrive,
+  cancelPendingGoogleDrive: rejectSuspendedDrive,
   triggerManual: () => productSyncRuntimeControl.triggerManual(),
-  requestProvisioning: requestGoogleDriveSyncGenerationProvisioning,
+  requestProvisioning: () => false,
   emitAuthorityChanged: () => events.emit('sync:authority-changed'),
   nowIso: () => new Date().toISOString(),
 };

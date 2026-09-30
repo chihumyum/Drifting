@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-09-30T17:15:30.260Z",
-  "sourceSha256": "95eb62e28c38cfae17567e78785a5b9798a1e8cb2955d9edac1a685df84abaf3",
+  "generatedAt": "2026-09-30T18:32:21.079Z",
+  "sourceSha256": "1beef90807178a368aebe880d11ee577be66eb37d9320fa0da9d4cfa190da0a8",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -12,6 +12,22 @@
     },
     {
       "name": "Hosted credential response ownership persists a current sign-in response once without changing the revision for identical tokens",
+      "status": "passed"
+    },
+    {
+      "name": "network capability policy keeps BYOK available but suspends personal cloud in the default local-only build",
+      "status": "passed"
+    },
+    {
+      "name": "network capability policy blocks every network purpose while the OS reports offline",
+      "status": "passed"
+    },
+    {
+      "name": "network capability policy enables a configured Hosted service while Drive remains suspended",
+      "status": "passed"
+    },
+    {
+      "name": "network capability policy does not treat Node's partial navigator without onLine as offline",
       "status": "passed"
     },
     {
@@ -87,6 +103,106 @@
       "status": "passed"
     },
     {
+      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary offers account sync and local recovery without Drive controls in any build",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary installs only Hosted provisioning and has no Drive transport in the production runtime",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
+      "status": "passed"
+    },
+    {
+      "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
+      "status": "passed"
+    },
+    {
+      "name": "still rolls back takeover for unresolved local integrity: local-quarantine",
+      "status": "passed"
+    },
+    {
+      "name": "still rolls back takeover for unresolved local integrity: conflict",
+      "status": "passed"
+    },
+    {
+      "name": "still rolls back takeover for unresolved local integrity: gap",
+      "status": "passed"
+    },
+    {
+      "name": "rolls back the entire adoption if account ownership changes before commit",
+      "status": "passed"
+    },
+    {
+      "name": "cancels an unfinished Drive connect locally before connecting Hosted",
+      "status": "passed"
+    },
+    {
+      "name": "cancels an unfinished Drive disconnect, then quiesces before local replica adoption",
+      "status": "passed"
+    },
+    {
+      "name": "leaves a retained transition alone if it cannot safely be cancelled",
+      "status": "passed"
+    },
+    {
+      "name": "restores runtime control and stops before upload when local adoption fails",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance restores exact synthetic asset bytes and preserves local prose through rejected credentials and a SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance takes over an offline Drive replica with retained remote quarantine, keeps immutable history, and provisions a fresh Hosted generation",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted service recovery after offline startup revalidates on a timer or focus without a browser online event, then resumes discovery",
+      "status": "passed"
+    },
+    {
+      "name": "connects the existing local library after a verified login",
+      "status": "passed"
+    },
+    {
+      "name": "never uploads when account ownership is rejected",
+      "status": "passed"
+    },
+    {
+      "name": "leaving sign-in cancels before the library is connected",
+      "status": "passed"
+    },
+    {
       "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
       "status": "passed"
     },
@@ -124,34 +240,6 @@
     },
     {
       "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted current-client real HTTP and SQLite acceptance connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted current-client real HTTP and SQLite acceptance restores exact synthetic asset bytes and preserves local prose through rejected credentials and a SQLite reopen",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted current-client real HTTP and SQLite acceptance takes over an offline Drive replica atomically, keeps immutable history, and provisions a fresh Hosted generation",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted service recovery after offline startup revalidates on a timer or focus without a browser online event, then resumes discovery",
-      "status": "passed"
-    },
-    {
-      "name": "connects the existing local library after a verified login",
-      "status": "passed"
-    },
-    {
-      "name": "never uploads when account ownership is rejected",
-      "status": "passed"
-    },
-    {
-      "name": "leaving sign-in cancels before the library is connected",
       "status": "passed"
     },
     {

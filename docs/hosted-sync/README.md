@@ -1,9 +1,12 @@
 # Hosted sync dogfooding
 
 The active Tauri client now supports a separately operated Hosted account and
-immutable-object provider. The Apple-native migration remains paused. Google
-Drive integration remains available in public local-only builds; new adaptation
-work is paused while Hosted dogfooding is accepted. The author narrowed this
+immutable-object provider. The Apple-native migration remains paused. As of
+2026-10-01, Hosted is the only enabled App sync provider. Google Drive settings,
+OAuth actions, project provisioning, project sync and Agent conversation sync
+are suspended in all builds, including public local-only builds. The retained
+Drive implementation, schema and recovery records are not deleted. Builds without
+a configured Hosted service continue locally. The author narrowed this
 milestone to Mac on 2026-09-30; mobile implementation and acceptance are deferred.
 
 ## Local operator loop
@@ -63,7 +66,7 @@ running clients discover projects on wakeup and periodic checks. An offline
 startup revalidates the cached session on focus and every 30 seconds, so a service
 restart does not require a new browser network event or manual login.
 
-For a library using Drive, **Switch this library to Hosted** explicitly adopts
+For a library previously using Drive, **Sign in and sync** or **Connect and sync** adopts
 the saved local replica. It does not contact Drive, include unseen changes from
 other devices, or delete the Drive copy. The client drains cancelled provider
 callbacks, flushes local writes, then atomically records a local disconnect,
@@ -74,8 +77,13 @@ A fresh writer inherits the highest source clock and starts at sequence 1.
 No Drive cursor, segment chain, upload receipt or remote asset receipt becomes
 Hosted authority. Only a verified published genesis activates sync. An upload
 failure leaves the new local replica writable and retryable; cancelling the
-connect retains it in local mode. Unresolved conflicts/gaps/quarantine block
-adoption. Snapshot restore/rebase inserts bounded batches into SQLite.
+connect retains it in local mode. Rejected inbound Drive objects stay quarantined
+in the retired generation, with their bytes and diagnostics preserved; they never
+enter the new Hosted genesis or block adoption of verified local content. Local
+quarantine without a remote source, unresolved conflicts and journal gaps still
+block adoption. Unfinished Drive transitions are cancelled locally before
+connection, without OAuth, credential revocation or remote deletion. Snapshot
+restore/rebase inserts bounded batches into SQLite.
 
 Existing projects continue through the shared SyncEngine journal, checkpoint,
 reducer and native blob paths. No second prose database or service entity CRUD
@@ -116,7 +124,10 @@ source fingerprint and exercises real HTTP with independent SQLite libraries:
 initial connect/recovery, concurrent offline Chinese prose, lost upload response,
 new-project provisioning/discovery, synthetic asset bytes, session rejection,
 reauthentication, reopening SQLite, offline Drive takeover with rollback, preserved
-immutable history, cross-batch reducer ancestry and asset restoration. Dedicated tests also cover account identity,
+immutable history and remote quarantine, cross-batch reducer ancestry and asset restoration.
+The Hosted-only App boundary also verifies that retained Drive bindings mount no
+project or conversation transport, Settings exposes no Drive controls, and local
+integrity failures still roll back adoption. Dedicated tests also cover account identity,
 local-only network denial and credential persistence failures.
 
 The Mac interaction loop uses two isolated app instances on one physical Mac.

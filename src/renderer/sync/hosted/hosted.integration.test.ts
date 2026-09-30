@@ -17,6 +17,8 @@ import {
   SyncRemoteObjectTable,
   SyncChangeSetTable,
   SyncFieldClockTable,
+  SyncLocalObjectTable,
+  SyncQuarantinedObjectTable,
 } from '../../schema/drizzle';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { createSyncAppAuthorityRepository } from '../app-authority-repository';
@@ -536,7 +538,7 @@ describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance'
     },
   );
   it(
-    'takes over an offline Drive replica atomically, keeps immutable history, and provisions a fresh Hosted generation',
+    'takes over an offline Drive replica with retained remote quarantine, keeps immutable history, and provisions a fresh Hosted generation',
     { timeout: 150_000 },
     async () => {
       const account = await createAccount();
@@ -617,6 +619,21 @@ describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance'
         height: 1,
         createdAt: now(),
       });
+      // Rejected Drive bytes are retained for recovery, never adopted or published.
+      await a.db.insert(SyncLocalObjectTable).values({
+        id: 'old-drive-quarantine-local',
+        syncGenerationId: project.syncGenerationId,
+        objectKind: 'quarantine', logicalKeyId: 'old-rejected-drive-object',
+        storageRef: 'syncobj:synthetic-quarantine', storedSha256: '0'.repeat(64),
+        sizeBytes: 1, codec: 'opaque', state: 'quarantined', createdAt: now(),
+      });
+      await a.db.insert(SyncQuarantinedObjectTable).values({
+        quarantineId: 'old-drive-quarantine', syncGenerationId: project.syncGenerationId,
+        remoteObjectId: 'old-drive-marker', localObjectId: 'old-drive-quarantine-local',
+        reason: 'object-codec-verification-failed', storedSha256: '0'.repeat(64),
+        sizeBytes: 1, state: 'blocked-corrupt', createdAt: now(),
+      });
+      const quarantineBefore = await a.db.select().from(SyncQuarantinedObjectTable);
       const original = await a.db.select().from(SyncChangeSetTable);
       const identity = {
         ...a.identity,
@@ -646,6 +663,8 @@ describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance'
         assertAccount() {},
       });
       const [newGeneration] = adoption.syncGenerationIds;
+      expect(await a.db.select().from(SyncQuarantinedObjectTable)).toEqual(quarantineBefore);
+      expect(await a.db.select().from(SyncQuarantinedObjectTable).where(eq(SyncQuarantinedObjectTable.syncGenerationId, newGeneration!))).toEqual([]);
       expect(newGeneration).not.toBe(project.syncGenerationId);
       expect(
         await a.db

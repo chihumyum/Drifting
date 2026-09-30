@@ -60,7 +60,10 @@ Guidance for coding agents working in this standalone Drifting client repository
 - This repository contains the Tauri 2, Rust, React, and Vite client.
 - Public source builds default to local-only mode. Account, hosted sync,
   payment, and other official hosted features belong to a separately operated
-  service. Author-connected personal-cloud providers remain client capabilities.
+  service. Google Drive is temporarily suspended in the App (2026-10-01):
+  Hosted is the only enabled sync provider. Retain Drive schema, implementation
+  and recovery data, but do not restore its UI or background execution without
+  the author's request. See `docs/hosted-sync/README.md`.
 - `packages/prose-metrics` is independently licensed under Apache-2.0. The
   remaining project-owned client source is AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or

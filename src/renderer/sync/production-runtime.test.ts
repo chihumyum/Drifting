@@ -13,14 +13,14 @@ import {
 
 function binding(syncGenerationId: string, generation = 2): ActiveProviderRuntimeBinding {
   return {
-    mode: 'google-drive',
-    providerNamespace: 'appDataFolder',
-    providerGenerationRef: `syncdrive:${syncGenerationId}`,
+    mode: 'hosted',
+    providerNamespace: 'project-v1',
+    providerGenerationRef: `hosted:${syncGenerationId}`,
     binding: {
       bindingId: `binding:${generation}:${syncGenerationId}`,
       syncGenerationId,
-      accountRef: 'google-subject',
-      secretRef: 'keychain:google-account',
+      accountRef: 'hosted-subject',
+      secretRef: 'hosted.session',
       authorityGeneration: generation,
     },
   };
@@ -31,7 +31,7 @@ function dependencies(input: {
 }) {
   const database = {} as DbClient;
   const provider = {
-    kind: 'google-drive',
+    kind: 'hosted',
   } as unknown as ObjectLogProvider;
   const identity: SyncWriterIdentitySource = {
     installationId: 'install-test',
@@ -111,6 +111,20 @@ describe('ProductionSyncRuntimeSupervisor', () => {
       await vi.advanceTimersByTimeAsync(10_000);
       expect(chat).toHaveBeenCalledTimes(calls);
     } finally { supervisor.stop(); vi.useRealTimers(); }
+  });
+
+  it('does not mount retained Drive bindings or create either project or chat transports', async () => {
+    const fixture = dependencies({ listBindings: async () => [{ ...binding('old-drive'), mode: 'google-drive' }] });
+    const createAgentChatRuntime = vi.fn(() => null);
+    const supervisor = new ProductionSyncRuntimeSupervisor({ ...fixture.deps, createAgentChatRuntime });
+    supervisor.requestReload();
+    await supervisor.drain();
+    expect(fixture.deps.createProvider).not.toHaveBeenCalled();
+    expect(fixture.deps.writerIdentity).not.toHaveBeenCalled();
+    expect(createAgentChatRuntime).not.toHaveBeenCalled();
+    expect(fixture.created).toEqual([]);
+    expect(fixture.errors).toEqual([]);
+    supervisor.stop();
   });
 
   it('keeps the local App provider-free and does not resolve native identity', async () => {

@@ -1,9 +1,10 @@
 # SyncEngine documentation
 
-Start with the
-[`trusted-cloud Google Drive contract`](trusted-cloud-google-drive.md). It is
-the authority for cloud trust, Google sign-in, automatic project discovery,
-restore, and product terminology.
+Start with the [Hosted sync contract](../hosted-sync/README.md). Since 2026-10-01,
+Hosted is the only enabled App sync provider; Google Drive UI and background
+execution are suspended. The [Google Drive contract](trusted-cloud-google-drive.md)
+and its implementation/evidence below are retained for recovery and possible
+resumption, not current product availability.
 
 ## Current architecture
 

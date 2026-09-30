@@ -62,7 +62,7 @@ function sourceLabel(
   n: AppNotification,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
-  return n.source === 'google-drive' ? t('notifications.googleDrive.source') : 'Copilot';
+  return n.source === 'hosted-sync' ? t('notifications.cloudSync.source') : 'Copilot';
 }
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
@@ -188,7 +188,7 @@ export function NotificationPill() {
     iconColor = 'hsl(var(--ink-2))';
     iconEl = (
       <span key={`${runningItem.source}-run`} className="notif-blink-icon">
-        {runningItem.source === 'google-drive' ? (
+        {runningItem.source === 'hosted-sync' ? (
           <Cloud size={15} strokeWidth={1.8} />
         ) : (
           <Sparkles size={14} strokeWidth={1.8} />
@@ -373,7 +373,7 @@ function NotificationCenter({
                   >
                     {n.source === 'copilot' ? (
                       <Sparkles size={9} />
-                    ) : n.source === 'google-drive' ? (
+                    ) : n.source === 'hosted-sync' ? (
                       <Cloud size={10} />
                     ) : (
                       <span style={{ fontStyle: 'italic' }}>◐</span>
@@ -410,7 +410,7 @@ function NotificationCenter({
                   <div
                     className={`notif-progress${n.progress.value === null ? ' notif-progress--indeterminate' : ''}`}
                     role="progressbar"
-                    aria-label={t('notifications.googleDrive.progressLabel')}
+                    aria-label={t('notifications.cloudSync.progressLabel')}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     {...(n.progress.value === null

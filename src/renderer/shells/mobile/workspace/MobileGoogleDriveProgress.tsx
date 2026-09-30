@@ -39,7 +39,7 @@ export function MobileGoogleDriveProgress() {
       <span
         className="m-drive-progress__track"
         role="progressbar"
-        aria-label={t('notifications.googleDrive.progressLabel')}
+        aria-label={t('notifications.cloudSync.progressLabel')}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent ?? undefined}

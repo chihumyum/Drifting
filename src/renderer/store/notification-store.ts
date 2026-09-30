@@ -1,6 +1,6 @@
 /**
  * Global task notification feed. Copilot emits an `ai-task` event while the
- * sync feed projects sanitized Google Drive runtime progress. Both are
+ * sync feed projects sanitized Hosted runtime progress. Both are
  * ingested into a capped, newest-first history that backs two surfaces:
  *   - the Dynamic-Island PILL in the topbar (shows the in-flight task, or the
  *     most-recent result for a few seconds, else an unread-count bell), and
@@ -15,7 +15,7 @@ import { create } from 'zustand';
 import type { AiTaskEvent, AiTaskOutcome, AiTaskSource } from '../lib/events';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
-export type AppNotificationSource = AiTaskSource | 'google-drive';
+export type AppNotificationSource = AiTaskSource | 'hosted-sync';
 
 export interface AppNotificationProgress {
   /** Null means the total is still being discovered. */

@@ -69,7 +69,19 @@ export async function connectHostedFromProduct(signal: AbortSignal, db: DbClient
   const session = getHostedSessionBinding();
   if (!session) throw new Error('needs-reauth');
   await flushLocalApplicationPersistence();
-  let current = await createSyncAppAuthorityRepository(db).read();
+  const repository = createSyncAppAuthorityRepository(db);
+  let current = await repository.read();
+  // Drive is suspended. Retire an unfinished local transition without contacting
+  // its provider, so a previous connect/disconnect cannot strand Hosted sign-in.
+  if (
+    current.transitionState !== 'stable' &&
+    (current.mode === 'google-drive' || current.targetMode === 'google-drive')
+  ) {
+    signal.throwIfAborted();
+    await repository.cancel({ attemptId: current.attemptId, nowIso: new Date().toISOString() });
+    events.emit('sync:authority-changed');
+    current = await repository.read();
+  }
   if (current.mode === 'hosted' && current.transitionState === 'stable')
     return { restored: await discoverHostedProjects(db, signal) };
   if (current.mode === 'google-drive' && current.transitionState === 'stable') {

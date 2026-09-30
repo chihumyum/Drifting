@@ -10,8 +10,8 @@ const rendererRoot = path.resolve(import.meta.dirname, '../../..');
 const repoRoot = path.resolve(rendererRoot, '../..');
 const source = (relative: string) => fs.readFileSync(path.join(rendererRoot, relative), 'utf8');
 
-describe('mobile Google Drive transfer progress acceptance', () => {
-  it('selects the newest material Drive transfer without surfacing other tasks', () => {
+describe('mobile Hosted transfer progress acceptance', () => {
+  it('selects the newest material Hosted transfer without surfacing other tasks', () => {
     const notification = (input: Partial<AppNotification>): AppNotification => ({
       id: 'task',
       source: 'copilot',
@@ -24,7 +24,7 @@ describe('mobile Google Drive transfer progress acceptance', () => {
     });
     const olderDrive = notification({
       id: 'drive-1',
-      source: 'google-drive',
+      source: 'hosted-sync',
       updatedAt: 2,
       progress: {
         value: 0.25,
@@ -36,7 +36,7 @@ describe('mobile Google Drive transfer progress acceptance', () => {
     });
     const newerDrive = notification({
       id: 'drive-2',
-      source: 'google-drive',
+      source: 'hosted-sync',
       updatedAt: 3,
       progress: {
         value: null,
@@ -57,14 +57,14 @@ describe('mobile Google Drive transfer progress acceptance', () => {
     ).toBe(newerDrive);
   });
 
-  it('projects only material running Drive transfers across the mobile project shell', () => {
+  it('projects only material running Hosted transfers across the mobile project shell', () => {
     const shell = source('shells/mobile/MobileAppShell.tsx');
     const progress = source('shells/mobile/workspace/MobileGoogleDriveProgress.tsx');
     const progressModel = source('shells/mobile/workspace/mobile-google-drive-progress.ts');
 
     expect(shell).toContain('useNotificationFeed();');
     expect(shell).toContain('<MobileGoogleDriveProgress />');
-    expect(progressModel).toContain("item.source !== 'google-drive'");
+    expect(progressModel).toContain("item.source !== 'hosted-sync'");
     expect(progressModel).toContain("item.state !== 'running'");
     expect(progress).toContain('latestRunningGoogleDriveNotification(state.items)');
     expect(progress).toContain('notification.progress.value');

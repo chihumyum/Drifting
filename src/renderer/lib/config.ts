@@ -47,8 +47,8 @@ export const APP_CONFIG = {
  * Network access is a capability decision, not the inverse of local-only mode.
  *
  * A local-first build must still be able to call an author-selected BYOK model
- * and, once implemented, an author-selected personal cloud provider. Only the
- * separately operated Drifting hosted service is disabled by LOCAL_ONLY_MODE.
+ * and author-selected extensions. Personal cloud is temporarily suspended;
+ * the separately operated Hosted service still requires explicit configuration.
  */
 export type NetworkPurpose =
   | 'hosted-service'
@@ -67,6 +67,8 @@ function isBrowserOnline(): boolean {
 export function canUseNetwork(purpose: NetworkPurpose): boolean {
   if (!isBrowserOnline()) return false;
   if (purpose === 'hosted-service') return !APP_CONFIG.LOCAL_ONLY_MODE;
+  // Google Drive is temporarily suspended in every App build.
+  if (purpose === 'personal-cloud') return false;
   return true;
 }
 

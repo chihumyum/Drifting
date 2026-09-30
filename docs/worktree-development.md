@@ -57,8 +57,8 @@ files for this launch. Generated configs and `profile.json` remain in the
 ignored profile directory; no existing database or credentials are copied.
 
 Use only synthetic data in these profiles. A fresh profile starts without cloud
-bindings; explicitly connecting a personal cloud account later is still a real
-network operation. This launcher does not seed fixtures, grant MCP access or
+bindings. Google Drive is temporarily suspended in all App builds; this launcher
+also disables Hosted, so its library stays local. It does not seed fixtures, grant MCP access or
 claim UI acceptance. Configure test-owned MCP access from the isolated app if
 needed. Existing acceptance collectors keep their own fixture workflows.
 

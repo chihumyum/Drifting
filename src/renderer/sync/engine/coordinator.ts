@@ -3,7 +3,7 @@ import {
   installSyncEngineLifecycleHook,
   type SyncEngineLifecycleHook,
 } from '../../lib/persistence-lifecycle';
-import { canUsePersonalCloud } from '../../lib/config';
+import { canUseHostedService } from '../../lib/config';
 import type { LifecyclePlatformApi } from '../../platform';
 import { platform } from '../../platform';
 import {
@@ -210,7 +210,7 @@ export interface SyncEngineRuntimeSignals {
   readonly authoredCommits: typeof onAuthoredChangeCommitted;
   readonly installLifecycleHook: (hook: SyncEngineLifecycleHook) => () => void;
   readonly lifecycle: Pick<LifecyclePlatformApi, 'onReadyOrResume'>;
-  /** Product capability gate; defaults to the local-first personal-cloud policy. */
+  /** Product capability gate; defaults to the current Hosted-only App policy. */
   readonly canUseProviderTransport?: () => boolean;
   readonly addWindowListener?: (
     event: 'online' | 'offline' | 'focus' | 'blur',
@@ -231,7 +231,7 @@ const defaultSignals: SyncEngineRuntimeSignals = {
   authoredCommits: onAuthoredChangeCommitted,
   installLifecycleHook: installSyncEngineLifecycleHook,
   lifecycle: platform.lifecycle,
-  canUseProviderTransport: canUsePersonalCloud,
+  canUseProviderTransport: canUseHostedService,
   addWindowListener: defaultWindowListener,
 };
 

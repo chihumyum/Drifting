@@ -52,8 +52,8 @@ function phaseKey(status: SyncGenerationRuntimeStatus): string {
 }
 
 /**
- * Wires Copilot lifecycle events and sanitized Google Drive transfer progress
- * into the shared notification store. One Drive cycle stays one row from its
+ * Wires Copilot lifecycle events and sanitized Hosted transfer progress
+ * into the shared notification store. One sync cycle stays one row from its
  * first material transfer through completion, cancellation, or failure.
  */
 export function useNotificationFeed(): void {
@@ -86,7 +86,7 @@ export function useNotificationFeed(): void {
           (!tracked || tracked.cycleNumber !== generation.cycleNumber)
         ) {
           tracked = {
-            id: `google-drive-sync:${generation.syncGenerationId}:${generation.cycleNumber}`,
+            id: `hosted-sync:${generation.syncGenerationId}:${generation.cycleNumber}`,
             cycleNumber: generation.cycleNumber,
             lastProgress: progress,
           };
@@ -95,8 +95,8 @@ export function useNotificationFeed(): void {
         if (!tracked) continue;
 
         const chat = generation.syncGenerationId.endsWith(':agent-chat');
-        const name = [projectName(generation.projectId), chat ? t('notifications.googleDrive.agentChat') : null].filter(Boolean).join(' · ') || null;
-        const title = t(`notifications.googleDrive.${phaseKey(generation)}`);
+        const name = [projectName(generation.projectId), chat ? t('notifications.cloudSync.agentChat') : null].filter(Boolean).join(' · ') || null;
+        const title = t(`notifications.cloudSync.${phaseKey(generation)}`);
         if (generation.phase !== 'idle') {
           if (progress) tracked.lastProgress = progress;
           const current = progress ?? tracked.lastProgress;
@@ -105,20 +105,20 @@ export function useNotificationFeed(): void {
           const byteProgress =
             current.totalBytes > 0
               ? current.totalKnown
-                ? t('notifications.googleDrive.bytesKnown', { transferred, total })
-                : t('notifications.googleDrive.bytesDiscovered', { transferred })
+                ? t('notifications.cloudSync.bytesKnown', { transferred, total })
+                : t('notifications.cloudSync.bytesDiscovered', { transferred })
               : null;
           const objectProgress = current.totalKnown
-            ? t('notifications.googleDrive.objectsKnown', {
+            ? t('notifications.cloudSync.objectsKnown', {
                 completed: current.completedObjects,
                 total: current.totalObjects,
               })
-            : t('notifications.googleDrive.objectsDiscovered', {
+            : t('notifications.cloudSync.objectsDiscovered', {
                 completed: current.completedObjects,
               });
           ingest({
             id: tracked.id,
-            source: 'google-drive',
+            source: 'hosted-sync',
             state: 'started',
             title,
             detail: [name, byteProgress, objectProgress].filter(Boolean).join(' · '),
@@ -139,19 +139,19 @@ export function useNotificationFeed(): void {
         const pending = chat && (generation.pending.openGaps > 0 || generation.pending.pendingChangeSets > 0 || generation.pending.pendingTransfers > 0);
         ingest({
           id: tracked.id,
-          source: 'google-drive',
+          source: 'hosted-sync',
           state: failed ? 'failed' : stopped ? 'stopped' : 'completed',
           title: t(
             failed
-              ? 'notifications.googleDrive.failed'
+              ? 'notifications.cloudSync.failed'
               : stopped
-                ? 'notifications.googleDrive.stopped'
-                : pending ? 'notifications.googleDrive.pending' : 'notifications.googleDrive.completed',
+                ? 'notifications.cloudSync.stopped'
+                : pending ? 'notifications.cloudSync.pending' : 'notifications.cloudSync.completed',
           ),
           detail: name ?? undefined,
           outcome: failed ? 'error' : 'ok',
           error: failed
-            ? t('notifications.googleDrive.failureCode', {
+            ? t('notifications.cloudSync.failureCode', {
                 code: generation.lastErrorCode ?? 'SYNC_CYCLE_FAILED',
               })
             : undefined,

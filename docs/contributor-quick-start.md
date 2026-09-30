@@ -95,7 +95,7 @@ It uses a disposable headless browser profile and synthetic documents.
 | Certificate is revoked/expired | Renew your own development certificate in Xcode and rerun `pnpm dev:check`. |
 | OCSP verification fails | Check network access, system date and certificate status, then retry. Revocation checking remains required. |
 | An old identity is explicitly pinned | Update or remove `DRIFTING_MACOS_DEV_SIGNING_IDENTITY` in your shell/ignored `.env.local`. An explicit pin never silently selects another certificate. |
-| Google Drive is unavailable | Local editing still works. Optional Drive development requires your own Google OAuth client; see `.env.example`. |
+| Google Drive is unavailable | Drive is temporarily suspended in all App builds. Use a configured Hosted service for sync, or continue locally; see `docs/hosted-sync/README.md`. |
 
 No automatic ad-hoc fallback is introduced: it changes app/credential identity
 and does not validate the existing secure-storage behavior. Signed distribution,

@@ -5,7 +5,7 @@ export function latestRunningGoogleDriveNotification(
 ): AppNotification | null {
   let latest: AppNotification | null = null;
   for (const item of items) {
-    if (item.source !== 'google-drive' || item.state !== 'running' || !item.progress) {
+    if (item.source !== 'hosted-sync' || item.state !== 'running' || !item.progress) {
       continue;
     }
     if (!latest || item.updatedAt > latest.updatedAt) latest = item;

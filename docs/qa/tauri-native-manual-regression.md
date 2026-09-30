@@ -3,7 +3,10 @@
 这份清单用于记录 Drifting Tauri 客户端中只能依赖真实设备、系统浏览器、真实账号或真实云端完成的回归。
 它不替代自动化测试，也不把尚未完成的移动端 UI 适配当作发布验收项。
 
-最后更新：2026-08-20
+当前同步范围（2026-10-01）：App 仅启用 Hosted；Google Drive 入口和后台执行暂时停用。
+旧 Drive 验收资料保留为历史记录，当前账号与同步验证见 [Hosted 文档](../hosted-sync/README.md)。
+
+历史基线：2026-08-20
 
 ## 公开 Alpha 桌面门槛
 
@@ -287,9 +290,9 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 - [ ] `DATA-04` `P1` 编辑时切后台、锁屏、旋转、接电话，再回前台；正文与选择状态不损坏。
 - [ ] `DATA-05` `P1` 导入素材时切后台或杀进程；重开后数据库无 ready 的空 asset，已提交 source 不丢失。
 - [ ] `DATA-06` `P1` 登出 A、登录 B；本地数据库、项目和 session 不串账号。
-- [ ] `DATA-07` `P0` Drive 同步三个带唯一 canary 的项目时快速切换项目；左栏、Tab、编辑区、关系与 bottom timeline 始终只属于当前 project，旧 hydrate 不得迟到覆盖。
-- [ ] `DATA-08` `P0` 从独立设置页执行 Drive 同步，再打开恢复项目；pull/ingest/apply 时显示项目级同步提示，路由 project authority 必须在子组件挂载前就绪；远端 commit 后以只读 loading overlay 等待原子 projection，完成后一次性出现完整 workspace，不得崩溃、逐块填充或在项目间振荡。
-- [ ] `DATA-09` `P1` fresh-device Drive 恢复不继承另一台设备或旧本地测试库的 Tab；本机新开的 Tab 在本机重启后仍保留。
+- [ ] `DATA-07` `P0` Hosted 同步三个带唯一 canary 的项目时快速切换项目；左栏、Tab、编辑区、关系与 bottom timeline 始终只属于当前 project，旧 hydrate 不得迟到覆盖。
+- [ ] `DATA-08` `P0` 从独立设置页在账号设置执行 Hosted 同步，再打开恢复项目；pull/ingest/apply 时显示项目级同步提示，路由 project authority 必须在子组件挂载前就绪；远端 commit 后以只读 loading overlay 等待原子 projection，完成后一次性出现完整 workspace，不得崩溃、逐块填充或在项目间振荡。
+- [ ] `DATA-09` `P1` fresh-device Hosted 恢复不继承另一台设备或旧本地测试库的 Tab；本机新开的 Tab 在本机重启后仍保留。
 - [ ] `DATA-10` `P1` 同一账号从第二设备编辑同一章节，最终 Yjs 内容收敛且可继续编辑。
 - [ ] `DATA-11` `P2` 异常退出后重开，SQLite 无损坏提示，关键表和 Yjs snapshot/update 可读。
 

@@ -37,10 +37,6 @@ import type { ObjectLogProvider } from './protocol';
 import { productionSyncDomainMaterializationKernel } from './reducer';
 import { SyncGenerationTable } from '../schema/drizzle';
 import { productSyncRuntimeControl } from './product-runtime-control';
-import {
-  GoogleDriveObjectLogProvider,
-  TauriGoogleDriveObjectTransport,
-} from './providers/google-drive';
 
 const log = loglevel.getLogger('SyncEngineProductionRuntime');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -79,7 +75,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
   listBindings: async (database) => {
     const bindings = await createSyncAppAuthorityRepository(database).listActiveRuntimeBindings();
     const session = getHostedSessionBinding();
-    return bindings.filter(item => item.mode !== 'hosted' || item.binding.accountRef === session?.accountSubject);
+    return bindings.filter(item => item.mode === 'hosted' && item.binding.accountRef === session?.accountSubject);
   },
   async reconcileNativeStorage(database) {
     await reconcileNativeSyncAssetAttempts({
@@ -93,9 +89,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
   },
   writerIdentity: getSyncInstallationIdentity,
   createProvider(mode) {
-    if (mode === 'google-drive') {
-      return new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport());
-    }
+    if (mode !== 'hosted') throw new Error('Google Drive sync is temporarily unavailable');
     return createHostedProvider();
   },
   createCoordinator: () =>
@@ -168,7 +162,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
   },
   createAgentChatRuntime({ database, binding }) {
     if (!binding.projectId) return null;
-    return new AgentChatSyncRuntime({ db: database, projectId: binding.projectId, binding: binding.binding, provider: binding.mode === 'hosted' ? createHostedProvider('agent-chat-v1') : new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport(platform.googleDrive, 'agent-chat')), codec: nativeSyncObjectCodec });
+    return new AgentChatSyncRuntime({ db: database, projectId: binding.projectId, binding: binding.binding, provider: createHostedProvider('agent-chat-v1'), codec: nativeSyncObjectCodec });
   },
   installCoordinator: installSyncEngineCoordinatorRuntime,
   exposeCoordinator: (coordinator) => productSyncRuntimeControl.attach(coordinator),
@@ -223,7 +217,8 @@ export class ProductionSyncRuntimeSupervisor {
     const database = this.dependencies.database();
     await this.dependencies.reconcileNativeStorage(database);
     if (this.stopped || revision !== this.revision) return;
-    const bindings = await this.dependencies.listBindings(database);
+    // Retained Drive bindings are recovery metadata, never an active App runtime.
+    const bindings = (await this.dependencies.listBindings(database)).filter(item => item.mode === 'hosted');
     if (this.stopped || revision !== this.revision || bindings.length === 0) return;
 
     const mode = bindings[0]!.mode;

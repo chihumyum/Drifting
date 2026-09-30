@@ -53,9 +53,8 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
     }
   };
   const connected = authority.mode === 'hosted';
-  const takingOverDrive = authority.mode === 'google-drive';
   const hostedTransition = authority.targetMode === 'hosted';
-  const paused = authority.status === 'cloud-paused';
+  const paused = connected && authority.status === 'cloud-paused';
   const accountReady = status === 'connected';
   return (
     <section className="set-panel" ref={registerRef} id="account">
@@ -94,11 +93,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           desc={
             connected
               ? t('settings.hosted.projects', { count: authority.activeSyncGenerations })
-              : t(
-                  takingOverDrive
-                    ? 'settings.hosted.switch_description'
-                    : 'settings.hosted.connect_description',
-                )
+              : t('settings.hosted.connect_description')
           }
           control={
             <button
@@ -111,9 +106,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
                   ? 'settings.hosted.working'
                   : connected
                     ? 'settings.hosted.sync_now'
-                    : takingOverDrive
-                      ? 'settings.hosted.switch_from_drive'
-                      : 'settings.hosted.connect',
+                    : 'settings.hosted.connect',
               )}
             </button>
           }
@@ -171,7 +164,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
             }
           />
         )}
-        {authority.errorCode && <p role="alert">{authority.errorCode}</p>}
+        {(connected || hostedTransition) && authority.errorCode && <p role="alert">{authority.errorCode}</p>}
         {message && <p role="status">{message}</p>}
       </div>
     </section>

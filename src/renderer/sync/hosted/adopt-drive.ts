@@ -1,5 +1,5 @@
 import { createSyncAppAuthorityRepository } from '../app-authority-repository';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { DbClient } from '../../lib/db';
 import {
   SyncAppAuthorityTable,
@@ -198,6 +198,10 @@ export async function adoptDriveReplicaForHosted(input: {
           .where(
             and(
               eq(SyncQuarantinedObjectTable.syncGenerationId, source.syncGenerationId),
+              // Rejected inbound Drive objects never became local authored state.
+              // Preserve them in the retired generation; do not adopt their bytes
+              // or make the independent Hosted genesis depend on repairing Drive.
+              isNull(SyncQuarantinedObjectTable.remoteObjectId),
               inArray(SyncQuarantinedObjectTable.state, ['blocked-update', 'blocked-corrupt']),
             ),
           )

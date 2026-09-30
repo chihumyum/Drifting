@@ -82,7 +82,7 @@ describe('remote SyncEngine UI refresh boundary', () => {
 
     const notificationFeed = source('../../hooks/useNotificationFeed.ts');
     expect(notificationFeed).toContain('productSyncRuntimeControl.subscribe(inspect)');
-    expect(notificationFeed).toContain("source: 'google-drive'");
+    expect(notificationFeed).toContain("source: 'hosted-sync'");
     expect(notificationFeed).toContain('generation.transferProgress');
 
     const notification = source('../../components/notifications/NotificationPill.tsx');
@@ -92,8 +92,8 @@ describe('remote SyncEngine UI refresh boundary', () => {
     const zh = source('../../locales/zh-CN.json');
     expect(zh).toContain('"syncingProject": "正在更新项目结构…"');
     expect(zh).toContain('完成前，这个项目暂时无法编辑。');
-    expect(zh).toContain('"downloading": "正在从 Google Drive 拉取…"');
-    expect(zh).toContain('"uploadingChanges": "正在向 Google Drive 推送更改…"');
+    expect(zh).toContain('"downloading": "正在从云端下载…"');
+    expect(zh).toContain('"uploadingChanges": "正在上传更改…"');
 
     const en = source('../../locales/en.json');
     expect(en).toContain('"syncingProject": "Updating project structure…"');

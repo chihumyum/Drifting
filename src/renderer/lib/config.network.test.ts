@@ -18,13 +18,15 @@ describe('network capability policy', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 
-  it('keeps author-selected network purposes available in the default local-only build', () => {
+  it('keeps BYOK available but suspends personal cloud in the default local-only build', () => {
     setOnline(true);
 
     expect(canUseHostedService()).toBe(false);
-    expect(canUsePersonalCloud()).toBe(true);
+    expect(canUsePersonalCloud()).toBe(false);
     expect(canUseByokProvider()).toBe(true);
     expect(canUseExternalContent()).toBe(true);
     expect(canUseAgentExtension()).toBe(true);
@@ -42,11 +44,22 @@ describe('network capability policy', () => {
     expect(canUseAgentExtension()).toBe(false);
   });
 
+  it('enables a configured Hosted service while Drive remains suspended', async () => {
+    setOnline(true);
+    vi.stubEnv('VITE_LOCAL_ONLY_MODE', 'false');
+    vi.resetModules();
+    const configured = await import('./config');
+    expect(configured.canUseHostedService()).toBe(true);
+    expect(configured.canUsePersonalCloud()).toBe(false);
+    expect(configured.canUseNetwork('personal-cloud')).toBe(false);
+    expect(configured.canUseByokProvider()).toBe(true);
+  });
+
   it('does not treat Node\'s partial navigator without onLine as offline', () => {
     vi.stubGlobal('navigator', {});
 
     expect(canUseByokProvider()).toBe(true);
-    expect(canUsePersonalCloud()).toBe(true);
+    expect(canUsePersonalCloud()).toBe(false);
     expect(canUseExternalContent()).toBe(true);
     expect(canUseAgentExtension()).toBe(true);
   });

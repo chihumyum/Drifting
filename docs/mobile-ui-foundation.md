@@ -48,8 +48,9 @@ pill above every surface) and BYOK transcription wiring into the same runtime;
 the maintainer has not tested that chain and it is not a claimed mobile
 capability. See [`voice-authored-capture.md`](voice-authored-capture.md). The three Super Views (Elements, Story Graph, Library/Memo) are
 independent controller surfaces with preserved per-view state
-(`MobileSuperViewHost.tsx`), and Settings exposes a compact Google Drive
-surface over the shared sync product commands. The mobile Editor Settings
+(`MobileSuperViewHost.tsx`). Shared Settings now exposes Hosted account sync
+and local recovery; Google Drive controls are suspended as of 2026-10-01.
+Hosted mobile interaction remains an unaccepted, deferred gate. The mobile Editor Settings
 surface reuses the desktop preference authority and live `--editor-*` preview,
 but replaces the desktop rail breakout with a readable phone-width miniature:
 font, size, line height, paragraph spacing/indent, Tab indent, and the scaled
@@ -205,7 +206,7 @@ editing, timeline, material, comment, and Agent capabilities.
   panel, overlays a full panel, and follows the keyboard inset. Its center paper
   identity opens Overview; its structure/tool buttons cycle
   `none -> docked -> full -> none` through the workspace controller.
-- A material Google Drive transfer appears in a compact, non-interactive status
+- A material cloud sync transfer appears in a compact, non-interactive status
   capsule below the top safe-area chrome on every project surface. It reuses the
   shared sanitized phase, object, and byte progress: remote discovery is
   indeterminate until its total is known, then pull and push are determinate.
@@ -289,12 +290,12 @@ contracts.
    [`qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md`](qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md).
 3. Rotation, safe areas, system bars, background/foreground, offline recovery,
    low-memory behavior, and representative device performance remain open.
-4. Story Graph, Agent, entity editing, Google Drive settings, and other dense
+4. Story Graph, Agent, entity editing, account sync settings, and other dense
    workflows require device-specific interaction checks. Simulator/Emulator
    evidence covers visible surfaces and synthetic input, but does not close
    live-provider, native clipboard, accessibility, or physical-touch gates. The
-   Google Drive release gate additionally requires the real-account
-   three-platform run in
+   retained Google Drive release gate is suspended with that provider. Its
+   historical real-account three-platform checklist remains in
    [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md).
 
 Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
