@@ -76,21 +76,6 @@ export function BottomStatusBar() {
 
   return (
     <footer className="bsb app-plane" aria-label={t('bottomStatusBar.statusLine')}>
-      <div className="bsb__group">
-        <span className="bsb__item">
-          {wordMetric.count == null
-            ? t('bottomStatusBar.metricsPending')
-            : t(wordMetric.labelKey, { formatted: wordMetric.count.toLocaleString() })}
-        </span>
-        <span className="bsb__divider" aria-hidden="true">
-          ·
-        </span>
-        <span className="bsb__item bsb__item--today">
-          {todayWords == null
-            ? t('bottomStatusBar.todayPending')
-            : t('bottomStatusBar.todayWords', { formatted: todayWords.toLocaleString() })}
-        </span>
-      </div>
       <div className="bsb__spacer" />
       <button
         type="button"
@@ -119,6 +104,21 @@ export function BottomStatusBar() {
         </svg>
         <span>{t('bottomStatusBar.timeline')}</span>
       </button>
+      <div className="bsb__group">
+        <span className="bsb__item">
+          {wordMetric.count == null
+            ? t('bottomStatusBar.metricsPending')
+            : t(wordMetric.labelKey, { formatted: wordMetric.count.toLocaleString() })}
+        </span>
+        <span className="bsb__divider" aria-hidden="true">
+          ·
+        </span>
+        <span className="bsb__item bsb__item--today">
+          {todayWords == null
+            ? t('bottomStatusBar.todayPending')
+            : t('bottomStatusBar.todayWords', { formatted: todayWords.toLocaleString() })}
+        </span>
+      </div>
     </footer>
   );
 }
