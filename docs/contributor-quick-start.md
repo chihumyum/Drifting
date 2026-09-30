@@ -45,6 +45,32 @@ verified identity for the runner, which checks it again immediately before
 launch. Local builds use the same requirement. Debug data defaults to the
 checkout's ignored `.local-data/databases` directory.
 
+### Develop against a Hosted service with HMR
+
+`pnpm dev` stays local-only. To enable accounts and Hosted sync, set
+`DRIFTING_HOSTED_ORIGIN=https://your-service.example` in ignored `.env.local`,
+then run `pnpm dev:online`. A one-run shell override also works:
+
+```bash
+DRIFTING_HOSTED_ORIGIN=https://your-service.example pnpm dev:online
+```
+
+The launcher gives renderer login, native sync and CSP the same exact service
+origin. The server must explicitly allow `http://localhost:5173` in its
+production `CORS_ORIGINS`. Vite serves the frontend locally with React/CSS HMR;
+the API and sync objects go to the configured server. No installer or bundled
+release is needed. The first run still compiles/signs the native host, and Rust
+changes or a different service origin require a native rebuild/restart.
+
+Online mode keeps the same `DRIFTING_DB_DIR` as local mode; it neither changes
+accounts nor migrates another lab's library. For a disposable test library, set
+`DRIFTING_DB_DIR=.local-data/hosted-dev-test/databases` in the launch environment.
+An existing library's service/account binding still applies. Connect it through
+Account settings after signing in; a local Docker account is not a VPS account.
+
+The launcher contract is exercised by
+`pnpm exec vitest run src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts`.
+
 These checks work without an Apple certificate and do not launch the native app:
 
 ```bash

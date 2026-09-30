@@ -31,6 +31,19 @@ function readLocalEnvironment(filePath) {
   return parseEnv(readFileSync(filePath, 'utf8'));
 }
 
+function hostedOrigin(environment) {
+  return environment.DRIFTING_HOSTED_ORIGIN || environment.VITE_API_BASE_URL || environment.API_BASE_URL;
+}
+
+function normalizeHostedOrigin(value) {
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
+    || url.pathname !== '/' || url.search || url.hash || url.hostname.includes('*')) {
+    throw new TypeError('DRIFTING_HOSTED_ORIGIN must be an exact HTTP(S) origin without credentials, path or wildcards.');
+  }
+  return url.origin;
+}
+
 export function createDesktopTauriEnvironment({
   baseEnvironment = process.env,
   envFile = localEnvPath,
@@ -43,10 +56,9 @@ export function createDesktopTauriEnvironment({
   // Explicit shell/CI values win over ignored local configuration. This is
   // important for release builds while still making `pnpm dev` honor the same
   // `.env.local` that Vite reads.
-  const merged = {
-    ...readLocalEnvironment(envFile),
-    ...stringEnvironment(baseEnvironment),
-  };
+  const localEnvironment = readLocalEnvironment(envFile);
+  const shellEnvironment = stringEnvironment(baseEnvironment);
+  const merged = { ...localEnvironment, ...shellEnvironment };
   const environment = {
     ...merged,
     CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER:
@@ -59,13 +71,18 @@ export function createDesktopTauriEnvironment({
   };
 
   if (mode === 'online') {
+    const origin = normalizeHostedOrigin(
+      hostedOrigin(shellEnvironment) || hostedOrigin(localEnvironment) || 'http://localhost:3000',
+    );
     return {
       ...environment,
       VITE_LOCAL_ONLY_MODE: 'false',
       VITE_REQUIRE_AUTH: 'false',
       VITE_AI_TRANSPORT: 'direct',
       VITE_CLOSED_BETA: 'false',
-      DRIFTING_HOSTED_ORIGIN: merged.DRIFTING_HOSTED_ORIGIN ?? merged.VITE_API_BASE_URL ?? 'http://localhost:3000',
+      DRIFTING_HOSTED_ORIGIN: origin,
+      VITE_API_BASE_URL: origin,
+      API_BASE_URL: origin,
     };
   }
   return {
@@ -112,12 +129,24 @@ export function createDesktopTauriConfigOverride({
   environment,
   macosSigningIdentity,
 }) {
-  if (command !== 'build') return null;
+  const override = {};
+  if (environment.VITE_LOCAL_ONLY_MODE === 'false') {
+    const origin = normalizeHostedOrigin(environment.DRIFTING_HOSTED_ORIGIN);
+    const config = JSON.parse(readFileSync(path.join(repoDir, 'src-tauri/tauri.conf.json'), 'utf8'));
+    const addOrigin = (csp) => csp.replace(/\bconnect-src\b[^;]*/, (directive) =>
+      directive.split(/\s+/).includes(origin) ? directive : `${directive} ${origin}`);
+    override.app = { security: {
+      csp: addOrigin(config.app.security.csp),
+      devCsp: addOrigin(config.app.security.devCsp),
+    } };
+  }
+  if (command !== 'build') return Object.keys(override).length ? override : null;
 
   const debug = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
   const updaterPublicKey = environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim();
   if (debug || !updaterPublicKey) {
     return {
+      ...override,
       bundle: {
         createUpdaterArtifacts: false,
         ...(macosSigningIdentity
@@ -129,7 +158,7 @@ export function createDesktopTauriConfigOverride({
 
   // The key remains an environment-owned release input. Tauri's bundler also
   // needs it in plugin configuration when createUpdaterArtifacts is enabled.
-  return { plugins: { updater: { pubkey: updaterPublicKey } } };
+  return { ...override, plugins: { updater: { pubkey: updaterPublicKey } } };
 }
 
 function writeTemporaryTauriConfig(configuration) {
@@ -158,6 +187,10 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
     environment,
     macosSigningIdentity,
   });
+
+  console.log(online
+    ? `Hosted service: ${environment.DRIFTING_HOSTED_ORIGIN}`
+    : 'Local-only client: Hosted service disabled');
 
   console.log(
     configuration.googleDriveOAuthConfigured

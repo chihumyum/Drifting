@@ -115,6 +115,53 @@ describe('desktop Tauri environment', () => {
     });
   });
 
+  it('uses one configured origin for renderer authentication, native sync and CSP while preserving HMR', () => {
+    const environment = createDesktopTauriEnvironment({
+      baseEnvironment: {},
+      envFile: localEnv('DRIFTING_HOSTED_ORIGIN=https://hosted.example.test/\nVITE_API_BASE_URL=http://localhost:3000\n'),
+      mode: 'online',
+    });
+    for (const key of ['DRIFTING_HOSTED_ORIGIN', 'VITE_API_BASE_URL', 'API_BASE_URL']) {
+      expect(environment[key]).toBe('https://hosted.example.test');
+    }
+    const override = createDesktopTauriConfigOverride({ command: 'dev', environment });
+    expect(override.app.security.devCsp).toContain('https://hosted.example.test');
+    expect(override.app.security.devCsp).toContain('ws://localhost:5173');
+    expect(override.app.security.csp).toContain('https://hosted.example.test');
+    expect(override.plugins).toBeUndefined();
+  });
+
+  it('lets a shell service override the file origin without changing the local library', () => {
+    const environment = createDesktopTauriEnvironment({
+      baseEnvironment: { VITE_API_BASE_URL: 'https://shell.example.test' },
+      envFile: localEnv('DRIFTING_HOSTED_ORIGIN=https://file.example.test\nDRIFTING_DB_DIR=existing-library\n'),
+      mode: 'online',
+    });
+    expect(environment.DRIFTING_HOSTED_ORIGIN).toBe('https://shell.example.test');
+    expect(environment.VITE_API_BASE_URL).toBe(environment.DRIFTING_HOSTED_ORIGIN);
+    expect(environment.DRIFTING_DB_DIR).toBe('existing-library');
+  });
+
+  it.each(['https://example.test/api', 'https://user:secret@example.test',
+    'https://example.test?token=secret', 'https://example.test/#fragment',
+    'https://*.example.test', 'file:///tmp/service'])('rejects non-origin service configuration: %s', (origin) => {
+    expect(() => createDesktopTauriEnvironment({
+      baseEnvironment: { DRIFTING_HOSTED_ORIGIN: origin },
+      envFile: localEnv(''),
+      mode: 'online',
+    })).toThrow(/exact HTTP\(S\) origin/);
+  });
+
+  it('keeps the default source launcher local-only even when a Hosted service is configured', () => {
+    const environment = createDesktopTauriEnvironment({
+      baseEnvironment: {},
+      envFile: localEnv('DRIFTING_HOSTED_ORIGIN=https://hosted.example.test\nVITE_LOCAL_ONLY_MODE=false\n'),
+    });
+    expect(environment.VITE_LOCAL_ONLY_MODE).toBe('true');
+    expect(environment.VITE_API_BASE_URL).toBe('http://localhost:3000');
+    expect(createDesktopTauriConfigOverride({ command: 'dev', environment })).toBeNull();
+  });
+
   it('disables updater artifacts for local and debug bundles', () => {
     expect(
       createDesktopTauriConfigOverride({

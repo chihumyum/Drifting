@@ -8,6 +8,13 @@ milestone to Mac on 2026-09-30; mobile implementation and acceptance are deferre
 
 ## Local operator loop
 
+For the normal Mac client with Vite HMR against a remote service, use
+`DRIFTING_HOSTED_ORIGIN=https://your-service.example pnpm dev:online`.
+The origin can also live in ignored `.env.local`; see the
+[development setup](../contributor-quick-start.md#develop-against-a-hosted-service-with-hmr).
+This uses the normal development library and verified development signing.
+The independent labs below keep their own identities and libraries.
+
 Start the private server's Docker stack using its own README. This repository
 contains no private server implementation. Run the independent client lab:
 

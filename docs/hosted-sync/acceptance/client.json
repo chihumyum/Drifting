@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-09-30T17:07:00.272Z",
-  "sourceSha256": "9e48581dd5309e650d9a748e4607508252c1d360775cf0af4669a0f77654f7ed",
+  "generatedAt": "2026-09-30T17:09:34.947Z",
+  "sourceSha256": "dc91f64bb6dfb5dfa3ccd9ae08496cc549ad065a4d5263cbcf7c3eb5eb957bc3",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -87,46 +87,6 @@
       "status": "passed"
     },
     {
-      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
-      "status": "passed"
-    },
-    {
-      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
-      "status": "passed"
-    },
-    {
       "name": "Hosted current-client real HTTP and SQLite acceptance connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects",
       "status": "passed"
     },
@@ -168,6 +128,46 @@
     },
     {
       "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
+      "status": "passed"
+    },
+    {
+      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
       "status": "passed"
     },
     {

@@ -37,6 +37,9 @@ export default defineConfig(({ command }) => {
     // developer .env files (including BYOK keys) from leaking into a bundle.
     envDir: isBuild ? false : undefined,
     plugins: [react(), deferredSettingsPlugin(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins()],
+    // Only the app is a dev entry. Saved acceptance bundles and design HTML in
+    // this checkout must not seed dependency scanning with retired imports.
+    optimizeDeps: { entries: ['index.html'] },
     resolve: {
       dedupe: ['react', 'react-dom'],
       alias: {
