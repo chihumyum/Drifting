@@ -26,8 +26,8 @@ describe('hosted settings boundary', () => {
     expect(desktop).toContain('withoutHostedAccountSettings(RAIL_BASE, accountSettingsEnabled)');
     expect(desktop).toContain('{accountSettingsEnabled && (');
     expect(mobile).toContain('withoutHostedAccountSettings(group.items, accountSettingsEnabled)');
-    expect(mobile).toContain(
-      'accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null',
+    expect(read('src/renderer/features/settings/StandaloneSettingsPanel.tsx')).toContain(
+      "if (id === 'account' && !hostedAccountSettingsEnabled()) return null",
     );
     expect(mobile).not.toContain('<SubscriptionPanel');
     expect(desktop).not.toContain('<SubscriptionPanel');
@@ -55,7 +55,8 @@ describe('hosted settings boundary', () => {
 
     expect(panel).toContain('projectImportEnabled && (');
     expect(desktop).toContain('projectImportEnabled');
-    expect(mobile).toContain('projectImportEnabled={false}');
+    expect(mobile).toContain('<StandaloneSettingsPanel');
+    expect(read('src/renderer/features/settings/StandaloneSettingsPanel.tsx')).toContain('projectImportEnabled={false}');
   });
 
   it('records a local-first onboarding contract without trial or hosted-storage claims', () => {

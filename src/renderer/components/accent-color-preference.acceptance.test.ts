@@ -30,7 +30,7 @@ describe('user accent color preference acceptance', () => {
   });
 
   it('wires one shared settings control to the renderer-owned accent tokens', () => {
-    const panel = source('src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx');
+    const panel = source('src/renderer/features/settings/panels/BasicPreferencePanels.tsx');
     const effects = source('src/renderer/app/effects/AppEffects.tsx');
     const theme = source('src/renderer/lib/theme.ts');
 

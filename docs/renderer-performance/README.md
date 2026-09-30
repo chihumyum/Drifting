@@ -1,5 +1,11 @@
 # Renderer performance work and evidence
 
+The 2026-10-01 [project entry](project-route-loading.md) and
+[standalone settings entry](settings-entry-loading.md) update the loading boundaries.
+`pnpm perf:renderer:settings` now checks the direct settings shell, eager basic
+preferences and deferred feature groups. Earlier F7 settings reports below are
+historical; validate those with `run-renderer-deferred-settings.mjs --check --historical`.
+
 The 2026-09-21 [headless follow-up](headless-followup.md) covers browser startup/cleanup,
 the Plot Planner sibling-key regression and repeated renderer resource-release checks.
 
@@ -1247,10 +1253,10 @@ module evaluation error, missing upgrade asset or native resource protocol.
 The reports are generated with:
 
 ```bash
-pnpm perf:renderer:settings --baseline
-pnpm perf:renderer:settings
-pnpm perf:renderer:settings --baseline --check
-pnpm perf:renderer:settings --check
+node scripts/run-renderer-deferred-settings.mjs --baseline
+node scripts/run-renderer-deferred-settings.mjs
+node scripts/run-renderer-deferred-settings.mjs --baseline --check
+node scripts/run-renderer-deferred-settings.mjs --check
 ```
 
 The baseline command builds an isolated detached checkout of `4a6734d` using its
@@ -1329,8 +1335,8 @@ pnpm perf:renderer:graphs --baseline
 pnpm perf:renderer:graphs
 pnpm perf:renderer:graphs --baseline --check
 pnpm perf:renderer:graphs --check
-pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-graphs.json
-pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-graphs.json --check
+node scripts/run-renderer-deferred-settings.mjs --report=docs/renderer-performance/acceptance/f7-settings-after-graphs.json
+node scripts/run-renderer-deferred-settings.mjs --report=docs/renderer-performance/acceptance/f7-settings-after-graphs.json --check
 pnpm perf:renderer --output=docs/renderer-performance/acceptance/f7-graphs-regression.json
 pnpm perf:renderer:check --report=docs/renderer-performance/acceptance/f7-graphs-regression.json
 ```
@@ -1411,8 +1417,8 @@ code. No automatic startup preload is added.
 ```bash
 pnpm perf:renderer:preload
 pnpm perf:renderer:preload --check
-pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-preload.json
-pnpm perf:renderer:settings --report=docs/renderer-performance/acceptance/f7-settings-after-preload.json --check
+node scripts/run-renderer-deferred-settings.mjs --report=docs/renderer-performance/acceptance/f7-settings-after-preload.json
+node scripts/run-renderer-deferred-settings.mjs --report=docs/renderer-performance/acceptance/f7-settings-after-preload.json --check
 ```
 
 `acceptance/f7-intent-preloading.json` retains production main-entry module

@@ -3,6 +3,8 @@
     "viewLoadFailed": "视图加载失败，请重试。",
     "checkingAuthentication": "正在检查登录状态…",
     "loadingProject": "正在打开项目…",
+    "preparingWorkspace": "正在准备工作区…",
+    "readingProject": "正在读取项目内容…",
     "syncingProject": "正在更新项目结构…",
     "syncingProjectDetail": "正在合并来自 Google Drive 的章节、资料或项目结构更改。完成前，这个项目暂时无法编辑。",
     "projectLoadFailedTitle": "无法打开这个项目",
@@ -1064,6 +1066,7 @@
   },
   "common": {
     "local": "本地",
+    "loading": "加载中…",
     "confirm": "确认",
     "edit": "编辑",
     "more": "更多操作",

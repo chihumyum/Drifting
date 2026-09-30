@@ -12,9 +12,11 @@ it('leaves the project route table, runtime and editor readiness inside the exis
   const body = readFileSync('src/renderer/app/project-route-components.tsx', 'utf8');
   const app = readFileSync('src/renderer/App.tsx', 'utf8');
   expect(routes).not.toMatch(/from ['"][^'"]*(DesktopAppShell|MobileAppShell|DesktopEditorRoutes|ProjectDashboard)/);
-  for (const view of ['workspace', 'settings', 'home', 'allChapters', 'node', 'storyline', 'element', 'category']) expect(routes).toContain(`<DeferredProjectRoute view="${view}" />`);
+  for (const view of ['workspace', 'home', 'allChapters', 'node', 'storyline', 'element', 'category']) expect(routes).toContain(`<DeferredProjectRoute view="${view}" />`);
   for (const route of ['editor/all', 'editor/:nodeId', 'editor/storyline/:storylineId', 'element/:elementId', 'category/:categoryId']) expect(routes).toContain(`path="${route}"`);
   expect(body).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
+  expect(routes).toContain('isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />');
+  expect(body).not.toContain('SettingsView');
   expect(body).not.toContain('<ProjectRuntimeProvider'); expect(app).toContain('<AppEffects />');
 });
 

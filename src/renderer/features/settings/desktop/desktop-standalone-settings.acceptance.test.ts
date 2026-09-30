@@ -18,13 +18,13 @@ describe('desktop standalone settings', () => {
 
     expect(menu).toContain("scope === 'shelf'");
     expect(menu).toContain("navigate('/settings?section=sync', { state: { from: '/' } })");
-    expect(routes).toContain('<DeferredProjectRoute view="settings" />');
-    expect(read('src/renderer/app/project-route-components.tsx')).toContain(
+    expect(routes).not.toContain('<DeferredProjectRoute view="settings" />');
+    expect(routes).toContain(
       'isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
     );
     expect(settings).toContain("const active: StandaloneSettingsId = isStandaloneSettingsId");
     expect(settings).toContain(": 'sync';");
-    expect(settings).toContain(
+    expect(read('src/renderer/features/settings/StandaloneSettingsPanel.tsx')).toContain(
       '<SyncPanel registerRef={REGISTER_NOOP} projectImportEnabled={false} />',
     );
     expect(settings).not.toContain('TrashRailPanel');

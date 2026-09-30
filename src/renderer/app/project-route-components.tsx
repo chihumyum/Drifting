@@ -2,8 +2,6 @@
 import { getPlatformRuntime } from '../platform/runtime';
 import { DesktopAppShell } from '../shells/desktop/DesktopAppShell';
 import { MobileAppShell } from '../shells/mobile/MobileAppShell';
-import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
-import { DesktopStandaloneSettingsView } from '../features/settings/desktop/DesktopStandaloneSettingsView';
 import { EditorShell } from '../views/EditorShell';
 import { ProjectDashboard } from '../views/ProjectDashboard';
 import {
@@ -15,10 +13,6 @@ function Workspace() {
   const isMobileShell = getPlatformRuntime().isMobileShell;
   return isMobileShell ? <MobileAppShell /> : <DesktopAppShell />;
 }
-function Settings() {
-  const isMobileShell = getPlatformRuntime().isMobileShell;
-  return isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />;
-}
 function Home() { return <EditorShell view="project-home"><ProjectDashboard /></EditorShell>; }
 function AllChapters() { return <EditorShell view="all-chapters-editor"><DesktopAllChaptersEditorRoute /></EditorShell>; }
 function Node() { return <EditorShell view="node-editor"><DesktopNodeEditorRoute /></EditorShell>; }
@@ -28,4 +22,4 @@ function Category() { return <EditorShell view="category-editor"><DesktopCategor
 
 // Module cache contains component code only. Project runtime and editor/session
 // ownership remain inside the existing shells, mounted after the route is ready.
-export const projectRoutes = { workspace: Workspace, settings: Settings, home: Home, allChapters: AllChapters, node: Node, storyline: Storyline, element: Element, category: Category };
+export const projectRoutes = { workspace: Workspace, home: Home, allChapters: AllChapters, node: Node, storyline: Storyline, element: Element, category: Category };

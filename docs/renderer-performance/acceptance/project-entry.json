@@ -1,0 +1,52 @@
+{
+  "kind": "renderer_project_entry",
+  "status": "passed",
+  "generatedAt": "2026-09-30T18:14:18.620Z",
+  "source": {
+    "commit": "b50d6a4e00ad6dcd7f597905e9c976812fa0fb01",
+    "fingerprint": "7f6a8d04adfcb4e733f668d2792648b165a605e4f7365095baf1c7eb1317112c"
+  },
+  "browser": "Chrome/154.0.8037.58",
+  "samples": [
+    {
+      "mode": "cold",
+      "shelfMs": 1318,
+      "selectionDwellMs": 1500,
+      "stateBeforeClick": "idle",
+      "mountsBeforeClick": 0,
+      "clickToMountedPaintMs": 688.2999999523163
+    },
+    {
+      "mode": "server-warmup",
+      "shelfMs": 1384,
+      "selectionDwellMs": 1500,
+      "stateBeforeClick": "idle",
+      "mountsBeforeClick": 0,
+      "clickToMountedPaintMs": 258.2999999523163
+    },
+    {
+      "mode": "shelf-preload",
+      "shelfMs": 1235.9000000953674,
+      "selectionDwellMs": 1500,
+      "stateBeforeClick": "ready",
+      "mountsBeforeClick": 0,
+      "clickToMountedPaintMs": 30.899999856948853
+    }
+  ],
+  "checks": {
+    "preloadWithoutMount": true,
+    "sharedLoad": true,
+    "cachedReopen": true,
+    "spinner": true,
+    "translated": true,
+    "reducedMotion": true,
+    "loadingBack": true,
+    "lateOwner": true,
+    "failureRetry": true
+  },
+  "limitations": [
+    "One development-server observation per scenario, with separate fresh Vite/browser caches and identical 1500 ms shelf dwell. Timing samples are diagnostic, not fixed-device budgets or statistical estimates.",
+    "Real renderer imports and styles, real AppRoutes/loading/preload hook; synthetic shelf and workspace leaves. No native database, actual project, account or complete editor startup is measured.",
+    "Fingerprint covers the entry implementation, locales, styles, build configuration, dependencies and this observer. Historical production route evidence remains separate."
+  ]
+}

@@ -11,6 +11,8 @@ import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
 import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
 import { getPlatformRuntime } from '../platform/runtime';
 import { DeferredProjectRoute } from './DeferredProjectRoute';
+import { DesktopStandaloneSettingsView } from '../features/settings/desktop/DesktopStandaloneSettingsView';
+import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -21,7 +23,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     checkSession().finally(() => setIsChecking(false));
   }, [checkSession]);
 
-  if (isChecking) return <FullScreenStatus title={t('appShell.checkingAuthentication')} />;
+  if (isChecking) return <FullScreenStatus title={t('appShell.checkingAuthentication')} loading />;
   return children;
 }
 
@@ -66,7 +68,7 @@ export function AppRoutes() {
         path="/settings"
         element={
           <ProtectedRoute>
-            <DeferredProjectRoute view="settings" />
+            {isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />}
           </ProtectedRoute>
         }
       />

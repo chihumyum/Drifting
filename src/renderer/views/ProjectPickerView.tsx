@@ -18,6 +18,7 @@ import {
   updateMobileProjectShelfSession,
 } from '../shells/mobile/standalone/mobile-project-shelf-session';
 import { events } from '../lib/events';
+import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -167,6 +168,8 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProjectSummary | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useProjectRoutePreload(!loading && Boolean(user?.id));
 
   const fetchProjects = useCallback(async () => {
     const data = await loadProjectSummaries();

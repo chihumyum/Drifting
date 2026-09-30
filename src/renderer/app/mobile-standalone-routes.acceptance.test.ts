@@ -274,16 +274,15 @@ describe('mobile standalone routes', () => {
 
   it('routes mobile settings outside project runtime and gates hosted account sections', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
-    expect(routes).toContain('<DeferredProjectRoute view="settings" />');
-    expect(rendererSource('app/project-route-components.tsx')).toContain(
+    expect(routes).not.toContain('<DeferredProjectRoute view="settings" />');
+    expect(routes).toContain(
       'isMobileShell ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
     );
     const settings = rendererSource('shells/mobile/standalone/MobileSettingsView.tsx');
     expect(settings).toContain('withoutHostedAccountSettings(group.items, accountSettingsEnabled)');
-    expect(settings).toContain(
-      'accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null',
-    );
-    expect(settings).toContain('<ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />');
+    const panels = rendererSource('features/settings/StandaloneSettingsPanel.tsx');
+    expect(panels).toContain("if (id === 'account' && !hostedAccountSettingsEnabled()) return null");
+    expect(panels).toContain('<ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />');
     expect(settings).not.toContain('TrashRailPanel');
     expect(settings).not.toContain('AgentPanel');
     expect(settings).not.toContain('ProjectRuntimeProvider');

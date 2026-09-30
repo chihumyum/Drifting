@@ -346,7 +346,7 @@ export function ProjectRuntimeProvider({
   const currentBoot: ProjectBootState =
     bootState.key === bootKey ? bootState : { key: bootKey, status: 'loading' };
   if (currentBoot.status === 'loading') {
-    return <FullScreenStatus title={t('appShell.loadingProject')} />;
+    return <FullScreenStatus title={t('appShell.loadingProject')} detail={t('appShell.readingProject')} loading />;
   }
   if (currentBoot.status === 'missing') {
     return <Navigate to="/" replace />;

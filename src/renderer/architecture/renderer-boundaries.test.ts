@@ -48,7 +48,7 @@ describe('renderer ownership boundaries', () => {
     }
   });
 
-  it('keeps settings code behind its deferred entry while Trash stays independently reachable', () => {
+  it('keeps heavy settings code deferred while basic preferences and Trash stay reachable', () => {
     const settingsRoot = path.join(rendererRoot, 'features/settings');
     const facade = path.join(settingsRoot, 'settings-panels');
     for (const file of sourceFiles('')) {
@@ -65,7 +65,7 @@ describe('renderer ownership boundaries', () => {
         const target = imported.replace(/\.(ts|tsx)$/, '');
         expect(target, `${path.relative(rendererRoot, file)} eagerly imports settings`).not.toBe(facade);
         if (!target.startsWith(path.join(settingsRoot, 'panels') + path.sep)) continue;
-        if (target.endsWith('/TrashSettingsPanel')) continue;
+        if (target.endsWith('/TrashSettingsPanel') || target.endsWith('/BasicPreferencePanels')) continue;
         expect(
           file === `${facade}.ts` || file.startsWith(path.join(settingsRoot, 'panels') + path.sep),
           `${path.relative(rendererRoot, file)} bypasses the deferred settings entry`,

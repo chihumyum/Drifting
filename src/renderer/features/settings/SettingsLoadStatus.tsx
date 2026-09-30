@@ -5,6 +5,7 @@ export function SettingsLoadStatus({ failed, retry }: { failed: boolean; retry: 
   const { t } = useTranslation();
   return (
     <section className="set-panel" role={failed ? 'alert' : 'status'} aria-live="polite">
+      {!failed && <span className="app-fullscreen-status__spinner" style={{ margin: '0 0 12px' }} aria-hidden="true" />}
       <p className="set-panel__sub">{t(failed ? 'settings.loadFailed' : 'settings.loading')}</p>
       {failed && <button type="button" className="set-btn" onClick={retry}>{t('appShell.retry')}</button>}
     </section>

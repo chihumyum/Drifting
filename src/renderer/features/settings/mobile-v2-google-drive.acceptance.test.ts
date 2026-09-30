@@ -11,7 +11,8 @@ describe('Mobile V2 Google Drive Settings release boundary', () => {
     const panel = read(
       'src/renderer/features/settings/panels/ControlSettingsPanels.tsx',
     );
-    expect(mobile).toContain(
+    expect(mobile).toContain('<StandaloneSettingsPanel');
+    expect(read('src/renderer/features/settings/StandaloneSettingsPanel.tsx')).toContain(
       '<SyncPanel registerRef={REGISTER_NOOP} projectImportEnabled={false} />',
     );
     for (const command of [

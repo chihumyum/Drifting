@@ -1,9 +1,9 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useDeferredModuleIntent } from '../../hooks/useDeferredModuleIntent';
 import { createDeferredModule } from '../../lib/deferred-module';
-import { loadSettingsPanels } from 'virtual:settings-panels';
+import { loadProjectSettingsPanels } from './project-settings-modules';
 
-const settingsPanels = createDeferredModule(loadSettingsPanels);
+const settingsPanels = createDeferredModule(loadProjectSettingsPanels);
 
 export function useSettingsPanels(active: boolean) {
   const state = useSyncExternalStore(settingsPanels.subscribe, settingsPanels.getSnapshot);

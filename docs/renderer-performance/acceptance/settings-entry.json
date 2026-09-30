@@ -1,0 +1,93 @@
+{
+  "kind": "renderer_settings_entry",
+  "status": "passed",
+  "generatedAt": "2026-09-30T18:14:04.554Z",
+  "source": {
+    "commit": "b50d6a4e00ad6dcd7f597905e9c976812fa0fb01",
+    "fingerprint": "7f368f97dcce161d8c2ab6b695196cc3d8b2e4f0d527bd0b77d1f5ee33ee45fc"
+  },
+  "production": {
+    "basicEager": true,
+    "workspaceEager": false,
+    "heavySettingsEager": false
+  },
+  "runs": [
+    {
+      "mode": "production",
+      "mobile": false,
+      "basicOpenMs": 30,
+      "checks": {
+        "shellWithoutWorkspace": true,
+        "basicWithoutDeferredPanels": true,
+        "preferencePersisted": true,
+        "localLoading": true,
+        "navigationDuringLoad": true,
+        "latePanelIgnored": true,
+        "cachedGroup": true,
+        "localFailure": true,
+        "retryRecovered": true,
+        "returnToShelf": true
+      }
+    },
+    {
+      "mode": "production",
+      "mobile": true,
+      "basicOpenMs": 35.39999985694885,
+      "checks": {
+        "shellWithoutWorkspace": true,
+        "basicWithoutDeferredPanels": true,
+        "preferencePersisted": true,
+        "localLoading": true,
+        "navigationDuringLoad": true,
+        "latePanelIgnored": true,
+        "cachedGroup": true,
+        "localFailure": true,
+        "retryRecovered": true,
+        "returnToShelf": true
+      }
+    },
+    {
+      "mode": "development",
+      "mobile": false,
+      "basicOpenMs": 27.59999990463257,
+      "checks": {
+        "shellWithoutWorkspace": true,
+        "basicWithoutDeferredPanels": true,
+        "preferencePersisted": true,
+        "localLoading": true,
+        "navigationDuringLoad": true,
+        "latePanelIgnored": true,
+        "cachedGroup": true,
+        "localFailure": true,
+        "retryRecovered": true,
+        "returnToShelf": true
+      }
+    },
+    {
+      "mode": "development",
+      "mobile": true,
+      "basicOpenMs": 34.80000019073486,
+      "checks": {
+        "shellWithoutWorkspace": true,
+        "basicWithoutDeferredPanels": true,
+        "preferencePersisted": true,
+        "localLoading": true,
+        "navigationDuringLoad": true,
+        "latePanelIgnored": true,
+        "cachedGroup": true,
+        "localFailure": true,
+        "retryRecovered": true,
+        "returnToShelf": true
+      }
+    }
+  ],
+  "projectModal": {
+    "retryRecovered": true,
+    "draftPreserved": true
+  },
+  "limitations": [
+    "Real AppRoutes, settings shells and panels with synthetic shelf/auth bootstrap; no native database, private account or manuscript. Native input and complete app startup are not measured.",
+    "Single basic-settings navigation timing per scenario; diagnostic only. Production module graph verifies basic preferences are eager while workspace and heavier settings remain deferred.",
+    "Standalone load failure recovers by explicit document reload retaining the URL. Project settings modal retries failed feature groups without reloading the document, retaining its continuous scrolling layout."
+  ]
+}

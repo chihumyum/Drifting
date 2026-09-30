@@ -2,8 +2,7 @@ import { useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { useSettingsPanels, useSettingsPreloadIntent } from '../../../features/settings/useSettingsPanels';
-import { SettingsLoadStatus } from '../../../features/settings/SettingsLoadStatus';
+import { StandaloneSettingsPanel } from '../../../features/settings/StandaloneSettingsPanel';
 import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
@@ -73,7 +72,6 @@ const MOBILE_SETTINGS_GROUPS: MobileSettingsGroup[] = [
   },
 ];
 
-const REGISTER_NOOP = () => undefined;
 
 function isMobileSettingsId(
   value: string | null,
@@ -82,44 +80,7 @@ function isMobileSettingsId(
   return !!value && groups.some((group) => group.items.some((item) => item.id === value));
 }
 
-function MobileSettingsPanel({
-  id,
-  accountSettingsEnabled,
-}: {
-  id: MobileSettingsId;
-  accountSettingsEnabled: boolean;
-}) {
-  const { panels, failed, retry } = useSettingsPanels(true);
-  if (!panels) return <SettingsLoadStatus failed={failed} retry={retry} />;
-  const { AccountPanel, AppearancePanel, EditorPanel, LanguagePanel, CopilotPanel, ModelsPanel, AboutPanel, KeysPanel, PrivacyPanel, SyncPanel } = panels;
-  switch (id) {
-    case 'account':
-      return accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null;
-    case 'subscription':
-      return null;
-    case 'appearance':
-      return <AppearancePanel registerRef={REGISTER_NOOP} />;
-    case 'editor':
-      return <EditorPanel registerRef={REGISTER_NOOP} />;
-    case 'language':
-      return <LanguagePanel registerRef={REGISTER_NOOP} />;
-    case 'models':
-      return <ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />;
-    case 'copilot':
-      return <CopilotPanel credentialsActive registerRef={REGISTER_NOOP} />;
-    case 'keys':
-      return <KeysPanel registerRef={REGISTER_NOOP} />;
-    case 'sync':
-      return <SyncPanel registerRef={REGISTER_NOOP} projectImportEnabled={false} />;
-    case 'privacy':
-      return <PrivacyPanel registerRef={REGISTER_NOOP} />;
-    case 'about':
-      return <AboutPanel registerRef={REGISTER_NOOP} />;
-  }
-}
-
 export function MobileSettingsView() {
-  const preloadSettings = useSettingsPreloadIntent();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -173,10 +134,7 @@ export function MobileSettingsView() {
             className="m-settings__content set-main"
             aria-label={activeItem && t(activeItem.labelKey)}
           >
-            <MobileSettingsPanel
-              id={active}
-              accountSettingsEnabled={accountSettingsEnabled}
-            />
+            {active !== 'subscription' && <StandaloneSettingsPanel id={active} />}
           </main>
         ) : (
           <nav className="m-settings__index set-rail" aria-label={t('settings.title')}>
@@ -186,7 +144,6 @@ export function MobileSettingsView() {
                 {group.items.map((item) => (
                   <button
                     key={item.id}
-                    {...preloadSettings}
                     type="button"
                     className="set-rail__item"
                     onClick={() => setSearchParams({ section: item.id }, { state: location.state })}

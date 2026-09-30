@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { deferredAIProvidersPlugins } from './vite-plugins/deferred-ai-providers';
-import { deferredSettingsPlugin } from './vite-plugins/deferred-settings';
+import { deferredSettingsPlugin, deferredProjectSettingsPlugins } from './vite-plugins/deferred-settings';
 import { deferredSuperViewsPlugins } from './vite-plugins/deferred-super-views';
 
 const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
@@ -36,7 +36,7 @@ export default defineConfig(({ command }) => {
     // Release builds accept only explicit process variables. This prevents ignored
     // developer .env files (including BYOK keys) from leaking into a bundle.
     envDir: isBuild ? false : undefined,
-    plugins: [react(), deferredSettingsPlugin(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins()],
+    plugins: [react(), deferredSettingsPlugin(), ...deferredProjectSettingsPlugins(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins()],
     // Only the app is a dev entry. Saved acceptance bundles and design HTML in
     // this checkout must not seed dependency scanning with retired imports.
     optimizeDeps: { entries: ['index.html'] },
@@ -47,6 +47,9 @@ export default defineConfig(({ command }) => {
       },
     },
     server: {
+      // Transform the deferred workspace graph while the shelf starts. This
+      // only warms Vite's cache; it does not execute code in the client.
+      warmup: { clientFiles: ['./src/renderer/app/project-route-components.tsx'] },
       // Avoid clashing with a compatible local service on http://localhost:3000.
       port: devPort,
       strictPort: true,

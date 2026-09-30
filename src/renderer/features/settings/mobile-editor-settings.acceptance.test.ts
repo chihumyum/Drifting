@@ -19,8 +19,8 @@ describe('mobile Editor Settings presentation', () => {
     const panel = read('src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx');
     const settingsCss = read('src/styles/settings.css');
 
-    expect(mobile).toContain("case 'editor':");
-    expect(mobile).toContain('<EditorPanel registerRef={REGISTER_NOOP} />');
+    expect(mobile).toContain("id: 'editor'");
+    expect(read('src/renderer/features/settings/StandaloneSettingsPanel.tsx')).toContain('<EditorPanel registerRef={REGISTER_NOOP} />');
     expect(panel).toContain("'--set-mobile-preview-width'");
     expect(panel).toContain('((maxLineWidth - 480) / (1280 - 480)) * 22');
     expect(settingsCss).toContain('font-size: var(--editor-font-size');

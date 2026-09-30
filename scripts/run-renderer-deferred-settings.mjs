@@ -64,7 +64,7 @@ function validate(report) {
 }
 if (process.argv.includes('--check')) {
   const report = JSON.parse(readFileSync(output, 'utf8')); validate(report);
-  if (!baseline) assert.equal(report.source.fingerprint, fingerprint(root), 'Settings evidence is stale.');
+  if (!baseline && !process.argv.includes('--historical')) assert.equal(report.source.fingerprint, fingerprint(root), 'Settings evidence is stale.');
   console.log('Settings loading evidence passed; native and full-app performance remain separate.');
   process.exit(0);
 }

@@ -3,6 +3,8 @@
     "viewLoadFailed": "This view could not be loaded. Try again.",
     "checkingAuthentication": "Checking authentication…",
     "loadingProject": "Opening project…",
+    "preparingWorkspace": "Preparing your workspace…",
+    "readingProject": "Reading project content…",
     "syncingProject": "Updating project structure…",
     "syncingProjectDetail": "Merging changes to chapters, reference material, or project structure from Google Drive. This project cannot be edited until the update finishes.",
     "projectLoadFailedTitle": "This project could not be opened",
@@ -1064,6 +1066,7 @@
   },
   "common": {
     "local": "Local",
+    "loading": "Loading…",
     "confirm": "Confirm",
     "edit": "Edit",
     "more": "More actions",

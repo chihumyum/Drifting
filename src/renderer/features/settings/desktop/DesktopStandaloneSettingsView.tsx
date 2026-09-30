@@ -2,9 +2,8 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { getPlatformRuntime } from '../../../platform/runtime';
-import { useSettingsPanels } from '../useSettingsPanels';
+import { StandaloneSettingsPanel } from '../StandaloneSettingsPanel';
 import { hostedAccountSettingsEnabled, withoutHostedAccountSettings } from '../hosted-settings-policy';
-import { SettingsLoadStatus } from '../SettingsLoadStatus';
 
 type StandaloneSettingsId =
   | 'account'
@@ -54,32 +53,9 @@ const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
 const STANDALONE_SETTINGS_IDS = new Set<StandaloneSettingsId>(
   STANDALONE_SETTINGS_GROUPS.flatMap((group) => group.items.map((item) => item.id)),
 );
-const REGISTER_NOOP = () => undefined;
 
 function isStandaloneSettingsId(value: string | null): value is StandaloneSettingsId {
   return !!value && STANDALONE_SETTINGS_IDS.has(value as StandaloneSettingsId);
-}
-
-function StandaloneSettingsPanel({ id }: { id: StandaloneSettingsId }) {
-  const { panels, failed, retry } = useSettingsPanels(true);
-  if (!panels) return <SettingsLoadStatus failed={failed} retry={retry} />;
-  const { AccountPanel, AppearancePanel, LanguagePanel, AboutPanel, PrivacyPanel, SyncPanel, UpdatePanel } = panels;
-  switch (id) {
-    case 'account':
-      return hostedAccountSettingsEnabled() ? <AccountPanel registerRef={REGISTER_NOOP} /> : null;
-    case 'appearance':
-      return <AppearancePanel registerRef={REGISTER_NOOP} />;
-    case 'language':
-      return <LanguagePanel registerRef={REGISTER_NOOP} />;
-    case 'sync':
-      return <SyncPanel registerRef={REGISTER_NOOP} projectImportEnabled={false} />;
-    case 'updates':
-      return <UpdatePanel registerRef={REGISTER_NOOP} />;
-    case 'privacy':
-      return <PrivacyPanel registerRef={REGISTER_NOOP} />;
-    case 'about':
-      return <AboutPanel registerRef={REGISTER_NOOP} />;
-  }
 }
 
 export function DesktopStandaloneSettingsView() {

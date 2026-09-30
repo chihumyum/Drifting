@@ -59,7 +59,7 @@
     "perf:prose-metrics:check": "node --expose-gc --conditions=import --import=tsx scripts/benchmark-prose-metrics.ts --check",
     "perf:renderer:lifecycle": "node scripts/run-renderer-lifecycle.mjs",
     "perf:renderer:check": "node scripts/check-renderer-performance.mjs",
-    "perf:renderer:settings": "node scripts/run-renderer-deferred-settings.mjs",
+    "perf:renderer:settings": "node scripts/run-renderer-settings-entry.mjs",
     "perf:renderer:graphs": "node scripts/run-renderer-deferred-graphs.mjs",
     "perf:renderer:preload": "node scripts/run-renderer-deferred-graphs.mjs --preload",
     "perf:renderer:native": "node scripts/run-renderer-native.mjs",

@@ -88,6 +88,36 @@
   margin-top: 18px;
 }
 
+.app-fullscreen-status--loading .app-fullscreen-status__content {
+  width: min(320px, 100%);
+}
+
+.app-fullscreen-status--loading .app-fullscreen-status__title {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.app-fullscreen-status__spinner {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto 20px;
+  border: 2px solid hsl(var(--ink-6));
+  border-top-color: hsl(var(--accent));
+  border-radius: 50%;
+  animation: workspace-loading 0.8s linear infinite;
+}
+
+@keyframes workspace-loading {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-fullscreen-status__spinner {
+    animation: none;
+  }
+}
+
 .database-recovery {
   min-height: 100vh;
   display: grid;
