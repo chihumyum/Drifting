@@ -1,0 +1,149 @@
+{
+  "kind": "local-mcp-runtime-and-native-ipc",
+  "generatedAt": "2026-09-30T17:03:25.823Z",
+  "sourceSha256": "1da509fcd203e00aa16b20b4253b3ac67c29a9566af458cebf748934682fa6ba",
+  "status": "passed",
+  "synthetic": true,
+  "checks": [
+    {
+      "name": "workspace domain CRUD transactions MCP exposes canonical schemas and enforces read-only grants and validation before mutation",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and the existing inverse review",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP stops stale concurrent prose writes and cancelled calls without crossing project scope",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions materializes the prose word count when a new chapter or drift is created",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions rejects a second Agent create with an existing node title instead of suffixing it",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions rejects a relation whose two endpoints are the same authored object",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions keeps every textual block of a newly created object pending in approve mode",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions uses the schema-safe Markdown adapter for every newly created authored prose object",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions keeps entity receipts owned by the public domain tool",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions clones template authority with fresh IDs for Agent element and storyline creates",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions places a newly created numbered chapter at the midpoint of an available reading-order gap",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions normalizes a unique contained category and seeds a separate summary from initial body",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions atomically replaces the complete storyline graph and restores the exact preimage",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions rolls back every graph row and journal mutation when a transaction write fails",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions creates, addresses, updates, soft-deletes, and exactly reverts pending Agent memory",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions reconciles a lost outer acknowledgement once and survives a file reopen",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions keeps approved guidance read-only and allows a separate pending proposal",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions creates and exactly removes every structural resource class",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions updates, guards field deletion, and restores structural resource deletes",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions provides natural JSON CRUD and guarded inverses for TODOs and relations",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions names every blocking workspace resource when an entity delete is unsafe",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::one_click_connections_are_idempotent_scoped_and_removed_on_revoke",
+      "status": "passed"
+    }
+  ],
+  "boundaries": {
+    "runtime": "production tool composition, file-backed SQLite, Yjs and authored sync journal",
+    "authentication": "real private Unix socket, native credential checks and cancellation",
+    "packagedApp": "separate mcp-live-smoke and native UI acceptance",
+    "mobile": "deferred",
+    "remoteOAuth": "not implemented",
+    "productionSigning": "not claimed"
+  }
+}

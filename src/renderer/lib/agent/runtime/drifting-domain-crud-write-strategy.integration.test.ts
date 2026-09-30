@@ -1,3 +1,4 @@
+import { ExternalToolSession } from './external-tool-session';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -141,6 +142,92 @@ describe('workspace domain CRUD transactions', () => {
     useDataStore.setState(initialDataState, true);
     useProjectStore.setState(initialProjectState, true);
     await fixture.close();
+  });
+
+  function mcpSession(id: string, access: 'read' | 'write', allowDangerous = false) {
+    return new ExternalToolSession({ sessionId: `mcp-test:${id}`,
+      grant: { id, name: 'Synthetic external agent', projectId: PROJECT_ID, access, allowDangerous },
+      composition: fixture.composition,
+      ensureConversation: async (conversationId) => {
+        await fixture.database.insert(AgentConversationTable).values({ id: conversationId,
+          projectId: PROJECT_ID, title: 'Synthetic MCP', mode: 'byok', messagesJson: '[]',
+          createdAt: AT, updatedAt: AT });
+      },
+    });
+  }
+  let mcpCallId = 0;
+  async function mcpCall(session: ExternalToolSession, name: string, args: Record<string, unknown>) {
+    return session.handle({ jsonrpc: '2.0', id: ++mcpCallId, method: 'tools/call',
+      params: { name, arguments: args } }, new AbortController().signal) as Promise<{
+        isError: boolean; content: { type: string; text: string }[];
+        structuredContent?: AgentToolExecutionResult;
+      }>;
+  }
+
+  it('MCP exposes canonical schemas and enforces read-only grants and validation before mutation', async () => {
+    const reader = mcpSession('reader', 'read');
+    const writer = mcpSession('writer', 'write');
+    const list = async (session: ExternalToolSession) => session.handle({ jsonrpc: '2.0', id: 0,
+      method: 'tools/list' }, new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
+    expect((await list(reader)).tools).toHaveLength(24);
+    expect((await list(writer)).tools).toHaveLength(70);
+    expect((await list(writer)).tools.map((t) => t.name)).not.toContain('ask_user');
+    expect(await mcpCall(reader, 'get_project_overview', {})).toMatchObject({ isError: false });
+    expect(await mcpCall(reader, 'create_chapter', { title: 'Denied' })).toMatchObject({ isError: true });
+    expect(await mcpCall(writer, 'create_chapter', {})).toMatchObject({ isError: true });
+    expect(await mcpCall(writer, 'delete_chapter', { chapter: 'Chapter One' })).toMatchObject({ isError: true });
+    expect(fixture.scalar("SELECT count(*) FROM book_node WHERE deleted_at IS NULL")).toBe(2);
+    await reader.close(); await writer.close();
+  });
+
+  it('MCP writes use Yjs, durable receipts, read coverage and the existing inverse review', async () => {
+    useSettingsStore.getState().setAgentEditMode('approve');
+    const writer = mcpSession('prose-writer', 'write', true);
+    const created = await mcpCall(writer, 'create_chapter', { title: 'External chapter', body: 'Initial synthetic prose.' });
+    expect(created, JSON.stringify(created)).toMatchObject({ isError: false });
+    expect(await mcpCall(writer, 'read_chapter', { chapter: 'External chapter' })).toMatchObject({ isError: false });
+    const changed = await mcpCall(writer, 'replace_chapter_body', { chapter: 'External chapter', body: 'Revised synthetic prose.' });
+    expect(changed, JSON.stringify(changed)).toMatchObject({ isError: false });
+    expect(fixture.scalar("SELECT count(*) FROM agent_runtime_write_effect WHERE session_id = 'mcp-test:prose-writer' AND phase = 'result_committed'")).toBe(2);
+    const read = await mcpCall(writer, 'read_chapter', { chapter: 'External chapter' });
+    expect(JSON.stringify(read)).toContain('Revised synthetic prose.');
+    const effects = await fixture.composition.repositories.writeEffects.listEffects('mcp-test:prose-writer');
+    const changedEffect = effects.find((effect) => effect.toolName === 'replace_chapter_body');
+    expect(changedEffect?.authorization?.kind).toBe('author_approved');
+    const review = changed.structuredContent?.ok ? changed.structuredContent.presentation?.review : undefined;
+    expect(review?.id).toBeTruthy();
+    if (!review) throw new Error('Missing MCP write review');
+    await fixture.composition.tools.rejectReview(review.id, 'Synthetic MCP acceptance');
+    expect(JSON.stringify(await mcpCall(writer, 'read_chapter', { chapter: 'External chapter' }))).toContain('Initial synthetic prose.');
+    await writer.close();
+    await expect(mcpCall(writer, 'read_chapter', { chapter: 'External chapter' })).rejects.toThrow('closed');
+    const reconnected = mcpSession('reconnected', 'write', true);
+    const unobserved = await mcpCall(reconnected, 'replace_chapter_body', { chapter: 'External chapter', body: 'Must read first.' });
+    expect(unobserved).toMatchObject({ isError: true });
+    await reconnected.close();
+  });
+
+  it('MCP stops stale concurrent prose writes and cancelled calls without crossing project scope', async () => {
+    const owner = mcpSession('concurrent-owner', 'write', true);
+    await mcpCall(owner, 'create_chapter', { title: 'Shared synthetic chapter', body: 'Original.' });
+    const other = mcpSession('concurrent-other', 'write', true);
+    for (const session of [owner, other]) {
+      expect(await mcpCall(session, 'read_chapter', { chapter: 'Shared synthetic chapter' })).toMatchObject({ isError: false });
+    }
+    const results = await Promise.all([
+      mcpCall(owner, 'replace_chapter_body', { chapter: 'Shared synthetic chapter', body: 'First external writer.' }),
+      mcpCall(other, 'replace_chapter_body', { chapter: 'Shared synthetic chapter', body: 'Second external writer.' }),
+    ]);
+    expect(results.filter((result) => !result.isError)).toHaveLength(1);
+    expect(results.filter((result) => result.isError)).toHaveLength(1);
+    const cancelled = new AbortController(); cancelled.abort();
+    await expect(owner.handle({ jsonrpc: '2.0', id: 998, method: 'tools/call',
+      params: { name: 'create_chapter', arguments: { title: 'Cancelled chapter' } } }, cancelled.signal)).rejects.toThrow();
+    expect(fixture.scalar("SELECT count(*) FROM book_node WHERE title = 'Cancelled chapter'")).toBe(0);
+    fixture.context.projectId = 'another-project';
+    await expect(owner.handle({ jsonrpc: '2.0', id: 999, method: 'tools/list' }, new AbortController().signal)).rejects.toThrow('active Drifting project');
+    fixture.context.projectId = PROJECT_ID;
+    await owner.close(); await other.close();
   });
 
   it('materializes the prose word count when a new chapter or drift is created', async () => {

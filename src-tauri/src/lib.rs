@@ -15,6 +15,8 @@ mod installation_identity;
 #[cfg(target_os = "macos")]
 mod local_lab_session;
 mod mcp_http;
+mod mcp_server;
+pub use mcp_server::run_stdio_cli as run_mcp_stdio_cli;
 mod mcp_stdio;
 mod native_capabilities;
 mod openai_responses;
@@ -167,6 +169,7 @@ pub fn run() {
         .manage(DeepLinkQueue::default())
         .manage(close_coordinator)
         .manage(mcp_http::McpHttpState::default())
+        .manage(mcp_server::McpServerState::default())
         .manage(mcp_stdio::McpStdioState::default())
         .manage(openai_responses::OpenAIResponsesState::default())
         .manage(codex_oauth::CodexOAuthState::default())
@@ -185,6 +188,13 @@ pub fn run() {
             commands::deep_link_take_pending,
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
+            mcp_server::mcp_server_list,
+            mcp_server::mcp_server_create,
+            mcp_server::mcp_server_connect,
+            mcp_server::mcp_server_revoke,
+            mcp_server::mcp_server_attach,
+            mcp_server::mcp_server_detach,
+            mcp_server::mcp_server_complete,
             mcp_http::mcp_http_request,
             mcp_http::mcp_http_cancel,
             mcp_stdio::mcp_stdio_start,

@@ -30,6 +30,14 @@ an open milestone.
 | Subagents                     | Deferred; not part of the shipped single-product/multi-conversation runtime                                                                                                         | Generated capability inventory                                                                 |
 | Bounded tool selection        | Bounded author-domain selection ships mode-switched (`agentToolSearch`, default `auto`); per-iteration recomputation trades provider prefix-cache reuse for schema-token reduction, and neither coarse read/write-phase selection stability nor a paid live-provider quality campaign has run | Deterministic selection tests plus a future dated live run recorded in current status          |
 
+## Local external agents
+
+The Mac app also exposes its domain tools through project-scoped local MCP,
+with one-click configuration for local Codex and Claude Code clients.
+Connection setup, permissions and acceptance boundaries are documented in
+[`local-mcp.md`](local-mcp.md). This entry point shares the product runtime and
+does not invoke an internal model.
+
 ## Evidence map
 
 - Machine-readable composition:

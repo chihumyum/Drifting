@@ -953,6 +953,29 @@
           "askWrite": "写入 · 询问",
           "disabled": "禁用"
         }
+      },
+      "mcpAccess": {
+        "title": "外部 Agent 访问",
+        "desc": "授权 Claude Code、Codex 等工具访问「{{project}}」。连接仅限这个项目。",
+        "name": "连接名称",
+        "permission": "访问权限",
+        "read": "只读",
+        "write": "允许修改",
+        "full": "允许修改和破坏性操作",
+        "create": "创建连接",
+        "local": "仅在本机使用。请保持 Drifting 和此项目打开；撤销连接后，新请求立即失效。已提交的修改会保留。",
+        "config": "连接配置",
+        "revoke": "撤销",
+        "copy": "复制 MCP 配置",
+        "copied": "已复制。将配置添加到外部 Agent 的 MCP 设置中。",
+        "connect": "一键连接 {{client}}",
+        "connected": "{{client}} 已配置",
+        "automatic": "自动添加到本机客户端的 MCP 配置。无需复制配置或运行终端命令。",
+        "manual": "其他客户端 · 手动配置",
+        "reinstall": "重新配置",
+        "installed": "已配置 {{client}}。请重新打开客户端或重启它的 MCP 服务以加载连接；首次使用时按客户端提示确认工具权限。",
+        "revoked": "已撤销访问，并移除自动添加的客户端配置。",
+        "revokedWarning": "访问已撤销。客户端配置已被改动或无法写入，请在客户端移除这条连接。"
       }
     },
     "agentLimits": {

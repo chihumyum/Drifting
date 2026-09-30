@@ -1,0 +1,78 @@
+{
+  "kind": "packaged-mac-mcp-client-setup",
+  "generatedAt": "2026-09-30T16:54:50.527Z",
+  "status": "passed",
+  "synthetic": true,
+  "runs": [
+    {
+      "kind": "packaged-mac-mcp-client-setup",
+      "generatedAt": "2026-09-30T16:53:46.589Z",
+      "status": "passed",
+      "synthetic": true,
+      "checks": [
+        {
+          "name": "codex: scoped entry installed and unrelated settings preserved",
+          "status": "passed"
+        },
+        {
+          "name": "codex: installed command initializes and discovers read-only tools",
+          "status": "passed"
+        },
+        {
+          "name": "codex: authorized synthetic project is readable",
+          "status": "passed"
+        },
+        {
+          "name": "codex: write is denied by native-authorized runtime scope",
+          "status": "passed"
+        },
+        {
+          "name": "claude_code: scoped entry installed and unrelated settings preserved",
+          "status": "passed"
+        },
+        {
+          "name": "claude_code: installed command initializes and discovers read-only tools",
+          "status": "passed"
+        },
+        {
+          "name": "claude_code: authorized synthetic project is readable",
+          "status": "passed"
+        },
+        {
+          "name": "claude_code: write is denied by native-authorized runtime scope",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "kind": "packaged-mac-mcp-client-setup",
+      "generatedAt": "2026-09-30T16:54:50.526Z",
+      "status": "passed",
+      "synthetic": true,
+      "checks": [
+        {
+          "name": "codex: revoke removes credential and owned entry while preserving other settings",
+          "status": "passed"
+        },
+        {
+          "name": "codex: revoked automatic connection cannot reconnect",
+          "status": "passed"
+        },
+        {
+          "name": "claude_code: revoke removes credential and owned entry while preserving other settings",
+          "status": "passed"
+        },
+        {
+          "name": "claude_code: revoked automatic connection cannot reconnect",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "boundaries": {
+    "ui": "actual packaged app buttons clicked through native UI",
+    "client": "installed client configurations parsed; actual stdio commands tested with official MCP SDK",
+    "clientReload": "requires client restart or MCP service reload; current Codex task was not restarted",
+    "signing": "local debug app, ad-hoc signed"
+  }
+}

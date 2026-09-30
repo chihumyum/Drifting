@@ -1,3 +1,4 @@
+import type { McpClient, McpServerConnection, McpServerCreateInput } from './mcp-server-contract';
 /**
  * Renderer <-> Tauri command/event contracts.
  *
@@ -718,6 +719,13 @@ export interface TauriCommandContract {
   };
   ai_log_open_dir: { args: undefined; result: string };
   ai_log_get_dir: { args: undefined; result: string };
+  mcp_server_list: { args: undefined; result: McpServerConnection[] };
+  mcp_server_create: { args: { input: McpServerCreateInput }; result: McpServerConnection };
+  mcp_server_connect: { args: { input: McpServerCreateInput; client: McpClient }; result: McpServerConnection };
+  mcp_server_revoke: { args: { id: string }; result: string | null };
+  mcp_server_attach: { args: { projectId: string; onEvent: unknown }; result: string };
+  mcp_server_detach: { args: { epoch: string }; result: void };
+  mcp_server_complete: { args: { epoch: string; requestId: string; response: unknown }; result: void };
   mcp_stdio_start: {
     args: { input: McpStdioStartInput };
     result: McpStdioStartResult;

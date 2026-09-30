@@ -1,0 +1,160 @@
+{
+  "kind": "packaged-mac-mcp-sdk",
+  "generatedAt": "2026-09-30T16:31:36.835Z",
+  "status": "passed",
+  "synthetic": true,
+  "artifact": "local Mac debug bundle, ad-hoc signed",
+  "runs": [
+    {
+      "mode": "write",
+      "generatedAt": "2026-09-30T16:19:55.424Z",
+      "checks": [
+        {
+          "name": "official MCP SDK initializes packaged stdio endpoint",
+          "status": "passed"
+        },
+        {
+          "name": "canonical domain definitions and pagination discovered",
+          "status": "passed"
+        },
+        {
+          "name": "authorized synthetic project read",
+          "status": "passed"
+        },
+        {
+          "name": "chapter created through production domain tool",
+          "status": "passed"
+        },
+        {
+          "name": "prose write carries durable editor review",
+          "status": "passed"
+        },
+        {
+          "name": "committed Yjs prose read back",
+          "status": "passed"
+        },
+        {
+          "name": "fresh external session cannot overwrite unread prose",
+          "status": "passed"
+        },
+        {
+          "name": "concurrent stale external writer rejected",
+          "status": "passed"
+        },
+        {
+          "name": "explicit destructive grant uses canonical soft delete",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "mode": "read",
+      "generatedAt": "2026-09-30T16:20:48.579Z",
+      "checks": [
+        {
+          "name": "official MCP SDK initializes packaged stdio endpoint",
+          "status": "passed"
+        },
+        {
+          "name": "canonical domain definitions and pagination discovered",
+          "status": "passed"
+        },
+        {
+          "name": "authorized synthetic project read",
+          "status": "passed"
+        },
+        {
+          "name": "read-only grant rejects tool invocation even when called by name",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "mode": "editor",
+      "generatedAt": "2026-09-30T16:29:52.558Z",
+      "checks": [
+        {
+          "name": "official MCP SDK initializes packaged stdio endpoint",
+          "status": "passed"
+        },
+        {
+          "name": "canonical domain definitions and pagination discovered",
+          "status": "passed"
+        },
+        {
+          "name": "authorized synthetic project read",
+          "status": "passed"
+        },
+        {
+          "name": "MCP sees the live editor author modification",
+          "status": "passed"
+        },
+        {
+          "name": "external write committed while the editor is mounted",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "mode": "reconnect",
+      "generatedAt": "2026-09-30T16:29:52.345Z",
+      "checks": [
+        {
+          "name": "official MCP SDK initializes packaged stdio endpoint",
+          "status": "passed"
+        },
+        {
+          "name": "canonical domain definitions and pagination discovered",
+          "status": "passed"
+        },
+        {
+          "name": "authorized synthetic project read",
+          "status": "passed"
+        },
+        {
+          "name": "persisted Yjs text readable after app restart",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "mode": "unmounted",
+      "generatedAt": "2026-09-30T16:27:53.021Z",
+      "checks": [
+        {
+          "name": "official MCP SDK initializes packaged stdio endpoint",
+          "status": "passed"
+        },
+        {
+          "name": "unmounted or other project is inaccessible",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "mode": "revoked",
+      "generatedAt": "2026-09-30T16:31:36.745Z",
+      "checks": [
+        {
+          "name": "revoked credential cannot reconnect",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "mode": "active-revocation",
+      "generatedAt": "2026-09-30T16:23:51.099Z",
+      "checks": [
+        {
+          "name": "revoked live connection cannot issue further requests",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "boundaries": {
+    "ui": "separate observed native UI acceptance",
+    "remote": "not tested",
+    "mobile": "deferred"
+  }
+}

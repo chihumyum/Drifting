@@ -1,3 +1,4 @@
+import { getPlatformRuntime } from '../../platform/runtime';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
@@ -165,6 +166,17 @@ export function ProjectRuntimeProvider({
     revertToNote: commentUsecases.revertToNote,
   });
   useDriftingAgentRuntime();
+
+  useEffect(() => {
+    if (bootState.status !== 'ready' || !getPlatformRuntime().isMacDesktop) return;
+    let cancelled = false;
+    let dispose: (() => void) | undefined;
+    void import('../../lib/agent/mcp-server-bridge')
+      .then((module) => cancelled ? undefined : module.installMcpServerBridge(projectId))
+      .then((cleanup) => { if (cancelled) cleanup?.(); else dispose = cleanup; })
+      .catch((error) => console.warn('[mcp] local bridge unavailable', error));
+    return () => { cancelled = true; dispose?.(); };
+  }, [bootState.status, projectId]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || bootState.status !== 'ready') return undefined;

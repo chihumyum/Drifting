@@ -32,7 +32,7 @@ percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "json", "rustls-tls", "stream"] }
 rusqlite = { version = "0.32.1", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["arbitrary_precision", "preserve_order"] }
 sha2 = "0.10.8"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 tauri = { version = "2.11.5", features = ["protocol-asset"] }
@@ -60,6 +60,7 @@ objc2-core-graphics = { version = "0.3.2", default-features = false, features = 
 objc2-image-io = { version = "0.3.2", default-features = false, features = ["std", "CGImageDestination", "CGImageProperties", "CGImageSource", "objc2-core-graphics"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+toml_edit = "0.25"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSButton", "NSView", "NSWindow"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "objc2-app-kit", "WKPreferences", "WKWebView", "WKWebViewConfiguration"] }
 security-framework = "3"

@@ -953,6 +953,29 @@
           "askWrite": "Write · ask",
           "disabled": "Disabled"
         }
+      },
+      "mcpAccess": {
+        "title": "External agent access",
+        "desc": "Allow tools such as Claude Code or Codex to access “{{project}}”. Each connection is limited to this project.",
+        "name": "Connection name",
+        "permission": "Access permission",
+        "read": "Read only",
+        "write": "Allow changes",
+        "full": "Allow changes and destructive operations",
+        "create": "Create connection",
+        "local": "Local access only. Keep Drifting and this project open. Revoking a connection immediately blocks new requests; committed changes remain.",
+        "config": "Connection configuration",
+        "revoke": "Revoke",
+        "copy": "Copy MCP configuration",
+        "copied": "Copied. Add this configuration to your external agent’s MCP settings.",
+        "connect": "Connect {{client}}",
+        "connected": "{{client}} configured",
+        "automatic": "Adds MCP access to your local client automatically. No configuration to copy or terminal command to run.",
+        "manual": "Other clients · Manual setup",
+        "reinstall": "Reconfigure",
+        "installed": "{{client}} is configured. Reopen the client or restart its MCP server to load the connection; follow its tool approval prompts on first use.",
+        "revoked": "Access revoked and automatically installed client configuration removed.",
+        "revokedWarning": "Access revoked. The client configuration changed or could not be updated; remove this connection in your client."
       }
     },
     "agentLimits": {

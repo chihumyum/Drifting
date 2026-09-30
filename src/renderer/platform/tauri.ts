@@ -1,3 +1,4 @@
+import type { McpServerEvent } from './mcp-server-contract';
 import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { APP_CONFIG, canUseExternalContent, canUseHostedService } from '../lib/config';
@@ -915,6 +916,18 @@ export const tauriPlatform: PlatformApi = {
     write: (filename, content) => invokeContract('ai_log_write', { filename, content }),
     openDir: () => invokeContract('ai_log_open_dir', undefined),
     getDir: () => invokeContract('ai_log_get_dir', undefined),
+  },
+
+  mcpServer: {
+    list: () => invokeContract('mcp_server_list', undefined),
+    create: (input) => invokeContract('mcp_server_create', { input }),
+    connect: (input, client) => invokeContract('mcp_server_connect', { input, client }),
+    revoke: (id) => invokeContract('mcp_server_revoke', { id }),
+    attach: (projectId, callback) => invokeContract('mcp_server_attach', {
+      projectId, onEvent: new Channel<McpServerEvent>(callback),
+    }),
+    detach: (epoch) => invokeContract('mcp_server_detach', { epoch }),
+    complete: (epoch, requestId, response) => invokeContract('mcp_server_complete', { epoch, requestId, response }),
   },
 
   mcpStdio: {

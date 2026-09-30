@@ -1,3 +1,4 @@
+import type { McpServerPlatformApi } from './mcp-server-contract';
 import type {
   AILogWriteResult,
   AppUpdateDownloadEvent,
@@ -365,6 +366,7 @@ export interface PlatformApi {
   readonly archive: ArchivePlatformApi;
   readonly updater: UpdatePlatformApi;
   readonly aiLog: AILogPlatformApi;
+  readonly mcpServer: McpServerPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;
   readonly mcpHttp: McpHttpPlatformApi;
   readonly openAIResponses: OpenAIResponsesPlatformApi;

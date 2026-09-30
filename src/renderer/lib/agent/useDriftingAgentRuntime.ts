@@ -89,6 +89,10 @@ const driftingProductComposition = createDriftingAgentProductComposition({
   ...debugRuntimeOverrides,
 });
 
+export function getDriftingAgentProductComposition() {
+  return driftingProductComposition;
+}
+
 export function getDriftingAgentExtensionPlatform(): {
   manager: AgentExtensionManager;
   repository: AgentExtensionRepository;

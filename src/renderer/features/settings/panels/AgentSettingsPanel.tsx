@@ -1,3 +1,4 @@
+import { AgentMcpAccessSettings } from '../../../components/agent/AgentMcpAccessSettings';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStore } from '../../../store/project-store';
@@ -610,6 +611,8 @@ export function AgentPanel({ open, registerRef }: { open: boolean; registerRef: 
       <AgentLimitsSection />
 
       <AgentMemorySection open={open} />
+
+      <AgentMcpAccessSettings open={open} />
 
       <AgentExtensionsSettings open={open} />
 

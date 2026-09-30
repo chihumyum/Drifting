@@ -273,6 +273,12 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
+  releaseExternalSession(sessionId: string): void {
+    for (const key of this.readCoverage.keys()) {
+      if (key.startsWith(`${sessionId}\u0000`)) this.readCoverage.delete(key);
+    }
+  }
+
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
     this.requireProject(context);
     const controls = this.readRuntime

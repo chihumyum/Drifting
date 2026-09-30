@@ -158,7 +158,10 @@
     "apple:durability:acceptance": "node scripts/apple-prose-durability-acceptance.mjs",
     "apple:durability:check": "node scripts/apple-prose-durability-acceptance.mjs --check",
     "hosted:client": "node scripts/run-hosted-client.mjs",
-    "hosted:acceptance": "node scripts/run-hosted-acceptance.mjs"
+    "hosted:acceptance": "node scripts/run-hosted-acceptance.mjs",
+    "mcp:acceptance": "node scripts/run-mcp-acceptance.mjs",
+    "mcp:check": "node scripts/run-mcp-acceptance.mjs --check",
+    "mcp:smoke": "node scripts/mcp-live-smoke.mjs"
   },
   "keywords": [
     "tauri",
@@ -178,6 +181,7 @@
   "homepage": "https://github.com/chihumyum/Drifting#readme",
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.19",
     "@tauri-apps/cli": "2.11.4",
