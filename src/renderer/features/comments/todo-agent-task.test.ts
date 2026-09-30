@@ -38,7 +38,7 @@ describe('Todo Agent handoff', () => {
       status: 'applied',
       resultJson: JSON.stringify({ conversationId: 'first-conversation' }),
     } as CommentAction;
-    const actions = [
+    const actions: CommentAction[] = [
       base,
       { ...base, commentId: 'another-todo', resultJson: JSON.stringify({ conversationId: 'other' }) },
       { ...base, resultJson: 'malformed JSON' },

@@ -30,11 +30,28 @@ requireMatch(ci, /DRIFTING_PERF_CHROME: \/usr\/bin\/google-chrome/u, 'renderer C
 requireMatch(ci, /pnpm perf:renderer:lifecycle --output=\.local-data\/renderer-performance\/lifecycle\.json/u, 'CI must check renderer resource release');
 requireMatch(ci, /test "\$RENDERER_RESULT" = success/u, 'client must require renderer success');
 requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u, 'renderer gate must read the renderer job result');
+requireMatch(
+  ci,
+  /^  apple-native:\s*\n    name: Apple native \/ macOS\s*\n(?:    #[^\n]*\n)*    if: \$\{\{ false \}\}/mu,
+  'the paused Apple native job must stay disabled in ordinary CI',
+);
+if (ci.includes('pnpm apple:check')) {
+  errors.push('paused Apple source evidence validation must not run in ordinary CI');
+}
+const rustAction = 'dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de';
+for (const [name, workflow, expectedCount] of [
+  ['ordinary CI', ci, 2],
+  ['Alpha release', release, 2],
+]) {
+  if (workflow.split(rustAction).length - 1 !== expectedCount)
+    errors.push(`${name} must use the pinned Rust action that accepts the toolchain input`);
+  if (workflow.split('toolchain: 1.96.0').length - 1 !== expectedCount)
+    errors.push(`${name} must select Rust 1.96.0 for every Rust job`);
+}
 
 for (const command of [
   'pnpm ci:contract:check',
   'pnpm public:check',
-  'pnpm apple:check',
   'pnpm apple:acceptance',
   'pnpm apple:document:acceptance',
   'pnpm apple:binding:acceptance',
@@ -49,7 +66,6 @@ for (const command of [
 ]) {
   if (!ci.includes(command)) errors.push(`client checks are missing: ${command}`);
 }
-requireMatch(ci, /^\s+- run: pnpm apple:check\s*$/mu, 'CI must retain Apple source evidence validation');
 if (/pnpm apple:acceptance[^\n]*(?:--ios-only|--with-ios|--include-ipad)/u.test(ci)) {
   errors.push('Routine Apple CI is macOS only; mobile acceptance is deferred');
 }

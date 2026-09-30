@@ -15,12 +15,12 @@
       "agent_chat_queue"
     ],
     "sourceSha256": {
-      "crates/drifting-core/src/database.rs": "0f10006f3fbdbf42c2888d964ab2ac1de552d5d49964a5ae3dcea1d6649f3a40",
+      "crates/drifting-core/src/database.rs": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
       "crates/drifting-core/src/file_io.rs": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
       "scripts/generate-agent-conversation-sync.ts": "2e083e27d2398976b272e1eb929aa493186277a6bf62c752eadf530b0f354372",
-      "src-tauri/src/database.rs": "0542c66d704a6633290f9e051cd9971ad86ae86b6e62c9daa12ef3c8a65c71c8",
+      "src-tauri/src/database.rs": "c17443c1e4a6b66361a4e671e946835cc034dd67ec2ce88839c7a30c7ad47389",
       "src-tauri/src/google_drive_sync.rs": "db6f67c12002e5081c2403b77b01770cfc6acf2ea595b52e6a254d2362a9bf8b",
       "src-tauri/src/google_drive_sync_legacy_fixture.rs": "214c31ca12538b54c6bd6d556f26b70d5d0775b88f867301026c975742f58063",
       "src-tauri/src/mcp_stdio.rs": "48c385cbd4571c60a89e29d1013029c9cb26ffec924543d18d0eba2c5be74ce2",
@@ -35,8 +35,8 @@
       "src/renderer/lib/agent/runtime/recovered-transcript.ts": "0891a2e3e4b22a2a1edf7c4450ef00908595fa62df224f366814b97ade9e7120",
       "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "bd4818aa8f8ad0e80c8713c36cf3f35185bf55402c3285513ca3640785ee185f",
       "src/renderer/lib/events.ts": "450249da4402ebb8609233cbf3665802d09ef7d8644898855c312df637e8380b",
-      "src/renderer/platform/contracts.ts": "d7abe5e13130fce84ae3832ff48a56bbf17bf8dd0441cd5a654bddcc3041ceb0",
-      "src/renderer/platform/types.ts": "48a1b88e2af5c1676be225722e235dc54faadb55ec61164c7e21db09d4ef77aa",
+      "src/renderer/platform/contracts.ts": "248daf210c533a2d9435bbf0157f44ce9ec5a489acd61d5eeae1456c66ac1c8c",
+      "src/renderer/platform/types.ts": "2655245f198fbfc82ce3c1c4e1f3c7034795f0a50781196eb8c83c9b2b3eea2f",
       "src/renderer/schema/drizzle.ts": "b27a674f229c9d91fb6d4992f4c4144cbbce1f9eab3256f5447590057ac8b5b3",
       "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "27d71a8ddf9ead7a8ba3840f7161993516ee723a1876da37e6a1e0329d2f2fc5",
       "src/renderer/sqlite-repo/agent-conversation-repo.ts": "44b089770371795c6dc52ae4534cb89e632e2e85f80084cf1ec45c223ac3902d",
@@ -44,7 +44,7 @@
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts": "51455b6af31b0b01036df7ae951649522ba237ef230e262eec49884367136316",
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f",
       "src/renderer/store/agent-chat-events.integration.test.ts": "d88c9941a6ff74b4f54f70392260d9194a8f034ab2217634ba58c277d73da629",
-      "src/renderer/store/agent-chat-store.ts": "0ef1378332aa99bc8c3af20fb3244892f60576dc510530fc18b4c94e47d88e8c",
+      "src/renderer/store/agent-chat-store.ts": "908cd0f71b1b4b693fdd3b7984fbd04cd620f0f7794d86fd5771055e569a320c",
       "src/renderer/sync/agent-chat/agent-chat.integration.test.ts": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217",
       "src/renderer/sync/agent-chat/imported-history.ts": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af",
       "src/renderer/sync/agent-chat/payload.ts": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c",
@@ -309,7 +309,7 @@
       ]
     },
     "sharedDatabase": {
-      "passed": 57,
+      "passed": 120,
       "failed": 0,
       "ignored": 0,
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"

@@ -15,6 +15,11 @@ Guidance for coding agents working in this standalone Drifting client repository
 
 ## Apple native migration
 
+- **Paused by the author on 2026-09-29.** The Tauri client is the active
+  client; do not start native batches, UI rework or acceptance refreshes unless
+  the author resumes the migration. The archived state is tagged
+  `apple-native-paused-2026-09-29`; see `docs/apple-native/README.md`. Keep
+  shared Rust changes compatible with both clients.
 - Follow `docs/apple-native/README.md` for the Apple-only target and staged gates.
 - Shared native correctness lives in `crates/drifting-core`; Tauri adapters and
   `native/apple` must use that owner instead of duplicating migration logic.

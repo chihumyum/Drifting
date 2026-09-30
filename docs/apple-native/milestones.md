@@ -106,6 +106,27 @@ architectural redesign.
 
 ## Next batch
 
+Paused on 2026-09-29 (tag `apple-native-paused-2026-09-29`); the author is
+iterating on the Tauri client. If resumed, the next work is the Mac shell
+restructure to the Tauri skeleton, in six batches with a review after each:
+
+1. Window skeleton: three-pane split view with collapsible sidebars, unified
+   toolbar (sidebar toggles, back/forward, right-panel switcher), a title-bar
+   tab strip (drag, close, context menu) and the status bar.
+2. Left sidebar: 章节/设定/灵感 switch with the project in its header,
+   source-list rows with SF Symbols, grouping and sorting, actions in context
+   menus instead of button rows.
+3. Right sidebar: 审阅, 素材, 统计 and 写作助手 as collapsible panes instead of
+   floating windows.
+4. Super views and bottom timeline: 设定总览, 故事图谱 and 备忘与素材 as
+   in-window full-content destinations from the toolbar's workspace
+   navigation (with 项目主页 and 全书长卷), returning to the tabs; the bottom
+   timeline docked under the centre column.
+5. Editor pages: compact headers, collapsible 摘要 and 关系, an icon format
+   bar, the body as a centred page; the same for element, drift, category and
+   storyline pages.
+6. Visual consistency: spacing, type scale, colours, dark mode, empty states.
+
 The open gates that need the author: attended performance certification,
 physical IME, signing and distribution.
 

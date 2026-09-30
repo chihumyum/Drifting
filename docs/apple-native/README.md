@@ -1,6 +1,16 @@
 # Apple native client migration
 
-Status: active, staged migration. The Tauri client remains the daily-use client.
+Status: **paused on 2026-09-29** at tag `apple-native-paused-2026-09-29`. The
+author returned to iterating on the Tauri client, which remains the daily-use
+client. The Mac native lab has 305 passing headless binding cases, but this is
+not desktop feature or physical-input acceptance. Its window is still a single
+plain column of standard controls; resuming starts with the shell restructure in
+[milestones](milestones.md) (three-pane layout, title-bar tab strip, right
+sidebar, in-window super views and the bottom timeline), estimated at about
+15–17 hours of work, before any further features.
+Ordinary CI keeps validating the Tauri client and shared Rust code, but skips
+Apple native acceptance while the migration is paused. Refresh native evidence
+only after the author resumes the migration.
 Only synthetic projects may be opened by the native lab. No production library,
 credentials, cloud account or published migration is changed by this experiment.
 
