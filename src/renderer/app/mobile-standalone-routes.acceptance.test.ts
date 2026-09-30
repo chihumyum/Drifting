@@ -117,7 +117,7 @@ describe('mobile standalone routes', () => {
     expect(toolsFace).toContain('<MobilePaperStats target={target} />');
     expect(statsSheet).toContain('<EntityStatsContent');
     expect(paperTools).toContain('<PlotGridEditor');
-    expect(toolsFace).toContain('<ReviewPanel focused={focused} />');
+    expect(toolsFace).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
     expect(toolsFace).not.toContain('<UserAvatar');
     expect(toolsFace).not.toContain('m-structure-shelf');
     expect(toolsFace).not.toContain('whatCanIDo');

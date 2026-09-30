@@ -68,6 +68,7 @@
     "agent:removal:acceptance": "node scripts/run-agent-removal-acceptance.mjs",
     "agent:navigation:acceptance": "node scripts/run-agent-navigation-acceptance.mjs",
     "agent:send:acceptance": "node scripts/run-agent-send-acceptance.mjs",
+    "agent:todo:acceptance": "node scripts/run-agent-todo-handoff-acceptance.mjs",
     "workspace:elements:acceptance": "node scripts/run-workspace-element-acceptance.mjs",
     "workspace:refresh:acceptance": "node scripts/run-workspace-refresh-acceptance.mjs",
     "workspace:projection:recovery": "node scripts/run-workspace-projection-recovery.mjs",

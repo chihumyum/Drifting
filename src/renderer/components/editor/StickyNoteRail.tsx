@@ -9,6 +9,7 @@ import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import { useEntityStickyNoteRail } from '../../hooks/useEntityStickyNoteRail';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
+import { useUiStore } from '../../store/ui-store';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { Button } from '../ui/Button';
@@ -237,6 +238,10 @@ export function StickyNoteRail({
               comment={comment}
               projectId={projectId}
               presentation="sticky"
+              onOpenAgentTask={() => {
+                useUiStore.getState().setSidebarOpen('right', true);
+                useUiStore.getState().setRightPanelGroup('agent');
+              }}
               relations={(relationsByComment.get(comment.id) ?? []).map((relation) => ({
                 id: relation.id,
                 toKind: relation.toKind,

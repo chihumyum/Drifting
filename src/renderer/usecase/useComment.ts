@@ -172,6 +172,43 @@ export function useComment({ projectId, userId }: UseCommentContext) {
     [ensureDb, projectId, userId],
   );
 
+  const recordAgentTaskLaunch = useCallback(
+    async (commentId: string, conversationId: string): Promise<CommentAction> => {
+      await ensureDb();
+      const comment = await commentRepo.findById(commentId);
+      if (!comment || comment.kind !== 'todo') {
+        throw new Error('The TODO is no longer available');
+      }
+      const existing = (await actionRepo.findByComment(commentId)).find(
+        (action) => action.kind === 'start_agent_task' && action.status === 'applied',
+      );
+      if (existing) return existing;
+      const now = new Date().toISOString();
+      const action: CommentAction = {
+        id: uuidv7(),
+        projectId,
+        commentId,
+        kind: 'start_agent_task',
+        label: 'Start Agent task',
+        payloadJson: '{}',
+        status: 'applied',
+        resultJson: JSON.stringify({ conversationId }),
+        createdByKind: 'user',
+        createdById: userId,
+        createdAt: now,
+        updatedAt: now,
+        appliedAt: now,
+      };
+      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        await createCommentActionRepository(projectId, tx).create(action);
+        await sync('commentAction', 'create', action.id, projectId, actionSyncPayload(action));
+      });
+      useDataStore.getState().addCommentAction(action);
+      return action;
+    },
+    [actionRepo, commentRepo, ensureDb, projectId, userId],
+  );
+
   const resolveComment = useCallback(
     async (id: string) => {
       await ensureDb();
@@ -563,6 +600,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
     () => ({
       loadInitial,
       createComment,
+      recordAgentTaskLaunch,
       resolveComment,
       reopenComment,
       updateCommentBody,
@@ -576,6 +614,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
     [
       loadInitial,
       createComment,
+      recordAgentTaskLaunch,
       resolveComment,
       reopenComment,
       updateCommentBody,

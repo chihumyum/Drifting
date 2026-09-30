@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
+  Bot,
   Check,
   ListTodo,
   MessageSquare,
@@ -16,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 
 import {
   commentColorKey,
+  agentTaskConversationId,
   createPlainCommentDoc,
   extractTextFromCommentBody,
   getBlockSnapshotsFromAnchor,
@@ -31,6 +33,8 @@ import {
 import { copilotRuntime } from '../../lib/copilot/runtime';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { useAuthStore } from '../../store/auth';
+import { useAgentChatStore } from '../../store/agent-chat-store';
+import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useComment } from '../../usecase/useComment';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
@@ -39,6 +43,20 @@ import { ContextMenuSurface } from '../../components/ui/ContextMenuSurface';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { CommentSnapshotModal } from './CommentSnapshotModal';
+import { buildTodoAgentTask } from './todo-agent-task';
+
+const launchingTodoTasks = new Set<string>();
+
+function todoTargetName(comment: Comment): string | null {
+  const data = useDataStore.getState();
+  switch (comment.targetKind) {
+    case 'node': return data.bookNodes.find((node) => node.id === comment.targetId)?.title ?? null;
+    case 'element': return data.bookElements.find((element) => element.id === comment.targetId)?.name ?? null;
+    case 'storyline': return data.storylines.find((storyline) => storyline.id === comment.targetId)?.name ?? null;
+    case 'category': return data.bookElementCategories.find((category) => category.id === comment.targetId)?.name ?? null;
+    default: return null;
+  }
+}
 
 export interface ReviewItemRelation {
   id: string;
@@ -56,6 +74,7 @@ export interface ReviewItemCardProps {
   onRemoveFromStickyRail?: () => void;
   onAddRelation?: (target: RelationTarget) => void;
   onRemoveRelation?: (target: RelationTarget) => void;
+  onOpenAgentTask?: () => void;
 }
 
 function ReviewActionMenuItem({
@@ -106,9 +125,16 @@ export function ReviewItemCard({
   onRemoveFromStickyRail,
   onAddRelation,
   onRemoveRelation,
+  onOpenAgentTask,
 }: ReviewItemCardProps) {
   const { t } = useTranslation();
   const userId = useAuthStore((state) => state.user?.id) ?? 'local';
+  const commentActions = useDataStore((state) => state.commentActions);
+  const taskConversationId = agentTaskConversationId(commentActions, comment.id);
+  const [launchedConversationId, setLaunchedConversationId] = useState<string | null>(null);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const taskChatId = taskConversationId ?? launchedConversationId;
+  const taskRunning = useAgentChatStore((state) => Boolean(taskChatId && state.runningTurns[taskChatId]));
   const navigator = useWorkspaceNavigator();
   const commentUsecases = useComment({ projectId, userId });
   const { createElement } = useBookElement({ projectId, userId });
@@ -159,6 +185,52 @@ export function ReviewItemCard({
     }
     navigator.open({ entityType: comment.targetKind, id: comment.targetId });
     scrollToBlockWhenReady(comment.targetId, comment.targetBlockId);
+  };
+
+  const handleTodoTask = async () => {
+    if (busy || launchingTodoTasks.has(comment.id)) return;
+    setTaskError(null);
+    if (taskChatId) {
+      try {
+        const chat = useAgentChatStore.getState();
+        if (chat.boundProjectId !== projectId) chat.bindProject(projectId, { restoreLastConversation: false });
+        await useAgentChatStore.getState().loadConversation(taskChatId);
+        if (useAgentChatStore.getState().activeConvId !== taskChatId) {
+          setTaskError(t('reviewPanel.agentTaskUnavailable'));
+          return;
+        }
+        onOpenAgentTask?.();
+      } catch {
+        setTaskError(t('reviewPanel.agentTaskUnavailable'));
+      }
+      return;
+    }
+    const task = buildTodoAgentTask(comment, todoTargetName(comment));
+    if (!task) {
+      setTaskError(t('reviewPanel.agentTaskUnavailable'));
+      return;
+    }
+    const chat = useAgentChatStore.getState();
+    if (chat.boundProjectId !== projectId) chat.bindProject(projectId, { restoreLastConversation: false });
+    launchingTodoTasks.add(comment.id);
+    setBusy(true);
+    try {
+      let conversationId: string | null = null;
+      await useAgentChatStore.getState().send({
+        runtimePrompt: task.prompt,
+        background: { title: task.title },
+        toolAccess: 'read_write',
+        onStarted: (id) => { conversationId = id; },
+      });
+      if (!conversationId) throw new Error(t('reviewPanel.agentTaskStartFailed'));
+      setLaunchedConversationId(conversationId);
+      await commentUsecases.recordAgentTaskLaunch(comment.id, conversationId);
+    } catch {
+      setTaskError(t('reviewPanel.agentTaskStartFailed'));
+    } finally {
+      launchingTodoTasks.delete(comment.id);
+      setBusy(false);
+    }
   };
 
   const saveBody = async () => {
@@ -303,6 +375,21 @@ export function ReviewItemCard({
 
       {summary?.subtitle && <div className="review-card__meta">{summary.subtitle}</div>}
       {summary?.evidence && <div className="review-card__evidence">{summary.evidence}</div>}
+
+      {isTodo && !isConverted && (
+        <div className="review-card__agent-task">
+          <button type="button" disabled={busy || (isResolved && !taskChatId)} onClick={() => void handleTodoTask()}>
+            <Bot size={13} aria-hidden />
+            {busy
+              ? t('reviewPanel.agentTaskStarting')
+              : taskChatId
+                ? t('reviewPanel.agentTaskOpen')
+                : t('reviewPanel.agentTaskStart')}
+            {taskRunning && <span className="review-card__agent-task-running" aria-label={t('reviewPanel.agentTaskRunning')} />}
+          </button>
+          {taskError && <span role="alert">{taskError}</span>}
+        </div>
+      )}
 
       {onAddRelation && onRemoveRelation && (
         <div className="review-card__relations">

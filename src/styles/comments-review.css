@@ -2011,6 +2011,50 @@
   margin-top: 6px;
 }
 
+.review-card__agent-task {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  margin-top: 7px;
+  font-size: 11px;
+  color: hsl(var(--ink-3));
+}
+
+.review-card__agent-task button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  cursor: pointer;
+}
+
+.review-card__agent-task button:hover:not(:disabled),
+.review-card__agent-task button:focus-visible {
+  color: hsl(var(--ink-1));
+  text-decoration: underline;
+}
+
+.review-card__agent-task button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.review-card__agent-task [role='alert'] {
+  color: hsl(var(--story-1));
+}
+
+.review-card__agent-task-running {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--story-3));
+}
+
 .review-card__editor-actions {
   display: flex;
   justify-content: flex-end;

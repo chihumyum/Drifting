@@ -37,9 +37,9 @@ describe('unified Review surface acceptance', () => {
     const store = source('src/renderer/store/ui-store.ts');
 
     expect(desktop).toContain("activeRightPanel === 'review'");
-    expect(desktop).toContain('<ReviewPanel focused={focusedForPanel} />');
+    expect(desktop).toContain('<ReviewPanel focused={focusedForPanel} onOpenAgentTask=');
     expect(mobile).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
-    expect(mobile).toContain('<ReviewPanel focused={focused} />');
+    expect(mobile).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
     expect(mobile).toContain('lastMobileRightSidebarTab');
     expect(store).toContain("activeRightPanel: 'review' | 'library' | 'stats'");
     expect(store).toContain("merged.activeRightPanel as string) === 'todo'");

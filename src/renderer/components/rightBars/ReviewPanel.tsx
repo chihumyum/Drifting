@@ -36,6 +36,7 @@ type ComposeKind = 'note' | 'todo';
 
 interface ReviewPanelProps {
   focused: FocusedEntity;
+  onOpenAgentTask?: () => void;
 }
 
 function reviewItemRank(
@@ -53,7 +54,7 @@ function canOwnEditorRail(kind: string | null): kind is Exclude<CommentTargetKin
   return kind === 'node' || kind === 'element' || kind === 'category' || kind === 'storyline';
 }
 
-export function ReviewPanel({ focused }: ReviewPanelProps) {
+export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const { t } = useTranslation();
   const navigator = useWorkspaceNavigator();
   const projectId = navigator.projectId;
@@ -216,6 +217,7 @@ export function ReviewPanel({ focused }: ReviewPanelProps) {
         comment={comment}
         projectId={projectId}
         presentation="panel"
+        onOpenAgentTask={onOpenAgentTask}
         mountedInStickyRail={mounted}
         relations={relations.map((relation) => ({
           id: relation.id,

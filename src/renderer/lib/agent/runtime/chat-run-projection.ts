@@ -15,6 +15,8 @@ export interface AgentChatTerminalState {
 export interface AgentChatRunState {
   /** Owning project — so a background turn doesn't pulse another project's cells. */
   projectId: string;
+  /** Author-started work that may continue while another conversation is displayed. */
+  backgroundTask?: boolean;
   transcript: AgentChatTranscript;
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;

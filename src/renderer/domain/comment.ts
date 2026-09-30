@@ -23,7 +23,7 @@ export type CommentPriority = 'low' | 'med' | 'high';
 // Note: legacy 'convert_to_memo' rows may still exist in older databases (the
 // pre-consolidation memo conversion path). Readers should treat unknown kinds
 // as inert — there's no live convert_to_memo handler anymore.
-export type CommentActionKind = 'accept_suggestion' | 'reject_suggestion';
+export type CommentActionKind = 'accept_suggestion' | 'reject_suggestion' | 'start_agent_task';
 export type CommentActionStatus = 'pending' | 'applied' | 'failed';
 
 export interface Comment {
@@ -66,6 +66,25 @@ export interface CommentAction {
   createdAt: string;
   updatedAt: string;
   appliedAt: string | null;
+}
+
+export function agentTaskConversationId(
+  actions: readonly CommentAction[],
+  commentId: string,
+): string | null {
+  for (let i = actions.length - 1; i >= 0; i -= 1) {
+    const action = actions[i];
+    if (action.commentId !== commentId || action.kind !== 'start_agent_task' || action.status !== 'applied') continue;
+    try {
+      const result = JSON.parse(action.resultJson ?? '{}') as { conversationId?: unknown };
+      if (typeof result.conversationId === 'string' && result.conversationId) {
+        return result.conversationId;
+      }
+    } catch {
+      // A malformed historical action cannot hide an earlier valid handoff.
+    }
+  }
+  return null;
 }
 
 export interface CommentAnchorPayload {

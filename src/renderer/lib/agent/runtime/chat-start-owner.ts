@@ -1,6 +1,7 @@
 interface StartEntry {
   projectId: string;
   conversationId: string | null;
+  background: boolean;
   invalid: boolean;
   submitted: boolean;
   cancelRuntime: boolean;
@@ -24,10 +25,10 @@ export function createAgentChatStartOwner(setStarting: (value: boolean) => void)
     if (wasActive) setStarting(false);
   }
   return {
-    begin(projectId: string, conversationId: string | null) {
+    begin(projectId: string, conversationId: string | null, background = false) {
       if (active || disposed) return null;
       const entry: StartEntry = { projectId, conversationId, invalid: false,
-        submitted: false, cancelRuntime: false, discard: null };
+        background, submitted: false, cancelRuntime: false, discard: null };
       active = entry; pending.add(entry); setStarting(true);
       return {
         isCurrent: (currentProjectId: string | null) => !entry.invalid && active === entry && currentProjectId === projectId,
@@ -49,7 +50,7 @@ export function createAgentChatStartOwner(setStarting: (value: boolean) => void)
         },
       };
     },
-    invalidate() { if (active) invalidate(active, false); },
+    invalidate() { if (active && !active.background) invalidate(active, false); },
     cancelConversation(id: string) {
       for (const entry of [...pending]) if (entry.conversationId === id) invalidate(entry, true);
     },

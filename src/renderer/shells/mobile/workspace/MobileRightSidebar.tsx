@@ -175,7 +175,7 @@ export function MobileRightSidebar({
           )}
           {tab === 'review' && (
             <div className="m-context-workspace__pane m-context-workspace__body m-review-workspace">
-              <ReviewPanel focused={focused} />
+              <ReviewPanel focused={focused} onOpenAgentTask={() => { lastMobileRightSidebarTab = 'agent'; setTab('agent'); }} />
             </div>
           )}
           {tab === 'agent' && (

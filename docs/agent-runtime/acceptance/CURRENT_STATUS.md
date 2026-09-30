@@ -106,6 +106,19 @@ pnpm agent:capabilities:check
 - Chapter, inspiration, element, category, storyline, membership, relation type, relation,
   comment/TODO, project fact, author-rule, memory, and element-patch lifecycle
   support is generated and machine checked.
+- During an author-requested write task, General Agent may leave a concise,
+  evidence-backed incidental finding as an existing Comment/TODO on the
+  relevant authored object. This is opportunistic, not an Ambient scan: it
+  does not search for extra issues or turn the requested work into a TODO.
+  `create_comment` still uses the normal anchored write and review boundary.
+- An open TODO in Review or the editor rail offers **让 Agent 处理**. It starts
+  one separate same-project Agent conversation in the background, preserves
+  the author's displayed chat and unsent draft, and stores the conversation
+  link as a synced `comment_action`. The TODO stays open for author review.
+  Opening the linked chat exposes its progress and normal Agent controls.
+  A project switch cancels pending startup and foreign running turns because
+  the tool bridge remains bound to the viewed project. This is an explicit
+  user-launched session, not a persistent Ambient worker or a worktree.
 - Project relations use synced first-class type definitions rather than new
   free-text labels. A type declares `directed` or `symmetric` orientation,
   endpoint roles, and allowed source/target entity kinds. Desktop relation
@@ -230,6 +243,11 @@ pnpm agent:capabilities:check
   repository.
 - Subagent orchestration remains deferred. Multiple current conversations are
   supported; that is not subagent delegation.
+- TODO handoff has synthetic E1 coverage in
+  [`todo-agent-handoff.json`](todo-agent-handoff.json), regenerated with
+  `pnpm agent:todo:acceptance` and checked with
+  `pnpm agent:todo:acceptance --check`. Paid-provider behavior, SQLite restart,
+  and desktop/mobile visual interaction have not been accepted for this path.
 
 ## Developer CLI
 

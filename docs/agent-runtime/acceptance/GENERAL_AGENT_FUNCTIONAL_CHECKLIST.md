@@ -57,6 +57,8 @@ Rules:
 | CHAT-08 | Core  | E2               | Required user input resumes the same turn without creating a second author message.                        |
 | CHAT-09 | Core  | E2               | Refresh/reopen reconstructs transcript, tool activities, usage and terminal state without duplication.     |
 | CHAT-10 | Core  | E4               | Errors are actionable and do not expose stack traces, provider payloads, Yjs snapshots or internal paths.  |
+| CHAT-11 | Core  | E1               | Starting an open TODO creates a separate background conversation, keeps the displayed chat and unsent draft, survives same-project navigation, and fails closed on project switch or rejected startup. |
+| CHAT-12 | Core  | E4               | From Review/editor rail, “让 Agent 处理” starts once, shows progress, and “查看 Agent 对话” opens the linked chat on desktop and mobile. |
 
 ## C. Tool-call protocol and selection
 
@@ -121,6 +123,7 @@ plus receipt, inverse/permission behavior and restart visibility.
 | CRUD-16 | Core  | E1+E2            | A summary-only natural write never clears an omitted body. Existing element/storyline body writes preserve the body first, expose one explicit remaining summary field, and retire that remaining work as soon as the matching authored summary is durably saved.                                                                                                                                                                                                                                               |
 | CRUD-17 | Core  | E2               | `create_comment` accepts a unique exact `targetText` from the named entity's live prose, resolves it internally to a stable block id plus precise text anchor, and fails closed when the text is absent/ambiguous, the block has no stable id, or the live block changes during preparation. Comment create/update/delete mark only the anchored host as Modified; relation create/update/delete mark both endpoints as Modified, including endpoints resolved before deletion, and neither path records Added. |
 | CRUD-18 | Core  | E2               | Project relation types are explicit synced definitions with `directed`/`symmetric` semantics, endpoint roles and allowed kinds. General Agent can list/create/update/delete authored types through project freshness, immutable SQLite receipts and guarded exact inverse; reversed directed endpoints return a swap instruction, a used type cannot be deleted, and the locked built-in `generic-association` type cannot be mutated. Old kind-only or nullable-type payloads fail closed.                         |
+| CRUD-19 | Core  | E1+E3            | During an unrelated requested task, Agent records only a directly observed, non-duplicate issue as an anchored Comment/TODO and reports it without displacing the requested work. E1 verifies the prompt and handoff contract; E3 requires a configured provider and live project. |
 
 ## F. Prose editing and review
 

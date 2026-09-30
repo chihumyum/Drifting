@@ -143,6 +143,10 @@ export interface AgentChatSendOptions {
   turnContext?: readonly AgentConversationContextRef[];
   /** Mobile Answer mode removes every write tool at the runtime boundary. */
   toolAccess?: 'read_only' | 'read_write';
+  /** Start a new background conversation, or continue its existing task. */
+  background?: { conversationId?: string; title?: string };
+  /** Called only after the runtime accepts the new turn. */
+  onStarted?: (conversationId: string) => void;
 }
 
 interface AgentChatState {
@@ -344,17 +348,20 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   send: async (options) => {
-    conversationLists.cancelRestore();
+    const background = options?.background;
+    if (!background) conversationLists.cancelRestore();
     ensureSubscription();
     const origin = options?.origin ?? 'author';
     const s = get();
     const submittedPrompt = options?.runtimePrompt ?? s.prompt;
     if (s.starting || !submittedPrompt.trim() || !s.boundProjectId) return;
-    const displayedRun = s.activeConvId ? s.runs[s.activeConvId] : undefined;
-    if (displayedRun?.pendingControl?.requiresContinuation) return;
-    const activeTurnId = s.activeConvId ? s.runningTurns[s.activeConvId] : undefined;
-    if (s.activeConvId && activeTurnId) {
-      const activeConversationId = s.activeConvId;
+    const targetConvId = background ? background.conversationId ?? null : s.activeConvId;
+    const targetRun = targetConvId ? s.runs[targetConvId] : undefined;
+    if (targetRun?.pendingControl?.requiresContinuation) return;
+    const activeTurnId = targetConvId ? s.runningTurns[targetConvId] : undefined;
+    if (targetConvId && activeTurnId) {
+      if (background) return;
+      const activeConversationId = targetConvId;
       const liveRun = s.runs[activeConversationId];
       const text = submittedPrompt.trim();
       const pending = liveRun?.pendingControl;
@@ -385,8 +392,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     // Claim startup before the first await. `continueTask` and the
     // ordinary composer share this exact gate.
-    conversationLoadGuard.invalidate();
-    const start = conversationStartOwner.begin(s.boundProjectId, s.activeConvId);
+    if (!background) conversationLoadGuard.invalidate();
+    const start = conversationStartOwner.begin(s.boundProjectId, targetConvId, Boolean(background));
     if (!start) return;
     const isCurrentStart = (): boolean => start.isCurrent(get().boundProjectId);
     try {
@@ -404,7 +411,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Preserve an explicit cancellable startup boundary even when no product
       // preflight read is needed. New Chat / Load Conversation can invalidate
       // this intent before the stale prompt is appended to either transcript.
-      if (!(await conversationRemovals.wait(s.boundProjectId, s.activeConvId)) || !isCurrentStart()) return;
+      if (!(await conversationRemovals.wait(s.boundProjectId, targetConvId)) || !isCurrentStart()) return;
       const now = userMessage.at;
       const settings = useSettingsStore.getState();
       const auth = settings.agentAuth;
@@ -415,14 +422,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
       // Lazily create the conversation row on the first message so it shows up in
       // history immediately; the transcript is overwritten on `turn_finished`.
-      let convId = s.activeConvId;
+      let convId = targetConvId;
       if (!convId) {
         convId = uuidv7();
         try {
           await repo.create({
             id: convId,
             projectId,
-            title: deriveTitle(text),
+            title: background?.title ?? deriveTitle(text),
             mode: convMode,
             messages: isRuntimeContinuation ? [] : [userMessage],
             sdkSessionId: null,
@@ -431,7 +438,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             updatedAt: now,
           });
         } catch {
-          /* persistence is best-effort — chat still works in-memory */
+          if (background) return;
+          /* Foreground chat still works in-memory if persistence is unavailable. */
         }
         if (!isCurrentStart()) return;
       }
@@ -466,6 +474,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
               : armAgentAutomaticContinuation(previousAutomatic, Date.now());
       const run: RunState = {
         projectId,
+        backgroundTask: Boolean(background),
         transcript: isRuntimeContinuation
           ? (prevRun?.transcript ?? AgentChatTranscript.from([]))
           : (prevRun?.transcript ?? AgentChatTranscript.from([])).append(userMessage),
@@ -486,8 +495,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       journalConsumer.registerTurn(turnId, cid);
       set((st) => ({
         runs: { ...st.runs, [cid]: run },
-        activeConvId: cid,
-        prompt: options?.runtimePrompt === undefined ? '' : st.prompt,
+        ...(!background ? {
+          activeConvId: cid,
+          prompt: options?.runtimePrompt === undefined ? '' : st.prompt,
+        } : {}),
         runningTurns: { ...st.runningTurns, [cid]: turnId },
         runningTurnId: turnId,
         runningConvId: cid,
@@ -510,7 +521,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       if (!isCurrentStart()) return;
       // Remember this as the project's last-active conversation so it re-opens on
       // next launch.
-      useSettingsStore.getState().setLastAgentConv(projectId, cid);
+      if (!background) useSettingsStore.getState().setLastAgentConv(projectId, cid);
       get().refreshList();
 
       // Author-owned project facts/rules are injected verbatim. The product does
@@ -564,8 +575,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         }));
       // Once submitted, result ownership is the captured turn, independent of
       // which conversation is now visible. Navigation preserves background work.
-      if (r.ok && start.shouldAbort()) void generalAgentTransport.abort({ turnId });
-      if (get().runningTurns[cid] !== turnId) return;
+      const cancelled = start.shouldAbort();
+      if (r.ok && cancelled) void generalAgentTransport.abort({ turnId });
+      if (get().runningTurns[cid] !== turnId) {
+        if (r.ok && !cancelled) options?.onStarted?.(cid);
+        return;
+      }
       // !ok only fires for pre-flight failures (e.g. auth) that emitted no events
       // for this turn — a turn that started surfaces its own terminal state via
       // the canonical journal. So surface this one and clear the in-flight turn.
@@ -597,6 +612,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           };
         });
       }
+      if (r.ok && !cancelled) options?.onStarted?.(cid);
     } finally {
       start.finish();
     }
@@ -697,7 +713,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   newConversation: () => {
     conversationLists.cancelRestore();
     const activeConvId = get().activeConvId;
-    if (activeConvId) {
+    if (activeConvId && !get().runs[activeConvId]?.backgroundTask) {
       pauseAutomaticContinuationForConversation(activeConvId, 'author_navigated');
     }
     conversationLoadGuard.invalidate();
@@ -798,7 +814,7 @@ async function openAgentConversation(id: string, isCurrentRestore: () => boolean
   const boundProjectId = get().boundProjectId;
   if (!boundProjectId) return;
   const previousActiveConvId = get().activeConvId;
-  if (previousActiveConvId && previousActiveConvId !== id) {
+  if (previousActiveConvId && previousActiveConvId !== id && !get().runs[previousActiveConvId]?.backgroundTask) {
     pauseAutomaticContinuationForConversation(previousActiveConvId, 'author_navigated');
   }
   conversationStartOwner.invalidate();
@@ -964,11 +980,11 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
     return;
   }
 
-  if (state.boundProjectId !== run.projectId || state.activeConvId !== convId) {
+  if (state.boundProjectId !== run.projectId || (!run.backgroundTask && state.activeConvId !== convId)) {
     pauseAutomaticContinuationForConversation(convId, 'author_navigated');
     return;
   }
-  if (state.prompt.trim()) {
+  if (!run.backgroundTask && state.prompt.trim()) {
     pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
     return;
   }
@@ -1015,11 +1031,11 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
     ) {
       return;
     }
-    if (current.boundProjectId !== currentRun.projectId || current.activeConvId !== convId) {
+    if (current.boundProjectId !== currentRun.projectId || (!currentRun.backgroundTask && current.activeConvId !== convId)) {
       pauseAutomaticContinuationForConversation(convId, 'author_navigated');
       return;
     }
-    if (current.prompt.trim()) {
+    if (!currentRun.backgroundTask && current.prompt.trim()) {
       pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
       return;
     }
@@ -1032,6 +1048,7 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
       .send({
         origin: 'automatic_continuation',
         runtimePrompt: continuationPrompt,
+        ...(currentRun.backgroundTask ? { background: { conversationId: convId } } : {}),
       })
       .catch(() => pauseAutomaticContinuationForConversation(convId, 'start_failed'));
   }, AUTOMATIC_CONTINUATION_DELAY_MS);

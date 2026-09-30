@@ -65,7 +65,7 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     const footer = source('components/ui/CollapsibleFooter.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
-    expect(panels).toContain('<ReviewPanel focused={focused} />');
+    expect(panels).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
     expect(panels).toContain('<LibraryPanel focused={focused} presentation="mobile" />');
     expect(library).toContain("mobileActions={presentation === 'mobile'}");
     expect(card).toContain('className="library-item-card__mobile-menu"');

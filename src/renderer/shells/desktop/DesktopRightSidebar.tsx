@@ -219,7 +219,10 @@ export function DesktopRightSidebar() {
 
   const contentBody = (
     <>
-      {activeRightPanel === 'review' && <ReviewPanel focused={focusedForPanel} />}
+      {activeRightPanel === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => {
+        useUiStore.getState().setSidebarOpen('right', true);
+        useUiStore.getState().setRightPanelGroup('agent');
+      }} />}
       {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
       {activeRightPanel === 'stats' && (
         <EntityStatsContent
