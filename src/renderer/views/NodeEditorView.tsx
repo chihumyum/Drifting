@@ -16,6 +16,7 @@ import {
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
+import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
@@ -861,7 +862,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   ) : isActiveNodeLoadError ? (
                     <EditorDocumentLoadError />
                   ) : (
-                    <div aria-hidden style={{ minHeight: 400 }} />
+                    <div style={{ minHeight: 400, display: 'grid', placeItems: 'center' }}>
+                      <LoadingStatus label={t('common.loading')} />
+                    </div>
                   )}
 
                   <div className="page__ornament" aria-hidden="true">⁂</div>

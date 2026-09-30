@@ -27,7 +27,7 @@ const fingerprint = () => {
   for (const file of files) hash.update(file).update(readFileSync(file));
   return hash.digest('hex');
 };
-const expectedChecks = ['preloadWithoutMount', 'sharedLoad', 'cachedReopen', 'spinner', 'translated', 'reducedMotion', 'loadingBack', 'lateOwner', 'failureRetry'];
+const expectedChecks = ['preloadWithoutMount', 'sharedLoad', 'cachedReopen', 'spinner', 'translated', 'reducedMotion', 'loadingBack', 'lateOwner', 'failureRetry', 'unknownRoute'];
 function validate(report) {
   assert.equal(report.kind, 'renderer_project_entry');
   assert.equal(report.status, 'passed');
@@ -184,6 +184,9 @@ if (process.argv.includes('--check')) {
         await evaluate("document.querySelector('[role=alert] .set-btn--primary').click()");
         await until("document.querySelector('[data-project]')");
         checks.failureRetry = true;
+        await evaluate("location.hash = '/synthetic-missing-route'");
+        await until("location.hash === '#/' && document.querySelector('[data-shelf]')");
+        checks.unknownRoute = true;
       }
       assert.deepEqual(errors, []);
       console.log(JSON.stringify(samples.at(-1)));

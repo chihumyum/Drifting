@@ -21,6 +21,7 @@ import type { User } from '../../../store/auth';
 import type { ProjectSummary } from '../../../usecase/useProject';
 import type { DecoratedRow } from '../../../views/ProjectPickerView';
 import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
+import { LoadingStatus } from '../../../components/ui/LoadingStatus';
 import { hostedAccountSettingsEnabled } from '../../../features/settings/hosted-settings-policy';
 import {
   readMobileProjectShelfSession,
@@ -220,7 +221,7 @@ export function MobileProjectShelfContent({
         </header>
 
         {loading ? (
-          <div className="m-shelf__empty">{t('projectPicker.loading')}</div>
+          <div className="m-shelf__empty"><LoadingStatus label={t('projectPicker.loading')} /></div>
         ) : total === 0 ? (
           <div className="m-shelf__empty">
             <p>{t('projectPicker.empty')}</p>
@@ -351,7 +352,7 @@ export function MobileProjectShelfContent({
       </nav>
 
       {loading ? (
-        <div className="m-shelf__empty">{t('projectPicker.loading')}</div>
+        <div className="m-shelf__empty"><LoadingStatus label={t('projectPicker.loading')} /></div>
       ) : total === 0 ? (
         <div className="m-shelf__empty">
           <p>{t('projectPicker.empty')}</p>

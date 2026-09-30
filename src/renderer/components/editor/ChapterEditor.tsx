@@ -19,6 +19,7 @@ import {
 } from '../../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import { EditorDocumentLoadError } from './EditorDocumentLoadError';
+import { LoadingStatus } from '../ui/LoadingStatus';
 import { useFieldReview } from '../../hooks/useFieldReview';
 import { FieldReview } from './FieldReview';
 import loglevel from 'loglevel';
@@ -295,8 +296,7 @@ export function ChapterEditor({
   const nodeSummaryChange = nodeFieldReview.summaryChange;
 
   if (!editor) {
-    log.error('Editor not initialized');
-    return null;
+    return ydocError ? <EditorDocumentLoadError /> : <LoadingStatus label={t('common.loading')} />;
   }
 
   const literary = !compact;

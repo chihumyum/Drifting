@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { LoadingStatus } from '../ui/LoadingStatus';
 
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import {
@@ -354,18 +355,22 @@ function WorkspaceSurface({
 }
 
 function EditorStageLoadingSurface() {
+  const { t } = useTranslation();
   return (
     <div
-      aria-hidden
       data-editor-stage-loading
       style={{
         position: 'absolute',
         inset: 0,
         zIndex: 2,
+        display: 'grid',
+        placeItems: 'center',
         background: 'hsl(var(--paper))',
         pointerEvents: 'none',
       }}
-    />
+    >
+      <LoadingStatus label={t('common.loading')} />
+    </div>
   );
 }
 

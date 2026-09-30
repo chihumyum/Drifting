@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SuperViewShell } from '../../../components/SuperViewShell';
+import { LoadingStatus } from '../../../components/ui/LoadingStatus';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { useDriftPanelAnim } from '../../../hooks/useDriftPanelAnim';
@@ -20,8 +21,9 @@ function PendingSuperView({ failed, retry }: { failed: boolean; retry: () => voi
   return (
     <SuperViewShell>
       <DesktopSuperViewHeader onBack={close} />
-      <div className="set-panel" role={failed ? 'alert' : 'status'} aria-live="polite">
-        <p className="set-panel__sub">{t(failed ? 'appShell.viewLoadFailed' : 'common.loading')}</p>
+      <div className="set-panel" role={failed ? 'alert' : undefined}>
+        {failed ? <p className="set-panel__sub">{t('appShell.viewLoadFailed')}</p>
+          : <LoadingStatus label={t('common.loading')} />}
         {failed && <button type="button" className="set-btn" onClick={retry}>{t('appShell.retry')}</button>}
       </div>
     </SuperViewShell>

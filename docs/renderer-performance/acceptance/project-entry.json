@@ -1,36 +1,36 @@
 {
   "kind": "renderer_project_entry",
   "status": "passed",
-  "generatedAt": "2026-09-30T18:14:18.620Z",
+  "generatedAt": "2026-09-30T18:35:27.770Z",
   "source": {
-    "commit": "b50d6a4e00ad6dcd7f597905e9c976812fa0fb01",
-    "fingerprint": "7f6a8d04adfcb4e733f668d2792648b165a605e4f7365095baf1c7eb1317112c"
+    "commit": "5669c060843e01f87211e50c6198ceb430228e3b",
+    "fingerprint": "ad93e75306dbc576ec10e0110ee1fb794adac511976d96b9355b42294404790f"
   },
   "browser": "Chrome/154.0.8037.58",
   "samples": [
     {
       "mode": "cold",
-      "shelfMs": 1318,
+      "shelfMs": 1288,
       "selectionDwellMs": 1500,
       "stateBeforeClick": "idle",
       "mountsBeforeClick": 0,
-      "clickToMountedPaintMs": 688.2999999523163
+      "clickToMountedPaintMs": 591.7999999523163
     },
     {
       "mode": "server-warmup",
-      "shelfMs": 1384,
+      "shelfMs": 1214.8000001907349,
       "selectionDwellMs": 1500,
       "stateBeforeClick": "idle",
       "mountsBeforeClick": 0,
-      "clickToMountedPaintMs": 258.2999999523163
+      "clickToMountedPaintMs": 284.90000009536743
     },
     {
       "mode": "shelf-preload",
-      "shelfMs": 1235.9000000953674,
+      "shelfMs": 1194.8999998569489,
       "selectionDwellMs": 1500,
       "stateBeforeClick": "ready",
       "mountsBeforeClick": 0,
-      "clickToMountedPaintMs": 30.899999856948853
+      "clickToMountedPaintMs": 33.80000019073486
     }
   ],
   "checks": {
@@ -42,7 +42,8 @@
     "reducedMotion": true,
     "loadingBack": true,
     "lateOwner": true,
-    "failureRetry": true
+    "failureRetry": true,
+    "unknownRoute": true
   },
   "limitations": [
     "One development-server observation per scenario, with separate fresh Vite/browser caches and identical 1500 ms shelf dwell. Timing samples are diagnostic, not fixed-device budgets or statistical estimates.",

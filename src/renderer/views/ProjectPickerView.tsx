@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/auth';
 import { hostedAccountSettingsEnabled } from '../features/settings/hosted-settings-policy';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
 import { FilterChip } from '../components/ui/FilterChip';
+import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
 import { BookOpen, Grid2X2, List, Pencil, Plus, Search, Trash2 } from 'lucide-react';
@@ -390,7 +391,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
       <div className="pp">
         <WindowDragStrip />
         <div className="pp__inner">
-          <div className="pp-empty">{t('projectPicker.loading')}</div>
+          <div className="pp-empty"><LoadingStatus label={t('projectPicker.loading')} /></div>
         </div>
       </div>
     );

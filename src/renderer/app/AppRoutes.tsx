@@ -28,12 +28,13 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [ready, setReady] = useState(false);
   const checkSession = useAuthStore(state => state.checkSession);
   useEffect(() => { void checkSession().then(() => setReady(true)); }, [checkSession]);
   // Login owns navigation until its initial library sync finishes (or fails).
   if (APP_CONFIG.LOCAL_ONLY_MODE) return <Navigate to="/" replace />;
-  return ready ? children : <FullScreenStatus title="Opening library…" />;
+  return ready ? children : <FullScreenStatus title={t('appShell.checkingAuthentication')} loading />;
 }
 
 export function AppRoutes() {
@@ -120,6 +121,7 @@ export function AppRoutes() {
           }
         />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -1,0 +1,32 @@
+.loading-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 96px;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  text-align: center;
+}
+
+.loading-status__spinner {
+  display: block;
+  box-sizing: border-box;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid hsl(var(--ink-6));
+  border-top-color: hsl(var(--accent));
+  border-radius: 50%;
+  animation: loading-status-spin 0.8s linear infinite;
+}
+
+@keyframes loading-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-status__spinner { animation: none; }
+}

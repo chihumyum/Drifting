@@ -1,5 +1,8 @@
 # Renderer performance work and evidence
 
+The [startup placeholder](startup-placeholder.md) provides loading feedback from
+the HTML document through the first React commit, including before the app modules load.
+
 The 2026-10-01 [project entry](project-route-loading.md) and
 [standalone settings entry](settings-entry-loading.md) update the loading boundaries.
 `pnpm perf:renderer:settings` now checks the direct settings shell, eager basic

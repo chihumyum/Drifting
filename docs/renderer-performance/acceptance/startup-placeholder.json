@@ -1,0 +1,184 @@
+{
+  "kind": "renderer_startup_placeholder",
+  "status": "passed",
+  "generatedAt": "2026-09-30T18:35:14.514Z",
+  "source": {
+    "commit": "5669c060843e01f87211e50c6198ceb430228e3b",
+    "fingerprint": "cef33528e72c8fe2353c51ebd42a82b76c28cbcd77705cebee0399ff31fbe862"
+  },
+  "runs": [
+    {
+      "mode": "production",
+      "name": "default",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "production",
+      "name": "saved-dark",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "production",
+      "name": "system-dark",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "production",
+      "name": "system-light",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "production",
+      "name": "corrupt-storage",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "production",
+      "name": "blocked-storage",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "production",
+      "name": "reduced-motion",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "default",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "saved-dark",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "system-dark",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "system-light",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "corrupt-storage",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "blocked-storage",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    },
+    {
+      "mode": "development",
+      "name": "reduced-motion",
+      "checks": {
+        "visibleWithoutScripts": true,
+        "themeAndLocale": true,
+        "reducedMotion": true,
+        "heldThroughBootstrap": true,
+        "replacedByReact": true,
+        "localLoading": true
+      }
+    }
+  ],
+  "limitations": [
+    "Real HTML, classic startup script, main.tsx and React mount with a synthetic App. No author database or native window is opened.",
+    "Production preview uses the configured production CSP. Tests cover HTML availability through React commit, not native window creation before HTML arrives or total app startup time.",
+    "Blocked storage is restored before releasing the app module; the blocked-storage check covers only the standalone placeholder."
+  ]
+}
