@@ -45,6 +45,10 @@ verified identity for the runner, which checks it again immediately before
 launch. Local builds use the same requirement. Debug data defaults to the
 checkout's ignored `.local-data/databases` directory.
 
+For parallel worktrees or AI-driven UI acceptance, use `pnpm dev:worktree`
+with [isolated development profiles](worktree-development.md). This gives each
+checkout a separate database, application identity, WebView store and dev port.
+
 ### Develop against a Hosted service with HMR
 
 `pnpm dev` stays local-only. To enable accounts and Hosted sync, set

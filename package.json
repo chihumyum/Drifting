@@ -20,6 +20,7 @@
     "tauri:android:dev": "tauri android dev",
     "tauri:android:build": "cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri android build",
     "dev": "pnpm tauri:dev",
+    "dev:worktree": "node scripts/run-worktree-dev.mjs",
     "dev:check": "node scripts/check-macos-dev-signing.mjs",
     "dev:local": "pnpm tauri:dev",
     "dev:online": "node scripts/run-desktop-tauri.mjs dev --online",

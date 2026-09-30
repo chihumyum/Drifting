@@ -12,6 +12,11 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Do not commit credentials, `.env` files, private manuscripts, personal paths,
   databases, signing material, or data copied from the private official service.
 - Test fixtures must be synthetic or have documented redistribution rights.
+- For automated desktop UI acceptance, use `pnpm dev:worktree --no-watch`
+  instead of the daily-use launcher. Each checkout gets its own database,
+  application identity and port; use `--instance <name>` for parallel runs in
+  one checkout and `--print-config` to inspect the non-secret JSON manifest.
+  See `docs/worktree-development.md`. Never point parallel apps at one database.
 
 ## Apple native migration
 
