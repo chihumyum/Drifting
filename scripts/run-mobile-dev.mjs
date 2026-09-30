@@ -172,8 +172,9 @@ export function createMobileEnvironment(
     VITE_API_BASE_URL: merged.VITE_API_BASE_URL ?? apiBaseUrl,
     API_BASE_URL: merged.API_BASE_URL ?? apiBaseUrl,
     VITE_LOCAL_ONLY_MODE: String(localOnly),
-    VITE_REQUIRE_AUTH: merged.VITE_REQUIRE_AUTH ?? (localOnly ? 'false' : 'true'),
-    VITE_AI_TRANSPORT: merged.VITE_AI_TRANSPORT ?? (localOnly ? 'direct' : 'proxy'),
+    VITE_REQUIRE_AUTH: 'false',
+    VITE_AI_TRANSPORT: 'direct',
+    ...(localOnly ? {} : { DRIFTING_HOSTED_ORIGIN: apiBaseUrl }),
     VITE_CLOSED_BETA: merged.VITE_CLOSED_BETA ?? 'false',
   };
 
@@ -248,7 +249,7 @@ export function writeIosGoogleOauthLocalConfig(
 async function assertServiceReachable(apiBaseUrl) {
   let response;
   try {
-    response = await fetch(new URL('/', apiBaseUrl), {
+    response = await fetch(new URL('/health', apiBaseUrl), {
       signal: AbortSignal.timeout(2_000),
     });
   } catch {

@@ -66,6 +66,13 @@ export class ProductSyncRuntimeControl {
     };
   }
 
+  /** Stop provider callbacks before the local replica changes ownership. */
+  async quiesceForProviderChange(): Promise<() => void> {
+    const coordinator = this.coordinator;
+    await coordinator?.suspendAndDrain();
+    return () => coordinator?.resumeAfterProviderChange();
+  }
+
   triggerManual(syncGenerationId?: string): void {
     const coordinator = this.coordinator;
     if (!coordinator) throw new Error('Cloud SyncEngine is not active');

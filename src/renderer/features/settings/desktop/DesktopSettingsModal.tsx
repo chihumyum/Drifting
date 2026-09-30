@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { matchesAccelerator } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { useAuthStore } from '../../../store/auth';
-import { useFeatureAccessStore } from '../../../lib/feature-access';
 import { useSettingsPanels } from '../useSettingsPanels';
 import { SettingsLoadStatus } from '../SettingsLoadStatus';
 import { TrashRailPanel } from '../panels/TrashSettingsPanel';
@@ -23,7 +22,6 @@ interface DesktopSettingsModalProps {
 
 type RailId =
   | 'account'
-  | 'subscription'
   | 'trash'
   | 'appearance'
   | 'editor'
@@ -52,20 +50,12 @@ interface RailBaseDef {
   labelKey: string;
 }
 
-// Static rail definition. The subscription row's badge is filled in at
-// render time from the actual cached plan — see SetRail.
 const RAIL_BASE: RailBaseDef[] = [
   {
     id: 'account',
     groupKey: 'settings.groups.account',
     glyph: '◌',
     labelKey: 'settings.rail.account',
-  },
-  {
-    id: 'subscription',
-    groupKey: 'settings.groups.account',
-    glyph: '¶',
-    labelKey: 'settings.rail.subscription',
   },
   { id: 'trash', groupKey: 'settings.groups.account', glyph: '⌫', labelKey: 'settings.rail.trash' },
   {
@@ -128,7 +118,6 @@ const RAIL_BASE: RailBaseDef[] = [
 
 const RAIL_IDS = new Set<RailId>([
   'account',
-  'subscription',
   'trash',
   'appearance',
   'editor',
@@ -143,10 +132,7 @@ const RAIL_IDS = new Set<RailId>([
   'about',
 ]);
 
-// Compute the rail with dynamic badges — the subscription line shows the
-// real cached plan instead of a hardcoded "PRO".
 function useRail(): RailDef[] {
-  const plan = useFeatureAccessStore((s) => s.plan);
   const { t } = useTranslation();
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
   return useMemo<RailDef[]>(() => {
@@ -159,12 +145,9 @@ function useRail(): RailDef[] {
         glyph: r.glyph,
         label: t(r.labelKey),
       };
-      if (r.id === 'subscription') {
-        return { ...base, badge: { text: plan.toUpperCase() } };
-      }
       return base;
     });
-  }, [accountSettingsEnabled, plan, t]);
+  }, [accountSettingsEnabled, t]);
 }
 
 export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: DesktopSettingsModalProps) {
@@ -310,16 +293,13 @@ function LoadedSettingsPanels({ panels, accountSettingsEnabled, active, isOpen, 
   isOpen: boolean;
   registerPanel: (id: RailId, element: HTMLElement | null) => void;
 }) {
-  const { AccountPanel, SubscriptionPanel, AppearancePanel, EditorPanel, LanguagePanel,
+  const { AccountPanel, AppearancePanel, EditorPanel, LanguagePanel,
     ModelsPanel, CopilotPanel, AgentPanel, KeysPanel, SyncPanel, UpdatePanel, PrivacyPanel, AboutPanel } = panels;
   return (
     <>
       {accountSettingsEnabled && (
         <>
           <AccountPanel registerRef={(el) => registerPanel('account', el)} />
-          <SubscriptionPanel
-            registerRef={(el) => registerPanel('subscription', el)}
-          />
         </>
       )}
       <TrashRailPanel registerRef={(el) => registerPanel('trash', el)} />
@@ -421,7 +401,7 @@ function SetRail({
   onSelect: (id: RailId) => void;
 }) {
   const { t } = useTranslation();
-  const user = useAuthStore((s) => s.user);
+  const user = useAuthStore((s) => s.hostedUser);
   const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
   const groups: { name: string; items: RailDef[] }[] = [];
   for (const r of items) {

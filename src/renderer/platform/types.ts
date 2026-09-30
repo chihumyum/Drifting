@@ -58,6 +58,8 @@ export interface OAuthCallback {
 }
 
 export interface AppPlatformApi {
+  /** Non-secret native installation marker; never requests Keychain access. */
+  getInstallationIdentity(): Promise<string>;
   getInfo(): Promise<AppInfo>;
   getVersion(): Promise<string>;
   getPath(name: string): Promise<string>;
@@ -349,6 +351,11 @@ export interface PlatformApi {
   readonly lifecycle: LifecyclePlatformApi;
   readonly auth: AuthPlatformApi;
   readonly keychain: KeychainPlatformApi;
+  readonly hostedSync: {
+    request(input: { origin: string; token: string; path: string; method: 'GET' | 'PUT';
+      sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number;
+      signal?: AbortSignal }): Promise<unknown>;
+  };
   readonly syncObjectStore: SyncObjectStorePlatformApi;
   readonly syncAssetStore: SyncAssetStorePlatformApi;
   readonly googleDrive: GoogleDrivePlatformApi;

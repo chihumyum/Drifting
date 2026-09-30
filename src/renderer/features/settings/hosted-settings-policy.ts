@@ -1,4 +1,4 @@
-import { APP_CONFIG, isAuthRequired } from '../../lib/config';
+import { APP_CONFIG } from '../../lib/config';
 
 export const HOSTED_ACCOUNT_SETTING_IDS = ['account', 'subscription'] as const;
 
@@ -10,7 +10,7 @@ const HOSTED_ACCOUNT_SETTING_ID_SET = new Set<string>(HOSTED_ACCOUNT_SETTING_IDS
  * must not expose or mount those panels.
  */
 export function hostedAccountSettingsEnabled(): boolean {
-  return !APP_CONFIG.LOCAL_ONLY_MODE && isAuthRequired();
+  return !APP_CONFIG.LOCAL_ONLY_MODE;
 }
 
 export function isHostedAccountSettingId(id: string): boolean {
@@ -21,5 +21,5 @@ export function withoutHostedAccountSettings<T extends { id: string }>(
   items: readonly T[],
   enabled = hostedAccountSettingsEnabled(),
 ): T[] {
-  return enabled ? [...items] : items.filter((item) => !isHostedAccountSettingId(item.id));
+  return items.filter((item) => item.id !== 'subscription' && (enabled || !isHostedAccountSettingId(item.id)));
 }

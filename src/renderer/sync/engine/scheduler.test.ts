@@ -30,6 +30,31 @@ describe('SyncScheduler', () => {
     vi.useRealTimers();
   });
 
+  it('waits for cancelled provider callbacks before changing local ownership', async () => {
+    const cleanup = deferred<void>();
+    let abortSignal: AbortSignal | undefined;
+    const runCycle = vi.fn(async (_id: string, _triggers: ReadonlySet<SchedulerTrigger>, signal: AbortSignal) => {
+      abortSignal = signal;
+      await cleanup.promise;
+    });
+    const scheduler = new SyncScheduler({ runCycle });
+    scheduler.registerSyncGeneration('source');
+    scheduler.triggerManual('source');
+    let drained = false;
+    const stopped = scheduler.suspendAndDrain().then(() => { drained = true; });
+    expect(abortSignal?.aborted).toBe(true);
+    scheduler.triggerManual('source');
+    await drainMicrotasks();
+    expect(drained).toBe(false);
+    cleanup.resolve();
+    await stopped;
+    expect(runCycle).toHaveBeenCalledTimes(1);
+    scheduler.setSuspended(false);
+    await drainMicrotasks(20);
+    expect(runCycle).toHaveBeenCalledTimes(2);
+    scheduler.shutdown();
+  });
+
   it('uses a trailing two-second local-commit debounce', async () => {
     const observedTriggers: SchedulerTrigger[][] = [];
     const runCycle = vi.fn(

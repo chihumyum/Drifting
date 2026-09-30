@@ -28,7 +28,7 @@ export interface PendingSyncGenerationProvision {
 }
 
 function namespace(mode: CloudSyncProviderMode): string {
-  return mode === 'google-drive' ? 'appDataFolder' : 'immutable-object-log';
+  return mode === 'google-drive' ? 'appDataFolder' : 'project-v1';
 }
 
 function requireNonEmpty(value: string | null | undefined, label: string): string {

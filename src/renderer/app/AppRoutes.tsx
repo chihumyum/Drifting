@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { isAuthRequired } from '../lib/config';
+import { APP_CONFIG } from '../lib/config';
 import { useAuthStore } from '../store/auth';
 import { FullScreenStatus } from './components/FullScreenStatus';
 import { LoginPage } from '../views/LoginPage';
@@ -14,9 +14,6 @@ import { DeferredProjectRoute } from './DeferredProjectRoute';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const authRequired = isAuthRequired();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const userId = useAuthStore((state) => state.user?.id);
   const [isChecking, setIsChecking] = useState(true);
   const checkSession = useAuthStore((state) => state.checkSession);
 
@@ -24,36 +21,17 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     checkSession().finally(() => setIsChecking(false));
   }, [checkSession]);
 
-  useEffect(() => {
-    void import('../lib/feature-access').then((module) => {
-      if (!isAuthenticated || !userId) {
-        module.resetFeatureAccess();
-        return;
-      }
-      void module.refreshFeatureAccess(userId);
-    });
-  }, [isAuthenticated, userId]);
-
   if (isChecking) return <FullScreenStatus title={t('appShell.checkingAuthentication')} />;
-  if (authRequired && (!isAuthenticated || !userId)) return <Navigate to="/login" replace />;
   return children;
 }
 
 function PublicRoute({ children }: { children: ReactNode }) {
-  const { t } = useTranslation();
-  const authRequired = isAuthRequired();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const userId = useAuthStore((state) => state.user?.id);
-  const [isChecking, setIsChecking] = useState(true);
-  const checkSession = useAuthStore((state) => state.checkSession);
-
-  useEffect(() => {
-    checkSession().finally(() => setIsChecking(false));
-  }, [checkSession]);
-
-  if (isChecking) return <FullScreenStatus title={t('appShell.checkingAuthentication')} />;
-  if (!authRequired || (isAuthenticated && !!userId)) return <Navigate to="/" replace />;
-  return children;
+  const [ready, setReady] = useState(false);
+  const checkSession = useAuthStore(state => state.checkSession);
+  useEffect(() => { void checkSession().then(() => setReady(true)); }, [checkSession]);
+  // Login owns navigation until its initial library sync finishes (or fails).
+  if (APP_CONFIG.LOCAL_ONLY_MODE) return <Navigate to="/" replace />;
+  return ready ? children : <FullScreenStatus title="Opening library…" />;
 }
 
 export function AppRoutes() {

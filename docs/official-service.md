@@ -4,9 +4,9 @@ This repository is the AGPL-licensed Drifting client. It does not contain the
 private official server, payment system, production credentials, deployment
 configuration, or an entitlement to use official infrastructure.
 
-The default build is local-only. Hosted accounts, a hosted sync provider,
-billing, and proxy-backed AI features require a separately operated compatible
-service and explicit build/runtime configuration. The implemented Google Drive
+The default build is local-only. Hosted accounts and the hosted sync provider
+require a separately operated compatible service and explicit build configuration.
+Hosted AI and billing are outside the current implementation. The implemented Google Drive
 provider is a separate, author-connected SyncEngine capability and does not make
 the official service reachable. The source license does not grant API capacity,
 an account, hosted support, or permission to bypass authentication, rate limits,
@@ -21,8 +21,14 @@ boundary instead of a trial account or hosted storage. Trash and the separate
 subscription. Trash items remain local until the author restores or permanently
 deletes them. The project-scoped mobile workspace owns its Trash surface; the
 standalone Settings route deliberately remains independent of a project runtime.
-A compatible hosted operator can restore the account and billing surfaces only
-by explicitly enabling authentication.
+One explicitly configured application supports both local writing and optional
+account sync; its first-run actions are Continue locally and Sign in and sync.
+The source-default flag describes whether an operator supplied a compatible
+service, not two editions the user must install or switch between.
+An explicitly configured Hosted build exposes accounts on both the standalone
+Settings route and the project settings panel. Login controls cloud access only:
+the local library, Trash and history remain available offline. Subscription
+surfaces remain retired.
 
 `LOCAL_ONLY_MODE` is a hard client boundary, not presentation-only UI. It
 overrides a stale `REQUIRE_AUTH` setting, account/native OAuth actions reject
@@ -44,10 +50,9 @@ the network purpose by itself does not connect an account, activate a provider,
 or send project content.
 
 The official service and the public client are built and deployed separately.
-If hosted sync returns, it implements the same immutable opaque-object contract
+Hosted sync implements the same immutable opaque-object contract
 as every other SyncEngine provider; it does not restore the retired entity,
-Yjs, preference, or snapshot CRUD push/pull APIs. Account and billing APIs may
-remain separately versioned. The private service must not import or link AGPL
+Yjs, preference, or snapshot CRUD push/pull APIs. Account APIs remain separately versioned. The private service must not import or link AGPL
 client source. The only implementation shared with independent services in
 this repository is `packages/prose-metrics`, licensed separately under
 Apache-2.0.
@@ -69,3 +74,6 @@ remaining policy.
 This document describes an engineering and licensing boundary; it is not a
 consumer Terms of Service. A build that enables account creation must configure
 a real operator-owned Terms URL and privacy policy before distribution.
+
+Current client integration, local operator commands and acceptance boundaries:
+[Hosted sync](hosted-sync/README.md).

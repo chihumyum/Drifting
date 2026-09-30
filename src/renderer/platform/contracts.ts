@@ -465,9 +465,16 @@ export interface TauriCommandContract {
   lifecycle_complete_flush: { args: { requestId: number }; result: boolean };
   typography_list_system_fonts: { args: undefined; result: SystemFontFamily[] };
   keychain_get: { args: { key: string }; result: string | null };
+  sync_installation_identity: { args: undefined; result: string };
   keychain_has: { args: { key: string }; result: boolean };
   keychain_set: { args: { key: string; value: string }; result: boolean };
   keychain_delete: { args: { key: string }; result: boolean };
+  hosted_sync_request: {
+    args: { input: { origin: string; token: string; path: string; method: 'GET' | 'PUT'; transferId: string;
+      sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number } };
+    result: unknown;
+  };
+  hosted_sync_cancel: { args: { transferId: string }; result: void };
   sync_object_allocate_protocol: {
     args: undefined;
     result: SyncLocalObjectResult;

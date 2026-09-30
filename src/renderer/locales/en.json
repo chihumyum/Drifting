@@ -35,7 +35,7 @@
   },
   "preAlphaGuide": {
     "title": "Welcome to Drifting Alpha",
-    "intro": "Drifting Alpha is local-first and needs no Drifting account. Core writing and relational data work entirely on this device; public 0.1.x releases preserve the frozen Alpha schema through ordered migrations.",
+    "intro": "Start writing without an account. Projects and prose are saved on this device first; you can manage sync later in Settings.",
     "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
     "sync": "Google Drive sync is optional. When connected, manuscripts, comments, relationships, original assets, and persistent Agent memory enter Google's trust boundary. Drifting does not add end-to-end encryption over Google Drive.",
     "byok": "Copilot and General Agent are Experimental and BYOK-only. Requests, costs, retention, training terms, and output risk follow the model provider you select; API keys remain in the system Keychain.",
@@ -995,6 +995,48 @@
       "untitled": "Untitled",
       "deleteConversation": "Delete this conversation",
       "clearConfirm": "Clear all conversation history? This will remove {{count}} Agent conversations from this project."
+    },
+    "hosted": {
+      "title": "Account and hosted sync",
+      "description": "Writing is saved on this device first. Connect an account to sync projects between your devices.",
+      "no_account": "Not signed in",
+      "sign_in": "Sign in / Register",
+      "sign_out": "Sign out",
+      "sync_title": "Hosted sync",
+      "enabled": "Hosted sync connected",
+      "disabled": "Local library",
+      "projects": "Syncing {{count}} projects",
+      "switch_from_drive": "Switch this library to Hosted",
+      "switch_description": "Connect the saved local replica without waiting for Google Drive. Changes present only on other devices or Drive are not included; the Drive copy is retained.",
+      "connect_description": "Merge this account’s cloud projects with your library and upload local projects.",
+      "sync_now": "Sync now",
+      "connect": "Connect and sync",
+      "working": "Working…",
+      "automatic": "Automatic sync enabled",
+      "paused": "Sync paused",
+      "automatic_description": "Sync runs while the app is open and online. Wait for completion before switching devices.",
+      "pause": "Pause",
+      "resume": "Resume",
+      "disconnect": "Disconnect sync",
+      "disconnect_description": "Finish pending sync, then disconnect. Local projects and cloud copies are retained.",
+      "done": "Completed",
+      "session": {
+        "signed-out": "Local writing does not require an account.",
+        "checking": "Checking account…",
+        "connected": "Account connected",
+        "offline": "Offline. You can continue writing locally.",
+        "needs-reauth": "Session expired. Sign in to the same account again."
+      },
+      "manage": "Manage account and sync",
+      "back_to_library": "Back to local library",
+      "trust": "Hosted sync stores projects and original assets on the connected service. That service can read their contents.",
+      "onboarding": "Start writing locally, or sign in to sync your library. You can also sign in later from Account settings.",
+      "progress": "Sync progress",
+      "retrying": "Sync could not finish. Writing remains saved locally; retrying automatically.",
+      "pending": "Syncing or waiting for sync to finish.",
+      "last_synced": "Last completed sync: {{time}}",
+      "sign_in_sync": "Sign in and sync",
+      "sign_in_sync_description": "Signing in downloads your account’s projects and uploads this local library. Signing out keeps downloaded content on this device."
     }
   },
   "common": {
@@ -2333,11 +2375,26 @@
       "element": "Every element needs a category; its group can be organized later."
     },
     "kinds": {
-      "chapter": { "label": "Chapter", "description": "Start a prose chapter and optionally choose its storyline." },
-      "drift": { "label": "Drift", "description": "Capture an idea that is not yet part of the manuscript." },
-      "element": { "label": "Element", "description": "Create a character, place, object, or other reference." },
-      "storyline": { "label": "Storyline", "description": "Create a narrative line and open its editor." },
-      "category": { "label": "Category", "description": "Create a top-level classification for elements." }
+      "chapter": {
+        "label": "Chapter",
+        "description": "Start a prose chapter and optionally choose its storyline."
+      },
+      "drift": {
+        "label": "Drift",
+        "description": "Capture an idea that is not yet part of the manuscript."
+      },
+      "element": {
+        "label": "Element",
+        "description": "Create a character, place, object, or other reference."
+      },
+      "storyline": {
+        "label": "Storyline",
+        "description": "Create a narrative line and open its editor."
+      },
+      "category": {
+        "label": "Category",
+        "description": "Create a top-level classification for elements."
+      }
     },
     "fields": {
       "storyline": "Storyline",

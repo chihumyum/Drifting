@@ -26,7 +26,7 @@ const fingerprint = (source) => createHash('sha256').update(referenceEvidenceFin
   .update(readFileSync(path.join(root, 'vite-plugins/deferred-settings.ts')))
   .update(readFileSync(path.join(root, 'vite-plugins/deferred-entry.ts')))
   .update(readFileSync(path.join(root, 'vite-plugins/deferred-super-views.ts'))).digest('hex');
-const panelNames = ['AccountSettingsPanel', 'SubscriptionSettingsPanel', 'PreferenceSettingsPanels', 'IntelligenceSettingsPanels', 'AgentSettingsPanel', 'ControlSettingsPanels'];
+const panelNames = ['AccountSettingsPanel', 'PreferenceSettingsPanels', 'IntelligenceSettingsPanels', 'AgentSettingsPanel', 'ControlSettingsPanels'];
 const target = (id) => panelNames.find((name) => id.endsWith(`/features/settings/panels/${name}.tsx`));
 function sourceFacade(source, id) {
   if (!id) return null;

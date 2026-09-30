@@ -73,6 +73,7 @@ export class SyncScheduler {
   private suspended = false;
   private foreground = false;
   private stopped = false;
+  private activeCycle: Promise<void> = Promise.resolve();
 
   constructor(options: SyncSchedulerOptions) {
     this.runCycle = options.runCycle;
@@ -201,6 +202,11 @@ export class SyncScheduler {
         anchorMs + this.foregroundPollIntervalMs(poll, anchorMs);
     }
     this.scheduleWake();
+  }
+
+  async suspendAndDrain(): Promise<void> {
+    this.setSuspended(true);
+    await this.activeCycle;
   }
 
   shutdown(): void {
@@ -361,7 +367,7 @@ export class SyncScheduler {
     } catch (error) {
       cycle = Promise.reject(error);
     }
-    void cycle
+    this.activeCycle = cycle
       .then((result) => {
         if (result?.requiresRepull && !controller.signal.aborted && !this.stopped) {
           this.queue(syncGenerationId, 'self-publish', this.clock.nowMs(), false);

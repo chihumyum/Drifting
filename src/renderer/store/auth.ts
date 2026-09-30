@@ -1,21 +1,19 @@
 import { create } from 'zustand';
-import { authClient } from '../lib/auth-client';
-import type { Session } from '../lib/auth-client';
+import { bindHostedSession, clearHostedSessionBinding } from '../lib/hosted-session-binding';
+import { authClient, type Session } from '../lib/auth-client';
 import {
   clearSessionToken,
-  flushSessionTokenStorage,
   invalidateSessionToken,
+  flushSessionTokenStorage,
+  getSessionToken,
+  getSessionTokenRevision,
+  hydrateSessionToken,
+  setSessionToken,
 } from '../lib/session-token';
-import { canUseHostedService, isAuthRequired } from '../lib/config';
-import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
-import { initDatabase, resetDatabase } from '../lib/db';
+import { APP_CONFIG, canUseHostedService } from '../lib/config';
+import { initDatabase } from '../lib/db';
 import { events } from '../lib/events';
-import loglevel from 'loglevel';
-
-const log = loglevel.getLogger('AuthStore');
-log.setLevel(loglevel.levels.ERROR);
-
-// 用户信息类型
+import { readHostedProfile, writeHostedProfile, type HostedProfile } from '../lib/hosted-profile';
 export interface User {
   id: string;
   email: string;
@@ -25,403 +23,217 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
 }
-
-const LOCAL_USER_ID = 'drifting-library.db';
-
-function createLocalUser(): User {
-  const now = new Date();
-  return {
-    id: LOCAL_USER_ID,
-    email: 'local@drifting.local',
-    name: 'Local User',
-    emailVerified: true,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-// 获取用户的数据库文件名
-export function getDbFileName(userId?: string): string {
-  if (!userId) {
-    return 'drifting-library.db'; // 匿名用户
-  }
-  return `${userId}_drifting.db`;
-}
-
-// Auth Store 状态接口
+export const LOCAL_USER_ID = 'drifting-library.db';
+const localUser: User = {
+  id: LOCAL_USER_ID,
+  email: 'local@drifting.local',
+  name: 'Local User',
+  emailVerified: true,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+};
+export type HostedSessionStatus =
+  | 'signed-out'
+  | 'checking'
+  | 'connected'
+  | 'offline'
+  | 'needs-reauth';
 interface AuthState {
-  // 状态
+  /** Local workspace identity never changes when the cloud account changes. */
   isAuthenticated: boolean;
+  user: User;
   session: Session | null;
-  user: User | null;
-
-  // Actions
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  // Adopt the session set by better-auth in the current cookie jar. Used by
-  // login flows (OTP, 2FA) that finish the sign-in handshake outside the
-  // password-only path above.
-  adoptSession: () => Promise<void>;
-  logout: () => Promise<void>;
-  expireSession: () => Promise<void>;
-  checkSession: () => Promise<void>;
-  initAuth: () => Promise<void>;
+  hostedUser: HostedProfile | null;
+  hostedStatus: HostedSessionStatus;
+  login(email: string, password: string): Promise<void>;
+  register(email: string, password: string, name: string): Promise<void>;
+  adoptSession(): Promise<void>;
+  logout(): Promise<void>;
+  expireSession(): Promise<void>;
+  checkSession(): Promise<void>;
+  initAuth(): Promise<void>;
+  refreshHostedSession(): Promise<void>;
 }
-
-type CoreAuthState = Pick<AuthState, 'isAuthenticated' | 'session' | 'user'>;
-
-let sessionExpirationInFlight: Promise<void> | null = null;
-let sessionCheckInFlight: Promise<void> | null = null;
-
-// Older builds persisted Better Auth's full session object here. That object
-// includes `session.token`, so retaining it would bypass the native credential
-// store. Authentication is re-established from the keychain-backed bearer
-// token during bootstrap; no auth state needs a localStorage cache.
-try {
-  localStorage.removeItem('auth-storage');
-} catch {
-  // localStorage can be disabled; the auth store itself remains memory-only.
+let bootstrap: Promise<void> | null = null;
+let refreshing: Promise<void> | null = null;
+function requireHosted() {
+  if (!canUseHostedService())
+    throw new Error('HOSTED_SERVICE_DISABLED: account authentication is unavailable.');
 }
-
-function getLocalAuthState(): CoreAuthState {
-  return {
-    isAuthenticated: true,
-    session: null,
-    user: createLocalUser(),
-  };
-}
-
-async function flushInactiveDatabaseBeforeSwitch(): Promise<void> {
-  const { flushLocalApplicationPersistence } = await import('../lib/persistence-lifecycle');
-  await flushLocalApplicationPersistence();
-}
-
-// 创建 Auth Store
-export const useAuthStore = create<AuthState>()((set, get) => ({
-  // 初始状态
-  ...(isAuthRequired()
-    ? {
-        isAuthenticated: false,
-        session: null,
-        user: null,
-      }
-    : getLocalAuthState()),
-
-  // 登录
-  login: async (email: string, password: string) => {
-    if (!canUseHostedService()) {
-      throw new Error('HOSTED_SERVICE_DISABLED: account login is unavailable.');
-    }
-    try {
-      if (isAppClosedForPublic) {
-        throw new Error(APP_CLOSED_MESSAGE);
-      }
-
-      // A normally routed login starts unauthenticated. If an account
-      // switch reaches this action directly, quiesce the outgoing user's
-      // mounted editors while its old bearer token is still active.
-      if (get().isAuthenticated) {
-        const { quiesceApplicationForDatabaseSwitch } =
-          await import('../lib/persistence-lifecycle');
-        await quiesceApplicationForDatabaseSwitch(() => {
-          set({ isAuthenticated: false, session: null, user: null });
-        });
-      }
-
-      const result = await authClient.signIn.email({
-        email,
-        password,
-      });
-
-      if (result.error) {
-        throw new Error(result.error.message || 'Login failed');
-      }
-
-      // signIn returns { user, token }, not { session }
-      // We need to get the session separately
-      const sessionResult = await authClient.getSession();
-      const session = sessionResult.data || null;
-      const resolvedUser = (sessionResult.data?.user || result.data?.user) as User | undefined;
-      if (!resolvedUser?.id) {
-        throw new Error('Login failed: missing user in session');
-      }
-
-      // Persist the newly issued bearer token, then switch SQLite before
-      // exposing the authenticated route. No old-user component can mount
-      // against the new connection during this interval.
-      await flushInactiveDatabaseBeforeSwitch();
-      await flushSessionTokenStorage();
-      await resetDatabase();
-      await initDatabase(resolvedUser.id);
-      set({ isAuthenticated: true, session, user: resolvedUser });
-      events.emit('db:ready');
-
-      log.info('[Auth] Login successful:', result.data?.user?.email);
-      log.info('[Auth] User database initialized:', resolvedUser.id);
-    } catch (error) {
-      log.error('[Auth] Login failed:', error);
-      throw error;
-    }
-  },
-
-  // 注册
-  register: async (email: string, password: string, name: string) => {
-    if (!canUseHostedService()) {
-      throw new Error('HOSTED_SERVICE_DISABLED: account registration is unavailable.');
-    }
-    try {
-      if (isAppClosedForPublic) {
-        throw new Error(APP_CLOSED_MESSAGE);
-      }
-
-      if (get().isAuthenticated) {
-        const { quiesceApplicationForDatabaseSwitch } =
-          await import('../lib/persistence-lifecycle');
-        await quiesceApplicationForDatabaseSwitch(() => {
-          set({ isAuthenticated: false, session: null, user: null });
-        });
-      }
-
-      const result = await authClient.signUp.email({
-        email,
-        password,
-        name,
-      });
-
-      if (result.error) {
-        throw new Error(result.error.message || 'Registration failed');
-      }
-
-      // signUp returns { user, token }, not { session }
-      // We need to get the session separately
-      const sessionResult = await authClient.getSession();
-      const session = sessionResult.data || null;
-      const resolvedUser = (sessionResult.data?.user || result.data?.user) as User | undefined;
-      if (!resolvedUser?.id) {
-        throw new Error('Registration failed: missing user in session');
-      }
-
-      await flushInactiveDatabaseBeforeSwitch();
-      await flushSessionTokenStorage();
-      await resetDatabase();
-      const dbFileName = getDbFileName(resolvedUser.id);
-      await initDatabase(dbFileName);
-      set({ isAuthenticated: true, session, user: resolvedUser });
-      events.emit('db:ready');
-
-      log.info('[Auth] Registration successful:', result.data?.user?.email);
-      log.info('[Auth] User database initialized:', resolvedUser.id);
-    } catch (error) {
-      log.error('[Auth] Registration failed:', error);
-      throw error;
-    }
-  },
-
-  // Finish a sign-in started elsewhere (OTP, 2FA verify). Pulls the
-  // session that better-auth wrote to the cookie jar and runs the same
-  // post-login bookkeeping as `login`.
-  adoptSession: async () => {
-    if (!canUseHostedService()) {
-      throw new Error('HOSTED_SERVICE_DISABLED: account session adoption is unavailable.');
-    }
-    if (get().isAuthenticated) {
-      const { quiesceApplicationForDatabaseSwitch } = await import('../lib/persistence-lifecycle');
-      // OAuth may already have installed the incoming account's token, so
-      // never push the outgoing DB remotely under that new identity.
-      await quiesceApplicationForDatabaseSwitch(
-        () => set({ isAuthenticated: false, session: null, user: null }),
-        { flushRemote: false },
+async function assertAccountOwnership(accountId: string): Promise<void> {
+  const { getDb } = await import('../lib/db');
+  const { createSyncAppAuthorityRepository } = await import('../sync/app-authority-repository');
+  const repository = createSyncAppAuthorityRepository(getDb());
+  const state = await repository.read();
+  if (
+    state.mode === 'hosted' ||
+    (state.transitionState !== 'stable' && state.targetMode === 'hosted')
+  ) {
+    const bindings = await repository.listActiveRuntimeBindings();
+    if (bindings.some((binding) => binding.binding.accountRef !== accountId))
+      throw new Error(
+        'HOSTED_ACCOUNT_MISMATCH: Disconnect the current cloud account before connecting another account.',
       );
+    // Empty libraries still own an account even when no runtime bindings exist.
+    const { SyncProviderAccountTable, SyncConnectAttemptTable } = await import('../schema/drizzle');
+    if (state.transitionState !== 'stable') {
+      const { eq } = await import('drizzle-orm');
+      const [attempt] = await getDb()
+        .select()
+        .from(SyncConnectAttemptTable)
+        .where(eq(SyncConnectAttemptTable.attemptId, state.attemptId));
+      if (attempt?.targetAccountSubjectId && attempt.targetAccountSubjectId !== accountId)
+        throw new Error('HOSTED_ACCOUNT_MISMATCH');
     }
-
-    const sessionResult = await authClient.getSession();
-    const session = sessionResult.data || null;
-    const resolvedUser = sessionResult.data?.user as User | undefined;
-    if (!resolvedUser?.id) {
-      throw new Error('Session adoption failed: missing user');
+    const accounts = await getDb().select().from(SyncProviderAccountTable);
+    if (
+      accounts.some(
+        (account) => account.providerKind === 'hosted' && account.accountSubjectId !== accountId,
+      )
+    )
+      throw new Error('HOSTED_ACCOUNT_MISMATCH');
+  }
+}
+export const useAuthStore = create<AuthState>()((set, get) => ({
+  isAuthenticated: true,
+  user: localUser,
+  session: null,
+  hostedUser: APP_CONFIG.LOCAL_ONLY_MODE ? null : readHostedProfile(),
+  hostedStatus: 'signed-out',
+  async login(email, password) {
+    requireHosted();
+    const previous = getSessionToken();
+    try {
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error) throw new Error(result.error.message ?? 'Login failed');
+      await get().adoptSession();
+    } catch (error) {
+      if (previous) setSessionToken(previous);
+      else clearSessionToken();
+      await flushSessionTokenStorage();
+      throw error;
     }
-
-    await flushInactiveDatabaseBeforeSwitch();
-    await flushSessionTokenStorage();
-    await resetDatabase();
-    await initDatabase(resolvedUser.id);
-    set({ isAuthenticated: true, session, user: resolvedUser });
-    events.emit('db:ready');
   },
-
-  // 登出
-  logout: async () => {
-    if (!isAuthRequired()) {
-      // Local-only mode has no account to switch and therefore no reason
-      // to tear down/reopen the same database. Still honour the durability
-      // barrier used by the native lifecycle path.
-      await flushInactiveDatabaseBeforeSwitch();
-      set(getLocalAuthState());
-      return;
+  async register(email, password, name) {
+    requireHosted();
+    const result = await authClient.signUp.email({ email, password, name });
+    if (result.error) throw new Error(result.error.message ?? 'Registration failed');
+  },
+  async adoptSession() {
+    requireHosted();
+    const token = getSessionToken();
+    const revision = getSessionTokenRevision();
+    const ownsSession = () => token === getSessionToken() && revision === getSessionTokenRevision();
+    const result = await authClient.getSession();
+    if (!ownsSession()) throw new Error('SESSION_CHANGED');
+    if (!result.data?.user || result.error)
+      throw new Error(result.error?.message ?? 'Session unavailable');
+    try {
+      await assertAccountOwnership(result.data.user.id);
+    } catch (error) {
+      if (ownsSession()) await get().expireSession();
+      throw error;
     }
-
-    const {
-      flushLocalApplicationPersistence,
-      flushRemoteApplicationPersistence,
-      quiesceApplicationForDatabaseSwitch,
-    } = await import('../lib/persistence-lifecycle');
-
-    // Flush old-account work while its bearer token and mounted editors
-    // are still available. Keep the authenticated state intact until the
-    // secure token deletion succeeds, otherwise the logout UI would
-    // disappear and leave no way to retry a failed keychain operation.
+    await flushSessionTokenStorage();
+    if (!ownsSession()) throw new Error('SESSION_CHANGED');
+    await (
+      await import('../sync/hosted/session-recovery')
+    ).resumeHostedAuthentication(result.data.user.id);
+    if (!ownsSession()) throw new Error('SESSION_CHANGED');
+    bindHostedSession(result.data.user.id, token);
+    const hostedUser: HostedProfile = result.data.user;
+    writeHostedProfile(hostedUser);
+    set({ session: result.data, hostedUser, hostedStatus: 'connected' });
+    events.emit('sync:authority-changed');
+  },
+  async logout() {
+    const { flushLocalApplicationPersistence } = await import('../lib/persistence-lifecycle');
     await flushLocalApplicationPersistence();
-    await flushRemoteApplicationPersistence();
-
-    // Do not discard the only credential until the server confirms revocation.
-    // Otherwise a transient network failure leaves a still-valid remote
-    // session that the user can no longer see or retry from this device.
-    const signOutResult = await authClient.signOut();
-    if (signOutResult.error) {
-      throw new Error(signOutResult.error.message ?? 'Logout failed');
+    if (APP_CONFIG.LOCAL_ONLY_MODE) return;
+    if (getSessionToken()) {
+      requireHosted();
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message ?? 'Sign out failed');
     }
-    // Drop the bearer token so the next session starts clean.
+    clearHostedSessionBinding();
     clearSessionToken();
     await flushSessionTokenStorage();
-
-    // Only after secure deletion is confirmed may protected views unmount
-    // and the old account's database be replaced. Remote work was already
-    // drained above; after token removal only local close snapshots run.
-    await quiesceApplicationForDatabaseSwitch(
-      () => set({ isAuthenticated: false, session: null, user: null }),
-      { flushRemote: false },
-    );
-
-    // 重置数据库连接，切换回匿名/demo模式的数据库
-    await resetDatabase();
-    await initDatabase(getDbFileName());
-    events.emit('db:ready');
-    log.info('[Auth] Anonymous database');
-
-    log.info('[Auth] Logout successful');
+    writeHostedProfile(null);
+    set({ session: null, hostedUser: null, hostedStatus: 'signed-out' });
+    events.emit('sync:authority-changed');
   },
-
-  // Handle a server-rejected credential without recursively calling the
-  // authenticated logout endpoint from inside the 401 interceptor.
-  expireSession: () => {
-    if (sessionExpirationInFlight) return sessionExpirationInFlight;
-
-    const operation = (async () => {
-      if (!isAuthRequired()) return;
-
-      invalidateSessionToken();
-      if (!get().isAuthenticated) {
-        // Bootstrap can discover an expired keychain token before protected
-        // views ever mount. Delete it durably without tearing down the already
-        // anonymous database.
-        await flushSessionTokenStorage();
+  async expireSession() {
+    if (APP_CONFIG.LOCAL_ONLY_MODE) return;
+    clearHostedSessionBinding();
+    invalidateSessionToken();
+    set({ session: null, hostedStatus: 'needs-reauth' });
+    events.emit('sync:authority-changed');
+    await flushSessionTokenStorage();
+  },
+  refreshHostedSession() {
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      if (APP_CONFIG.LOCAL_ONLY_MODE) return;
+      if (!getSessionToken()) {
+        set({ hostedStatus: get().hostedUser ? 'needs-reauth' : 'signed-out' });
         return;
       }
-
-      const { quiesceApplicationAfterCredentialLoss } =
-        await import('../lib/persistence-lifecycle');
-
-      try {
-        await quiesceApplicationAfterCredentialLoss(() => {
-          set({ isAuthenticated: false, session: null, user: null });
-        });
-      } catch (error) {
-        // Teardown has already happened. Keep moving to the anonymous DB so an
-        // invalid bearer can never leave protected views mounted indefinitely.
-        log.error('[Auth] Local persistence during session expiry failed:', error);
-        set({ isAuthenticated: false, session: null, user: null });
-      }
-
-      await resetDatabase();
-      await initDatabase(getDbFileName());
-      events.emit('db:ready');
-    })();
-
-    const inFlight = operation.finally(() => {
-      if (sessionExpirationInFlight === inFlight) sessionExpirationInFlight = null;
-    });
-    sessionExpirationInFlight = inFlight;
-    return inFlight;
-  },
-
-  // 检查 session 状态
-  checkSession: () => {
-    // Protected/PublicRoute mount effects are intentionally probed twice by
-    // React Strict Mode in development. They must observe one auth/database
-    // bootstrap instead of racing two reset -> open transitions.
-    if (sessionCheckInFlight) return sessionCheckInFlight;
-
-    const operation = (async () => {
-      if (!isAuthRequired()) {
-        // A protected local-only route may be the very first screen mounted
-        // (for example a mobile deep-link to Settings -> Local data).  Route
-        // readiness therefore includes opening the sole local SQLite replica;
-        // project-scoped providers are not allowed to be the bootstrap owner.
-        await initDatabase(LOCAL_USER_ID);
-        set(getLocalAuthState());
-        events.emit('db:ready');
+      if (!canUseHostedService()) {
+        set({ hostedStatus: 'offline' });
         return;
       }
-
+      const token = getSessionToken();
+      const revision = getSessionTokenRevision();
+      const ownsSession = () => {
+        const owns = token === getSessionToken() && revision === getSessionTokenRevision();
+        if (!owns && get().hostedStatus === 'checking') set({ hostedStatus: 'offline' });
+        return owns;
+      };
+      set({ hostedStatus: 'checking' });
       try {
         const result = await authClient.getSession();
-        const session = result.data || null;
-        const sessionUser = session?.user as User | undefined;
-
-        if (session && sessionUser?.id) {
-          const currentUserId = get().user?.id;
-          if (currentUserId !== sessionUser.id) {
-            if (currentUserId) {
-              const { quiesceApplicationForDatabaseSwitch } =
-                await import('../lib/persistence-lifecycle');
-              // The in-memory bearer token now represents sessionUser, so
-              // only finish old-DB local durability; never remote-push the
-              // outgoing account under the incoming identity.
-              await quiesceApplicationForDatabaseSwitch(
-                () => set({ isAuthenticated: false, session: null, user: null }),
-                { flushRemote: false },
-              );
-            } else {
-              await flushInactiveDatabaseBeforeSwitch();
-            }
-            await resetDatabase();
-            await initDatabase(sessionUser.id);
-            events.emit('db:ready');
-          }
-          set({
-            isAuthenticated: true,
-            session,
-            user: sessionUser,
-          });
-        } else {
-          set({
-            isAuthenticated: false,
-            session: null,
-            user: null,
-          });
+        if (!ownsSession()) return;
+        if (result.error && result.error.status !== 401 && result.error.status !== 403) {
+          set({ hostedStatus: 'offline' });
+          return;
         }
-      } catch (error) {
-        log.error('[Auth] Failed to check session:', error);
-        set({
-          isAuthenticated: false,
-          session: null,
-          user: null,
-        });
+        if (!result.data?.user) {
+          await get().expireSession();
+          return;
+        }
+        await assertAccountOwnership(result.data.user.id);
+        if (!ownsSession()) return;
+        await (
+          await import('../sync/hosted/session-recovery')
+        ).resumeHostedAuthentication(result.data.user.id);
+        if (!ownsSession()) return;
+        bindHostedSession(result.data.user.id, token);
+        writeHostedProfile(result.data.user);
+        set({ session: result.data, hostedUser: result.data.user, hostedStatus: 'connected' });
+        events.emit('sync:authority-changed');
+      } catch {
+        if (ownsSession()) set({ hostedStatus: 'offline' });
       }
-    })();
-
-    const inFlight = operation.finally(() => {
-      if (sessionCheckInFlight === inFlight) sessionCheckInFlight = null;
+    })().finally(() => {
+      refreshing = null;
     });
-    sessionCheckInFlight = inFlight;
-    return inFlight;
+    return refreshing;
   },
-
-  // 初始化认证状态
-  initAuth: async () => {
-    await get().checkSession();
+  checkSession() {
+    if (bootstrap) return bootstrap;
+    bootstrap = (async () => {
+      await initDatabase(LOCAL_USER_ID);
+      events.emit('db:ready');
+      // Neither credential-store interaction nor a network probe may block local writing.
+      if (!APP_CONFIG.LOCAL_ONLY_MODE)
+        void hydrateSessionToken().then(() => get().refreshHostedSession());
+    })().finally(() => {
+      bootstrap = null;
+    });
+    return bootstrap;
+  },
+  initAuth() {
+    return get().checkSession();
   },
 }));
-
-// 导出 Auth Store 类型
 export type AuthStore = ReturnType<typeof useAuthStore.getState>;

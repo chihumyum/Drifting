@@ -72,6 +72,7 @@ vi.mock('../../../platform', async (importOriginal) => {
     ...actual,
     platform: {
       ...actual.platform,
+      app: { ...actual.platform.app, getInstallationIdentity: async () => `install-${'a'.repeat(64)}` },
       keychain: {
         get: async (key: string) => secureStorage.get(key) ?? null,
         has: async (key: string) => secureStorage.has(key),

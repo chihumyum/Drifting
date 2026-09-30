@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
@@ -152,6 +153,7 @@ export function SyncPanel({
   /** The caller owns a mounted project runtime and an ImportDialog host. */
   projectImportEnabled: boolean;
 }) {
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const [exportBusy, setExportBusy] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -269,12 +271,13 @@ export function SyncPanel({
   return (
     <section className="set-panel" ref={registerRef} id="sync">
       <SettingsPanelHeader
-        kicker={t(authority.mode === 'local' ? 'settings.sync.local_kicker' : 'settings.sync.cloud_kicker')}
-        title={t(authority.mode === 'local' ? 'settings.sync.local_title' : 'settings.sync.cloud_title')}
-        sub={t(authority.mode === 'local' ? 'settings.sync.local_sub' : 'settings.sync.cloud_sub')}
+        kicker={t(authority.mode === 'hosted' ? 'settings.hosted.sync_title' : authority.mode === 'local' ? 'settings.sync.local_kicker' : 'settings.sync.cloud_kicker')}
+        title={t(authority.mode === 'hosted' ? 'settings.hosted.enabled' : authority.mode === 'local' ? 'settings.sync.local_title' : 'settings.sync.cloud_title')}
+        sub={t(hostedAccountSettingsEnabled() ? 'settings.hosted.description' : authority.mode === 'local' ? 'settings.sync.local_sub' : 'settings.sync.cloud_sub')}
       />
 
-      <div className="set-sec">
+      {hostedAccountSettingsEnabled() && <SettingsRow label={t('settings.hosted.title')} desc={t('settings.hosted.description')} control={<button className="set-btn" onClick={() => navigate('/settings?section=account')}>{t('settings.hosted.manage')}</button>} />}
+      {(!hostedAccountSettingsEnabled() || authority.mode === 'google-drive' || authority.targetMode === 'google-drive') && authority.mode !== 'hosted' && authority.targetMode !== 'hosted' && <div className="set-sec">
         <SettingsSectionHeader title={t('settings.sync.google_drive')} hint="GOOGLE" />
         <SettingsRow
           label={t('settings.sync.cloud_status')}
@@ -671,7 +674,7 @@ export function SyncPanel({
             {cloudMessage}
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.sync.local_data')} hint="LOCAL" />

@@ -62,8 +62,10 @@ export function createDesktopTauriEnvironment({
     return {
       ...environment,
       VITE_LOCAL_ONLY_MODE: 'false',
-      VITE_REQUIRE_AUTH: 'true',
-      VITE_AI_TRANSPORT: 'proxy',
+      VITE_REQUIRE_AUTH: 'false',
+      VITE_AI_TRANSPORT: 'direct',
+      VITE_CLOSED_BETA: 'false',
+      DRIFTING_HOSTED_ORIGIN: merged.DRIFTING_HOSTED_ORIGIN ?? merged.VITE_API_BASE_URL ?? 'http://localhost:3000',
     };
   }
   return {

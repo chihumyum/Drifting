@@ -11,7 +11,8 @@ import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { flushApplicationPersistenceForLifecycle } from '../../lib/persistence-lifecycle';
 import { installProductionSyncRuntime } from '../../sync/production-runtime';
-import { installGoogleDriveSyncGenerationProvisioningRuntime } from '../../sync/provision';
+import { installGoogleDriveSyncGenerationProvisioningRuntime, installHostedSyncGenerationProvisioningRuntime } from '../../sync/provision/google-drive-runtime';
+import { installHostedDiscoveryRuntime } from '../../sync/hosted/runtime';
 import { installProductSyncAuthorityMonitor } from '../../sync/product-authority-store';
 import { events } from '../../lib/events';
 import { UpdateService } from '../../services/update/update-service';
@@ -165,8 +166,12 @@ function SyncEngineEffects() {
   useEffect(() => {
     const stopAuthorityMonitor = installProductSyncAuthorityMonitor();
     const stopProvisioning = installGoogleDriveSyncGenerationProvisioningRuntime();
+    const stopHostedProvisioning = installHostedSyncGenerationProvisioningRuntime();
+    const stopHostedDiscovery = installHostedDiscoveryRuntime();
     const stopSync = installProductionSyncRuntime();
     return () => {
+      stopHostedDiscovery();
+      stopHostedProvisioning();
       stopSync();
       stopProvisioning();
       stopAuthorityMonitor();

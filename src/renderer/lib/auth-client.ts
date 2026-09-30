@@ -1,6 +1,6 @@
 import { createAuthClient } from 'better-auth/react';
 import { emailOTPClient } from 'better-auth/client/plugins';
-import { getSessionToken, setSessionToken } from './session-token';
+import { getSessionToken, getSessionTokenRevision, setSessionToken } from './session-token';
 import { runtimeViteEnv } from './vite-runtime-env';
 import { canUseHostedService } from './config';
 
@@ -22,7 +22,12 @@ export const hostedAuthFetch: typeof globalThis.fetch = async (input, init) => {
     error.code = 'HOSTED_SERVICE_DISABLED';
     throw error;
   }
-  return globalThis.fetch(input, init);
+  const revision = getSessionTokenRevision();
+  const response = await globalThis.fetch(input, init);
+  const token = response.headers.get('set-auth-token');
+  if (token && revision === getSessionTokenRevision() && token !== getSessionToken())
+    setSessionToken(token);
+  return response;
 };
 
 export const authClient = createAuthClient({
@@ -34,15 +39,12 @@ export const authClient = createAuthClient({
     // from the API, so cookies would be cross-site AND better-auth rejects
     // cookie requests without a valid Origin. Sending no cookies makes
     // better-auth skip the origin/CSRF check; the Bearer token carries the
-    // session. The token is captured from the `set-auth-token` header below.
+    // session. Response tokens are captured only while the request still owns
+    // the credential revision.
     credentials: 'omit',
     auth: {
       type: 'Bearer',
       token: () => getSessionToken() ?? '',
-    },
-    onSuccess: (ctx) => {
-      const token = ctx.response.headers.get('set-auth-token');
-      if (token) setSessionToken(token);
     },
   },
 });

@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
+import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { useAuthStore } from '../../store/auth';
 import { events } from '../../lib/events';
 import { platform } from '../../platform';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
-// v4 keeps onboarding focused on the product's active trust boundaries.
-const GUIDE_VERSION = 'v4';
+const GUIDE_VERSION = 'v5';
 
 export function PreAlphaOnboardingDialog() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const hosted = hostedAccountSettingsEnabled();
+  const session = useAuthStore((state) => state.session);
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
@@ -32,7 +36,8 @@ export function PreAlphaOnboardingDialog() {
   };
   const openSyncAndData = () => {
     dismiss();
-    queueMicrotask(() => events.emit('settings:open', { railId: 'sync' }));
+    if (hosted && !session) navigate('/login');
+    else queueMicrotask(() => events.emit('settings:open', { railId: hosted ? 'account' : 'sync' }));
   };
 
   return (
@@ -58,25 +63,25 @@ export function PreAlphaOnboardingDialog() {
           >
             <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
               <li>{t('preAlphaGuide.localData')}</li>
-              <li>{t('preAlphaGuide.sync')}</li>
+              <li>{t(hostedAccountSettingsEnabled() ? 'settings.hosted.trust' : 'preAlphaGuide.sync')}</li>
               <li>{t('preAlphaGuide.byok')}</li>
             </ul>
           </div>
           <p style={{ margin: '0 0 20px', color: 'hsl(var(--ink-2))', lineHeight: 1.65 }}>
-            {t('preAlphaGuide.settingsHint')}
+            {t(hostedAccountSettingsEnabled() ? 'settings.hosted.onboarding' : 'preAlphaGuide.settingsHint')}
           </p>
         </ModalBody>
         <ModalActions>
-          <Button
+          {!hosted && <Button
             variant="ghost"
             onClick={() =>
               void platform.material.openExternal('https://drifting.app/quick-start')
             }
           >
             {t('preAlphaGuide.quickGuide')}
-          </Button>
+          </Button>}
           <Button variant="default" onClick={openSyncAndData}>
-            {t('preAlphaGuide.openDrive')}
+            {t(hosted ? (session ? 'settings.hosted.manage' : 'settings.hosted.sign_in_sync') : 'preAlphaGuide.openDrive')}
           </Button>
           <Button
             className="pre-alpha-guide-modal__continue"

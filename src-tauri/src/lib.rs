@@ -9,7 +9,11 @@ mod commands;
 mod data_paths;
 mod database;
 mod google_drive_sync;
+mod hosted_sync;
 mod image_pipeline;
+mod installation_identity;
+#[cfg(target_os = "macos")]
+mod local_lab_session;
 mod mcp_http;
 mod mcp_stdio;
 mod native_capabilities;
@@ -195,7 +199,10 @@ pub fn run() {
             codex_oauth::codex_oauth_cancel,
             codex_oauth::codex_oauth_logout,
             system_fonts::typography_list_system_fonts,
+            hosted_sync::hosted_sync_request,
+            hosted_sync::hosted_sync_cancel,
             secure_storage::keychain_get,
+            installation_identity::sync_installation_identity,
             secure_storage::keychain_has,
             secure_storage::keychain_set,
             secure_storage::keychain_delete,

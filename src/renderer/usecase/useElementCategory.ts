@@ -263,7 +263,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
   const deleteCategory = useCallback(
     async (categoryId: string): Promise<void> => {
       await ensureDb();
-      await ensureFeatureAccess(userId, { forceRefresh: true });
+      await ensureFeatureAccess(userId);
       let prevCategories = getCategoriesState().slice();
       let existing = prevCategories.find((cat) => cat.id === categoryId);
       if (!existing) {

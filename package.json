@@ -156,7 +156,9 @@
     "apple:authoring:acceptance": "node scripts/apple-native-authoring-acceptance.mjs",
     "apple:authoring:check": "node scripts/apple-native-authoring-acceptance.mjs --check",
     "apple:durability:acceptance": "node scripts/apple-prose-durability-acceptance.mjs",
-    "apple:durability:check": "node scripts/apple-prose-durability-acceptance.mjs --check"
+    "apple:durability:check": "node scripts/apple-prose-durability-acceptance.mjs --check",
+    "hosted:client": "node scripts/run-hosted-client.mjs",
+    "hosted:acceptance": "node scripts/run-hosted-acceptance.mjs"
   },
   "keywords": [
     "tauri",

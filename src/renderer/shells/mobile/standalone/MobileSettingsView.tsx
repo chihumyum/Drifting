@@ -91,12 +91,12 @@ function MobileSettingsPanel({
 }) {
   const { panels, failed, retry } = useSettingsPanels(true);
   if (!panels) return <SettingsLoadStatus failed={failed} retry={retry} />;
-  const { AccountPanel, SubscriptionPanel, AppearancePanel, EditorPanel, LanguagePanel, CopilotPanel, ModelsPanel, AboutPanel, KeysPanel, PrivacyPanel, SyncPanel } = panels;
+  const { AccountPanel, AppearancePanel, EditorPanel, LanguagePanel, CopilotPanel, ModelsPanel, AboutPanel, KeysPanel, PrivacyPanel, SyncPanel } = panels;
   switch (id) {
     case 'account':
       return accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null;
     case 'subscription':
-      return accountSettingsEnabled ? <SubscriptionPanel registerRef={REGISTER_NOOP} /> : null;
+      return null;
     case 'appearance':
       return <AppearancePanel registerRef={REGISTER_NOOP} />;
     case 'editor':

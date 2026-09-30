@@ -35,7 +35,7 @@
   },
   "preAlphaGuide": {
     "title": "欢迎使用 Drifting Alpha",
-    "intro": "Drifting Alpha 本地优先且无需 Drifting 账号。核心写作与关系数据完全在本机工作；公开的 0.1.x 版本会通过顺序 migration 保留冻结后的 Alpha schema。",
+    "intro": "无需账号也能开始写作。项目与正文先保存在这台设备上，你可以随时从设置管理同步。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
     "sync": "Google Drive 同步可选。连接后，稿件、评论、关系、原始素材和持久化 Agent memory 会进入 Google 的信任边界；Drifting 不会在 Google Drive 之上额外提供端到端加密。",
     "byok": "Copilot 与 General Agent 均为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
@@ -995,6 +995,48 @@
       "untitled": "未命名",
       "deleteConversation": "删除这条对话",
       "clearConfirm": "清空全部对话历史？将移除本项目的 {{count}} 条 Agent 对话。"
+    },
+    "hosted": {
+      "title": "账号与托管同步",
+      "description": "正文始终先保存在本机。连接账号后，在你的设备之间同步项目。",
+      "no_account": "尚未登录",
+      "sign_in": "登录 / 注册",
+      "sign_out": "退出账号",
+      "sync_title": "托管同步",
+      "enabled": "已连接托管同步",
+      "disabled": "本地书库",
+      "projects": "同步 {{count}} 个项目",
+      "switch_from_drive": "以本机副本切换到托管",
+      "switch_description": "将本机已保存的项目和正文接入托管，不等待 Google Drive。只在其他设备或 Drive 云端的修改不会带入；Drive 云端副本保留。",
+      "connect_description": "合并此账号的云端项目与本地书库，并上传本地项目。",
+      "sync_now": "立即同步",
+      "connect": "连接并同步",
+      "working": "正在处理…",
+      "automatic": "自动同步已开启",
+      "paused": "同步已暂停",
+      "automatic_description": "联网且应用运行时自动同步。切换设备前，请等待同步完成。",
+      "pause": "暂停",
+      "resume": "继续同步",
+      "disconnect": "断开同步",
+      "disconnect_description": "先完成待同步内容，再断开。本地项目和云端副本都会保留。",
+      "done": "操作已完成",
+      "session": {
+        "signed-out": "本地写作不需要登录。",
+        "checking": "正在检查账号连接…",
+        "connected": "账号已连接",
+        "offline": "网络暂不可用，你可以继续在本地写作。",
+        "needs-reauth": "登录已过期，请重新登录同一账号。"
+      },
+      "manage": "管理账号与同步",
+      "back_to_library": "返回本地书库",
+      "trust": "启用托管同步后，项目和原始素材会保存在你连接的服务端。该服务端可以读取这些内容。",
+      "onboarding": "直接在本机开始写作，或登录账号同步书库。之后也可以随时从账号设置登录。",
+      "progress": "同步进度",
+      "retrying": "暂时未能完成同步；正文已保存在本机，会自动重试。",
+      "pending": "正在同步或等待同步完成。",
+      "last_synced": "上次完成同步：{{time}}",
+      "sign_in_sync": "登录并同步",
+      "sign_in_sync_description": "登录后会将此账号的云端项目下载到本机，并上传当前本地书库。退出登录后，本地内容仍然保留。"
     }
   },
   "common": {
@@ -2333,11 +2375,26 @@
       "element": "元素必须属于一个类目；分组可以稍后再整理。"
     },
     "kinds": {
-      "chapter": { "label": "章节", "description": "进入正文写作，并可选择所属故事线。" },
-      "drift": { "label": "灵感", "description": "记录暂时游离于正文之外的想法。" },
-      "element": { "label": "元素", "description": "创建人物、地点、物件等设定条目。" },
-      "storyline": { "label": "故事线", "description": "创建一条新的叙事线并进入编辑。" },
-      "category": { "label": "类目", "description": "为元素建立新的一级分类。" }
+      "chapter": {
+        "label": "章节",
+        "description": "进入正文写作，并可选择所属故事线。"
+      },
+      "drift": {
+        "label": "灵感",
+        "description": "记录暂时游离于正文之外的想法。"
+      },
+      "element": {
+        "label": "元素",
+        "description": "创建人物、地点、物件等设定条目。"
+      },
+      "storyline": {
+        "label": "故事线",
+        "description": "创建一条新的叙事线并进入编辑。"
+      },
+      "category": {
+        "label": "类目",
+        "description": "为元素建立新的一级分类。"
+      }
     },
     "fields": {
       "storyline": "故事线",

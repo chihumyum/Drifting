@@ -11,8 +11,8 @@ import { runtimeViteEnv } from './vite-runtime-env';
  * uses an isolated localStorage key so macOS does not repeatedly authorize an
  * ad-hoc-signed debug binary after native rebuilds.
  */
-const KEY = 'drifting.session_token';
-const DEV_KEY = 'drifting.dev.session_token';
+const LEGACY_KEY = 'drifting.session_token';
+const LEGACY_DEV_KEY = 'drifting.dev.session_token';
 const log = loglevel.getLogger('SessionToken');
 
 interface TokenPersistence {
@@ -31,10 +31,14 @@ interface DevSessionStoragePolicy {
 }
 
 let tokenInMemory: string | null = null;
-let hydrated = false;
+let hydration: Promise<void> | null = null;
 let pendingPersistence: Promise<void> = Promise.resolve();
 let pendingPersistenceErrors: unknown[] = [];
 let tokenRevision = 0;
+
+export function getSessionTokenRevision(): number {
+  return tokenRevision;
+}
 
 function isLoopbackApiBaseUrl(value: string): boolean {
   try {
@@ -97,21 +101,21 @@ function deleteLocalStorage(key: string): void {
 const securePersistence: TokenPersistence = {
   kind: 'keychain',
   label: 'secure-storage',
-  get: () => platform.keychain.get(KEY),
-  set: (token) => platform.keychain.set(KEY, token),
-  delete: () => platform.keychain.delete(KEY),
+  get: async () => platform.keychain.get(await hostedSessionStorageKey(apiBaseUrl)),
+  set: async (token) => platform.keychain.set(await hostedSessionStorageKey(apiBaseUrl), token),
+  delete: async () => platform.keychain.delete(await hostedSessionStorageKey(apiBaseUrl)),
 };
 
 const localDevPersistence: TokenPersistence = {
   kind: 'local-dev',
   label: 'local-dev storage',
-  get: async () => readLocalStorage(DEV_KEY),
+  get: async () => readLocalStorage(`dev.${await hostedSessionStorageKey(apiBaseUrl)}`),
   set: async (token) => {
-    writeLocalStorage(DEV_KEY, token);
+    writeLocalStorage(`dev.${await hostedSessionStorageKey(apiBaseUrl)}`, token);
     return true;
   },
   delete: async () => {
-    deleteLocalStorage(DEV_KEY);
+    deleteLocalStorage(`dev.${await hostedSessionStorageKey(apiBaseUrl)}`);
     return true;
   },
 };
@@ -129,17 +133,17 @@ const persistence = shouldUseLocalDevSessionStorage({
   ? localDevPersistence
   : securePersistence;
 
-function readLegacyToken(): string | null {
-  try {
-    return localStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
+/** Sessions belong to a service origin; a local test service never receives another host's token. */
+export async function hostedSessionStorageKey(apiBaseUrl: string): Promise<string> {
+  const origin = new URL(apiBaseUrl).origin;
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(origin)));
+  return `drifting.hosted.v1.${Array.from(hash, byte => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function removeLegacyToken(): void {
   try {
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(LEGACY_KEY);
+    localStorage.removeItem(LEGACY_DEV_KEY);
   } catch {
     // A disabled localStorage implementation needs no cleanup.
   }
@@ -163,38 +167,20 @@ function queuePersistence(
     });
 }
 
-/** Hydrate the in-memory token before React or any API client starts. */
-export async function hydrateSessionToken(): Promise<void> {
-  if (hydrated) return;
-  hydrated = true;
-
-  try {
-    tokenInMemory = await persistence.get();
-  } catch (error) {
-    log.warn(`[SessionToken] ${persistence.label} hydration failed:`, error);
-  }
-
-  // Development tokens are deliberately isolated from the production key and
-  // never auto-migrated out of Keychain. A developer signs in once against the
-  // local server; remote-connected dev sessions continue to use Keychain.
-  if (persistence.kind === 'local-dev') return;
-
-  if (tokenInMemory) {
+/** Hydration is single-flight and cannot overwrite a newer login or invalidation. */
+export function hydrateSessionToken(): Promise<void> {
+  if (hydration) return hydration;
+  const revision = tokenRevision;
+  hydration = (async () => {
+    try {
+      const token = await persistence.get();
+      if (revision === tokenRevision) tokenInMemory = token;
+    } catch (error) {
+      log.warn(`[SessionToken] ${persistence.label} hydration failed:`, error);
+    }
     removeLegacyToken();
-    return;
-  }
-
-  const legacyToken = readLegacyToken();
-  if (!legacyToken) return;
-
-  tokenInMemory = legacyToken;
-  try {
-    const persisted = await persistence.set(legacyToken);
-    if (persisted) removeLegacyToken();
-    else log.error('[SessionToken] Secure migration returned false; legacy token retained.');
-  } catch (error) {
-    log.error('[SessionToken] Secure migration failed; legacy token retained:', error);
-  }
+  })();
+  return hydration;
 }
 
 export function getSessionToken(): string | null {
@@ -210,10 +196,8 @@ export function setSessionToken(token: string): void {
 export function clearSessionToken(): void {
   const clearRevision = ++tokenRevision;
   removeLegacyToken();
-  // Keep the in-memory token until the secure delete is confirmed. Logout
-  // remains on the authenticated DB/UI when deletion fails, so retaining this
-  // value makes the failure retryable instead of creating a half-logged-out
-  // state. A later set must not be cleared by this older queued deletion.
+  // Keep the in-memory token until the secure delete is confirmed. A failed secure delete
+  // remains retryable; cloud authority is separately disabled by the auth store. A later set must not be cleared by this older queued deletion.
   queuePersistence(
     () => persistence.delete(),
     'delete',

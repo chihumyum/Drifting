@@ -1,4 +1,6 @@
 import loglevel from 'loglevel';
+import { getHostedSessionBinding } from '../lib/hosted-session-binding';
+import { createHostedProvider } from './providers/hosted/tauri-transport';
 import { eq } from 'drizzle-orm';
 
 import { events } from '../lib/events';
@@ -74,8 +76,11 @@ export interface ProductionSyncRuntimeDependencies {
 
 const defaultDependencies: ProductionSyncRuntimeDependencies = {
   database: getDb,
-  listBindings: (database) =>
-    createSyncAppAuthorityRepository(database).listActiveRuntimeBindings(),
+  listBindings: async (database) => {
+    const bindings = await createSyncAppAuthorityRepository(database).listActiveRuntimeBindings();
+    const session = getHostedSessionBinding();
+    return bindings.filter(item => item.mode !== 'hosted' || item.binding.accountRef === session?.accountSubject);
+  },
   async reconcileNativeStorage(database) {
     await reconcileNativeSyncAssetAttempts({
       db: database,
@@ -91,7 +96,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
     if (mode === 'google-drive') {
       return new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport());
     }
-    throw new Error('The Hosted SyncEngine provider is not implemented');
+    return createHostedProvider();
   },
   createCoordinator: () =>
     new SyncEngineCoordinator({
@@ -162,8 +167,8 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
     });
   },
   createAgentChatRuntime({ database, binding }) {
-    if (!binding.projectId || binding.mode !== 'google-drive') return null;
-    return new AgentChatSyncRuntime({ db: database, projectId: binding.projectId, binding: binding.binding, provider: new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport(platform.googleDrive, 'agent-chat')), codec: nativeSyncObjectCodec });
+    if (!binding.projectId) return null;
+    return new AgentChatSyncRuntime({ db: database, projectId: binding.projectId, binding: binding.binding, provider: binding.mode === 'hosted' ? createHostedProvider('agent-chat-v1') : new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport(platform.googleDrive, 'agent-chat')), codec: nativeSyncObjectCodec });
   },
   installCoordinator: installSyncEngineCoordinatorRuntime,
   exposeCoordinator: (coordinator) => productSyncRuntimeControl.attach(coordinator),

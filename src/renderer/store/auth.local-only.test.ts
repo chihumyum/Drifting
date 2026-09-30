@@ -9,6 +9,7 @@ const authCalls = vi.hoisted(() => ({
 }));
 
 vi.mock('../lib/config', () => ({
+  APP_CONFIG: { LOCAL_ONLY_MODE: true },
   canUseHostedService: () => false,
   isAuthRequired: () => false,
 }));

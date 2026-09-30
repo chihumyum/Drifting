@@ -52,9 +52,12 @@ describe('Mobile V2 M1 platform and appearance foundation', () => {
     const theme = source('src/renderer/lib/initial-theme.ts');
     const css = source('src/styles/index.css');
 
-    expect(main.indexOf('applyInitialThemeBeforeRender();')).toBeLessThan(
-      main.indexOf('await Promise.all'),
-    );
+    const themeApplied = main.indexOf('applyInitialThemeBeforeRender();');
+    const platformHydrated = main.indexOf('await hydratePlatformRuntime();');
+    expect(themeApplied).toBeGreaterThan(-1);
+    expect(platformHydrated).toBeGreaterThan(themeApplied);
+    expect(main.indexOf("createRoot(document.getElementById('root')!)")).toBeGreaterThan(platformHydrated);
+    expect(main).not.toContain('await hydrateSessionToken');
     expect(theme).toContain("window.localStorage.getItem('settings-storage')");
     expect(theme).toContain("window.matchMedia('(prefers-color-scheme: dark)')");
     expect(theme).toContain("root.style.colorScheme = scheme");

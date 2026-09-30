@@ -89,7 +89,9 @@ describe('session token durability', () => {
     vi.stubEnv('VITE_DEV_SESSION_STORAGE', 'local');
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:3000');
     vi.resetModules();
-    localStorage.setItem('drifting.dev.session_token', 'existing-dev-token');
+    const { hostedSessionStorageKey } = await import('./session-token');
+    const devKey = `dev.${await hostedSessionStorageKey('http://localhost:3000')}`;
+    localStorage.setItem(devKey, 'existing-dev-token');
 
     const {
       clearSessionToken,
@@ -105,13 +107,13 @@ describe('session token durability', () => {
 
     setSessionToken('next-dev-token');
     await flushSessionTokenStorage();
-    expect(localStorage.getItem('drifting.dev.session_token')).toBe('next-dev-token');
+    expect(localStorage.getItem(devKey)).toBe('next-dev-token');
     expect(mocks.set).not.toHaveBeenCalled();
 
     clearSessionToken();
     await flushSessionTokenStorage();
     expect(getSessionToken()).toBeNull();
-    expect(localStorage.getItem('drifting.dev.session_token')).toBeNull();
+    expect(localStorage.getItem(devKey)).toBeNull();
     expect(mocks.delete).not.toHaveBeenCalled();
   });
 
@@ -123,7 +125,9 @@ describe('session token durability', () => {
 
     expect(getSessionToken()).toBe('secure-token');
     expect(mocks.get).toHaveBeenCalledOnce();
-    expect(mocks.get).toHaveBeenCalledWith('drifting.session_token');
+    const { hostedSessionStorageKey } = await import('./session-token');
+    expect(mocks.get).toHaveBeenCalledWith(await hostedSessionStorageKey('http://localhost:3000'));
+    expect(await hostedSessionStorageKey('https://sync.example.test')).not.toBe(await hostedSessionStorageKey('http://localhost:3000'));
     expect(localStorage.getItem('drifting.dev.session_token')).toBeNull();
   });
 

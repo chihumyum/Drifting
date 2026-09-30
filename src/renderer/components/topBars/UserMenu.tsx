@@ -20,7 +20,6 @@ import { useAuthStore } from '../../store/auth';
 import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
-import { useFeatureAccessStore } from '../../lib/feature-access';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
@@ -28,12 +27,6 @@ import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 
 const log = loglevel.getLogger('UserMenu');
-
-const PLAN_LABEL: Record<string, string> = {
-  free: 'FREE',
-  pro: 'PRO',
-  studio: 'STUDIO',
-};
 
 interface UserMenuProps {
   triggerRef: React.RefObject<HTMLElement | null>;
@@ -46,9 +39,10 @@ type UserMenuSettingsPage = 'copilot';
 
 export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserMenuProps) {
   const { t } = useTranslation();
-  const user = useAuthStore((s) => s.user);
+  const user = useAuthStore((s) => s.hostedUser);
+  const hostedStatus = useAuthStore((s) => s.hostedStatus);
+  const canSignOut = hostedStatus === 'connected' || hostedStatus === 'offline' || hostedStatus === 'checking';
   const logout = useAuthStore((s) => s.logout);
-  const plan = useFeatureAccessStore((s) => s.plan);
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
@@ -109,9 +103,10 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
     try {
       await logout();
       handleClose();
-      navigate('/login');
+      navigate('/');
     } catch (e) {
       log.error('Failed to sign out:', e);
+    } finally {
       setSigningOut(false);
     }
   };
@@ -223,7 +218,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               }}
             >
               {accountSettingsEnabled && user?.email
-                ? `${PLAN_LABEL[plan] ?? plan.toUpperCase()} · BETA`
+                ? t(`settings.hosted.session.${hostedStatus}`)
                 : t('userMenu.localStatus')}
             </span>
           </div>
@@ -379,9 +374,8 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           <MenuGroup last>
             <MenuItem
               icon={<LogOut size={13} />}
-              label={signingOut ? t('userMenu.signingOut') : t('userMenu.signOut')}
-              meta="SIGN OUT"
-              onClick={signingOut ? undefined : handleSignOut}
+              label={signingOut ? t('userMenu.signingOut') : t(canSignOut ? 'userMenu.signOut' : 'settings.hosted.sign_in_sync')}
+              onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { handleClose(); navigate('/login'); }}
             />
           </MenuGroup>
         )}

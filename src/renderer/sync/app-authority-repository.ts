@@ -226,7 +226,7 @@ export async function resolveSyncGenerationAuthorityProjectId(
 }
 
 function providerNamespace(mode: CloudSyncProviderMode): string {
-  return mode === 'google-drive' ? 'appDataFolder' : 'immutable-object-log';
+  return mode === 'google-drive' ? 'appDataFolder' : 'project-v1';
 }
 
 /**

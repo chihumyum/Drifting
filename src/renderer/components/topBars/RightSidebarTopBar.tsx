@@ -11,7 +11,7 @@ export function RightSidebarTopBar() {
   const { desktopWindowControls } = getPlatformRuntime();
   const isRightSidebarOpen = useUiStore((state) => state.sidebars.right.isOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
-  const user = useAuthStore((s) => s.user);
+  const user = useAuthStore((s) => s.hostedUser);
   const avatarRef = useRef<HTMLButtonElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 

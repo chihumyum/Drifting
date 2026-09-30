@@ -1,6 +1,6 @@
 import loglevel from 'loglevel';
 
-import { canUsePersonalCloud } from '../../lib/config';
+import { canUseHostedService, canUsePersonalCloud } from '../../lib/config';
 import { getDb } from '../../lib/db';
 import { events } from '../../lib/events';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
@@ -21,6 +21,9 @@ import { SyncGenerationProvisionRepository } from './repository';
 import { SyncGenerationProvisionSupervisor } from './supervisor';
 import { PendingSyncGenerationProvisioner } from './sync-generation-provisioner';
 
+import { getHostedSessionBinding } from '../../lib/hosted-session-binding';
+import { createHostedProvider } from '../providers/hosted/tauri-transport';
+
 const log = loglevel.getLogger('GoogleDriveSyncGenerationProvision');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
 
@@ -33,13 +36,13 @@ export function requestGoogleDriveSyncGenerationProvisioning(): boolean {
   return true;
 }
 
-function createProductSupervisor(): SyncGenerationProvisionSupervisor {
+function createProductSupervisor(mode: 'google-drive' | 'hosted'): SyncGenerationProvisionSupervisor {
   return new SyncGenerationProvisionSupervisor({
-    canUseProvider: canUsePersonalCloud,
+    canUseProvider: mode === 'hosted' ? () => canUseHostedService() && getHostedSessionBinding() !== null : canUsePersonalCloud,
     async runOnce(signal) {
       const db = getDb();
       const repository = new SyncGenerationProvisionRepository(db);
-      const pending = await repository.ensureAndListPending('google-drive');
+      const pending = await repository.ensureAndListPending(mode);
       const failures: unknown[] = [];
       for (const item of pending) {
         if (signal.aborted) throw signal.reason;
@@ -47,7 +50,7 @@ function createProductSupervisor(): SyncGenerationProvisionSupervisor {
           db,
           repository,
           createProvider: () =>
-            new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport()),
+            mode === 'hosted' ? createHostedProvider() : new GoogleDriveObjectLogProvider(new TauriGoogleDriveObjectTransport()),
           createSnapshotPublisher: ({
             pending: generation,
             provider,
@@ -77,15 +80,23 @@ function createProductSupervisor(): SyncGenerationProvisionSupervisor {
       }
     },
     onError(error) {
-      log.warn('Pending Google Drive SyncGeneration provisioning will retry', error);
+      log.warn(`Pending ${mode} SyncGeneration provisioning will retry`, error);
     },
   });
 }
 
 /** Installs foreground/start/commit wakeups without coupling to production-runtime.ts. */
 export function installGoogleDriveSyncGenerationProvisioningRuntime(): () => void {
-  const supervisor = createProductSupervisor();
-  activeProductSupervisor = supervisor;
+  return installProvisioningRuntime('google-drive');
+}
+
+export function installHostedSyncGenerationProvisioningRuntime(): () => void {
+  return installProvisioningRuntime('hosted');
+}
+
+function installProvisioningRuntime(mode: 'google-drive' | 'hosted'): () => void {
+  const supervisor = createProductSupervisor(mode);
+  if (mode === 'google-drive') activeProductSupervisor = supervisor;
   let databaseReady = false;
   const request = () => {
     if (databaseReady) supervisor.requestRun();

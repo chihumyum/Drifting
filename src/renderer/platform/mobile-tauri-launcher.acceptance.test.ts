@@ -86,7 +86,8 @@ describe('mobile Tauri environment', () => {
       '123456789012-explicit.apps.googleusercontent.com',
     );
     expect(environment.VITE_LOCAL_ONLY_MODE).toBe('false');
-    expect(environment.VITE_REQUIRE_AUTH).toBe('true');
+    expect(environment.VITE_REQUIRE_AUTH).toBe('false');
+    expect(environment.VITE_AI_TRANSPORT).toBe('direct');
   });
 
   it('writes an ignored owner-only iOS build setting without exposing values in status', () => {

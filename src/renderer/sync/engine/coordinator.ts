@@ -60,6 +60,7 @@ export class SyncEngineCoordinator {
   private readonly runtimes = new Map<string, RegisteredSyncGenerationRuntime>();
   private readonly failureAttempts = new Map<string, number>();
   private readonly scheduler: SyncScheduler;
+  private providerChangeHeld = false;
 
   constructor(options: SyncEngineCoordinatorOptions = {}) {
     this.nowMs = options.nowMs ?? (() => Date.now());
@@ -155,6 +156,7 @@ export class SyncEngineCoordinator {
   }
 
   triggerResume(): void {
+    if (this.providerChangeHeld) return;
     this.scheduler.triggerResume();
   }
 
@@ -167,11 +169,22 @@ export class SyncEngineCoordinator {
   }
 
   setSuspended(suspended: boolean): void {
+    if (this.providerChangeHeld && !suspended) return;
     this.scheduler.setSuspended(suspended);
   }
 
   setForeground(foreground: boolean): void {
     this.scheduler.setForeground(foreground);
+  }
+
+  suspendAndDrain(): Promise<void> {
+    this.providerChangeHeld = true;
+    return this.scheduler.suspendAndDrain();
+  }
+
+  resumeAfterProviderChange(): void {
+    this.providerChangeHeld = false;
+    this.scheduler.setSuspended(false);
   }
 
   shutdown(): void {

@@ -37,7 +37,7 @@ interface MobileProjectShelfContentProps {
   counts: Record<MobileProjectShelfFilter, number>;
   filter: MobileProjectShelfFilter;
   query: string;
-  user: User | null;
+  user: Pick<User, 'name' | 'email'> | null;
   userInitial: string;
   avatarRef: RefObject<HTMLButtonElement | null>;
   menuOpen: boolean;

@@ -1,0 +1,143 @@
+# Hosted sync dogfooding
+
+The active Tauri client now supports a separately operated Hosted account and
+immutable-object provider. The Apple-native migration remains paused. Google
+Drive integration remains available in public local-only builds; new adaptation
+work is paused while Hosted dogfooding is accepted. The author narrowed this
+milestone to Mac on 2026-09-30; mobile implementation and acceptance are deferred.
+
+## Local operator loop
+
+Start the private server's Docker stack using its own README. This repository
+contains no private server implementation. Run the independent client lab:
+
+```sh
+pnpm hosted:client desktop dev
+pnpm hosted:client desktop build --debug --bundles app
+DRIFTING_HOSTED_LAB_INSTANCE=peer pnpm hosted:client desktop build --debug --bundles app
+pnpm hosted:acceptance
+pnpm hosted:acceptance --check
+```
+
+The default service origin is `http://localhost:3000`. Verification messages
+are available in the private stack's local Mailpit. The lab uses its own bundle
+identifier and local database directory. `DRIFTING_HOSTED_LAB_INSTANCE=peer`
+creates a second isolated Mac instance with its own library and credential service. macOS debug bundles use an ad-hoc
+signature; this is not distribution signing. Non-debug macOS bundles require a
+verified Apple Development identity. Physical mobile devices require a reachable
+service origin, platform provisioning and installation acceptance.
+
+`DRIFTING_HOSTED_ORIGIN` selects another service origin and is embedded in the
+native transport allowlist. The lab launcher supplies matching renderer config
+and CSP. Release native transport rejects plain HTTP. A local Docker stack on a
+sleeping/disconnected Mac cannot provide continuous access away from that Mac.
+
+## Writing and account behavior
+
+The library remains `drifting-library.db` before login, after login, offline and
+after logout. Its domain user identity does not become a server account ID.
+Cached account display metadata contains no token. Production bearer sessions use an
+origin-scoped secure-storage key; another host's retired session is never read
+or migrated. Lab bundle identifiers use isolated credential services. Neither
+credential hydration nor session requests block opening the local library.
+
+The same configured app offers **Continue locally** and **Sign in and sync** on
+first use. Login explicitly describes the upload/download boundary and connects
+the existing library after account verification; connection failures remain
+retryable in Account settings through **Connect and sync**. No second install or
+library is needed to move from local writing to Hosted. The source-default
+service-disabled configuration is an operator boundary, not a user mode.
+Initial connection
+publishes existing local projects and restores validated cloud projects before
+activating one app-wide authority. New projects publish a genesis snapshot;
+**Sync now** waits for every binding to mount and complete a fresh cycle. The
+account panel reports the last completed sync and retry/pending state. Other
+running clients discover projects on wakeup and periodic checks. An offline
+startup revalidates the cached session on focus and every 30 seconds, so a service
+restart does not require a new browser network event or manual login.
+
+For a library using Drive, **Switch this library to Hosted** explicitly adopts
+the saved local replica. It does not contact Drive, include unseen changes from
+other devices, or delete the Drive copy. The client drains cancelled provider
+callbacks, flushes local writes, then atomically records a local disconnect,
+creates independent sync generations and a resumable Hosted connect attempt.
+The original immutable history remains retired. Rebased reducer ancestry gets
+new identities; prose, project IDs, assets and domain rows remain unchanged.
+A fresh writer inherits the highest source clock and starts at sequence 1.
+No Drive cursor, segment chain, upload receipt or remote asset receipt becomes
+Hosted authority. Only a verified published genesis activates sync. An upload
+failure leaves the new local replica writable and retryable; cancelling the
+connect retains it in local mode. Unresolved conflicts/gaps/quarantine block
+adoption. Snapshot restore/rebase inserts bounded batches into SQLite.
+
+Existing projects continue through the shared SyncEngine journal, checkpoint,
+reducer and native blob paths. No second prose database or service entity CRUD
+adapter exists. Retired account-deletion and billing clients and the subscription
+panel have been removed; local recovery has no subscription cache.
+
+An expired session stops outbound sync and keeps local writing available. Signing
+in to the same verified account resumes authentication-blocked generations.
+Another account is rejected while the library owns the current Hosted authority.
+Pause/resume applies to the active project bindings. Disconnect waits for a fresh
+converged frontier, then retains local projects and remote copies. Sign out stops
+sync and retains local data; it does not imply pending changes reached the server.
+
+## Versioned service contract
+
+Paths start `/api/sync/v1/project-v1` or `/api/sync/v1/agent-chat-v1`. The provider
+opens account-owned generations, enumerates inventory and changes using opaque
+cursors, uploads immutable objects with SHA-256, and downloads them into native
+staging references. Account-wide snapshot discovery never activates unvalidated
+bytes. The current service ceiling is 64 MiB per object.
+
+Native requests enforce the configured origin, deny redirects, cap responses,
+verify uploaded files and downloaded hashes, stream binary data outside JS, and
+publish downloaded files only after fsync and rename. A cancelled or corrupted
+transfer leaves the canonical destination unmodified. The service can read stored
+content; this integration does not claim end-to-end encryption.
+
+Mobile launcher work from the initial investigation is retained, but mobile is
+not an acceptance gate for this milestone. No physical mobile usability is claimed.
+
+## Acceptance and remaining device gates
+
+[Native session observations and open gates](native-session.md) record the
+interactive work separately from the final source checks.
+
+[Generated integration evidence](acceptance/client.json) is tied to the current
+source fingerprint and exercises real HTTP with independent SQLite libraries:
+initial connect/recovery, concurrent offline Chinese prose, lost upload response,
+new-project provisioning/discovery, synthetic asset bytes, session rejection,
+reauthentication, reopening SQLite, offline Drive takeover with rollback, preserved
+immutable history, cross-batch reducer ancestry and asset restoration. Dedicated tests also cover account identity,
+local-only network denial and credential persistence failures.
+
+The Mac interaction loop uses two isolated app instances on one physical Mac.
+The integration report uses explicit test ports for object staging and asset
+activation. Native UI interaction, physical IME, physical-device backgrounding,
+installation signing and internet deployment are separate gates. No unattended
+background execution guarantee is made for mobile; wait for sync completion before
+switching devices. Keep independent exports/backups while dogfooding.
+
+## Local writing identity and macOS prompts
+
+The non-secret installation marker lives in `sync-installation-v2.json` in the
+native app data directory, outside SQLite backups. Creation publishes a fully
+fsynced owner-only file without overwriting another creator. Concurrent first
+reads converge; a corrupt or symlinked marker fails explicitly. A missing marker
+creates a new identity and the existing journal rotates writer/epoch while
+retaining prior changes and HLC ordering. The retired Keychain marker is never
+read or deleted during this upgrade. Local writing does not need a Keychain grant.
+
+macOS background credential reads skip entries requiring user interaction. They
+never weaken an entry's access control; unavailable credentials require sign-in
+or re-entry. Explicit production credential writes may still require the OS's
+normal authorization. Stable distribution signing remains a separate release gate.
+
+Only debug Mac lab identities targeting an exact compiled loopback service keep
+that origin's Hosted session in an atomic owner-only local file (directory 0700,
+file 0600). This is disposable developer-session storage, not encryption. Release
+builds, production app identities, remote service origins, other-origin session
+keys and all BYOK/OAuth/Drive secrets cannot use this path. No old Keychain token
+is copied. The first updated lab launch requires signing in again; subsequent
+lab rebuilds reuse the local session without code-signing authorization prompts.

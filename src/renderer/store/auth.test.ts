@@ -1,361 +1,173 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
-  order: [] as string[],
-  signOut: vi.fn(),
+  token: 'synthetic-token' as string | null,
+  revision: 0,
+  mode: 'local',
+  account: 'account-a',
   getSession: vi.fn(),
-  clearSessionToken: vi.fn(),
-  invalidateSessionToken: vi.fn(),
-  flushSessionTokenStorage: vi.fn(),
+  signOut: vi.fn(),
+  signIn: vi.fn(),
   initDatabase: vi.fn(),
-  resetDatabase: vi.fn(),
   flushLocal: vi.fn(),
-  flushRemote: vi.fn(),
-  quiesce: vi.fn(),
-  quiesceAfterCredentialLoss: vi.fn(),
-}));
-
-vi.mock('../lib/auth-client', () => ({
-  authClient: { signOut: mocks.signOut, getSession: mocks.getSession },
-}));
-vi.mock('../lib/session-token', () => ({
-  clearSessionToken: mocks.clearSessionToken,
-  invalidateSessionToken: mocks.invalidateSessionToken,
-  flushSessionTokenStorage: mocks.flushSessionTokenStorage,
+  emit: vi.fn(),
+  writeProfile: vi.fn(),
+  resume: vi.fn(),
 }));
 vi.mock('../lib/config', () => ({
+  APP_CONFIG: { LOCAL_ONLY_MODE: false },
   canUseHostedService: () => true,
-  isAuthRequired: () => true,
 }));
-vi.mock('../utils/appAccess', () => ({
-  APP_CLOSED_MESSAGE: 'closed',
-  isAppClosedForPublic: false,
+vi.mock('../lib/auth-client', () => ({
+  authClient: {
+    getSession: mocks.getSession,
+    signOut: mocks.signOut,
+    signIn: { email: mocks.signIn },
+  },
+}));
+vi.mock('../lib/session-token', () => ({
+  getSessionToken: () => mocks.token,
+  getSessionTokenRevision: () => mocks.revision,
+  setSessionToken: (value: string) => {
+    mocks.token = value;
+  },
+  clearSessionToken: () => {
+    mocks.token = null;
+  },
+  invalidateSessionToken: () => {
+    mocks.token = null;
+  },
+  flushSessionTokenStorage: async () => {},
+  hydrateSessionToken: async () => {},
+}));
+vi.mock('../lib/hosted-profile', () => ({
+  readHostedProfile: () => null,
+  writeHostedProfile: mocks.writeProfile,
 }));
 vi.mock('../lib/db', () => ({
   initDatabase: mocks.initDatabase,
-  resetDatabase: mocks.resetDatabase,
+  getDb: () => ({
+    select: () => ({
+      from: async () => [{ providerKind: 'hosted', accountSubjectId: mocks.account }],
+    }),
+  }),
 }));
-vi.mock('../lib/events', () => ({
-  events: { emit: vi.fn() },
+vi.mock('../sync/app-authority-repository', () => ({
+  createSyncAppAuthorityRepository: () => ({
+    read: async () => ({ mode: mocks.mode, transitionState: 'stable' }),
+    listActiveRuntimeBindings: async () => [{ binding: { accountRef: mocks.account } }],
+  }),
 }));
+vi.mock('../lib/events', () => ({ events: { emit: mocks.emit } }));
 vi.mock('../lib/persistence-lifecycle', () => ({
   flushLocalApplicationPersistence: mocks.flushLocal,
-  flushRemoteApplicationPersistence: mocks.flushRemote,
-  quiesceApplicationForDatabaseSwitch: mocks.quiesce,
-  quiesceApplicationAfterCredentialLoss: mocks.quiesceAfterCredentialLoss,
 }));
-function createMemoryStorage(): Storage {
-  const values = new Map<string, string>();
-  return {
-    get length() {
-      return values.size;
-    },
-    clear: () => values.clear(),
-    getItem: (key) => values.get(key) ?? null,
-    key: (index) => [...values.keys()][index] ?? null,
-    removeItem: (key) => {
-      values.delete(key);
-    },
-    setItem: (key, value) => {
-      values.set(key, value);
-    },
-  };
-}
-
-describe('auth store persistence', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.resetAllMocks();
-    mocks.order.length = 0;
-    mocks.flushLocal.mockImplementation(async () => {
-      mocks.order.push('persistence:local');
-    });
-    mocks.flushRemote.mockImplementation(async () => {
-      mocks.order.push('persistence:remote');
-    });
-    mocks.quiesce.mockImplementation(async (unmount: () => void) => {
-      mocks.order.push('quiesce:start');
-      unmount();
-      mocks.order.push('quiesce:done');
-    });
-    mocks.signOut.mockImplementation(async () => {
-      mocks.order.push('signOut');
-      return { data: { success: true }, error: null };
-    });
-    mocks.clearSessionToken.mockImplementation(() => mocks.order.push('token:clear'));
-    mocks.invalidateSessionToken.mockImplementation(() => mocks.order.push('token:invalidate'));
-    mocks.flushSessionTokenStorage.mockImplementation(async () => {
-      mocks.order.push('token:flush');
-    });
-    mocks.resetDatabase.mockImplementation(async () => {
-      mocks.order.push('database:reset');
-    });
-    mocks.initDatabase.mockImplementation(async () => {
-      mocks.order.push('database:init');
-    });
+vi.mock('../sync/hosted/session-recovery', () => ({ resumeHostedAuthentication: mocks.resume }));
+import { useAuthStore, LOCAL_USER_ID } from './auth';
+import { getHostedSessionBinding, clearHostedSessionBinding } from '../lib/hosted-session-binding';
+const session = {
+  user: {
+    id: 'account-a',
+    email: 'synthetic@example.test',
+    name: 'Synthetic',
+    emailVerified: true,
+  },
+};
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.mode = 'local';
+  mocks.account = 'account-a';
+  mocks.token = 'synthetic-token';
+  clearHostedSessionBinding();
+  mocks.getSession.mockResolvedValue({ data: session, error: null });
+  mocks.signOut.mockResolvedValue({ error: null });
+  mocks.signIn.mockResolvedValue({ error: null });
+  useAuthStore.setState({ hostedUser: null, session: null, hostedStatus: 'signed-out' });
+});
+describe('Hosted sessions preserve the local writing library', () => {
+  it('adopts a verified account without replacing local identity or database', async () => {
+    const local = useAuthStore.getState().user;
+    await useAuthStore.getState().adoptSession();
+    expect(useAuthStore.getState().user).toBe(local);
+    expect(local.id).toBe(LOCAL_USER_ID);
+    expect(useAuthStore.getState().hostedUser?.id).toBe('account-a');
+    expect(getHostedSessionBinding()?.accountSubject).toBe('account-a');
+    expect(mocks.initDatabase).not.toHaveBeenCalled();
   });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  it('expires authentication without closing the library or forgetting the expected account', async () => {
+    await useAuthStore.getState().adoptSession();
+    await useAuthStore.getState().expireSession();
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: true,
+      user: { id: LOCAL_USER_ID },
+      hostedStatus: 'needs-reauth',
+      hostedUser: { id: 'account-a' },
+    });
+    expect(mocks.token).toBeNull();
+    expect(getHostedSessionBinding()).toBeNull();
   });
-
-  it('removes the legacy persisted session and never writes a new one', async () => {
-    const storage = createMemoryStorage();
-    storage.setItem(
-      'auth-storage',
-      JSON.stringify({
-        state: {
-          isAuthenticated: true,
-          session: { session: { token: 'plaintext-session-token' } },
-        },
-        version: 0,
+  it('rejects another account before binding or exporting local data', async () => {
+    mocks.mode = 'hosted';
+    mocks.account = 'account-b';
+    await expect(useAuthStore.getState().adoptSession()).rejects.toThrow('HOSTED_ACCOUNT_MISMATCH');
+    expect(getHostedSessionBinding()).toBeNull();
+    expect(mocks.resume).not.toHaveBeenCalled();
+  });
+  it('retains the session if remote sign-out fails, and clears it after a successful retry', async () => {
+    await useAuthStore.getState().adoptSession();
+    mocks.signOut.mockResolvedValueOnce({ error: { message: 'offline' } });
+    await expect(useAuthStore.getState().logout()).rejects.toThrow('offline');
+    expect(mocks.token).toBe('synthetic-token');
+    await useAuthStore.getState().logout();
+    expect(mocks.token).toBeNull();
+    expect(mocks.flushLocal).toHaveBeenCalledTimes(2);
+    expect(useAuthStore.getState().user.id).toBe(LOCAL_USER_ID);
+    expect(mocks.initDatabase).not.toHaveBeenCalled();
+  });
+  it('opens the library without waiting for a stalled account request', async () => {
+    let finish!: (value: unknown) => void;
+    mocks.getSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
       }),
     );
-    const setItem = vi.spyOn(storage, 'setItem');
-    vi.stubGlobal('localStorage', storage);
-
-    const { useAuthStore } = await import('./auth');
-
-    expect(storage.getItem('auth-storage')).toBeNull();
-    useAuthStore.setState({
-      isAuthenticated: true,
-      session: { session: { token: 'new-session-token' } } as never,
-    });
-    expect(setItem).not.toHaveBeenCalled();
-    expect(storage.getItem('auth-storage')).toBeNull();
+    await useAuthStore.getState().checkSession();
+    expect(mocks.initDatabase).toHaveBeenCalledWith(LOCAL_USER_ID);
+    expect(mocks.emit).toHaveBeenCalledWith('db:ready');
+    finish({ data: session, error: null });
+    await useAuthStore.getState().refreshHostedSession();
   });
-
-  it('quiesces mounted data and persists token deletion before switching databases on logout', async () => {
-    vi.stubGlobal('localStorage', createMemoryStorage());
-    const { useAuthStore } = await import('./auth');
-    useAuthStore.setState({
-      isAuthenticated: true,
-      session: {} as never,
-      user: {
-        id: 'outgoing-user',
-        email: 'writer@example.com',
-        name: 'Writer',
-        emailVerified: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    await useAuthStore.getState().logout();
-
-    expect(mocks.order).toEqual([
-      'persistence:local',
-      'persistence:remote',
-      'signOut',
-      'token:clear',
-      'token:flush',
-      'quiesce:start',
-      'quiesce:done',
-      'database:reset',
-      'database:init',
-    ]);
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    expect(mocks.initDatabase).toHaveBeenCalledWith('drifting-library.db');
+  it('does not authorize a changed token until its account is verified', async () => {
+    await useAuthStore.getState().adoptSession();
+    mocks.token = 'other-unverified-token';
+    expect(getHostedSessionBinding()).toBeNull();
   });
-
-  it('keeps the authenticated DB/state intact after secure delete failure and can retry', async () => {
-    vi.stubGlobal('localStorage', createMemoryStorage());
-    mocks.flushSessionTokenStorage
-      .mockImplementationOnce(async () => {
-        mocks.order.push('token:flush');
-        throw new Error('secure delete failed');
-      })
-      .mockImplementation(async () => {
-        mocks.order.push('token:flush');
-      });
-    const { useAuthStore } = await import('./auth');
-    const outgoingUser = {
-      id: 'outgoing-user',
-      email: 'writer@example.com',
-      name: 'Writer',
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    const outgoingSession = {} as never;
-    useAuthStore.setState({
-      isAuthenticated: true,
-      session: outgoingSession,
-      user: outgoingUser,
-    });
-
-    await expect(useAuthStore.getState().logout()).rejects.toThrow('secure delete failed');
-
-    expect(mocks.quiesce).not.toHaveBeenCalled();
-    expect(mocks.resetDatabase).not.toHaveBeenCalled();
-    expect(mocks.initDatabase).not.toHaveBeenCalled();
-    expect(useAuthStore.getState()).toMatchObject({
-      isAuthenticated: true,
-      session: outgoingSession,
-      user: outgoingUser,
-    });
-
-    mocks.order.length = 0;
-    await expect(useAuthStore.getState().logout()).resolves.toBeUndefined();
-
-    expect(mocks.order).toEqual([
-      'persistence:local',
-      'persistence:remote',
-      'signOut',
-      'token:clear',
-      'token:flush',
-      'quiesce:start',
-      'quiesce:done',
-      'database:reset',
-      'database:init',
-    ]);
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
-  });
-
-  it('keeps the credential and authenticated state when server revocation fails', async () => {
-    vi.stubGlobal('localStorage', createMemoryStorage());
-    mocks.signOut
-      .mockImplementationOnce(async () => {
-        mocks.order.push('signOut');
-        return { data: null, error: { message: 'server unavailable' } };
-      })
-      .mockImplementation(async () => {
-        mocks.order.push('signOut');
-        return { data: { success: true }, error: null };
-      });
-    const { useAuthStore } = await import('./auth');
-    const outgoingUser = {
-      id: 'outgoing-user',
-      email: 'writer@example.com',
-      name: 'Writer',
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    useAuthStore.setState({
-      isAuthenticated: true,
-      session: {} as never,
-      user: outgoingUser,
-    });
-
-    await expect(useAuthStore.getState().logout()).rejects.toThrow('server unavailable');
-
-    expect(mocks.clearSessionToken).not.toHaveBeenCalled();
-    expect(mocks.quiesce).not.toHaveBeenCalled();
-    expect(mocks.resetDatabase).not.toHaveBeenCalled();
-    expect(useAuthStore.getState()).toMatchObject({
-      isAuthenticated: true,
-      user: outgoingUser,
-    });
-
-    mocks.order.length = 0;
-    await expect(useAuthStore.getState().logout()).resolves.toBeUndefined();
-    expect(mocks.order).toContain('token:clear');
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
-  });
-
-  it('coalesces concurrent 401 expiry without remote calls and always leaves protected state', async () => {
-    vi.stubGlobal('localStorage', createMemoryStorage());
-    let releaseTeardown!: () => void;
-    mocks.quiesceAfterCredentialLoss.mockImplementation(async (unmount: () => void) => {
-      mocks.order.push('credential-quiesce:start');
-      unmount();
-      await new Promise<void>((resolve) => {
-        releaseTeardown = resolve;
-      });
-      mocks.order.push('credential-quiesce:done');
-    });
-
-    const { useAuthStore } = await import('./auth');
-    useAuthStore.setState({
-      isAuthenticated: true,
-      session: {} as never,
-      user: {
-        id: 'expired-user',
-        email: 'writer@example.com',
-        name: 'Writer',
-        emailVerified: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    const first = useAuthStore.getState().expireSession();
-    const second = useAuthStore.getState().expireSession();
-    expect(second).toBe(first);
-    await vi.waitFor(() => expect(mocks.quiesceAfterCredentialLoss).toHaveBeenCalledOnce());
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
-
-    releaseTeardown();
-    await Promise.all([first, second]);
-
-    expect(mocks.signOut).not.toHaveBeenCalled();
-    expect(mocks.flushRemote).not.toHaveBeenCalled();
-    expect(mocks.invalidateSessionToken).toHaveBeenCalledOnce();
-    expect(mocks.order).toEqual([
-      'token:invalidate',
-      'credential-quiesce:start',
-      'credential-quiesce:done',
-      'database:reset',
-      'database:init',
-    ]);
-    expect(useAuthStore.getState()).toMatchObject({
-      isAuthenticated: false,
-      session: null,
-      user: null,
-    });
-  });
-
-  it('durably removes an expired bootstrap token without resetting the anonymous database', async () => {
-    vi.stubGlobal('localStorage', createMemoryStorage());
-    const { useAuthStore } = await import('./auth');
-
-    await useAuthStore.getState().expireSession();
-
-    expect(mocks.order).toEqual(['token:invalidate', 'token:flush']);
-    expect(mocks.quiesceAfterCredentialLoss).not.toHaveBeenCalled();
-    expect(mocks.resetDatabase).not.toHaveBeenCalled();
-    expect(mocks.initDatabase).not.toHaveBeenCalled();
-  });
-
-  it('coalesces concurrent session checks into one database bootstrap', async () => {
-    vi.stubGlobal('localStorage', createMemoryStorage());
-    let resolveSession!: (value: unknown) => void;
-    mocks.getSession.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveSession = resolve;
-        }),
+  it('does not rebind a session whose request finished after sign-out', async () => {
+    await useAuthStore.getState().adoptSession();
+    let finish!: (value: unknown) => void;
+    mocks.getSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
     );
-    const { useAuthStore } = await import('./auth');
-
-    const first = useAuthStore.getState().checkSession();
-    const second = useAuthStore.getState().checkSession();
-
-    expect(second).toBe(first);
-    expect(mocks.getSession).toHaveBeenCalledOnce();
-    resolveSession({
-      data: {
-        user: {
-          id: 'bootstrap-user',
-          email: 'writer@example.com',
-          name: 'Writer',
-          emailVerified: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      },
-      error: null,
-    });
-    await Promise.all([first, second]);
-
-    expect(mocks.flushLocal).toHaveBeenCalledOnce();
-    expect(mocks.resetDatabase).toHaveBeenCalledOnce();
-    expect(mocks.initDatabase).toHaveBeenCalledOnce();
-    expect(mocks.initDatabase).toHaveBeenCalledWith('bootstrap-user');
-    expect(useAuthStore.getState()).toMatchObject({
-      isAuthenticated: true,
-      user: { id: 'bootstrap-user' },
-    });
+    const pending = useAuthStore.getState().refreshHostedSession();
+    await useAuthStore.getState().logout();
+    finish({ data: session, error: null });
+    await pending;
+    expect(getHostedSessionBinding()).toBeNull();
+    expect(useAuthStore.getState().hostedStatus).toBe('signed-out');
+  });
+  it('does not authorize a token replaced while validating the account', async () => {
+    let finish!: (value: unknown) => void;
+    mocks.getSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const pending = useAuthStore.getState().adoptSession();
+    mocks.token = 'replacement-token';
+    mocks.revision++;
+    finish({ data: session, error: null });
+    await expect(pending).rejects.toThrow('SESSION_CHANGED');
+    expect(getHostedSessionBinding()).toBeNull();
   });
 });

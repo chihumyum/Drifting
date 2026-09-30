@@ -20,7 +20,6 @@ import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';
 import { elementCandidateCapability } from './lib/copilot/capabilities/element-candidate';
 import { elementPatchCapability } from './lib/copilot/capabilities/element-patch';
-import { hydrateSessionToken } from './lib/session-token';
 import { hydratePlatformRuntime } from './platform/runtime';
 import { applyInitialThemeBeforeRender } from './lib/initial-theme';
 import App from './App';
@@ -64,7 +63,7 @@ const queryClient = new QueryClient({
 
 async function bootstrap() {
   applyInitialThemeBeforeRender();
-  await Promise.all([hydrateSessionToken(), hydratePlatformRuntime()]);
+  await hydratePlatformRuntime();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>

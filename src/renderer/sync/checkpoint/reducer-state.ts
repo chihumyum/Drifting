@@ -143,6 +143,11 @@ export async function captureReducerStateV1(
   };
 }
 
+// Keep snapshot restore/rebase below even SQLite's conservative bind limit.
+function* batches<T>(rows: readonly T[]): Generator<T[]> {
+  for (let offset = 0; offset < rows.length; offset += 32) yield rows.slice(offset, offset + 32);
+}
+
 export async function materializeReducerStateV1(
   tx: DbExecutor,
   state: ReducerStatePayloadV1,
@@ -164,13 +169,13 @@ export async function materializeReducerStateV1(
   const orderRegisters = inflateRows(SyncOrderRegisterTable, state.orderRegisters) as (typeof SyncOrderRegisterTable.$inferInsert)[];
   const lifecycles = inflateRows(SyncEntityLifecycleTable, state.lifecycles) as (typeof SyncEntityLifecycleTable.$inferInsert)[];
   const frontier = inflateRows(SyncFrontierTable, state.frontier) as (typeof SyncFrontierTable.$inferInsert)[];
-  if (changeSets.length) await tx.insert(SyncChangeSetTable).values(changeSets);
-  if (mutations.length) await tx.insert(SyncMutationTable).values(mutations);
-  if (receipts.length) await tx.insert(SyncApplyReceiptTable).values(receipts);
-  if (generationPurges.length) await tx.insert(SyncGenerationPurgeTable).values(generationPurges);
-  if (fieldClocks.length) await tx.insert(SyncFieldClockTable).values(fieldClocks);
-  if (setTags.length) await tx.insert(SyncSetTagTable).values(setTags);
-  if (orderRegisters.length) await tx.insert(SyncOrderRegisterTable).values(orderRegisters);
-  if (lifecycles.length) await tx.insert(SyncEntityLifecycleTable).values(lifecycles);
-  if (frontier.length) await tx.insert(SyncFrontierTable).values(frontier);
+  for (const batch of batches(changeSets)) await tx.insert(SyncChangeSetTable).values(batch);
+  for (const batch of batches(mutations)) await tx.insert(SyncMutationTable).values(batch);
+  for (const batch of batches(receipts)) await tx.insert(SyncApplyReceiptTable).values(batch);
+  for (const batch of batches(generationPurges)) await tx.insert(SyncGenerationPurgeTable).values(batch);
+  for (const batch of batches(fieldClocks)) await tx.insert(SyncFieldClockTable).values(batch);
+  for (const batch of batches(setTags)) await tx.insert(SyncSetTagTable).values(batch);
+  for (const batch of batches(orderRegisters)) await tx.insert(SyncOrderRegisterTable).values(batch);
+  for (const batch of batches(lifecycles)) await tx.insert(SyncEntityLifecycleTable).values(batch);
+  for (const batch of batches(frontier)) await tx.insert(SyncFrontierTable).values(batch);
 }

@@ -220,14 +220,14 @@ export class ProductSyncCommandService {
       if (
         !authority ||
         authority.transitionState !== 'stable' ||
-        authority.mode !== 'google-drive'
+        authority.mode === 'local'
       ) {
-        throw new Error('Google Drive pause requires stable cloud authority');
+        throw new Error('Pause requires stable cloud authority');
       }
       const bindings = await tx
         .select({ syncGenerationId: SyncProviderBindingTable.syncGenerationId, state: SyncProviderBindingTable.state })
         .from(SyncProviderBindingTable);
-      if (bindings.length === 0) throw new Error('No Google Drive SyncGeneration is connected');
+      if (bindings.length === 0) throw new Error('No cloud SyncGeneration is connected');
       if (bindings.some(({ state }) => state !== 'ready' && state !== 'paused')) {
         throw new Error('Provisioning or attention state must be resolved before pause changes');
       }

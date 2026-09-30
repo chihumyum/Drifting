@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { useSettingsPanels } from '../useSettingsPanels';
+import { hostedAccountSettingsEnabled, withoutHostedAccountSettings } from '../hosted-settings-policy';
 import { SettingsLoadStatus } from '../SettingsLoadStatus';
 
 type StandaloneSettingsId =
+  | 'account'
   | 'appearance'
   | 'language'
   | 'sync'
@@ -25,6 +27,7 @@ interface StandaloneSettingsGroup {
 }
 
 const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
+  { labelKey: 'settings.groups.account', items: [{ id: 'account', glyph: '◌', labelKey: 'settings.rail.account' }] },
   {
     labelKey: 'settings.groups.preferences',
     items: [
@@ -60,8 +63,10 @@ function isStandaloneSettingsId(value: string | null): value is StandaloneSettin
 function StandaloneSettingsPanel({ id }: { id: StandaloneSettingsId }) {
   const { panels, failed, retry } = useSettingsPanels(true);
   if (!panels) return <SettingsLoadStatus failed={failed} retry={retry} />;
-  const { AppearancePanel, LanguagePanel, AboutPanel, PrivacyPanel, SyncPanel, UpdatePanel } = panels;
+  const { AccountPanel, AppearancePanel, LanguagePanel, AboutPanel, PrivacyPanel, SyncPanel, UpdatePanel } = panels;
   switch (id) {
+    case 'account':
+      return hostedAccountSettingsEnabled() ? <AccountPanel registerRef={REGISTER_NOOP} /> : null;
     case 'appearance':
       return <AppearancePanel registerRef={REGISTER_NOOP} />;
     case 'language':
@@ -83,11 +88,12 @@ export function DesktopStandaloneSettingsView() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const runtime = getPlatformRuntime();
+  const groups = STANDALONE_SETTINGS_GROUPS.map(group => ({ ...group, items: withoutHostedAccountSettings(group.items, hostedAccountSettingsEnabled()) })).filter(group => group.items.length);
   const requestedSection = searchParams.get('section');
-  const active: StandaloneSettingsId = isStandaloneSettingsId(requestedSection)
+  const active: StandaloneSettingsId = isStandaloneSettingsId(requestedSection) && (requestedSection !== 'account' || hostedAccountSettingsEnabled())
     ? requestedSection
     : 'sync';
-  const activeItem = STANDALONE_SETTINGS_GROUPS.flatMap((group) => group.items).find(
+  const activeItem = groups.flatMap((group) => group.items).find(
     (item) => item.id === active,
   );
 
@@ -119,7 +125,7 @@ export function DesktopStandaloneSettingsView() {
 
       <div className="set-body">
         <nav className="set-rail" aria-label={t('settings.title')}>
-          {STANDALONE_SETTINGS_GROUPS.map((group) => (
+          {groups.map((group) => (
             <section className="set-rail__group" key={group.labelKey}>
               <h2 className="set-rail__group-title">{t(group.labelKey)}</h2>
               {group.items.map((item) => (

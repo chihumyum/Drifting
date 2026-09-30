@@ -4,7 +4,8 @@
 //! `keyring`. Android delegates to the private `drifting-secure-storage`
 //! Tauri plugin, which encrypts every value with an Android Keystore key and
 //! stores only authenticated ciphertext in the app's no-backup directory.
-//! There is deliberately no plaintext fallback on any target.
+//! There is no fallback for production secrets. Disposable loopback-only debug
+//! lab sessions use a separate owner-only local store; see local_lab_session.
 //! Renderer commands may manage ordinary BYOK/session values, but native-only
 //! provider credentials and resumable sessions reject value reads and
 //! mutations even when JavaScript knows their opaque reference.
@@ -18,6 +19,23 @@ use tauri::AppHandle;
     target_os = "linux"
 ))]
 const KEYCHAIN_SERVICE: &str = "Drifting";
+
+#[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux"
+))]
+fn keychain_service(app: &AppHandle) -> String {
+    let identifier = &app.config().identifier;
+    // The published application's existing BYOK/writer keys keep their identity.
+    // Independently identified lab packages must never request those credentials.
+    if identifier == "cc.drifting.client" {
+        KEYCHAIN_SERVICE.into()
+    } else {
+        format!("{KEYCHAIN_SERVICE}.{identifier}")
+    }
+}
 const MAX_KEY_BYTES: usize = 128;
 const MAX_VALUE_BYTES: usize = 256 * 1024;
 /// Secrets only native code may read or mutate: sync credentials and the
@@ -46,14 +64,42 @@ fn require_renderer_secret_value_access(key: &str) -> Result<(), String> {
     }
 }
 
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-))]
-fn get_value(_app: &AppHandle, key: &str) -> Result<Option<String>, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, key)
+#[cfg(target_os = "macos")]
+fn get_value(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+    use security_framework::item::{ItemClass, ItemSearchOptions, SearchResult};
+    if let Some(path) = crate::local_lab_session::path(app, key)? {
+        return crate::local_lab_session::read(&path);
+    }
+    // Background hydration must never summon an OS authorization dialog.
+    // Inaccessible credentials require explicit re-entry; access controls stay intact.
+    let result = ItemSearchOptions::new()
+        .class(ItemClass::generic_password())
+        .service(&keychain_service(app))
+        .account(key)
+        .load_data(true)
+        .skip_authenticated_items(true)
+        .limit(1)
+        .search();
+    match result {
+        Ok(items) => items
+            .into_iter()
+            .find_map(|item| match item {
+                SearchResult::Data(bytes) => Some(
+                    String::from_utf8(bytes)
+                        .map(Some)
+                        .map_err(|_| "invalid secure storage encoding".into()),
+                ),
+                _ => None,
+            })
+            .unwrap_or(Ok(None)),
+        Err(error) if matches!(error.code(), -25300 | -25308 | -25293) => Ok(None),
+        Err(_) => Err("secure storage read failed".into()),
+    }
+}
+
+#[cfg(any(target_os = "ios", target_os = "windows", target_os = "linux"))]
+fn get_value(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+    let entry = keyring::Entry::new(&keychain_service(app), key)
         .map_err(|_| "secure storage entry could not be opened".to_string())?;
     match entry.get_password() {
         Ok(value) => Ok(Some(value)),
@@ -63,7 +109,10 @@ fn get_value(_app: &AppHandle, key: &str) -> Result<Option<String>, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn has_value(_app: &AppHandle, key: &str) -> Result<bool, String> {
+fn has_value(app: &AppHandle, key: &str) -> Result<bool, String> {
+    if let Some(path) = crate::local_lab_session::path(app, key)? {
+        return crate::local_lab_session::read(&path).map(|value| value.is_some());
+    }
     use security_framework::item::{ItemClass, ItemSearchOptions};
 
     // Query attributes only and explicitly skip items that would require
@@ -71,7 +120,7 @@ fn has_value(_app: &AppHandle, key: &str) -> Result<bool, String> {
     // status check into a macOS password prompt.
     let result = ItemSearchOptions::new()
         .class(ItemClass::generic_password())
-        .service(KEYCHAIN_SERVICE)
+        .service(&keychain_service(app))
         .account(key)
         .load_attributes(true)
         .skip_authenticated_items(true)
@@ -97,8 +146,12 @@ fn has_value(app: &AppHandle, key: &str) -> Result<bool, String> {
     target_os = "windows",
     target_os = "linux"
 ))]
-fn set_value(_app: &AppHandle, key: &str, value: &str) -> Result<bool, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, key)
+fn set_value(app: &AppHandle, key: &str, value: &str) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    if let Some(path) = crate::local_lab_session::path(app, key)? {
+        return crate::local_lab_session::write(&path, value);
+    }
+    let entry = keyring::Entry::new(&keychain_service(app), key)
         .map_err(|_| "secure storage entry could not be opened".to_string())?;
     entry
         .set_password(value)
@@ -112,8 +165,12 @@ fn set_value(_app: &AppHandle, key: &str, value: &str) -> Result<bool, String> {
     target_os = "windows",
     target_os = "linux"
 ))]
-fn delete_value(_app: &AppHandle, key: &str) -> Result<bool, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, key)
+fn delete_value(app: &AppHandle, key: &str) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    if let Some(path) = crate::local_lab_session::path(app, key)? {
+        return crate::local_lab_session::delete(&path);
+    }
+    let entry = keyring::Entry::new(&keychain_service(app), key)
         .map_err(|_| "secure storage entry could not be opened".to_string())?;
     match entry.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(true),
@@ -162,7 +219,7 @@ fn has_value(app: &AppHandle, key: &str) -> Result<bool, String> {
     target_os = "linux",
     target_os = "android"
 )))]
-fn get_value(_app: &AppHandle, _key: &str) -> Result<Option<String>, String> {
+fn get_value(app: &AppHandle, _key: &str) -> Result<Option<String>, String> {
     Err("secure storage is unavailable on this target".into())
 }
 
@@ -173,7 +230,7 @@ fn get_value(_app: &AppHandle, _key: &str) -> Result<Option<String>, String> {
     target_os = "linux",
     target_os = "android"
 )))]
-fn set_value(_app: &AppHandle, _key: &str, _value: &str) -> Result<bool, String> {
+fn set_value(app: &AppHandle, _key: &str, _value: &str) -> Result<bool, String> {
     Err("secure storage is unavailable on this target".into())
 }
 
@@ -184,7 +241,7 @@ fn set_value(_app: &AppHandle, _key: &str, _value: &str) -> Result<bool, String>
     target_os = "linux",
     target_os = "android"
 )))]
-fn delete_value(_app: &AppHandle, _key: &str) -> Result<bool, String> {
+fn delete_value(app: &AppHandle, _key: &str) -> Result<bool, String> {
     Err("secure storage is unavailable on this target".into())
 }
 
@@ -195,7 +252,7 @@ fn delete_value(_app: &AppHandle, _key: &str) -> Result<bool, String> {
     target_os = "linux",
     target_os = "android"
 )))]
-fn has_value(_app: &AppHandle, _key: &str) -> Result<bool, String> {
+fn has_value(app: &AppHandle, _key: &str) -> Result<bool, String> {
     Err("secure storage is unavailable on this target".into())
 }
 

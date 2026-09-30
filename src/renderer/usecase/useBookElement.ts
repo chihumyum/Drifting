@@ -460,7 +460,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
   const removeElement = useCallback(
     async (id: string) => {
       await ensureDb();
-      await ensureFeatureAccess(userId, { forceRefresh: true });
+      await ensureFeatureAccess(userId);
       const elements = getElements();
       const existing = elements.find((e) => e.id === id);
       if (!existing) throw new Error(`Element with id ${id} not found`);

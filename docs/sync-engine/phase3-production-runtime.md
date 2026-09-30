@@ -21,7 +21,7 @@ Each Google Drive runtime receives:
   Project content key, and Google can process the synchronized objects;
 - `nativeSyncAssetBlobPort`, so verified source blobs precede owner mutations;
 - `productionSyncDomainMaterializationKernel`, never raw remote SQL;
-- the native-secure installation writer identity; and
+- the durable non-secret native installation writer identity; and
 - the local persistence barrier before segment sealing; and
 - a lazy per-project `ProviderSnapshotPublisher` checkpoint hook using the same
   provider handle, object codec and native asset capture port.

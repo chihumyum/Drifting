@@ -595,7 +595,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   const deleteNode = useCallback(
     async (id: string) => {
       await ensureDb();
-      await ensureFeatureAccess(userId, { forceRefresh: true });
+      await ensureFeatureAccess(userId);
       const prevNodes = getNodesState().slice();
       const existing = prevNodes.find((node) => node.id === id);
       if (!existing) throw new Error(`Book node ${id} not found`);

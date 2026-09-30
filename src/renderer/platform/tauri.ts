@@ -515,6 +515,7 @@ async function exchangeNativeOAuthCode(
 
 export const tauriPlatform: PlatformApi = {
   app: {
+    getInstallationIdentity: () => invokeContract('sync_installation_identity', undefined),
     getInfo: () => invokeContract('app_get_info', undefined),
     async getVersion() {
       return (await invokeContract('app_get_info', undefined)).version;
@@ -655,6 +656,20 @@ export const tauriPlatform: PlatformApi = {
     delete: (key) => invokeContract('keychain_delete', { key }),
   },
 
+  hostedSync: {
+    async request({ signal, ...input }) {
+      if (!canUseHostedService()) throw new Error('HOSTED_SERVICE_UNAVAILABLE');
+      signal?.throwIfAborted();
+      const transferId = crypto.randomUUID();
+      const cancel = () => { void invokeContract('hosted_sync_cancel', { transferId }); };
+      signal?.addEventListener('abort', cancel, { once: true });
+      try {
+        const result = await invokeContract('hosted_sync_request', { input: { ...input, transferId } });
+        signal?.throwIfAborted();
+        return result;
+      } finally { signal?.removeEventListener('abort', cancel); }
+    },
+  },
   syncObjectStore: {
     stageBytes: stageProtocolBytes,
     stageAssetSource: (projectId, assetId, ext) =>

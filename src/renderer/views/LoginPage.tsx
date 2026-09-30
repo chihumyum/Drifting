@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, Layers3, Moon, Route, Sun } from 'lucide-react';
-import { useAuthStore } from '../store/auth';
+import { finishHostedSignIn } from '../sync/hosted/sign-in';
 import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
 import { setSessionToken } from '../lib/session-token';
@@ -109,7 +109,15 @@ interface LoginPageProps {
 export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: LoginPageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const adoptSession = useAuthStore((state) => state.adoptSession);
+  const signInOperation = useRef<AbortController | null>(null);
+  const completeSignIn = useCallback(async () => {
+    signInOperation.current?.abort();
+    const controller = new AbortController();
+    signInOperation.current = controller;
+    await finishHostedSignIn(controller.signal);
+    if (!controller.signal.aborted) navigate('/');
+  }, [navigate]);
+  useEffect(() => () => signInOperation.current?.abort(), []);
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
@@ -127,8 +135,7 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
 
   const completeAfterSignIn = async () => {
     try {
-      await adoptSession();
-      navigate('/');
+      await completeSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.errors.signInFailed'));
     }
@@ -143,14 +150,13 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
       }
       try {
         setSessionToken(token);
-        await adoptSession();
-        navigate('/');
+        await completeSignIn();
       } catch {
         setError(t('auth.errors.sessionFailed'));
       }
     });
     return cleanup;
-  }, [adoptSession, navigate, t]);
+  }, [completeSignIn, t]);
 
   const handleOAuth = async (provider: SupportedOAuthProvider) => {
     setError(null);
@@ -188,8 +194,7 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
           }
           throw new Error(result.error.message || t('auth.errors.signInFailed'));
         }
-        await adoptSession();
-        navigate('/');
+        await completeSignIn();
       } else {
         // Signup. With requireEmailVerification=true the server creates the
         // user without an active session. We keep the (email, password) in
@@ -214,6 +219,7 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
   return (
     <div className={`signin${isMobilePresentation ? ' signin--mobile' : ''}`}>
       <LoginQuickToggles />
+      <button className="si-controls__btn" type="button" onClick={() => navigate('/')}>{t('settings.hosted.back_to_library')}</button>
       {isMobilePresentation && (
         <header className="si-mobile-brand">
           <div className="si-brand">
@@ -406,6 +412,7 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
               />
             </div>
 
+            <p className="si-desc">{t('settings.hosted.sign_in_sync_description')}</p>
             <button type="submit" className="si-submit" disabled={isSubmitting}>
               <span className="si-submit__cn">
                 {isSubmitting
@@ -413,7 +420,7 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
                     ? t('auth.signingIn')
                     : t('auth.creating')
                   : mode === 'signin'
-                    ? t('auth.signIn')
+                    ? t('settings.hosted.sign_in_sync')
                     : t('auth.createAccount')}
               </span>
               <span className="si-submit__arrow">→</span>

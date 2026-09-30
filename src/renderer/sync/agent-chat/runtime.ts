@@ -163,7 +163,7 @@ export class AgentChatSyncRuntime implements RegisteredSyncGenerationRuntime {
       if (
         !authority ||
         authority.generation !== this.options.binding.authorityGeneration ||
-        authority.mode !== 'google-drive' ||
+        authority.mode !== this.options.provider.kind ||
         authority.transitionState !== 'stable'
       )
         throw new Error('Agent chat provider authority changed');

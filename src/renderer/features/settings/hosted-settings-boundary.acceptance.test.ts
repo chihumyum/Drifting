@@ -17,7 +17,7 @@ describe('hosted settings boundary', () => {
     const items = [{ id: 'account' }, { id: 'subscription' }, { id: 'sync' }];
     expect(hostedAccountSettingsEnabled()).toBe(false);
     expect(withoutHostedAccountSettings(items, false)).toEqual([{ id: 'sync' }]);
-    expect(withoutHostedAccountSettings(items, true)).toEqual(items);
+    expect(withoutHostedAccountSettings(items, true)).toEqual([{ id: 'account' }, { id: 'sync' }]);
   });
 
   it('gates both desktop and standalone-mobile account panels before mounting them', () => {
@@ -29,9 +29,8 @@ describe('hosted settings boundary', () => {
     expect(mobile).toContain(
       'accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null',
     );
-    expect(mobile).toContain(
-      'accountSettingsEnabled ? <SubscriptionPanel registerRef={REGISTER_NOOP} /> : null',
-    );
+    expect(mobile).not.toContain('<SubscriptionPanel');
+    expect(desktop).not.toContain('<SubscriptionPanel');
   });
 
   it('does not mount hosted telemetry controls in local-only Privacy settings', () => {
@@ -67,7 +66,7 @@ describe('hosted settings boundary', () => {
     const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as {
       preAlphaGuide: Record<string, string>;
     };
-    expect(onboarding).toContain("const GUIDE_VERSION = 'v4'");
+    expect(onboarding).toContain("const GUIDE_VERSION = 'v5'");
     expect(onboarding).toContain("t('preAlphaGuide.localData')");
     expect(onboarding).not.toContain("t('preAlphaGuide.backup')");
     expect(en.preAlphaGuide).not.toHaveProperty('backup');
@@ -107,7 +106,7 @@ describe('hosted settings boundary', () => {
     expect(shelf).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
     expect(shelf).toContain('accountSettingsEnabled && user?.email');
     expect(projectPicker).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
-    expect(projectPicker).toContain('hostedAccountSettingsEnabled() && user?.email');
+    expect(projectPicker).toContain('hostedAccountSettingsEnabled() && account?.email');
     expect(workspace).not.toContain('<UserAvatar');
     expect(workspace).not.toContain('hostedAccountSettingsEnabled');
   });

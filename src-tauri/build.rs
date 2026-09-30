@@ -1,5 +1,6 @@
 fn main() {
     for variable in [
+        "DRIFTING_HOSTED_ORIGIN",
         "DRIFTING_GOOGLE_DESKTOP_CLIENT_ID",
         "DRIFTING_GOOGLE_DESKTOP_CLIENT_SECRET",
         "DRIFTING_GOOGLE_IOS_CLIENT_ID",

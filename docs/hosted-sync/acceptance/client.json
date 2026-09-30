@@ -1,0 +1,204 @@
+{
+  "kind": "hosted-client-http-sqlite",
+  "generatedAt": "2026-09-30T17:07:00.272Z",
+  "sourceSha256": "9e48581dd5309e650d9a748e4607508252c1d360775cf0af4669a0f77654f7ed",
+  "status": "passed",
+  "synthetic": true,
+  "serviceProtocol": "hosted-object-v1",
+  "checks": [
+    {
+      "name": "Hosted credential response ownership ignores stale response credentials after another login or logout",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted credential response ownership persists a current sign-in response once without changing the revision for identical tokens",
+      "status": "passed"
+    },
+    {
+      "name": "local recovery capabilities allows Trash and history without subscriptions or network",
+      "status": "passed"
+    },
+    {
+      "name": "local recovery capabilities rejects an operation for another local identity",
+      "status": "passed"
+    },
+    {
+      "name": "session token durability uses local dev persistence only for loopback APIs",
+      "status": "passed"
+    },
+    {
+      "name": "session token durability keeps loopback dev tokens out of the keychain",
+      "status": "passed"
+    },
+    {
+      "name": "session token durability hydrates packaged and remote-connected sessions from secure storage",
+      "status": "passed"
+    },
+    {
+      "name": "session token durability surfaces a secure-storage write failure and allows a later retry",
+      "status": "passed"
+    },
+    {
+      "name": "session token durability keeps a failed delete retryable and only clears memory after secure success",
+      "status": "passed"
+    },
+    {
+      "name": "session token durability invalidates a rejected bearer in memory even when secure deletion fails",
+      "status": "passed"
+    },
+    {
+      "name": "local-only account boundary rejects account actions before the Better Auth client can dispatch",
+      "status": "passed"
+    },
+    {
+      "name": "local-only account boundary opens the local SQLite replica before a cold protected route becomes ready",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library adopts a verified account without replacing local identity or database",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library expires authentication without closing the library or forgetting the expected account",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library rejects another account before binding or exporting local data",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library retains the session if remote sign-out fails, and clears it after a successful retry",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library opens the library without waiting for a stalled account request",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library does not authorize a changed token until its account is verified",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library does not rebind a session whose request finished after sign-out",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library does not authorize a token replaced while validating the account",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
+      "status": "passed"
+    },
+    {
+      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance restores exact synthetic asset bytes and preserves local prose through rejected credentials and a SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance takes over an offline Drive replica atomically, keeps immutable history, and provisions a fresh Hosted generation",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted service recovery after offline startup revalidates on a timer or focus without a browser online event, then resumes discovery",
+      "status": "passed"
+    },
+    {
+      "name": "connects the existing local library after a verified login",
+      "status": "passed"
+    },
+    {
+      "name": "never uploads when account ownership is rejected",
+      "status": "passed"
+    },
+    {
+      "name": "leaving sign-in cancels before the library is connected",
+      "status": "passed"
+    },
+    {
+      "name": "keeps local writing independent of an unavailable Keychain",
+      "status": "passed"
+    },
+    {
+      "name": "does not silently replace an invalid native marker and allows a repaired read",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary rejects an account change while a response is in flight",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary rejects upload acknowledgements for different bytes",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary rejects oversized pages and missing continuation cursors",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary rejects a download returned under a different destination",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary bounds discovery pagination and checks ownership after each page",
+      "status": "passed"
+    }
+  ],
+  "boundaries": {
+    "objectTransport": "real HTTP",
+    "localDatabases": "independent file-backed SQLite",
+    "prose": "production Yjs journal and reducer",
+    "objectStaging": "in-memory test adapter",
+    "assetActivation": "synthetic byte-verified port",
+    "nativeInteraction": "separate manual acceptance",
+    "physicalDevices": "not claimed",
+    "productionDeployment": "not performed"
+  }
+}

@@ -145,6 +145,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const account = useAuthStore((s) => s.hostedUser);
   const writingPlans = useWritingStatsStore((s) => s.plans);
   const { loadProjectSummaries, createProject, updateProject, deleteProject } = useProject({
     userId: user?.id ?? '',
@@ -324,7 +325,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     }
   }, [confirmDelete, busy, deleteProject]);
 
-  const userInitial = (user?.name?.trim() || user?.email?.trim() || '·')[0].toUpperCase();
+  const userInitial = (account?.name?.trim() || account?.email?.trim() || '·')[0].toUpperCase();
 
   if (presentation === 'mobile') {
     return (
@@ -337,7 +338,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           counts={counts}
           filter={filter}
           query={query}
-          user={user}
+          user={account}
           userInitial={userInitial}
           avatarRef={avatarRef}
           menuOpen={menuOpen}
@@ -409,7 +410,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             <div className="pp-head__user">
               <div className="pp-head__user-name">
                 <div className="pp-head__user-name-main">
-                  {user?.name || user?.email || 'Drifting'}
+                  {account?.name || account?.email || 'Drifting'}
                 </div>
                 <div className="pp-head__user-name-plan">{t('projectPicker.header.userPlan')}</div>
               </div>
@@ -572,8 +573,8 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         <footer className="pp-foot">
           <span>{t('projectPicker.footer.brand')}</span>
           <span>
-            {hostedAccountSettingsEnabled() && user?.email
-              ? user.email
+            {hostedAccountSettingsEnabled() && account?.email
+              ? account.email
               : t('projectPicker.footer.local')}
           </span>
         </footer>

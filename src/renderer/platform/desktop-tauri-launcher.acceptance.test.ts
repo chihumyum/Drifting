@@ -110,8 +110,8 @@ describe('desktop Tauri environment', () => {
     expect(JSON.stringify(summary)).not.toMatch(/client[_-]?(id|secret)/iu);
     expect(environment).toMatchObject({
       VITE_LOCAL_ONLY_MODE: 'false',
-      VITE_REQUIRE_AUTH: 'true',
-      VITE_AI_TRANSPORT: 'proxy',
+      VITE_REQUIRE_AUTH: 'false',
+      VITE_AI_TRANSPORT: 'direct',
     });
   });
 

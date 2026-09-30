@@ -490,7 +490,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const deleteStoryline = useCallback(
     async (id: string): Promise<void> => {
       await ensureDb();
-      await ensureFeatureAccess(userId, { forceRefresh: true });
+      await ensureFeatureAccess(userId);
       const prevStorylines = getStorylinesState().slice();
       if (!prevStorylines.some((sl) => sl.id === id)) return;
 
