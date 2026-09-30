@@ -19,8 +19,8 @@ describe('mobile standalone routes', () => {
 
   it('selects the mobile project shelf and the independent mobile workspace shell', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
-    expect(routes).toContain(
-      'isMobileShell ? <MobileProjectShelfView /> : <ProjectPickerView />',
+    expect(routes).toMatch(
+      /isMobileShell \? \(\s*<MobileProjectShelfView \/>\s*\) : \(\s*<PreAlphaFirstRunGate>\s*<ProjectPickerView \/>/,
     );
     expect(rendererSource('app/project-route-components.tsx')).toContain('isMobileShell ? <MobileAppShell /> : <DesktopAppShell />');
     const mobileShelf = rendererSource('shells/mobile/standalone/MobileProjectShelfView.tsx');
@@ -250,7 +250,9 @@ describe('mobile standalone routes', () => {
 
   it('keeps mobile auth in the mobile shell path and reuses the auth flow', () => {
     const mobileAuth = rendererSource('shells/mobile/standalone/MobileAuthPage.tsx');
-    expect(mobileAuth).toContain('<LoginPage initialMode={initialMode} presentation="mobile" />');
+    expect(mobileAuth).toContain(
+      '<AuthFlow initialMode={initialMode} presentation="page" onComplete={returnToLibrary} />',
+    );
     expect(mobileAuth).not.toContain('shells/desktop');
     expect(mobileAuth).not.toContain('store/ui-store');
   });

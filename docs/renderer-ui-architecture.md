@@ -871,7 +871,7 @@ its own back/navigation behavior through the same view-level close actions.
 | `src/styles/agent-panel.css`              | Agent panel composer and conversation surface                                   |
 | `src/styles/agent-activity.css`           | Agent activity perception on entity glyphs                                      |
 | `src/styles/copilot-surface.css`          | Copilot inline popover and account-dropdown settings page                       |
-| `src/styles/signin.css`                   | authentication surface                                                          |
+| `src/styles/auth.css`                     | account sign-in flow (desktop dialog, mobile page) and desktop first-run gate   |
 | `src/styles/project-picker.css`           | Bookshelf project picker                                                        |
 | `src/styles/mobile-*.css`                 | mobile standalone routes, workspace, safe-area, paper, and gesture presentation |
 

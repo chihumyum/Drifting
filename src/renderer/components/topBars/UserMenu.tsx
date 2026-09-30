@@ -8,6 +8,7 @@ import {
   Keyboard,
   Upload,
   BookOpenText,
+  LogIn,
   LogOut,
   Languages,
   ChevronLeft,
@@ -25,6 +26,7 @@ import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
+import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -52,6 +54,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const uiLocale = useSettingsStore((s) => s.uiLocale);
   const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const navigate = useNavigate();
+  const openSignIn = useOpenSignIn();
   const settingsBackRef = useRef<HTMLButtonElement | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [activeSettingsPage, setActiveSettingsPage] = useState<UserMenuSettingsPage | null>(null);
@@ -373,9 +376,9 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
         {scope === 'shelf' && accountSettingsEnabled && (
           <MenuGroup last>
             <MenuItem
-              icon={<LogOut size={13} />}
+              icon={canSignOut ? <LogOut size={13} /> : <LogIn size={13} />}
               label={signingOut ? t('userMenu.signingOut') : t(canSignOut ? 'userMenu.signOut' : 'settings.hosted.sign_in_sync')}
-              onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { handleClose(); navigate('/login'); }}
+              onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { handleClose(); openSignIn(); }}
             />
           </MenuGroup>
         )}

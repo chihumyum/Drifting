@@ -1816,133 +1816,76 @@
     }
   },
   "auth": {
-    "brand": {
-      "cn": "灵感"
+    "dialogLabel": "账号",
+    "titles": {
+      "signin": "登录 Drifting",
+      "signup": "创建账号",
+      "otp": "验证码登录",
+      "forgot": "重置密码",
+      "verify": "验证邮箱"
     },
     "signIn": "登录",
     "signUp": "注册",
-    "signInShort": "登录",
-    "signUpShort": "注册",
     "createAccount": "创建账号",
-    "createAccountShort": "创建账号",
     "signingIn": "登录中…",
     "creating": "创建中…",
     "sendCode": "发送验证码",
-    "sendCodeShort": "发送验证码",
     "resend": "重新发送",
-    "useOtp": "用邮箱验证码",
-    "remember": "记住我 — 这台机器",
+    "useOtp": "用邮箱验证码登录",
+    "forgotPassword": "忘记密码？",
     "noAccount": "还没有账号？",
-    "signUpNow": "立即注册",
     "hasAccount": "已经有账号？",
-    "backToSignIn": "回到登录",
-    "backToPasswordSignIn": "回到密码登录",
-    "changeEmail": "改邮箱",
-    "controls": {
-      "title": "登录页快捷设置",
-      "language": "语言",
-      "switchToDark": "切换到深色模式",
-      "switchToLight": "切换到浅色模式"
-    },
-    "hero": {
-      "kickerA": "WRITING STUDIO",
-      "kickerB": "FOR SERIOUS NOVELISTS",
-      "titleA": "写作是一场",
-      "titleEmA": "漫长的渡",
-      "titleB": "这里给你一艘",
-      "titleEmB": "足够稳的船",
-      "body": "Drifting 把章节、故事线、人物、地点、物件、灵感 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。",
-      "featureOutlineTitle": "章节",
-      "featureOutlineEm": "场景与节拍",
-      "featureOutlineSub": "markdown header · scrollspy · 大纲即正文",
-      "featureElementTitle": "元素 · 自定义类目 + 字段",
-      "featureElementSub": "人物 / 地点 / 物件 / 时代纪 / 语汇 / 你自己的",
-      "featureStorylineTitleA": "故事线",
-      "featureStorylineEm": "多视角",
-      "featureStorylineTitleB": "叙事",
-      "featureStorylineSub": "时间轴 · 叙事弧 · 跨线索引",
-      "brandVersion": "Drifting Writing Studio · v{{version}}",
-      "footer": "本地优先 · 设备本地"
-    },
-    "signin": {
-      "kicker": "WELCOME BACK · 继续写作",
-      "sub": "回到你已经构建的世界 — 章节、故事线、元素、灵感都还在。"
-    },
-    "signup": {
-      "kicker": "NEW HERE · 起航",
-      "titleEm": "新建",
-      "titleRest": "账号",
-      "sub": "注册一个账号，开始你的第一本书。将私人稿件用于所配置服务或模型提供商前，请先查看其条款。"
-    },
+    "back": "返回",
+    "backToSignIn": "返回登录",
+    "changeEmail": "换个邮箱",
     "fields": {
-      "penName": "笔名 · PEN NAME",
+      "penName": "笔名",
       "penNamePlaceholder": "例：望舒",
-      "email": "邮箱 · EMAIL",
-      "emailShort": "邮箱",
+      "email": "邮箱",
       "emailPlaceholder": "your@email.com",
-      "password": "密码 · PASSWORD",
-      "passwordSignupPlaceholder": "至少 10 字符",
-      "code": "验证码 · CODE",
+      "password": "密码",
+      "passwordSignupPlaceholder": "至少 10 个字符",
+      "code": "验证码",
       "codePlaceholder": "6 位数字"
     },
     "social": {
-      "or": "OR · 用第三方",
-      "comingSoon": "即将开放",
       "waiting": "等待浏览器授权…",
-      "googleSignIn": "用 Google 登录",
-      "googleSignUp": "用 Google 注册",
-      "appleSignIn": "用 Apple 登录",
-      "appleSignUp": "用 Apple 注册",
-      "wechatSignIn": "用微信登录",
-      "wechatSignUp": "用微信注册"
+      "continueWith": "用 {{provider}} 继续"
     },
     "legal": {
-      "agree": "注册即代表你同意我们的",
+      "agree": "注册即表示同意",
       "terms": "服务条款",
       "termsUnavailable": "服务运营方尚未配置服务条款。",
       "and": "与",
-      "privacy": "隐私政策",
-      "footer": "本地优先 · 适用提供商条款"
+      "privacy": "隐私政策"
     },
     "forgot": {
-      "kicker": "RESET · 重置密码",
-      "titleEm": "找回",
-      "titleRest": "账号",
-      "sub": "填邮箱 — 我们寄一封带验证码的信去。",
-      "sent": "已寄出。请去 {{email}} 查收。",
-      "codeSub": "验证码已寄到 {{email}}。输入验证码并设置新密码。",
-      "done": "密码已重置。现在可以返回登录。",
-      "newPassword": "新密码 · NEW PASSWORD",
-      "confirmPassword": "确认新密码 · CONFIRM",
+      "sub": "输入账号邮箱，我们会发送验证码。",
+      "codeSub": "验证码已发送到 {{email}}。输入验证码并设置新密码。",
+      "done": "密码已重置，现在可以返回登录。",
+      "newPassword": "新密码",
+      "confirmPassword": "确认新密码",
       "passwordMismatch": "两次输入的密码不一致。",
       "resetFailed": "密码重置失败，请检查验证码后重试。",
-      "submit": "继续",
-      "submitShort": "发送验证码",
-      "resetSubmit": "重置密码",
-      "working": "处理中…",
-      "resend": "重新发送验证码"
+      "resetSubmit": "重置密码"
     },
     "otp": {
-      "kicker": "OTP · 邮箱验证码登录",
-      "titleEm": "无密码",
-      "titleRest": "登录",
-      "emailSub": "填邮箱 — 我们寄一个 6 位验证码，10 分钟内有效。",
-      "codeSub": "已寄到 {{email}}。在 10 分钟内输入 6 位验证码。"
+      "emailSub": "我们会发送 6 位验证码，10 分钟内有效。",
+      "codeSub": "验证码已发送到 {{email}}，10 分钟内有效。"
     },
     "verify": {
-      "kicker": "VERIFY · 验证邮箱",
-      "titleEm": "确认",
-      "titleRest": "邮箱",
-      "sent": "已寄到 {{email}}。请在 10 分钟内输入 6 位验证码。",
+      "sent": "验证码已发送到 {{email}}，10 分钟内有效。",
       "sending": "正在向 {{email}} 发送验证码…",
       "verifying": "验证中…",
-      "submit": "验证并进入",
-      "submitShort": "验证"
+      "submit": "验证并登录"
     },
-    "betaClosed": {
-      "title": "Drifting 正在开发中",
-      "description": "我们尚未开放新的注册与登录。请留下您的信息或关注后续通知，感谢您的期待与支持。",
-      "ok": "我知道了"
+    "sync": {
+      "title": "正在同步书库",
+      "detail": "正在下载云端项目并上传本机书库，请保持应用打开。",
+      "failedTitle": "同步没有完成",
+      "failedDetail": "本地写作不受影响。可以现在重试，也可以稍后在账号设置里点「连接并同步」。",
+      "retry": "重试",
+      "later": "稍后再说"
     },
     "errors": {
       "signInFailed": "登录失败",
@@ -1955,7 +1898,8 @@
       "sendFailed": "发送失败",
       "sendRetry": "发送失败，请稍后重试",
       "sendCodeFailed": "发送验证码失败",
-      "verifyFailed": "验证失败"
+      "verifyFailed": "验证失败",
+      "signupClosed": "Drifting 仍在开发中，暂未开放注册。"
     }
   },
   "projectPicker": {

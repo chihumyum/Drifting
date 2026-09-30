@@ -4,9 +4,9 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { APP_CONFIG } from '../lib/config';
 import { useAuthStore } from '../store/auth';
 import { FullScreenStatus } from './components/FullScreenStatus';
-import { LoginPage } from '../views/LoginPage';
-import { RegisterPage } from '../views/RegisterPage';
 import { ProjectPickerView } from '../views/ProjectPickerView';
+import { PreAlphaFirstRunGate } from '../components/modals/PreAlphaOnboardingDialog';
+import { useAuthDialogStore, type AuthEntryMode } from '../features/auth/auth-dialog-store';
 import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
 import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
 import { getPlatformRuntime } from '../platform/runtime';
@@ -37,6 +37,14 @@ function PublicRoute({ children }: { children: ReactNode }) {
   return ready ? children : <FullScreenStatus title={t('appShell.checkingAuthentication')} loading />;
 }
 
+/** Desktop signs in with a dialog; the retired full-page routes open it over the shelf. */
+function DesktopAuthRoute({ mode }: { mode: AuthEntryMode }) {
+  useEffect(() => {
+    useAuthDialogStore.getState().open(mode);
+  }, [mode]);
+  return <Navigate to="/" replace />;
+}
+
 export function AppRoutes() {
   const isMobileShell = getPlatformRuntime().isMobileShell;
   return (
@@ -45,7 +53,7 @@ export function AppRoutes() {
         path="/login"
         element={
           <PublicRoute>
-            {isMobileShell ? <MobileAuthPage initialMode="signin" /> : <LoginPage />}
+            {isMobileShell ? <MobileAuthPage initialMode="signin" /> : <DesktopAuthRoute mode="signin" />}
           </PublicRoute>
         }
       />
@@ -53,7 +61,7 @@ export function AppRoutes() {
         path="/register"
         element={
           <PublicRoute>
-            {isMobileShell ? <MobileAuthPage initialMode="signup" /> : <RegisterPage />}
+            {isMobileShell ? <MobileAuthPage initialMode="signup" /> : <DesktopAuthRoute mode="signup" />}
           </PublicRoute>
         }
       />
@@ -61,7 +69,13 @@ export function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            {isMobileShell ? <MobileProjectShelfView /> : <ProjectPickerView />}
+            {isMobileShell ? (
+              <MobileProjectShelfView />
+            ) : (
+              <PreAlphaFirstRunGate>
+                <ProjectPickerView />
+              </PreAlphaFirstRunGate>
+            )}
           </ProtectedRoute>
         }
       />

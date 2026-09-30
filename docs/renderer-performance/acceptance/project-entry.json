@@ -1,36 +1,36 @@
 {
   "kind": "renderer_project_entry",
   "status": "passed",
-  "generatedAt": "2026-09-30T18:35:27.770Z",
+  "generatedAt": "2026-09-30T18:42:14.501Z",
   "source": {
-    "commit": "5669c060843e01f87211e50c6198ceb430228e3b",
-    "fingerprint": "ad93e75306dbc576ec10e0110ee1fb794adac511976d96b9355b42294404790f"
+    "commit": "a5510813d7ceed732113edf59af80c7117581d28",
+    "fingerprint": "7ed831ce08e48e60fc054865c2954e7790d397f648fbb4d3a3a759f7f38bbc65"
   },
   "browser": "Chrome/154.0.8037.58",
   "samples": [
     {
       "mode": "cold",
-      "shelfMs": 1288,
+      "shelfMs": 28007.5,
       "selectionDwellMs": 1500,
       "stateBeforeClick": "idle",
       "mountsBeforeClick": 0,
-      "clickToMountedPaintMs": 591.7999999523163
+      "clickToMountedPaintMs": 611.2999999523163
     },
     {
       "mode": "server-warmup",
-      "shelfMs": 1214.8000001907349,
+      "shelfMs": 23748,
       "selectionDwellMs": 1500,
       "stateBeforeClick": "idle",
       "mountsBeforeClick": 0,
-      "clickToMountedPaintMs": 284.90000009536743
+      "clickToMountedPaintMs": 234.80000019073486
     },
     {
       "mode": "shelf-preload",
-      "shelfMs": 1194.8999998569489,
+      "shelfMs": 22656.300000190735,
       "selectionDwellMs": 1500,
       "stateBeforeClick": "ready",
       "mountsBeforeClick": 0,
-      "clickToMountedPaintMs": 33.80000019073486
+      "clickToMountedPaintMs": 37.799999952316284
     }
   ],
   "checks": {

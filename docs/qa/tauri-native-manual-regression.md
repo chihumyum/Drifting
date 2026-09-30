@@ -109,7 +109,7 @@ OAuth staging 必须满足：
 - 已设置稳定的 `BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID` 和 `GOOGLE_CLIENT_SECRET`。
 - Google Console callback 是 `https://api.drifting.cc/api/auth/callback/google`，或 staging 的等价地址。
 - 测试设备已注册 `drifting://auth/callback`。
-- 当前 `LoginPage.tsx` 中 `SOCIAL_LOGIN_ENABLED` 默认为 `false`。OAuth 手测必须使用一个仅供 QA、明确开启该开关的构建；测完不要把开关误带入正式 beta。
+- 当前 `src/renderer/features/auth/AuthFlow.tsx` 中 `SOCIAL_LOGIN_ENABLED` 默认为 `false`。OAuth 手测必须使用一个仅供 QA、明确开启该开关的构建；测完不要把开关误带入正式 beta。
 
 ### 3.2 最小设备矩阵
 

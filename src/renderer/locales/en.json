@@ -1816,69 +1816,32 @@
     }
   },
   "auth": {
-    "brand": {
-      "cn": "灵感"
+    "dialogLabel": "Account",
+    "titles": {
+      "signin": "Sign in to Drifting",
+      "signup": "Create account",
+      "otp": "Sign in with a code",
+      "forgot": "Reset password",
+      "verify": "Verify your email"
     },
     "signIn": "Sign in",
     "signUp": "Sign up",
-    "signInShort": "SIGN IN",
-    "signUpShort": "SIGN UP",
     "createAccount": "Create account",
-    "createAccountShort": "CREATE ACCOUNT",
     "signingIn": "Signing in…",
     "creating": "Creating…",
     "sendCode": "Send code",
-    "sendCodeShort": "SEND CODE",
-    "resend": "Resend",
-    "useOtp": "Use email code",
-    "remember": "Remember this device",
+    "resend": "Resend code",
+    "useOtp": "Sign in with an email code",
+    "forgotPassword": "Forgot password?",
     "noAccount": "No account yet?",
-    "signUpNow": "Sign up now",
     "hasAccount": "Already have an account?",
+    "back": "Back",
     "backToSignIn": "Back to sign in",
-    "backToPasswordSignIn": "Back to password sign in",
-    "changeEmail": "Change email",
-    "controls": {
-      "title": "Sign-in quick settings",
-      "language": "Language",
-      "switchToDark": "Switch to dark mode",
-      "switchToLight": "Switch to light mode"
-    },
-    "hero": {
-      "kickerA": "WRITING STUDIO",
-      "kickerB": "FOR SERIOUS NOVELISTS",
-      "titleA": "Writing is a ",
-      "titleEmA": "long crossing",
-      "titleB": "Here is a ",
-      "titleEmB": "steadier boat",
-      "body": "Drifting gathers chapters, storylines, characters, places, items, and drifts into one navigable writing surface.",
-      "featureOutlineTitle": "Chapters",
-      "featureOutlineEm": "scene & beat",
-      "featureOutlineSub": "markdown headers · scrollspy · outline as prose",
-      "featureElementTitle": "Elements · custom categories + fields",
-      "featureElementSub": "characters / places / items / eras / vocabulary / your own",
-      "featureStorylineTitleA": "Storylines",
-      "featureStorylineEm": "multi-POV",
-      "featureStorylineTitleB": " narrative",
-      "featureStorylineSub": "timeline · narrative arcs · cross-line references",
-      "brandVersion": "Drifting Writing Studio · v{{version}}",
-      "footer": "Local-first · on-device"
-    },
-    "signin": {
-      "kicker": "WELCOME BACK · KEEP WRITING",
-      "sub": "Return to the world you have built — chapters, storylines, elements, and drifts are still here."
-    },
-    "signup": {
-      "kicker": "NEW HERE · START WRITING",
-      "titleEm": "Create",
-      "titleRest": " account",
-      "sub": "Create an account and start your first book. Review the configured service and model provider terms before using either with private writing."
-    },
+    "changeEmail": "Use a different email",
     "fields": {
       "penName": "Pen name",
       "penNamePlaceholder": "e.g. Ada",
       "email": "Email",
-      "emailShort": "email",
       "emailPlaceholder": "your@email.com",
       "password": "Password",
       "passwordSignupPlaceholder": "At least 10 characters",
@@ -1886,63 +1849,43 @@
       "codePlaceholder": "6 digits"
     },
     "social": {
-      "or": "OR · Continue with",
-      "comingSoon": "Coming soon",
       "waiting": "Waiting for browser authorization…",
-      "googleSignIn": "Sign in with Google",
-      "googleSignUp": "Sign up with Google",
-      "appleSignIn": "Sign in with Apple",
-      "appleSignUp": "Sign up with Apple",
-      "wechatSignIn": "Sign in with WeChat",
-      "wechatSignUp": "Sign up with WeChat"
+      "continueWith": "Continue with {{provider}}"
     },
     "legal": {
-      "agree": "By signing up, you agree to our",
+      "agree": "By signing up, you agree to the",
       "terms": "Terms",
       "termsUnavailable": "The service operator has not configured Terms of Service.",
       "and": "and",
-      "privacy": "Privacy Policy",
-      "footer": "Local-first · provider terms apply"
+      "privacy": "Privacy Policy"
     },
     "forgot": {
-      "kicker": "RESET · PASSWORD RECOVERY",
-      "titleEm": "Recover",
-      "titleRest": " account",
-      "sub": "Enter your email and we will send a verification code.",
-      "sent": "Sent. Check {{email}}.",
+      "sub": "Enter your account email and we'll send a verification code.",
       "codeSub": "A code was sent to {{email}}. Enter it and choose a new password.",
-      "done": "Your password has been reset. You can return to sign in.",
+      "done": "Your password has been reset. You can sign in now.",
       "newPassword": "New password",
       "confirmPassword": "Confirm new password",
       "passwordMismatch": "The passwords do not match.",
       "resetFailed": "Password reset failed. Check the code and try again.",
-      "submit": "Continue",
-      "submitShort": "SEND CODE",
-      "resetSubmit": "RESET PASSWORD",
-      "working": "WORKING…",
-      "resend": "Resend code"
+      "resetSubmit": "Reset password"
     },
     "otp": {
-      "kicker": "OTP · EMAIL CODE SIGN IN",
-      "titleEm": "Passwordless",
-      "titleRest": " sign in",
-      "emailSub": "Enter your email and we will send a 6-digit code valid for 10 minutes.",
-      "codeSub": "Sent to {{email}}. Enter the 6-digit code within 10 minutes."
+      "emailSub": "We'll send a 6-digit code that's valid for 10 minutes.",
+      "codeSub": "Sent to {{email}}. The code is valid for 10 minutes."
     },
     "verify": {
-      "kicker": "VERIFY · EMAIL",
-      "titleEm": "Confirm",
-      "titleRest": " email",
-      "sent": "Sent to {{email}}. Enter the 6-digit code within 10 minutes.",
+      "sent": "Sent to {{email}}. The code is valid for 10 minutes.",
       "sending": "Sending a code to {{email}}…",
       "verifying": "Verifying…",
-      "submit": "Verify and enter",
-      "submitShort": "VERIFY"
+      "submit": "Verify and sign in"
     },
-    "betaClosed": {
-      "title": "Drifting is still in development",
-      "description": "New registration and sign-in are not open yet. Please leave your information or watch for updates.",
-      "ok": "Got it"
+    "sync": {
+      "title": "Syncing your library",
+      "detail": "Downloading your cloud projects and uploading this library. Keep the app open until it finishes.",
+      "failedTitle": "Sync didn't finish",
+      "failedDetail": "You can keep writing locally. Retry now, or later choose “Connect and sync” in Account settings.",
+      "retry": "Retry",
+      "later": "Not now"
     },
     "errors": {
       "signInFailed": "Sign in failed",
@@ -1955,7 +1898,8 @@
       "sendFailed": "Send failed",
       "sendRetry": "Send failed. Please try again later.",
       "sendCodeFailed": "Could not send the verification code",
-      "verifyFailed": "Verification failed"
+      "verifyFailed": "Verification failed",
+      "signupClosed": "Drifting is still in development. Sign-up isn't open yet."
     }
   },
   "projectPicker": {

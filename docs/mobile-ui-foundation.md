@@ -97,8 +97,9 @@ a visual target. Drifting keeps that broadly understood navigation grammar
 while its top and bottom workspaces introduce Drifting-owned structure,
 editing, timeline, material, comment, and Agent capabilities.
 
-- `/login` and `/register` use the mobile authentication presentation while
-  retaining existing session, OTP, reset, OAuth callback, and adoption logic.
+- `/login` and `/register` render the shared `AuthFlow` as a full mobile page
+  with the same session, OTP, reset, OAuth callback, and adoption logic as the
+  desktop sign-in dialog.
 - `/` uses the mobile project shelf and global settings path without mounting a
   project runtime merely to show settings. The shelf defaults to one immersive
   horizontally paged project per viewport; one persistent grid Toggle opens a

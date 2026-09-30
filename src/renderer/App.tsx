@@ -2,6 +2,7 @@ import { Component, useEffect } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboardingDialog';
+import { AuthDialogHost } from './features/auth/AuthDialog';
 import loglevel from 'loglevel';
 import { AppEffects } from './app/effects/AppEffects';
 import { FullScreenStatus } from './app/components/FullScreenStatus';
@@ -68,6 +69,7 @@ function AppContents() {
       <AppEffects />
       <PreAlphaOnboardingDialog />
       <AppRoutes />
+      <AuthDialogHost />
     </>
   );
 }

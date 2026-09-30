@@ -1,10 +1,10 @@
 {
   "kind": "renderer_settings_entry",
   "status": "passed",
-  "generatedAt": "2026-09-30T18:35:39.311Z",
+  "generatedAt": "2026-09-30T18:43:15.117Z",
   "source": {
-    "commit": "5669c060843e01f87211e50c6198ceb430228e3b",
-    "fingerprint": "f08d3275f8fc4b45bd94b75f28aee72eaec67e5a9da3e46b9954fb00eb1f71e7"
+    "commit": "a5510813d7ceed732113edf59af80c7117581d28",
+    "fingerprint": "c9ec0508ba10d7e3d4b757b4de59e509e4b91186c40089dba23fb06169ad2e88"
   },
   "production": {
     "basicEager": true,
@@ -15,7 +15,7 @@
     {
       "mode": "production",
       "mobile": false,
-      "basicOpenMs": 28.700000047683716,
+      "basicOpenMs": 29.399999856948853,
       "checks": {
         "shellWithoutWorkspace": true,
         "basicWithoutDeferredPanels": true,
@@ -32,7 +32,7 @@
     {
       "mode": "production",
       "mobile": true,
-      "basicOpenMs": 23,
+      "basicOpenMs": 26.40000009536743,
       "checks": {
         "shellWithoutWorkspace": true,
         "basicWithoutDeferredPanels": true,
@@ -49,7 +49,7 @@
     {
       "mode": "development",
       "mobile": false,
-      "basicOpenMs": 22,
+      "basicOpenMs": 26.40000009536743,
       "checks": {
         "shellWithoutWorkspace": true,
         "basicWithoutDeferredPanels": true,
@@ -66,7 +66,7 @@
     {
       "mode": "development",
       "mobile": true,
-      "basicOpenMs": 26.90000009536743,
+      "basicOpenMs": 23.699999809265137,
       "checks": {
         "shellWithoutWorkspace": true,
         "basicWithoutDeferredPanels": true,

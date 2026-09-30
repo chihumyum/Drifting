@@ -1,0 +1,282 @@
+/* Account sign-in. One compact flow serves the desktop dialog (inside the
+   shared .modal-card shell) and the mobile page (mobile-auth.css). */
+
+.auth-flow {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+}
+
+.auth-flow__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 60px;
+  padding: 14px 14px 4px 24px;
+}
+
+.auth-flow__back {
+  margin-left: -10px;
+}
+
+.auth-flow__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: hsl(var(--ink-1));
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.auth-flow__body {
+  display: grid;
+  min-height: 0;
+  gap: 14px;
+  padding: 6px 24px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.auth-flow__lead {
+  margin: 0;
+  color: hsl(var(--ink-3));
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.auth-flow__error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: hsl(var(--destructive) / 0.07);
+  color: hsl(var(--destructive));
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.auth-flow__field {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-flow__label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-flow__label {
+  color: hsl(var(--ink-2));
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.auth-flow__input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: var(--radius-sm);
+  outline: 0;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  font: 400 13px/1.4 var(--font-sans);
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.auth-flow__input::placeholder {
+  color: hsl(var(--ink-4));
+}
+
+.auth-flow__input:hover:not(:disabled):not(:focus) {
+  border-color: hsl(var(--ink-4));
+}
+
+.auth-flow__input:focus {
+  border-color: hsl(var(--accent));
+  box-shadow: 0 0 0 3px hsl(var(--accent) / 0.12);
+}
+
+.auth-flow__input:disabled {
+  opacity: 0.6;
+}
+
+.auth-flow__input--code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.3em;
+}
+
+.auth-flow__input--code::placeholder {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+}
+
+.auth-flow__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: var(--radius-sm);
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-2));
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    opacity 0.12s;
+}
+
+.auth-flow__button:hover:not(:disabled) {
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+}
+
+.auth-flow__button--primary {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.auth-flow__button--primary:hover:not(:disabled) {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  opacity: 0.88;
+}
+
+.auth-flow__button--block {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.auth-flow__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.auth-flow__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--accent));
+  font: 400 12px/1.4 var(--font-sans);
+  cursor: pointer;
+}
+
+.auth-flow__link:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-flow__link:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.auth-flow__link--center {
+  justify-self: center;
+  color: hsl(var(--ink-3));
+}
+
+.auth-flow__link--center:hover:not(:disabled) {
+  color: hsl(var(--ink-1));
+}
+
+.auth-flow__legal {
+  margin: 0;
+  color: hsl(var(--ink-4));
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.auth-flow__legal a {
+  color: hsl(var(--ink-3));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.auth-flow__legal a[aria-disabled='true'] {
+  cursor: default;
+  text-decoration: none;
+}
+
+.auth-flow__social {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-flow__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.auth-flow__progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 26px;
+}
+
+.auth-flow__progress .control-spinner {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  color: hsl(var(--accent));
+}
+
+.auth-flow__foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 12px 24px;
+  border-top: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-3));
+  font-size: 12px;
+}
+
+.auth-flow button:focus-visible,
+.auth-flow a:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
+}
+
+/* Desktop first run: the choice sits on a quiet page before the shelf mounts,
+   so the shared modal backdrop needs no dimming. */
+.first-run-gate {
+  position: fixed;
+  inset: 0;
+  background: hsl(var(--paper-deep));
+}
+
+.first-run-gate__drag {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: calc(var(--z-modal) + 1);
+  height: 36px;
+}
+
+.modal-root.first-run-gate__modal {
+  background: transparent;
+}

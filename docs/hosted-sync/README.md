@@ -52,9 +52,15 @@ or migrated. Lab bundle identifiers use isolated credential services. Neither
 credential hydration nor session requests block opening the local library.
 
 The same configured app offers **Continue locally** and **Sign in and sync** on
-first use. Login explicitly describes the upload/download boundary and connects
-the existing library after account verification; connection failures remain
-retryable in Account settings through **Connect and sync**. No second install or
+first use. On the Mac this choice is a dialog shown before the bookshelf
+mounts; signing in continues in that dialog, so the shelf first opens with the
+account's projects already restored. Later sign-in (user menu or Account
+settings) opens the same compact dialog over the current screen instead of a
+full-page route; the dialog stays open while the library connects. Mobile keeps
+its full-page `/login` route. Login explicitly describes the upload/download
+boundary and connects the existing library after account verification;
+connection failures offer an immediate retry and remain retryable in Account
+settings through **Connect and sync**. No second install or
 library is needed to move from local writing to Hosted. The source-default
 service-disabled configuration is an operator boundary, not a user mode.
 Initial connection

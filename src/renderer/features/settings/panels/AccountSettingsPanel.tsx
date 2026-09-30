@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../../store/auth';
+import { useOpenSignIn } from '../../auth/auth-dialog-store';
 import { useProductSyncAuthority } from '../../../sync/product-authority-react';
 import { productSyncCommands } from '../../../sync/product-commands';
 import { useProductSyncRuntime } from '../../../sync/product-runtime-react';
@@ -16,7 +16,7 @@ import {
 
 export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const openSignIn = useOpenSignIn();
   const user = useAuthStore((s) => s.hostedUser);
   const status = useAuthStore((s) => s.hostedStatus);
   const authority = useProductSyncAuthority();
@@ -80,7 +80,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
               <button
                 className="set-btn set-btn--primary"
                 disabled={busy}
-                onClick={() => navigate('/login')}
+                onClick={() => openSignIn()}
               >
                 {t('settings.hosted.sign_in')}
               </button>
