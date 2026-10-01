@@ -47,6 +47,8 @@
     "continueLocal": "继续本地模式"
   },
   "settings": {
+    "increase_value": "增加{{label}}",
+    "decrease_value": "减少{{label}}",
     "loading": "正在加载设置…",
     "loadFailed": "设置加载失败，请重试。",
     "title": "设定",

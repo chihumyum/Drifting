@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SettingsSlider } from '../SettingsSlider';
 import {
   useSettingsStore,
   TYPEWRITER_POSITION_MAX,
@@ -452,34 +453,29 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           label={t('settings.editor.font_size')}
           desc={t('settings.editor.font_size_desc')}
           control={
-            <div className="set-slider">
-              <input
-                type="range"
-                min={12}
-                max={28}
-                value={bodyFontSize}
-                onChange={(e) => setBodyFontSize(Number(e.target.value))}
-                style={{ width: 140 }}
-              />
-              <span className="set-slider__val">{bodyFontSize} px</span>
-            </div>
+            <SettingsSlider
+              label={t('settings.editor.font_size')}
+              min={12}
+              max={28}
+              integer
+              value={bodyFontSize}
+              onChange={setBodyFontSize}
+              unit="px"
+            />
           }
         />
         <SettingsRow
           label={t('settings.editor.line_height')}
           control={
-            <div className="set-slider">
-              <input
-                type="range"
-                min={1.0}
-                max={2.0}
-                step={0.02}
-                value={lineHeight}
-                onChange={(e) => setLineHeight(Number(e.target.value))}
-                style={{ width: 140 }}
-              />
-              <span className="set-slider__val">{lineHeight.toFixed(2)}</span>
-            </div>
+            <SettingsSlider
+              label={t('settings.editor.line_height')}
+              min={1.0}
+              max={2.0}
+              step={0.02}
+              precision={2}
+              value={lineHeight}
+              onChange={setLineHeight}
+            />
           }
         />
         <SettingsRow
@@ -515,36 +511,32 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           label={t('settings.editor.paragraph_spacing')}
           desc={t('settings.editor.paragraph_spacing_desc')}
           control={
-            <div className="set-slider">
-              <input
-                type="range"
-                min={0}
-                max={2.5}
-                step={0.05}
-                value={paragraphSpacing}
-                onChange={(e) => setParagraphSpacing(Number(e.target.value))}
-                style={{ width: 140 }}
-              />
-              <span className="set-slider__val">{paragraphSpacing.toFixed(2)} em</span>
-            </div>
+            <SettingsSlider
+              label={t('settings.editor.paragraph_spacing')}
+              min={0}
+              max={2.5}
+              step={0.05}
+              precision={2}
+              value={paragraphSpacing}
+              onChange={setParagraphSpacing}
+              unit="em"
+            />
           }
         />
         <SettingsRow
           label={t('settings.editor.page_width')}
           desc={t('settings.editor.page_width_desc')}
           control={
-            <div className="set-slider">
-              <input
-                type="range"
-                min={480}
-                max={1280}
-                step={10}
-                value={maxLineWidth}
-                onChange={(e) => setMaxLineWidth(Number(e.target.value))}
-                style={{ width: 140 }}
-              />
-              <span className="set-slider__val">{maxLineWidth} px</span>
-            </div>
+            <SettingsSlider
+              label={t('settings.editor.page_width')}
+              min={480}
+              max={1280}
+              integer
+              step={10}
+              value={maxLineWidth}
+              onChange={setMaxLineWidth}
+              unit="px"
+            />
           }
         />
       </div>
@@ -560,20 +552,16 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           label={t('settings.editor.typewriter_position')}
           desc={t('settings.editor.typewriter_position_desc')}
           control={
-            <div className="set-slider">
-              <input
-                type="range"
-                min={TYPEWRITER_POSITION_MIN}
-                max={TYPEWRITER_POSITION_MAX}
-                step={1}
-                value={typewriterPosition}
-                disabled={!typewriterMode}
-                aria-label={t('settings.editor.typewriter_position')}
-                onChange={(event) => setTypewriterPosition(Number(event.target.value))}
-                style={{ width: 140 }}
-              />
-              <span className="set-slider__val">{typewriterPosition}%</span>
-            </div>
+            <SettingsSlider
+              label={t('settings.editor.typewriter_position')}
+              min={TYPEWRITER_POSITION_MIN}
+              max={TYPEWRITER_POSITION_MAX}
+              integer
+              value={typewriterPosition}
+              disabled={!typewriterMode}
+              onChange={setTypewriterPosition}
+              unit="%"
+            />
           }
         />
         <SettingsRow

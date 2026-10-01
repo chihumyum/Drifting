@@ -47,6 +47,8 @@
     "continueLocal": "Continue locally"
   },
   "settings": {
+    "increase_value": "Increase {{label}}",
+    "decrease_value": "Decrease {{label}}",
     "loading": "Loading settings…",
     "loadFailed": "Settings could not be loaded. Try again.",
     "title": "Settings",

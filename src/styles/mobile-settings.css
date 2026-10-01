@@ -209,6 +209,22 @@
   touch-action: pan-y;
 }
 
+.m-settings__content #editor .set-slider__number {
+  min-height: 44px;
+  padding-right: 6px;
+}
+
+.m-settings__content #editor .set-slider__steppers {
+  position: static;
+  display: flex;
+  width: auto;
+}
+
+.m-settings__content #editor .set-slider__step {
+  width: 44px;
+  min-height: 44px;
+}
+
 .m-settings__content #editor .segmented-control {
   display: flex;
   width: 100%;
