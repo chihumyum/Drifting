@@ -73,6 +73,7 @@ if (process.argv.includes('--record-live')) {
       'vitest',
       'run',
       'src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts',
+      'src/renderer/components/agent/AgentMcpAccessState.test.ts',
       '--reporter=json',
       `--outputFile=${testPath}`,
     ],

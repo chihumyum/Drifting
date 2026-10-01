@@ -8,8 +8,8 @@ existing **MCP extensions** settings remain the outbound client.
 ## Connect
 
 1. Open the project in Drifting, then Settings → General Agent → External agent access.
-2. Choose **Read only** (the default), **Allow changes**, or **Allow changes and
-   destructive operations**, then click **Connect Codex** or **Connect Claude Code**.
+2. In the **Codex** or **Claude Code** row, choose **Read only** (the default),
+   **Allow changes**, or **Allow changes and destructive operations**, then click **Connect**.
    Drifting creates the project grant and installs the client entry automatically.
 3. Reopen the client or restart its MCP server to load the entry. Follow any tool
    approval prompts in that client. No terminal command, CLI installation, pasted
@@ -18,8 +18,11 @@ existing **MCP extensions** settings remain the outbound client.
    another project stops access. After restarting Drifting, reconnect the client
    and read targets again before editing.
 
-The top permission selector applies only to new connections. Each existing
-connection has its own permission selector; changing it immediately persists the
+Each client has one row and one permission selector. Before connecting, its
+selection applies only to that client's new project grant; after connecting,
+the same row shows the saved permission and configuration/revocation actions.
+There is no global permission selector or duplicate configured-client button.
+Changing an existing connection's permission immediately persists the
 grant without replacing credentials or client configuration. Active sessions use
 the new grant, and the server advertises `tools.listChanged` and sends
 `notifications/tools/list_changed` so clients can refresh `tools/list` on the
@@ -51,11 +54,15 @@ workspace trust settings are never enabled on the user's behalf. A failed
 configuration install rolls back the new grant and its credential.
 
 For other clients or a custom Claude configuration directory, expand **Other
-clients · Manual setup**, name and create a connection, then copy its MCP
+clients · Manual setup**, name the connection and choose its independent
+permission there, then create it and copy its MCP
 configuration. The command points to the app executable, with arguments
 `--mcp --connection <local-connection-file>`. TOML clients can use the same values
 under `[mcp_servers.drifting]`; JSON clients can use `mcpServers.drifting`.
 Credentials are never embedded in the copied or installed configuration.
+Manual connections are managed inside the same expanded section. Draft
+permissions are scoped to the project and client; revoking an installed client
+returns its row to the read-only default for a future connection.
 
 Client format references: [official OpenAI documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 and [Claude Code MCP scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes).
@@ -119,6 +126,9 @@ Mobile and remote HTTP/OAuth endpoints are outside this milestone.
 native IPC/authentication and client-configuration tests, then generates
 [`acceptance/local-mcp.json`](acceptance/local-mcp.json). `pnpm mcp:check` verifies
 its source fingerprint. Fixtures contain synthetic text only.
+The same collector includes `AgentMcpAccessState.test.ts` for client grouping,
+saved grant preservation, project isolation and permission mapping. These UI
+state checks do not install or alter real client configurations.
 Permission-change regressions cover live socket notifications to multiple
 sessions, fresh native grant dispatch, persistence and failed updates, read/write
 tool discovery, destructive permission changes and cancellation before a queued
