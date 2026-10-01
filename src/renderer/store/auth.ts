@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { bindHostedSession, clearHostedSessionBinding } from '../lib/hosted-session-binding';
-import { authClient, type Session } from '../lib/auth-client';
+import { authClient, hostedAccountFetch, type Session } from '../lib/auth-client';
+import {
+  normalizeHostedProfileUpdate,
+  validateHostedPassword,
+  type HostedProfileUpdate,
+} from '../lib/hosted-account';
 import {
   clearSessionToken,
   invalidateSessionToken,
@@ -47,15 +52,32 @@ interface AuthState {
   hostedStatus: HostedSessionStatus;
   login(email: string, password: string): Promise<void>;
   register(email: string, password: string, name: string): Promise<void>;
+  updateHostedProfile(update: HostedProfileUpdate): Promise<void>;
+  changeHostedPassword(current: string, next: string, confirmation: string): Promise<void>;
   adoptSession(): Promise<void>;
   logout(): Promise<void>;
-  expireSession(): Promise<void>;
+  expireSession(expectedToken?: string): Promise<void>;
   checkSession(): Promise<void>;
   initAuth(): Promise<void>;
   refreshHostedSession(): Promise<void>;
 }
 let bootstrap: Promise<void> | null = null;
 let refreshing: Promise<void> | null = null;
+let accountMutation: Promise<void> | null = null;
+
+/** Serialize edits with refreshes so an older profile read cannot undo a saved edit. */
+function mutateHostedAccount(action: () => Promise<void>): Promise<void> {
+  requireHosted();
+  if (accountMutation) return Promise.reject(new Error('ACCOUNT_UPDATE_IN_PROGRESS'));
+  const pendingRefresh = refreshing;
+  accountMutation = (async () => {
+    await pendingRefresh;
+    await action();
+  })().finally(() => {
+    accountMutation = null;
+  });
+  return accountMutation;
+}
 function requireHosted() {
   if (!canUseHostedService())
     throw new Error('HOSTED_SERVICE_DISABLED: account authentication is unavailable.');
@@ -119,6 +141,70 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const result = await authClient.signUp.email({ email, password, name });
     if (result.error) throw new Error(result.error.message ?? 'Registration failed');
   },
+  async updateHostedProfile(update) {
+    return mutateHostedAccount(async () => {
+      const patch = normalizeHostedProfileUpdate(update);
+      const { session, hostedUser, hostedStatus } = get();
+      const revision = getSessionTokenRevision();
+      if (!session || !hostedUser || !getSessionToken() || hostedStatus !== 'connected')
+        throw new Error('ACCOUNT_NOT_CONNECTED');
+      const result = await authClient.updateUser(patch, { customFetchImpl: hostedAccountFetch });
+      if (revision !== getSessionTokenRevision()) throw new Error('SESSION_CHANGED');
+      if (result.error) {
+        if (result.error.status === 401) await get().expireSession();
+        throw new Error(result.error.code ?? 'PROFILE_UPDATE_FAILED');
+      }
+      const updated = { ...hostedUser, ...patch };
+      writeHostedProfile(updated);
+      set({ hostedUser: updated, session: { ...session, user: { ...session.user, ...patch } } });
+    });
+  },
+  async changeHostedPassword(current, next, confirmation) {
+    return mutateHostedAccount(async () => {
+      validateHostedPassword(current, next, confirmation);
+      const { hostedUser, hostedStatus } = get();
+      const revision = getSessionTokenRevision();
+      if (!hostedUser || !getSessionToken() || hostedStatus !== 'connected')
+        throw new Error('ACCOUNT_NOT_CONNECTED');
+      let replacement: string | null = null;
+      const result = await authClient.changePassword(
+        {
+          currentPassword: current,
+          newPassword: next,
+          revokeOtherSessions: true,
+        },
+        {
+          customFetchImpl: async (input, init) => {
+            const response = await hostedAccountFetch(input, init);
+            if (response.ok) replacement = response.headers.get('set-auth-token');
+            return response;
+          },
+        },
+      );
+      if (revision !== getSessionTokenRevision()) throw new Error('SESSION_CHANGED');
+      if (result.error) {
+        if (result.error.status === 401) await get().expireSession();
+        throw new Error(result.error.code ?? 'PASSWORD_UPDATE_FAILED');
+      }
+      // The server has revoked the previous token. Never restore it after a failure.
+      if (!replacement || result.data?.user.id !== hostedUser.id) {
+        await get().expireSession();
+        throw new Error('PASSWORD_CHANGED_SIGN_IN_REQUIRED');
+      }
+      clearHostedSessionBinding();
+      setSessionToken(replacement);
+      const replacementRevision = getSessionTokenRevision();
+      try {
+        await get().adoptSession();
+      } catch {
+        if (replacementRevision === getSessionTokenRevision()) {
+          await get().expireSession();
+          throw new Error('PASSWORD_CHANGED_SIGN_IN_REQUIRED');
+        }
+        throw new Error('SESSION_CHANGED');
+      }
+    });
+  },
   async adoptSession() {
     requireHosted();
     const token = getSessionToken();
@@ -162,8 +248,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ session: null, hostedUser: null, hostedStatus: 'signed-out' });
     events.emit('sync:authority-changed');
   },
-  async expireSession() {
+  async expireSession(expectedToken) {
     if (APP_CONFIG.LOCAL_ONLY_MODE) return;
+    // An in-flight sync request may reject the old token while a password edit
+    // is rotating it. Only expire the credential that request actually used.
+    if (expectedToken !== undefined) {
+      await accountMutation?.catch(() => undefined);
+      if (getSessionToken() !== expectedToken) return;
+    }
     clearHostedSessionBinding();
     invalidateSessionToken();
     set({ session: null, hostedStatus: 'needs-reauth' });
@@ -171,6 +263,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     await flushSessionTokenStorage();
   },
   refreshHostedSession() {
+    if (accountMutation)
+      return accountMutation.then(
+        () => undefined,
+        () => undefined,
+      );
     if (refreshing) return refreshing;
     refreshing = (async () => {
       if (APP_CONFIG.LOCAL_ONLY_MODE) return;

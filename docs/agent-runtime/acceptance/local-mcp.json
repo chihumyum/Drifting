@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-09-30T17:03:25.823Z",
-  "sourceSha256": "1da509fcd203e00aa16b20b4253b3ac67c29a9566af458cebf748934682fa6ba",
+  "generatedAt": "2026-10-01T03:57:44.670Z",
+  "sourceSha256": "13e5816c7526cea221d4e260745a766579e13e2ce9ff4b721842af9090b7d740",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -11,6 +11,14 @@
     },
     {
       "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and the existing inverse review",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP updates tool discovery and destructive permissions on an existing session",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP rejects a write already waiting for the shared scheduler when permission changes",
       "status": "passed"
     },
     {
@@ -110,7 +118,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
@@ -122,7 +130,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
       "status": "passed"
     },
     {
@@ -131,6 +147,10 @@
     },
     {
       "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_changes_notify_live_clients_and_dispatch_current_grants",
       "status": "passed"
     },
     {

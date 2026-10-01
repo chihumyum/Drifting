@@ -7,6 +7,7 @@ import { productSyncCommands } from '../../../sync/product-commands';
 import { useProductSyncRuntime } from '../../../sync/product-runtime-react';
 import { synchronizeHostedNow } from '../../../sync/hosted/connect';
 import { disconnectHosted } from '../../../sync/hosted/disconnect';
+import { HostedAccountDetails } from './HostedAccountDetails';
 import {
   SettingsPanelHeader,
   SettingsRow,
@@ -87,6 +88,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
             )
           }
         />
+        {user && <HostedAccountDetails key={user.id} user={user} disabled={busy || !accountReady} />}
         <SettingsSectionHeader title={t('settings.hosted.sync_title')} />
         <SettingsRow
           label={t(connected ? 'settings.hosted.enabled' : 'settings.hosted.disabled')}

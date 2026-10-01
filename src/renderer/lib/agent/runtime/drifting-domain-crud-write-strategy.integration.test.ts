@@ -1,4 +1,5 @@
 import { ExternalToolSession } from './external-tool-session';
+import { sharedAgentRuntimeScheduler } from './scheduler';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -205,6 +206,60 @@ describe('workspace domain CRUD transactions', () => {
     const unobserved = await mcpCall(reconnected, 'replace_chapter_body', { chapter: 'External chapter', body: 'Must read first.' });
     expect(unobserved).toMatchObject({ isError: true });
     await reconnected.close();
+  });
+
+  it('MCP updates tool discovery and destructive permissions on an existing session', async () => {
+    const session = mcpSession('changing', 'read');
+    const other = mcpSession('unchanged', 'read');
+    const update = (access: 'read' | 'write', allowDangerous = false) => session.updateGrant({
+      id: 'changing', name: 'Synthetic external agent', projectId: PROJECT_ID, access, allowDangerous,
+    });
+    const list = (target = session) => target.handle({ jsonrpc: '2.0', id: 0, method: 'tools/list' },
+      new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
+    expect((await list()).tools).toHaveLength(24);
+    update('write');
+    expect((await list()).tools).toHaveLength(70);
+    expect((await list(other)).tools).toHaveLength(24);
+    expect(await mcpCall(session, 'create_chapter', { title: 'Permission fixture', body: 'Synthetic.' })).toMatchObject({ isError: false });
+    await mcpCall(session, 'read_chapter', { chapter: 'Permission fixture' });
+    expect(await mcpCall(session, 'delete_chapter', { chapter: 'Permission fixture' })).toMatchObject({ isError: true });
+    update('write', true);
+    expect(await mcpCall(session, 'delete_chapter', { chapter: 'Permission fixture' })).toMatchObject({ isError: false });
+    update('write');
+    await mcpCall(session, 'read_chapter', { chapter: 'Chapter One' });
+    expect(await mcpCall(session, 'delete_chapter', { chapter: 'Chapter One' })).toMatchObject({ isError: true });
+    update('read');
+    expect((await list()).tools).toHaveLength(24);
+    expect(await mcpCall(session, 'create_chapter', { title: 'Must not exist' })).toMatchObject({ isError: true });
+    expect(fixture.scalar("SELECT count(*) FROM book_node WHERE title = 'Must not exist'")).toBe(0);
+    expect(() => session.updateGrant({ id: 'changing', projectId: 'other', name: 'Other', access: 'write', allowDangerous: true })).toThrow('scope');
+    await session.close(); await other.close();
+  });
+
+  it('MCP rejects a write already waiting for the shared scheduler when permission changes', async () => {
+    const session = mcpSession('queued-permission', 'write', true);
+    const original = sharedAgentRuntimeScheduler.runWrite.bind(sharedAgentRuntimeScheduler);
+    let reached!: () => void;
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => { reached = resolve; });
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    const spy = vi.spyOn(sharedAgentRuntimeScheduler, 'runWrite').mockImplementation(async (request, execute) => {
+      reached();
+      await barrier;
+      return original(request, execute);
+    });
+    try {
+      const pending = mcpCall(session, 'create_chapter', { title: 'Stale permission write' });
+      await waiting;
+      session.updateGrant({ id: 'queued-permission', name: 'Synthetic', projectId: PROJECT_ID, access: 'read', allowDangerous: false });
+      release();
+      expect(await pending).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('permissions changed') }] });
+      expect(fixture.scalar("SELECT count(*) FROM book_node WHERE title = 'Stale permission write'")).toBe(0);
+    } finally {
+      release();
+      spy.mockRestore();
+      await session.close();
+    }
   });
 
   it('MCP stops stale concurrent prose writes and cancelled calls without crossing project scope', async () => {

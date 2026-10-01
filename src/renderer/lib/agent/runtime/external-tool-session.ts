@@ -27,6 +27,7 @@ export class ExternalToolSession {
   private initialized: Promise<void> | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private closed = false;
+  private grantRevision = 0;
 
   constructor(private readonly options: ExternalToolSessionOptions) {
     this.context = {
@@ -36,6 +37,20 @@ export class ExternalToolSession {
         conversationId: `${options.sessionId}:conversation`,
       },
     };
+  }
+
+  get connectionId(): string {
+    return this.options.grant.id;
+  }
+
+  updateGrant(grant: McpServerGrant): void {
+    const previous = this.options.grant;
+    if (grant.id !== previous.id || grant.projectId !== previous.projectId)
+      throw new Error('Cannot change an MCP connection scope');
+    if (grant.access !== previous.access || grant.allowDangerous !== previous.allowDangerous) {
+      this.grantRevision++;
+      this.options.grant = grant;
+    }
   }
 
   private definitions() {
@@ -51,11 +66,17 @@ export class ExternalToolSession {
   }
 
   handle(request: McpServerRequest['request'], signal: AbortSignal): Promise<unknown> {
+    const revision = this.grantRevision;
+    const assertAuthorized = () => {
+      throwIfAgentAborted(signal);
+      if (this.closed) throw new Error('MCP connection closed; reconnect and read again');
+      if (revision !== this.grantRevision)
+        throw new Error('MCP permissions changed; inspect any interrupted write before retrying');
+    };
     // Stable ordering within an external conversation keeps read handles and
     // turn ordinals coherent; other conversations use the shared scheduler.
     const work = this.tail.then(async () => {
-      throwIfAgentAborted(signal);
-      if (this.closed) throw new Error('MCP connection closed; reconnect and read again');
+      assertAuthorized();
       if (request.method === 'tools/list') {
         if (request.params?.cursor) throw new Error('Invalid tool-list cursor');
         return {
@@ -69,7 +90,7 @@ export class ExternalToolSession {
       }
       if (request.method !== 'tools/call') throw new Error('Unsupported MCP method');
       try {
-        const result = await this.call(request, signal);
+        const result = await this.call(request, signal, assertAuthorized);
         const text = result.ok
           ? typeof result.modelData === 'string'
             ? result.modelData
@@ -132,6 +153,7 @@ export class ExternalToolSession {
   private async call(
     message: McpServerRequest['request'],
     signal: AbortSignal,
+    assertAuthorized: () => void,
   ): Promise<AgentToolExecutionResult> {
     const { composition, grant, sessionId } = this.options;
     const definition = this.definitions().find((tool) => tool.name === message.params?.name);
@@ -223,10 +245,14 @@ export class ExternalToolSession {
     });
     let result: AgentToolExecutionResult;
     try {
-      const execute = () =>
-        definition.access === 'read'
+      const execute = () => {
+        // Permission may have changed while persistence or the shared writer
+        // scheduler was awaited. Never execute with that stale authorization.
+        assertAuthorized();
+        return definition.access === 'read'
           ? composition.workspaceTools.execute(request)
           : composition.tools.execute(request);
+      };
       result =
         definition.access === 'read'
           ? await sharedAgentRuntimeScheduler.runRead(request, execute)

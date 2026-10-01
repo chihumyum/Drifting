@@ -191,6 +191,7 @@ pub fn run() {
             mcp_server::mcp_server_list,
             mcp_server::mcp_server_create,
             mcp_server::mcp_server_connect,
+            mcp_server::mcp_server_update_permission,
             mcp_server::mcp_server_revoke,
             mcp_server::mcp_server_attach,
             mcp_server::mcp_server_detach,

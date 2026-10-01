@@ -52,6 +52,8 @@ describe('local-only account boundary', () => {
     await expect(useAuthStore.getState().adoptSession()).rejects.toThrow(
       'HOSTED_SERVICE_DISABLED',
     );
+    await expect(useAuthStore.getState().updateHostedProfile({ name: 'Author' })).rejects.toThrow('HOSTED_SERVICE_DISABLED');
+    await expect(useAuthStore.getState().changeHostedPassword('old', 'new-password', 'new-password')).rejects.toThrow('HOSTED_SERVICE_DISABLED');
 
     expect(authCalls.signIn).not.toHaveBeenCalled();
     expect(authCalls.signUp).not.toHaveBeenCalled();

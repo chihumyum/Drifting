@@ -410,6 +410,45 @@
   min-width: 340px;
 }
 
+.set-account-fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.set-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, hsl(var(--story-1)), hsl(var(--story-5)));
+  color: hsl(var(--paper));
+}
+.set-account-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 0;
+}
+.set-account-notice {
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--ink-2));
+}
+.set-account-fields .set-row__control {
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .set-account-fields .set-row {
+    grid-template-columns: 1fr;
+  }
+  .set-account-fields .set-input {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 /* Prose font source. Labels and controls deliberately stay on --font-ui;
    the selected face is demonstrated only by the typesetting preview. */
 .set-font-control {

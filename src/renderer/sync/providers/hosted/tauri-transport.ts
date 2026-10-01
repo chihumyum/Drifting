@@ -41,8 +41,12 @@ export class TauriHostedObjectTransport implements HostedObjectTransport {
         'ABORTED',
       ];
       const code = codes.find((value) => detail.includes(value)) ?? 'provider-unavailable';
-      if (code === 'needs-reauth')
-        await (await import('../../../store/auth')).useAuthStore.getState().expireSession();
+      if (code === 'needs-reauth') {
+        await (await import('../../../store/auth')).useAuthStore.getState().expireSession(binding.token);
+        const current = getHostedSessionBinding();
+        if (current && current.token !== binding.token)
+          throw new HostedTransportError('provider-unavailable', true);
+      }
       throw new HostedTransportError(code, ['provider-unavailable', 'rate-limited'].includes(code));
     }
   }

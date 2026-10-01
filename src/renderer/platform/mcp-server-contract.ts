@@ -11,6 +11,7 @@ export interface McpServerGrant {
 }
 
 export type McpServerCreateInput = Omit<McpServerGrant, 'id' | 'installation'>;
+export type McpServerPermissionInput = Pick<McpServerGrant, 'id' | 'access' | 'allowDangerous'>;
 
 export interface McpServerConnection {
   grant: McpServerGrant;
@@ -33,6 +34,7 @@ export interface McpServerRequest {
 
 export type McpServerEvent =
   | McpServerRequest
+  | { type: 'grantChanged'; grant: McpServerGrant }
   | { type: 'cancel'; requestId: string }
   | { type: 'closed'; sessionId: string };
 
@@ -40,6 +42,7 @@ export interface McpServerPlatformApi {
   list(): Promise<McpServerConnection[]>;
   create(input: McpServerCreateInput): Promise<McpServerConnection>;
   connect(input: McpServerCreateInput, client: McpClient): Promise<McpServerConnection>;
+  updatePermission(input: McpServerPermissionInput): Promise<McpServerConnection>;
   revoke(id: string): Promise<string | null>;
   attach(projectId: string, onEvent: (event: McpServerEvent) => void): Promise<string>;
   detach(epoch: string): Promise<void>;

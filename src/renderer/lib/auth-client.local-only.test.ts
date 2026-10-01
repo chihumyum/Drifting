@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { authClient, hostedAuthFetch } from './auth-client';
+import { authClient, hostedAuthFetch, hostedAccountFetch } from './auth-client';
 
 describe('local-only Better Auth transport', () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -20,6 +20,8 @@ describe('local-only Better Auth transport', () => {
         code: 'HOSTED_SERVICE_DISABLED',
       },
     );
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(hostedAccountFetch('http://localhost:3000/api/auth/update-user')).rejects.toMatchObject({ code: 'HOSTED_SERVICE_DISABLED' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

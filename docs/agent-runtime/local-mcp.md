@@ -18,9 +18,24 @@ existing **MCP extensions** settings remain the outbound client.
    another project stops access. After restarting Drifting, reconnect the client
    and read targets again before editing.
 
-The connection list shows the client and granted permission. **Reconfigure**
-repairs a missing entry or an app that moved without duplicating the grant or
-changing its permission. To change permission, revoke and reconnect. Revoking
+The top permission selector applies only to new connections. Each existing
+connection has its own permission selector; changing it immediately persists the
+grant without replacing credentials or client configuration. Active sessions use
+the new grant, and the server advertises `tools.listChanged` and sends
+`notifications/tools/list_changed` so clients can refresh `tools/list` on the
+same connection ([MCP tools protocol](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#list-changed-notification)).
+Client support determines when its model sees the refreshed tools; restart the
+client's MCP connection if it retains the old list. Installing this server update
+requires restarting Drifting and reconnecting existing MCP clients once.
+
+Permission changes cancel pending requests and invalidate queued authorization,
+including writes waiting for the shared scheduler. A write already committed is
+not undone; inspect interrupted writes before retrying. Other connections keep
+their own grants. Read handles remain in the same session; permission changes do
+not bypass read coverage, freshness checks or editor review.
+
+**Reconfigure** repairs a missing entry or an app that moved without duplicating
+the grant or changing its permission. Revoking
 stops access first, then removes only this connection's auto-installed entry.
 If that entry was externally replaced or cannot be written, access is still
 revoked and the UI asks you to remove the leftover entry in the client.
@@ -93,8 +108,9 @@ after it was read makes a stale full-body replacement fail. Runtime reviews are
 available through the normal editor review UI; MCP does not approve its own work.
 
 MCP wire revision: `2025-11-25`, with stdio `initialize`, `ping`, `tools/list`,
-`tools/call`, initialized notifications and cancellation. The official SDK is
-used only for development acceptance, not shipped as an app runtime dependency.
+`tools/call`, initialized notifications, tool-list change notifications and
+cancellation. The official SDK is used only for development acceptance, not
+shipped as an app runtime dependency.
 Mobile and remote HTTP/OAuth endpoints are outside this milestone.
 
 ## Acceptance
@@ -103,6 +119,10 @@ Mobile and remote HTTP/OAuth endpoints are outside this milestone.
 native IPC/authentication and client-configuration tests, then generates
 [`acceptance/local-mcp.json`](acceptance/local-mcp.json). `pnpm mcp:check` verifies
 its source fingerprint. Fixtures contain synthetic text only.
+Permission-change regressions cover live socket notifications to multiple
+sessions, fresh native grant dispatch, persistence and failed updates, read/write
+tool discovery, destructive permission changes and cancellation before a queued
+write executes. These do not establish any particular client's UI refresh behavior.
 
 For packaged-App acceptance, create a disposable project named `MCP 验收` and
 connections through the actual settings UI, then run:

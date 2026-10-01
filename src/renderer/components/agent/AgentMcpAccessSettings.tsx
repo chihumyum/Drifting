@@ -85,7 +85,8 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '12px 0' }}>
         <select
           className="set-input"
-          aria-label={t('settings.agent.mcpAccess.permission')}
+          aria-label={t('settings.agent.mcpAccess.newPermission')}
+          disabled={busy}
           value={permission}
           onChange={(event) => setPermission(event.target.value as typeof permission)}
         >
@@ -115,6 +116,7 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
           );
         })}
       </div>
+      <p className="set-row__desc">{t('settings.agent.mcpAccess.newPermission')}</p>
       <p className="set-row__desc">{t('settings.agent.mcpAccess.automatic')}</p>
       <details style={{ marginTop: 12 }}>
         <summary style={{ cursor: 'pointer' }}>{t('settings.agent.mcpAccess.manual')}</summary>
@@ -152,15 +154,30 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       </p>
       {projectConnections.map((connection) => (
         <div key={connection.grant.id} style={{ marginTop: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ flex: 1 }}>
-              {connection.grant.name} ·{' '}
-              {t(
-                `settings.agent.mcpAccess.${
-                  connection.grant.allowDangerous ? 'full' : connection.grant.access
-                }`,
-              )}
-            </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+            <span style={{ flex: 1 }}>{connection.grant.name}</span>
+            <select
+              className="set-input"
+              aria-label={t('settings.agent.mcpAccess.connectionPermission', { name: connection.grant.name })}
+              disabled={busy}
+              value={connection.grant.allowDangerous ? 'full' : connection.grant.access}
+              onChange={(event) => {
+                const value = event.target.value;
+                void run(async () => {
+                  const updated = await platform.mcpServer.updatePermission({
+                    id: connection.grant.id,
+                    access: value === 'read' ? 'read' : 'write',
+                    allowDangerous: value === 'full',
+                  });
+                  setConnections((rows) => rows.map((row) => row.grant.id === updated.grant.id ? updated : row));
+                  setMessage(t('settings.agent.mcpAccess.permissionUpdated'));
+                });
+              }}
+            >
+              <option value="read">{t('settings.agent.mcpAccess.read')}</option>
+              <option value="write">{t('settings.agent.mcpAccess.write')}</option>
+              <option value="full">{t('settings.agent.mcpAccess.full')}</option>
+            </select>
             {connection.grant.installation && (
               <button
                 className="set-btn"

@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-09-30T18:32:21.079Z",
-  "sourceSha256": "1beef90807178a368aebe880d11ee577be66eb37d9320fa0da9d4cfa190da0a8",
+  "generatedAt": "2026-10-01T04:06:01.583Z",
+  "sourceSha256": "a04331b86d588f365b5634112b522ecfa37d1561e11837bade364f8d7bb8602b",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -36,6 +36,30 @@
     },
     {
       "name": "local recovery capabilities rejects an operation for another local identity",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account input boundaries normalizes names and preserves explicit avatar removal",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account input boundaries checks password confirmation and length without trimming password characters",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account input boundaries rejects unsafe or oversized files before creating an image decoder",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account input boundaries releases object URLs when decoding fails",
+      "status": "passed"
+    },
+    {
+      "name": "Offline Hosted profile cache keeps only display metadata, including avatar removal, and never stores tokens",
+      "status": "passed"
+    },
+    {
+      "name": "Offline Hosted profile cache does not display externally hosted images or profiles from another service",
       "status": "passed"
     },
     {
@@ -103,6 +127,46 @@
       "status": "passed"
     },
     {
+      "name": "Hosted account edits saves trimmed names and avatar removal to all display state without changing the library",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits keeps the saved profile on a rejected edit and blocks invalid requests before sending",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits discards profile responses that arrive after sign-out",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits drains older profile refreshes and prevents refreshes and duplicate edits during saving",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits validates confirmation and leaves authentication intact when the old password is wrong",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits persists and revalidates the rotated bearer before rebinding sync after a password change",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits does not restore a revoked token when storing the new session fails",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits does not adopt a delayed password response after sign-out",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits expires rejected credentials without losing the expected profile or local identity",
+      "status": "passed"
+    },
+    {
+      "name": "In-flight sync during a password change waits for rotation and ignores the expired request token",
+      "status": "passed"
+    },
+    {
       "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
       "status": "passed"
     },
@@ -136,6 +200,46 @@
     },
     {
       "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
+      "status": "passed"
+    },
+    {
+      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
       "status": "passed"
     },
     {
@@ -203,46 +307,6 @@
       "status": "passed"
     },
     {
-      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
-      "status": "passed"
-    },
-    {
-      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
-      "status": "passed"
-    },
-    {
       "name": "keeps local writing independent of an unavailable Keychain",
       "status": "passed"
     },
@@ -276,6 +340,14 @@
     },
     {
       "name": "Hosted provider response boundary bounds discovery pagination and checks ownership after each page",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sync credential rotation retries a stale rejection without expiring or blocking the newly rotated session",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sync credential rotation still stops sync when the currently bound credential is rejected",
       "status": "passed"
     }
   ],

@@ -18,6 +18,12 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
     void session?.close().catch(() => undefined);
   };
   const handle = async (event: McpServerEvent) => {
+    if (event.type === 'grantChanged') {
+      for (const session of sessions.values()) {
+        if (session.connectionId === event.grant.id) session.updateGrant(event.grant);
+      }
+      return;
+    }
     if (event.type === 'cancel') {
       requests.get(event.requestId)?.controller.abort();
       return;
@@ -58,6 +64,7 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
         });
         sessions.set(event.sessionId, session);
       }
+      session.updateGrant(event.grant);
       const result = await session.handle(event.request, controller.signal);
       await platform.mcpServer.complete(event.epoch, event.requestId, { ...response, result });
     } catch (error) {

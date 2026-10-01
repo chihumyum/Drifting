@@ -7,6 +7,7 @@ import { useAuthStore } from '../../../store/auth';
 import { useSettingsPanels } from '../useSettingsPanels';
 import { SettingsLoadStatus } from '../SettingsLoadStatus';
 import { TrashRailPanel } from '../panels/TrashSettingsPanel';
+import { AccountAvatar } from '../../../components/ui/AccountAvatar';
 
 import {
   hostedAccountSettingsEnabled,
@@ -413,7 +414,7 @@ function SetRail({
   return (
     <nav className="set-rail">
       <div className="set-rail__who">
-        <div className="set-rail__who-avatar">{initial}</div>
+        <div className="set-rail__who-avatar"><AccountAvatar image={user?.image} initial={initial} /></div>
         <div className="set-rail__who-body">
           <div className="set-rail__who-name">
             {user?.name ?? user?.email ?? t('settings.local_user')}

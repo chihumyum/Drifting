@@ -922,6 +922,7 @@ export const tauriPlatform: PlatformApi = {
     list: () => invokeContract('mcp_server_list', undefined),
     create: (input) => invokeContract('mcp_server_create', { input }),
     connect: (input, client) => invokeContract('mcp_server_connect', { input, client }),
+    updatePermission: (input) => invokeContract('mcp_server_update_permission', { input }),
     revoke: (id) => invokeContract('mcp_server_revoke', { id }),
     attach: (projectId, callback) => invokeContract('mcp_server_attach', {
       projectId, onEvent: new Channel<McpServerEvent>(callback),

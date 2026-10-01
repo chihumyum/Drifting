@@ -1,4 +1,4 @@
-import type { McpClient, McpServerConnection, McpServerCreateInput } from './mcp-server-contract';
+import type { McpClient, McpServerConnection, McpServerCreateInput, McpServerPermissionInput } from './mcp-server-contract';
 /**
  * Renderer <-> Tauri command/event contracts.
  *
@@ -722,6 +722,7 @@ export interface TauriCommandContract {
   mcp_server_list: { args: undefined; result: McpServerConnection[] };
   mcp_server_create: { args: { input: McpServerCreateInput }; result: McpServerConnection };
   mcp_server_connect: { args: { input: McpServerCreateInput; client: McpClient }; result: McpServerConnection };
+  mcp_server_update_permission: { args: { input: McpServerPermissionInput }; result: McpServerConnection };
   mcp_server_revoke: { args: { id: string }; result: string | null };
   mcp_server_attach: { args: { projectId: string; onEvent: unknown }; result: string };
   mcp_server_detach: { args: { epoch: string }; result: void };

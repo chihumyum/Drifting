@@ -14,7 +14,7 @@ const API_BASE_URL =
  * gate hosted access, but the Better Auth client is exported and must remain
  * fail-closed even if a future caller invokes it directly in a local-only build.
  */
-export const hostedAuthFetch: typeof globalThis.fetch = async (input, init) => {
+export const hostedAccountFetch: typeof globalThis.fetch = async (input, init) => {
   if (!canUseHostedService()) {
     const error = new Error(
       'HOSTED_SERVICE_DISABLED: account authentication is unavailable in this build.',
@@ -22,8 +22,12 @@ export const hostedAuthFetch: typeof globalThis.fetch = async (input, init) => {
     error.code = 'HOSTED_SERVICE_DISABLED';
     throw error;
   }
+  return globalThis.fetch(input, init);
+};
+
+export const hostedAuthFetch: typeof globalThis.fetch = async (input, init) => {
   const revision = getSessionTokenRevision();
-  const response = await globalThis.fetch(input, init);
+  const response = await hostedAccountFetch(input, init);
   const token = response.headers.get('set-auth-token');
   if (token && revision === getSessionTokenRevision() && token !== getSessionToken())
     setSessionToken(token);

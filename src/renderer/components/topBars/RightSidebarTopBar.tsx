@@ -51,6 +51,7 @@ export function RightSidebarTopBar() {
       <UserAvatar
         forwardRef={avatarRef}
         initial={initial}
+        image={user?.image}
         size={26}
         fontSize={13}
         title={displayName}

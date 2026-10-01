@@ -44,6 +44,11 @@ sleeping/disconnected Mac cannot provide continuous access away from that Mac.
 
 ## Writing and account behavior
 
+[Account settings](account-settings.md) supports changing the display name,
+choosing/removing an avatar and changing the password. Password changes verify
+the current password and sign out other devices while rotating this device's
+session. The existing local library and sync ownership remain unchanged.
+
 The library remains `drifting-library.db` before login, after login, offline and
 after logout. Its domain user identity does not become a server account ID.
 Cached account display metadata contains no token. Production bearer sessions use an

@@ -421,6 +421,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
               <UserAvatar
                 forwardRef={avatarRef}
                 initial={userInitial}
+                image={account?.image}
                 size={36}
                 fontSize={16}
                 title={t(

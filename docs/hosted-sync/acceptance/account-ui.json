@@ -1,0 +1,18 @@
+{
+  "kind": "hosted-account-browser-ui",
+  "generatedAt": "2026-10-01T04:05:10.660Z",
+  "sourceSha256": "d0f0331adfe91d92f9475e481f6ee7c4dea0a6ea1a2f3b0cebb608b8dcc3a39e",
+  "status": "passed",
+  "synthetic": true,
+  "checks": [
+    "saved name immediately updates account display",
+    "failed save preserves the saved profile and editable draft; cancel restores it",
+    "real PNG decoding, square crop, bounded JPEG encoding, preview and saved avatar",
+    "avatar removal restores initials",
+    "mismatched confirmation is rejected before dispatch",
+    "successful password change clears all secret inputs",
+    "desktop form fits its viewport",
+    "offline account controls cannot submit mutations"
+  ],
+  "boundary": "Real React forms and browser image pipeline with synthetic account actions; HTTP, native interaction and production deployment are separate gates."
+}

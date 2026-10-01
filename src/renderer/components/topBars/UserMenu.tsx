@@ -27,6 +27,7 @@ import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
+import { AccountAvatar } from '../ui/AccountAvatar';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -195,7 +196,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             borderBottom: '1px solid hsl(var(--rule))',
           }}
         >
-          <UserAvatar initial={initial} size={36} fontSize={17} />
+          <UserAvatar initial={initial} image={user?.image} size={36} fontSize={17} />
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <span
               style={{
@@ -389,6 +390,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
 
 export function UserAvatar({
   initial,
+  image,
   size = 24,
   fontSize = 12,
   onClick,
@@ -397,6 +399,7 @@ export function UserAvatar({
   expanded,
 }: {
   initial: string;
+  image?: string | null;
   size?: number;
   fontSize?: number;
   onClick?: () => void;
@@ -432,7 +435,7 @@ export function UserAvatar({
         } as React.CSSProperties
       }
     >
-      {initial}
+      <AccountAvatar image={image} initial={initial} />
     </button>
   );
 }
