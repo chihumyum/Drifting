@@ -6,6 +6,8 @@ import loglevel from 'loglevel';
 import { useDataStore } from '../../store/data-store';
 import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
+import type { LeftSidebarTab } from '../../lib/sidebar-tabs';
+import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import type {
   DriftSortMode,
   ChapterGlobalSortMode,
@@ -33,9 +35,9 @@ log.setLevel(loglevel.levels.ERROR);
 // 给狭窄场景留点余量；真正窄到 < 180 才放弃 meta。
 const META_HIDE_WIDTH = 180;
 
-export function LeftSidebarSubHeader() {
+export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSidebarTab }) {
   const { t } = useTranslation();
-  const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
+  const paneId = useSidebarPaneId();
   const nodesViewMode = useUiStore((s) => s.chapterPanelViewMode);
   const setChapterViewMode = useUiStore((s) => s.setChapterPanelViewMode);
 
@@ -166,8 +168,8 @@ export function LeftSidebarSubHeader() {
   }, []);
 
   const collapseAll = useCallback(() => {
-    events.emit('left-sidebar:collapse-all');
-  }, []);
+    events.emit('left-sidebar:collapse-all', { panel: activeLeftPanel, paneId });
+  }, [activeLeftPanel, paneId]);
 
   // Sort menu — anchored to the ArrowDownUp button. The set of options
   // depends on which panel is currently active (and, for chapters, whether
@@ -409,10 +411,10 @@ export function LeftSidebarSubHeader() {
         gap: 8,
         paddingInline: '12px 10px',
         fontFamily: 'var(--font-mono)',
-        fontSize: 9.5,
+        fontSize: 'var(--ui-font-caption, 9.5px)',
         textTransform: 'uppercase',
         letterSpacing: '0.12em',
-        color: 'hsl(var(--ink-3))',
+        color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
         background: 'var(--workspace-ui-bg)',
         flexShrink: 0,
       }}

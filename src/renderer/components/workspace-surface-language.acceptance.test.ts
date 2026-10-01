@@ -246,7 +246,7 @@ describe('workspace surface language acceptance', () => {
   it('keeps the desktop coplanar and the manuscript independently raised', () => {
     const css = source('src/styles/index.css');
     const sidebar = source('src/renderer/components/Sidebar.tsx');
-    const rightPanels = source('src/renderer/shells/desktop/DesktopRightSidebar.tsx');
+    const rightPanels = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
     const shell = block(
       css,
       'Coplanar workspace + manuscript elevation',
@@ -321,8 +321,8 @@ describe('workspace surface language acceptance', () => {
     const agentCss = source('src/styles/agent-panel.css');
     const compactChrome = block(controls, '/* Sidebar chrome', '.panel-tab-tray {');
 
-    expect(compactChrome).toContain('height: 28px;');
-    expect(compactChrome).toContain('min-height: 26px;');
+    expect(compactChrome).toContain('height: var(--ui-row-height, 28px);');
+    expect(compactChrome).toContain('min-height: var(--ui-control-height, 26px);');
     expect(compactChrome).toContain('padding-block: 3px;');
     expect(leftHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(rightHeader).toContain('workspace-local-divider workspace-panel-tab-row');
@@ -335,14 +335,14 @@ describe('workspace surface language acceptance', () => {
     expect(agentPanel).not.toContain('style={toolbar}');
     expect(
       block(agentCss, '.agt-panel-toolbar {', '.agt-panel-toolbar__right {'),
-    ).toContain('font-size: 9.5px;');
+    ).toContain('font-size: var(--ui-font-caption, 9.5px);');
     expect(block(agentCss, '.agt-toolbar-action {', '.agt-toolbar-action:hover,')).toContain(
       'min-height: 20px;',
     );
     expect(block(agentCss, '.agt-toolbar-action {', '.agt-toolbar-action:hover,')).toContain(
-      'font: 9.5px/1 var(--font-mono);',
+      'font: var(--ui-font-secondary, 9.5px)/var(--ui-line-caption, 1) var(--font-mono);',
     );
-    expect(agentCss).toContain('font: 11.5px/1.5 var(--font-sans);');
+    expect(agentCss).toContain('font: var(--ui-font-secondary, 11.5px)/var(--ui-line-caption, 1.5) var(--font-sans);');
     expect(rightHeader).toContain('className="workspace-panel-title-block"');
     expect(leftSubheader).not.toContain('workspace-local-divider');
     expect(review).not.toContain('workspace-local-divider');
@@ -351,12 +351,13 @@ describe('workspace surface language acceptance', () => {
     expect(rightHeader.match(/workspace-local-divider/g)).toHaveLength(1);
   });
 
-  it('keeps the wide right-sidebar columns separated by the local hairline', () => {
-    const rightPanels = source('src/renderer/shells/desktop/DesktopRightSidebar.tsx');
+  it('keeps independent sidebar panes separated by a local hairline', () => {
+    const rightPanels = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
     const columnDivider = rightPanels.slice(rightPanels.indexOf('function ColumnDivider({'));
 
-    expect(rightPanels).toContain('const isSplit = panelWidth >= 600;');
-    expect(rightPanels).toContain('<ColumnDivider onMouseDown={onDividerMouseDown} />');
+    expect(rightPanels).toContain('node.clientWidth >= SIDEBAR_SPLIT_MIN_WIDTH');
+    expect(rightPanels).toContain('const split = panels.length === 2;');
+    expect(rightPanels).toContain('<ColumnDivider');
     expect(columnDivider).toContain("position: 'relative'");
     expect(columnDivider).toContain('zIndex: 1');
     expect(columnDivider).toContain(

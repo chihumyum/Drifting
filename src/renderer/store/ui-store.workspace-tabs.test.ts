@@ -66,8 +66,93 @@ describe('project-local workspace tabs', () => {
     expect(project.activeTabKey).toBe(`create:${CREATE_TAB_ID}`);
     expect(project.openTabs[1]).toMatchObject({
       kind: 'create',
+      isPreview: true,
       draft: { entityKind: 'chapter', storylineId: 'story-a' },
     });
+  });
+
+  it.each(['node', 'element', 'storyline', 'category', 'all-chapters'] as const)(
+    'replaces an idle create preview in place when opening a new %s preview',
+    (entityType) => {
+      const store = useUiStore.getState();
+      store.openEntityTab('project-a', { entityType: 'node', id: 'pinned' }, { preview: false });
+      store.openCreateTab('project-a');
+      store.updateCreateTabDraft('project-a', { step: 'context', entityKind: 'element', categoryId: 'category-a' });
+      store.openEntityTab('project-a', { entityType, id: 'self' });
+
+      const project = useUiStore.getState().tabsByProject['project-a'];
+      expect(project.openTabs.map(tabKey)).toEqual(['node:pinned', `${entityType}:self`]);
+      expect(project.activeTabKey).toBe(`${entityType}:self`);
+      expect(project.openTabs[1]).toMatchObject({ kind: 'leaf', isPreview: true });
+    },
+  );
+
+  it('shares one preview slot when entering create from an entity preview', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'pinned-a' }, { preview: false });
+    store.openEntityTab('project-a', { entityType: 'node', id: 'preview' });
+    store.openEntityTab('project-a', { entityType: 'node', id: 'pinned-b' }, { preview: false });
+    store.setActiveTab('project-a', { entityType: 'node', id: 'preview' });
+    store.openCreateTab('project-a');
+
+    const project = useUiStore.getState().tabsByProject['project-a'];
+    expect(project.openTabs.map(tabKey)).toEqual(['node:pinned-a', 'node:pinned-b', `create:${CREATE_TAB_ID}`]);
+    expect(project.openTabs[2]).toMatchObject({ isPreview: true });
+    expect(project.activeTabKey).toBe(`create:${CREATE_TAB_ID}`);
+    expect(project.lastActiveContentTabKey).toBe('node:pinned-b');
+    // The replaced preview no longer owns a tab; closing falls back to a survivor.
+    expect(store.closeTab('project-a', { createId: CREATE_TAB_ID }).nextActive).toMatchObject({ id: 'pinned-b' });
+  });
+
+  it('replaces a background create preview after switching to Home or an existing tab', () => {
+    const store = useUiStore.getState();
+    store.openEntityTab('project-a', { entityType: 'node', id: 'pinned' }, { preview: false });
+    store.openCreateTab('project-a');
+    store.activateExistingTarget('project-a', { entityType: 'node', id: 'pinned' });
+    store.setActiveTab('project-a', null);
+    expect(useUiStore.getState().tabsByProject['project-a'].openTabs[1]).toMatchObject({ kind: 'create', isPreview: true });
+    store.openEntityTab('project-a', { entityType: 'element', id: 'element-a' });
+    expect(useUiStore.getState().tabsByProject['project-a'].openTabs.map(tabKey)).toEqual(['node:pinned', 'element:element-a']);
+  });
+
+  it.each(['explicit', 'active'] as const)('preserves the create choices after %s promotion and later previews', (promotion) => {
+    const store = useUiStore.getState();
+    store.openCreateTab('project-a');
+    store.updateCreateTabDraft('project-a', { step: 'context', entityKind: 'chapter', storylineId: 'story-a' });
+    store.promoteTab('project-a', promotion === 'explicit' ? { createId: CREATE_TAB_ID } : undefined);
+    store.openEntityTab('project-a', { entityType: 'node', id: 'preview-a' });
+    store.openEntityTab('project-a', { entityType: 'node', id: 'preview-b' });
+    store.openCreateTab('project-a');
+
+    const project = useUiStore.getState().tabsByProject['project-a'];
+    expect(project.openTabs.map(tabKey)).toEqual(['node:preview-b', `create:${CREATE_TAB_ID}`]);
+    expect(project.openTabs[1]).toMatchObject({
+      kind: 'create', isPreview: false,
+      draft: { entityKind: 'chapter', storylineId: 'story-a' },
+    });
+    expect(project.activeTabKey).toBe(`create:${CREATE_TAB_ID}`);
+  });
+
+  it.each(['success', 'failure'] as const)('pins a submitting create draft before navigation and retains its %s', (outcome) => {
+    const store = useUiStore.getState();
+    store.openCreateTab('project-a');
+    store.updateCreateTabDraft('project-a', { status: 'creating' });
+    store.openEntityTab('project-a', { entityType: 'node', id: 'preview-a' });
+    expect(useUiStore.getState().tabsByProject['project-a'].openTabs[1]).toMatchObject({
+      kind: 'create', isPreview: false, draft: { status: 'creating' },
+    });
+
+    if (outcome === 'success') {
+      expect(store.replaceCreateTabWithEntity('project-a', { entityType: 'element', id: 'created' })).toEqual({ replaced: true, wasActive: false });
+    } else {
+      store.updateCreateTabDraft('project-a', { status: 'idle', error: 'Synthetic failure' });
+    }
+    store.openEntityTab('project-a', { entityType: 'node', id: 'preview-b' });
+    const project = useUiStore.getState().tabsByProject['project-a'];
+    expect(project.activeTabKey).toBe('node:preview-b');
+    expect(project.openTabs[1]).toMatchObject(outcome === 'success'
+      ? { kind: 'leaf', id: 'created', isPreview: false }
+      : { kind: 'create', isPreview: false, draft: { status: 'idle', error: 'Synthetic failure' } });
   });
 
   it('keeps the create draft last when normal entity navigation adds a tab', () => {

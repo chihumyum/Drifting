@@ -15,6 +15,7 @@ import {
 } from '../lib/agent/runtime/agent-provider-contract';
 import { APP_CONFIG } from '../lib/config';
 import { normalizeAccentColor } from '../lib/theme';
+import { normalizeInterfaceTextSize, type InterfaceTextSize } from '../lib/interface-typography';
 import {
   DEFAULT_ENTITY_LINK_KIND_COLORS,
   normalizeEntityLinkColorMode,
@@ -266,6 +267,9 @@ interface SettingsState {
   // 外观
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  /** Device-local desktop UI size, independent of manuscript preferences. */
+  interfaceTextSize: InterfaceTextSize;
+  setInterfaceTextSize: (size: InterfaceTextSize) => void;
   /** Null keeps the stylesheet-owned light/dark accent palette. */
   accentColor: string | null;
   setAccentColor: (color: string | null) => void;
@@ -500,6 +504,8 @@ export const useSettingsStore = create<SettingsState>()(
       themeMode: 'light',
       setThemeMode: (mode) => set({ themeMode: mode }),
       accentColor: null,
+      interfaceTextSize: 'standard',
+      setInterfaceTextSize: (size) => set({ interfaceTextSize: normalizeInterfaceTextSize(size) }),
       setAccentColor: (color) => set({ accentColor: normalizeAccentColor(color) }),
       agentEditRevealAnimation: true,
       setAgentEditRevealAnimation: (enabled) => set({ agentEditRevealAnimation: enabled }),
@@ -1044,6 +1050,7 @@ export const useSettingsStore = create<SettingsState>()(
           merged.agentTurnIterationLimit,
         );
         merged.accentColor = normalizeAccentColor(merged.accentColor);
+        merged.interfaceTextSize = normalizeInterfaceTextSize(merged.interfaceTextSize);
         merged.agentEditRevealAnimation = merged.agentEditRevealAnimation !== false;
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';

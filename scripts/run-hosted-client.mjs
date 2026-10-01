@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
 import { createDesktopTauriEnvironment } from './run-desktop-tauri.mjs';
+import { createMobileEnvironment, writeIosGoogleOauthLocalConfig } from './run-mobile-dev.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [target = 'desktop', command = 'dev', ...args] = process.argv.slice(2);
 if (!['desktop', 'ios', 'android'].includes(target) || !['dev', 'build'].includes(command))
@@ -80,6 +81,7 @@ const env = {
     process.env.DRIFTING_DB_DIR ?? `.local-data/hosted-lab${instance ? `-${instance}` : ''}/databases`,
 };
 if (target === 'ios' && command === 'build') {
+  writeIosGoogleOauthLocalConfig(createMobileEnvironment('ios', { baseEnvironment: env, mode: 'online' }));
   const sdk =
     args.includes('aarch64-sim') || args.includes('x86_64') ? 'iphonesimulator' : 'iphoneos';
   env.SDKROOT = execFileSync('xcrun', ['--sdk', sdk, '--show-sdk-path'], {

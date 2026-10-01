@@ -846,10 +846,10 @@ html[data-shell-mode='mobile'] .app-mid {
   top: 0;
   z-index: 15; /* above the semantic TOC rail so anchored controls remain reachable */
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 /* Left breadcrumb group. TOC visibility lives with the compact controls on the
    right, immediately beside Entity Link highlighting. */
@@ -879,7 +879,7 @@ html[data-shell-mode='mobile'] .app-mid {
   width: 24px;
   height: 24px;
   border-radius: 3px;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -895,7 +895,7 @@ html[data-shell-mode='mobile'] .app-mid {
 }
 .editor-bar__icon:disabled:hover {
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 .editor-bar__icon--active {
   background: hsl(var(--accent) / 0.1);
@@ -916,7 +916,7 @@ html[data-shell-mode='mobile'] .app-mid {
   background: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--ui-font-caption, 7px);
   line-height: 10px;
   letter-spacing: 0;
 }
@@ -987,7 +987,7 @@ html[data-shell-mode='mobile'] .app-mid {
   text-transform: none;
   font-family: var(--font-sans);
   letter-spacing: 0.005em;
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1011,14 +1011,14 @@ html[data-shell-mode='mobile'] .app-mid {
   align-items: center;
   box-sizing: border-box;
   gap: 8px;
-  min-height: 30px;
+  min-height: var(--ui-row-height, 30px);
   padding: 6px 8px;
   border-radius: var(--radius-xs);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   color: hsl(var(--ink-2));
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   transition:
     background 0.12s,
     color 0.12s;
@@ -1048,9 +1048,9 @@ html[data-shell-mode='mobile'] .app-mid {
 }
 .crumb-dropdown__num {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
   letter-spacing: 0.05em;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   min-width: 28px;
   flex: 0 0 auto;
 }
@@ -1064,10 +1064,10 @@ html[data-shell-mode='mobile'] .app-mid {
   align-items: center;
   padding: 5px 8px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   cursor: pointer;
   border-radius: 2px;
   transition:
@@ -1082,8 +1082,8 @@ html[data-shell-mode='mobile'] .app-mid {
   padding: 8px 8px 6px;
   font-family: var(--font-sans);
   font-style: italic;
-  color: hsl(var(--ink-4));
-  font-size: 13px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-body, 13px);
 }
 
 .page {

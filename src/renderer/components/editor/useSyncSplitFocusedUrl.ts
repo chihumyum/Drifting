@@ -158,8 +158,8 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
       if (urlEntity && previousFocused && sameEntity(urlEntity, previousFocused)) {
         navigate(`${projectRoot}/new`, { replace: true });
       } else if (urlEntity) {
-        // Back/forward, a deep link, or another entity navigation leaves the
-        // draft open but moves focus to the requested real entity.
+        // Back/forward, a deep link, or another entity navigation replaces an
+        // idle preview draft; a dedicated draft stays open in the background.
         if (!activateExistingTarget(projectId, urlEntity)) {
           openEntityTab(projectId, urlEntity, { preview: true });
         }

@@ -1,18 +1,18 @@
 /* Shared interactive primitives. Feature styles may position these controls,
    but geometry, states, and theme behavior stay centralized here. */
 
-/* Sidebar chrome is intentionally dense: one 28px tab strip followed by a
-   26px single-line panel toolbar. Feature components only own horizontal
+/* Sidebar chrome shares typography-aware desktop rows and retains compact
+   mobile fallbacks. Feature components only own horizontal
    padding and contents, so left and right panels cannot drift vertically. */
 .workspace-panel-tab-row {
   box-sizing: border-box;
-  height: 28px;
+  height: var(--ui-row-height, 28px);
   padding-inline: 6px;
 }
 
 .workspace-panel-header-row {
   box-sizing: border-box;
-  min-height: 26px;
+  min-height: var(--ui-control-height, 26px);
   padding-block: 3px;
 }
 
@@ -71,7 +71,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
   cursor: pointer;
   white-space: nowrap;
@@ -79,13 +79,13 @@
 }
 
 .app-panel-tab--label {
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   font-weight: 500;
   letter-spacing: 0.08em;
 }
 
 .app-panel-tab--caps {
-  font-size: 10px;
+  font-size: var(--ui-font-secondary, 10px);
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
@@ -94,7 +94,12 @@
   gap: 0;
 }
 
-.left-panel-tab:not(.is-compact) {
+.app-panel-tab:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.app-panel-tab--label:not(.is-compact) {
   padding-inline: 10px;
 }
 
@@ -126,9 +131,9 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-secondary, 10px);
   line-height: 1;
   letter-spacing: 0.06em;
   white-space: nowrap;
@@ -149,9 +154,9 @@
 }
 
 .segmented-control--lg .segmented-control__option {
-  height: 20px;
+  height: var(--ui-control-height, 20px);
   padding-inline: 11px;
-  font-size: 10.5px;
+  font-size: var(--ui-font-secondary, 10.5px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -236,7 +241,7 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
   transition:
     background 0.12s ease,
@@ -309,9 +314,9 @@
   box-shadow: var(--menu-surface-shadow);
   color: hsl(var(--ink-2));
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   font-weight: 400;
-  line-height: 18px;
+  line-height: var(--ui-line-body, 18px);
   letter-spacing: normal;
   text-transform: none;
 }
@@ -345,7 +350,7 @@
   align-items: center;
   box-sizing: border-box;
   width: 100%;
-  min-height: 30px;
+  min-height: var(--ui-row-height, 30px);
   padding: 6px 8px;
   overflow: hidden;
   border: 0;
@@ -375,7 +380,7 @@
 
 .menu-surface__item:disabled,
 .menu-surface__item[aria-disabled='true'] {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   cursor: default;
   opacity: 0.55;
 }
@@ -403,13 +408,13 @@
 
 .menu-surface__item--danger:disabled,
 .menu-surface__item--danger[aria-disabled='true'] {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 .menu-surface__section-label {
   padding: 6px 8px 3px;
-  color: hsl(var(--ink-4));
-  font-size: 9.5px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 9.5px);
   font-weight: 500;
   letter-spacing: 0.1em;
   line-height: 14px;
@@ -421,7 +426,7 @@
   padding: 6px 8px;
   overflow: hidden;
   color: hsl(var(--ink-2));
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -441,8 +446,8 @@
 
 .tab-context-menu__accelerator {
   flex-shrink: 0;
-  color: hsl(var(--ink-4));
-  font-size: 10px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 10px);
 }
 
 .user-menu__group {
@@ -469,13 +474,13 @@
 .ui-button--sm {
   min-height: 24px;
   padding: 5px 10px;
-  font-size: 10.5px;
+  font-size: var(--ui-font-body, 10.5px);
 }
 
 .ui-button--md {
   min-height: 30px;
   padding: 7px 14px;
-  font-size: 12px;
+  font-size: var(--ui-font-body, 12px);
 }
 
 .ui-button--default {
@@ -508,7 +513,7 @@
 .ui-button--ghost {
   border-color: transparent;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .ui-button:disabled {
@@ -543,22 +548,22 @@
 
 .material-import-feedback__title {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--ui-font-caption, 10.5px);
   letter-spacing: 0.04em;
 }
 
 .material-import-feedback__desc {
   margin-top: 3px;
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   line-height: 1.45;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .material-import-feedback--error {
   border-color: hsl(var(--destructive) / 0.28);
   background: hsl(var(--destructive) / 0.07);
   color: hsl(var(--destructive));
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -626,7 +631,7 @@
   background: transparent;
   color: hsl(var(--ink-1));
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--ui-font-body, 13px);
   text-align: left;
   cursor: pointer;
 }
@@ -665,9 +670,9 @@
 .relation-type-field__summary,
 .relation-type-field__placeholder {
   margin-left: auto;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
 }
 
 .relation-type-suggestions__option {
@@ -687,9 +692,9 @@
 
 .relation-type-suggestions__copy small,
 .relation-type-suggestions__empty {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
 }
 
 .relation-type-suggestions__empty {
@@ -712,9 +717,9 @@
 
 .modal-header__kicker {
   margin-bottom: 4px;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -730,16 +735,16 @@
 .modal-header__subtitle {
   margin-top: 6px;
   overflow: hidden;
-  color: hsl(var(--ink-3));
-  font-size: 13px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-body, 13px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .modal-header__description {
   margin-top: 4px;
-  color: hsl(var(--ink-4));
-  font-size: 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-secondary, 12px);
   line-height: 1.4;
 }
 
@@ -877,9 +882,9 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   gap: 6px;
   border: 1px solid hsl(var(--rule));
   background: transparent;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -895,7 +900,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 .filter-chip--sm {
   min-height: 20px;
   padding: 2px 8px;
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
 }
 
 .filter-chip--md {
@@ -964,8 +969,8 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 }
 
 .filter-chip__count {
-  color: hsl(var(--ink-4));
-  font-size: 9px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 9px);
   letter-spacing: 0.06em;
 }
 
@@ -980,16 +985,16 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 
 .empty-state {
   padding: 40px 20px;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   font-style: italic;
   text-align: center;
 }
 
 .empty-state--compact {
   padding-block: 32px;
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
 }
 
 /* Only the tab strip uses this full-width half-pixel hairline. Panel headers
@@ -1029,7 +1034,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 }
 
 .label-mono {
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);
   font-weight: 500;
   text-transform: uppercase;
@@ -1037,11 +1042,11 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 }
 
 .label-mono--xs {
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
 }
 
 .label-mono--sm {
-  font-size: 10.5px;
+  font-size: var(--ui-font-caption, 10.5px);
 }
 
 .label-mono--ink-2 {
@@ -1049,7 +1054,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 }
 
 .label-mono--ink-4 {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 /* Shared interaction-only styles. Keep these static so components do not
@@ -1084,7 +1089,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   border-bottom: 1px solid hsl(var(--rule));
   border-radius: 0;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -1105,10 +1110,10 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   overflow: hidden;
   border-bottom: 1px solid hsl(var(--rule));
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   font-style: italic;
   user-select: none;
 }
@@ -1137,7 +1142,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   border: 0;
   border-radius: 1px;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
 }
 
@@ -1194,7 +1199,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   border-radius: 3px;
   padding: 0;
   background: transparent;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   cursor: pointer;
   transition:
     opacity 120ms ease,
@@ -1353,7 +1358,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 
 .element-panel-item-label {
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   font-weight: 400;
   line-height: 1.35;
   letter-spacing: -0.005em;
@@ -1441,7 +1446,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   color: hsl(var(--ink-2));
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   transition:
@@ -1464,7 +1469,7 @@ svg.super-viewport-edges[data-panning='1'] {
 
 @keyframes insp-tab-count-pulse {
   0% {
-    color: hsl(var(--ink-4));
+    color: var(--ui-text-muted, hsl(var(--ink-4)));
     transform: scale(1);
   }
   30% {
@@ -1472,7 +1477,7 @@ svg.super-viewport-edges[data-panning='1'] {
     transform: scale(1.4);
   }
   100% {
-    color: hsl(var(--ink-4));
+    color: var(--ui-text-muted, hsl(var(--ink-4)));
     transform: scale(1);
   }
 }

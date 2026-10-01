@@ -82,13 +82,13 @@ export function SettingsGroupHeader({
   return (
     <div id={id} data-settings-section={label} style={{ margin: '26px 0 6px', paddingTop: 18, borderTop: '1px solid hsl(var(--rule))' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'hsl(var(--ink-1))' }}>{label}</div>
+        <div style={{ fontSize: 'var(--ui-font-emphasis, 15px)', fontWeight: 600, color: 'hsl(var(--ink-1))' }}>{label}</div>
         {hint && (
           <div
             style={{
-              color: 'hsl(var(--ink-4))',
+              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
               fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
+              fontSize: 'var(--ui-font-caption, 9.5px)',
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
             }}
@@ -98,7 +98,7 @@ export function SettingsGroupHeader({
         )}
       </div>
       {desc && (
-        <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.6, opacity: 0.7 }}>{desc}</div>
+        <div style={{ marginTop: 4, fontSize: 'var(--ui-font-secondary, 12px)', lineHeight: 1.6, opacity: 0.7 }}>{desc}</div>
       )}
     </div>
   );

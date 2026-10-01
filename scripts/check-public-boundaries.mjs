@@ -106,6 +106,10 @@ requireCondition(
   'tracked signing xcconfig must keep an empty fail-closed DEVELOPMENT_TEAM default',
 );
 requireCondition(
+  /^DRIFTING_HOSTED_ORIGIN =$/mu.test(appleSigningConfig),
+  'tracked iOS xcconfig must keep an empty Hosted origin default',
+);
+requireCondition(
   !tauriConfig.app.security.csp.includes('api.drifting.cc'),
   'public production CSP must not allow the Drifting hosted-service origin',
 );

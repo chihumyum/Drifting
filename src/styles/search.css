@@ -75,24 +75,24 @@
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid hsl(var(--rule));
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .gsearch-input {
   flex: 1;
   border: none;
   outline: none;
-  font-size: 14px;
+  font-size: var(--ui-font-body, 14px);
   background: transparent;
   color: hsl(var(--ink-1));
 }
 .gsearch-input::placeholder {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 .gsearch-stats {
-  font-size: 11px;
-  color: hsl(var(--ink-4));
+  font-size: var(--ui-font-secondary, 11px);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   white-space: nowrap;
 }
 
@@ -104,7 +104,7 @@
   justify-content: center;
   border: none;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
   border-radius: 1px;
 }
@@ -117,7 +117,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 4px;
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
 }
 .gsearch-results.is-empty-state {
   padding: 20px;
@@ -125,8 +125,8 @@
 
 .gsearch-empty {
   padding: 24px;
-  color: hsl(var(--ink-3));
-  font-size: 13px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-body, 13px);
   text-align: center;
 }
 
@@ -143,15 +143,15 @@
   border-radius: 4px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   color: hsl(var(--ink-1));
 }
 
 .gsearch-group-icon {
   font-family: var(--font-sans);
   font-style: italic;
-  font-size: 14px;
-  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-body, 14px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   width: 14px;
   text-align: center;
   flex-shrink: 0;
@@ -166,7 +166,7 @@
 }
 
 .gsearch-count {
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   color: var(--search-count-fg);
   background: var(--search-count-bg);
   padding: 1px 6px;
@@ -176,8 +176,8 @@
 }
 
 .gsearch-kind {
-  font-size: 10px;
-  color: hsl(var(--ink-4));
+  font-size: var(--ui-font-caption, 10px);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   flex-shrink: 0;
 }
 
@@ -196,8 +196,8 @@
 }
 
 .gsearch-field-tag {
-  font-size: 10px;
-  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-caption, 10px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   background: var(--search-tag-bg);
   padding: 1px 4px;
   border-radius: 3px;
@@ -212,7 +212,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   line-height: 1.5;
 }
 
@@ -224,8 +224,8 @@
 }
 
 .gsearch-truncated {
-  font-size: 11px;
-  color: hsl(var(--ink-4));
+  font-size: var(--ui-font-secondary, 11px);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   padding: 2px 8px 4px 36px;
   font-style: italic;
 }
@@ -267,7 +267,7 @@ html[data-shell-mode='mobile'] .gsearch-modal {
   border: 1px solid hsl(var(--rule));
   border-radius: 2px;
   box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
-  font-size: 13px;
+  font-size: var(--ui-font-body, 13px);
   color: hsl(var(--ink-1));
 }
 
@@ -278,19 +278,19 @@ html[data-shell-mode='mobile'] .gsearch-modal {
   border: 1px solid hsl(var(--rule));
   border-radius: 1px;
   outline: none;
-  font-size: 13px;
+  font-size: var(--ui-font-body, 13px);
   background: hsl(var(--page));
   color: hsl(var(--ink-1));
 }
 .editor-find-input::placeholder {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 .editor-find-stats {
   min-width: 48px;
   text-align: center;
-  color: hsl(var(--ink-3));
-  font-size: 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
 }
 
 .editor-find-btn {
@@ -310,7 +310,7 @@ html[data-shell-mode='mobile'] .gsearch-modal {
 }
 .editor-find-btn:disabled,
 .editor-find-btn[aria-disabled='true'] {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   cursor: not-allowed;
   background: transparent;
 }
@@ -342,14 +342,14 @@ html[data-shell-mode='mobile'] .gsearch-modal {
   border-radius: 2px;
   box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
   padding: 4px;
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
 }
 
 .find-list-group {
   padding: 4px 8px 2px;
   font-weight: 600;
-  font-size: 11.5px;
-  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-secondary, 11.5px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -391,7 +391,7 @@ html[data-shell-mode='mobile'] .gsearch-modal {
 
 .find-list-more {
   padding: 4px 8px;
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   font-style: italic;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }

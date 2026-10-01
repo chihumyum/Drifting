@@ -29,9 +29,9 @@
   padding: 4px 0;
   border: 0;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   cursor: pointer;
 }
 
@@ -47,8 +47,8 @@
 
 .universal-create__eyebrow {
   margin: 0 0 12px;
-  color: hsl(var(--ink-4));
-  font-size: 10px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 10px);
   font-weight: 650;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -66,8 +66,8 @@
 .universal-create__header > p:last-child {
   max-width: 520px;
   margin: 10px 0 0;
-  color: hsl(var(--ink-3));
-  font-size: 13px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-body, 13px);
   line-height: 1.7;
 }
 
@@ -134,8 +134,8 @@
 }
 
 .universal-create__kind-copy span {
-  color: hsl(var(--ink-3));
-  font-size: 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
   line-height: 1.55;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -144,8 +144,8 @@
 }
 
 .universal-create__kind-action {
-  color: hsl(var(--ink-4));
-  font-size: 11px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-secondary, 11px);
   white-space: nowrap;
   opacity: 0;
   transition: opacity 120ms ease;
@@ -171,8 +171,8 @@
 }
 
 .universal-create__field > span {
-  color: hsl(var(--ink-4));
-  font-size: 10px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 10px);
   font-weight: 650;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -188,7 +188,7 @@
   background: transparent;
   color: hsl(var(--ink-1));
   font: inherit;
-  font-size: 14px;
+  font-size: var(--ui-font-body, 14px);
 }
 
 .universal-create__field select:focus-visible {
@@ -197,19 +197,19 @@
 }
 
 .universal-create__field select:disabled {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   border-bottom-style: dotted;
 }
 
 .universal-create__notice,
 .universal-create__error {
   margin: 4px 0 18px;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   line-height: 1.6;
 }
 
 .universal-create__notice {
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .universal-create__error {
@@ -230,7 +230,7 @@
   background: hsl(var(--ink-1));
   color: hsl(var(--surface));
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   letter-spacing: 0.04em;
   cursor: pointer;
 }
@@ -238,7 +238,7 @@
 .universal-create__submit:disabled {
   border-color: hsl(var(--rule-strong));
   background: transparent;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   cursor: default;
 }
 

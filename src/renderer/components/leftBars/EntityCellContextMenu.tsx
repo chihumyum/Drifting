@@ -112,7 +112,7 @@ export function EntityCellContextMenu({
             {header.title && (
               <div
                 style={{
-                  fontSize: 13,
+                  fontSize: 'var(--ui-font-body, 13px)',
                   fontWeight: 600,
                   color: 'hsl(var(--ink-1))',
                   overflow: 'hidden',
@@ -127,8 +127,8 @@ export function EntityCellContextMenu({
               <div
                 style={{
                   marginTop: 2,
-                  fontSize: 11,
-                  color: 'hsl(var(--ink-3))',
+                  fontSize: 'var(--ui-font-secondary, 11px)',
+                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                   fontFamily: 'var(--font-sans)',
                   fontStyle: 'italic',
                   overflow: 'hidden',
@@ -153,7 +153,7 @@ export function EntityCellContextMenu({
                   <span
                     key={tag.id}
                     style={{
-                      fontSize: 10,
+                      fontSize: 'var(--ui-font-caption, 10px)',
                       padding: '1px 6px',
                       borderRadius: 1,
                       color: 'hsl(var(--paper))',

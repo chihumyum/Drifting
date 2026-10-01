@@ -62,7 +62,7 @@
   display: grid;
   place-items: center;
   border-radius: 3px;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -92,12 +92,12 @@
   padding: 0 6px;
   display: grid;
   place-items: center;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   background: transparent;
   border: 0;
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   line-height: 1;
   letter-spacing: 0.04em;
   transition:
@@ -139,9 +139,9 @@
   background: hsl(var(--surface));
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   letter-spacing: 0.04em;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -158,14 +158,14 @@
   color: hsl(var(--ink-2));
   padding: 0 5px;
   border-radius: 1px;
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
   min-width: 14px;
   text-align: center;
 }
 .btl__unplaced-arrow {
-  font-size: 8px;
+  font-size: var(--ui-font-caption, 8px);
   margin-left: 1px;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 .btl__unplaced-popover {
   /* Portaled + fixed by AnchoredPopover so dock overflow cannot clip it. */
@@ -181,8 +181,8 @@
 .btl__unplaced-empty {
   font-family: var(--font-sans);
   font-style: italic;
-  font-size: 11.5px;
-  color: hsl(var(--ink-4));
+  font-size: var(--ui-font-secondary, 11.5px);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   padding: 8px 6px;
 }
 .btl__unplaced-list {
@@ -226,8 +226,8 @@
 }
 .btl__unplaced-chip-num {
   font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-caption, 9.5px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
@@ -246,9 +246,9 @@
   background: hsl(var(--surface));
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   letter-spacing: 0.04em;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -265,14 +265,14 @@
   color: hsl(var(--ink-2));
   padding: 0 5px;
   border-radius: 1px;
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
   min-width: 14px;
   text-align: center;
 }
 
 .btl__unplaced-chip-title {
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   color: hsl(var(--ink-1));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -355,7 +355,7 @@
   min-width: 0;
   font-family: var(--font-sans);
   font-style: italic;
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   font-weight: 500;
   color: hsl(var(--ink-2));
   line-height: 1.2;
@@ -370,10 +370,10 @@
 .btl-rail__count {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   line-height: 1.2;
 }
 
@@ -408,10 +408,10 @@
   padding: 0 10px 0 16px;
   z-index: 20;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 .btl-axis__rail-add {
   display: grid;
@@ -419,11 +419,11 @@
   width: 16px;
   height: 16px;
   border-radius: 3px;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   background: transparent;
   border: 0;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ui-font-body, 14px);
   line-height: 1;
   padding: 0;
   margin-left: 6px;
@@ -503,7 +503,7 @@
   left: 6px;
   padding: 1px 6px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
   font-weight: 500;
   line-height: 13px;
   letter-spacing: 0.06em;
@@ -637,7 +637,7 @@
    parked but still scannable + clickable. */
 .btl-clip.is-discarded {
   background: hsl(var(--paper-deep));
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   border: 1px dashed hsl(var(--rule-strong));
   opacity: 0.6;
 }
@@ -646,7 +646,7 @@
   filter: none;
 }
 .btl-clip.is-discarded .btl-clip__title {
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   text-decoration: line-through;
   text-decoration-color: hsl(var(--ink-4));
 }
@@ -681,7 +681,7 @@
 }
 .btl-clip__title {
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.005em;
@@ -698,8 +698,8 @@
   transform: translate(-50%, -50%);
   font-family: var(--font-sans);
   font-style: italic;
-  font-size: 11px;
-  color: hsl(var(--ink-4));
+  font-size: var(--ui-font-secondary, 11px);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   white-space: nowrap;
   pointer-events: none;
 }
@@ -708,9 +708,9 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -742,7 +742,7 @@
 .btl-cmenu__title {
   font-family: var(--font-sans);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: var(--ui-font-body, 13.5px);
   color: hsl(var(--ink-1));
   letter-spacing: 0.005em;
   overflow: hidden;
@@ -751,9 +751,9 @@
 }
 .btl-cmenu__summary {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   line-height: 1.4;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   max-height: 56px;
   overflow: hidden;
   display: -webkit-box;
@@ -768,7 +768,7 @@
 }
 .btl-cmenu__tag {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
   letter-spacing: 0.04em;
   padding: 2px 6px;
   border-radius: 3px;

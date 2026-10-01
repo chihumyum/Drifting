@@ -1815,8 +1815,8 @@
   border: 0;
   border-radius: var(--radius-xs);
   background: transparent;
-  color: hsl(var(--ink-4));
-  font: 9.5px/1 var(--font-mono);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-secondary, 9.5px)/1 var(--font-mono);
   letter-spacing: 0.06em;
   white-space: nowrap;
   cursor: pointer;
@@ -1868,8 +1868,8 @@
 
 .review-panel__resolved > summary {
   padding: 3px 0 6px;
-  color: hsl(var(--ink-4));
-  font: 10px/1.3 var(--font-mono);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-secondary, 10px)/1.3 var(--font-mono);
   cursor: pointer;
 }
 
@@ -1928,13 +1928,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font: 9px/1.2 var(--font-mono);
+  font: var(--ui-font-secondary, 9px)/1.2 var(--font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .review-card__kind {
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .review-card__text-link-button {
@@ -1963,13 +1963,13 @@
 
 .review-card__status {
   margin-left: auto;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 .review-card__sticky-state {
   display: inline-flex;
   align-items: center;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .review-card__menu-button,
@@ -1986,7 +1986,7 @@
   border: 0;
   background: transparent;
   color: hsl(var(--ink-1));
-  font: 13px/1.4 var(--font-sans);
+  font: var(--ui-font-body, 13px)/1.4 var(--font-sans);
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2007,8 +2007,8 @@
   padding: 5px 6px;
   border-radius: var(--radius-xs);
   background: hsl(var(--ink-1) / 0.035);
-  color: hsl(var(--ink-3));
-  font-size: 11px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 11px);
   line-height: 1.45;
 }
 
@@ -2022,8 +2022,8 @@
   flex-wrap: wrap;
   gap: 5px 9px;
   margin-top: 7px;
-  font-size: 11px;
-  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-secondary, 11px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .review-card__agent-task button {
@@ -2093,7 +2093,7 @@
   border-radius: var(--radius-sm);
   background: hsl(var(--page));
   color: hsl(var(--ink-1));
-  font: 12.5px/1.5 var(--font-sans);
+  font: var(--ui-font-secondary, 12.5px)/1.5 var(--font-sans);
 }
 
 .editor-body > .sticky-note-rail {

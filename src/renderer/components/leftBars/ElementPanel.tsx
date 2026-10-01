@@ -1,3 +1,5 @@
+import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
+import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +15,7 @@ import { useAuthStore } from '../../store/auth';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import { events } from '../../lib/events';
+import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { ElementCategoryCreateMenu } from './ElementCategoryCreateMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
@@ -66,7 +68,8 @@ export function ElementPanel({
   const { t } = useTranslation();
   const { bookElements, bookElementCategories } = useDataStoreFields('bookElements', 'bookElementCategories');
   const { elementUi } = useUiStore();
-  const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
+  const sidebarWidth = useLeftSidebarPanelWidth();
+  const paneId = useSidebarPaneId();
   const showDate = presentation === 'desktop' && sidebarWidth >= DATE_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.elementSortMode);
   const categorySortMode = useUiStore((s) => s.elementCategorySortMode);
@@ -152,9 +155,8 @@ export function ElementPanel({
         return new Set();
       });
     };
-    events.on('left-sidebar:collapse-all', handler);
-    return () => events.off('left-sidebar:collapse-all', handler);
-  }, [bookElementCategories]);
+    return subscribeSidebarCollapse('elements', paneId, handler);
+  }, [bookElementCategories, paneId]);
 
   const categoryById = useMemo(
     () => new Map(bookElementCategories.map((category) => [category.id, category])),
@@ -378,8 +380,9 @@ export function ElementPanel({
           position: 'relative',
           background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
-          fontSize: 12.5,
-          lineHeight: 1.35,
+          fontSize: 'var(--ui-font-body, 12.5px)',
+          lineHeight: 'var(--ui-line-body, 1.35)',
+          minHeight: 'var(--ui-row-height, 0px)',
           transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
@@ -466,8 +469,8 @@ export function ElementPanel({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              color: 'hsl(var(--ink-4))',
+              fontSize: 'var(--ui-font-caption, 9.5px)',
+              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
               flexShrink: 0,
               letterSpacing: '0.04em',
             }}
@@ -718,10 +721,10 @@ export function ElementPanel({
           {!hasElements && (
             <div
               style={{
-                fontSize: 12,
+                fontSize: 'var(--ui-font-secondary, 12px)',
                 fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
-                color: 'hsl(var(--ink-3))',
+                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                 padding: '40px 20px',
                 textAlign: 'center',
               }}
@@ -856,7 +859,7 @@ function ElementGroupHeader({
             background: 'hsl(var(--paper))',
             color: 'hsl(var(--ink-1))',
             fontFamily: 'var(--font-mono)',
-            fontSize: 9,
+            fontSize: 'var(--ui-font-caption, 9px)',
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
             outline: 'none',
@@ -881,11 +884,11 @@ function ElementGroupHeader({
         gap: 6,
         padding: compact ? '5px 8px 1px' : '2px 10px 0 26px',
         fontFamily: 'var(--font-mono)',
-        fontSize: 9,
+        fontSize: 'var(--ui-font-caption, 9px)',
         lineHeight: 1.2,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
-        color: 'hsl(var(--ink-4))',
+        color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
         cursor: 'default',
       }}
     >
@@ -896,7 +899,7 @@ function ElementGroupHeader({
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {name}
       </span>
-      <span style={{ color: 'hsl(var(--ink-4))' }}>· {count}</span>
+      <span style={{ color: 'var(--ui-text-muted, hsl(var(--ink-4)))' }}>· {count}</span>
       {canAdd && (
         <button
           type="button"

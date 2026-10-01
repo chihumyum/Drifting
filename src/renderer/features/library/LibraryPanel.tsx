@@ -340,7 +340,7 @@ function Toolbar({
           alignItems: 'center',
           gap: 8,
           fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
+          fontSize: 'var(--ui-font-caption, 9.5px)',
           color: 'hsl(var(--ink-4))',
           letterSpacing: '0.08em',
         }}

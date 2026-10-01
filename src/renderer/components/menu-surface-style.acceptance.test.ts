@@ -40,9 +40,9 @@ describe('shared menu surface style', () => {
     expect(surface).toContain('border: 1px solid var(--menu-surface-border);');
     expect(surface).toContain('box-shadow: var(--menu-surface-shadow);');
     expect(surface).toContain('width: var(--menu-width-compact);');
-    expect(surface).toContain('font-size: 12.5px;');
-    expect(surface).toContain('line-height: 18px;');
-    expect(item).toContain('min-height: 30px;');
+    expect(surface).toContain('font-size: var(--ui-font-body, 12.5px);');
+    expect(surface).toContain('line-height: var(--ui-line-body, 18px);');
+    expect(item).toContain('min-height: var(--ui-row-height, 30px);');
     expect(item).toContain('padding: 6px 8px;');
     expect(item).toContain('border-radius: var(--radius-xs);');
     expect(item).toContain('overflow-wrap: anywhere;');
@@ -196,7 +196,7 @@ describe('shared menu surface style', () => {
     expect(doc).toContain('右键坐标、三点按钮、排序按钮、breadcrumb');
     expect(doc).toContain('浏览器/系统原生 context menu 不属于 renderer 可定制范围');
     expect(doc).toContain('180 / 220 / 280 / 360 / 420px');
-    expect(doc).toContain('单行内容稳定为 `30px`');
+    expect(doc).toContain('桌面单行内容至少为 `32px`');
     expect(doc).toContain('不能证明不同平台上的字体栅格化、阴影观感');
   });
 });

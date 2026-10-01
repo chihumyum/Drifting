@@ -15,6 +15,7 @@ import '../styles/ui-controls.css';
 import '../styles/workspace-navigation.css';
 import '../styles/settings.css';
 import '../styles/agent-activity.css';
+import '../styles/desktop-typography.css';
 import './lib/i18n';
 import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';

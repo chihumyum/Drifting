@@ -231,14 +231,14 @@ export function EntityRelationPicker({
           onClick={() => setOpen(!open)}
           style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
+            fontSize: 'var(--ui-font-caption, 9.5px)',
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             padding: '2px 6px',
             borderRadius: 3,
             border: '1px dashed hsl(var(--rule))',
             background: 'transparent',
-            color: 'hsl(var(--ink-3))',
+            color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
             cursor: 'pointer',
           }}
         >
@@ -264,7 +264,7 @@ export function EntityRelationPicker({
             style={{
               width: '100%',
               fontFamily: 'var(--font-sans)',
-              fontSize: 12.5,
+              fontSize: 'var(--ui-font-body, 12.5px)',
               padding: '4px 6px',
               border: '1px solid hsl(var(--rule))',
               borderRadius: 3,
@@ -327,10 +327,10 @@ function Group({
       <div
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 9,
+          fontSize: 'var(--ui-font-caption, 9px)',
           textTransform: 'uppercase',
           letterSpacing: '0.12em',
-          color: 'hsl(var(--ink-4))',
+          color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
           marginBottom: 4,
         }}
       >
@@ -375,7 +375,7 @@ function Chip({
           alignItems: 'center',
           gap: 4,
           fontFamily: 'var(--font-sans)',
-          fontSize: 12,
+          fontSize: 'var(--ui-font-secondary, 12px)',
           padding: '2px 4px 2px 8px',
           borderRadius: 1,
           border: '1px solid hsl(var(--rule))',
@@ -433,9 +433,9 @@ function Chip({
             padding: 0,
             border: 'none',
             background: 'transparent',
-            color: 'hsl(var(--ink-4))',
+            color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
             fontFamily: 'var(--font-mono)',
-            fontSize: 11,
+            fontSize: 'var(--ui-font-secondary, 11px)',
             lineHeight: 1,
             borderRadius: 1,
             cursor: 'pointer',
@@ -465,7 +465,7 @@ function Chip({
         alignItems: 'center',
         gap: 4,
         fontFamily: 'var(--font-sans)',
-        fontSize: 12,
+        fontSize: 'var(--ui-font-secondary, 12px)',
         padding: '2px 8px',
         borderRadius: 1,
         border: '1px solid hsl(var(--rule))',
@@ -491,7 +491,7 @@ function Chip({
         />
       )}
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{target.label}</span>
-      <span style={{ color: 'hsl(var(--ink-4))', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+      <span style={{ color: 'var(--ui-text-muted, hsl(var(--ink-4)))', fontFamily: 'var(--font-mono)', fontSize: 'var(--ui-font-caption, 10px)' }}>
         {selected ? '×' : '+'}
       </span>
     </button>

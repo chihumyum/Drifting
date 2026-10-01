@@ -79,7 +79,7 @@ export function ElementGroupPicker({
             borderRadius: 2,
             background: 'hsl(var(--paper))',
             color: 'hsl(var(--ink-1))',
-            fontSize: 12,
+            fontSize: 'var(--ui-font-secondary, 12px)',
             outline: 'none',
           }}
         />

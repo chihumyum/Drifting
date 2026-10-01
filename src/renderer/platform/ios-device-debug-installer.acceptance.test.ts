@@ -13,7 +13,11 @@ const {
 
 describe('standalone iOS device Debug installer', () => {
   it('explicit online installation carries the origin into native configuration and bundled CSP', async () => {
-    const execute = vi.fn(async (command: string) => command === '/usr/bin/plutil' ? 'cc.drifting.client\n' : '');
+    const execute = vi.fn(async (command: string) => {
+      if (command === '/usr/bin/plutil') return 'cc.drifting.client\n';
+      if (command === 'xcodebuild') return JSON.stringify([{ target: 'drifting_iOS', buildSettings: { DRIFTING_HOSTED_ORIGIN: 'https://service.example.test' } }]);
+      return '';
+    });
     const createEnvironment = vi.fn(() => ({ DRIFTING_HOSTED_ORIGIN: 'https://service.example.test',
       VITE_API_BASE_URL: 'https://service.example.test', VITE_LOCAL_ONLY_MODE: 'false' }));
     await installIosDebugDevice(['--device', 'paired-id', '--online', '--no-launch'], {
@@ -21,7 +25,7 @@ describe('standalone iOS device Debug installer', () => {
       createEnvironment, writeOauthConfiguration: () => ({ googleDriveOAuthConfigured: false }),
     });
     expect(createEnvironment).toHaveBeenCalledWith('ios', expect.objectContaining({ mode: 'online' }));
-    const args = execute.mock.calls[0] as unknown as [string, string[]];
+    const args = execute.mock.calls[1] as unknown as [string, string[]];
     const config = JSON.parse(args[1][args[1].indexOf('--config') + 1]);
     expect(config.app.security.csp).toContain('https://service.example.test');
   });

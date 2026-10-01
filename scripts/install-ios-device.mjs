@@ -254,6 +254,25 @@ export async function installIosDevice(
     environment.DRIFTING_APPLE_DEVELOPMENT_TEAM = team;
   }
   const oauth = writeOauthConfiguration(environment);
+  if (options.online) {
+    // A parent Node environment alone is insufficient: Xcode must export this
+    // setting to Cargo, otherwise auth works while Release sync fails closed.
+    const output = await execute('xcodebuild', [
+      '-project', path.join(repoDir, 'src-tauri/gen/apple/drifting.xcodeproj'),
+      '-scheme', 'drifting_iOS', '-configuration', profile, '-sdk', 'iphoneos',
+      '-showBuildSettings', '-json',
+    ], { environment, captureOutput: true });
+    let resolvedOrigin;
+    try {
+      resolvedOrigin = JSON.parse(output).find((item) => item.target === 'drifting_iOS')
+        ?.buildSettings?.DRIFTING_HOSTED_ORIGIN;
+    } catch {
+      throw new Error('Unable to verify the iOS Hosted origin in Xcode build settings.');
+    }
+    if (resolvedOrigin !== environment.DRIFTING_HOSTED_ORIGIN) {
+      throw new Error('Xcode DRIFTING_HOSTED_ORIGIN is missing or differs from the renderer. Refusing to build an unusable Hosted app.');
+    }
+  }
   console.log(`Building standalone iOS arm64 ${profile === 'release' ? 'Release' : 'Debug'} archive in ${options.online ? 'Hosted' : 'local-only'} mode.`);
   console.log(
     oauth.googleDriveOAuthConfigured

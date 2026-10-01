@@ -36,12 +36,12 @@
   overflow-y: auto;
   padding: 10px 12px;
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
   line-height: 1.5;
   color: hsl(var(--ink-1));
 }
 .agt-composer__text::placeholder {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 /* The composer signals focus via its own :focus-within border. Suppress the
    global form focus ring (index.css adds a 3px box-shadow to
@@ -79,7 +79,7 @@
   border: 0;
   border-radius: 1px;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
 }
 .agt-cfg:hover {
@@ -118,8 +118,8 @@
   gap: 8px;
   min-width: 0;
   flex: 0 1 auto;
-  font-size: 11px;
-  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-secondary, 11px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 .agt-mic__status-text {
   min-width: 0;
@@ -165,7 +165,7 @@
   border-radius: 2px;
   background: hsl(var(--accent));
   color: hsl(var(--paper));
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -196,10 +196,10 @@
 }
 .agt-menu__sec {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   padding: 7px 8px 3px;
 }
 .agt-menu__row {
@@ -229,7 +229,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font: inherit;
   min-width: 0;
 }
@@ -264,7 +264,7 @@
   min-height: 32px;
   padding: 7px 8px;
   border-radius: var(--radius-xs);
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
   width: 100%;
   border: 0;
@@ -329,11 +329,11 @@
 .agt-mem__kind {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
   letter-spacing: 0.04em;
   padding: 2px 5px;
   border-radius: 1px;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   background: hsl(var(--ink-1) / 0.07);
 }
 .agt-mem__kind--veto {
@@ -345,7 +345,7 @@
 }
 .agt-mem__body {
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   color: hsl(var(--ink-2));
   white-space: nowrap;
   overflow: hidden;
@@ -357,11 +357,11 @@
   flex-shrink: 0;
 }
 .agt-mem__btn {
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
   line-height: 1;
   padding: 3px 5px;
   border-radius: 1px;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   background: transparent;
   border: none;
   cursor: pointer;
@@ -385,12 +385,12 @@
   border-radius: 2px;
   background: hsl(var(--accent) / 0.075);
   color: hsl(var(--ink-2));
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   line-height: 1.5;
 }
 .agt-control-card strong {
   color: hsl(var(--ink-1));
-  font-size: 12.5px;
+  font-size: var(--ui-font-body, 12.5px);
 }
 .agt-control-card code {
   color: hsl(var(--accent));
@@ -404,13 +404,13 @@
   font-weight: 560;
 }
 .agt-control-card__description > small {
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .agt-control-card details summary {
   cursor: pointer;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 .agt-control-card pre {
   max-height: 160px;
@@ -420,7 +420,7 @@
   border-radius: 1px;
   background: hsl(var(--paper) / 0.72);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--ui-font-caption, 10.5px);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -546,11 +546,11 @@
 }
 .agt-context-section__heading {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 .agt-context-allocation {
   display: flex;
@@ -591,7 +591,7 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
 }
 .agt-context-legend-row__swatch {
   width: 7px;
@@ -600,14 +600,14 @@
 }
 .agt-context-legend-row__label {
   overflow: hidden;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .agt-context-legend-row__value,
 .agt-context-category__tokens {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--ui-font-caption, 10.5px);
   color: hsl(var(--ink-2));
   white-space: nowrap;
 }
@@ -622,7 +622,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
 }
 .agt-context-category + .agt-context-category {
   border-top: 1px solid hsl(var(--rule));
@@ -635,8 +635,8 @@
   color: hsl(var(--ink-2));
 }
 .agt-context-category__count {
-  color: hsl(var(--ink-4));
-  font-size: 10.5px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 10.5px);
   white-space: nowrap;
 }
 .agt-context-details {
@@ -662,20 +662,20 @@
 }
 .agt-context-details dt {
   color: hsl(var(--ink-2));
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   font-weight: 600;
 }
 .agt-context-details dd {
   min-width: 0;
-  color: hsl(var(--ink-3));
-  font-size: 11.5px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 11.5px);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .agt-context-details__note {
   margin: 0;
-  color: hsl(var(--ink-4));
-  font-size: 10.5px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 10.5px);
   line-height: 1.5;
 }
 
@@ -696,9 +696,9 @@
   min-width: 0;
   padding-inline: 12px 8px;
   background: var(--workspace-ui-bg);
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--ui-font-caption, 9.5px);
   line-height: 1;
 }
 
@@ -732,7 +732,7 @@
   border: 0;
   background: transparent;
   color: hsl(var(--ink-2));
-  font: 500 10px/1 var(--font-mono);
+  font: 500 var(--ui-font-secondary, 10px)/var(--ui-line-caption, 1) var(--font-mono);
   letter-spacing: 0.04em;
   text-align: left;
   overflow: hidden;
@@ -760,7 +760,7 @@
   outline: 0;
   background: hsl(var(--paper));
   color: hsl(var(--ink-1));
-  font: 500 10px/1 var(--font-mono);
+  font: 500 var(--ui-font-secondary, 10px)/var(--ui-line-caption, 1) var(--font-mono);
   letter-spacing: 0.04em;
 }
 
@@ -777,8 +777,8 @@
   border: 0;
   border-radius: var(--radius-xs);
   background: transparent;
-  color: hsl(var(--ink-3));
-  font: 9.5px/1 var(--font-mono);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-secondary, 9.5px)/var(--ui-line-caption, 1) var(--font-mono);
   letter-spacing: 0.04em;
   white-space: nowrap;
   cursor: pointer;
@@ -796,8 +796,8 @@
 }
 
 .agt-panel-empty {
-  color: hsl(var(--ink-3));
-  font: 11.5px/1.5 var(--font-sans);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-secondary, 11.5px)/var(--ui-line-caption, 1.5) var(--font-sans);
 }
 
 .agt-wm {
@@ -820,7 +820,7 @@
 
 .agt-wm__header p {
   margin: 4px 0 0;
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   line-height: 1.5;
   opacity: 0.68;
 }
@@ -838,7 +838,7 @@
   color: inherit;
   padding: 5px 9px;
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--ui-font-secondary, 11.5px);
   cursor: pointer;
 }
 
@@ -864,7 +864,7 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 10.5px;
+  font-size: var(--ui-font-caption, 10.5px);
   opacity: 0.58;
 }
 
@@ -877,7 +877,7 @@
   border: 1px solid hsl(var(--rule));
   background: hsl(var(--paper));
   color: inherit;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   line-height: 1.6;
 }
 
@@ -901,7 +901,7 @@
   gap: 8px;
   padding: 20px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   opacity: 0.72;
 }
 
@@ -911,7 +911,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-secondary, 11px);
 }
 
 .agt-wm__footer > span {

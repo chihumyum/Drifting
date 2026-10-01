@@ -11,15 +11,15 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  height: 20px;
+  height: var(--ui-footer-height, 20px);
   flex-shrink: 0;
   padding: 0 8px;
   background: var(--workspace-ui-bg);
   border-top: 1px solid var(--workspace-border);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   letter-spacing: 0;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   user-select: none;
 }
 
@@ -41,7 +41,7 @@
 }
 
 .bsb__divider {
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 .bsb__spacer {
@@ -52,7 +52,7 @@
 .bsb__timeline-toggle {
   display: inline-flex;
   align-items: center;
-  height: 20px;
+  height: var(--ui-footer-height, 20px);
   flex-shrink: 0;
   gap: 4px;
   margin-right: 8px;
@@ -60,7 +60,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   font: inherit;
   cursor: pointer;
 }

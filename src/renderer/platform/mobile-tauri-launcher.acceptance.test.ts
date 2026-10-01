@@ -147,10 +147,26 @@ describe('mobile Tauri environment', () => {
     expect(generated).not.toContain('com.googleusercontent.apps.wrong');
   });
 
+  it('exports the canonical Hosted origin through xcconfig and clears it for local builds', () => {
+    const destination = path.join(temporaryDirectory(), 'GoogleOAuth.local.xcconfig');
+    const environment = { VITE_LOCAL_ONLY_MODE: 'false', DRIFTING_HOSTED_ORIGIN: 'https://SERVICE.example.test:8443/' };
+    writeIosGoogleOauthLocalConfig(environment, destination);
+    expect(readFileSync(destination, 'utf8')).toContain('DRIFTING_HOSTED_ORIGIN = https:/$()/service.example.test:8443\n');
+    writeIosGoogleOauthLocalConfig({ ...environment, VITE_LOCAL_ONLY_MODE: 'true' }, destination);
+    expect(readFileSync(destination, 'utf8')).toContain('DRIFTING_HOSTED_ORIGIN = \n');
+    expect(readFileSync(destination, 'utf8')).not.toContain('service.example.test');
+    writeIosGoogleOauthLocalConfig({ ...environment, DRIFTING_HOSTED_ORIGIN: 'http://[::1]:3000' }, destination);
+    expect(readFileSync(destination, 'utf8')).toContain('DRIFTING_HOSTED_ORIGIN = http:/$()/[::1]:3000\n');
+    for (const origin of [undefined, 'https://service.example.test/api', 'https://$(SECRET).example.test']) {
+      expect(() => writeIosGoogleOauthLocalConfig({ ...environment, DRIFTING_HOSTED_ORIGIN: origin }, destination)).toThrow();
+    }
+  });
+
   it('keeps the iOS plist and Android SDK connected to Rust build configuration', () => {
     const read = (relativePath: string) =>
       readFileSync(path.resolve(process.cwd(), relativePath), 'utf8');
     const xcconfig = read('src-tauri/gen/apple/GoogleOAuth.xcconfig');
+    const xcodeProject = read('src-tauri/gen/apple/drifting.xcodeproj/project.pbxproj');
     const plist = read('src-tauri/gen/apple/drifting_iOS/Info.plist');
     const rust = read('src-tauri/src/google_drive_sync.rs');
     const swift = read(
@@ -161,6 +177,12 @@ describe('mobile Tauri environment', () => {
     );
 
     expect(xcconfig).toContain('#include? "GoogleOAuth.local.xcconfig"');
+    expect(xcconfig).toMatch(/^DRIFTING_HOSTED_ORIGIN =$/m);
+    // Both Debug and Release must export native settings to the Rust build phase.
+    const configurationId = xcodeProject.match(/(\w+) \/\* GoogleOAuth.xcconfig \*\/ = \{isa = PBXFileReference/)?.[1];
+    expect(configurationId).toBeTruthy();
+    expect(xcodeProject.match(new RegExp(`baseConfigurationReference = ${configurationId}`, 'g'))).toHaveLength(2);
+    expect(read('scripts/run-hosted-client.mjs')).toContain("writeIosGoogleOauthLocalConfig(createMobileEnvironment('ios'");
     expect(plist).toContain('$(DRIFTING_GOOGLE_IOS_CLIENT_ID)');
     expect(plist).toContain('$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)');
     expect(rust).toContain('option_env!("DRIFTING_GOOGLE_IOS_CLIENT_ID")');

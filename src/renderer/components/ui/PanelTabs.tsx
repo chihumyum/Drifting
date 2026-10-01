@@ -36,6 +36,7 @@ export function PanelTab({
   return (
     <button
       type="button"
+      aria-pressed={active}
       className={[
         'app-panel-tab',
         `app-panel-tab--${typography}`,

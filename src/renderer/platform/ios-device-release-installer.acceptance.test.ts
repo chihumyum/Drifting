@@ -84,13 +84,16 @@ describe('iOS Release device selection', () => {
   });
 });
 
-function harness({ failure = '', bundle = 'cc.drifting.client', origin = 'https://service.example.test' } = {}) {
+function harness({ failure = '', bundle = 'cc.drifting.client', origin = 'https://service.example.test', xcodeOrigin = origin }: {
+  failure?: string; bundle?: string; origin?: string; xcodeOrigin?: string;
+} = {}) {
   const execute = vi.fn(async (command: string, args: string[]) => {
     const stage = command === 'pnpm' ? 'build'
       : command === '/usr/bin/codesign' ? 'signature'
       : args.includes('install') ? 'install' : args.includes('launch') ? 'launch' : '';
     if (stage === failure && failure) throw new Error(`${failure} failed`);
     if (command === '/usr/bin/plutil') return bundle;
+    if (command === 'xcodebuild') return JSON.stringify([{ target: 'drifting_iOS', buildSettings: { DRIFTING_HOSTED_ORIGIN: xcodeOrigin } }]);
     if (args.includes('--show-sdk-path')) return '/test/iphoneos.sdk\n';
     return '';
   });
@@ -128,8 +131,9 @@ describe('standalone iOS Release build and install', () => {
     const { dependencies, execute } = harness();
     await installIosReleaseDevice(['--online'], dependencies);
     const calls = execute.mock.calls;
-    expect(calls.map(([command]) => command)).toEqual(['xcrun', 'pnpm', '/usr/bin/codesign', '/usr/bin/plutil', 'xcrun', 'xcrun']);
-    const build = calls[1][1];
+    expect(calls.map(([command]) => command)).toEqual(['xcrun', 'xcodebuild', 'pnpm', '/usr/bin/codesign', '/usr/bin/plutil', 'xcrun', 'xcrun']);
+    expect(calls[1][1]).toEqual(expect.arrayContaining(['-configuration', 'release', '-showBuildSettings', '-json']));
+    const build = calls[2][1];
     expect(build).toEqual(expect.arrayContaining(['ios', 'build', '--target', 'aarch64', '--archive-only', '--ci']));
     expect(build).not.toEqual(expect.arrayContaining(['--debug']));
     expect(build).not.toContain('--no-sign');
@@ -139,10 +143,18 @@ describe('standalone iOS Release build and install', () => {
     expect(dependencies.writeOauthConfiguration).toHaveBeenCalledWith(expect.objectContaining({
       SDKROOT: '/test/iphoneos.sdk', APPLE_DEVELOPMENT_TEAM: 'SYNTHETIC1',
       PATH: expect.stringContaining('/scripts/apple-toolchain:'), VITE_LOCAL_ONLY_MODE: 'false',
+      DRIFTING_HOSTED_ORIGIN: 'https://service.example.test',
     }));
-    expect(calls[4][1]).toEqual(['devicectl', 'device', 'install', 'app', '--device', 'phone-b', expect.stringMatching(/Drifting\.app$/)]);
-    expect(calls[5][1]).toEqual(['devicectl', 'device', 'process', 'launch', '--device', 'phone-b', '--terminate-existing', 'cc.drifting.client']);
+    expect(calls[5][1]).toEqual(['devicectl', 'device', 'install', 'app', '--device', 'phone-b', expect.stringMatching(/Drifting\.app$/)]);
+    expect(calls[6][1]).toEqual(['devicectl', 'device', 'process', 'launch', '--device', 'phone-b', '--terminate-existing', 'cc.drifting.client']);
     expect(calls.flatMap(([, args]) => args)).not.toContain('uninstall');
+  });
+
+  it.each(['', 'https:', 'https://wrong.example.test'])('rejects an absent, truncated or mismatched native origin: %j', async (xcodeOrigin) => {
+    const { dependencies, execute } = harness({ xcodeOrigin });
+    await expect(installIosReleaseDevice(['--online'], dependencies)).rejects.toThrow('Xcode DRIFTING_HOSTED_ORIGIN');
+    expect(execute.mock.calls.some(([command]) => command === 'pnpm')).toBe(false);
+    expect(execute.mock.calls.flatMap(([, args]) => args)).not.toContain('install');
   });
 
   it('keeps source builds local-only and honors --no-launch and explicit device', async () => {

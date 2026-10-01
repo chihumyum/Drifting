@@ -36,7 +36,7 @@ describe('unified Review surface acceptance', () => {
     const mobile = source('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
     const store = source('src/renderer/store/ui-store.ts');
 
-    expect(desktop).toContain("activeRightPanel === 'review'");
+    expect(desktop).toContain("tab === 'review'");
     expect(desktop).toContain('<ReviewPanel focused={focusedForPanel} onOpenAgentTask=');
     expect(mobile).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
     expect(mobile).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
@@ -86,7 +86,7 @@ describe('unified Review surface acceptance', () => {
     expect(unifiedSurface).toContain('.review-card--sticky {');
     expect(unifiedSurface).toContain('.sticky-note-stack {');
     expect(unifiedSurface).toMatch(
-      /\.review-panel__scope-toggle \{[\s\S]*?min-height: 20px;[\s\S]*?padding: 2px 4px;[\s\S]*?font: 9\.5px\/1 var\(--font-mono\);/,
+      /\.review-panel__scope-toggle \{[\s\S]*?min-height: 20px;[\s\S]*?padding: 2px 4px;[\s\S]*?font: var\(--ui-font-secondary, 9\.5px\)\/1 var\(--font-mono\);/,
     );
     expect(unifiedSurface.match(/border-radius: var\(--radius-sm\);/g)?.length).toBeGreaterThanOrEqual(4);
     expect(unifiedSurface).not.toContain('border-radius: 5px;');

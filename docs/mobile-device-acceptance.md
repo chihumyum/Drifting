@@ -97,9 +97,19 @@ App 数据，不执行卸载。这里安装的是普通 Drifting，独立 Hosted
 前端资源已内嵌，运行时无需 Vite 或连接 Mac；此命令不导出 IPA、不上传 App Store/TestFlight。
 Release 编译仍须有效的真机开发签名和包含目标设备的 provisioning profile。
 
+Hosted 地址会与签名设置一起写入忽略的 `GoogleOAuth.local.xcconfig`，再由 Xcode 导出给
+Rust。URL 使用 `https:/$()/host` 形式，防止 `//` 被 xcconfig 当作注释；不应手工粘贴普通 URL。
+安装入口在构建前读取 Xcode 实际解析的设置，确认原生地址与前端完全一致，否则停止。
+只向 Tauri 父进程传环境变量不够：此前会出现前端登录成功，但 Release 原生同步以
+`HOSTED_ORIGIN_UNCONFIGURED` 拒绝请求，界面显示 `Cloud connect failed closed`。
+Debug 的缺省地址规则不同，模拟器 Debug 通过不能替代此 Release 配置验收。
+切回 local-only 构建时脚本会清空本地 xcconfig 的 Hosted 地址。
+
 自动化验收：`pnpm exec vitest run src/renderer/platform/ios-device-release-installer.acceptance.test.ts
-src/renderer/platform/ios-device-debug-installer.acceptance.test.ts`。覆盖设备筛选、多设备选择与取消、
-非交互失败、HTTPS/CSP、Release 构建参数、签名/包身份失败阻断安装及失败后的流程停止。
+src/renderer/platform/ios-device-debug-installer.acceptance.test.ts
+src/renderer/platform/mobile-tauri-launcher.acceptance.test.ts`。覆盖设备筛选、多设备选择与取消、
+非交互失败、HTTPS/CSP、xcconfig 地址转义与清空、Xcode 地址缺失/截断/不匹配时阻断构建、
+Release 构建参数、签名/包身份失败阻断安装及失败后的流程停止。
 这属于脚本验收，不代表完成真机安装或触摸/IME 验收。
 
 ## First-time setup

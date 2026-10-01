@@ -112,7 +112,7 @@ export function ElementCategoryCreateMenu({
                 border: 0,
                 borderRadius: 2,
                 background: 'transparent',
-                color: 'hsl(var(--ink-3))',
+                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                 cursor: 'pointer',
               }}
             >
@@ -128,8 +128,8 @@ export function ElementCategoryCreateMenu({
               style={{
                 display: 'block',
                 marginBottom: 4,
-                color: 'hsl(var(--ink-3))',
-                fontSize: 11,
+                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
+                fontSize: 'var(--ui-font-secondary, 11px)',
               }}
             >
               {t('elementCategoryCreateMenu.groupNameLabel')}
@@ -156,7 +156,7 @@ export function ElementCategoryCreateMenu({
                 borderRadius: 2,
                 background: 'hsl(var(--paper))',
                 color: 'hsl(var(--ink-1))',
-                fontSize: 12,
+                fontSize: 'var(--ui-font-secondary, 12px)',
                 outline: 'none',
               }}
             />
@@ -167,7 +167,7 @@ export function ElementCategoryCreateMenu({
                 minHeight: 28,
                 padding: '4px 1px 3px',
                 color: duplicateGroup ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
-                fontSize: 10.5,
+                fontSize: 'var(--ui-font-caption, 10.5px)',
                 lineHeight: 1.3,
               }}
             >

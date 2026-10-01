@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  LEFT_SIDEBAR_TABS, RIGHT_SIDEBAR_TABS,
+  singleSidebarTab, resizeSidebarTabs, toggleSidebarTab, revealSidebarTab, restoreSidebarTabs,
+  focusedSidebarTab, splitSidebarTabs,
+  type LeftSidebarTab, type RightSidebarTab, type SidebarTabs, type SidebarPaneId,
+} from '../lib/sidebar-tabs';
 import type {
   WorkspaceEntityType,
   WorkspaceTarget,
@@ -60,6 +66,7 @@ export const CREATE_TAB_ID = 'universal-new';
 export interface CreateTab {
   kind: 'create';
   id: typeof CREATE_TAB_ID;
+  isPreview: boolean;
   /** Session-only destination restored when an idle draft is closed. `null`
    * means the draft was entered from Project Home; otherwise this is the
    * exact content/split tab that owned focus at entry time. */
@@ -190,7 +197,13 @@ export function initialCreateTabDraft(): CreateTabDraft {
 }
 
 function makeCreateTab(returnTabKey: string | null): CreateTab {
-  return { kind: 'create', id: CREATE_TAB_ID, returnTabKey, draft: initialCreateTabDraft() };
+  return {
+    kind: 'create',
+    id: CREATE_TAB_ID,
+    isPreview: true,
+    returnTabKey,
+    draft: initialCreateTabDraft(),
+  };
 }
 
 function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
@@ -498,6 +511,14 @@ interface UiState {
   toggleSidebar: (type: SidebarType) => void;
   setSidebarOpen: (type: SidebarType, isOpen: boolean) => void;
   setSidebarWidth: (type: SidebarType, width: number) => void;
+  desktopSidebarTabs: { left: SidebarTabs<LeftSidebarTab>; right: SidebarTabs<RightSidebarTab> };
+  setSidebarSplitAvailable: (type: SidebarType, canSplit: boolean) => void;
+  toggleLeftSidebarTab: (paneId: SidebarPaneId, tab: LeftSidebarTab) => void;
+  toggleRightSidebarTab: (paneId: SidebarPaneId, tab: RightSidebarTab) => void;
+  splitSidebar: (type: SidebarType) => void;
+  focusSidebarPane: (type: SidebarType, paneId: SidebarPaneId) => void;
+  leftPanelSplitRatio: number;
+  setLeftPanelSplitRatio: (ratio: number) => void;
 
   nodeUi: NodeUiContextState;
   setNodeSelection: (id: string | null, source?: SelectionSource) => void;
@@ -602,17 +623,15 @@ interface UiState {
   chapterStorylinePrimaryOnly: boolean;
   setChapterStorylinePrimaryOnly: (only: boolean) => void;
 
-  // The right sidebar splits content and Agent tabs into two groups.
+  // Navigation projections retained for commands that reveal content or Agent.
+  // Desktop layout/selection is owned by desktopSidebarTabs.
   rightPanelGroup: 'content' | 'agent';
   setRightPanelGroup: (group: 'content' | 'agent') => void;
   // Content group.
   activeRightPanel: 'review' | 'library' | 'stats';
   setActiveRightPanel: (panel: 'review' | 'library' | 'stats') => void;
-  // When the right sidebar is wide enough to show both groups side by side,
-  // this is the width fraction given to the content (left) column; the agent
-  // (right) column gets the remainder. Dragged via the divider between the two
-  // columns. Clamped to [0.2, 0.8] so neither column collapses. Persisted
-  // globally (the dual-column layout itself isn't per-project).
+  // Fraction given to the pane currently on the left, independent of its tab.
+  // Clamped to [0.2, 0.8] and persisted independently for each sidebar.
   rightPanelSplitRatio: number;
   setRightPanelSplitRatio: (ratio: number) => void;
 
@@ -630,7 +649,7 @@ interface UiState {
     projectId: string,
     ref: TabRef,
   ) => { replaced: boolean; wasActive: boolean };
-  promoteTab: (projectId: string, ref?: TabRef) => void;
+  promoteTab: (projectId: string, ref?: TabRef | { createId: typeof CREATE_TAB_ID }) => void;
   // Close a top-level tab (either a leaf or a whole split). Returns:
   //   • nextActive — the leaf that should become active next so the URL /
   //     focused view can be updated. Non-null only when the closed tab WAS
@@ -777,6 +796,74 @@ export const useUiStore = create<UiState>()(
           },
         })),
 
+      desktopSidebarTabs: {
+        left: singleSidebarTab<LeftSidebarTab>('elements'),
+        right: singleSidebarTab<RightSidebarTab>('library'),
+      },
+      setSidebarSplitAvailable: (type, canSplit) => set((state) => {
+        if (state.desktopSidebarTabs[type].canSplit === canSplit) return state;
+        if (type === 'left') {
+          const next = resizeSidebarTabs(state.desktopSidebarTabs.left, canSplit, LEFT_SIDEBAR_TABS);
+          return {
+            desktopSidebarTabs: { ...state.desktopSidebarTabs, left: next },
+            activeLeftPanel: focusedSidebarTab(next),
+          };
+        }
+        const next = resizeSidebarTabs(state.desktopSidebarTabs.right, canSplit, RIGHT_SIDEBAR_TABS);
+        const focused = focusedSidebarTab(next);
+        return {
+          desktopSidebarTabs: { ...state.desktopSidebarTabs, right: next },
+          rightPanelGroup: focused === 'companion' ? 'agent' : 'content',
+          activeRightPanel: focused === 'companion' ? state.activeRightPanel : focused,
+        };
+      }),
+      toggleLeftSidebarTab: (paneId, tab) => set((state) => {
+        const next = toggleSidebarTab(state.desktopSidebarTabs.left, paneId, tab);
+        if (next === state.desktopSidebarTabs.left) return state;
+        if (!next) return { sidebars: { ...state.sidebars, left: { ...state.sidebars.left, isOpen: false } } };
+        return {
+          desktopSidebarTabs: { ...state.desktopSidebarTabs, left: next },
+          activeLeftPanel: focusedSidebarTab(next),
+        };
+      }),
+      toggleRightSidebarTab: (paneId, tab) => set((state) => {
+        const next = toggleSidebarTab(state.desktopSidebarTabs.right, paneId, tab);
+        if (next === state.desktopSidebarTabs.right) return state;
+        if (!next) return { sidebars: { ...state.sidebars, right: { ...state.sidebars.right, isOpen: false } } };
+        const focused = focusedSidebarTab(next);
+        return {
+          desktopSidebarTabs: { ...state.desktopSidebarTabs, right: next },
+          rightPanelGroup: focused === 'companion' ? 'agent' : 'content',
+          activeRightPanel: focused === 'companion' ? state.activeRightPanel : focused,
+        };
+      }),
+      splitSidebar: (type) => set((state) => ({
+        desktopSidebarTabs: type === 'left'
+          ? { ...state.desktopSidebarTabs, left: splitSidebarTabs(state.desktopSidebarTabs.left, LEFT_SIDEBAR_TABS) }
+          : { ...state.desktopSidebarTabs, right: splitSidebarTabs(state.desktopSidebarTabs.right, RIGHT_SIDEBAR_TABS) },
+      })),
+      focusSidebarPane: (type, paneId) => set((state) => {
+        const current = state.desktopSidebarTabs[type];
+        if (current.focusedPane === paneId || !current.panes.some((pane) => pane.id === paneId)) return state;
+        if (type === 'left') {
+          const next = { ...state.desktopSidebarTabs.left, focusedPane: paneId };
+          return {
+            desktopSidebarTabs: { ...state.desktopSidebarTabs, left: next },
+            activeLeftPanel: focusedSidebarTab(next),
+          };
+        }
+        const next = { ...state.desktopSidebarTabs.right, focusedPane: paneId };
+        const focused = focusedSidebarTab(next);
+        return {
+          desktopSidebarTabs: { ...state.desktopSidebarTabs, right: next },
+          rightPanelGroup: focused === 'companion' ? 'agent' : 'content',
+          activeRightPanel: focused === 'companion' ? state.activeRightPanel : focused,
+        };
+      }),
+      leftPanelSplitRatio: 0.5,
+      setLeftPanelSplitRatio: (ratio) =>
+        set({ leftPanelSplitRatio: Math.max(0.2, Math.min(0.8, ratio)) }),
+
       nodeUi: {
         selectedId: null,
         selectedFrom: null,
@@ -894,7 +981,13 @@ export const useUiStore = create<UiState>()(
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
 
       activeLeftPanel: 'elements',
-      setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
+      setActiveLeftPanel: (panel) => set((state) => ({
+        activeLeftPanel: panel,
+        desktopSidebarTabs: {
+          ...state.desktopSidebarTabs,
+          left: revealSidebarTab(state.desktopSidebarTabs.left, panel),
+        },
+      })),
       chapterStorylineEditorNodeId: null,
       setChapterStorylineEditorNodeId: (nodeId) => set({ chapterStorylineEditorNodeId: nodeId }),
       pendingEntityAction: null,
@@ -933,10 +1026,24 @@ export const useUiStore = create<UiState>()(
       chapterStorylinePrimaryOnly: false,
       setChapterStorylinePrimaryOnly: (only) => set({ chapterStorylinePrimaryOnly: only }),
       rightPanelGroup: 'content',
-      setRightPanelGroup: (group) => set({ rightPanelGroup: group }),
+      setRightPanelGroup: (group) => set((state) => ({
+        rightPanelGroup: group,
+        desktopSidebarTabs: {
+          ...state.desktopSidebarTabs,
+          right: revealSidebarTab(state.desktopSidebarTabs.right,
+            group === 'agent' ? 'companion' : state.activeRightPanel),
+        },
+      })),
       // Selecting a content tab also marks its group current.
       activeRightPanel: 'library',
-      setActiveRightPanel: (panel) => set({ activeRightPanel: panel, rightPanelGroup: 'content' }),
+      setActiveRightPanel: (panel) => set((state) => ({
+        activeRightPanel: panel,
+        rightPanelGroup: 'content',
+        desktopSidebarTabs: {
+          ...state.desktopSidebarTabs,
+          right: revealSidebarTab(state.desktopSidebarTabs.right, panel),
+        },
+      })),
 
       rightPanelSplitRatio: 0.5,
       setRightPanelSplitRatio: (ratio) =>
@@ -964,7 +1071,7 @@ export const useUiStore = create<UiState>()(
       //     side's entity changes. The preview-slot promotion logic doesn't
       //     apply here (splits don't have a preview slot).
       //
-      //   • Active is a LeafTab (or no active tab) → preserve the existing
+      //   • Active is a LeafTab, CreateTab (or no active tab) → preserve the existing
       //     preview-slot behaviour: an open dedicated tab is activated in
       //     place, a preview tab is replaced, otherwise append.
       openEntityTab: (projectId, ref, options) =>
@@ -1044,7 +1151,7 @@ export const useUiStore = create<UiState>()(
             }
           }
 
-          // Active is a leaf (or nothing) → original semantics. Singletons
+          // Active is a leaf, create draft (or nothing) → shared preview semantics. Singletons
           // not found anywhere also land here for the append path.
           const existingIdx = project.openTabs.findIndex((t) => tabKey(t) === key);
 
@@ -1053,9 +1160,9 @@ export const useUiStore = create<UiState>()(
             // Already open — just activate. Preserve dedicated/preview state.
             nextOpenTabs = project.openTabs;
           } else if (preview) {
-            // Replace existing preview LEAF in place, or append new preview.
+            // Replace the existing entity/create preview in place, or append.
             // Splits never have isPreview, so they're naturally skipped.
-            const previewIdx = project.openTabs.findIndex((t) => t.kind === 'leaf' && t.isPreview);
+            const previewIdx = project.openTabs.findIndex((t) => t.kind !== 'split' && t.isPreview);
             if (previewIdx >= 0) {
               nextOpenTabs = project.openTabs.slice();
               nextOpenTabs[previewIdx] = newLeaf;
@@ -1146,11 +1253,15 @@ export const useUiStore = create<UiState>()(
             };
           }
           const createTab = makeCreateTab(returnTabKey);
+          // Share the single preview slot while keeping the create entry at
+          // the end of the strip. Dedicated leaves and splits remain open.
+          const openTabs = project.openTabs.filter((tab) => tab.kind === 'split' || !tab.isPreview);
+          openTabs.push(createTab);
           return {
             tabsByProject: {
               ...state.tabsByProject,
               [projectId]: {
-                ...withActiveTab(project, tabKey(createTab), [...project.openTabs, createTab]),
+                ...withActiveTab(project, tabKey(createTab), openTabs),
               },
             },
           };
@@ -1164,7 +1275,13 @@ export const useUiStore = create<UiState>()(
           const openTabs = project.openTabs.map((tab) => {
             if (tab.kind !== 'create') return tab;
             changed = true;
-            return { ...tab, draft: { ...tab.draft, ...patch } };
+            return {
+              ...tab,
+              // Once a write starts, navigation must not discard its owner
+              // or its eventual result/error, even after a failed attempt.
+              isPreview: patch.status === 'creating' ? false : tab.isPreview,
+              draft: { ...tab.draft, ...patch },
+            };
           });
           if (!changed) return {};
           return {
@@ -1209,12 +1326,16 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const targetKey = ref ? tabKey(ref) : project.activeTabKey;
+          const targetKey = ref
+            ? 'createId' in ref
+              ? `create:${ref.createId}`
+              : tabKey(ref)
+            : project.activeTabKey;
           if (!targetKey) return {};
           const idx = project.openTabs.findIndex((t) => tabKey(t) === targetKey);
           if (idx < 0) return {};
           const target = project.openTabs[idx];
-          if (target.kind !== 'leaf' || !target.isPreview) return {};
+          if (target.kind === 'split' || !target.isPreview) return {};
           const nextOpenTabs = project.openTabs.slice();
           nextOpenTabs[idx] = { ...target, isPreview: false };
           return {
@@ -1748,6 +1869,8 @@ export const useUiStore = create<UiState>()(
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
+        desktopSidebarTabs: state.desktopSidebarTabs,
+        leftPanelSplitRatio: state.leftPanelSplitRatio,
         activeLeftPanel: state.activeLeftPanel,
         chapterPanelViewMode: state.chapterPanelViewMode,
         rightPanelGroup: state.rightPanelGroup,
@@ -1832,6 +1955,19 @@ export const useUiStore = create<UiState>()(
         }
         if (merged.rightPanelGroup !== 'agent' && merged.rightPanelGroup !== 'content') {
           merged.rightPanelGroup = 'content';
+        }
+        if (!LEFT_SIDEBAR_TABS.includes(merged.activeLeftPanel)) merged.activeLeftPanel = 'elements';
+        merged.desktopSidebarTabs = {
+          left: restoreSidebarTabs(persistedState?.desktopSidebarTabs?.left, merged.activeLeftPanel, LEFT_SIDEBAR_TABS),
+          right: restoreSidebarTabs(persistedState?.desktopSidebarTabs?.right,
+            merged.rightPanelGroup === 'agent' ? 'companion' : merged.activeRightPanel, RIGHT_SIDEBAR_TABS),
+        };
+        merged.activeLeftPanel = focusedSidebarTab(merged.desktopSidebarTabs.left);
+        const rightFocus = focusedSidebarTab(merged.desktopSidebarTabs.right);
+        merged.rightPanelGroup = rightFocus === 'companion' ? 'agent' : 'content';
+        if (rightFocus !== 'companion') merged.activeRightPanel = rightFocus;
+        for (const key of ['leftPanelSplitRatio', 'rightPanelSplitRatio'] as const) {
+          merged[key] = Number.isFinite(merged[key]) ? Math.max(0.2, Math.min(0.8, merged[key])) : 0.5;
         }
         // The first local iteration called the text index "visual". Preserve
         // that persisted preference while retiring the portrait-based name.

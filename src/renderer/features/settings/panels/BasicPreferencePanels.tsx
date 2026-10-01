@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore, type DateFormat, type LocaleCode, type ThemeMode } from '../../../store/settings-store';
 import { UI_LOCALE_OPTIONS } from '../../../lib/i18n';
 import { ACCENT_COLOR_DEFAULT_DARK, ACCENT_COLOR_DEFAULT_LIGHT } from '../../../lib/theme';
+import { getPlatformRuntime } from '../../../platform/runtime';
+import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import {
   SettingsPanelHeader, SettingsRow, SettingsSectionHeader, SettingsSegment,
   SettingsToggle, type SettingsRegisterRef,
@@ -11,6 +13,8 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
   const { t } = useTranslation();
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const interfaceTextSize = useSettingsStore((s) => s.interfaceTextSize);
+  const setInterfaceTextSize = useSettingsStore((s) => s.setInterfaceTextSize);
   const accentColor = useSettingsStore((s) => s.accentColor);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const agentEditRevealAnimation = useSettingsStore((s) => s.agentEditRevealAnimation);
@@ -75,6 +79,28 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
           ))}
         </div>
       </div>
+
+      {!getPlatformRuntime().isMobileShell && (
+        <div className="set-sec">
+          <SettingsSectionHeader title={t('settings.appearance.interface_text_size')} />
+          <SettingsRow
+            label={t('settings.appearance.interface_text_size')}
+            desc={t('settings.appearance.interface_text_size_desc')}
+            control={
+              <SegmentedControl
+                value={interfaceTextSize}
+                onChange={setInterfaceTextSize}
+                ariaLabel={t('settings.appearance.interface_text_size')}
+                options={[
+                  { value: 'small', label: t('settings.appearance.interface_text_small') },
+                  { value: 'standard', label: t('settings.appearance.interface_text_standard') },
+                  { value: 'large', label: t('settings.appearance.interface_text_large') },
+                ]}
+              />
+            }
+          />
+        </div>
+      )}
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.appearance.accent')} hint="ACCENT" />

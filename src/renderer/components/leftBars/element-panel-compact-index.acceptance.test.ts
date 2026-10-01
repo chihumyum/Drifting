@@ -77,7 +77,7 @@ describe('ElementPanel compact text index', () => {
     expect(tileRule).toContain('min-height: 30px;');
     expect(tileRule).not.toContain('44px');
     expect(labelTypography).toContain('font-family: var(--font-sans);');
-    expect(labelTypography).toContain('font-size: 12.5px;');
+    expect(labelTypography).toContain('font-size: var(--ui-font-body, 12.5px);');
     expect(labelTypography).toContain('font-weight: 400;');
     expect(labelTypography).toContain('line-height: 1.35;');
     expect(labelTypography).toContain('letter-spacing: -0.005em;');

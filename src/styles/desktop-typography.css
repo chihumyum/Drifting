@@ -1,0 +1,75 @@
+/* Apple HIG: legibility, semantic hierarchy and room for larger text.
+   These are Drifting's CSS-pixel choices, not a conversion from Apple's pt.
+   Root ownership includes body-portaled menus. Mobile retains each consumer's
+   fallback; authored prose continues to use the independent --editor-* axis. */
+html[data-shell-mode='desktop'] {
+  --ui-text-increment: 0px;
+  --ui-line-caption: calc(16px + var(--ui-text-increment));
+  --ui-line-body: calc(20px + var(--ui-text-increment));
+  --ui-control-height: calc(28px + var(--ui-text-increment));
+  --ui-row-height: calc(32px + var(--ui-text-increment));
+  --ui-footer-height: calc(24px + var(--ui-text-increment));
+  --ui-text-muted: color-mix(in srgb, hsl(var(--ink-2)) 40%, hsl(var(--ink-3)));
+  --super-view-bottom-inset: var(--ui-footer-height);
+}
+
+/* Smaller restores each consumer's original font-size fallback. The old UI
+   had different sizes within a role, so a uniform negative increment would
+   not reproduce it. Keep the improved spacing and contrast in every size. */
+html[data-shell-mode='desktop']:not([data-interface-text-size='small']) {
+  --ui-font-caption: calc(12px + var(--ui-text-increment));
+  --ui-font-secondary: calc(13px + var(--ui-text-increment));
+  --ui-font-body: calc(14px + var(--ui-text-increment));
+  --ui-font-emphasis: calc(15px + var(--ui-text-increment));
+  --ui-font-heading: calc(16px + var(--ui-text-increment));
+}
+
+html[data-shell-mode='desktop'][data-interface-text-size='large'] {
+  --ui-text-increment: 2px;
+}
+
+html[data-shell-mode='desktop']:not([data-interface-text-size='small']) body {
+  font-size: var(--ui-font-body);
+}
+
+/* Keep the fixed native titlebar geometry; grow content rows within the
+   scrollable panels instead. Text-bearing controls can wrap or grow. */
+html[data-shell-mode='desktop'] :is(.app-panel-tab, .segmented-control__option) {
+  line-height: var(--ui-line-body);
+  letter-spacing: normal;
+}
+
+html[data-shell-mode='desktop'] :is(.set-btn, .set-select, .set-input, .ui-button, .agt-toolbar-action) {
+  min-height: var(--ui-control-height);
+  height: auto;
+  line-height: 1.4;
+}
+
+html[data-shell-mode='desktop'] :is(.set-sec__title, .menu-surface__section-label, .set-rail__group-title) {
+  letter-spacing: normal;
+  font-weight: 500;
+}
+
+html[data-shell-mode='desktop'] .set-sec__title {
+  color: hsl(var(--ink-2));
+}
+
+html[data-shell-mode='desktop']:not([data-interface-text-size='small']) .set-sec__title {
+  font-size: var(--ui-font-heading);
+}
+
+html[data-shell-mode='desktop'] .set-row__control {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+html[data-shell-mode='desktop'] .set-sec__head {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  html[data-shell-mode='desktop'] .set-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}

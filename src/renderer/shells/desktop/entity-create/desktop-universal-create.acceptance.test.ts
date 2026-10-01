@@ -69,6 +69,15 @@ describe('desktop universal create acceptance', () => {
     expect(command).not.toContain('createGroup');
   });
 
+  it('connects the create tab to preview styling and double-click promotion', () => {
+    const timeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    const slot = timeline.slice(timeline.indexOf('function CreateTabSlot('), timeline.indexOf('interface LeafSlotProps'));
+    const createEntry = timeline.slice(timeline.indexOf('<CreateTabSlot'), timeline.indexOf('<LeafTabSlot'));
+    expect(createEntry).toContain('onPromote={() => handlePromote(tab)}');
+    expect(slot).toContain('onDoubleClick={onPromote}');
+    expect(slot).toContain("fontStyle: tab.isPreview ? 'italic' : 'normal'");
+  });
+
   it('preserves the Home-to-create transition when the tab store renders before the router', () => {
     const routeSync = source(
       'src/renderer/components/editor/useSyncSplitFocusedUrl.ts',

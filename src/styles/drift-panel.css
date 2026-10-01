@@ -44,7 +44,7 @@
   color: hsl(var(--ink-2));
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--ui-font-caption, 10.5px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   box-shadow: none;
@@ -60,7 +60,7 @@
   color: hsl(var(--ink-2));
   padding: 1px 6px;
   border-radius: 1px;
-  font-size: 9px;
+  font-size: var(--ui-font-caption, 9px);
 }
 .drift-panel__tab:hover .drift-panel__count {
   background: hsl(var(--paper) / 0.2);
@@ -78,9 +78,9 @@
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong, var(--rule)));
   border-radius: 50%;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ui-font-body, 14px);
   line-height: 1;
   padding: 0;
   opacity: 0;
@@ -221,20 +221,20 @@
 }
 .drift-card.is-resting .drift-card__title,
 .drift-card.is-resting .drift-card__summary {
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .drift-card__num {
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: var(--ui-font-caption, 8.5px);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: hsl(var(--ink-4));
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   flex-shrink: 0;
 }
 .drift-card__title {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--ui-font-secondary, 12px);
   font-weight: 500;
   color: hsl(var(--ink-1));
   letter-spacing: -0.005em;
@@ -246,9 +246,9 @@
 }
 .drift-card__summary {
   flex: 1;
-  font-size: 10px;
+  font-size: var(--ui-font-caption, 10px);
   line-height: 1.35;
-  color: hsl(var(--ink-3));
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
   overflow: hidden;
   display: -webkit-box;
   line-clamp: 3;
@@ -258,8 +258,8 @@
 .drift-card__empty {
   font-family: var(--font-sans);
   font-style: italic;
-  font-size: 12.5px;
-  color: hsl(var(--ink-4));
+  font-size: var(--ui-font-body, 12.5px);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   padding: 20px 14px;
 }
 

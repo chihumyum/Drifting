@@ -56,7 +56,7 @@ const labelMeasureEl: HTMLSpanElement | null = (() => {
     'left:-9999px',
     'white-space:nowrap',
     'font-family:var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif',
-    'font-size:12.5px',
+    'font-size:var(--ui-font-body, 12.5px)',
     'font-weight:400',
     'letter-spacing:-0.005em',
   ].join(';');
@@ -64,8 +64,8 @@ const labelMeasureEl: HTMLSpanElement | null = (() => {
   return span;
 })();
 
-function measureLabelWidth(text: string): number {
-  if (!labelMeasureEl) return Math.ceil(text.length * 8);
+function measureLabelWidth(text: string, fontSize: number): number {
+  if (!labelMeasureEl) return Math.ceil(text.length * fontSize);
   labelMeasureEl.textContent = text;
   return Math.ceil(labelMeasureEl.getBoundingClientRect().width);
 }
@@ -125,6 +125,7 @@ export function TopTimeline() {
   // remains the authority for width allocation, drag/drop and scrolling.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [labelFontSize, setLabelFontSize] = useState(14);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   // Where the dragged tab would land if dropped right now. `side` is which
   // half of the hovered tab the cursor is on — drop becomes "insert at
@@ -166,6 +167,18 @@ export function TopTimeline() {
     return () => ro.disconnect();
   }, [containerRef]);
 
+  // The portaled probe inherits the same desktop token as visible tabs.
+  // Recalculate after a text-size preference change even
+  // when the tab strip itself has not changed width.
+  useEffect(() => {
+    if (!labelMeasureEl) return;
+    const update = () => setLabelFontSize(parseFloat(getComputedStyle(labelMeasureEl).fontSize));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(labelMeasureEl);
+    return () => observer.disconnect();
+  }, []);
+
   const labelOfLeaf = useCallback((leaf: LeafTab): string => {
     const label = presentation.labels.get(leafPresentationKey(leaf));
     if (label?.title) return label.title;
@@ -206,11 +219,11 @@ export function TopTimeline() {
     const ideals = openTabs.map((tab, i) => {
       const raw =
         tab.kind === 'leaf'
-          ? measureLabelWidth(labelOfLeaf(tab)) + TAB_CHROME_WIDTH
+          ? measureLabelWidth(labelOfLeaf(tab), labelFontSize) + TAB_CHROME_WIDTH
           : tab.kind === 'create'
-            ? measureLabelWidth(t('topTimeline.newTab')) + TAB_CHROME_WIDTH
-            : measureLabelWidth(labelOfLeaf(tab.left)) +
-              measureLabelWidth(labelOfLeaf(tab.right)) +
+            ? measureLabelWidth(t('topTimeline.newTab'), labelFontSize) + TAB_CHROME_WIDTH
+            : measureLabelWidth(labelOfLeaf(tab.left), labelFontSize) +
+              measureLabelWidth(labelOfLeaf(tab.right), labelFontSize) +
               SPLIT_CHROME_WIDTH;
       return Math.min(TAB_MAX_WIDTH * weights[i], raw);
     });
@@ -238,7 +251,7 @@ export function TopTimeline() {
     }
     const scale = Math.min(1, virtual / idealTotal);
     return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)));
-  }, [openTabs, labelOfLeaf, containerWidth, t]);
+  }, [openTabs, labelOfLeaf, containerWidth, labelFontSize, t]);
 
   // A narrow insertion marker translates between drag-and-drop positions.
   // It is reorder feedback, independent of the static active-tab treatment.
@@ -297,8 +310,13 @@ export function TopTimeline() {
 
   const handlePromote = useCallback(
     (tab: AnyTab) => {
-      if (!projectId || tab.kind !== 'leaf' || !tab.isPreview) return;
-      promoteTab(projectId, { entityType: tab.entityType, id: tab.id });
+      if (!projectId || tab.kind === 'split' || !tab.isPreview) return;
+      promoteTab(
+        projectId,
+        tab.kind === 'create'
+          ? { createId: tab.id }
+          : { entityType: tab.entityType, id: tab.id },
+      );
     },
     [projectId, promoteTab],
   );
@@ -532,6 +550,7 @@ export function TopTimeline() {
               width={width}
               label={t('topTimeline.newTab')}
               onSelect={() => handleSelectTab(tab)}
+              onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
               onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
               onDragOverSlot={onDragOverSlot}
@@ -633,6 +652,7 @@ function CreateTabSlot({
   width,
   label,
   onSelect,
+  onPromote,
   onClose,
   onContextMenu,
   onDragOverSlot,
@@ -643,6 +663,7 @@ function CreateTabSlot({
   width: number;
   label: string;
   onSelect: () => void;
+  onPromote: () => void;
   onClose: () => void;
   onContextMenu: (x: number, y: number) => void;
   onDragOverSlot: (event: React.DragEvent<HTMLDivElement>) => void;
@@ -657,13 +678,14 @@ function CreateTabSlot({
       data-tab-key={tabKey(tab)}
       className={`app-tab app-tab--create${isActive ? ' is-active' : ''}`}
       onClick={onSelect}
+      onDoubleClick={onPromote}
       onDragOver={onDragOverSlot}
       onDrop={onDropSlot}
       onContextMenu={(event) => {
         event.preventDefault();
         onContextMenu(event.clientX, event.clientY);
       }}
-      style={{ width, minWidth: TAB_FLOOR_WIDTH }}
+      style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
     >
       <Plus size={14} strokeWidth={1.8} aria-hidden />
       <span className="app-tab--create__label">{label}</span>
@@ -779,7 +801,7 @@ function LeafTabSlot({
           cursor: 'pointer',
           transition: 'opacity 0.12s ease',
           fontFamily: 'var(--font-sans)',
-          fontSize: 12.5,
+          fontSize: 'var(--ui-font-body, 12.5px)',
           color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
           // Constant weight: bolding the active tab widens its glyphs, so at
           // the same fixed tab width the SELECTED label ellipsized earlier
@@ -804,7 +826,7 @@ function LeafTabSlot({
         style={{
           fontFamily: 'var(--font-sans)',
           fontStyle: 'italic',
-          fontSize: 13,
+          fontSize: 'var(--ui-font-body, 13px)',
           color: accent,
           flexShrink: 0,
           lineHeight: 1,
@@ -855,7 +877,7 @@ function LeafTabSlot({
           borderRadius: 1,
           border: 'none',
           background: 'transparent',
-          color: 'hsl(var(--ink-3))',
+          color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
           cursor: 'pointer',
           padding: 0,
           flexShrink: 0,
@@ -1046,7 +1068,7 @@ function SplitSubLabel({
         padding: '0 6px 0 8px',
         cursor: 'pointer',
         fontFamily: 'var(--font-sans)',
-        fontSize: 12,
+        fontSize: 'var(--ui-font-body, 12px)',
         color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
         // Metric-neutral emphasis (see LeafTabSlot): real bold widens the
         // focused label and truncates it earlier than the unfocused side.
@@ -1066,7 +1088,7 @@ function SplitSubLabel({
         style={{
           fontFamily: 'var(--font-sans)',
           fontStyle: 'italic',
-          fontSize: 12,
+          fontSize: 'var(--ui-font-body, 12px)',
           color: accent,
           flexShrink: 0,
           lineHeight: 1,
@@ -1113,7 +1135,7 @@ function SplitSubLabel({
           borderRadius: 1,
           border: 'none',
           background: 'transparent',
-          color: 'hsl(var(--ink-4))',
+          color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
           cursor: 'pointer',
           padding: 0,
           flexShrink: 0,

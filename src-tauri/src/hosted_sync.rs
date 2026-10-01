@@ -46,7 +46,7 @@ fn request_url(origin: &str, path: &str) -> Result<Url, String> {
     if base.scheme() == "http" && !cfg!(debug_assertions) {
         return Err("HOSTED_HTTPS_REQUIRED".into());
     }
-    if let Some(expected) = option_env!("DRIFTING_HOSTED_ORIGIN") {
+    if let Some(expected) = option_env!("DRIFTING_HOSTED_ORIGIN").filter(|value| !value.is_empty()) {
         if base.as_str().trim_end_matches('/') != expected.trim_end_matches('/') {
             return Err("HOSTED_ORIGIN_MISMATCH".into());
         }
@@ -255,7 +255,9 @@ mod tests {
     use super::*;
     #[test]
     fn constrains_origin_and_paths() {
-        let origin = option_env!("DRIFTING_HOSTED_ORIGIN").unwrap_or("https://example.test");
+        let origin = option_env!("DRIFTING_HOSTED_ORIGIN")
+            .filter(|value| !value.is_empty())
+            .unwrap_or("https://example.test");
         assert!(request_url(origin, "/api/sync/v1/project-v1/snapshots").is_ok());
         for origin in [
             "https://secret@example.test",

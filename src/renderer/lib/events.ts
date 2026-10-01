@@ -2,6 +2,7 @@ import mitt from 'mitt';
 import type { BookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { EntityKind } from './extensions/entity-link';
+import type { LeftSidebarTab, SidebarPaneId } from './sidebar-tabs';
 
 // One Copilot-task lifecycle signal. Carries its
 // `state` inline so a single subscription drives the
@@ -111,7 +112,7 @@ export type AppEvents = {
   'import:open': void;
   'left-sidebar:toggle': void;
   'right-sidebar:toggle': void;
-  'left-sidebar:collapse-all': void;
+  'left-sidebar:collapse-all': { panel: LeftSidebarTab; paneId: SidebarPaneId | null };
 
   'nodes:changed': void;
   'comment:deleted': { commentId: string };

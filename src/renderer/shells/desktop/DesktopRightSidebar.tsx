@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isDrift } from '../../domain/book-node';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import { RightSidebarHeader } from '../../components/rightBars/RightSidebarHeader';
+import { RightSidebarHeader, RightSidebarTitle } from '../../components/rightBars/RightSidebarHeader';
+import { DesktopSidebarLayout } from './DesktopSidebarLayout';
 import { LibraryPanel, type FocusedEntity } from '../../features/library/LibraryPanel';
 import { ReviewPanel } from '../../components/rightBars/ReviewPanel';
 import { DesktopAgentPanel } from '../../features/agent/desktop/DesktopAgentPanel';
@@ -16,10 +17,7 @@ export function DesktopRightSidebar() {
   const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
-  const rightPanelGroup = useUiStore((s) => s.rightPanelGroup);
-  const activeRightPanel = useUiStore((s) => s.activeRightPanel);
-  const splitRatio = useUiStore((s) => s.rightPanelSplitRatio);
-  const setSplitRatio = useUiStore((s) => s.setRightPanelSplitRatio);
+  const panes = useUiStore((s) => s.desktopSidebarTabs.right.panes);
 
   const {
     bookNodes,
@@ -143,193 +141,40 @@ export function DesktopRightSidebar() {
     const kind = kindMap[target.kind] ?? null;
     return { kind, id: target.id };
   }, [target.kind, target.id]);
-  const [fragmentCountFlash] = useState(false);
-
-  const isAgentGroup = rightPanelGroup === 'agent';
-  const isFragmentTab =
-    !isAgentGroup && (activeRightPanel === 'review' || activeRightPanel === 'library');
-  // Agent panels render their own headers, so hide the kicker/title block there.
-  const hideTitleBlock = isAgentGroup || isFragmentTab;
-  const headerKicker = isAgentGroup
-    ? ''
-    : activeRightPanel === 'stats'
-      ? t(`rightSidebar.kickers.stats.${target.kind}`, {
-          defaultValue: t('rightSidebar.kickers.stats.none'),
-        })
-      : activeRightPanel === 'review'
-        ? t('rightSidebar.kickers.review')
-        : t('rightSidebar.kickers.library');
-  const headerTitle = isAgentGroup
-    ? ''
-    : activeRightPanel === 'review'
-      ? t('rightSidebar.tabs.review')
-      : activeRightPanel === 'library'
-        ? t('rightSidebar.tabs.library')
-        : target.title;
-
-  // Wide right panel → show both groups side by side. Triggered by the panel's
-  // own rendered width (not the screen width). Below the threshold it collapses
-  // back to a single column + the group switch.
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [panelWidth, setPanelWidth] = useState(Number.POSITIVE_INFINITY);
-  useEffect(() => {
-    const node = rootRef.current;
-    if (!node) return;
-    const update = () => setPanelWidth(node.clientWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(node);
-    return () => ro.disconnect();
-  }, []);
-  const isSplit = panelWidth >= 600;
-  // Whenever the panel isn't wide enough to split into two columns it stays a
-  // single column with all four tabs laid flat in one row — no group switch.
-  // The tab labels compact down as the tray tightens (see RightSidebarHeader),
-  // so this holds together all the way down to the 200px min width.
-
-  // Drag the divider between the two columns to reallocate width. Mirrors the
-  // editor split-pane divider (EditorMainArea/SplitView): ref-tracked rect so
-  // the move listener never reads a stale closure, and the store setter clamps
-  // the ratio to keep both columns usable. The ratio persists via the store.
-  const draggingRef = useRef(false);
-  const onDividerMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      draggingRef.current = true;
-      const onMove = (e: MouseEvent) => {
-        if (!draggingRef.current) return;
-        const el = rootRef.current;
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0) return;
-        setSplitRatio((e.clientX - rect.left) / rect.width);
-      };
-      const onUp = () => {
-        draggingRef.current = false;
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    },
-    [setSplitRatio],
-  );
-  const leftColWidth = `${Math.round(splitRatio * 100)}%`;
-  const rightColWidth = `${100 - Math.round(splitRatio * 100)}%`;
-
-  const contentBody = (
-    <>
-      {activeRightPanel === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => {
-        useUiStore.getState().setSidebarOpen('right', true);
-        useUiStore.getState().setRightPanelGroup('agent');
-      }} />}
-      {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
-      {activeRightPanel === 'stats' && (
-        <EntityStatsContent
-          target={target}
-          bookNodes={bookNodes}
-          bookActs={bookActs}
-          bookElements={bookElements}
-          storylines={storylines}
-          categories={bookElementCategories}
-          storylineNodeMapping={storylineNodeMapping}
-          primaryStorylineByNode={primaryStorylineByNode}
-        />
-      )}
-    </>
-  );
-  const agentBody = <DesktopAgentPanel projectId={projectId} />;
-
   return (
-    <div
-      ref={rootRef}
-      style={{
-        display: 'flex',
-        flexDirection: isSplit ? 'row' : 'column',
-        height: '100%',
-        minHeight: 0,
-        background: 'var(--workspace-ui-bg)',
-      }}
-    >
-      {isSplit ? (
-        <>
-          <div
-            style={{
-              width: leftColWidth,
-              minWidth: 0,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <RightSidebarHeader group="content" kicker="" title="" hideTitleBlock />
-            <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {contentBody}
-            </div>
-          </div>
-          <ColumnDivider onMouseDown={onDividerMouseDown} />
-          <div
-            style={{
-              width: rightColWidth,
-              minWidth: 0,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <RightSidebarHeader group="agent" kicker="" title="" hideTitleBlock />
-            <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {agentBody}
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <RightSidebarHeader
-            flat
-            kicker={headerKicker}
-            title={headerTitle}
-            fragmentCountFlash={fragmentCountFlash}
-            hideTitleBlock={hideTitleBlock}
-          />
+    <DesktopSidebarLayout
+      side="right"
+      panels={panes.map(({ id, tab }) => ({
+        id,
+        tab,
+        header: <RightSidebarHeader paneId={id} activeTab={tab} />,
+        content: <>
+          {tab === 'stats' && <RightSidebarTitle
+            kicker={t(`rightSidebar.kickers.stats.${target.kind}`, {
+              defaultValue: t('rightSidebar.kickers.stats.none'),
+            })}
+            title={target.title}
+          />}
           <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            {rightPanelGroup === 'content' ? contentBody : agentBody}
+            {tab === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => {
+              useUiStore.getState().setSidebarOpen('right', true);
+              useUiStore.getState().setRightPanelGroup('agent');
+            }} />}
+            {tab === 'library' && <LibraryPanel focused={focusedForPanel} />}
+            {tab === 'stats' && <EntityStatsContent
+              target={target}
+              bookNodes={bookNodes}
+              bookActs={bookActs}
+              bookElements={bookElements}
+              storylines={storylines}
+              categories={bookElementCategories}
+              storylineNodeMapping={storylineNodeMapping}
+              primaryStorylineByNode={primaryStorylineByNode}
+            />}
+            {tab === 'companion' && <DesktopAgentPanel projectId={projectId} />}
           </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Stats (per-entity)
-
-function ColumnDivider({
-  onMouseDown,
-}: {
-  onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
-}) {
-  return (
-    <div
-      onMouseDown={onMouseDown}
-      role="separator"
-      aria-orientation="vertical"
-      style={{
-        width: 7,
-        marginLeft: -3,
-        marginRight: -3,
-        flexShrink: 0,
-        position: 'relative',
-        zIndex: 1,
-        cursor: 'col-resize',
-        display: 'flex',
-        justifyContent: 'center',
-        background: 'transparent',
-      }}
-    >
-      <div
-        style={{ width: 0.5, height: '100%', background: 'var(--workspace-local-border)' }}
-      />
-    </div>
+        </>,
+      }))}
+    />
   );
 }

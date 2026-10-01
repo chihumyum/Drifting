@@ -24,7 +24,6 @@ export function DesktopAppShell() {
   const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const activeSuperView = useUiStore((state) => state.activeSuperView);
-  const activeLeftPanel = useUiStore((state) => state.activeLeftPanel);
   const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
   const chapterStorylineEditorNodeId = useUiStore((state) => state.chapterStorylineEditorNodeId);
   const setChapterStorylineEditorNodeId = useUiStore(
@@ -72,7 +71,6 @@ export function DesktopAppShell() {
           openGlobalSearch={openGlobalSearch}
         >
           <DesktopWorkspace
-            activeLeftPanel={activeLeftPanel}
             bottomTimelineHidden={bottomTimelineHidden}
             findPanelEditor={findPanelEditor}
             onCloseFindPanel={closeFindPanel}

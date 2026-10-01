@@ -165,7 +165,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 border: 0,
                 borderRadius: 2,
                 background: 'transparent',
-                color: 'hsl(var(--ink-3))',
+                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                 cursor: 'pointer',
               }}
             >
@@ -174,7 +174,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             <span
               style={{
                 marginLeft: 4,
-                fontSize: 12.5,
+                fontSize: 'var(--ui-font-body, 12.5px)',
                 fontWeight: 500,
                 color: 'hsl(var(--ink-1))',
               }}
@@ -202,7 +202,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               style={{
                 fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
-                fontSize: 14,
+                fontSize: 'var(--ui-font-body, 14px)',
                 color: 'hsl(var(--ink-1))',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -214,7 +214,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
+                fontSize: 'var(--ui-font-caption, 9.5px)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.12em',
                 color: 'hsl(var(--accent))',
@@ -470,7 +470,7 @@ function MenuItem({ icon, label, meta, tail, onClick, intent }: MenuItemProps) {
           width: 18,
           display: 'grid',
           placeItems: 'center',
-          color: 'hsl(var(--ink-4))',
+          color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
           flexShrink: 0,
         }}
       >
@@ -491,8 +491,8 @@ function MenuItem({ icon, label, meta, tail, onClick, intent }: MenuItemProps) {
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                color: 'hsl(var(--ink-4))',
+                fontSize: 'var(--ui-font-caption, 9.5px)',
+                color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
                 marginLeft: 'auto',
               }}
             >
@@ -540,7 +540,7 @@ function ThemeSwitchBtn({
       aria-pressed={active}
       style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: 10,
+        fontSize: 'var(--ui-font-caption, 10px)',
         letterSpacing: '0.06em',
         padding: '3px 7px',
         borderRadius: 2,

@@ -1,3 +1,5 @@
+import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
+import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
@@ -21,7 +23,7 @@ import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import { events } from '../../lib/events';
+import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('ChapterPanel');
@@ -78,7 +80,8 @@ export function ChapterPanel({
   // (rather than mutating the persisted setting) keeps the user's preference
   // intact for when they later add storylines.
   const viewMode = storylines.length === 0 ? 'global' : persistedViewMode;
-  const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
+  const sidebarWidth = useLeftSidebarPanelWidth();
+  const paneId = useSidebarPaneId();
   const cellMeta = useUiStore((s) => s.chapterCellMeta);
   const showMeta = presentation === 'desktop' && sidebarWidth >= META_HIDE_WIDTH;
   // When on, a chapter linked to multiple storylines is listed only under its
@@ -143,9 +146,8 @@ export function ChapterPanel({
         return new Set();
       });
     };
-    events.on('left-sidebar:collapse-all', handler);
-    return () => events.off('left-sidebar:collapse-all', handler);
-  }, [storylines]);
+    return subscribeSidebarCollapse('nodes', paneId, handler);
+  }, [storylines, paneId]);
 
   const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
   const sortedStorylines = useMemo(
@@ -324,8 +326,9 @@ export function ChapterPanel({
           position: 'relative',
           background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
-          fontSize: 12.5,
-          lineHeight: 1.35,
+          fontSize: 'var(--ui-font-body, 12.5px)',
+          lineHeight: 'var(--ui-line-body, 1.35)',
+          minHeight: 'var(--ui-row-height, 0px)',
           transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
@@ -368,7 +371,7 @@ export function ChapterPanel({
               flexShrink: 0,
               textAlign: 'center',
               fontFamily: 'var(--font-mono)',
-              fontSize: 10,
+              fontSize: 'var(--ui-font-caption, 10px)',
               fontWeight: 600,
               lineHeight: 1,
               color: 'hsl(var(--ink-2))',
@@ -410,8 +413,8 @@ export function ChapterPanel({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              color: 'hsl(var(--ink-4))',
+              fontSize: 'var(--ui-font-caption, 9.5px)',
+              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
               flexShrink: 0,
               letterSpacing: '0.04em',
             }}
@@ -474,10 +477,10 @@ export function ChapterPanel({
             {!hasNodes && (
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--ui-font-secondary, 12px)',
                   fontFamily: 'var(--font-sans)',
                   fontStyle: 'italic',
-                  color: 'hsl(var(--ink-3))',
+                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                   padding: '40px 20px',
                   textAlign: 'center',
                 }}
@@ -567,10 +570,10 @@ export function ChapterPanel({
             {!hasStorylines && (
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--ui-font-secondary, 12px)',
                   fontFamily: 'var(--font-sans)',
                   fontStyle: 'italic',
-                  color: 'hsl(var(--ink-3))',
+                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                   padding: '40px 20px',
                   textAlign: 'center',
                 }}

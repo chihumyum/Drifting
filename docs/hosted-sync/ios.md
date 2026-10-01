@@ -1,8 +1,9 @@
 # iOS Hosted integration
 
-The 2026-10-01 scope is the existing Tauri iOS client and an iPhone Simulator.
-The separate Apple-native migration stays paused. Android, physical-device IME,
-distribution signing and guaranteed background execution are separate gates.
+The 2026-10-01 scope is the existing Tauri iOS client. Cross-client automation
+uses an iPhone Simulator; the Release configuration repair also uses a physical
+iPhone. The separate Apple-native migration stays paused. Android, physical-device
+IME, distribution signing and guaranteed background execution are separate gates.
 
 ## Operator commands
 
@@ -27,6 +28,14 @@ The Release installer requires HTTPS, selects a single available paired physical
 device automatically, and prompts in the terminal when several devices match.
 Use `--device <identifier>` for non-interactive runs. It installs ordinary
 `cc.drifting.client` in place; see the [device runbook](../mobile-device-acceptance.md#standalone-ios-device-release-install).
+
+All iOS launchers, including `hosted:client ios build`, pass the native origin
+through the ignored local xcconfig. The device installers verify Xcode's resolved
+origin before building. Passing only a parent process environment had allowed
+renderer login while Release native sync rejected every request with
+`HOSTED_ORIGIN_UNCONFIGURED`. The earlier Debug simulator acceptance did not
+cover this Release-only failure. Rebuild and install in place to repair an
+affected package; resetting its data or registering another account is unnecessary.
 
 Named Hosted labs have separate identities, libraries and Vite dependency caches.
 Do not run two builds against one lab library. A service preflight waits up to
@@ -92,3 +101,15 @@ Launcher coverage passed 49 cases. The final full regression passed 467 files /
 3,326 tests (2 files / 4 tests skipped), using four workers after the initial
 parallel build run exceeded two timing gates. Typecheck, CI contract, public
 boundaries and Agent capability checks passed; lint had no errors and 70 warnings.
+
+The cross-client report above records the earlier Debug run and has not been
+regenerated for the subsequent Release configuration repair. That repair passed
+36 launcher/device-script cases, the native URL guard with an empty build setting,
+and 3,348 regression tests (4 skipped). Xcode's resolved origin and Cargo's iOS
+Release build fingerprint both matched the renderer origin; the signed archive
+was installed and launched in place on a physical iPhone. After a normal UI retry,
+read-only sync metadata confirmed `hosted / stable`, a completed connection and
+activated restored generations, with no connection error. This verifies physical
+Release restoration, not physical-device bidirectional editing or IME behavior.
+Typecheck, public/CI contracts and Agent capability checks passed; lint retained
+70 warnings, no errors.

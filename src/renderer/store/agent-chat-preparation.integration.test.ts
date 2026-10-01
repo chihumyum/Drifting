@@ -53,6 +53,33 @@ afterEach(() => {
 });
 
 describe('chat send preparation ownership', () => {
+  it('keeps two same-project panel bindings on one shared startup owner', async () => {
+    const pending = deferred<never[]>();
+    ports.memories.mockImplementationOnce(() => pending.promise);
+    const firstPanel = useAgentChatStore.getState();
+    firstPanel.bindProject(projectId);
+    const firstSend = firstPanel.send();
+    try {
+      await vi.waitFor(() => expect(ports.memories).toHaveBeenCalledTimes(1));
+      // Sending clears the submitted draft. A newly typed draft must survive
+      // another view binding to the same conversation during preparation.
+      useAgentChatStore.getState().setPrompt('Synthetic next draft');
+      const secondPanel = useAgentChatStore.getState();
+      secondPanel.bindProject(projectId);
+      expect(useAgentChatStore.getState().prompt).toBe('Synthetic next draft');
+      expect(useAgentChatStore.getState().activeConvId).toBe(conversationId);
+      expect(useAgentChatStore.getState().starting).toBe(true);
+      await secondPanel.send();
+      expect(ports.memories).toHaveBeenCalledTimes(1);
+      expect(ports.start).not.toHaveBeenCalled();
+      expect(ports.abort).not.toHaveBeenCalled();
+    } finally {
+      pending.resolve([]);
+      await firstSend;
+    }
+    expect(ports.start).toHaveBeenCalledTimes(1);
+  });
+
   for (const stage of ['memories', 'working'] as const) {
     for (const action of ['new', 'load', 'project', 'delete', 'abort'] as const) {
       it(`does not consume review context or start after ${action} during ${stage}`, async () => {

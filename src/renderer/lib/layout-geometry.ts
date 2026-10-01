@@ -6,7 +6,7 @@ const SIDEBAR_MIN_WIDTH: Record<SidebarSide, number> = {
 };
 
 const SIDEBAR_MAX_VIEWPORT_RATIO: Record<SidebarSide, number> = {
-  left: 0.3,
+  left: 0.6,
   right: 0.6,
 };
 

@@ -748,17 +748,26 @@ right-edge command slot.
 Opening the draft navigates the desktop shell to `/project/:projectId/new` and makes
 `focusedLeafOf` return `null`, so URL mirroring, the right sidebar, status
 consumers, and split actions behave as though no entity is focused. A later
-entity/deep-link navigation leaves the draft in the list but moves focus away.
-The draft cannot be previewed, reordered, or fused into a split. Inventory
+entity/deep-link navigation follows the shared preview rules: a new draft starts
+as an italic preview, consumes any existing entity preview, and stays at the
+end of the strip. Opening another new entity preview replaces the idle draft
+in place, even after visiting Home or another existing tab. Activating an
+already-open entity only changes focus. Double-clicking the draft tab promotes
+it to a dedicated tab, preserving its choices across later navigation. Starting
+creation also promotes it before the asynchronous write, keeping the result or
+retry error safe from preview replacement. The draft cannot be reordered or
+fused into a split. Inventory
 pruning preserves it during the current session, but it does not enter
 `ui-storage`, SQLite, Yjs, sync, or restart restoration.
 
 The draft also records a session-only return owner when it is activated. A
 draft opened from Project Home closes directly back to Home even when dormant
 content tabs remain; a draft opened from a content tab or split restores that
-exact tab and focused leaf. Reopening an existing background draft refreshes
+exact surviving tab and focused leaf. Reopening an existing background draft refreshes
 the return owner to the current context. If that content owner disappeared,
-close falls back to the nearest surviving tab. Store selection and the `/new`
+close falls back to the nearest surviving tab (or Home when none remain).
+This also applies when the return owner was the entity preview consumed on entry.
+Store selection and the `/new`
 route transition must resolve the same destination so no intermediate content
 tab or Project Home frame can flash. Every outbound transition from an active
 draft is route-first: close, content-tab activation, Project Home navigation,

@@ -352,7 +352,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
         restoreFocus={false}
       >
         {convList.length === 0 ? (
-          <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
+          <div style={{ padding: 12, opacity: 0.5, fontSize: 'var(--ui-font-body, 12px)' }}>
             {t('agentPanel.history.empty')}
           </div>
         ) : (
@@ -506,7 +506,7 @@ const fillStyle: React.CSSProperties = {
   position: 'relative',
   color: 'hsl(var(--ink-1))',
   fontFamily: 'var(--font-sans)',
-  fontSize: 12,
+  fontSize: 'var(--ui-font-body, 12px)',
   lineHeight: 1.5,
 };
 
@@ -524,7 +524,7 @@ const historyItem: React.CSSProperties = {
   padding: '6px 8px',
   borderRadius: 0,
   cursor: 'pointer',
-  fontSize: 12,
+  fontSize: 'var(--ui-font-body, 12px)',
 };
 
 const historyItemActive: React.CSSProperties = {
@@ -555,7 +555,7 @@ const historyLoadButton: React.CSSProperties = {
 };
 
 const historyTime: React.CSSProperties = {
-  fontSize: 10.5,
+  fontSize: 'var(--ui-font-caption, 10.5px)',
   opacity: 0.5,
   flexShrink: 0,
 };
@@ -566,7 +566,7 @@ const historyAct: React.CSSProperties = {
   color: 'inherit',
   opacity: 0.4,
   cursor: 'pointer',
-  fontSize: 13,
+  fontSize: 'var(--ui-font-body, 13px)',
   lineHeight: 1,
   padding: '0 2px',
   flexShrink: 0,
@@ -576,7 +576,7 @@ const historyInput: React.CSSProperties = {
   flex: 1,
   minWidth: 0,
   font: 'inherit',
-  fontSize: 12,
+  fontSize: 'var(--ui-font-body, 12px)',
   padding: '2px 6px',
   border: '1px solid hsl(var(--accent) / 0.5)',
   borderRadius: 1,
@@ -596,7 +596,7 @@ const primaryBtn: React.CSSProperties = {
   border: 'none',
   borderRadius: 2,
   padding: '4px 8px',
-  fontSize: 10.5,
+  fontSize: 'var(--ui-font-caption, 10.5px)',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
 };
@@ -606,20 +606,20 @@ const hintBox: React.CSSProperties = {
   flexDirection: 'column',
   gap: 6,
   padding: '8px 12px',
-  fontSize: 11.5,
+  fontSize: 'var(--ui-font-secondary, 11.5px)',
   alignItems: 'flex-start',
 };
 
 const hintTitle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  fontSize: 'var(--ui-font-caption, 10px)',
   fontWeight: 500,
   letterSpacing: '0.04em',
   color: 'hsl(var(--ink-1))',
 };
 
 const hintText: React.CSSProperties = {
-  fontSize: 11.5,
+  fontSize: 'var(--ui-font-secondary, 11.5px)',
   opacity: 0.8,
   lineHeight: 1.5,
 };

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
+import type { LeftSidebarTab, SidebarPaneId } from '../../lib/sidebar-tabs';
+import { SidebarSplitButton } from '../SidebarSplitButton';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import type { ActivityMark } from '../../store/agent-activity-store';
@@ -31,10 +33,12 @@ function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): TabPanel 
   }
 }
 
-export function LeftSidebarHeader() {
+export function LeftSidebarHeader({ paneId, activeTab }: {
+  paneId: SidebarPaneId;
+  activeTab: LeftSidebarTab;
+}) {
   const { t } = useTranslation();
-  const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
-  const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
+  const toggleTab = useUiStore((s) => s.toggleLeftSidebarTab);
 
   // Aggregate agent activity per tab — the top of the cell → group → tab
   // bubble (#17). A tab blinks its glyph while a panel cell is busy; only once
@@ -81,6 +85,7 @@ export function LeftSidebarHeader() {
       style={{
         display: 'flex',
         width: '100%',
+        flexShrink: 0,
         alignItems: 'center',
         background: 'var(--workspace-ui-bg)',
         // Keep the header strip above the panel content rendered below it.
@@ -93,27 +98,28 @@ export function LeftSidebarHeader() {
           label={t('leftSidebar.tabs.chapters')}
           glyph="§"
           compact={compact}
-          isActive={activeLeftPanel === 'nodes'}
+          isActive={activeTab === 'nodes'}
           activity={tabActivity.nodes}
-          onClick={() => setActiveLeftPanel('nodes')}
+          onClick={() => toggleTab(paneId, 'nodes')}
         />
         <PanelTab
           label={t('leftSidebar.tabs.elements')}
           glyph="◆"
           compact={compact}
-          isActive={activeLeftPanel === 'elements'}
+          isActive={activeTab === 'elements'}
           activity={tabActivity.elements}
-          onClick={() => setActiveLeftPanel('elements')}
+          onClick={() => toggleTab(paneId, 'elements')}
         />
         <PanelTab
           label={t('leftSidebar.tabs.drifts')}
           glyph="❦"
           compact={compact}
-          isActive={activeLeftPanel === 'drift'}
+          isActive={activeTab === 'drift'}
           activity={tabActivity.drift}
-          onClick={() => setActiveLeftPanel('drift')}
+          onClick={() => toggleTab(paneId, 'drift')}
         />
       </PanelTabTray>
+      <SidebarSplitButton side="left" />
     </div>
   );
 }
@@ -180,7 +186,6 @@ function PanelTabButton({
       active={isActive}
       compact={compact}
       typography="label"
-      className="left-panel-tab"
     >
       {compact ? (
         !busy && doneCount > 0 ? (

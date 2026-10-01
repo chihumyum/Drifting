@@ -27,6 +27,12 @@ describe('layout geometry', () => {
     expect(clampDimension(Number.NaN, { min: 10, max: 100 })).toBe(10);
   });
 
+  it('lets either sidebar reach dual-column width while reserving the editor', () => {
+    expect(clampSidebarWidth(650, 'left', 1440, 300)).toBe(650);
+    expect(clampSidebarWidth(650, 'right', 1440, 280)).toBe(650);
+    expect(clampSidebarWidth(800, 'left', 1440, 600)).toBe(420);
+  });
+
   it('reserves the requested content height for vertical docks', () => {
     expect(verticalDockBounds(640, 180, 240)).toEqual({ min: 180, max: 400 });
     expect(verticalDockBounds(300, 180, 240)).toEqual({ min: 180, max: 180 });

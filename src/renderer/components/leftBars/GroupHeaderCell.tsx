@@ -130,10 +130,10 @@ export function GroupHeaderCell({
           minWidth: 0,
           flex: 1,
           fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
+          fontSize: 'var(--ui-font-caption, 9.5px)',
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
-          color: 'hsl(var(--ink-3))',
+          color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
         }}
       >
         {collapseChrome === 'chevron' && (
@@ -154,7 +154,7 @@ export function GroupHeaderCell({
               height: 14,
               border: 'none',
               background: 'transparent',
-              color: 'hsl(var(--ink-4))',
+              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
               cursor: collapseDisabled ? 'default' : 'pointer',
               padding: 0,
               flexShrink: 0,
@@ -200,7 +200,7 @@ export function GroupHeaderCell({
               flexShrink: 0,
               textAlign: 'center',
               fontFamily: 'var(--font-mono)',
-              fontSize: 10,
+              fontSize: 'var(--ui-font-caption, 10px)',
               fontWeight: 600,
               lineHeight: 1,
               color: 'hsl(var(--ink-2))',
@@ -268,10 +268,10 @@ export function GroupHeaderCell({
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
+                fontSize: 'var(--ui-font-caption, 9.5px)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.12em',
-                color: 'hsl(var(--ink-3))',
+                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                 fontWeight: 500,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -283,8 +283,8 @@ export function GroupHeaderCell({
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                color: 'hsl(var(--ink-4))',
+                fontSize: 'var(--ui-font-caption, 9.5px)',
+                color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
                 flexShrink: 0,
               }}
             >
@@ -296,10 +296,10 @@ export function GroupHeaderCell({
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
+                fontSize: 'var(--ui-font-caption, 9.5px)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.12em',
-                color: 'hsl(var(--ink-3))',
+                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
                 fontWeight: 500,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -311,8 +311,8 @@ export function GroupHeaderCell({
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                color: 'hsl(var(--ink-4))',
+                fontSize: 'var(--ui-font-caption, 9.5px)',
+                color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
                 flexShrink: 0,
               }}
             >

@@ -1,4 +1,4 @@
-// Public OAuth client and signing configuration. Keep the checked-in defaults
+// Native OAuth, Hosted and signing configuration. Keep the checked-in defaults
 // empty so an unconfigured binary fails closed and the public checkout carries
 // no maintainer identity. CI/release builds pass these as xcodebuild settings;
 // Xcode exports them to the Rust build script as well.
@@ -8,6 +8,11 @@ DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID =
 // Apple Developer team for device signing. Simulator builds work without it;
 // device builds fail closed until the local include or CI supplies a value.
 DEVELOPMENT_TEAM =
+
+// Native Hosted transport must receive the same exact origin as the renderer.
+// Public/local-only builds leave it empty. URLs in the local include must escape
+// the double slash (https:/$()/host) so Xcode does not treat it as a comment.
+DRIFTING_HOSTED_ORIGIN =
 
 // The mobile launcher writes this ignored, owner-readable file from the root
 // .env.local. An absent file deliberately leaves the defaults above empty.

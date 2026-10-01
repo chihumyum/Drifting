@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import loglevel from 'loglevel';
 import { applyAccentColor, initAccentColor } from '../../lib/theme';
 import { useUiStore } from '../../store/ui-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { setI18nLocale } from '../../lib/i18n';
 import { applyEditorPreferences } from '../../lib/editor-preferences';
+import { applyInterfaceTextSize } from '../../lib/interface-typography';
 import { ensureImportedProseFontLoaded } from '../../lib/prose-fonts';
 import { saveActiveEditor } from '../../lib/active-editor';
 import { platform } from '../../platform';
@@ -25,7 +26,12 @@ log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN)
 function AppearanceEffects() {
   const themeMode = useSettingsStore((state) => state.themeMode);
   const accentColor = useSettingsStore((state) => state.accentColor);
+  const interfaceTextSize = useSettingsStore((state) => state.interfaceTextSize);
   const setUiTheme = useUiStore((state) => state.setTheme);
+
+  useLayoutEffect(() => {
+    applyInterfaceTextSize(interfaceTextSize);
+  }, [interfaceTextSize]);
 
   useEffect(() => {
     initAccentColor();

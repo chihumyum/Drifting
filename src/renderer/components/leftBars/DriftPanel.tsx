@@ -1,3 +1,5 @@
+import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
+import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Folder, FolderPlus, Plus } from 'lucide-react';
@@ -33,7 +35,7 @@ import {
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
-import { events } from '../../lib/events';
+import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('DriftPanel');
@@ -82,7 +84,8 @@ export function DriftPanel({
   const { bookNodes } = useDataStoreFields('bookNodes');
   const driftGroups = useDataStore((s) => s.driftGroups);
   const { nodeUi } = useUiStore();
-  const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
+  const sidebarWidth = useLeftSidebarPanelWidth();
+  const paneId = useSidebarPaneId();
   const cellMeta = useUiStore((s) => s.driftCellMeta);
   const showMeta = presentation === 'desktop' && sidebarWidth >= META_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.driftSortMode);
@@ -140,9 +143,8 @@ export function DriftPanel({
       const ids = useDataStore.getState().driftGroups.map((g) => g.id);
       setCollapsedGroupIds((prev) => (prev.size > 0 ? new Set() : new Set(ids)));
     };
-    events.on('left-sidebar:collapse-all', handler);
-    return () => events.off('left-sidebar:collapse-all', handler);
-  }, []);
+    return subscribeSidebarCollapse('drift', paneId, handler);
+  }, [paneId]);
 
   // Sort drifts (both drifting + resting, mixed) by the SortMenu mode, then
   // bucket by their containing group. createdAt is the default since updatedAt
@@ -281,8 +283,9 @@ export function DriftPanel({
           position: 'relative',
           background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : muted ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))',
-          fontSize: 12.5,
-          lineHeight: 1.35,
+          fontSize: 'var(--ui-font-body, 12.5px)',
+          lineHeight: 'var(--ui-line-body, 1.35)',
+          minHeight: 'var(--ui-row-height, 0px)',
           opacity: muted && !selected ? 0.7 : 1,
           transition: 'background 0.1s, opacity 0.1s',
         }}
@@ -367,8 +370,8 @@ export function DriftPanel({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              color: 'hsl(var(--ink-4))',
+              fontSize: 'var(--ui-font-caption, 9.5px)',
+              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
               flexShrink: 0,
               letterSpacing: '0.04em',
             }}
@@ -476,11 +479,11 @@ export function DriftPanel({
             gap: 6,
             padding: `3px 10px 3px ${DRIFT_BASE_PAD_LEFT + indentPad}px`,
             fontFamily: 'var(--font-mono)',
-            fontSize: 9,
+            fontSize: 'var(--ui-font-caption, 9px)',
             lineHeight: 1.2,
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
-            color: 'hsl(var(--ink-4))',
+            color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
             cursor: 'pointer',
           }}
         >
@@ -619,10 +622,10 @@ export function DriftPanel({
         {isEmpty ? (
           <div
             style={{
-              fontSize: 12,
+              fontSize: 'var(--ui-font-secondary, 12px)',
               fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
-              color: 'hsl(var(--ink-3))',
+              color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
               padding: '40px 20px',
               textAlign: 'center',
             }}
@@ -775,7 +778,7 @@ function GroupRenameRow({
           background: 'hsl(var(--paper))',
           color: 'hsl(var(--ink-1))',
           fontFamily: 'var(--font-mono)',
-          fontSize: 10,
+          fontSize: 'var(--ui-font-caption, 10px)',
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
           outline: 'none',

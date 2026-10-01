@@ -64,7 +64,7 @@ describe('open-tab semantic presentation', () => {
   });
   it('deduplicates repeated split leaves and ignores the create draft contents', () => {
     const tabs: AnyTab[] = [nodeTab, { kind: 'split', id: 'split', left: nodeTab, right: elementTab, focused: 'left', splitRatio: 0.5 },
-      { kind: 'create', id: 'universal-new', returnTabKey: null, draft: { step: 'kind', entityKind: null, storylineId: null,
+      { kind: 'create', id: 'universal-new', isPreview: true, returnTabKey: null, draft: { step: 'kind', entityKind: null, storylineId: null,
         driftGroupId: null, categoryId: null, elementGroupName: null, status: 'idle', error: null } }];
     expect(selector(tabs)(fixture()).labels.size).toBe(2);
   });
