@@ -226,7 +226,7 @@
     "sqlite": "not_run",
     "nativeInteraction": "not_run"
   },
-  "fingerprint": "b4de20bc9936598dbc9d34cdd3321a099f9e6b9d318afefea90ad2d6a348041a",
+  "fingerprint": "a47f855be84679478cd7b359cd2d5a13cd17cc335c6d2dee58e8b0205e1e0f06",
   "sources": [
     "src/renderer/features/library/TodoCard.tsx",
     "src/renderer/features/comments/ReviewItemCard.tsx",

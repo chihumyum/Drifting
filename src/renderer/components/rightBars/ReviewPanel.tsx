@@ -1,3 +1,4 @@
+import { useSidebarPreference, useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownUp, ListPlus, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +24,7 @@ import {
 } from '../../hooks/useEntityStickyNoteRail';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
-import { useUiStore, type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
+import { type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
@@ -53,14 +54,12 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const entityRelations = useDataStore((state) => state.entityRelations);
   const commentUsecases = useComment({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
-  const [typeFilter, setTypeFilter] = useState<ReviewTypeFilter>('all');
-  const scope = useUiStore((state) => state.reviewScope);
-  const setScope = useUiStore((state) => state.setReviewScope);
-  const sortMode = useUiStore((state) => state.reviewSortMode);
-  const setSortMode = useUiStore((state) => state.setReviewSortMode);
+  const [typeFilter, setTypeFilter] = useSidebarPanelState<ReviewTypeFilter>('typeFilter', 'all');
+  const [scope, setScope] = useSidebarPreference('reviewScope');
+  const [sortMode, setSortMode] = useSidebarPreference('reviewSortMode');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortButtonRef = useRef<HTMLButtonElement>(null);
-  const [resolvedExpanded, setResolvedExpanded] = useState(true);
+  const [resolvedExpanded, setResolvedExpanded] = useSidebarPanelState('resolvedExpanded', true);
   const [composeKind, setComposeKind] = useState<ComposeKind | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const [compactToolbar, setCompactToolbar] = useState(false);

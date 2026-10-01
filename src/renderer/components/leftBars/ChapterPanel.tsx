@@ -1,3 +1,4 @@
+import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -22,7 +23,7 @@ import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
@@ -72,28 +73,30 @@ export function ChapterPanel({
   const { t } = useTranslation();
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'storylineNodeMapping', 'primaryStorylineByNode');
   const { nodeUi } = useUiStore();
-  const persistedViewMode = useUiStore((s) => s.chapterPanelViewMode);
-  const globalSortMode = useUiStore((s) => s.chapterGlobalSortMode);
-  const storylineInnerSortMode = useUiStore((s) => s.chapterStorylineInnerSortMode);
-  const storylineOuterSortMode = useUiStore((s) => s.chapterStorylineOuterSortMode);
+  const [persistedViewMode] = useSidebarPreference('chapterPanelViewMode');
+  const [globalSortMode] = useSidebarPreference('chapterGlobalSortMode');
+  const [storylineInnerSortMode] = useSidebarPreference('chapterStorylineInnerSortMode');
+  const [storylineOuterSortMode] = useSidebarPreference('chapterStorylineOuterSortMode');
   // 0-storyline mode collapses to a single book-order view. Forcing it here
   // (rather than mutating the persisted setting) keeps the user's preference
   // intact for when they later add storylines.
   const viewMode = storylines.length === 0 ? 'global' : persistedViewMode;
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
-  const cellMeta = useUiStore((s) => s.chapterCellMeta);
+  const [cellMeta] = useSidebarPreference('chapterCellMeta');
   const showMeta = presentation === 'desktop' && sidebarWidth >= META_HIDE_WIDTH;
   // When on, a chapter linked to multiple storylines is listed only under its
   // primary storyline's group instead of duplicated across every group.
-  const primaryOnly = useUiStore((s) => s.chapterStorylinePrimaryOnly);
+  const [primaryOnly] = useSidebarPreference('chapterStorylinePrimaryOnly');
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const selectedNodeId =
-    presentation === 'mobile' && activeTarget?.entityType === 'node'
+  const fallbackSelectedId = presentation === 'mobile' && activeTarget?.entityType === 'node'
       ? activeTarget.id
       : nodeUi.selectedId;
+  const [selection] = useSidebarSelection(fallbackSelectedId ? { entityType: 'node', id: fallbackSelectedId } : null);
+  const selectedNodeId = selection?.entityType === 'node' ? selection.id : null;
+  const scroll = useSidebarPanelScroll();
   const activateTarget = useCallback(
     (target: WorkspaceTarget, options?: { preview?: boolean }) => {
       if (onPreviewTarget && options?.preview !== false) onPreviewTarget(target);
@@ -121,7 +124,7 @@ export function ChapterPanel({
     userId: userId ?? '',
   });
 
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [collapsedGroupIds, setCollapsedGroupIds] = useSidebarPanelState<Set<string>>('collapsed', () => new Set());
 
   const toggleGroupCollapsed = useCallback((id: string) => {
     setCollapsedGroupIds((prev) => {
@@ -133,7 +136,7 @@ export function ChapterPanel({
       }
       return next;
     });
-  }, []);
+  }, [setCollapsedGroupIds]);
 
   // Sub-header broadcasts a collapse-all request. Toggle between "all open"
   // and "all collapsed" based on current state.
@@ -147,7 +150,7 @@ export function ChapterPanel({
       });
     };
     return subscribeSidebarCollapse('nodes', paneId, handler);
-  }, [storylines, paneId]);
+  }, [storylines, paneId, setCollapsedGroupIds]);
 
   const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
   const sortedStorylines = useMemo(
@@ -450,7 +453,7 @@ export function ChapterPanel({
         minHeight: 0,
       }}
     >
-      <div
+      <div {...scroll}
         className="left-panel-scroll-hidden"
         style={{
           flex: 1,

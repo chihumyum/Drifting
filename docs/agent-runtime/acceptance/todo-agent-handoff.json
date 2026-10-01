@@ -1,8 +1,8 @@
 {
   "kind": "todo_agent_handoff_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-01T16:52:36.609Z",
-  "sourceSha256": "281ec1d6abb546a5f58f93da9ca539e68d6c85ad49f681762c34172929f0a8bd",
+  "generatedAt": "2026-10-01T16:53:26.450Z",
+  "sourceSha256": "4785c93eb4e0dd724d202a6217b0f37718d1db7c68e9597a15ffc311d2d4773b",
   "suites": [
     "src/renderer/store/agent-todo-background.integration.test.ts",
     "src/renderer/features/comments/todo-agent-task.test.ts",

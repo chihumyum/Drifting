@@ -1,3 +1,4 @@
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useUiStore } from '../../store/ui-store';
 import { LeftSidebarHeader } from '../../components/leftBars/LeftSidebarHeader';
 import { LeftSidebarSubHeader } from '../../components/leftBars/LeftSidebarSubHeader';
@@ -7,9 +8,10 @@ import { ChapterPanel } from '../../components/leftBars/ChapterPanel';
 import { DesktopSidebarLayout } from './DesktopSidebarLayout';
 
 export function DesktopLeftSidebar() {
+  const { projectId } = useProjectNavigation();
   const panes = useUiStore((s) => s.desktopSidebarTabs.left.panes);
   return (
-    <DesktopSidebarLayout side="left" panels={panes.map(({ id, tab }) => ({
+    <DesktopSidebarLayout projectId={projectId} side="left" panels={panes.map(({ id, tab }) => ({
       id,
       tab,
       header: <LeftSidebarHeader paneId={id} activeTab={tab} />,

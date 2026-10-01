@@ -1,3 +1,4 @@
+import { useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Minus, ArrowDownUp, Plus, FolderPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -5,7 +6,6 @@ import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
 import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../domain/book-node';
-import { useUiStore } from '../../store/ui-store';
 import type { LeftSidebarTab } from '../../lib/sidebar-tabs';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import type {
@@ -22,7 +22,7 @@ import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useDriftGroup } from '../../usecase/useDriftGroup';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
 
@@ -38,8 +38,7 @@ const META_HIDE_WIDTH = 180;
 export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSidebarTab }) {
   const { t } = useTranslation();
   const paneId = useSidebarPaneId();
-  const nodesViewMode = useUiStore((s) => s.chapterPanelViewMode);
-  const setChapterViewMode = useUiStore((s) => s.setChapterPanelViewMode);
+  const [nodesViewMode, setChapterViewMode] = useSidebarPreference('chapterPanelViewMode');
 
   const storylines = useDataStore((s) => s.storylines);
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -179,26 +178,16 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   const sortBtnRef = useRef<HTMLButtonElement | null>(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
 
-  const driftSortMode = useUiStore((s) => s.driftSortMode);
-  const setDriftSortMode = useUiStore((s) => s.setDriftSortMode);
-  const chapterGlobalSortMode = useUiStore((s) => s.chapterGlobalSortMode);
-  const setChapterGlobalSortMode = useUiStore((s) => s.setChapterGlobalSortMode);
-  const chapterStorylineInnerSortMode = useUiStore((s) => s.chapterStorylineInnerSortMode);
-  const setChapterStorylineInnerSortMode = useUiStore((s) => s.setChapterStorylineInnerSortMode);
-  const chapterStorylineOuterSortMode = useUiStore((s) => s.chapterStorylineOuterSortMode);
-  const setChapterStorylineOuterSortMode = useUiStore((s) => s.setChapterStorylineOuterSortMode);
-  const elementSortMode = useUiStore((s) => s.elementSortMode);
-  const setElementSortMode = useUiStore((s) => s.setElementSortMode);
-  const elementCategorySortMode = useUiStore((s) => s.elementCategorySortMode);
-  const setElementCategorySortMode = useUiStore((s) => s.setElementCategorySortMode);
-  const elementPanelViewMode = useUiStore((s) => s.elementPanelViewMode);
-  const setElementPanelViewMode = useUiStore((s) => s.setElementPanelViewMode);
-  const chapterCellMeta = useUiStore((s) => s.chapterCellMeta);
-  const setChapterCellMeta = useUiStore((s) => s.setChapterCellMeta);
-  const driftCellMeta = useUiStore((s) => s.driftCellMeta);
-  const setDriftCellMeta = useUiStore((s) => s.setDriftCellMeta);
-  const chapterStorylinePrimaryOnly = useUiStore((s) => s.chapterStorylinePrimaryOnly);
-  const setChapterStorylinePrimaryOnly = useUiStore((s) => s.setChapterStorylinePrimaryOnly);
+  const [driftSortMode, setDriftSortMode] = useSidebarPreference('driftSortMode');
+  const [chapterGlobalSortMode, setChapterGlobalSortMode] = useSidebarPreference('chapterGlobalSortMode');
+  const [chapterStorylineInnerSortMode, setChapterStorylineInnerSortMode] = useSidebarPreference('chapterStorylineInnerSortMode');
+  const [chapterStorylineOuterSortMode, setChapterStorylineOuterSortMode] = useSidebarPreference('chapterStorylineOuterSortMode');
+  const [elementSortMode, setElementSortMode] = useSidebarPreference('elementSortMode');
+  const [elementCategorySortMode, setElementCategorySortMode] = useSidebarPreference('elementCategorySortMode');
+  const [elementPanelViewMode, setElementPanelViewMode] = useSidebarPreference('elementPanelViewMode');
+  const [chapterCellMeta, setChapterCellMeta] = useSidebarPreference('chapterCellMeta');
+  const [driftCellMeta, setDriftCellMeta] = useSidebarPreference('driftCellMeta');
+  const [chapterStorylinePrimaryOnly, setChapterStorylinePrimaryOnly] = useSidebarPreference('chapterStorylinePrimaryOnly');
 
   const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
     () => [

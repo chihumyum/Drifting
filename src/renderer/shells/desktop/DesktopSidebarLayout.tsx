@@ -2,6 +2,9 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import { SIDEBAR_SPLIT_MIN_WIDTH } from '../../lib/sidebar-tabs';
 import { useUiStore, type SidebarType } from '../../store/ui-store';
 import type { SidebarPaneId } from '../../lib/sidebar-tabs';
+import { SidebarPanelStateContext } from '../../hooks/useSidebarPanelState';
+import { sidebarPanelKey } from '../../store/sidebar-panel-store';
+import type { SidebarPanelScope } from '../../store/sidebar-panel-store';
 import { SidebarPaneContext } from '../../lib/sidebar-pane-context';
 import {
   clampSidebarSplitRatio, sidebarSplitRatioBounds, SIDEBAR_DIVIDER_WIDTH,
@@ -10,10 +13,11 @@ import {
 
 /** Each stable pane owns its tab strip and body, including duplicate tabs. */
 export function DesktopSidebarLayout({
-  side, panels,
+  side, panels, projectId,
 }: {
   side: SidebarType;
-  panels: { id: SidebarPaneId; tab: string; header: ReactNode; content: ReactNode }[];
+  projectId?: string;
+  panels: { id: SidebarPaneId; tab: SidebarPanelScope['tab']; header: ReactNode; content: ReactNode }[];
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -96,8 +100,12 @@ export function DesktopSidebarLayout({
               minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
             }}>
               <SidebarPaneContext.Provider value={panel.id}>
-                {panel.header}
-                {panel.content}
+                <SidebarPanelStateContext.Provider
+                  key={`${projectId}:${panel.tab}`}
+                  value={projectId ? sidebarPanelKey({ projectId, side, paneId: panel.id, tab: panel.tab }) : null}>
+                  {panel.header}
+                  {panel.content}
+                </SidebarPanelStateContext.Provider>
               </SidebarPaneContext.Provider>
             </div>
           </Fragment>

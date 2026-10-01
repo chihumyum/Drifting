@@ -448,7 +448,7 @@ describe('workspace surface language acceptance', () => {
       'return new Set([...storylines.map((s) => s.id), UNAFFILIATED_GROUP_ID]);',
     );
     expect(chapterPanel).toContain(
-      'const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());',
+      "const [collapsedGroupIds, setCollapsedGroupIds] = useSidebarPanelState<Set<string>>('collapsed', () => new Set());",
     );
     expect(unaffiliatedGroup).toContain('<GroupHeaderCell');
     expect(unaffiliatedGroup).toContain("name={t('leftSidebar.groups.unaffiliated')}");

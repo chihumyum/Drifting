@@ -14,8 +14,9 @@ TODO data model.
   workspace that enters a short distance from the top.
 - Review filters by type (`Both`, `Comments`, `TODOs`) and scope (`Current`,
   `Project`). Opening Review does not move, hide, or clear editor sticky notes.
-- The Current/Project scope is a saved UI preference shared by Review mounts.
-  Closing/reopening the panel and restarting retain it. Without a focused
+- The Current/Project scope is a saved UI preference. Desktop sidebar panes
+  retain it independently per project, pane and Tab; other Review mounts keep
+  the shared preference. Closing/reopening the panel and restarting retain it. Without a focused
   entity, Review temporarily displays Project and disables the toggle without
   overwriting the preference; focusing an entity restores the selected scope.
   Missing or invalid saved values fall back to Current.
@@ -25,7 +26,8 @@ TODO data model.
   saved as its own UI preference. Time order applies across anchor/relation
   types; equal timestamps use the comment ID for stable ordering.
 - The resolved group is expanded when Review opens. Authors can collapse it;
-  changing the sort mode preserves that choice for the mounted panel.
+  changing the sort mode preserves that choice. Desktop sidebar panes also
+  retain it independently through Tab switches and close/reopen.
 - Review items have only two authored kinds: `note` and `todo`. The retired
   Shadow author-exception kind is absent from the UI, domain, and Agent tools.
 - A Review card can be added to one entity editor's sticky-note rail. Cross-

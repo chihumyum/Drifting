@@ -1,3 +1,4 @@
+import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, Link2Off, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -62,8 +63,8 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
 
-  const [filter, setFilter] = useState<ViewFilter>('all');
-  const [showRelations, setShowRelations] = useState(true);
+  const [filter, setFilter] = useSidebarPanelState<ViewFilter>('filter', 'all');
+  const [showRelations, setShowRelations] = useSidebarPanelState('showRelations', true);
   const [composeOpen, setComposeOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewLibraryItemId, setPreviewLibraryItemId] = useState<string | null>(null);

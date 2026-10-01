@@ -1,3 +1,4 @@
+import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -14,7 +15,7 @@ import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { ElementCategoryCreateMenu } from './ElementCategoryCreateMenu';
@@ -71,16 +72,18 @@ export function ElementPanel({
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
   const showDate = presentation === 'desktop' && sidebarWidth >= DATE_HIDE_WIDTH;
-  const sortMode = useUiStore((s) => s.elementSortMode);
-  const categorySortMode = useUiStore((s) => s.elementCategorySortMode);
-  const viewMode = useUiStore((s) => s.elementPanelViewMode);
+  const [sortMode] = useSidebarPreference('elementSortMode');
+  const [categorySortMode] = useSidebarPreference('elementCategorySortMode');
+  const [viewMode] = useSidebarPreference('elementPanelViewMode');
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const selectedBookElementId =
-    presentation === 'mobile' && activeTarget?.entityType === 'element'
+  const fallbackSelectedId = presentation === 'mobile' && activeTarget?.entityType === 'element'
       ? activeTarget.id
       : elementUi.selectedId;
+  const [selection] = useSidebarSelection(fallbackSelectedId ? { entityType: 'element', id: fallbackSelectedId } : null);
+  const selectedBookElementId = selection?.entityType === 'element' ? selection.id : null;
+  const scroll = useSidebarPanelScroll();
   const activateTarget = useCallback(
     (target: WorkspaceTarget, options?: { preview?: boolean }) => {
       if (onPreviewTarget) onPreviewTarget(target);
@@ -110,7 +113,7 @@ export function ElementPanel({
     userId: userId ?? '',
   });
 
-  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
+  const [collapsedCategoryIds, setCollapsedCategoryIds] = useSidebarPanelState<Set<string>>('collapsed', () => new Set());
   // Per-cell context menu — reuses the editor top-bar three-dot menu items
   // via EntityCellContextMenu so element & category context options stay in
   // lockstep with what the editor exposes.
@@ -145,7 +148,7 @@ export function ElementPanel({
       }
       return next;
     });
-  }, []);
+  }, [setCollapsedCategoryIds]);
 
   // Sub-header collapse-all toggles between "expand all" and "collapse all".
   useEffect(() => {
@@ -156,7 +159,7 @@ export function ElementPanel({
       });
     };
     return subscribeSidebarCollapse('elements', paneId, handler);
-  }, [bookElementCategories, paneId]);
+  }, [bookElementCategories, paneId, setCollapsedCategoryIds]);
 
   const categoryById = useMemo(
     () => new Map(bookElementCategories.map((category) => [category.id, category])),
@@ -542,7 +545,7 @@ export function ElementPanel({
           padding: 0,
         }}
       >
-        <div
+        <div {...scroll}
           className="left-panel-scroll"
           style={{
             flex: 1,

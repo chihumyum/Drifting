@@ -1,5 +1,6 @@
 import { revealDesktopAgentView } from '../../store/desktop-agent-navigation';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import { useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useTranslation } from 'react-i18next';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isDrift } from '../../domain/book-node';
@@ -145,6 +146,7 @@ export function DesktopRightSidebar() {
   return (
     <DesktopSidebarLayout
       side="right"
+      projectId={projectId}
       panels={panes.map(({ id, tab }) => ({
         id,
         tab,
@@ -156,7 +158,7 @@ export function DesktopRightSidebar() {
             })}
             title={target.title}
           />}
-          <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <SidebarPanelBody>
             {tab === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => revealDesktopAgentView()} />}
             {tab === 'library' && <LibraryPanel focused={focusedForPanel} />}
             {tab === 'stats' && <EntityStatsContent
@@ -170,9 +172,14 @@ export function DesktopRightSidebar() {
               primaryStorylineByNode={primaryStorylineByNode}
             />}
             {tab === 'companion' && <DesktopAgentPanel projectId={projectId} />}
-          </div>
+          </SidebarPanelBody>
         </>,
       }))}
     />
   );
+}
+
+function SidebarPanelBody({ children }: { children: ReactNode }) {
+  const scroll = useSidebarPanelScroll();
+  return <div {...scroll} className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>{children}</div>;
 }

@@ -1,3 +1,4 @@
+import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -20,7 +21,7 @@ import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
@@ -86,16 +87,18 @@ export function DriftPanel({
   const { nodeUi } = useUiStore();
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
-  const cellMeta = useUiStore((s) => s.driftCellMeta);
+  const [cellMeta] = useSidebarPreference('driftCellMeta');
   const showMeta = presentation === 'desktop' && sidebarWidth >= META_HIDE_WIDTH;
-  const sortMode = useUiStore((s) => s.driftSortMode);
+  const [sortMode] = useSidebarPreference('driftSortMode');
   const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const selectedNodeId =
-    presentation === 'mobile' && activeTarget?.entityType === 'node'
+  const fallbackSelectedId = presentation === 'mobile' && activeTarget?.entityType === 'node'
       ? activeTarget.id
       : nodeUi.selectedId;
+  const [selection] = useSidebarSelection(fallbackSelectedId ? { entityType: 'node', id: fallbackSelectedId } : null);
+  const selectedNodeId = selection?.entityType === 'node' ? selection.id : null;
+  const scroll = useSidebarPanelScroll();
   const activateTarget = useCallback(
     (target: WorkspaceTarget, options?: { preview?: boolean }) => {
       if (onPreviewTarget) onPreviewTarget(target);
@@ -116,7 +119,7 @@ export function DriftPanel({
 
   // Collapse is local component state (not persisted), mirroring ChapterPanel's
   // storyline-collapse. A group id present in the set is collapsed.
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [collapsedGroupIds, setCollapsedGroupIds] = useSidebarPanelState<Set<string>>('collapsed', () => new Set());
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
 
   const toggleCollapsed = useCallback((id: string) => {
@@ -126,7 +129,7 @@ export function DriftPanel({
       else next.add(id);
       return next;
     });
-  }, []);
+  }, [setCollapsedGroupIds]);
   const expandGroup = useCallback((id: string) => {
     setCollapsedGroupIds((prev) => {
       if (!prev.has(id)) return prev;
@@ -134,7 +137,7 @@ export function DriftPanel({
       next.delete(id);
       return next;
     });
-  }, []);
+  }, [setCollapsedGroupIds]);
 
   // Sub-header broadcasts a collapse-all request (same affordance ChapterPanel
   // uses). Toggle between "all open" and "all collapsed" based on current state.
@@ -144,7 +147,7 @@ export function DriftPanel({
       setCollapsedGroupIds((prev) => (prev.size > 0 ? new Set() : new Set(ids)));
     };
     return subscribeSidebarCollapse('drift', paneId, handler);
-  }, [paneId]);
+  }, [paneId, setCollapsedGroupIds]);
 
   // Sort drifts (both drifting + resting, mixed) by the SortMenu mode, then
   // bucket by their containing group. createdAt is the default since updatedAt
@@ -610,7 +613,7 @@ export function DriftPanel({
         minHeight: 0,
       }}
     >
-      <div
+      <div {...scroll}
         className="left-panel-scroll-hidden"
         style={{
           flex: 1,

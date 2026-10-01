@@ -465,6 +465,17 @@ state. Last-view disposal releases timers, listeners and retained run/message
 references. History message identities and `MessageView` memoization remain
 unchanged.
 
+Desktop sidebar panels additionally receive a `SidebarPanelStateContext` keyed by
+project, side, stable pane identity and Tab type. `sidebar-panel-store` persists
+only display preferences; a separate session store
+retains folds, local selection, filters and scroll without localStorage writes on
+scroll/input. Shared `useSidebarPreference` hooks serve both the toolbar and body;
+outside the desktop context they retain the original UI preference owner. Panel
+navigation records its own selection before opening the shared editor. Right-side
+panels continue to follow the shared editor focus without per-panel target selectors.
+The keyed provider remounts local dialogs when switching Tab/project while keeping
+explicitly retained panel state. See `store/sidebar-panel-isolation.acceptance.test.ts`.
+
 Desktop Agent panes bind their stable sidebar identity to an in-memory chat
 view. Each view owns its conversation cursor, draft, loading generation and
 startup owner. The first pane adopts the existing default view; a second starts
