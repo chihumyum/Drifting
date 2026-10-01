@@ -538,7 +538,7 @@ const userBubble: React.CSSProperties = {
 const userTimestamp: React.CSSProperties = {
   padding: '0 2px',
   color: 'hsl(var(--ink-muted))',
-  fontSize: 10.5,
+  fontSize: 'var(--agent-font-caption, 10.5px)',
   fontVariantNumeric: 'tabular-nums',
 };
 
@@ -557,7 +557,7 @@ const errorBubble: React.CSSProperties = {
 };
 
 const thinkingRow: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 'var(--agent-font-secondary, 12px)',
   opacity: 0.7,
 };
 
@@ -565,7 +565,7 @@ const thinkingSummary: React.CSSProperties = {
   cursor: 'pointer',
   listStyle: 'none',
   userSelect: 'none',
-  fontSize: 11,
+  fontSize: 'var(--agent-font-secondary, 11px)',
   letterSpacing: '0.02em',
   color: 'hsl(var(--ink-3, var(--ink-1)))',
 };
@@ -578,7 +578,7 @@ const thinkingBody: React.CSSProperties = {
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
   fontStyle: 'italic',
-  fontSize: 11.5,
+  fontSize: 'var(--agent-font-secondary, 11.5px)',
   lineHeight: 1.5,
   opacity: 0.85,
 };
@@ -588,7 +588,7 @@ const todoBox: React.CSSProperties = {
   borderRadius: 1,
   background: 'hsl(var(--page))',
   padding: '8px 10px',
-  fontSize: 12,
+  fontSize: 'var(--agent-font-secondary, 12px)',
   display: 'flex',
   flexDirection: 'column',
   gap: 3,
@@ -597,7 +597,7 @@ const todoBox: React.CSSProperties = {
 const todoHead: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
-  fontSize: 10.5,
+  fontSize: 'var(--agent-font-caption, 10.5px)',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
   opacity: 0.6,
@@ -615,11 +615,11 @@ const toolRow: React.CSSProperties = {
   border: '1px solid hsl(var(--rule))',
   borderRadius: 1,
   background: 'hsl(var(--page))',
-  fontSize: 12,
+  fontSize: 'var(--agent-font-secondary, 12px)',
 };
 
 const quietToolRow: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 'var(--agent-font-secondary, 12px)',
   color: 'hsl(var(--ink-muted))',
 };
 
@@ -639,12 +639,12 @@ const toolSummary: React.CSSProperties = {
 
 const toolName: React.CSSProperties = {
   fontFamily: 'var(--font-mono, ui-monospace, monospace)',
-  fontSize: 11.5,
+  fontSize: 'var(--agent-font-secondary, 11.5px)',
   opacity: 0.9,
 };
 
 const toolActivity: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 'var(--agent-font-secondary, 12px)',
   lineHeight: 1.4,
 };
 
@@ -654,7 +654,7 @@ const toolBody: React.CSSProperties = {
 };
 
 const toolBodyLabel: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 'var(--agent-font-caption, 10px)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
   opacity: 0.5,
@@ -666,7 +666,7 @@ const toolPre: React.CSSProperties = {
   padding: 6,
   background: 'hsl(var(--ink-1) / 0.05)',
   borderRadius: 1,
-  fontSize: 11,
+  fontSize: 'var(--agent-font-body, 11px)',
   lineHeight: 1.4,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
@@ -676,7 +676,7 @@ const toolPre: React.CSSProperties = {
 
 
 const usageRow: React.CSSProperties = {
-  fontSize: 10.5,
+  fontSize: 'var(--agent-font-caption, 10.5px)',
   opacity: 0.45,
   textAlign: 'right',
   fontVariantNumeric: 'tabular-nums',

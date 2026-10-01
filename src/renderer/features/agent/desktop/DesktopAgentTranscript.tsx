@@ -148,7 +148,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
           )}
           {turnRefs.length > 0 && (
             <div className="agt-entity-links">
-              <span style={{ opacity: 0.55, fontSize: 11 }}>{t('agentPanel.turnChanges')}</span>
+              <span style={{ opacity: 0.55, fontSize: 'var(--agent-font-caption, 10.5px)' }}>{t('agentPanel.turnChanges')}</span>
               {turnRefs.map((r) => (
                 <EntityLinkChip key={`${r.entityType}:${r.id}`} refItem={r} onOpen={openRef} />
               ))}
@@ -193,8 +193,8 @@ const logStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
   padding: '8px 12px 12px',
-  fontSize: 12,
-  lineHeight: 1.5,
+  fontSize: 'var(--agent-font-body, 12px)',
+  lineHeight: 1.4,
   minHeight: 120,
   display: 'flex',
   flexDirection: 'column',
@@ -220,10 +220,11 @@ const jumpBtn: React.CSSProperties = {
 
 const usageFooter: React.CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
   gap: 10,
   alignItems: 'center',
   padding: '4px 12px',
-  fontSize: 11,
+  fontSize: 'var(--agent-font-caption, 10.5px)',
   opacity: 0.6,
   flexShrink: 0,
   borderTop: '1px solid hsl(var(--rule))',

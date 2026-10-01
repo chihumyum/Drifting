@@ -12,6 +12,7 @@ import { useCallback, useLayoutEffect, useRef, type RefCallback } from 'react';
  */
 export function useAutosizeTextArea(
   value: string | null | undefined,
+  layoutKey?: string | number,
 ): RefCallback<HTMLTextAreaElement> {
   const elementRef = useRef<HTMLTextAreaElement | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
@@ -27,6 +28,14 @@ export function useAutosizeTextArea(
   useLayoutEffect(() => {
     resize();
   }, [resize, value]);
+
+  // Preference-driven font changes may leave the element's width unchanged.
+  // Measure after root appearance effects have applied the new CSS variables.
+  useLayoutEffect(() => {
+    if (layoutKey === undefined) return;
+    const frame = requestAnimationFrame(resize);
+    return () => cancelAnimationFrame(frame);
+  }, [layoutKey, resize]);
 
   const setRef = useCallback<RefCallback<HTMLTextAreaElement>>((el) => {
     observerRef.current?.disconnect();

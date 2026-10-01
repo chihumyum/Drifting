@@ -4,6 +4,13 @@
    fallback; authored prose continues to use the independent --editor-* axis. */
 html[data-shell-mode='desktop'] {
   --ui-text-increment: 0px;
+  /* Agent conversation roles share the UI preference, with explicit small sizes.
+     Shared mobile message views retain their existing fallback typography. */
+  --agent-font-body: var(--ui-font-body, 12px);
+  --agent-font-secondary: var(--ui-font-secondary, 11.5px);
+  --agent-font-caption: var(--ui-font-caption, 10.5px);
+  --agent-font-heading: var(--ui-font-heading, 13.5px);
+  --agent-line-body: 1.4;
   --ui-line-caption: calc(16px + var(--ui-text-increment));
   --ui-line-body: calc(20px + var(--ui-text-increment));
   --ui-control-height: calc(28px + var(--ui-text-increment));

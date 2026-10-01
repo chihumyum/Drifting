@@ -71,6 +71,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const api = generalAgentTransport;
   const agentAuth = useSettingsStore((s) => s.agentAuth);
+  const interfaceTextSize = useSettingsStore((s) => s.interfaceTextSize);
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
@@ -111,7 +112,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
   // size — e.g. when the right column is switched away and back, which unmounts +
   // remounts this panel. The old [prompt]-only effect re-ran once on remount before
   // the panel had settled its width, so a multi-line draft collapsed to one row.
-  const taRef = useAutosizeTextArea(prompt);
+  const taRef = useAutosizeTextArea(prompt, interfaceTextSize);
   const refreshStatus = useCallback(() => {
     if (!api.capability.available) return;
     void api
@@ -651,8 +652,8 @@ const panelCss = `
 .agent-md p { margin: 0 0 8px; }
 .agent-md ul, .agent-md ol { margin: 0 0 8px; padding-left: 20px; }
 .agent-md li { margin: 2px 0; }
-.agent-md h1, .agent-md h2, .agent-md h3, .agent-md h4 { margin: 10px 0 6px; font-size: 13.5px; font-weight: 600; }
-.agent-md code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; background: hsl(var(--ink-1) / 0.08); padding: 1px 4px; border-radius: 3px; }
+.agent-md h1, .agent-md h2, .agent-md h3, .agent-md h4 { margin: 10px 0 6px; font-size: var(--agent-font-heading, 13.5px); font-weight: 600; }
+.agent-md code { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--agent-font-body, 12px); background: hsl(var(--ink-1) / 0.08); padding: 1px 4px; border-radius: 3px; }
 .agent-md pre { margin: 0 0 8px; padding: 8px; background: hsl(var(--ink-1) / 0.06); border-radius: 1px; overflow: auto; }
 .agent-md pre code { background: none; padding: 0; }
 .agent-md blockquote { margin: 0 0 8px; padding: 6px 10px; border-radius: var(--radius-xs); background: hsl(var(--ink-1) / 0.035); opacity: 0.85; }
@@ -661,17 +662,17 @@ const panelCss = `
 .agent-md th, .agent-md td { border: 1px solid hsl(var(--rule)); padding: 3px 6px; }
 .agent-caret { display: inline-block; width: 0; opacity: 0.6; animation: agentBlink 1s steps(1) infinite; }
 @keyframes agentBlink { 50% { opacity: 0; } }
-.agt-pending { display: flex; align-items: center; gap: 5px; padding: 4px 2px; font-size: 12px; opacity: 0.6; }
+.agt-pending { display: flex; align-items: center; gap: 5px; padding: 4px 2px; font-size: var(--agent-font-secondary, 11.5px); opacity: 0.6; }
 .agt-pending__dot { width: 5px; height: 5px; border-radius: 50%; background: hsl(var(--ink-1)); animation: agtPendingPulse 1.2s ease-in-out infinite; }
 .agt-pending__dot:nth-child(2) { animation-delay: 0.15s; }
 .agt-pending__dot:nth-child(3) { animation-delay: 0.3s; }
 .agt-pending span:last-child { margin-left: 2px; }
 @keyframes agtPendingPulse { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
-.agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 1px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: 11.5px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 1px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: var(--agent-font-secondary, 11.5px); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
 .agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-sans); font-style: italic; }
-.agt-entity-chip__op { font-size: 9.5px; opacity: 0.55; }
+.agt-entity-chip__op { font-size: var(--agent-font-caption, 10.5px); opacity: 0.55; }
 .agt-history__running-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtHistoryRunPulse 1.4s ease-in-out infinite; }
 @keyframes agtHistoryRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
 `;

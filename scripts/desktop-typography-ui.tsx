@@ -1,5 +1,6 @@
 /** Synthetic browser layout acceptance; not imported by the application. */
 import { useLayoutEffect, useState } from 'react';
+import { AgentTypographyFixture, measureAgentTypography } from './agent-typography-fixture';
 import { createRoot } from 'react-dom/client';
 import { PanelTab, PanelTabTray } from '../src/renderer/components/ui/PanelTabs';
 import { ContextMenuSurface } from '../src/renderer/components/ui/ContextMenuSurface';
@@ -54,6 +55,7 @@ async function measure() {
   try {
     for (const dark of [false, true]) for (const size of ['small', 'standard', 'large'] as const) {
       root.classList.toggle('dark', dark);
+      useSettingsStore.getState().setInterfaceTextSize(size);
       applyInterfaceTextSize(size);
       await frame(); await frame();
       const key = `${dark ? 'dark' : 'light'}:${size}`;
@@ -87,7 +89,9 @@ async function measure() {
       for (const control of document.querySelectorAll<HTMLElement>('.segmented-control__option, .app-panel-tab')) {
         checks[`${key}:${control.textContent}`] = control.clientHeight >= parseFloat(getComputedStyle(control).lineHeight);
       }
-      samples.push({ key, ...sizes, footerHeight: footer.getBoundingClientRect().height, contrast: Number(ratio.toFixed(2)) });
+      const agent = measureAgentTypography(size);
+      checks[`${key}:agentConversation`] = agent.passed;
+      samples.push({ key, agent: agent.samples, ...sizes, footerHeight: footer.getBoundingClientRect().height, contrast: Number(ratio.toFixed(2)) });
     }
     root.dataset.shellMode = 'mobile';
     await frame();
@@ -96,6 +100,7 @@ async function measure() {
   } finally {
     root.dataset.shellMode = 'desktop';
     root.classList.toggle('dark', before.dark);
+    useSettingsStore.getState().setInterfaceTextSize(before.size as 'small' | 'standard' | 'large');
     applyInterfaceTextSize(before.size);
     delete root.dataset.typographyMeasuring;
   }
@@ -125,6 +130,7 @@ export function Fixture() {
       <footer className="bsb">12,345 字 · 今日新增 678 字</footer>
       <div id="overlay-boundary" style={{ position: 'fixed', bottom: 'var(--super-view-bottom-inset)', pointerEvents: 'none' }} />
       <div className="page__body"><div className="ProseMirror">正文保持作者选择的 21px。Manuscript typography stays independent.</div></div>
+      <AgentTypographyFixture />
       <AppearancePanel registerRef={() => {}} />
       <ContextMenuSurface x={innerWidth - 220} y={48} onClose={() => {}} ariaLabel="Synthetic menu">
         <div className="menu-surface__section-label">章节操作</div>

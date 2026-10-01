@@ -7,6 +7,12 @@ import path from 'node:path';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const output = path.join(root, 'docs/qa/desktop-typography.json');
 const sources = [
+  'scripts/agent-typography-fixture.tsx',
+  'src/styles/agent-panel.css',
+  'src/renderer/features/agent/AgentMessageViews.tsx',
+  'src/renderer/features/agent/desktop/DesktopAgentPanel.tsx',
+  'src/renderer/features/agent/desktop/DesktopAgentTranscript.tsx',
+  'src/renderer/hooks/useAutosizeTextArea.ts',
   'scripts/desktop-typography-ui.html', 'scripts/desktop-typography-ui.tsx',
   'src/styles/desktop-typography.css', 'src/styles/index.css',
   'src/styles/ui-controls.css', 'src/styles/settings.css', 'src/styles/bottom-status-bar.css',
@@ -28,7 +34,7 @@ function validateRun(run) {
   assert.equal(run.samples.length, 6);
   for (const dark of ['light', 'dark']) for (const size of ['small', 'standard', 'large']) {
     const key = `${dark}:${size}`;
-    for (const check of ['body', 'caption', 'panelTab', 'description', 'heading', 'prose', 'wrapping', 'portal', 'viewport', 'footerInset', 'contrast', 'settingsFit']) {
+    for (const check of ['body', 'caption', 'panelTab', 'description', 'heading', 'prose', 'wrapping', 'portal', 'viewport', 'footerInset', 'contrast', 'settingsFit', 'agentConversation']) {
       assert.equal(run.checks[`${key}:${check}`], true, `${key}:${check}`);
     }
     const sample = run.samples.find((item) => item.key === key);
@@ -38,6 +44,16 @@ function validateRun(run) {
       large: ['16px', '14px', '15px', '15px', '18px'],
     }[size];
     assert.deepEqual([sample.body, sample.caption, sample.panelTab, sample.description, sample.heading], expected);
+    const agentExpected = { small: [12, 11.5, 10.5, 13.5], standard: [14, 13, 12, 16], large: [16, 15, 14, 18] }[size];
+    assert.equal(sample.agent.length, 2);
+    for (const pane of sample.agent) {
+      for (const role of ['body', 'user', 'composer', 'code', 'inlineCode']) assert.equal(pane[role], agentExpected[0]);
+      for (const role of ['thinking', 'tool']) assert.equal(pane[role], agentExpected[1]);
+      assert.equal(pane.caption, agentExpected[2]); assert.equal(pane.heading, agentExpected[3]);
+      assert(Math.abs(pane.lineHeight - agentExpected[0] * 1.4) < 0.1);
+      assert(Math.abs(pane.composerLineHeight - agentExpected[0] * 1.4) < 0.1);
+      for (const check of ['codeScrolls', 'fits', 'composerFits', 'composerResizes']) assert.equal(pane[check], true);
+    }
     assert.equal(sample.footerHeight, size === 'large' ? 26 : 24);
     assert(sample.contrast >= 4.5);
   }
