@@ -1,4 +1,4 @@
-import { asc } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 
 import { getDb } from '../../lib/db';
 import { proseDocId } from '../../lib/yjs-doc-id';
@@ -92,47 +92,65 @@ function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string,
  * transaction scheduler is holding the database, while this function makes
  * the structured rows and persisted Yjs state share one SQLite point in time.
  */
-export async function readLocalRelationalMarkdownSource(): Promise<LocalRelationalMarkdownSource> {
+export async function readLocalRelationalMarkdownSource(projectId?: string): Promise<LocalRelationalMarkdownSource> {
   return getDb().transaction(async (tx) => {
     // Keep the reads sequential. Native SQLite transactions have one owning
     // connection; concurrent proxy calls would add no useful parallelism.
     const projects = await tx
       .select()
       .from(ProjectTable)
+      .where(projectId ? eq(ProjectTable.id, projectId) : undefined)
       .orderBy(asc(ProjectTable.name), asc(ProjectTable.id));
-    const nodes = await tx.select().from(BookNodeTable).orderBy(asc(BookNodeTable.id));
+    const nodes = await tx.select().from(BookNodeTable).where(projectId ? eq(BookNodeTable.projectId, projectId) : undefined).orderBy(asc(BookNodeTable.id));
+    const nodeIds = nodes.map(node => node.id);
+    const nodeScope = (column: typeof NodeContentTable.nodeId | typeof NodeStorylineLinkTable.nodeId) =>
+      projectId ? (nodeIds.length ? inArray(column, nodeIds) : sql`0`) : undefined;
     const nodeContents = await tx
       .select()
       .from(NodeContentTable)
+      .where(nodeScope(NodeContentTable.nodeId))
       .orderBy(asc(NodeContentTable.nodeId));
-    const elements = await tx.select().from(BookElementTable).orderBy(asc(BookElementTable.id));
+    const elements = await tx.select().from(BookElementTable).where(projectId ? eq(BookElementTable.projectId, projectId) : undefined).orderBy(asc(BookElementTable.id));
     const categories = await tx
       .select()
       .from(ElementCategoryTable)
+      .where(projectId ? eq(ElementCategoryTable.projectId, projectId) : undefined)
       .orderBy(asc(ElementCategoryTable.id));
-    const storylines = await tx.select().from(StorylineTable).orderBy(asc(StorylineTable.id));
-    const comments = await tx.select().from(CommentTable).orderBy(asc(CommentTable.id));
+    const storylines = await tx.select().from(StorylineTable).where(projectId ? eq(StorylineTable.projectId, projectId) : undefined).orderBy(asc(StorylineTable.id));
+    const comments = await tx.select().from(CommentTable).where(projectId ? eq(CommentTable.projectId, projectId) : undefined).orderBy(asc(CommentTable.id));
     const libraryItems = await tx
       .select()
       .from(LibraryItemTable)
+      .where(projectId ? eq(LibraryItemTable.projectId, projectId) : undefined)
       .orderBy(asc(LibraryItemTable.id));
     const relations = await tx
       .select()
       .from(EntityRelationTable)
+      .where(projectId ? eq(EntityRelationTable.projectId, projectId) : undefined)
       .orderBy(asc(EntityRelationTable.id));
     const relationTypes = await tx
       .select()
       .from(EntityRelationTypeTable)
+      .where(projectId ? eq(EntityRelationTypeTable.projectId, projectId) : undefined)
       .orderBy(asc(EntityRelationTypeTable.id));
     const storylineLinks = await tx
       .select()
       .from(NodeStorylineLinkTable)
+      .where(nodeScope(NodeStorylineLinkTable.nodeId))
       .orderBy(
         asc(NodeStorylineLinkTable.nodeId),
         asc(NodeStorylineLinkTable.storylineId),
       );
-    const snapshotRows = await tx.select().from(yjsSnapshots).orderBy(asc(yjsSnapshots.docId));
-    const updateRows = await tx.select().from(yjsUpdates).orderBy(asc(yjsUpdates.id));
+    const docIds = [...nodes.map(row => proseDocId('node', row.id)),
+      ...elements.map(row => proseDocId('element', row.id)),
+      ...categories.map(row => proseDocId('category', row.id)),
+      ...storylines.map(row => proseDocId('storyline', row.id))];
+    const snapshotRows = await tx.select().from(yjsSnapshots)
+      .where(projectId ? (docIds.length ? inArray(yjsSnapshots.docId, docIds) : sql`0`) : undefined)
+      .orderBy(asc(yjsSnapshots.docId));
+    const updateRows = await tx.select().from(yjsUpdates)
+      .where(projectId ? (docIds.length ? inArray(yjsUpdates.docId, docIds) : sql`0`) : undefined)
+      .orderBy(asc(yjsUpdates.id));
 
     const nodesByProject = groupByProject(nodes);
     const elementsByProject = groupByProject(elements);

@@ -17,6 +17,7 @@ describe('MCP client access rows', () => {
     const rows = mcpAccessRows([], 'project-a');
     expect(rows.clients.map(row => [row.client, row.name, row.connection])).toEqual([
       ['codex', 'Codex', undefined], ['claude_code', 'Claude Code', undefined],
+      ['antigravity', 'Antigravity', undefined],
     ]);
     expect(rows.manual).toEqual([]);
   });
@@ -26,9 +27,15 @@ describe('MCP client access rows', () => {
     const claude = connection('claude-a', 'project-a', 'claude_code');
     claude.grant.access = 'read';
     claude.grant.allowDangerous = false;
-    const rows = mcpAccessRows([connection('foreign', 'project-b', 'codex'), codex, claude], 'project-a');
-    expect(rows.clients.map(row => row.connection)).toEqual([codex, claude]);
-    expect(rows.clients.map(row => mcpAccessPermission(row.connection!))).toEqual(['full', 'read']);
+    const antigravity = connection('antigravity-a', 'project-a', 'antigravity');
+    antigravity.grant.allowDangerous = false;
+    const rows = mcpAccessRows([
+      connection('foreign', 'project-b', 'codex'),
+      connection('foreign-antigravity', 'project-b', 'antigravity'),
+      codex, claude, antigravity,
+    ], 'project-a');
+    expect(rows.clients.map(row => row.connection)).toEqual([codex, claude, antigravity]);
+    expect(rows.clients.map(row => mcpAccessPermission(row.connection!))).toEqual(['full', 'read', 'write']);
     expect(rows.manual).toEqual([]);
   });
 

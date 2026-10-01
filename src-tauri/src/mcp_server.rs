@@ -12,6 +12,7 @@ mod client_config;
 pub enum Client {
     Codex,
     ClaudeCode,
+    Antigravity,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,6 +345,7 @@ mod local {
                 }
                 home.join(".claude.json")
             }
+            Client::Antigravity => home.join(".gemini/config/mcp_config.json"),
         };
         let server = server(app, state)?;
         let name_hash = hash(&format!(
@@ -719,7 +721,7 @@ mod local {
                     Some(serde_json::json!({"jsonrpc":"2.0","id":id,"result":{
                         "protocolVersion":"2025-11-25", "capabilities":{"tools":{"listChanged":true}},
                         "serverInfo":{"name":"Drifting", "version":env!("CARGO_PKG_VERSION")},
-                        "instructions":"Operate only on the authorized project, which must be open in Drifting. Read targets before modifying them; retain returned handles. Paginate using read_tool_result. After reconnect, read again. Never automatically retry an uncertain write. Changes use the app's live Yjs and review system."
+                        "instructions":format!("Operate only on the authorized project, which must be open in Drifting. Read targets through tools before modifying them; filesystem reads do not establish write coverage. Paginate read_chapter with cursor and version; other large results use read_tool_result. After reconnect, read again. Never automatically retry an uncertain write. Changes use the app's live Yjs and review system. A structured, READ-ONLY Markdown projection of this project is automatically maintained at {}. Start with README.md, index.md and manifest.json. project/chapters contains stable entity-ID directories with index.md (title, summary, relations) and prose.md (body only). Other directories contain drifts, elements, categories, storylines, comments and library notes. prose.md line numbers match read_chapter. The manifest records generation time and file SHA-256 hashes; check freshness and hashes before citing a disk snapshot. Projection refresh is asynchronous while the project is open; get_project_overview reports its status. This is a one-way projection: NO REVERSE SYNC. Do not edit projection files; changes there never update Drifting and can be overwritten. Use authorized MCP write tools for edits. The directory is local to the Mac running Drifting.", crate::markdown_projection::project_directory(server.directory.parent().expect("MCP directory parent"), &grant.project_id).display())
                     }}))
                 } else if !initialized {
                     Some(rpc_error(&id, -32000, "Initialize first"))
@@ -945,7 +947,7 @@ mod local {
         }
         #[test]
         fn one_click_connections_are_idempotent_scoped_and_removed_on_revoke() {
-            for client in [Client::Codex, Client::ClaudeCode] {
+            for client in [Client::Codex, Client::ClaudeCode, Client::Antigravity] {
                 let (dir, server, _, _) = fixture();
                 mount_synthetic_project(&server);
                 let installation = Installation {
@@ -1062,7 +1064,7 @@ mod local {
         }
         #[test]
         fn socket_authentication_project_scope_revocation_and_duplicate_ids() {
-            let (_dir, server, _grant, mut credential) = fixture();
+            let (_dir, server, grant, mut credential) = fixture();
             credential.token = "incorrect".into();
             assert_eq!(
                 read_frame(&mut connect(&credential), MAX_FRAME)
@@ -1076,10 +1078,14 @@ mod local {
                 read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"],
                 true
             );
-            assert_eq!(
-                request(&mut client, 1, "initialize")["result"]["protocolVersion"],
-                "2025-11-25"
-            );
+            let initialized = request(&mut client, 1, "initialize");
+            assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
+            let instructions = initialized["result"]["instructions"].as_str().unwrap();
+            assert!(instructions.contains("NO REVERSE SYNC"));
+            assert!(instructions.contains("READ-ONLY"));
+            assert!(instructions.contains(&crate::markdown_projection::project_directory(
+                server.directory.parent().unwrap(), &grant.project_id
+            ).to_string_lossy().to_string()));
             assert_eq!(
                 request(&mut client, 2, "tools/list")["error"]["code"],
                 -32002

@@ -918,6 +918,12 @@ export const tauriPlatform: PlatformApi = {
     getDir: () => invokeContract('ai_log_get_dir', undefined),
   },
 
+  markdownProjection: {
+    remove: (projectId) => invokeContract('markdown_projection_remove', { projectId }),
+    info: (projectId) => invokeContract('markdown_projection_info', { projectId }),
+    write: (projectId, generatedAt, entries) => invokeContract('markdown_projection_write', { projectId, generatedAt, entries }),
+  },
+
   mcpServer: {
     list: () => invokeContract('mcp_server_list', undefined),
     create: (input) => invokeContract('mcp_server_create', { input }),

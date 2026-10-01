@@ -1,3 +1,4 @@
+import { flushMarkdownProjections } from '../services/markdown-projection-lifecycle';
 import loglevel from 'loglevel';
 import { checkpointDatabase } from './db';
 import { saveActiveEditor } from './active-editor';
@@ -41,6 +42,7 @@ async function performLocalFlush(): Promise<void> {
     () => flushPendingAtomicSyncTransactions(),
     () => flushPendingAssetPersistence(),
     () => checkpointDatabase(),
+    () => flushMarkdownProjections(),
     () => flushSessionTokenStorage(),
   ];
   const failures: unknown[] = [];

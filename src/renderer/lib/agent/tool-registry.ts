@@ -325,10 +325,15 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_prose',
-    description: '在章节、灵感与写作要素正文里做大小写不敏感全文检索。',
+    description: '搜索正文。ranked 按相关性排序；exact 逐字匹配并返回每处命中。scope=chapters 只搜小说章节正文，all 还包含灵感、要素、故事线与分类正文；均不搜索标题或摘要。',
     parametersSchema: Type.Object(
       {
         query: str('要在正文中查找的文本'),
+        matchMode: Type.Optional(Type.Union([Type.Literal('ranked'), Type.Literal('exact')], { description: '默认 ranked；exact 不分词、不做全半角归一化' })),
+        scope: Type.Optional(Type.Union([Type.Literal('all'), Type.Literal('chapters')], { description: '默认 all；chapters 只搜索小说章节正文' })),
+        caseSensitive: Type.Optional(Type.Boolean({ description: 'exact 模式是否区分大小写，默认 true；ranked 固定不区分大小写' })),
+        cursor: Type.Optional(Type.Integer({ minimum: 0, description: 'exact 模式的命中分页偏移；与返回的 version 一起使用' })),
+        version: optionalStr('exact 结果版本；分页时原样传回，正文变化则要求重新搜索'),
         limit: Type.Optional(
           Type.Integer({
             minimum: 1,
@@ -1253,7 +1258,7 @@ function domainRuntimeWriteSpec(
 const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
   domainRuntimeReadSpec(
     'get_project_overview',
-    '读取项目概览：书名、简介、章节、灵感、故事线与写作要素目录。',
+    '读取项目概览：书名、简介、章节、灵感、故事线与写作要素目录，以及只读 Markdown 投影的目录与更新状态（不能反向同步）。',
     noArgs,
     24_000,
   ),
@@ -1261,9 +1266,15 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
   domainRuntimeReadSpec('list_chapters', '按阅读顺序列出全部章节。', noArgs, 20_000),
   domainRuntimeReadSpec(
     'read_chapter',
-    '读取一章的当前正文与摘要；较长正文按返回的 cursor 继续。',
+    '读取一章的当前正文与摘要，默认附带正文行号；可按 startLine/endLine 读取。行号对应只读 Markdown 投影的 prose.md。较长正文用 cursor 和 version 继续；修改正文时不要包含行号。',
     Type.Object(
-      { chapter: str('章节名'), cursor: domainCursor, maxCharacters: domainReadLimit },
+      {
+        chapter: str('章节名'), cursor: domainCursor, maxCharacters: domainReadLimit,
+        startLine: Type.Optional(Type.Integer({ minimum: 1, description: '正文起始行，1 起算' })),
+        endLine: Type.Optional(Type.Integer({ minimum: 1, description: '正文结束行，包含此行' })),
+        lineNumbers: Type.Optional(Type.Boolean({ description: '默认 true；编号不是正文内容' })),
+        version: optionalStr('返回的正文版本；分页或按行复读时传回，变化则拒绝混读'),
+      },
       { additionalProperties: false },
     ),
     32_000,

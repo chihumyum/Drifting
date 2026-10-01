@@ -133,8 +133,8 @@ function proseField(contentJson: string): AgentContextEvidenceField[] {
   return [{ kind: 'prose', text, normalized: normalizeAgentContextEvidenceText(text) }];
 }
 
-function nodeFields(contentJson: string): AgentContextEvidenceField[] {
-  return docToBlocks(contentJson).map((block, index) => ({
+function nodeFields(contentJson: string, literal = false): AgentContextEvidenceField[] {
+  return docToBlocks(contentJson, literal).map((block, index) => ({
     kind: 'prose' as const,
     text: block.text,
     block: index + 1,
@@ -160,6 +160,7 @@ interface CorpusEntity {
 export async function collectProseSearchDocuments(
   projectId: string,
   deps: ProseSearchCorpusDeps = defaultDeps,
+  literal = false,
 ): Promise<AgentContextEvidenceDocument[]> {
   const s = useDataStore.getState();
   const entities: CorpusEntity[] = [];
@@ -250,7 +251,7 @@ export async function collectProseSearchDocuments(
   const captured = new Map<string, ProseSearchTextProjection>();
   // Warm cache hits, live documents and seed-only bodies keep their existing
   // path. Only cold durable misses cross the native boundary, in bounded groups.
-  if (deps.readClosedText && revisions) {
+  if (!literal && deps.readClosedText && revisions) {
     const cold = entities.flatMap(entity => {
       const docId = proseDocId(entity.entityType, entity.id);
       const revision = revisions.get(docId);
@@ -272,7 +273,7 @@ export async function collectProseSearchDocuments(
     const docId = proseDocId(entity.entityType, entity.id);
     const validity =
       !deps.hasLiveDoc(docId) && revisions
-        ? `r:${revisions.get(docId) ?? 'none'}|p:${entity.projectionStamp}`
+        ? `r:${revisions.get(docId) ?? 'none'}|p:${entity.projectionStamp}${literal ? '|literal' : ''}`
         : null;
     let fields = validity ? cacheGet(docId, validity) : null;
     if (!fields) {
@@ -285,7 +286,7 @@ export async function collectProseSearchDocuments(
           normalized: normalizeAgentContextEvidenceText(text) }));
       } else {
         const contentJson = await deps.materialize(entity.entityType, entity.id, entity.cacheJson);
-        fields = entity.entityType === 'node' ? nodeFields(contentJson) : proseField(contentJson);
+        fields = literal || entity.entityType === 'node' ? nodeFields(contentJson, literal) : proseField(contentJson);
       }
       // An editor can open while either asynchronous capture is in flight.
       if (validity && !deps.hasLiveDoc(docId)) cachePut(docId, validity, fields);

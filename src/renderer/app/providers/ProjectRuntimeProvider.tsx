@@ -168,6 +168,16 @@ export function ProjectRuntimeProvider({
   useDriftingAgentRuntime();
 
   useEffect(() => {
+    if (bootState.key !== bootKey || bootState.status !== 'ready' || getPlatformRuntime().target !== 'desktop') return;
+    let cancelled = false;
+    let dispose: (() => void) | undefined;
+    void import('../../services/markdown-projection.service').then(module => {
+      if (!cancelled) dispose = module.installMarkdownProjection(projectId);
+    });
+    return () => { cancelled = true; dispose?.(); };
+  }, [bootKey, bootState.key, bootState.status, projectId]);
+
+  useEffect(() => {
     if (bootState.status !== 'ready' || !getPlatformRuntime().isMacDesktop) return;
     let cancelled = false;
     let dispose: (() => void) | undefined;

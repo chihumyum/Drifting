@@ -30,7 +30,7 @@ async function connect() {
 async function call(client, name, args = {}, success = true) {
   const result = await client.callTool({ name, arguments: args });
   assert.equal(Boolean(result.isError), !success, `${name}: ${JSON.stringify(result.content)}`);
-  return result.structuredContent;
+  return { ...result.structuredContent, text: result.content.filter(item => item.type === 'text').map(item => item.text).join('\n') };
 }
 try {
   if (mode === 'revoked') {
@@ -49,7 +49,7 @@ try {
       record('canonical domain definitions and pagination discovered');
       const overview = await call(client, 'get_project_overview');
       assert.equal(
-        overview.data.name,
+        JSON.parse(overview.text).name,
         'MCP 验收',
         'Only the synthetic MCP acceptance project may be tested',
       );

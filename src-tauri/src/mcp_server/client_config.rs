@@ -95,16 +95,21 @@ fn edit(
             }
             Ok(doc.to_string())
         }
-        Client::ClaudeCode => {
+        Client::ClaudeCode | Client::Antigravity => {
+            let client_name = if installation.client == Client::ClaudeCode {
+                "Claude Code"
+            } else {
+                "Antigravity"
+            };
             let mut doc: Value = if source.trim().is_empty() {
                 json!({})
             } else {
                 serde_json::from_str(source)
-                    .map_err(|_| "Claude Code configuration is invalid; it was left unchanged")?
+                    .map_err(|_| format!("{client_name} configuration is invalid; it was left unchanged"))?
             };
             let root = doc
                 .as_object_mut()
-                .ok_or("Claude Code configuration must be an object")?;
+                .ok_or_else(|| format!("{client_name} configuration must be an object"))?;
             if !root.contains_key("mcpServers") {
                 if remove {
                     return Ok(source.into());
@@ -114,7 +119,7 @@ fn edit(
             let servers = root
                 .get_mut("mcpServers")
                 .and_then(Value::as_object_mut)
-                .ok_or("Claude Code mcpServers must be an object")?;
+                .ok_or_else(|| format!("{client_name} mcpServers must be an object"))?;
             if let Some(entry) = servers.get(&installation.server_name) {
                 if !owns_json(entry) {
                     return Err("A different MCP server already uses this name; its configuration was left unchanged".into());
@@ -129,8 +134,10 @@ fn edit(
                     .entry(installation.server_name.clone())
                     .or_insert_with(|| json!({}))
                     .as_object_mut()
-                    .ok_or("Invalid Claude Code MCP server entry")?;
-                entry.insert("type".into(), json!("stdio"));
+                    .ok_or_else(|| format!("Invalid {client_name} MCP server entry"))?;
+                if installation.client == Client::ClaudeCode {
+                    entry.insert("type".into(), json!("stdio"));
+                }
                 entry.insert("command".into(), config["command"].clone());
                 entry.insert("args".into(), config["args"].clone());
             }
@@ -252,6 +259,54 @@ mod tests {
         );
     }
     #[test]
+    fn antigravity_stdio_setup_preserves_other_servers_and_user_controls() {
+        let source = json!({"mcpServers":{"other":{"serverUrl":"https://synthetic.invalid/mcp","disabledTools":["synthetic_tool"]}},"customSetting":true});
+        let i = installation(Client::Antigravity);
+        assert_eq!(serde_json::to_value(i.client).unwrap(), "antigravity");
+        let result = edit(&source.to_string(), &i, &config(), false).unwrap();
+        let mut installed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(installed["mcpServers"]["drifting_test"], config());
+        assert_eq!(edit(&result, &i, &config(), false).unwrap(), result);
+        installed["mcpServers"]["drifting_test"]["disabled"] = json!(true);
+        installed["mcpServers"]["drifting_test"]["disabledTools"] = json!(["create_chapter"]);
+        let mut moved = config();
+        moved["command"] = json!("/synthetic/moved/writer");
+        let repaired = edit(&installed.to_string(), &i, &moved, false).unwrap();
+        let repaired_json: Value = serde_json::from_str(&repaired).unwrap();
+        let entry = &repaired_json["mcpServers"]["drifting_test"];
+        assert_eq!(entry["command"], moved["command"]);
+        assert_eq!(entry["disabled"], true);
+        assert_eq!(entry["disabledTools"], json!(["create_chapter"]));
+        assert_eq!(
+            serde_json::from_str::<Value>(&edit(&repaired, &i, &moved, true).unwrap()).unwrap(),
+            source
+        );
+        for invalid in ["null", "[]", r#"{"mcpServers":[]}"#] {
+            assert!(edit(invalid, &i, &config(), false).is_err());
+        }
+    }
+    #[test]
+    fn antigravity_setup_creates_nested_config_and_backs_up_before_revocation() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut i = installation(Client::Antigravity);
+        i.config_path = dir.path().join(".gemini/config/mcp_config.json");
+        update(&i, &config(), false).unwrap();
+        assert_eq!(
+            fs::metadata(&i.config_path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let installed = fs::read_to_string(&i.config_path).unwrap();
+        update(&i, &config(), true).unwrap();
+        let removed: Value = serde_json::from_str(&fs::read_to_string(&i.config_path).unwrap()).unwrap();
+        assert_eq!(removed, json!({"mcpServers":{}}));
+        let backup = fs::read_dir(i.config_path.parent().unwrap())
+            .unwrap()
+            .flatten()
+            .find(|p| p.file_name().to_string_lossy().contains(".drifting-backup-"))
+            .unwrap();
+        assert_eq!(fs::read_to_string(backup.path()).unwrap(), installed);
+    }
+    #[test]
     fn claude_statistics_keep_their_exact_numeric_values() {
         let source = r#"{"projects":{"synthetic":{"stat":1.2345678901234567890123456789,"integer":123456789012345678901234567890}},"mcpServers":{}}"#;
         let i = installation(Client::ClaudeCode);
@@ -266,7 +321,7 @@ mod tests {
     }
     #[test]
     fn malformed_or_colliding_config_is_never_replaced() {
-        for client in [Client::Codex, Client::ClaudeCode] {
+        for client in [Client::Codex, Client::ClaudeCode, Client::Antigravity] {
             let i = installation(client);
             assert!(edit("[broken", &i, &config(), false).is_err());
             let original = edit("", &i, &config(), false).unwrap();

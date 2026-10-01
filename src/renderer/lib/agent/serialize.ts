@@ -26,15 +26,16 @@ export interface DocBlock {
 }
 
 /** Concatenate all descendant text nodes of a PM node. */
-function collectText(node: JSONContent): string {
+function collectText(node: JSONContent, preserveHardBreaks = false): string {
+  if (preserveHardBreaks && node.type === 'hardBreak') return '\n';
   if (node.type === 'text') return node.text ?? '';
   const children = node.content;
   if (!children || children.length === 0) return '';
-  return children.map(collectText).join('');
+  return children.map(child => collectText(child, preserveHardBreaks)).join('');
 }
 
 /** Flatten a doc's top-level blocks into { blockId, type, text }. */
-export function docToBlocks(contentJson: string): DocBlock[] {
+export function docToBlocks(contentJson: string, preserveHardBreaks = false): DocBlock[] {
   const doc = parseTiptapDocJson(contentJson);
   const blocks: DocBlock[] = [];
   for (const node of doc.content ?? []) {
@@ -42,7 +43,7 @@ export function docToBlocks(contentJson: string): DocBlock[] {
     blocks.push({
       blockId: id,
       type: node.type ?? 'unknown',
-      text: collectText(node),
+      text: collectText(node, preserveHardBreaks),
       markdown: renderAgentProseMarkdownBlock(jsonBlockToAgentMarkdown(node)),
     });
   }

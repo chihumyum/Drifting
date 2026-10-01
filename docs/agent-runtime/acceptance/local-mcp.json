@@ -1,10 +1,42 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-01T06:55:49.952Z",
-  "sourceSha256": "dc6bf96a3149da58e48cafdcee7934281e325e321ccfadbf62afba98d9adb0bc",
+  "generatedAt": "2026-10-01T18:52:02.266Z",
+  "sourceSha256": "4770fd84284119bfc82d556f6c196afaa5b13a89d53257fdfeb61a2c32ea9689",
   "status": "passed",
   "synthetic": true,
   "checks": [
+    {
+      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling coalesces continuous commits without starving refresh or overlapping captures",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
+      "status": "passed"
+    },
     {
       "name": "MCP client access rows offers each known client once when the project has no connections",
       "status": "passed"
@@ -30,7 +62,43 @@
       "status": "passed"
     },
     {
+      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
+      "status": "passed"
+    },
+    {
+      "name": "local relational Markdown export acceptance uses persisted Yjs state before seed fallback and preserves safe relational links",
+      "status": "passed"
+    },
+    {
+      "name": "local relational Markdown export acceptance flushes live local Yjs before reading SQLite and reports picker cancellation without retrying",
+      "status": "passed"
+    },
+    {
+      "name": "local relational Markdown export acceptance keeps the export path free of hosted graph, mutation flush, and remote Yjs calls",
+      "status": "passed"
+    },
+    {
+      "name": "local relational Markdown export acceptance keeps local export reachable without mounting a retired cloud activity surface",
+      "status": "passed"
+    },
+    {
+      "name": "automatic read-only Markdown projection uses authoritative Yjs, body-only stable files and explicit one-way instructions",
+      "status": "passed"
+    },
+    {
       "name": "workspace domain CRUD transactions MCP exposes canonical schemas and enforces read-only grants and validation before mutation",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP sends chapter prose once, with shared numbering, range reads and version guards",
       "status": "passed"
     },
     {
@@ -122,7 +190,31 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher executes every registered read tool without mutating domain state or leaking projects",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher resolves the neutral read_node reference in the selected prose-entity namespace",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher searches authoritative closed-document prose instead of stale contentJson caches",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher returns a stable manuscript order even when the hydrated store array is shuffled",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher does not disclose stale current-project metadata through brief or overview reads",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher has local schema coverage for normal and invalid arguments on every tool",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingReadToolRuntime with the real renderer dispatcher returns explicit empty or not-found results for every registered read tool",
       "status": "passed"
     },
     {
@@ -130,7 +222,15 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
       "status": "passed"
     },
     {
@@ -142,15 +242,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
@@ -158,11 +250,23 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
@@ -179,6 +283,18 @@
     },
     {
       "name": "mcp_server::local::tests::one_click_connections_are_idempotent_scoped_and_removed_on_revoke",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     }
   ],

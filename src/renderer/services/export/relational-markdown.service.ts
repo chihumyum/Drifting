@@ -1,3 +1,4 @@
+import { proseReadMarkdown } from '../../lib/agent/prose-read-view';
 import { createMarkdownZip, type MarkdownZipEntry } from './markdown-zip';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../domain/entity-kinds';
@@ -262,17 +263,16 @@ const defaultExportDependencies: RelationalMarkdownExportDependencies = {
 };
 
 /** Build the portable Markdown ZIP from an already-consistent local capture. */
-export async function buildRelationalMarkdownArchive(
+export async function buildRelationalMarkdownEntries(
   source: LocalRelationalMarkdownSource,
-  now = new Date(),
-  createZip = createMarkdownZip,
-): Promise<RelationalMarkdownArchive> {
+  projection = false,
+): Promise<{ entries: MarkdownZipEntry[]; documentCount: number }> {
   const books: ExportBook[] = source.books
     .map((book) => ({
       ...book,
       // Keep the full stable ID in archive paths. Human titles are not unique,
       // and truncating IDs can make JSZip silently replace an earlier entry.
-      prefix: `books/${safeSegment(book.project.name)}-${safeSegment(book.project.id)}`,
+      prefix: projection ? 'project' : `books/${safeSegment(book.project.name)}-${safeSegment(book.project.id)}`,
     }))
     .sort(
       (left, right) =>
@@ -285,6 +285,10 @@ export async function buildRelationalMarkdownArchive(
   const idSuffix = (id: string) => safeSegment(id);
   const proseFallbacks = new Map<string, string>();
   const libraryItems = new Map<string, LocalExportLibraryItem>();
+  const proseEntries: MarkdownZipEntry[] = [];
+  if (projection && source.books.length !== 1) throw new Error('A projection must contain exactly one project');
+  const stablePath = (prefix: string, group: string, id: string) =>
+    `${prefix}/${group}/id-${encodeURIComponent(id)}/index.md`;
 
   for (const book of books) {
     const { project, graph, prefix } = book;
@@ -314,9 +318,10 @@ export async function buildRelationalMarkdownArchive(
         kind: 'node',
         id: node.id,
         title: node.title,
-        path: `${prefix}/book/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${safeSegment(node.title)}-${idSuffix(node.id)}.md`,
+        path: projection ? stablePath(prefix, node.kind === 'chapter' ? 'chapters' : 'drifts', node.id) : `${prefix}/book/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${safeSegment(node.title)}-${idSuffix(node.id)}.md`,
         metadata: {
           node_kind: node.kind,
+          ...(projection ? { book_order: node.bookOrder, narrative_order: node.narrativeOrder } : {}),
           writing_status: node.writingStatus,
           updated_at: node.updatedAt,
         },
@@ -330,7 +335,7 @@ export async function buildRelationalMarkdownArchive(
         kind: 'element',
         id: element.id,
         title: element.name,
-        path: `${prefix}/elements/${safeSegment(element.name)}-${idSuffix(element.id)}.md`,
+        path: projection ? stablePath(prefix, 'elements', element.id) : `${prefix}/elements/${safeSegment(element.name)}-${idSuffix(element.id)}.md`,
         metadata: {
           aliases: decodeAliases(element.aliasesJson).join(', '),
           group: element.groupName,
@@ -346,7 +351,7 @@ export async function buildRelationalMarkdownArchive(
         kind: 'category',
         id: category.id,
         title: category.name,
-        path: `${prefix}/elements/categories/${safeSegment(category.name)}-${idSuffix(category.id)}.md`,
+        path: projection ? stablePath(prefix, 'categories', category.id) : `${prefix}/elements/categories/${safeSegment(category.name)}-${idSuffix(category.id)}.md`,
         metadata: { updated_at: category.updatedAt },
         body: '',
       });
@@ -358,7 +363,7 @@ export async function buildRelationalMarkdownArchive(
         kind: 'storyline',
         id: storyline.id,
         title: storyline.name,
-        path: `${prefix}/storylines/${safeSegment(storyline.name)}-${idSuffix(storyline.id)}.md`,
+        path: projection ? stablePath(prefix, 'storylines', storyline.id) : `${prefix}/storylines/${safeSegment(storyline.name)}-${idSuffix(storyline.id)}.md`,
         metadata: { updated_at: storyline.updatedAt },
         body: storyline.summary || '',
       });
@@ -370,7 +375,7 @@ export async function buildRelationalMarkdownArchive(
         kind: 'comment',
         id: comment.id,
         title: `Note ${idSuffix(comment.id)}`,
-        path: `${prefix}/notes/comments/note-${idSuffix(comment.id)}.md`,
+        path: projection ? stablePath(prefix, 'comments', comment.id) : `${prefix}/notes/comments/note-${idSuffix(comment.id)}.md`,
         metadata: {
           note_kind: comment.kind,
           status: comment.status,
@@ -386,7 +391,7 @@ export async function buildRelationalMarkdownArchive(
         kind: 'library_item',
         id: item.id,
         title: item.title,
-        path: `${prefix}/notes/library/${safeSegment(item.title)}-${idSuffix(item.id)}.md`,
+        path: projection ? stablePath(prefix, 'library', item.id) : `${prefix}/notes/library/${safeSegment(item.title)}-${idSuffix(item.id)}.md`,
         metadata: {
           item_kind: item.kind,
           asset_id:
@@ -413,8 +418,15 @@ export async function buildRelationalMarkdownArchive(
       proseFallbacks.get(document.key) ?? '{}',
       source,
     );
-    const markdown = proseToMarkdown(contentJson, documents);
-    document.body = [document.body, markdown].filter(Boolean).join('\n\n');
+    if (projection) {
+      const bodyPath = document.path.replace(/index\.md$/u, 'prose.md');
+      proseEntries.push({ path: bodyPath, text: proseReadMarkdown(contentJson) });
+      document.body = [document.body ? `## 摘要\n\n${document.body}` : '',
+        `## 正文\n\n[[${bodyPath.replace(/\.md$/u, '')}|只读正文]]`].filter(Boolean).join('\n\n');
+    } else {
+      const markdown = proseToMarkdown(contentJson, documents);
+      document.body = [document.body, markdown].filter(Boolean).join('\n\n');
+    }
   });
 
   for (const document of documents.values()) {
@@ -483,12 +495,13 @@ export async function buildRelationalMarkdownArchive(
     }
   }
 
-  const entries: MarkdownZipEntry[] = [];
+  const entries: MarkdownZipEntry[] = [...proseEntries];
   for (const document of documents.values()) {
     entries.push({ path: document.path, text: renderDocument(document, documents, relations) });
   }
   entries.push({
-    path: 'README.md', text:
+    path: 'README.md', text: projection ?
+    '# Drifting 只读 Markdown 投影 / Read-only projection\n\n此目录由 Drifting 自动生成，仅用于阅读、grep、diff 和审稿。投影是只读的，不能反向同步；编辑文件不会写回 Drifting，并可能在下次更新时被覆盖。正文真相保存在 Drifting 的 Yjs 中。需要修改时请使用 Drifting 或获授权的 MCP 写入工具。\n\nThis directory is a READ-ONLY, one-way projection. There is NO reverse sync or import from these files. Do not edit them. Use authorized Drifting tools for changes. Disk reads do not grant tool write coverage: read the current target through MCP before writing.\n\nindex.md 是项目入口；project 下按 chapters、drifts、elements、categories、storylines、comments、library 分类。每个实体使用稳定 ID 目录，index.md 包含名称、摘要和关系，prose.md 只包含正文。章节正文行号与 read_chapter 相同；第 n 个编辑器段落位于正文第 2n-1 行，段内换行表示为 <br>。空段落保留。\n\nmanifest.json 最后发布，记录生成时间、文件列表和 SHA-256；每个 prose.md 的 sha256 加上 sha256: 前缀即 read_chapter 的 version。读取多个文件时请核对清单哈希与版本，更新中的不同文件不保证来自同一时刻。项目打开时自动刷新；关闭后保留最后一份快照，不能假定它仍然最新。图片和 PDF 二进制不包含在投影中。\n' :
     '# Drifting Markdown 导出\n\n这是本机书库所有项目的关系型 Markdown 导出，面向阅读与迁移。图片和 PDF 二进制文件不包含在内，也不能重新导入 Drifting。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
   });
   entries.push({
@@ -503,12 +516,17 @@ export async function buildRelationalMarkdownArchive(
     ].join('\n'),
   });
 
-  const bytes = await createZip(entries);
-  return {
-    bytes,
-    filename: `drifting-all-books-markdown-${now.toISOString().slice(0, 10)}.zip`,
-    documentCount: documents.size,
-  };
+  return { entries: entries.sort((a, b) => a.path.localeCompare(b.path, 'en')), documentCount: documents.size };
+}
+
+export async function buildRelationalMarkdownArchive(
+  source: LocalRelationalMarkdownSource,
+  now = new Date(),
+  createZip = createMarkdownZip,
+): Promise<RelationalMarkdownArchive> {
+  const { entries, documentCount } = await buildRelationalMarkdownEntries(source);
+  return { bytes: await createZip(entries), documentCount,
+    filename: `drifting-all-books-markdown-${now.toISOString().slice(0, 10)}.zip` };
 }
 
 /** Flush open editors, capture local SQLite/Yjs state, then ask the OS where to save. */

@@ -1,5 +1,5 @@
 /** Native-authorized inbound connections. Tokens never enter the renderer. */
-export type McpClient = 'codex' | 'claude_code';
+export type McpClient = 'codex' | 'claude_code' | 'antigravity';
 
 export interface McpServerGrant {
   id: string;

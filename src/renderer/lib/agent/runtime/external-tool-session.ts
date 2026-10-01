@@ -98,7 +98,11 @@ export class ExternalToolSession {
           : result.error;
         return {
           content: [{ type: 'text', text }],
-          structuredContent: result,
+          // Do not expose the internal data/modelData envelope: either can
+          // contain the same full manuscript already emitted in content.
+          structuredContent: result.ok
+            ? { ok: true, ...(result.presentation ? { presentation: result.presentation } : {}) }
+            : { ok: false },
           isError: !result.ok,
         };
       } catch (error) {

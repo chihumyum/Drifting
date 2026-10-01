@@ -973,8 +973,14 @@
         }
       },
       "mcpAccess": {
+        "projectionDescription": "Drifting automatically maintains structured Markdown for external agents to read, grep, diff and cite by line. This projection is read-only: there is no reverse sync, and editing files never updates Drifting. Agents receive the directory and this restriction when connecting.",
+        "projectionReady": "Markdown projection updated",
+        "projectionError": "Markdown projection failed; refresh and verify the manifest",
+        "projectionPending": "Updating Markdown projection",
+        "projectionCopy": "Copy projection directory",
+        "projectionRefresh": "Refresh projection",
         "title": "External agent access",
-        "desc": "Allow tools such as Claude Code or Codex to access “{{project}}”. Each connection is limited to this project.",
+        "desc": "Allow tools such as Codex, Claude Code, or Antigravity to access “{{project}}”. Each connection is limited to this project.",
         "name": "Connection name",
         "permission": "Access permission",
         "connectionPermission": "Access permission for {{name}}",

@@ -1,3 +1,4 @@
+import { searchExactProse } from './exact-prose-search';
 /**
  * Renderer-side execution of the agent's entity tools.
  *
@@ -1039,11 +1040,17 @@ function getStoryline(ctx: AgentToolContext, storylineId: string) {
  *  per node is enough for discovery — read_node exposes the exact current
  *  blocks. */
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const query = String(args.query ?? '').trim();
+  const exact = args.matchMode === 'exact';
+  const query = exact ? String(args.query ?? '') : String(args.query ?? '').trim();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
   if (!query) return { matches: [] };
 
-  const documents = await collectProseSearchDocuments(ctx.projectId);
+  const documents = (await collectProseSearchDocuments(ctx.projectId, undefined, exact))
+    .filter(document => args.scope !== 'chapters' || document.kind === 'chapter');
+  if (exact) return searchExactProse(documents, query, {
+    limit, cursor: args.cursor as number | undefined, version: args.version as string | undefined,
+    caseSensitive: args.caseSensitive as boolean | undefined,
+  });
   const ranked = rankAgentContextEvidence({ query, documents, limit: limit + 1 });
   return {
     matches: ranked.slice(0, limit).map((match) => ({

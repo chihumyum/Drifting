@@ -1,3 +1,5 @@
+import { readLocalRelationalMarkdownSource } from '../../../services/export/relational-markdown.local-source';
+import { buildRelationalMarkdownEntries } from '../../../services/export/relational-markdown.service';
 import { ExternalToolSession } from './external-tool-session';
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import { createHash } from 'node:crypto';
@@ -179,6 +181,42 @@ describe('workspace domain CRUD transactions', () => {
     expect(await mcpCall(writer, 'delete_chapter', { chapter: 'Chapter One' })).toMatchObject({ isError: true });
     expect(fixture.scalar("SELECT count(*) FROM book_node WHERE deleted_at IS NULL")).toBe(2);
     await reader.close(); await writer.close();
+  });
+
+  it('MCP sends chapter prose once, with shared numbering, range reads and version guards', async () => {
+    const writer = mcpSession('compact-reader', 'write');
+    await mcpCall(writer, 'create_chapter', { title: 'Numbered fixture', body: 'UniqueSyntheticBody.\n\nSecond paragraph.' });
+    const result = await mcpCall(writer, 'read_chapter', { chapter: 'Numbered fixture' });
+    expect(result, JSON.stringify(result)).toMatchObject({ isError: false });
+    expect(JSON.stringify(result).match(/UniqueSyntheticBody/g)).toHaveLength(1);
+    expect(result.structuredContent).not.toHaveProperty('data');
+    expect(result.structuredContent).not.toHaveProperty('modelData');
+    expect(result.content[0]!.text).toContain('1\tUniqueSyntheticBody.');
+    expect(result.content[0]!.text).toContain('3\tSecond paragraph.');
+    const version = /sha256:[a-f0-9]{64}/u.exec(result.content[0]!.text)![0];
+    const captured = await readLocalRelationalMarkdownSource(PROJECT_ID);
+    expect(captured.books.map(book => book.project.id)).toEqual([PROJECT_ID]);
+    const mirror = await buildRelationalMarkdownEntries(captured, true);
+    const bodyFile = mirror.entries.find(entry => entry.path.endsWith('/prose.md') && entry.text.includes('UniqueSyntheticBody'))!;
+    expect(bodyFile.text).toBe('UniqueSyntheticBody.\n\nSecond paragraph.');
+    expect(`sha256:${createHash('sha256').update(bodyFile.text).digest('hex')}`).toBe(version);
+    const range = await mcpCall(writer, 'read_chapter', { chapter: 'Numbered fixture', startLine: 3, endLine: 3, version });
+    expect(range.content[0]!.text).toContain('3\tSecond paragraph.');
+    expect(range.content[0]!.text).not.toContain('UniqueSyntheticBody');
+    const search = await mcpCall(writer, 'search_prose', { query: 'Second paragraph.', matchMode: 'exact', scope: 'chapters' });
+    expect(search.isError).toBe(false);
+    expect(JSON.parse(search.content[0]!.text).result.matches).toContainEqual(expect.objectContaining({ title: 'Numbered fixture', block: 2, line: 3 }));
+    await mcpCall(writer, 'replace_chapter_body', { chapter: 'Numbered fixture', body: 'Changed.' });
+    expect(await mcpCall(writer, 'read_chapter', { chapter: 'Numbered fixture', version })).toMatchObject({ isError: true });
+    await mcpCall(writer, 'create_chapter', { title: 'Hard break fixture', body: 'Before<br>After\n\nFinal paragraph.' });
+    const hardBreakRead = await mcpCall(writer, 'read_chapter', { chapter: 'Hard break fixture' });
+    expect(hardBreakRead.content[0]!.text).toContain('1\tBefore<br>After\n2\t\n3\tFinal paragraph.');
+    await mcpCall(writer, 'create_inspiration', { title: 'Search scope fixture', body: 'Changed.' });
+    const chaptersOnly = await mcpCall(writer, 'search_prose', { query: 'Changed.', matchMode: 'exact', scope: 'chapters' });
+    expect(JSON.parse(chaptersOnly.content[0]!.text).result.matches.every((match: { kind: string }) => match.kind === 'chapter')).toBe(true);
+    const allBodies = await mcpCall(writer, 'search_prose', { query: 'Changed.', matchMode: 'exact', scope: 'all' });
+    expect(JSON.parse(allBodies.content[0]!.text).result.matches.some((match: { kind: string }) => match.kind === 'drift')).toBe(true);
+    await writer.close();
   });
 
   it('MCP writes use Yjs, durable receipts, read coverage and the existing inverse review', async () => {

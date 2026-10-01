@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { getMarkdownProjectionStatus, subscribeMarkdownProjectionStatus } from '../../services/markdown-projection-status';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
@@ -9,6 +10,7 @@ import {
   mcpAccessGrant,
   mcpAccessPermission,
   mcpAccessRows,
+  mcpClientNames,
   type McpAccessPermission,
 } from './AgentMcpAccessState';
 
@@ -22,6 +24,8 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const supported = getPlatformRuntime().isMacDesktop;
+  const projection = useSyncExternalStore(subscribeMarkdownProjectionStatus,
+    () => project ? getMarkdownProjectionStatus(project.id) : undefined);
   const reload = useCallback(async () => setConnections(await platform.mcpServer.list()), []);
   useEffect(() => {
     if (!open || !supported) return;
@@ -60,7 +64,7 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
     void run(async () => {
       await platform.mcpServer.connect(
         {
-          name: client === 'codex' ? 'Codex' : 'Claude Code',
+          name: mcpClientNames[client],
           projectId: project.id,
           ...mcpAccessGrant(connection ? mcpAccessPermission(connection) : draftPermission(client)),
         },
@@ -68,7 +72,7 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       );
       setMessage(
         t('settings.agent.mcpAccess.installed', {
-          client: client === 'codex' ? 'Codex' : 'Claude Code',
+          client: mcpClientNames[client],
         }),
       );
     });
@@ -182,6 +186,27 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       <p className="set-row__desc">
         {t('settings.agent.mcpAccess.desc', { project: project.name })}
       </p>
+      <p className="set-row__desc" style={{ marginTop: 12 }}>
+        {t('settings.agent.mcpAccess.projectionDescription')}
+      </p>
+      {projection && <div style={{ marginTop: 8 }}>
+        <p role="status" className="set-row__desc">
+          {t(`settings.agent.mcpAccess.projection${projection.state === 'ready' ? 'Ready' : projection.state === 'error' ? 'Error' : 'Pending'}`)}
+          {projection.generatedAt ? ` · ${new Date(projection.generatedAt).toLocaleString()}` : ''}
+          {projection.error ? ` · ${projection.error}` : ''}
+        </p>
+        {projection.directory && <code style={{ display: 'block', overflowWrap: 'anywhere', fontSize: 11, marginTop: 6 }}>{projection.directory}</code>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="set-btn" disabled={!projection.directory} onClick={() => void run(async () => {
+            await navigator.clipboard.writeText(projection.directory!);
+            setMessage(t('settings.agent.mcpAccess.copied'));
+          })}>{t('settings.agent.mcpAccess.projectionCopy')}</button>
+          <button className="set-btn" disabled={busy} onClick={() => void run(async () => {
+            const { refreshMarkdownProjection } = await import('../../services/markdown-projection.service');
+            await refreshMarkdownProjection(project.id);
+          })}>{t('settings.agent.mcpAccess.projectionRefresh')}</button>
+        </div>
+      </div>}
       {rows.clients.map(({ client, name: clientName, connection }) => connection
         ? renderConnection(connection)
         : (

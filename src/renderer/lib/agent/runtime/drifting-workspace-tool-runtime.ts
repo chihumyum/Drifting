@@ -1,3 +1,5 @@
+import { getMarkdownProjectionStatus } from '../../../services/markdown-projection-status';
+import { proseReadVersion, proseReadWindow, numberProseLines } from '../prose-read-view';
 import { Value } from '@sinclair/typebox/value';
 
 import { allElementNames, type BookElement } from '../../../domain/book-element';
@@ -309,6 +311,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       switch (request.name) {
         case 'get_project_overview':
           data = (await this.canonicalRead(request, 'get_overview', {}, 'project-overview')).value;
+          if (getMarkdownProjectionStatus(projectId)) data = { ...asRecord(data),
+            markdownProjection: { ...getMarkdownProjectionStatus(projectId),
+              instructions: 'Read-only Markdown projection. NO reverse sync. Do not edit files. Check manifest.json hashes and generation time. Use Drifting tools for changes; disk reads do not establish tool write coverage.' } };
           break;
         case 'get_project_facts':
           data = await this.readFile(projectId, domainReadFileRequest(request, '/project/facts.json'));
@@ -1403,11 +1408,14 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const content = await this.renderEntry(entry, request, (read) => {
       proseFreshness = read.freshness;
     });
-    const offset = boundedInteger(request.arguments.offset, 0, 0, content.length);
-    const limit = boundedInteger(request.arguments.limit, DEFAULT_READ_LIMIT, 1, 32_000);
-    const page = sliceCodePoints(content, offset, limit);
-    const nextOffset = Math.min(codePointLength(content), offset + codePointLength(page));
-    const totalChars = codePointLength(content);
+    const numbered = request.name === 'read_chapter';
+    const version = numbered ? await proseReadVersion(content) : undefined;
+    if (numbered && request.arguments.version !== undefined && request.arguments.version !== version) {
+      throw new Error('Chapter changed since the previous read; restart reading without cursor/version');
+    }
+    const window = proseReadWindow(content, { ...request.arguments,
+      limit: request.arguments.limit ?? DEFAULT_READ_LIMIT });
+    const { offset, page, nextOffset, totalChars } = window;
     await this.recordReadCoverage(
       request,
       path,
@@ -1454,7 +1462,10 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       offset,
       nextOffset,
       totalChars,
-      truncated: nextOffset < totalChars,
+      truncated: window.truncated,
+      ...(numbered ? { version, lineStart: window.lineStart, lineEnd: window.lineEnd,
+        totalLines: window.totalLines, startsMidLine: window.startsMidLine,
+        lineNumbers: request.arguments.lineNumbers !== false } : {}),
       ...(wordCount !== null ? { wordCount } : {}),
       ...(summary !== null ? { summary } : {}),
       ...(relatedContext ? { relatedContext } : {}),
@@ -3246,6 +3257,8 @@ function domainReadFileRequest(
     ...request,
     arguments: {
       path,
+      ...Object.fromEntries(['startLine', 'endLine', 'lineNumbers', 'version']
+        .filter(key => request.arguments[key] !== undefined).map(key => [key, request.arguments[key]])),
       ...(request.arguments.cursor !== undefined
         ? { offset: request.arguments.cursor }
         : {}),
@@ -4620,7 +4633,14 @@ function workspaceReadModelData(value: unknown): string {
       ? authored.text
       : emptyAuthoredFieldForModel(path);
     const relatedContext = elementRelatedContextForModel(result.relatedContext);
-    return `${target}${wordCount}${summary}${linkedMentions}\n\n${authoredText}${continuation}${relatedContext}`;
+    const location = typeof result.lineStart === 'number'
+      ? `\n正文行 ${result.lineStart}–${result.lineEnd} / ${result.totalLines}；版本 ${result.version}${result.startsMidLine ? '；首行接续上页' : ''}。编号不属于正文。`
+      : '';
+    const displayed = result.lineNumbers === true && typeof result.lineStart === 'number'
+      // Number the canonical physical lines: the natural display expands <br>
+      // and would shift every subsequent line away from the disk projection.
+      ? numberProseLines(result.content, result.lineStart) : authoredText;
+    return `${target}${wordCount}${summary}${linkedMentions}${location}\n\n${displayed}${continuation}${relatedContext}`;
   }
   if (Array.isArray(result.matches)) {
     const query = typeof result.query === 'string' ? result.query : '';

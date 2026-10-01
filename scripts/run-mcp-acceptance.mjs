@@ -20,6 +20,12 @@ function fingerprint() {
           file.startsWith('src/renderer/platform/') ||
           file.startsWith('src/renderer/components/agent/AgentMcp') ||
           file.startsWith('src-tauri/src/mcp_server') ||
+          file === 'src-tauri/src/markdown_projection.rs' ||
+          file.startsWith('src/renderer/services/markdown-projection') ||
+          (file.startsWith('src/renderer/services/export/relational-markdown.') ||
+            file.startsWith('src/renderer/services/export/markdown-zip.')) ||
+          file.startsWith('src/renderer/lib/persistence-lifecycle.') ||
+          file === 'src/renderer/usecase/useProject.ts' ||
           [
             'src-tauri/src/lib.rs',
             'src-tauri/src/main.rs',
@@ -38,7 +44,14 @@ function fingerprint() {
     )
     .sort();
   const hash = createHash('sha256');
-  for (const file of files) hash.update(file).update('\0').update(readFileSync(file));
+  for (const file of files) {
+    // Only this feature's translations affect its contract. Unrelated UI copy
+    // must not stale the MCP evidence during concurrent feature work.
+    const content = /^src\/renderer\/locales\/(en|zh-CN)\.json$/.test(file)
+      ? JSON.stringify(JSON.parse(readFileSync(file, 'utf8')).settings.agent.mcpAccess)
+      : readFileSync(file);
+    hash.update(file).update('\0').update(content);
+  }
   return hash.digest('hex');
 }
 if (process.argv.includes('--record-live')) {
@@ -74,20 +87,28 @@ if (process.argv.includes('--record-live')) {
       'run',
       'src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts',
       'src/renderer/components/agent/AgentMcpAccessState.test.ts',
+      'src/renderer/lib/agent/prose-read-view.test.ts',
+      'src/renderer/lib/agent/runtime/drifting-read-tool-runtime.integration.test.ts',
+      'src/renderer/services/markdown-projection.service.test.ts',
+      'src/renderer/lib/persistence-lifecycle.test.ts',
+      'src/renderer/services/export/relational-markdown.acceptance.test.ts',
+      '--maxWorkers=1',
       '--reporter=json',
       `--outputFile=${testPath}`,
     ],
     { stdio: 'inherit' },
   );
   assert.equal(result.status, 0, 'MCP domain acceptance failed');
-  const native = spawnSync(
+  const nativeRuns = ['mcp_server', 'markdown_projection'].map(filter => spawnSync(
     'cargo',
-    ['test', '--manifest-path', 'src-tauri/Cargo.toml', 'mcp_server', '--lib'],
+    ['test', '--manifest-path', 'src-tauri/Cargo.toml', filter, '--lib'],
     { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
-  );
+  ));
+  const native = { status: nativeRuns.every(run => run.status === 0) ? 0 : 1,
+    stdout: nativeRuns.map(run => run.stdout).join('\n'), stderr: nativeRuns.map(run => run.stderr).join('\n') };
   writeFileSync('.local-data/mcp-acceptance/native.log', native.stdout + native.stderr);
   assert.equal(native.status, 0, 'MCP native acceptance failed; see local native.log');
-  const nativeChecks = [...native.stdout.matchAll(/^test (mcp_server::.+) \.\.\. ok$/gm)].map(
+  const nativeChecks = [...native.stdout.matchAll(/^test ((?:mcp_server|markdown_projection)::.+) \.\.\. ok$/gm)].map(
     (match) => ({ name: match[1], status: 'passed' }),
   );
   assert.ok(nativeChecks.length >= 4);

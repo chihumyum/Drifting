@@ -39,7 +39,7 @@ import {
 import { DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT } from './drifting-product-tool-selection';
 import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 20 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 21 as const;
 
 export type DriftingAgentToolOwner =
   | 'workspace-runtime'

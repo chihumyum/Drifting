@@ -308,6 +308,7 @@ export function useProject({ userId }: UseProjectContext) {
         .clearProject(id, deletion.proseDocIds, deletion.agentReviewIds);
 
       const cleanupResults = await Promise.allSettled([
+        import('../services/markdown-projection.service').then(module => module.removeMarkdownProjection(id)),
         ...deletion.assetIds.map((assetId) => assetStoreService.deleteAsset(id, assetId)),
       ]);
       const cleanupFailures = cleanupResults.flatMap((result) =>

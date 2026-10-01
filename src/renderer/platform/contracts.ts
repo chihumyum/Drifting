@@ -9,6 +9,13 @@ import type { McpClient, McpServerConnection, McpServerCreateInput, McpServerPer
  * storage or a legacy bridge.
  */
 
+export interface MarkdownProjectionInfo {
+  directory: string;
+  generatedAt: string | null;
+  readOnly: true;
+  reverseSync: false;
+}
+
 export type PlatformTarget = 'desktop' | 'mobile';
 
 export type ContractAvailability = 'available' | 'contract-backed' | 'unsupported';
@@ -730,6 +737,12 @@ export interface TauriCommandContract {
   };
   ai_log_open_dir: { args: undefined; result: string };
   ai_log_get_dir: { args: undefined; result: string };
+  markdown_projection_remove: { args: { projectId: string }; result: void };
+  markdown_projection_info: { args: { projectId: string }; result: MarkdownProjectionInfo };
+  markdown_projection_write: {
+    args: { projectId: string; generatedAt: string; entries: { path: string; text: string }[] };
+    result: MarkdownProjectionInfo;
+  };
   mcp_server_list: { args: undefined; result: McpServerConnection[] };
   mcp_server_create: { args: { input: McpServerCreateInput }; result: McpServerConnection };
   mcp_server_connect: { args: { input: McpServerCreateInput; client: McpClient }; result: McpServerConnection };

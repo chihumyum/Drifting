@@ -1,3 +1,4 @@
+import { registerMarkdownProjectionFlush } from '../services/markdown-projection-lifecycle';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -73,6 +74,20 @@ describe('application persistence lifecycle', () => {
   afterEach(() => {
     uninstallSyncEngineHook?.();
     uninstallSyncEngineHook = null;
+  });
+
+  it('flushes mounted projections after durability without letting a projection error block saving', async () => {
+    mocks.saveActiveEditor.mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const release = registerMarkdownProjectionFlush(async () => {
+      mocks.order.push('projection');
+      throw new Error('Synthetic projection disk failure');
+    });
+    try {
+      await expect(flushApplicationPersistenceForLifecycle('suspended')).resolves.toBeUndefined();
+      expect(mocks.order.slice(-3)).toEqual(['checkpoint', 'projection', 'session']);
+      expect(warn).toHaveBeenCalledOnce();
+    } finally { release(); warn.mockRestore(); }
   });
 
   it('keeps the remote lane inert until SyncEngine installs its hook', async () => {

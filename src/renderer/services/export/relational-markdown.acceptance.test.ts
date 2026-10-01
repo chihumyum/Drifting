@@ -8,6 +8,7 @@ import { proseDocId } from '../../lib/yjs-doc-id';
 import type { LocalRelationalMarkdownSource } from './relational-markdown.local-source';
 import {
   buildRelationalMarkdownArchive,
+  buildRelationalMarkdownEntries,
   exportAllProjectsAsRelationalMarkdown,
 } from './relational-markdown.service';
 
@@ -406,5 +407,24 @@ describe('local relational Markdown export acceptance', () => {
     expect(panel).not.toContain('SyncSummaryRow');
     expect(panel).not.toContain('SyncActivityPanel');
     expect(panel).not.toContain('syncDebugToasts');
+  });
+});
+
+
+describe('automatic read-only Markdown projection', () => {
+  it('uses authoritative Yjs, body-only stable files and explicit one-way instructions', async () => {
+    const source = await sourceFixture();
+    const before = await buildRelationalMarkdownEntries(source, true);
+    const body = before.entries.find(entry => entry.path === `project/chapters/id-${SNAPSHOT_NODE_ID}/prose.md`)!;
+    expect(body.text).toBe('Snapshot Yjs truth');
+    expect(before.entries.find(entry => entry.path === 'README.md')!.text).toContain('NO reverse sync');
+    expect(before.entries.some(entry => entry.path.includes('node-deleted-0004'))).toBe(false);
+    expect(before.entries.find(entry => entry.path === `project/chapters/id-${UPDATE_NODE_ID}/prose.md`)!.text).toBe('Update-log Yjs truth');
+    const node = source.books[0]!.graph.nodes.find(node => node.id === SNAPSHOT_NODE_ID)!;
+    node.title = 'Renamed without moving the body';
+    node.bookOrder = 100;
+    const after = await buildRelationalMarkdownEntries(source, true);
+    expect(after.entries.find(entry => entry.path === body.path)).toEqual(body);
+    expect(after.entries.find(entry => entry.path === `project/chapters/id-${SNAPSHOT_NODE_ID}/index.md`)!.text).toContain('Renamed without moving the body');
   });
 });

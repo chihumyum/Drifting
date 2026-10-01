@@ -8,7 +8,7 @@ existing **MCP extensions** settings remain the outbound client.
 ## Connect
 
 1. Open the project in Drifting, then Settings → General Agent → External agent access.
-2. In the **Codex** or **Claude Code** row, choose **Read only** (the default),
+2. In the **Codex**, **Claude Code**, or **Antigravity** row, choose **Read only** (the default),
    **Allow changes**, or **Allow changes and destructive operations**, then click **Connect**.
    Drifting creates the project grant and installs the client entry automatically.
 3. Reopen the client or restart its MCP server to load the entry. Follow any tool
@@ -44,7 +44,10 @@ If that entry was externally replaced or cannot be written, access is still
 revoked and the UI asks you to remove the leftover entry in the client.
 
 Automatic setup edits only the named MCP entry in the client user configuration:
-`$CODEX_HOME/config.toml` (default `~/.codex/config.toml`) or `~/.claude.json`.
+`$CODEX_HOME/config.toml` (default `~/.codex/config.toml`) for Codex,
+`~/.claude.json` for Claude Code, or `~/.gemini/config/mcp_config.json` for Antigravity.
+Antigravity uses `mcpServers` entries with `command` and `args` for stdio;
+reconfiguration preserves its `disabled` and `disabledTools` controls.
 Names are stable per Drifting installation and project; other projects and MCP
 servers are preserved. Existing configuration is backed up next to the original
 as `*.drifting-backup-*` with owner-only access. Writes use a same-directory
@@ -64,8 +67,11 @@ Manual connections are managed inside the same expanded section. Draft
 permissions are scoped to the project and client; revoking an installed client
 returns its row to the read-only default for a future connection.
 
-Client format references: [official OpenAI documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
-and [Claude Code MCP scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes).
+Client format references: [official OpenAI documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
+[Claude Code MCP scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes),
+and [Antigravity MCP configuration](https://antigravity.google/docs/mcp).
+Antigravity setup targets the current documented global configuration. If an older
+client uses a different location, use manual setup in its **View raw config** editor.
 One-click setup configures clients on this Mac; it does not configure cloud
 sessions or a client's separately configured remote host.
 
@@ -120,7 +126,45 @@ cancellation. The official SDK is used only for development acceptance, not
 shipped as an app runtime dependency.
 Mobile and remote HTTP/OAuth endpoints are outside this milestone.
 
+## Shared reading, search and read-only Markdown projection
+
+These domain tools are shared with General Agent. MCP only adapts their wire
+response: `content` contains the model-facing result once; `structuredContent`
+contains success/review metadata, never another `data`/`modelData` prose copy.
+Internal receipts and freshness enforcement remain unchanged.
+
+- `read_chapter` defaults to numbered body lines (`lineNumbers: false` disables
+  the prefixes). `startLine`/`endLine` select an inclusive range. Long reads
+  continue with the returned absolute code-point `cursor`; also pass the
+  returned `version` to reject content changes between pages. Range pagination
+  must retain the same range arguments. A page can begin mid-line and is labeled
+  accordingly. Line prefixes are presentation, never text to write back.
+- `search_prose` retains `matchMode: "ranked"` by default. `matchMode: "exact"`
+  matches the literal query within editor blocks, including punctuation and
+  whitespace, without tokenization or NFKC normalization. It returns every
+  non-overlapping occurrence, not one hit per document. `caseSensitive` defaults
+  to true in exact mode; false enables Unicode case-insensitive literal matching.
+  `scope: "chapters"` searches only chapter bodies; default `"all"` also includes
+  drifts, elements, storylines and categories. Neither scope searches titles or
+  summaries. Exact results include block/body-line coordinates and code-point
+  offsets within the plain-text block. Continue with `nextCursor` as `cursor`
+  and the same query/options/`version`; a changed corpus requires a fresh search.
+- The desktop project runtime automatically maintains a structured Markdown
+  directory even when no MCP client is connected. MCP initialization tells the
+  external Agent the **actual local directory**, structure and **READ-ONLY / NO
+  REVERSE SYNC** restriction. Settings → General Agent → External agent access
+  shows the path, generation status, copy and refresh actions.
+  `get_project_overview` reports the same projection status to both Agents.
+
+See [local Markdown projection](../local-data-export.md#automatic-read-only-project-projection)
+for layout, freshness, cleanup and the one-way boundary. Reading a disk file
+does not establish the tool read coverage required before writing through MCP.
+
 ## Acceptance
+
+The 2026-10-02 shared reading/search and Markdown projection update has source,
+production SQLite/Yjs, scheduler and native filesystem/IPC acceptance. The older
+packaged Mac reports below predate this update and do not certify its new UI.
 
 `pnpm mcp:acceptance` runs the actual domain-runtime/SQLite integration cases and
 native IPC/authentication and client-configuration tests, then generates
@@ -166,24 +210,31 @@ The app was ad-hoc signed; this is not a notarized release acceptance.
 
 ### One-click client setup
 
-Native acceptance includes both client formats, preservation of existing
+Native acceptance includes Codex TOML and Claude Code/Antigravity JSON formats, preservation of existing
 settings/comments/numeric precision, idempotent setup, project scope, failed
 installation rollback, and revocation even after an external config change.
 
 On 2026-10-01 the packaged debug app passed all 12 setup/cleanup checks in
 [`acceptance/local-mcp-setup-mac.json`](acceptance/local-mcp-setup-mac.json).
-Both buttons and reconfiguration were exercised through native UI; the test
+The Codex and Claude Code buttons and reconfiguration were exercised through native UI; the test
 grants were revoked afterwards. All 33 MCP-specific checks and 109 native tests
 passed (one unrelated native test remained ignored).
 
-Packaged-App setup acceptance uses a synthetic project and both real client
+Antigravity is covered by the generated runtime/native acceptance in
+[`acceptance/local-mcp.json`](acceptance/local-mcp.json): settings-row isolation,
+stdio schema, preservation of other servers and disabled-tool controls, private
+config creation/backups, idempotent grants, permission updates and revocation.
+The historical packaged report above does not cover Antigravity; actual Antigravity
+session reload and tool use remain unverified.
+
+Packaged-App setup acceptance uses a synthetic project and all three real client
 configuration locations. Save owner-only copies of each original configuration
-under `.local-data/mcp-acceptance/pre-oneclick-{codex,claude_code}.config`, click
-the two connection buttons, then run:
+under `.local-data/mcp-acceptance/pre-oneclick-{codex,claude_code,antigravity}.config`, click
+the three connection buttons, then run:
 
 ```sh
 node scripts/mcp-client-setup-smoke.mjs '<app data directory>' installed
-# Revoke the two test connections through Drifting's settings.
+# Revoke the three test connections through Drifting's settings.
 node scripts/mcp-client-setup-smoke.mjs '<app data directory>' revoked
 ```
 

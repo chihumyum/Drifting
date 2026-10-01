@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 20,
+  "schemaVersion": 21,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",

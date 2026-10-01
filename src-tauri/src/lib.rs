@@ -17,6 +17,7 @@ mod installation_identity;
 mod local_lab_session;
 mod mcp_http;
 mod mcp_server;
+mod markdown_projection;
 pub use mcp_server::run_stdio_cli as run_mcp_stdio_cli;
 mod mcp_stdio;
 mod native_capabilities;
@@ -189,6 +190,9 @@ pub fn run() {
             commands::deep_link_take_pending,
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
+            markdown_projection::markdown_projection_info,
+            markdown_projection::markdown_projection_remove,
+            markdown_projection::markdown_projection_write,
             mcp_server::mcp_server_list,
             mcp_server::mcp_server_create,
             mcp_server::mcp_server_connect,

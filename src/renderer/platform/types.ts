@@ -1,6 +1,7 @@
 import type { McpServerPlatformApi } from './mcp-server-contract';
 import type {
   AILogWriteResult,
+  MarkdownProjectionInfo,
   AppUpdateDownloadEvent,
   AppUpdateMetadata,
   AppInfo,
@@ -368,6 +369,11 @@ export interface PlatformApi {
   readonly archive: ArchivePlatformApi;
   readonly updater: UpdatePlatformApi;
   readonly aiLog: AILogPlatformApi;
+  readonly markdownProjection: {
+    remove(projectId: string): Promise<void>;
+    info(projectId: string): Promise<MarkdownProjectionInfo>;
+    write(projectId: string, generatedAt: string, entries: { path: string; text: string }[]): Promise<MarkdownProjectionInfo>;
+  };
   readonly mcpServer: McpServerPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;
   readonly mcpHttp: McpHttpPlatformApi;

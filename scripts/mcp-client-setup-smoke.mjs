@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Run after clicking the two one-click buttons in the synthetic project UI.
+// Run after connecting all three clients in the synthetic project UI.
 // Reads only the selected MCP entries; never prints client configuration/tokens.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -50,8 +50,9 @@ print(json.dumps(entry))
 
 if (mode === 'installed') {
   const grants = registry.grants.filter((grant) => grant.installation);
-  assert.equal(grants.length, 2);
+  assert.equal(grants.length, 3);
   assert.deepEqual(grants.map((grant) => grant.installation.client).sort(), [
+    'antigravity',
     'claude_code',
     'codex',
   ]);
@@ -70,7 +71,9 @@ if (mode === 'installed') {
       assert.equal((await client.listTools()).tools.length, 24);
       record(`${label}: installed command initializes and discovers read-only tools`);
       const overview = await client.callTool({ name: 'get_project_overview', arguments: {} });
-      assert.equal(overview.structuredContent.data.name, 'MCP 验收');
+      assert.ok(!overview.isError);
+      const overviewText = overview.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
+      assert.equal(JSON.parse(overviewText).name, 'MCP 验收');
       record(`${label}: authorized synthetic project is readable`);
       const denied = await client.callTool({
         name: 'create_chapter',
