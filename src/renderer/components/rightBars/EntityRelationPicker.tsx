@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isChapter } from '../../domain/book-node';
@@ -31,6 +31,8 @@ interface Props {
    *  so the context menu can open it externally. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Keep a card action aligned with the add/collapse button, even after chips wrap. */
+  trailingAction?: ReactNode;
 }
 
 /**
@@ -48,6 +50,7 @@ export function EntityRelationPicker({
   selectedChipMode = 'navigate',
   open: controlledOpen,
   onOpenChange,
+  trailingAction,
 }: Props) {
   const { t } = useTranslation();
   const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
@@ -227,23 +230,29 @@ export function EntityRelationPicker({
             />
           ),
         )}
-        <button
-          onClick={() => setOpen(!open)}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--ui-font-caption, 9.5px)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            padding: '2px 6px',
-            borderRadius: 3,
-            border: '1px dashed hsl(var(--rule))',
-            background: 'transparent',
-            color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-            cursor: 'pointer',
-          }}
-        >
-          {open ? t('relationPicker.collapse') : t('relationPicker.addRelation')}
-        </button>
+        <div style={trailingAction
+          ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flex: '1 0 auto' }
+          : { display: 'contents' }}>
+          <button
+            className="entity-relation-picker__add"
+            onClick={() => setOpen(!open)}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 'var(--ui-font-caption, 9.5px)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              padding: '2px 6px',
+              borderRadius: 3,
+              border: '1px dashed hsl(var(--rule-strong))',
+              background: 'transparent',
+              color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
+              cursor: 'pointer',
+            }}
+          >
+            {open ? t('relationPicker.collapse') : t('relationPicker.addRelation')}
+          </button>
+          {trailingAction}
+        </div>
       </div>
 
       {open && (

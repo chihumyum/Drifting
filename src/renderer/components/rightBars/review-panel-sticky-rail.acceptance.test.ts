@@ -13,7 +13,7 @@ describe('unified Review surface acceptance', () => {
     const toolRegistry = source('src/renderer/lib/agent/tool-registry.ts');
 
     expect(panel).toContain("type ReviewTypeFilter = 'all' | 'comment' | 'todo'");
-    expect(panel).toContain("type ReviewScope = 'current' | 'project'");
+    expect(source('src/renderer/store/ui-store.ts')).toContain("type ReviewScope = 'current' | 'project'");
     expect(panel).toContain("comment.kind === 'todo'");
     expect(panel).toContain("comment.kind !== 'todo'");
     expect(panel).toContain('commentBelongsToEntity');
@@ -52,7 +52,7 @@ describe('unified Review surface acceptance', () => {
     const en = source('src/renderer/locales/en.json');
 
     expect(card).toContain('ArrowLeft,');
-    expect(card).toContain("presentation === 'panel' && canJump && (");
+    expect(card).toContain("(presentation === 'panel' || isTodo) && canJump && (");
     expect(card).toContain('className="review-card__text-link-button"');
     expect(card).toContain('onClick={jumpToAnchor}');
     expect(card).toContain('<ArrowLeft size={10} strokeWidth={1.8} aria-hidden />');

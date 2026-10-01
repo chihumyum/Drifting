@@ -1,6 +1,6 @@
 # Review panel and sticky-note rail acceptance
 
-Updated: 2026-09-01
+Updated: 2026-10-02
 
 This document supersedes the original automatic comment-margin projection.
 Review is the only project review list. It combines
@@ -14,6 +14,18 @@ TODO data model.
   workspace that enters a short distance from the top.
 - Review filters by type (`Both`, `Comments`, `TODOs`) and scope (`Current`,
   `Project`). Opening Review does not move, hide, or clear editor sticky notes.
+- The Current/Project scope is a saved UI preference shared by Review mounts.
+  Closing/reopening the panel and restarting retain it. Without a focused
+  entity, Review temporarily displays Project and disables the toggle without
+  overwriting the preference; focusing an entity restores the selected scope.
+  Missing or invalid saved values fall back to Current.
+- Review's toolbar uses the same sort menu as Chapter and Element panels.
+  Created time and updated time both sort newest first, independently within
+  open and resolved groups. Updated time is the default; the selected mode is
+  saved as its own UI preference. Time order applies across anchor/relation
+  types; equal timestamps use the comment ID for stable ordering.
+- The resolved group is expanded when Review opens. Authors can collapse it;
+  changing the sort mode preserves that choice for the mounted panel.
 - Review items have only two authored kinds: `note` and `todo`. The retired
   Shadow author-exception kind is absent from the UI, domain, and Agent tools.
 - A Review card can be added to one entity editor's sticky-note rail. Cross-
@@ -22,6 +34,31 @@ TODO data model.
 - Sticky cards retain editing, relation, status, type, source, Copilot decision,
   and deletion actions. Anchored cards jump to their source; entity-level and
   project-floating cards do not pretend to have a text anchor.
+- Double-clicking a TODO card's text or unused space opens an inline editor in
+  the TODO workbench, Review panel, and expanded sticky rail. Action buttons and
+  relation controls keep their own behavior. Save or Cmd/Ctrl+Enter commits the
+  content through `updateCommentBody`; Cancel or Escape discards the draft.
+  Empty drafts cannot be saved, IME composition does not submit or cancel, and
+  failed saves retain the draft for retry. Escape stays within the editor.
+- TODO cards show a lower-right status ring: empty for open, checked for
+  resolved. Clicking it resolves or reopens the same comment. The workbench
+  retains its open-list/resolved-archive filtering. The ring shares a row with
+  the relation button and stays vertically centered when relation chips wrap.
+  Relation buttons use the stronger rule token for their dashed border.
+- Hovering a Comment or TODO in Review, the expanded sticky rail, or the TODO
+  workbench shows its source after the shared 220ms hover delay. The preview
+  lists source/associated entity types and names, deduplicating the primary
+  target. It resolves metadata only within the item's project; floating and
+  unavailable targets have explicit labels.
+- Text-bound items also show the original linked excerpt: exact text-anchor
+  selection, then selected text, then saved paragraph snapshots. Missing
+  excerpts are labeled. Hover reads hydrated metadata and creation snapshots,
+  never live prose or repository queries. These excerpts can differ from the
+  current manuscript.
+- Source previews portal to `body`, use fixed positioning, flip at the sidebar
+  edge, and stay within the viewport. Long excerpts scroll with the wheel over
+  the originating card, following entity-preview behavior. Leaving, pressing
+  Escape, starting an action, or entering the editor dismisses the preview.
 - Each editor owns its rail membership and order for the working session. New
   cards go to the top. The state is session-only: it is neither project data nor
   `localStorage` state and therefore does not sync.
@@ -48,8 +85,10 @@ TODO data model.
   in the shared `menu-surface`; only the action-menu trigger and sticky status
   remain in the row header.
 - A Review row with a valid text anchor shows one small, unboxed left arrow
-  immediately after its type label. Clicking either the arrow or the row body
-  opens the target editor and jumps to the anchored text. Entity-level and
+  immediately after its type label. Clicking the arrow opens the target editor
+  and jumps to the anchored text. Ordinary comment bodies also jump on click;
+  TODO bodies reserve double-click for editing, with the arrow available in
+  both Review and sticky presentations. Entity-level and
   project-floating rows show no marker. This does not change filtering,
   ordering, or relation behavior.
 - Sticky notes are a distinct editor overlay presentation, but still obey the
@@ -80,6 +119,31 @@ collapse state, mobile transparency, top-entry motion, and this contract.
 and `src/renderer/components/workspace-surface-language.acceptance.test.ts`
 also enforce the shared panel/list primitives, action-menu ownership, compact
 radius ladder, and absence of large-radius or elevated Review/sticky cards.
+
+`pnpm exec node scripts/run-todo-edit-acceptance.mjs` generates
+`docs/qa/todo-edit.json` from real card/editor components in an isolated headless
+browser. Its 52 synthetic DOM checks cover edit entry in all three surfaces,
+focus, current content, cancel/Escape, empty and unchanged drafts, IME, duplicate
+submission, save failure/retry, action isolation, anchor navigation, status
+toggle/rendering, and footer alignment/border contrast at 180px and 280px in
+light and dark themes, including wrapped chips and an expanded picker.
+They also exercise the actual Review sort menu, both time orders in open and
+resolved groups, default expansion/manual collapse, independent persisted
+preferences, older/invalid preference fallback, and immutable source ordering.
+Scope checks exercise list filtering, persisted storage, panel remount,
+rehydration, missing/invalid values, and temporary project fallback without
+changing the saved Current preference.
+Toolbar fit is measured at 280px/360px for all three desktop text sizes; narrow
+toolbars can wrap without clipping or overlapping controls.
+Hover checks cover Comments and all three TODO surfaces, delayed entry/leave,
+source names and associated entities, precise selected text, portal placement,
+right-edge flipping, long-excerpt scrolling, and dismissal for actions, editing and Escape.
+`src/renderer/features/comments/comment-source-preview.test.ts` also verifies
+project isolation, missing/floating targets, relation deduplication, exact text
+selection precedence, and older/malformed snapshot fallback.
+`pnpm exec node scripts/run-todo-edit-acceptance.mjs --check` verifies the recorded
+checks and source fingerprint. Saves in this fixture use an in-memory callback;
+SQLite persistence and native interaction are not claimed by that report.
 
 ## Validation boundary
 

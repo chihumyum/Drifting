@@ -652,8 +652,11 @@ function TodoRail({
         key={todo.id}
         todo={todo}
         relations={relations}
-        onResolve={() => commentUsecases.resolveComment(todo.id)}
+        onToggleResolved={() => todo.status === 'resolved'
+          ? commentUsecases.reopenComment(todo.id)
+          : commentUsecases.resolveComment(todo.id)}
         onDelete={() => commentUsecases.deleteComment(todo.id)}
+        onSave={(body) => commentUsecases.updateCommentBody(todo.id, createPlainCommentDoc(body))}
         onAddRelation={(t) =>
           relationUsecases.addGenericAssociation('comment', todo.id, t.kind, t.id)
         }

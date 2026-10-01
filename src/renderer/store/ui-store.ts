@@ -24,6 +24,8 @@ export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
 export type ChapterStorylineOuterSortMode = 'storylineOrder' | 'alphabet';
 export type ElementSortMode = 'alphabet' | 'createdAt';
 export type ElementCategorySortMode = 'alphabet' | 'createdAt';
+export type ReviewSortMode = 'createdAt' | 'updatedAt';
+export type ReviewScope = 'current' | 'project';
 export type ElementPanelViewMode = 'compact' | 'list';
 
 // What the right edge of a node cell (章节 / 灵感) shows. The 章节 and 灵感
@@ -592,7 +594,7 @@ interface UiState {
   chapterPanelViewMode: 'global' | 'storyline';
   setChapterPanelViewMode: (mode: 'global' | 'storyline') => void;
 
-  // Left-panel sort modes — selected from the SortMenu attached to the
+  // Sidebar sort modes — selected from the SortMenu attached to the
   // sub-header. Each panel has its own preference; grouped Chapter/Element
   // views keep outer-container ordering independent from inner-item ordering.
   driftSortMode: DriftSortMode;
@@ -609,6 +611,10 @@ interface UiState {
   setElementCategorySortMode: (mode: ElementCategorySortMode) => void;
   elementPanelViewMode: ElementPanelViewMode;
   setElementPanelViewMode: (mode: ElementPanelViewMode) => void;
+  reviewSortMode: ReviewSortMode;
+  setReviewSortMode: (mode: ReviewSortMode) => void;
+  reviewScope: ReviewScope;
+  setReviewScope: (scope: ReviewScope) => void;
 
   // Right-edge meta shown on node cells (date vs. word count). The 章节 and 灵感
   // panels keep independent preferences, each toggled from its own SortMenu.
@@ -1018,6 +1024,10 @@ export const useUiStore = create<UiState>()(
       setElementCategorySortMode: (mode) => set({ elementCategorySortMode: mode }),
       elementPanelViewMode: 'compact',
       setElementPanelViewMode: (mode) => set({ elementPanelViewMode: mode }),
+      reviewSortMode: 'updatedAt',
+      setReviewSortMode: (mode) => set({ reviewSortMode: mode }),
+      reviewScope: 'current',
+      setReviewScope: (scope) => set({ reviewScope: scope }),
 
       chapterCellMeta: 'date',
       setChapterCellMeta: (mode) => set({ chapterCellMeta: mode }),
@@ -1890,6 +1900,8 @@ export const useUiStore = create<UiState>()(
         elementSortMode: state.elementSortMode,
         elementCategorySortMode: state.elementCategorySortMode,
         elementPanelViewMode: state.elementPanelViewMode,
+        reviewSortMode: state.reviewSortMode,
+        reviewScope: state.reviewScope,
         chapterCellMeta: state.chapterCellMeta,
         driftCellMeta: state.driftCellMeta,
         chapterStorylinePrimaryOnly: state.chapterStorylinePrimaryOnly,
@@ -1937,6 +1949,12 @@ export const useUiStore = create<UiState>()(
           merged.elementCategorySortMode !== 'createdAt'
         ) {
           merged.elementCategorySortMode = 'alphabet';
+        }
+        if (merged.reviewSortMode !== 'createdAt' && merged.reviewSortMode !== 'updatedAt') {
+          merged.reviewSortMode = 'updatedAt';
+        }
+        if (merged.reviewScope !== 'current' && merged.reviewScope !== 'project') {
+          merged.reviewScope = 'current';
         }
         // Retired Shadow selections fall back to the Agent group.
         if ((merged.activeRightPanel as string) === 'shadow') {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ListPlus, MessageSquarePlus } from 'lucide-react';
+import { ArrowDownUp, ListPlus, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -23,31 +23,21 @@ import {
 } from '../../hooks/useEntityStickyNoteRail';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
+import { useUiStore, type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
 import { FilterChip } from '../ui/FilterChip';
 import { GhostIconButton } from '../ui/GhostIconButton';
+import { SortMenu } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
 
 type ReviewTypeFilter = 'all' | 'comment' | 'todo';
-type ReviewScope = 'current' | 'project';
 type ComposeKind = 'note' | 'todo';
 
 interface ReviewPanelProps {
   focused: FocusedEntity;
   onOpenAgentTask?: () => string | void;
-}
-
-function reviewItemRank(
-  comment: Comment,
-  focused: FocusedEntity,
-  relatedIds: ReadonlySet<string>,
-): number {
-  const direct = comment.targetKind === focused.kind && comment.targetId === focused.id;
-  if (direct && comment.targetBlockId === null) return 0;
-  if (direct) return 1;
-  return relatedIds.has(comment.id) ? 2 : 3;
 }
 
 function canOwnEditorRail(kind: string | null): kind is Exclude<CommentTargetKind, 'patch'> {
@@ -64,7 +54,13 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const commentUsecases = useComment({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
   const [typeFilter, setTypeFilter] = useState<ReviewTypeFilter>('all');
-  const [scope, setScope] = useState<ReviewScope>('current');
+  const scope = useUiStore((state) => state.reviewScope);
+  const setScope = useUiStore((state) => state.setReviewScope);
+  const sortMode = useUiStore((state) => state.reviewSortMode);
+  const setSortMode = useUiStore((state) => state.setReviewSortMode);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortButtonRef = useRef<HTMLButtonElement>(null);
+  const [resolvedExpanded, setResolvedExpanded] = useState(true);
   const [composeKind, setComposeKind] = useState<ComposeKind | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const [compactToolbar, setCompactToolbar] = useState(false);
@@ -137,13 +133,10 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
             matchesScope(comment),
         )
         .sort((a, b) => {
-          const rank =
-            reviewItemRank(a, focused, relatedIds) -
-            reviewItemRank(b, focused, relatedIds);
-          if (rank !== 0) return rank;
-          return b.updatedAt.localeCompare(a.updatedAt);
+          const time = b[sortMode].localeCompare(a[sortMode]);
+          return time || a.id.localeCompare(b.id);
         }),
-    [comments, focused, matchesScope, matchesType, projectId, relatedIds],
+    [comments, matchesScope, matchesType, projectId, sortMode],
   );
   const openItems = filtered.filter((comment) => comment.status === 'open');
   const resolvedItems = filtered.filter((comment) => comment.status === 'resolved');
@@ -274,6 +267,17 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
         <span className="review-panel__toolbar-spacer" />
         <div className="review-panel__create-actions">
           <GhostIconButton
+            ref={sortButtonRef}
+            className="review-panel__sort-button"
+            size="sm"
+            icon={<ArrowDownUp size={12} strokeWidth={1.6} />}
+            onClick={() => setSortMenuOpen((open) => !open)}
+            title={t('leftSidebar.actions.sort')}
+            aria-label={t('leftSidebar.actions.sort')}
+            aria-haspopup="menu"
+            aria-expanded={sortMenuOpen}
+          />
+          <GhostIconButton
             size="sm"
             icon={<MessageSquarePlus size={12} strokeWidth={1.6} />}
             onClick={() => setComposeKind('note')}
@@ -290,11 +294,28 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
         </div>
       </header>
 
+      <SortMenu<ReviewSortMode>
+        triggerRef={sortButtonRef}
+        open={sortMenuOpen}
+        onClose={() => setSortMenuOpen(false)}
+        title={t('leftSidebar.actions.sort')}
+        options={[
+          { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+          { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt') },
+        ]}
+        value={sortMode}
+        onChange={setSortMode}
+      />
+
       <div className="review-panel__list scroll-no-bar workspace-list">
         {openItems.length === 0 && <EmptyState density="compact" message={t('reviewPanel.empty')} />}
         {openItems.map(renderCard)}
         {resolvedItems.length > 0 && (
-          <details className="review-panel__resolved">
+          <details
+            className="review-panel__resolved"
+            open={resolvedExpanded}
+            onToggle={(event) => setResolvedExpanded(event.currentTarget.open)}
+          >
             <summary>{t('reviewPanel.resolved', { count: resolvedItems.length })}</summary>
             <div className="review-panel__resolved-list">{resolvedItems.map(renderCard)}</div>
           </details>

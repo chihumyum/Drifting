@@ -39,11 +39,14 @@ import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useComment } from '../../usecase/useComment';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
-import { Button } from '../../components/ui/Button';
 import { ContextMenuSurface } from '../../components/ui/ContextMenuSurface';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { CommentSnapshotModal } from './CommentSnapshotModal';
+import { CommentBodyEditor } from './CommentBodyEditor';
+import { TodoStatusToggle } from './TodoStatusToggle';
+import { CommentSourceHoverCard } from './CommentSourceHoverCard';
+import { useCommentSourceHover } from './use-comment-source-hover';
 import { buildTodoAgentTask } from './todo-agent-task';
 
 const launchingTodoTasks = new Set<string>();
@@ -142,9 +145,9 @@ export function ReviewItemCard({
   const services = useMemo<CopilotServices>(() => ({ createElement }), [createElement]);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(() => extractTextFromCommentBody(comment.bodyJson));
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number } | null>(null);
+  const sourceHover = useCommentSourceHover(!editing && !actionMenu && !snapshotOpen);
   const selectedRelations = useMemo(
     () => new Set(relations.map((relation) => `${relation.toKind}:${relation.toId}`)),
     [relations],
@@ -234,17 +237,6 @@ export function ReviewItemCard({
     }
   };
 
-  const saveBody = async () => {
-    const body = draft.trim();
-    if (!body || body === text) {
-      setDraft(text);
-      setEditing(false);
-      return;
-    }
-    await run(() => commentUsecases.updateCommentBody(comment.id, createPlainCommentDoc(body)));
-    setEditing(false);
-  };
-
   const acceptSuggestion = async () => {
     if (!metadata || !capability) return;
     const result = await capability.accept({
@@ -278,12 +270,36 @@ export function ReviewItemCard({
     action();
   };
 
+  const statusToggle = isTodo && !isConverted ? (
+    <TodoStatusToggle
+      resolved={isResolved}
+      disabled={busy}
+      onToggle={() => void run(() => isResolved
+        ? commentUsecases.reopenComment(comment.id)
+        : commentUsecases.resolveComment(comment.id))}
+    />
+  ) : null;
+
   return (
     <>
       <article
         className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
+        aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
+        onMouseEnter={(event) => sourceHover.onEnter(event.currentTarget)}
+        onMouseLeave={sourceHover.onLeave}
+        onPointerDownCapture={sourceHover.onLeave}
+        onKeyDownCapture={sourceHover.onLeave}
+        onContextMenuCapture={sourceHover.onLeave}
         onContextMenu={openContextMenu}
+        onDoubleClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (!event.currentTarget.contains(target)) return;
+          if (!isTodo || editing || busy || target.closest('button, a, input, textarea, [role="button"], [contenteditable="true"]')) return;
+          sourceHover.onLeave();
+          setActionMenu(null);
+          setEditing(true);
+        }}
       >
       <header className="review-card__header">
         <span className="review-card__kind">
@@ -293,7 +309,7 @@ export function ReviewItemCard({
             : isTodo
               ? 'TODO'
               : t('reviewPanel.comment')}
-          {presentation === 'panel' && canJump && (
+          {(presentation === 'panel' || isTodo) && canJump && (
             <button
               type="button"
               className="review-card__text-link-button"
@@ -340,33 +356,13 @@ export function ReviewItemCard({
       </header>
 
       {editing ? (
-        <div className="review-card__editor">
-          <textarea
-            autoFocus
-            value={draft}
-            rows={4}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                setDraft(text);
-                setEditing(false);
-              }
-              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                void saveBody();
-              }
-            }}
-          />
-          <div className="review-card__editor-actions">
-            <Button size="sm" variant="ghost" onClick={() => { setDraft(text); setEditing(false); }}>
-              {t('common.cancel')}
-            </Button>
-            <Button size="sm" disabled={!draft.trim() || busy} onClick={() => void saveBody()}>
-              {t('common.save')}
-            </Button>
-          </div>
-        </div>
-      ) : canJump ? (
+        <CommentBodyEditor
+          text={text}
+          busy={busy}
+          onSave={(body) => run(() => commentUsecases.updateCommentBody(comment.id, createPlainCommentDoc(body)))}
+          onClose={() => setEditing(false)}
+        />
+      ) : canJump && !isTodo ? (
         <button type="button" className="review-card__body review-card__body--link" onClick={jumpToAnchor}>
           {text || t('commentRail.card.emptyComment')}
         </button>
@@ -392,14 +388,19 @@ export function ReviewItemCard({
         </div>
       )}
 
-      {onAddRelation && onRemoveRelation && (
+      {((onAddRelation && onRemoveRelation) || statusToggle) && (
         <div className="review-card__relations">
-          <EntityRelationPicker
-            selected={selectedRelations}
-            selectedChipMode="toggle"
-            onAdd={(target) => onAddRelation?.(target)}
-            onRemove={(target) => onRemoveRelation?.(target)}
-          />
+          {onAddRelation && onRemoveRelation ? (
+            <EntityRelationPicker
+              selected={selectedRelations}
+              selectedChipMode="toggle"
+              onAdd={(target) => onAddRelation?.(target)}
+              onRemove={(target) => onRemoveRelation?.(target)}
+              trailingAction={statusToggle}
+            />
+          ) : (
+            <div className="todo-card__footer" style={{ justifyContent: 'flex-end' }}>{statusToggle}</div>
+          )}
         </div>
       )}
 
@@ -411,6 +412,8 @@ export function ReviewItemCard({
         />
       )}
       </article>
+
+      {sourceHover.anchor && <CommentSourceHoverCard comment={comment} relations={relations} anchor={sourceHover.anchor} id={sourceHover.id} />}
 
       {actionMenu && (
         <ContextMenuSurface
@@ -432,9 +435,9 @@ export function ReviewItemCard({
           <ReviewActionMenuItem
             icon={<Pencil size={12} />}
             label={t('common.edit')}
+            disabled={busy}
             onSelect={() =>
               selectMenuAction(() => {
-                setDraft(text);
                 setEditing(true);
               })
             }

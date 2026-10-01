@@ -1,8 +1,8 @@
 {
   "kind": "todo_agent_handoff_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-01T06:58:41.315Z",
-  "sourceSha256": "1166417d8e124c36899d341a2f2f68c245de99c6772c72caa16988c671d9901a",
+  "generatedAt": "2026-10-01T16:52:36.609Z",
+  "sourceSha256": "281ec1d6abb546a5f58f93da9ca539e68d6c85ad49f681762c34172929f0a8bd",
   "suites": [
     "src/renderer/store/agent-todo-background.integration.test.ts",
     "src/renderer/features/comments/todo-agent-task.test.ts",
@@ -50,7 +50,11 @@
       "status": "passed"
     },
     {
-      "name": "Drifting General Agent system prompt presents Drifting as authored domain objects and hides backend mechanics",
+      "name": "Drifting General Agent system prompt keeps domain references, scope, and execution boundaries",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting General Agent system prompt requires requested full reading without constraining reasoning or rereads",
       "status": "passed"
     },
     {
