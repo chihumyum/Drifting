@@ -1842,7 +1842,9 @@
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
   font-feature-settings: 'liga', 'kern', 'onum';
-  text-wrap: pretty;
+  text-wrap: var(--editor-text-wrap, stable);
+  white-space: pre-wrap;
+  white-space: break-spaces;
   overflow-wrap: break-word;
   /* Self-contained scroll: sample text can be long, but the preview stays a
      fixed window so it never pushes the controls below it off-screen. */

@@ -13,6 +13,7 @@
   font-family: var(--font-content);
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
+  text-wrap: var(--editor-text-wrap, stable);
 }
 .elem-body .ProseMirror p {
   margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
@@ -826,6 +827,7 @@
   font-family: var(--font-content);
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
+  text-wrap: var(--editor-text-wrap, stable);
   color: hsl(var(--ink-1));
 }
 .patch-card__body .ProseMirror p {

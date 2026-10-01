@@ -2546,9 +2546,8 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   margin-bottom: 22px;
 }
 .m-workspace .page__body .ProseMirror {
-  /* Fill each phone-width line before wrapping. Desktop paragraph prettifying
-     can shorten every CJK line and leave an apparent empty rail on the right. */
-  text-wrap: wrap;
+  /* Follow the same explicit wrapping choice as the editor settings preview. */
+  text-wrap: var(--editor-text-wrap, stable);
 }
 
 .m-tab-overview {

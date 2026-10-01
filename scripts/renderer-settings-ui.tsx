@@ -5,9 +5,13 @@ import { DesktopStandaloneSettingsView } from '../src/renderer/features/settings
 import { DesktopSettingsModal } from '../src/renderer/features/settings/desktop/DesktopSettingsModal';
 import { MobileSettingsView } from '../src/renderer/shells/mobile/standalone/MobileSettingsView';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
+import { applyEditorPreferences } from '../src/renderer/lib/editor-preferences';
+import '@fontsource-variable/inter-tight';
 import '../src/renderer/lib/i18n';
 import '../src/styles/index.css';
+import '../src/styles/ui-controls.css';
 import '../src/styles/settings.css';
+import '../src/styles/desktop-typography.css';
 
 const observations = { mounts: 0, unmounts: 0, location: '' };
 const api = { observations, navigate: (_path: string) => {}, modal: (_open: boolean) => {}, locale: () => useSettingsStore.getState().uiLocale };
@@ -16,6 +20,8 @@ export function Sentinel() {
   return <textarea id="synthetic-draft" defaultValue="Synthetic unsaved draft" />;
 }
 export function Fixture() {
+  const preferences = useSettingsStore();
+  useLayoutEffect(() => applyEditorPreferences(preferences), [preferences]);
   const navigate = useNavigate(); const location = useLocation();
   const [modal, setModal] = useState(false);
   useLayoutEffect(() => {
@@ -23,6 +29,7 @@ export function Fixture() {
     observations.location = location.pathname + location.search;
   }, [navigate, location.pathname, location.search]);
   const mobile = new URLSearchParams(window.location.search).has('mobile');
+  useLayoutEffect(() => { document.documentElement.dataset.shellMode = mobile ? 'mobile' : 'desktop'; }, [mobile]);
   return <><Sentinel /><Routes>
     <Route path="/" element={<button id="open-settings" onClick={() => api.navigate('/settings?section=language')}>Open settings</button>} />
     <Route path="/settings" element={mobile ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />} />

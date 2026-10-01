@@ -1194,7 +1194,7 @@ html[data-shell-mode='mobile'] .app-mid {
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
-  text-wrap: pretty;
+  text-wrap: var(--editor-text-wrap, stable);
   /* Pin the wrapping behaviour prosemirror-view would otherwise inject only on
      first EditorView construction — the all-chapters read-through renders prose
      statically (no view) and must wrap pixel-identically to the live editor, or

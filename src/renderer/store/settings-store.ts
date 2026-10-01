@@ -28,6 +28,7 @@ import {
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ParagraphIndent = 'none' | 'one' | 'two';
+export type EditorTextWrap = 'stable' | 'pretty';
 export type EditorFontSource =
   | 'system-serif'
   | 'system-sans'
@@ -70,6 +71,7 @@ export const EDITOR_STYLE_DEFAULTS = {
   editorIndentStep: 2,
   paragraphSpacing: 1.0,
   maxLineWidth: 720,
+  editorTextWrap: 'stable',
 } satisfies {
   editorFontSource: EditorFontSource;
   bodyFontSize: number;
@@ -78,7 +80,12 @@ export const EDITOR_STYLE_DEFAULTS = {
   editorIndentStep: number;
   paragraphSpacing: number;
   maxLineWidth: number;
+  editorTextWrap: EditorTextWrap;
 };
+
+export function normalizeEditorTextWrap(value: unknown): EditorTextWrap {
+  return value === 'pretty' ? 'pretty' : EDITOR_STYLE_DEFAULTS.editorTextWrap;
+}
 export type ModelTier = 'lite' | 'standard' | 'pro';
 export type CopilotMode = 'local' | 'cloud';
 /**
@@ -296,6 +303,9 @@ interface SettingsState {
   setParagraphSpacing: (em: number) => void;
   maxLineWidth: number;
   setMaxLineWidth: (px: number) => void;
+  /** Device-local wrapping for authored text; does not change document content. */
+  editorTextWrap: EditorTextWrap;
+  setEditorTextWrap: (mode: EditorTextWrap) => void;
   // Restore all of the above editor typography/layout fields to
   // EDITOR_STYLE_DEFAULTS in one shot.
   resetEditorStyle: () => void;
@@ -527,6 +537,8 @@ export const useSettingsStore = create<SettingsState>()(
       setParagraphSpacing: (em) => set({ paragraphSpacing: clampFloat(em, 0, 3, 1.0) }),
       maxLineWidth: EDITOR_STYLE_DEFAULTS.maxLineWidth,
       setMaxLineWidth: (px) => set({ maxLineWidth: clamp(px, 480, 1280, 720) }),
+      editorTextWrap: EDITOR_STYLE_DEFAULTS.editorTextWrap,
+      setEditorTextWrap: (mode) => set({ editorTextWrap: normalizeEditorTextWrap(mode) }),
       resetEditorStyle: () => set({ ...EDITOR_STYLE_DEFAULTS }),
       typewriterMode: false,
       setTypewriterMode: (enabled) => set({ typewriterMode: enabled }),
@@ -1051,6 +1063,7 @@ export const useSettingsStore = create<SettingsState>()(
         );
         merged.accentColor = normalizeAccentColor(merged.accentColor);
         merged.interfaceTextSize = normalizeInterfaceTextSize(merged.interfaceTextSize);
+        merged.editorTextWrap = normalizeEditorTextWrap(merged.editorTextWrap);
         merged.agentEditRevealAnimation = merged.agentEditRevealAnimation !== false;
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';

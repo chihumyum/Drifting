@@ -6,6 +6,7 @@ import {
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
   type EditorFontSource,
+  type EditorTextWrap,
   type ParagraphIndent,
 } from '../../../store/settings-store';
 import { platform, type SystemFontFamily } from '../../../platform';
@@ -375,6 +376,8 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
     setParagraphSpacing,
     maxLineWidth,
     setMaxLineWidth,
+    editorTextWrap,
+    setEditorTextWrap,
     resetEditorStyle,
     typewriterMode,
     setTypewriterMode,
@@ -475,6 +478,20 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
               precision={2}
               value={lineHeight}
               onChange={setLineHeight}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.editor.text_wrap')}
+          desc={t('settings.editor.text_wrap_desc')}
+          control={
+            <SettingsSegment<EditorTextWrap>
+              value={editorTextWrap}
+              options={[
+                { value: 'stable', label: t('settings.editor.text_wrap_stable') },
+                { value: 'pretty', label: t('settings.editor.text_wrap_pretty') },
+              ]}
+              onChange={setEditorTextWrap}
             />
           }
         />

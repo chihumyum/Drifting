@@ -8,6 +8,7 @@
  */
 import type {
   EditorFontSource,
+  EditorTextWrap,
   LineHeight,
   ParagraphIndent,
 } from '../store/settings-store';
@@ -20,6 +21,7 @@ export interface EditorPreferences {
   bodyFontSize: number;
   lineHeight: LineHeight;
   maxLineWidth: number;
+  editorTextWrap: EditorTextWrap;
   paragraphIndent: ParagraphIndent;
   /** Em per Tab indent level (drives --editor-indent-step). */
   editorIndentStep: number;
@@ -76,6 +78,7 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-font-size', `${prefs.bodyFontSize}px`);
   root.style.setProperty('--editor-line-height', String(prefs.lineHeight));
   root.style.setProperty('--editor-max-width', `${prefs.maxLineWidth}px`);
+  root.style.setProperty('--editor-text-wrap', prefs.editorTextWrap);
   root.style.setProperty('--editor-indent', INDENT_EM[prefs.paragraphIndent]);
   root.style.setProperty('--editor-indent-step', `${prefs.editorIndentStep}em`);
   root.style.setProperty('--editor-paragraph-spacing', `${prefs.paragraphSpacing}em`);

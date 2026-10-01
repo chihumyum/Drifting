@@ -76,6 +76,7 @@ function EditorPreferenceEffects() {
   const bodyFontSize = useSettingsStore((state) => state.bodyFontSize);
   const editorLineHeight = useSettingsStore((state) => state.lineHeight);
   const maxLineWidth = useSettingsStore((state) => state.maxLineWidth);
+  const editorTextWrap = useSettingsStore((state) => state.editorTextWrap);
   const paragraphIndent = useSettingsStore((state) => state.paragraphIndent);
   const editorIndentStep = useSettingsStore((state) => state.editorIndentStep);
   const paragraphSpacing = useSettingsStore((state) => state.paragraphSpacing);
@@ -90,6 +91,7 @@ function EditorPreferenceEffects() {
       bodyFontSize,
       lineHeight: editorLineHeight,
       maxLineWidth,
+      editorTextWrap,
       paragraphIndent,
       editorIndentStep,
       paragraphSpacing,
@@ -103,6 +105,7 @@ function EditorPreferenceEffects() {
     bodyFontSize,
     editorLineHeight,
     maxLineWidth,
+    editorTextWrap,
     paragraphIndent,
     editorIndentStep,
     paragraphSpacing,

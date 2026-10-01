@@ -54,3 +54,28 @@ describe('desktop interface text preference', () => {
     expect(afterReset.bodyFontSize).toBe(21);
   });
 });
+
+describe('editor line wrapping preference', () => {
+  it('uses stable wrapping for fresh, old and malformed preferences', async () => {
+    for (const persisted of [undefined, { bodyFontSize: 21 }, { editorTextWrap: 'balance' }, { editorTextWrap: null }]) {
+      expect((await settings(persisted)).store.getState().editorTextWrap).toBe('stable');
+    }
+  });
+
+  it.each(['stable', 'pretty'] as const)('persists and restores %s without changing other typography', async (mode) => {
+    const { store, values } = await settings({ bodyFontSize: 21, maxLineWidth: 900 });
+    store.getState().setEditorTextWrap(mode);
+    const restored = (await settings(JSON.parse(values.get('settings-storage')!).state)).store.getState();
+    expect(restored.editorTextWrap).toBe(mode);
+    expect(restored.bodyFontSize).toBe(21);
+    expect(restored.maxLineWidth).toBe(900);
+  });
+
+  it('restores stable wrapping with the recommended editor style', async () => {
+    const { store, values } = await settings({ editorTextWrap: 'pretty', interfaceTextSize: 'large' });
+    store.getState().resetEditorStyle();
+    const restored = (await settings(JSON.parse(values.get('settings-storage')!).state)).store.getState();
+    expect(restored.editorTextWrap).toBe('stable');
+    expect(restored.interfaceTextSize).toBe('large');
+  });
+});

@@ -28,6 +28,7 @@ describe('mobile Editor Settings presentation', () => {
     expect(settingsCss).toContain('var(--editor-paragraph-spacing');
     expect(settingsCss).toContain('text-indent: var(--editor-indent');
     expect(settingsCss).toContain('var(--editor-indent-step');
+    expect(cssBlock(settingsCss, '.set-preview')).toContain('text-wrap: var(--editor-text-wrap, stable);');
   });
 
   it('removes desktop rail geometry and keeps the phone preview horizontal', () => {
@@ -55,6 +56,7 @@ describe('mobile Editor Settings presentation', () => {
     expect(body).toContain('font-family: var(--font-content);');
     expect(body).toContain('font-size: var(--editor-font-size, 17.5px);');
     expect(body).toContain('line-height: var(--editor-line-height, 1.75);');
+    expect(body).toContain('text-wrap: var(--editor-text-wrap, stable);');
     expect(paragraph).toContain('margin: 0 0 var(--editor-paragraph-spacing, 1.1em);');
   });
 
@@ -63,7 +65,7 @@ describe('mobile Editor Settings presentation', () => {
     const body = cssBlock(css, '.m-workspace .page__body .ProseMirror');
 
     expect(body).not.toMatch(/(?:font-size|line-height|font)\s*:/);
-    expect(body).toContain('text-wrap: wrap;');
+    expect(body).toContain('text-wrap: var(--editor-text-wrap, stable);');
   });
 
   it('makes typography controls full-width and touch-sized without changing desktop CSS', () => {

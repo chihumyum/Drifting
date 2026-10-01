@@ -11,6 +11,7 @@ const BASE_PREFERENCES: EditorPreferences = {
   bodyFontSize: 17,
   lineHeight: 1.5,
   maxLineWidth: 720,
+  editorTextWrap: 'stable',
   paragraphIndent: 'none',
   editorIndentStep: 2,
   paragraphSpacing: 1,
@@ -54,5 +55,20 @@ describe('editor preferences', () => {
     expect(editorFontFamilyValue('system-custom', 'A "Quoted", serif')).toBe(
       '"A \\"Quoted\\", serif", var(--font-prose-system-serif)',
     );
+  });
+
+  it('updates the shared wrapping variable when switching either way', () => {
+    const properties = new Map<string, string>();
+    vi.stubGlobal('document', {
+      documentElement: {
+        style: { setProperty: (name: string, value: string) => properties.set(name, value) },
+        setAttribute: vi.fn(),
+      },
+    });
+    for (const editorTextWrap of ['stable', 'pretty', 'stable'] as const) {
+      applyEditorPreferences({ ...BASE_PREFERENCES, editorTextWrap });
+      expect(properties.get('--editor-text-wrap')).toBe(editorTextWrap);
+      expect(properties.get('--editor-max-width')).toBe('720px');
+    }
   });
 });
