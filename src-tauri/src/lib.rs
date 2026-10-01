@@ -21,6 +21,7 @@ mod markdown_projection;
 pub use mcp_server::run_stdio_cli as run_mcp_stdio_cli;
 mod mcp_stdio;
 mod native_capabilities;
+mod markdown_share;
 mod openai_responses;
 mod secure_storage;
 mod state;
@@ -267,6 +268,7 @@ pub fn run() {
             native_capabilities::asset_store_gc_orphan_imports,
             native_capabilities::asset_store_delete_asset,
             native_capabilities::archive_save,
+            markdown_share::share_save_markdown,
             native_capabilities::archive_create_text_zip,
             native_capabilities::ai_log_write,
             native_capabilities::ai_log_open_dir,

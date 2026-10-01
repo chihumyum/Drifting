@@ -902,6 +902,10 @@ export const tauriPlatform: PlatformApi = {
       invokeContract('archive_save', { filename, bytes: toNumberArray(bytes) }),
   },
 
+  sharing: {
+    saveMarkdown: (filename, markdown) => invokeContract('share_save_markdown', { filename, markdown }),
+  },
+
   updater: {
     check: () => invokeContract('update_check', undefined),
     download: (callback) => {

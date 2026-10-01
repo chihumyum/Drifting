@@ -724,6 +724,10 @@ export interface TauriCommandContract {
     args: { filename: string; bytes: number[] };
     result: ArchiveSaveResult;
   };
+  share_save_markdown: {
+    args: { filename: string; markdown: string };
+    result: ArchiveSaveResult;
+  };
   update_check: { args: undefined; result: AppUpdateMetadata | null };
   update_download: {
     args: { onEvent: unknown };

@@ -884,6 +884,7 @@ export function AllChaptersEditorView() {
       <EditorTopBar
         editorType="node"
         onMenuAction={handleChapterMenuAction}
+        shareTarget={{ projectId, kind: 'book', title: projectName }}
         nodeWritingStatus={menuTargetNode?.writingStatus}
         nodeStatusKind={menuTargetNode ? 'chapter' : undefined}
         menuHeader={

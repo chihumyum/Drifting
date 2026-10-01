@@ -367,6 +367,9 @@ export interface PlatformApi {
   readonly material: MaterialPlatformApi;
   readonly assetStore: AssetStorePlatformApi;
   readonly archive: ArchivePlatformApi;
+  readonly sharing: {
+    saveMarkdown(filename: string, markdown: string): Promise<ArchiveSaveResult>;
+  };
   readonly updater: UpdatePlatformApi;
   readonly aiLog: AILogPlatformApi;
   readonly markdownProjection: {

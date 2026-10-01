@@ -1,4 +1,4 @@
-import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical } from 'lucide-react';
+import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical, Share2 } from 'lucide-react';
 import {
   Children,
   Fragment,
@@ -18,6 +18,8 @@ import {
 } from '../../domain/book-node';
 import { useSettingsStore } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { MarkdownShareDialog } from './MarkdownShareDialog';
+import type { MarkdownShareTarget } from '../../services/export/markdown-share';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
 
@@ -76,6 +78,7 @@ interface EditorTopBarProps {
   right?: ReactNode;
   editorType?: EditorType;
   onMenuAction?: (action: string) => void;
+  shareTarget?: MarkdownShareTarget;
   // Only used when editorType === 'node'. Drives the status section at the
   // top of the three-dot menu; the current value is shown with a check.
   // `nodeStatusKind` picks the enum/labels (chapter or drift); both must be
@@ -110,6 +113,7 @@ export function EditorTopBar({
   right,
   editorType,
   onMenuAction,
+  shareTarget,
   nodeWritingStatus,
   nodeStatusKind,
   menuHeader,
@@ -118,6 +122,7 @@ export function EditorTopBar({
   plotPlannerToggle,
 }: EditorTopBarProps) {
   const { t } = useTranslation();
+  const [shareRequest, setShareRequest] = useState<MarkdownShareTarget | null>(null);
   const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
 
@@ -192,9 +197,12 @@ export function EditorTopBar({
             nodeStatusKind={nodeStatusKind}
             menuHeader={menuHeader}
             translate={t}
+            onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
+            shareWholeBook={shareTarget?.kind === 'book'}
           />
         )}
       </div>
+      {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
     </div>
   );
 }
@@ -335,6 +343,8 @@ interface EditorBarMenuProps {
   nodeStatusKind?: NodeStatusKind;
   menuHeader?: ReactNode;
   translate?: Translate;
+  onShare?: () => void;
+  shareWholeBook?: boolean;
 }
 
 function EditorBarMenu({
@@ -344,6 +354,8 @@ function EditorBarMenu({
   nodeStatusKind,
   menuHeader,
   translate,
+  onShare,
+  shareWholeBook,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -381,6 +393,16 @@ function EditorBarMenu({
         className="menu-surface menu-surface--standard editor-bar__menu"
         role="menu"
       >
+          {onShare && <>
+            <button type="button" role="menuitem" className="menu-surface__item" onClick={() => {
+              setIsOpen(false);
+              onShare();
+            }}>
+              <Share2 size={14} aria-hidden="true" />
+              {translate?.(shareWholeBook ? 'markdownShare.menuBook' : 'markdownShare.menu') ?? 'Share Markdown…'}
+            </button>
+            <div className="menu-surface__divider" />
+          </>}
           {menuHeader && (
             <>
               <div className="menu-surface__header">{menuHeader}</div>

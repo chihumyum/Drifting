@@ -1,4 +1,25 @@
 {
+  "markdownShare": {
+    "title": "Share Markdown",
+    "menu": "Share Markdown…",
+    "menuBook": "Share whole book as Markdown…",
+    "wholeBook": "All chapters in reading order",
+    "currentBody": "The complete body of this document",
+    "readOnly": "Read only",
+    "preview": "Markdown source, read only",
+    "proseOnly": "Includes titles and prose. Comments, summaries and planning notes stay private.",
+    "characters": "{{count}} characters",
+    "loading": "Preparing the complete Markdown…",
+    "loadFailed": "Could not read the complete document. Please retry.",
+    "retry": "Retry",
+    "copy": "Copy all",
+    "copying": "Copying…",
+    "save": "Save .md",
+    "saving": "Saving…",
+    "copied": "All Markdown copied",
+    "saved": "Markdown saved",
+    "failed": "Could not complete the action. Please retry or select and copy the text."
+  },
   "sidebarLayout": {
     "split": "Restore two columns"
   },

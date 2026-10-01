@@ -671,6 +671,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           <EditorTopBar
             editorType="node"
             onMenuAction={handleContextAction}
+            shareTarget={{ projectId, kind: 'node', id: curNode.id, title: curNode.title }}
             // mainStorylineId is the source of truth for "is this a drift
             // node" — writingStatus is just the per-axis state.
             nodeWritingStatus={curNode.writingStatus}

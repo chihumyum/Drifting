@@ -297,6 +297,7 @@ export function CategoryEditorView({
       <EditorTopBar
         editorType={'category'}
         onMenuAction={handleContextAction}
+        shareTarget={projectId ? { projectId, kind: 'category', id: curCategory.id, title: curCategory.name } : undefined}
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,

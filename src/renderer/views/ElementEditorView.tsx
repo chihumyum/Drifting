@@ -638,6 +638,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       <EditorTopBar
         editorType="element"
         onMenuAction={handleContextAction}
+        shareTarget={projectId && curElement ? { projectId, kind: 'element', id: curElement.id, title: curElement.name } : undefined}
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,

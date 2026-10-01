@@ -318,6 +318,7 @@ export function StorylineEditorView({
       <EditorTopBar
         editorType="storyline"
         onMenuAction={handleContextAction}
+        shareTarget={projectId ? { projectId, kind: 'storyline', id: currentStoryline.id, title: currentStoryline.name } : undefined}
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,

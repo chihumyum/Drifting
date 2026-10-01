@@ -1,4 +1,25 @@
 {
+  "markdownShare": {
+    "title": "分享 Markdown",
+    "menu": "分享 Markdown…",
+    "menuBook": "分享全书 Markdown…",
+    "wholeBook": "按书稿顺序分享全部章节",
+    "currentBody": "分享当前文档的完整正文",
+    "readOnly": "只读",
+    "preview": "Markdown 源文，只读",
+    "proseOnly": "包含标题与正文，不包含批注、概要和剧情规划。",
+    "characters": "{{count}} 字符",
+    "loading": "正在准备完整 Markdown…",
+    "loadFailed": "未能完整读取正文，请重试。",
+    "retry": "重试",
+    "copy": "复制全部",
+    "copying": "正在复制…",
+    "save": "保存 .md",
+    "saving": "正在保存…",
+    "copied": "已复制全部 Markdown",
+    "saved": "已保存 Markdown",
+    "failed": "操作未完成，请重试，或选中文字后复制。"
+  },
   "sidebarLayout": {
     "split": "恢复双栏"
   },
