@@ -40,13 +40,11 @@
   },
   "preAlphaGuide": {
     "title": "欢迎使用 Drifting Alpha",
-    "intro": "无需账号也能开始写作。项目与正文先保存在这台设备上，你可以随时从设置管理同步。",
+    "intro": "无需账号也能开始写作。项目与正文会先保存在这台设备上。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
-    "sync": "Google Drive 同步可选。连接后，稿件、评论、关系、原始素材和持久化 Agent memory 会进入 Google 的信任边界；Drifting 不会在 Google Drive 之上额外提供端到端加密。",
     "byok": "Copilot 与 General Agent 均为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
-    "settingsHint": "继续本地模式即可创建第一个项目；也可以现在打开「同步与数据」，连接 Google Drive。快速指南里有一条示例写作路径。",
-    "quickGuide": "快速指南",
-    "openDrive": "Google Drive…",
+    "settingsHint": "继续本地模式即可创建第一个项目，开始写作。",
+    "accountAction": "登录 / 注册并同步",
     "continueLocal": "继续本地模式"
   },
   "settings": {
@@ -1075,7 +1073,7 @@
       "manage": "管理账号与同步",
       "back_to_library": "返回本地书库",
       "trust": "启用托管同步后，项目和原始素材会保存在你连接的服务端。该服务端可以读取这些内容。",
-      "onboarding": "直接在本机开始写作，或登录账号同步书库。之后也可以随时从账号设置登录。",
+      "onboarding": "登录或注册 Drifting 账号后，会将云端项目下载到本机，并上传当前本地书库。也可以先在本地写作，之后从「账号」设置登录。",
       "progress": "同步进度",
       "retrying": "暂时未能完成同步；正文已保存在本机，会自动重试。",
       "pending": "正在同步或等待同步完成。",

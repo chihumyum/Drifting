@@ -7,7 +7,8 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 
 type Locale = {
   auth: Record<string, unknown> & { fields: Record<string, string> };
-  settings: { hosted: { sign_in_sync_description: string } };
+  preAlphaGuide: Record<string, string>;
+  settings: { hosted: { sign_in_sync_description: string; onboarding: string } };
 };
 
 function keyPaths(value: unknown, prefix = ''): string[] {
@@ -28,7 +29,7 @@ describe('account sign-in entry', () => {
     );
     // Mobile keeps the overlay guide and its full-page authentication route.
     expect(guide).toContain('if (!open || !getPlatformRuntime().isMobileShell) return null;');
-    expect(guide).toContain("if (hosted && !session) navigate('/login');");
+    expect(guide).toContain("if (!session) navigate('/login');");
     expect(css).toMatch(/\.modal-root\.first-run-gate__modal \{\s*background: transparent;/);
   });
 
@@ -85,8 +86,17 @@ describe('account sign-in entry', () => {
       expect(locale.auth).not.toHaveProperty('hero');
       expect(locale.auth).not.toHaveProperty('controls');
       for (const label of Object.values(locale.auth.fields)) expect(label).not.toContain(' · ');
+      expect(locale.preAlphaGuide).not.toHaveProperty('sync');
+      expect(locale.preAlphaGuide).not.toHaveProperty('openDrive');
+      expect(locale.preAlphaGuide).not.toHaveProperty('quickGuide');
+      expect(JSON.stringify(locale.preAlphaGuide)).not.toMatch(/Google Drive|quick guide|快速指南/i);
     }
     expect(keyPaths(zh.auth).sort()).toEqual(keyPaths(en.auth).sort());
+    expect(keyPaths(zh.preAlphaGuide).sort()).toEqual(keyPaths(en.preAlphaGuide).sort());
+    expect(zh.preAlphaGuide.accountAction).toMatch(/登录.*注册/);
+    expect(en.preAlphaGuide.accountAction).toMatch(/Sign in.*sign up/);
+    expect(zh.settings.hosted.onboarding).toMatch(/下载[\s\S]*上传/);
+    expect(en.settings.hosted.onboarding).toMatch(/download[\s\S]*upload/);
     expect(zh.settings.hosted.sign_in_sync_description).toMatch(/下载[\s\S]*上传/);
     expect(en.settings.hosted.sign_in_sync_description).toMatch(/downloads[\s\S]*uploads/);
   });

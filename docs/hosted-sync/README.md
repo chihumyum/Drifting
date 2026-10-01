@@ -58,11 +58,15 @@ origin-scoped secure-storage key; another host's retired session is never read
 or migrated. Lab bundle identifiers use isolated credential services. Neither
 credential hydration nor session requests block opening the local library.
 
-The same configured app offers **Continue locally** and **Sign in and sync** on
-first use. On the Mac this choice is a dialog shown before the bookshelf
-mounts; signing in continues in that dialog, so the shelf first opens with the
-account's projects already restored. Later sign-in (user menu or Account
-settings) opens the same compact dialog over the current screen instead of a
+The same configured app offers **Continue locally** and **Sign in / sign up and
+sync** on first use. The welcome page states that connecting downloads cloud
+projects and uploads the current local library. On the Mac this choice is a
+dialog shown before the bookshelf mounts; the existing account flow continues
+in that dialog. Authors can switch between sign-in and registration, verify
+their email, or use email-code sign-in and password recovery. Successful
+authentication connects the library before opening the shelf. An existing
+session instead offers **Manage account and sync**. Later sign-in (user menu or
+Account settings) opens the same compact dialog over the current screen instead of a
 full-page route; the dialog stays open while the library connects. Mobile keeps
 its full-page `/login` route. Login explicitly describes the upload/download
 boundary and connects the existing library after account verification;
@@ -70,8 +74,12 @@ connection failures offer an immediate retry and remain retryable in Account
 settings through **Connect and sync**. No second install or
 library is needed to move from local writing to Hosted. The source-default
 service-disabled configuration is an operator boundary, not a user mode.
-Initial connection
-publishes existing local projects and restores validated cloud projects before
+Service-disabled builds show only **Continue locally**, without a sync action or
+Hosted storage claim. Neither welcome-page variant includes Google Drive copy
+or a quick-guide link. The existing `v5` seen marker is retained, so this copy
+correction does not reopen onboarding for authors who already dismissed it.
+
+Initial connection publishes existing local projects and restores validated cloud projects before
 activating one app-wide authority. New projects publish a genesis snapshot;
 **Sync now** waits for every binding to mount and complete a fresh cycle. The
 account panel reports the last completed sync and retry/pending state. Other
@@ -129,6 +137,12 @@ Its explicit online launch and installation paths use the same configured origin
 for renderer requests, native transport and CSP. No physical mobile usability is claimed.
 
 ## Acceptance and remaining device gates
+
+`src/renderer/features/auth/auth-entry.acceptance.test.ts` and
+`src/renderer/features/settings/hosted-settings-boundary.acceptance.test.ts`
+check the first-run account entry, local-only boundary, English/Chinese copy and
+absence of retired welcome-page links. These source contracts do not claim a
+live account registration or delivered verification email.
 
 [Native session observations and open gates](native-session.md) record the
 interactive work separately from the final source checks.

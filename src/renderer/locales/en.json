@@ -40,13 +40,11 @@
   },
   "preAlphaGuide": {
     "title": "Welcome to Drifting Alpha",
-    "intro": "Start writing without an account. Projects and prose are saved on this device first; you can manage sync later in Settings.",
+    "intro": "Start writing without an account. Projects and prose are saved on this device first.",
     "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
-    "sync": "Google Drive sync is optional. When connected, manuscripts, comments, relationships, original assets, and persistent Agent memory enter Google's trust boundary. Drifting does not add end-to-end encryption over Google Drive.",
     "byok": "Copilot and General Agent are Experimental and BYOK-only. Requests, costs, retention, training terms, and output risk follow the model provider you select; API keys remain in the system Keychain.",
-    "settingsHint": "Continue locally to create your first project, or open Sync & Data now to connect Google Drive. The quick guide includes a sample writing path.",
-    "quickGuide": "Quick guide",
-    "openDrive": "Google Drive…",
+    "settingsHint": "Continue locally to create your first project and start writing.",
+    "accountAction": "Sign in / sign up and sync",
     "continueLocal": "Continue locally"
   },
   "settings": {
@@ -1075,7 +1073,7 @@
       "manage": "Manage account and sync",
       "back_to_library": "Back to local library",
       "trust": "Hosted sync stores projects and original assets on the connected service. That service can read their contents.",
-      "onboarding": "Start writing locally, or sign in to sync your library. You can also sign in later from Account settings.",
+      "onboarding": "Sign in or create a Drifting account to download your cloud projects and upload your local library. You can also start writing locally and sign in later from Account settings.",
       "progress": "Sync progress",
       "retrying": "Sync could not finish. Writing remains saved locally; retrying automatically.",
       "pending": "Syncing or waiting for sync to finish.",

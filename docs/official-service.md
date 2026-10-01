@@ -16,13 +16,16 @@ In that default build, desktop and mobile Settings omit the Account and
 Subscription entries and do not mount their hosted API clients. Privacy also
 omits the hosted telemetry controls rather than presenting disabled upload or
 official-service placeholders. The first-run guide describes the local data
-boundary instead of a trial account or hosted storage. Trash and the separate
+boundary and offers only Continue locally; it has no Drive or quick-guide
+entry. It makes no trial account or hosted storage claim. Trash and the separate
 30-day entity history are local SQLite capabilities and do not require a
 subscription. Trash items remain local until the author restores or permanently
 deletes them. The project-scoped mobile workspace owns its Trash surface; the
 standalone Settings route deliberately remains independent of a project runtime.
 One explicitly configured application supports both local writing and optional
-account sync; its first-run actions are Continue locally and Sign in and sync.
+account sync; its first-run actions are Continue locally and Sign in / sign up
+and sync. The account action reuses the login, registration and email
+verification flow, explaining the cloud download and local upload before entry.
 The source-default flag describes whether an operator supplied a compatible
 service, not two editions the user must install or switch between.
 An explicitly configured Hosted build exposes accounts on both the standalone

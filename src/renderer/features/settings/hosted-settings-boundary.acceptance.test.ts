@@ -69,6 +69,11 @@ describe('hosted settings boundary', () => {
     };
     expect(onboarding).toContain("const GUIDE_VERSION = 'v5'");
     expect(onboarding).toContain("t('preAlphaGuide.localData')");
+    expect(onboarding).toContain("{hosted && <li>{t('settings.hosted.trust')}</li>}");
+    expect(onboarding).toMatch(/\{hosted && \(\s*<Button variant="default" onClick=\{onOpenAccount\}>/);
+    expect(onboarding).toContain("if (!hosted) return;");
+    expect(onboarding).not.toContain('openExternal');
+    expect(onboarding).not.toContain('quick-start');
     expect(onboarding).not.toContain("t('preAlphaGuide.backup')");
     expect(en.preAlphaGuide).not.toHaveProperty('backup');
     expect(zh.preAlphaGuide).not.toHaveProperty('backup');

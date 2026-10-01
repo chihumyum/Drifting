@@ -6,7 +6,6 @@ import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-set
 import { AuthFlow } from '../../features/auth/AuthFlow';
 import { useAuthStore } from '../../store/auth';
 import { events } from '../../lib/events';
-import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
@@ -33,10 +32,10 @@ function usePreAlphaGuide() {
 }
 
 function PreAlphaGuideCard({
-  onOpenSyncAndData,
+  onOpenAccount,
   onContinueLocal,
 }: {
-  onOpenSyncAndData(): void;
+  onOpenAccount(): void;
   onContinueLocal(): void;
 }) {
   const { t } = useTranslation();
@@ -60,7 +59,7 @@ function PreAlphaGuideCard({
         >
           <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
             <li>{t('preAlphaGuide.localData')}</li>
-            <li>{t(hosted ? 'settings.hosted.trust' : 'preAlphaGuide.sync')}</li>
+            {hosted && <li>{t('settings.hosted.trust')}</li>}
             <li>{t('preAlphaGuide.byok')}</li>
           </ul>
         </div>
@@ -69,17 +68,11 @@ function PreAlphaGuideCard({
         </p>
       </ModalBody>
       <ModalActions>
-        {!hosted && <Button
-          variant="ghost"
-          onClick={() =>
-            void platform.material.openExternal('https://drifting.app/quick-start')
-          }
-        >
-          {t('preAlphaGuide.quickGuide')}
-        </Button>}
-        <Button variant="default" onClick={onOpenSyncAndData}>
-          {t(hosted ? (session ? 'settings.hosted.manage' : 'settings.hosted.sign_in_sync') : 'preAlphaGuide.openDrive')}
-        </Button>
+        {hosted && (
+          <Button variant="default" onClick={onOpenAccount}>
+            {t(session ? 'settings.hosted.manage' : 'preAlphaGuide.accountAction')}
+          </Button>
+        )}
         <Button
           className="pre-alpha-guide-modal__continue"
           variant="primary"
@@ -103,10 +96,11 @@ export function PreAlphaOnboardingDialog() {
 
   if (!open || !getPlatformRuntime().isMobileShell) return null;
 
-  const openSyncAndData = () => {
+  const openAccount = () => {
+    if (!hosted) return;
     dismiss();
-    if (hosted && !session) navigate('/login');
-    else queueMicrotask(() => events.emit('settings:open', { railId: hosted ? 'account' : 'sync' }));
+    if (!session) navigate('/login');
+    else queueMicrotask(() => events.emit('settings:open', { railId: 'account' }));
   };
 
   return (
@@ -116,7 +110,7 @@ export function PreAlphaOnboardingDialog() {
       closeOnBackdrop={false}
       dismissOnEscape={false}
     >
-      <PreAlphaGuideCard onOpenSyncAndData={openSyncAndData} onContinueLocal={dismiss} />
+      <PreAlphaGuideCard onOpenAccount={openAccount} onContinueLocal={dismiss} />
     </ModalRoot>
   );
 }
@@ -136,13 +130,14 @@ export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
 
   if (!open) return <>{children}</>;
 
-  const openSyncAndData = () => {
-    if (hosted && !session) {
+  const openAccount = () => {
+    if (!hosted) return;
+    if (!session) {
       setStep('account');
       return;
     }
     dismiss();
-    navigate(`/settings?section=${hosted ? 'account' : 'sync'}`, { state: { from: '/' } });
+    navigate('/settings?section=account', { state: { from: '/' } });
   };
 
   return (
@@ -162,7 +157,7 @@ export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
             <AuthFlow initialMode="signin" onBack={() => setStep('guide')} onComplete={dismiss} />
           </ModalCard>
         ) : (
-          <PreAlphaGuideCard onOpenSyncAndData={openSyncAndData} onContinueLocal={dismiss} />
+          <PreAlphaGuideCard onOpenAccount={openAccount} onContinueLocal={dismiss} />
         )}
       </ModalRoot>
     </div>
