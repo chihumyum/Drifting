@@ -455,8 +455,8 @@ immutable message/run snapshots and cannot observe or mutate the membership
 collection. Removing the last run/snapshot reference permits its index to be
 collected. Retained conversations still have O(events) membership storage.
 
-Desktop/mobile chat panels read a shared `useAgentChatMessages` display
-projection. It coalesces text/thinking/tool-argument notifications by frame,
+Desktop/mobile chat panels use `useAgentChatMessages` display projections
+scoped to their chat view. It coalesces text/thinking/tool-argument notifications by frame,
 with a 50 ms timer fallback and immediate delivery while hidden. Control,
 terminal, author-state and navigation boundaries flush the canonical message
 array immediately. The projection owns only scheduling and a cached array
@@ -464,6 +464,26 @@ reference; ingestion, persistence and voice logic continue reading canonical
 state. Last-view disposal releases timers, listeners and retained run/message
 references. History message identities and `MessageView` memoization remain
 unchanged.
+
+Desktop Agent panes bind their stable sidebar identity to an in-memory chat
+view. Each view owns its conversation cursor, draft, loading generation and
+startup owner. The first pane adopts the existing default view; a second starts
+empty. Bindings survive tab unmounts, while project changes clear every cursor
+and draft. `agent-chat-view-source` supplies cached scoped snapshots and captured
+view actions through `AgentChatViewContext`; it creates no additional runtime
+store or journal subscription. Legacy/mobile/headless callers use the most
+recently focused view. Review task navigation resolves and focuses the destination
+pane before loading its conversation.
+
+Conversations still own canonical runs, pending controls, persistence and journal
+routing. A preparation claim prevents two views from starting the same
+conversation, while different conversations prepare concurrently. Navigation
+invalidates only its view's unsubmitted intent. Submitted turns keep their captured
+conversation ownership. Automatic continuation checks the views of its own
+conversation, so unrelated focus or drafts cannot stop it. Selecting the same
+history in both panes shares its canonical run but keeps separate drafts. Model
+preferences and project data remain shared. Synthetic production-store acceptance
+is in `store/agent-chat-views.integration.test.ts`.
 
 The desktop shell mounts `DesktopAgentTranscript` with project/conversation
 identity. This component owns message display subscriptions, control cards and

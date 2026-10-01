@@ -36,7 +36,7 @@ type ComposeKind = 'note' | 'todo';
 
 interface ReviewPanelProps {
   focused: FocusedEntity;
-  onOpenAgentTask?: () => void;
+  onOpenAgentTask?: () => string | void;
 }
 
 function reviewItemRank(

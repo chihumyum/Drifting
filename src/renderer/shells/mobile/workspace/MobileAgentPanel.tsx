@@ -216,7 +216,7 @@ export function MobileAgentPanel({
                 />
                 <span className="agt-composer__spacer" />
                 {running && !prompt.trim() ? (
-                  <button type="button" className="agt-send agt-send--stop" onClick={abort}>
+                  <button type="button" className="agt-send agt-send--stop" onClick={() => abort()}>
                     {t('agentPanel.composer.stop')}
                   </button>
                 ) : (

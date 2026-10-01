@@ -16,7 +16,7 @@
  * there instead of creating another credential form in the chat surface.
  */
 import { DesktopAgentTranscript, type AgentTranscriptHandle } from './DesktopAgentTranscript';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useSettingsStore,
@@ -44,34 +44,55 @@ import { relTime } from '../AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
 import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButton';
+import { useSidebarPaneId } from '../../../lib/sidebar-pane-context';
+import { createAgentChatViewSource } from '../../../store/agent-chat-view-source';
+import { AgentChatViewContext, useAgentChatViewStore } from '../AgentChatViewContext';
 
 export function DesktopAgentPanel({ projectId }: { projectId: string }) {
+  const paneId = useSidebarPaneId();
+  const paneKey = paneId ? `sidebar:${paneId}` : null;
+  const viewId = useAgentChatStore(s => paneKey ? s.viewBindings[paneKey] : undefined);
+  const source = useMemo(() => viewId ? createAgentChatViewSource(viewId) : useAgentChatStore, [viewId]);
+  useLayoutEffect(() => {
+    const chat = useAgentChatStore.getState();
+    chat.bindProject(projectId);
+    if (paneKey) chat.bindView(paneKey);
+  }, [projectId, paneKey]);
+  if (paneKey && !viewId) return null;
+  const focus = () => { if (viewId) useAgentChatStore.getState().focusView(viewId); };
+  return <AgentChatViewContext.Provider value={source}>
+    <div style={{ display: 'contents' }} data-agent-view={viewId ?? 'default'} onPointerDownCapture={focus} onFocusCapture={focus}>
+      <DesktopAgentPanelContent projectId={projectId} />
+    </div>
+  </AgentChatViewContext.Provider>;
+}
+
+function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const api = generalAgentTransport;
   const agentAuth = useSettingsStore((s) => s.agentAuth);
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
-  const prompt = useAgentChatStore((s) => s.prompt);
+  const prompt = useAgentChatViewStore((s) => s.prompt);
   // Every conversation owns at most one turn; sibling conversations may run in
   // parallel and remain visible through history-row indicators.
-  const running = useAgentChatStore(selectRunning);
-  const starting = useAgentChatStore((s) => s.starting);
-  const controlStatus = useAgentChatStore(selectControlStatus);
-  const pendingControl = useAgentChatStore(selectPendingControl);
-  const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
-  const contextUsage = useAgentChatStore(selectContextUsage);
-  const runningTurns = useAgentChatStore((s) => s.runningTurns);
-  const convList = useAgentChatStore((s) => s.convList);
-  const activeConvId = useAgentChatStore((s) => s.activeConvId);
-  const setPrompt = useAgentChatStore((s) => s.setPrompt);
-  const send = useAgentChatStore((s) => s.send);
-  const stopAfterTool = useAgentChatStore((s) => s.stopAfterTool);
-  const newConversation = useAgentChatStore((s) => s.newConversation);
-  const loadConversation = useAgentChatStore((s) => s.loadConversation);
-  const deleteConversation = useAgentChatStore((s) => s.deleteConversation);
-  const renameConversation = useAgentChatStore((s) => s.renameConversation);
-  const bindProject = useAgentChatStore((s) => s.bindProject);
+  const running = useAgentChatViewStore(selectRunning);
+  const starting = useAgentChatViewStore((s) => s.starting);
+  const controlStatus = useAgentChatViewStore(selectControlStatus);
+  const pendingControl = useAgentChatViewStore(selectPendingControl);
+  const automaticContinuation = useAgentChatViewStore(selectAutomaticContinuation);
+  const contextUsage = useAgentChatViewStore(selectContextUsage);
+  const runningTurns = useAgentChatViewStore((s) => s.runningTurns);
+  const convList = useAgentChatViewStore((s) => s.convList);
+  const activeConvId = useAgentChatViewStore((s) => s.activeConvId);
+  const setPrompt = useAgentChatViewStore((s) => s.setPrompt);
+  const send = useAgentChatViewStore((s) => s.send);
+  const stopAfterTool = useAgentChatViewStore((s) => s.stopAfterTool);
+  const newConversation = useAgentChatViewStore((s) => s.newConversation);
+  const loadConversation = useAgentChatViewStore((s) => s.loadConversation);
+  const deleteConversation = useAgentChatViewStore((s) => s.deleteConversation);
+  const renameConversation = useAgentChatViewStore((s) => s.renameConversation);
 
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
   const [panelView, setPanelView] = useState<'chat' | 'working-memory'>('chat');
@@ -116,12 +137,6 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     events.on('agent:auth-changed', refreshStatus);
     return () => events.off('agent:auth-changed', refreshStatus);
   }, [refreshStatus]);
-
-  // Bind the active project: loads its history, and resets the live chat only
-  // if the project actually changed (a remount with the same project keeps it).
-  useEffect(() => {
-    bindProject(projectId);
-  }, [projectId, bindProject]);
 
   const handleSend = useCallback(() => {
     transcriptRef.current?.follow();

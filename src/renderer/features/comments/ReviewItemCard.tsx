@@ -1,3 +1,4 @@
+import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
@@ -74,7 +75,7 @@ export interface ReviewItemCardProps {
   onRemoveFromStickyRail?: () => void;
   onAddRelation?: (target: RelationTarget) => void;
   onRemoveRelation?: (target: RelationTarget) => void;
-  onOpenAgentTask?: () => void;
+  onOpenAgentTask?: () => string | void;
 }
 
 function ReviewActionMenuItem({
@@ -194,12 +195,12 @@ export function ReviewItemCard({
       try {
         const chat = useAgentChatStore.getState();
         if (chat.boundProjectId !== projectId) chat.bindProject(projectId, { restoreLastConversation: false });
-        await useAgentChatStore.getState().loadConversation(taskChatId);
-        if (useAgentChatStore.getState().activeConvId !== taskChatId) {
+        const viewId = onOpenAgentTask?.() ?? useAgentChatStore.getState().focusedViewId;
+        await useAgentChatStore.getState().loadConversation(taskChatId, viewId);
+        if (readAgentChatView(useAgentChatStore.getState(), viewId).activeConvId !== taskChatId) {
           setTaskError(t('reviewPanel.agentTaskUnavailable'));
           return;
         }
-        onOpenAgentTask?.();
       } catch {
         setTaskError(t('reviewPanel.agentTaskUnavailable'));
       }

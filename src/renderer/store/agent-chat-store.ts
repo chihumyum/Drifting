@@ -10,7 +10,7 @@ import { AgentChatTranscript } from '../domain/agent-chat-transcript';
  * the panel isn't mounted.
  *
  * Per-conversation live state lives in `runs` (keyed by convId), which decouples
- * "which conversation is displayed" (`activeConvId`) from "which conversation a
+ * each view's displayed conversation from "which conversation a
  * streamed event belongs to" (resolved by the app-owned journal consumer).
  * That decoupling is what lets a turn keep running in the background: switching
  * conversation or project changes only the displayed `runs` entry; the in-flight
@@ -24,6 +24,11 @@ import { AgentChatTranscript } from '../domain/agent-chat-transcript';
  * reinterpreted as a self-hosted runtime session.
  */
 import { create } from 'zustand';
+import {
+  DEFAULT_AGENT_CHAT_VIEW, EMPTY_AGENT_CHAT_VIEW, agentChatViewIds, agentConversationViewIds,
+  bindAgentChatView, focusAgentChatView, patchAgentChatView, projectAgentChatView, readAgentChatView,
+  type AgentChatViewRegistry,
+} from '../lib/agent/runtime/chat-view-state';
 import { events } from '../lib/events';
 import { AgentConversationSyncRepository } from '../sync/agent-chat/repository';
 import { v7 as uuidv7 } from 'uuid';
@@ -135,6 +140,8 @@ export type AgentChatSendOrigin =
   | 'headless_auto';
 
 export interface AgentChatSendOptions {
+  /** Omitted actions target the most recently focused chat view. */
+  viewId?: string;
   /** Omitted calls come from the visible composer and count as author intent. */
   origin?: AgentChatSendOrigin;
   /** Product-owned model instruction that must never appear in the composer. */
@@ -149,7 +156,9 @@ export interface AgentChatSendOptions {
   onStarted?: (conversationId: string) => void;
 }
 
-interface AgentChatState {
+interface AgentChatState extends AgentChatViewRegistry {
+  bindView: (paneId: string) => void;
+  focusView: (viewId: string) => void;
   /** The project whose history is currently displayed (null before first bind). */
   boundProjectId: string | null;
   /** Which conversation is displayed (null = a fresh, unsaved chat). */
@@ -165,26 +174,26 @@ interface AgentChatState {
   /** Canonical concurrency state: conversation id → its one active turn id. */
   runningTurns: Record<string, string>;
   /**
-   * Synchronous startup mutex held before any repository/provider await.
-   * Without it, double Send/Continue can both pass the idle guard and overwrite
-   * the single in-flight turn pointers.
+   * The focused view's synchronous startup mutex, held before any await.
+   * Other views have their own mutex; a shared conversation claim prevents
+   * duplicate Send/Continue across views of the same conversation.
    */
   starting: boolean;
 
-  setPrompt: (p: string) => void;
+  setPrompt: (p: string, viewId?: string) => void;
   /** Mount/route hook: switch to this project's history. Background runs and the
    *  in-flight turn are preserved across the switch. */
   bindProject: (projectId: string, options?: { restoreLastConversation?: boolean }) => void;
   refreshList: () => void;
   send: (options?: AgentChatSendOptions) => Promise<void>;
   /** Re-authorize continuous execution for the current durable task. */
-  continueTask: () => Promise<void>;
-  respondPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope) => Promise<void>;
-  stopAfterTool: () => Promise<void>;
-  cancelRecoveredControl: () => Promise<void>;
-  abort: () => void;
-  newConversation: () => void;
-  loadConversation: (id: string) => Promise<void>;
+  continueTask: (viewId?: string) => Promise<void>;
+  respondPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope, viewId?: string) => Promise<void>;
+  stopAfterTool: (viewId?: string) => Promise<void>;
+  cancelRecoveredControl: (viewId?: string) => Promise<void>;
+  abort: (viewId?: string) => void;
+  newConversation: (viewId?: string) => void;
+  loadConversation: (id: string, viewId?: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<AgentConversationRemovalReceipt[] | null>;
   /** Delete the explicit or bound project; publish only the committed receipt. */
   clearConversations: (projectId?: string) => Promise<AgentConversationRemovalReceipt[] | null>;
@@ -280,11 +289,24 @@ function withoutRunningTurn(
 
 export { AgentConversationLoadGuard, type AgentConversationLoadToken } from '../lib/agent/runtime/chat-conversation-navigation';
 
-const conversationLoadGuard = new AgentConversationLoadGuard();
 const conversationRemovals = createAgentConversationRemovalOwner();
-const conversationStartOwner = createAgentChatStartOwner(value => {
-  useAgentChatStore.setState(state => state.starting === value ? state : { starting: value });
-});
+const conversationLoadGuards = new Map<string, AgentConversationLoadGuard>();
+const conversationStartOwners = new Map<string, ReturnType<typeof createAgentChatStartOwner>>();
+const preparingConversations = new Map<string, { isCurrent(projectId: string | null): boolean }>();
+function loadGuard(viewId: string) {
+  let guard = conversationLoadGuards.get(viewId);
+  if (!guard) { guard = new AgentConversationLoadGuard(); conversationLoadGuards.set(viewId, guard); }
+  return guard;
+}
+function startOwner(viewId: string) {
+  let owner = conversationStartOwners.get(viewId);
+  if (!owner) {
+    owner = createAgentChatStartOwner(starting => useAgentChatStore.setState(state =>
+      readAgentChatView(state, viewId).starting === starting ? state : patchAgentChatView(state, viewId, { starting })));
+    conversationStartOwners.set(viewId, owner);
+  }
+  return owner;
+}
 
 const conversationLists = createAgentConversationListController({
   read: () => { const state = useAgentChatStore.getState(); return { projectId: state.boundProjectId, activeConvId: state.activeConvId, prompt: state.prompt, starting: state.starting }; },
@@ -295,6 +317,14 @@ const conversationLists = createAgentConversationListController({
 });
 
 export const useAgentChatStore = create<AgentChatState>((set, get) => ({
+  focusedViewId: DEFAULT_AGENT_CHAT_VIEW,
+  viewBindings: {},
+  views: {},
+  bindView: paneId => set(state => bindAgentChatView(state, paneId)),
+  focusView: viewId => {
+    if (viewId !== get().focusedViewId) conversationLists.cancelRestore();
+    set(state => focusAgentChatView(state, viewId));
+  },
   boundProjectId: null,
   activeConvId: null,
   runs: {},
@@ -305,7 +335,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   runningTurns: {},
   starting: false,
 
-  setPrompt: (p) => { if (p !== get().prompt) conversationLists.cancelRestore(); set({ prompt: p }); },
+  setPrompt: (prompt, viewId = get().focusedViewId) => {
+    if (prompt !== readAgentChatView(get(), viewId).prompt) conversationLists.cancelRestore();
+    set(state => patchAgentChatView(state, viewId, { prompt }));
+  },
 
   refreshList: () => conversationLists.refresh(),
 
@@ -316,12 +349,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       get().refreshList();
       return;
     }
-    conversationLoadGuard.invalidate();
+    for (const guard of conversationLoadGuards.values()) guard.invalidate();
     const leavingProjectId = get().boundProjectId;
-    if (leavingProjectId) conversationStartOwner.cancelProject(leavingProjectId);
-    const leavingConvId = get().activeConvId;
-    if (leavingConvId) {
-      pauseAutomaticContinuationForConversation(leavingConvId, 'author_navigated');
+    if (leavingProjectId) for (const owner of conversationStartOwners.values()) owner.cancelProject(leavingProjectId);
+    for (const id of agentChatViewIds(get())) {
+      const leavingConvId = readAgentChatView(get(), id).activeConvId;
+      if (leavingConvId) pauseAutomaticContinuationForConversation(leavingConvId, 'author_navigated');
     }
     // Switching CONVERSATIONS within a project keeps a background turn alive, but
     // switching PROJECTS cannot: the tool bridge (useAgentToolBridge) is bound to
@@ -343,7 +376,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // edits survive a reload/navigation (clearing it would silently accept them).
     useAgentActivityStore.getState().clearAll();
     conversationLists.bind(projectId, options?.restoreLastConversation !== false);
-    set({ boundProjectId: projectId, activeConvId: null, prompt: '', convList: [] });
+    set({ boundProjectId: projectId, ...EMPTY_AGENT_CHAT_VIEW, views: {}, convList: [] });
     conversationLists.refresh();
   },
 
@@ -352,10 +385,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!background) conversationLists.cancelRestore();
     ensureSubscription();
     const origin = options?.origin ?? 'author';
-    const s = get();
+    const viewId = options?.viewId ?? get().focusedViewId;
+    const s = projectAgentChatView(get(), viewId);
     const submittedPrompt = options?.runtimePrompt ?? s.prompt;
     if (s.starting || !submittedPrompt.trim() || !s.boundProjectId) return;
     const targetConvId = background ? background.conversationId ?? null : s.activeConvId;
+    if (targetConvId && preparingConversations.get(targetConvId)?.isCurrent(s.boundProjectId)) return;
     const targetRun = targetConvId ? s.runs[targetConvId] : undefined;
     if (targetRun?.pendingControl?.requiresContinuation) return;
     const activeTurnId = targetConvId ? s.runningTurns[targetConvId] : undefined;
@@ -381,8 +416,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             });
       if (response.ok) {
         set((current) =>
-          options?.runtimePrompt === undefined && current.prompt === s.prompt
-            ? { prompt: '' }
+          options?.runtimePrompt === undefined && readAgentChatView(current, viewId).prompt === s.prompt
+            ? patchAgentChatView(current, viewId, { prompt: '' })
             : current,
         );
       } else {
@@ -392,11 +427,18 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     // Claim startup before the first await. `continueTask` and the
     // ordinary composer share this exact gate.
-    if (!background) conversationLoadGuard.invalidate();
-    const start = conversationStartOwner.begin(s.boundProjectId, targetConvId, Boolean(background));
+    if (!background) loadGuard(viewId).invalidate();
+    const start = startOwner(viewId).begin(s.boundProjectId, targetConvId, Boolean(background));
     if (!start) return;
     const isCurrentStart = (): boolean => start.isCurrent(get().boundProjectId);
+    const claimed = new Set<string>();
+    const claim = (id: string): boolean => {
+      const pending = preparingConversations.get(id);
+      if (pending && pending !== start && pending.isCurrent(get().boundProjectId)) return false;
+      preparingConversations.set(id, start); claimed.add(id); return true;
+    };
     try {
+      if (targetConvId && !claim(targetConvId)) return;
       const projectId = s.boundProjectId;
       const text = submittedPrompt.trim();
       const turnContext = normalizeAgentTurnContext(options?.turnContext);
@@ -425,6 +467,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       let convId = targetConvId;
       if (!convId) {
         convId = uuidv7();
+        if (!claim(convId)) return;
         try {
           await repo.create({
             id: convId,
@@ -456,6 +499,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         if (previous) set((state) => ({ runs: { ...state.runs, [convId!]: { ...previous, runtimeSessionId: null, journalScope: createAgentChatJournalScope(), controlStatus: null, pendingControl: null, longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() } } }));
       }
       const cid = convId;
+      if (!claim(cid)) return;
 
       // Append the user message into this conversation's live run state (seeding a
       // fresh entry if it isn't loaded yet).
@@ -495,10 +539,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       journalConsumer.registerTurn(turnId, cid);
       set((st) => ({
         runs: { ...st.runs, [cid]: run },
-        ...(!background ? {
+        ...(!background ? patchAgentChatView(st, viewId, {
           activeConvId: cid,
-          prompt: options?.runtimePrompt === undefined ? '' : st.prompt,
-        } : {}),
+          prompt: options?.runtimePrompt === undefined ? '' : readAgentChatView(st, viewId).prompt,
+        }) : {}),
         runningTurns: { ...st.runningTurns, [cid]: turnId },
         runningTurnId: turnId,
         runningConvId: cid,
@@ -615,22 +659,24 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       if (r.ok && !cancelled) options?.onStarted?.(cid);
     } finally {
       start.finish();
+      for (const id of claimed) if (preparingConversations.get(id) === start) preparingConversations.delete(id);
     }
   },
 
-  continueTask: async () => {
-    const state = get();
+  continueTask: async (viewId = get().focusedViewId) => {
+    const state = projectAgentChatView(get(), viewId);
     const reason = selectAgentTaskContinuationReason(state);
     if (!reason) return;
     await get().send({
+      viewId,
       origin: 'author_continuation',
       runtimePrompt:
         reason === 'budget_exceeded' ? BUDGET_CONTINUATION_PROMPT : ACTIVE_PLAN_CONTINUATION_PROMPT,
     });
   },
 
-  respondPermission: async (decision, requestedScope = 'once') => {
-    const s = get();
+  respondPermission: async (decision, requestedScope = 'once', viewId = get().focusedViewId) => {
+    const s = projectAgentChatView(get(), viewId);
     const convId = s.activeConvId;
     const pending = convId ? s.runs[convId]?.pendingControl : null;
     const request = pending?.permissionRequest;
@@ -655,8 +701,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!response.ok) appendRunError(convId, response.error);
   },
 
-  stopAfterTool: async () => {
-    const s = get();
+  stopAfterTool: async (viewId = get().focusedViewId) => {
+    const s = projectAgentChatView(get(), viewId);
     const convId = s.activeConvId;
     if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
     const turnId = convId ? s.runningTurns[convId] : undefined;
@@ -667,8 +713,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!response.ok) appendRunError(convId, response.error);
   },
 
-  cancelRecoveredControl: async () => {
-    const s = get();
+  cancelRecoveredControl: async (viewId = get().focusedViewId) => {
+    const s = projectAgentChatView(get(), viewId);
     const convId = s.activeConvId;
     const pending = convId ? s.runs[convId]?.pendingControl : null;
     const request = pending?.permissionRequest ?? pending?.userInputRequest;
@@ -699,35 +745,35 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     });
   },
 
-  abort: () => {
-    const s = get();
+  abort: (viewId = get().focusedViewId) => {
+    const s = projectAgentChatView(get(), viewId);
     const convId = s.activeConvId;
     if (convId) {
-      conversationStartOwner.cancelConversation(convId);
+      for (const owner of conversationStartOwners.values()) owner.cancelConversation(convId);
       pauseAutomaticContinuationForConversation(convId, 'author_stopped');
-    } else conversationStartOwner.cancelActive();
+    } else startOwner(viewId).cancelActive();
     const turnId = convId ? s.runningTurns[convId] : undefined;
     if (turnId) void generalAgentTransport.abort({ turnId });
   },
 
-  newConversation: () => {
+  newConversation: (viewId = get().focusedViewId) => {
     conversationLists.cancelRestore();
-    const activeConvId = get().activeConvId;
-    if (activeConvId && !get().runs[activeConvId]?.backgroundTask) {
+    const activeConvId = readAgentChatView(get(), viewId).activeConvId;
+    if (activeConvId && !get().runs[activeConvId]?.backgroundTask && !agentConversationViewIds(get(), activeConvId).some(id => id !== viewId)) {
       pauseAutomaticContinuationForConversation(activeConvId, 'author_navigated');
     }
-    conversationLoadGuard.invalidate();
-    conversationStartOwner.invalidate();
+    loadGuard(viewId).invalidate();
+    startOwner(viewId).invalidate();
     const pid = get().boundProjectId;
-    if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
+    if (pid && useSettingsStore.getState().lastAgentConvByProject[pid] === activeConvId) useSettingsStore.getState().clearLastAgentConv(pid);
     // Switch the view to a fresh, empty chat. A background turn (if any) keeps
     // running in its own conversation — we don't abort it here.
-    set({ activeConvId: null, prompt: '' });
+    set(state => patchAgentChatView(state, viewId, { activeConvId: null, prompt: '' }));
   },
 
-  loadConversation: (id) => {
+  loadConversation: (id, viewId = get().focusedViewId) => {
     conversationLists.cancelRestore();
-    return openAgentConversation(id);
+    return openAgentConversation(id, undefined, viewId);
   },
 
   deleteConversation: async (id) => {
@@ -752,7 +798,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!finish) return null;
     try {
       if (get().boundProjectId === pid) conversationLists.cancelRestore();
-      conversationStartOwner.cancelProject(pid);
+      for (const owner of conversationStartOwners.values()) owner.cancelProject(pid);
       for (const [id, run] of Object.entries(get().runs)) if (run.projectId === pid) stopConversationForRemoval(id);
       const receipt = await repo.softDeleteAllByProject(pid, new Date().toISOString());
       removeCommittedConversations(receipt.map(row => row.id));
@@ -779,7 +825,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 /** Runtime cleanup is keyed by the removed conversation, never the visible view. */
 function stopConversationForRemoval(id: string): void {
   pauseAutomaticContinuationForConversation(id, 'author_stopped');
-  conversationStartOwner.cancelConversation(id);
+  for (const owner of conversationStartOwners.values()) owner.cancelConversation(id);
   const state = useAgentChatStore.getState(); const turnId = state.runningTurns[id];
   if (!turnId) return;
   const sessionId = state.runs[id]?.runtimeSessionId;
@@ -797,27 +843,31 @@ function removeCommittedConversations(ids: readonly string[]): void {
   for (const [pid, id] of Object.entries(settings.lastAgentConvByProject)) if (removed.has(id)) settings.clearLastAgentConv(pid);
   useAgentChatStore.setState(state => {
     const hasRun = ids.some(id => id in state.runs);
-    const hasActive = state.activeConvId !== null && removed.has(state.activeConvId);
+    const activeViews = agentChatViewIds(state).filter(id => { const convId = readAgentChatView(state, id).activeConvId; return convId !== null && removed.has(convId); });
+    let changed = state;
+    for (const viewId of activeViews) changed = { ...changed, ...patchAgentChatView(changed, viewId, { activeConvId: null }) };
     const hasList = state.convList.some(row => removed.has(row.id));
-    if (!hasRun && !hasActive && !hasList) return state;
+    if (!hasRun && !activeViews.length && !hasList) return state;
     return {
       runs: hasRun ? Object.fromEntries(Object.entries(state.runs).filter(([id]) => !removed.has(id))) : state.runs,
-      activeConvId: hasActive ? null : state.activeConvId,
+      activeConvId: changed.activeConvId,
+      views: changed.views,
       convList: hasList ? state.convList.filter(row => !removed.has(row.id)) : state.convList,
     };
   });
 }
 
-async function openAgentConversation(id: string, isCurrentRestore: () => boolean = () => true): Promise<void> {
+async function openAgentConversation(id: string, isCurrentRestore: () => boolean = () => true, viewId: string = useAgentChatStore.getState().focusedViewId): Promise<void> {
   if (!isCurrentRestore()) return;
   const get = useAgentChatStore.getState; const set = useAgentChatStore.setState;
   const boundProjectId = get().boundProjectId;
   if (!boundProjectId) return;
-  const previousActiveConvId = get().activeConvId;
-  if (previousActiveConvId && previousActiveConvId !== id && !get().runs[previousActiveConvId]?.backgroundTask) {
+  const previousActiveConvId = readAgentChatView(get(), viewId).activeConvId;
+  if (previousActiveConvId && previousActiveConvId !== id && !get().runs[previousActiveConvId]?.backgroundTask && !agentConversationViewIds(get(), previousActiveConvId).some(other => other !== viewId)) {
     pauseAutomaticContinuationForConversation(previousActiveConvId, 'author_navigated');
   }
-  conversationStartOwner.invalidate();
+  startOwner(viewId).invalidate();
+  const conversationLoadGuard = loadGuard(viewId);
   let visible = false;
   const loadToken = conversationLoadGuard.begin(boundProjectId);
   const isCurrentLoad = (): boolean =>
@@ -835,18 +885,19 @@ async function openAgentConversation(id: string, isCurrentRestore: () => boolean
       const run = await hydrateAgentConversationRun(id, boundProjectId, isCurrentRead);
       if (!isCurrentRead()) return;
       if (!run) {
-        if (get().activeConvId === id) set({ activeConvId: null });
+        if (readAgentChatView(get(), viewId).activeConvId === id) set(state => patchAgentChatView(state, viewId, { activeConvId: null }));
         if (useSettingsStore.getState().lastAgentConvByProject[boundProjectId] === id) useSettingsStore.getState().clearLastAgentConv(boundProjectId);
         return;
       }
-      set((state) => ({ runs: { ...state.runs, [id]: run } }));
+      set((state) => state.runs[id] ? state : ({ runs: { ...state.runs, [id]: run } }));
     }
     if (!isCurrentRead()) return;
     visible = true;
-    set({ activeConvId: id });
+    set(state => patchAgentChatView(state, viewId, { activeConvId: id }));
     if (!isCurrentRead()) return;
-    const runtimeSessionId = get().runs[id]?.runtimeSessionId;
-    if (runtimeSessionId) {
+    const controlRun = get().runs[id];
+    const runtimeSessionId = controlRun?.runtimeSessionId;
+    if (runtimeSessionId && !get().runningTurns[id]) {
       const pending = await generalAgentTransport.listPendingControls({
         sessionId: runtimeSessionId,
       });
@@ -855,7 +906,7 @@ async function openAgentConversation(id: string, isCurrentRestore: () => boolean
         const recovered = pending.value[0] ?? null;
         set((state) => {
           const run = state.runs[id];
-          if (!run || run.runtimeSessionId !== runtimeSessionId) return state;
+          if (!run || run !== controlRun || state.runningTurns[id] || run.runtimeSessionId !== runtimeSessionId) return state;
           return {
             runs: {
               ...state.runs,
@@ -980,11 +1031,12 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
     return;
   }
 
-  if (state.boundProjectId !== run.projectId || (!run.backgroundTask && state.activeConvId !== convId)) {
+  const viewIds = agentConversationViewIds(state, convId);
+  if (state.boundProjectId !== run.projectId || (!run.backgroundTask && !viewIds.length)) {
     pauseAutomaticContinuationForConversation(convId, 'author_navigated');
     return;
   }
-  if (!run.backgroundTask && state.prompt.trim()) {
+  if (!run.backgroundTask && viewIds.some(id => readAgentChatView(state, id).prompt.trim())) {
     pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
     return;
   }
@@ -1031,15 +1083,17 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
     ) {
       return;
     }
-    if (current.boundProjectId !== currentRun.projectId || (!currentRun.backgroundTask && current.activeConvId !== convId)) {
+    const currentViewIds = agentConversationViewIds(current, convId);
+    if (current.boundProjectId !== currentRun.projectId || (!currentRun.backgroundTask && !currentViewIds.length)) {
       pauseAutomaticContinuationForConversation(convId, 'author_navigated');
       return;
     }
-    if (!currentRun.backgroundTask && current.prompt.trim()) {
+    if (!currentRun.backgroundTask && currentViewIds.some(id => readAgentChatView(current, id).prompt.trim())) {
       pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
       return;
     }
-    if (current.starting || current.runningTurns[convId] || currentRun.pendingControl) {
+    const viewId = currentRun.backgroundTask ? current.focusedViewId : currentViewIds[0];
+    if (readAgentChatView(current, viewId).starting || current.runningTurns[convId] || currentRun.pendingControl) {
       pauseAutomaticContinuationForConversation(convId, 'author_stopped');
       return;
     }
@@ -1047,6 +1101,7 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
       .getState()
       .send({
         origin: 'automatic_continuation',
+        viewId,
         runtimePrompt: continuationPrompt,
         ...(currentRun.backgroundTask ? { background: { conversationId: convId } } : {}),
       })
@@ -1132,10 +1187,12 @@ const journalConsumer = createAgentChatJournalConsumer({
     const state = useAgentChatStore.getState();
     if (state.boundProjectId !== projectId) return;
     state.refreshList();
-    const activeId = state.activeConvId;
     // Keep live runs intact. Idle histories may have acquired a remote tail.
     useAgentChatStore.setState((current) => ({ runs: Object.fromEntries(Object.entries(current.runs).filter(([id, run]) => !conversationIds.includes(id) || Boolean(current.runningTurns[id]) || ['armed', 'evaluating', 'scheduled'].includes(run.automaticContinuation.status))) }));
-    if (activeId && conversationIds.includes(activeId) && !useAgentChatStore.getState().runs[activeId]) void state.loadConversation(activeId);
+    for (const viewId of agentChatViewIds(state)) {
+      const activeId = readAgentChatView(state, viewId).activeConvId;
+      if (activeId && conversationIds.includes(activeId) && !useAgentChatStore.getState().runs[activeId]) void state.loadConversation(activeId, viewId);
+    }
   },
 });
 
@@ -1143,6 +1200,9 @@ function ensureSubscription(): void { journalConsumer.ensureConnected(); }
 
 if (import.meta.hot) import.meta.hot.dispose(() => {
   journalConsumer.dispose();
-  conversationRemovals.dispose(); conversationLists.dispose(); conversationLoadGuard.invalidate(); conversationStartOwner.dispose();
+  conversationRemovals.dispose(); conversationLists.dispose();
+  for (const guard of conversationLoadGuards.values()) guard.invalidate();
+  for (const owner of conversationStartOwners.values()) owner.dispose();
+  preparingConversations.clear();
   for (const conversationId of automaticContinuationTimers.keys()) cancelAutomaticContinuationTimer(conversationId);
 });

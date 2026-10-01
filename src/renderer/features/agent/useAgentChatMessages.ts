@@ -1,8 +1,8 @@
-import { useSyncExternalStore } from 'react';
-import { useAgentChatStore } from '../../store/agent-chat-store';
-import { createAgentChatDisplayProjection } from './chat-display-projection';
+import { useMemo, useSyncExternalStore } from 'react';
+import { useAgentChatViewSource } from './AgentChatViewContext';
+import { createAgentChatDisplayProjection, type AgentChatDisplayScheduler } from './chat-display-projection';
 
-const display = createAgentChatDisplayProjection(useAgentChatStore, {
+const scheduler: AgentChatDisplayScheduler = {
   requestFrame: (callback) => requestAnimationFrame(callback),
   cancelFrame: (id) => cancelAnimationFrame(id),
   setTimer: (callback, ms) => setTimeout(callback, ms),
@@ -13,14 +13,21 @@ const display = createAgentChatDisplayProjection(useAgentChatStore, {
     document.addEventListener('visibilitychange', callback);
     return () => document.removeEventListener('visibilitychange', callback);
   },
-});
+};
 
-/** Shared by visual chat consumers; runtime and persistence read the canonical store. */
+function useDisplay() {
+  const source = useAgentChatViewSource();
+  return useMemo(() => createAgentChatDisplayProjection(source, scheduler), [source]);
+}
+
+/** Scoped to the visual chat view; runtime and persistence read the canonical store. */
 export function useAgentChatMessages() {
+  const display = useDisplay();
   return useSyncExternalStore(display.subscribe, display.getSnapshot, display.getSnapshot);
 }
 
 /** Tree snapshots keep ordinary transcript views off the full-array boundary. */
 export function useAgentChatTranscript() {
+  const display = useDisplay();
   return useSyncExternalStore(display.subscribe, display.getTranscriptSnapshot, display.getTranscriptSnapshot);
 }

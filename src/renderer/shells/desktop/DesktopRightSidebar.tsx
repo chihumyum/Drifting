@@ -1,3 +1,4 @@
+import { revealDesktopAgentView } from '../../store/desktop-agent-navigation';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
@@ -156,10 +157,7 @@ export function DesktopRightSidebar() {
             title={target.title}
           />}
           <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            {tab === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => {
-              useUiStore.getState().setSidebarOpen('right', true);
-              useUiStore.getState().setRightPanelGroup('agent');
-            }} />}
+            {tab === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => revealDesktopAgentView()} />}
             {tab === 'library' && <LibraryPanel focused={focusedForPanel} />}
             {tab === 'stats' && <EntityStatsContent
               target={target}

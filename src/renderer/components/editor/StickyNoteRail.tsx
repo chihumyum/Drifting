@@ -1,3 +1,4 @@
+import { revealDesktopAgentView } from '../../store/desktop-agent-navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Layers3, MessageSquarePlus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -9,7 +10,6 @@ import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import { useEntityStickyNoteRail } from '../../hooks/useEntityStickyNoteRail';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
-import { useUiStore } from '../../store/ui-store';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { Button } from '../ui/Button';
@@ -238,10 +238,7 @@ export function StickyNoteRail({
               comment={comment}
               projectId={projectId}
               presentation="sticky"
-              onOpenAgentTask={() => {
-                useUiStore.getState().setSidebarOpen('right', true);
-                useUiStore.getState().setRightPanelGroup('agent');
-              }}
+              onOpenAgentTask={() => revealDesktopAgentView()}
               relations={(relationsByComment.get(comment.id) ?? []).map((relation) => ({
                 id: relation.id,
                 toKind: relation.toKind,
