@@ -1184,6 +1184,7 @@
     "collapseTimeline": "收起 Storyline Timeline",
     "statusLine": "编辑器状态",
     "currentWords": "当前 {{formatted}} 字",
+    "selectedWords": "选中 {{formatted}} 字",
     "storylineWords": "故事线 {{formatted}} 字",
     "projectWords": "全书 {{formatted}} 字",
     "todayWords": "今日 {{formatted}} 字",

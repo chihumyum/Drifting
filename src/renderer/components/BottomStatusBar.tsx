@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { canonicalWordCount, isChapter, sumCanonicalChapterWordCounts } from '../domain/book-node';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { useEditorSelectionWordCount } from '../hooks/useEditorSelectionWordCount';
 import { formatAccelerator } from '../lib/shortcuts';
 import { useDataStore } from '../store/data-store';
 import { useShortcutsStore } from '../store/shortcuts-store';
@@ -11,6 +12,7 @@ import '../../styles/bottom-status-bar.css';
 
 type WordMetric = {
   labelKey:
+    | 'bottomStatusBar.selectedWords'
     | 'bottomStatusBar.currentWords'
     | 'bottomStatusBar.storylineWords'
     | 'bottomStatusBar.projectWords';
@@ -35,10 +37,15 @@ export function BottomStatusBar() {
 
   const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
+  const selectedWordCount = useEditorSelectionWordCount();
 
   const projectWordCount = useMemo(() => sumCanonicalChapterWordCounts(bookNodes), [bookNodes]);
 
   const wordMetric = useMemo<WordMetric>(() => {
+    if (selectedWordCount !== null) {
+      return { labelKey: 'bottomStatusBar.selectedWords', count: selectedWordCount };
+    }
+
     if (activeLeaf?.entityType === 'node') {
       const node = bookNodes.find((candidate) => candidate.id === activeLeaf.id);
       if (node) {
@@ -62,7 +69,7 @@ export function BottomStatusBar() {
       labelKey: 'bottomStatusBar.projectWords',
       count: projectWordCount.ready ? projectWordCount.count : null,
     };
-  }, [activeLeaf, bookNodes, projectWordCount, storylineNodeMapping]);
+  }, [activeLeaf, bookNodes, projectWordCount, selectedWordCount, storylineNodeMapping]);
 
   const todayWords = useMemo(
     () =>

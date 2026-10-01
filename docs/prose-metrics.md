@@ -1,6 +1,6 @@
 # Canonical prose metrics
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 
 Drifting treats `book_node.word_count` as a rebuildable materialized projection,
 never as an independent prose truth. Live and durable Yjs state owns prose;
@@ -20,6 +20,28 @@ A missing basis means an incomplete projection. UI, project summaries,
 Writing History and directory-style Agent reads must show a pending state rather
 than present that scalar as exact. A full `read_node` remains able to report an
 immediate count because it reads live Yjs prose directly.
+
+## Editor selection display
+
+The desktop status bar displays “选中 N 字” / “Selected N words” while the
+active prose editor has a non-empty text selection, replacing its usual
+chapter/storyline/book count. Collapsing the selection or leaving prose focus
+restores the contextual total. Switching tabs or split panes follows the active
+editor; hidden editors cannot supply the selection metric. Selecting only
+punctuation or whitespace displays zero, rather than falling back to the total.
+
+This count reads the live ProseMirror selection slice using the same canonical
+mixed CJK/Latin and child-boundary rules as whole-document counts. It updates on
+selection and document changes, including edits from Yjs. It is transient and
+never changes persisted chapter metrics, project totals, or today's writing count.
+
+Machine-checkable acceptance (synthetic ProseMirror documents and editor events):
+
+```bash
+pnpm exec vitest run src/renderer/features/editor/editor-selection-word-count.test.ts
+```
+
+This deterministic check does not replace Tauri mouse/keyboard visual acceptance.
 
 ## Write and rebuild boundaries
 

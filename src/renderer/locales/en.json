@@ -1184,6 +1184,7 @@
     "collapseTimeline": "Collapse Storyline Timeline",
     "statusLine": "Editor status",
     "currentWords": "Current {{formatted}} words",
+    "selectedWords": "Selected {{formatted}} words",
     "storylineWords": "Storyline {{formatted}} words",
     "projectWords": "Book {{formatted}} words",
     "todayWords": "Today {{formatted}} words",
