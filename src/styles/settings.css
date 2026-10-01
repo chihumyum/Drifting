@@ -439,6 +439,73 @@
 .set-account-fields .set-row__control {
   flex-wrap: wrap;
 }
+.set-account-modal {
+  z-index: calc(var(--z-modal) + 2);
+}
+.set-account-dialog-content {
+  display: contents;
+}
+.set-account-dialog-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.set-account-password-fields {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+.set-account-password-fields label:not(:first-child) {
+  margin-top: 8px;
+}
+.set-account-password-fields .set-input {
+  width: 100%;
+  min-width: 0;
+}
+.set-avatar-crop {
+  position: relative;
+  width: min(100%, 280px);
+  aspect-ratio: 1;
+  margin: 18px auto;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  background: #fff;
+  border-radius: 3px;
+}
+.set-avatar-crop:active {
+  cursor: grabbing;
+}
+.set-avatar-crop:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 3px;
+}
+.set-avatar-crop img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+.set-avatar-crop__mask {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 150px rgb(0 0 0 / 40%);
+  pointer-events: none;
+}
+.set-avatar-zoom {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+}
+.set-avatar-zoom input {
+  flex: 1;
+  min-width: 0;
+  accent-color: hsl(var(--accent));
+}
 @media (max-width: 640px) {
   .set-account-fields .set-row {
     grid-template-columns: 1fr;

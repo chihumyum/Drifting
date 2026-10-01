@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   normalizeHostedProfileUpdate,
-  prepareHostedAvatar,
+  getHostedAvatarCrop,
+  loadHostedAvatar,
   validateHostedPassword,
 } from './hosted-account';
 
@@ -41,10 +42,10 @@ describe('Hosted account input boundaries', () => {
   });
   it('rejects unsafe or oversized files before creating an image decoder', async () => {
     await expect(
-      prepareHostedAvatar(new File(['<svg/>'], 'test.svg', { type: 'image/svg+xml' })),
+      loadHostedAvatar(new File(['<svg/>'], 'test.svg', { type: 'image/svg+xml' })),
     ).rejects.toThrow('AVATAR_FILE_TYPE');
     await expect(
-      prepareHostedAvatar(
+      loadHostedAvatar(
         new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'large.png', { type: 'image/png' }),
       ),
     ).rejects.toThrow('AVATAR_FILE_SIZE');
@@ -61,8 +62,42 @@ describe('Hosted account input boundaries', () => {
       },
     );
     await expect(
-      prepareHostedAvatar(new File(['bad'], 'bad.jpg', { type: 'image/jpeg' })),
+      loadHostedAvatar(new File(['bad'], 'bad.jpg', { type: 'image/jpeg' })),
     ).rejects.toThrow('INVALID_AVATAR');
     expect(revoke).toHaveBeenCalledWith('blob:synthetic');
+  });
+});
+
+describe('Editable avatar crop geometry', () => {
+  it('keeps landscape and portrait crops covered when dragged to either edge', () => {
+    const landscape = getHostedAvatarCrop(600, 400, { zoom: 1, offsetX: 500, offsetY: 500 });
+    expect(landscape).toMatchObject({ x: 0, y: 0, size: 400, offsetX: 100, offsetY: 0 });
+    expect(getHostedAvatarCrop(400, 600, { zoom: 1, offsetX: -500, offsetY: -500 })).toMatchObject({
+      x: 0,
+      y: 200,
+      size: 400,
+      offsetX: 0,
+      offsetY: -100,
+    });
+  });
+  it('preserves the chosen center when zooming and clamps it when zooming back out', () => {
+    const zoomed = getHostedAvatarCrop(600, 400, { zoom: 2, offsetX: 100, offsetY: 50 });
+    expect(zoomed).toMatchObject({ x: 100, y: 50, size: 200 });
+    expect(getHostedAvatarCrop(600, 400, { ...zoomed, zoom: 1 })).toMatchObject({
+      x: 0,
+      y: 0,
+      size: 400,
+      offsetY: 0,
+    });
+  });
+  it('bounds zoom and rejects invalid geometry', () => {
+    expect(getHostedAvatarCrop(100, 100, { zoom: 99, offsetX: 0, offsetY: 0 }).size).toBe(25);
+    expect(getHostedAvatarCrop(100, 100, { zoom: 0, offsetX: 0, offsetY: 0 }).size).toBe(100);
+    expect(() => getHostedAvatarCrop(0, 100, { zoom: 1, offsetX: 0, offsetY: 0 })).toThrow(
+      'INVALID_AVATAR',
+    );
+    expect(() => getHostedAvatarCrop(100, 100, { zoom: 1, offsetX: NaN, offsetY: 0 })).toThrow(
+      'INVALID_AVATAR',
+    );
   });
 });

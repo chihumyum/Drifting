@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-01T04:06:01.583Z",
-  "sourceSha256": "a04331b86d588f365b5634112b522ecfa37d1561e11837bade364f8d7bb8602b",
+  "generatedAt": "2026-10-01T05:11:05.219Z",
+  "sourceSha256": "7a1a0b7850d7e5e4fc0309d17207123c6a97bc812a42f82e00a5ab20fbad2ffe",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -55,6 +55,18 @@
       "status": "passed"
     },
     {
+      "name": "Editable avatar crop geometry keeps landscape and portrait crops covered when dragged to either edge",
+      "status": "passed"
+    },
+    {
+      "name": "Editable avatar crop geometry preserves the chosen center when zooming and clamps it when zooming back out",
+      "status": "passed"
+    },
+    {
+      "name": "Editable avatar crop geometry bounds zoom and rejects invalid geometry",
+      "status": "passed"
+    },
+    {
       "name": "Offline Hosted profile cache keeps only display metadata, including avatar removal, and never stores tokens",
       "status": "passed"
     },
@@ -84,6 +96,30 @@
     },
     {
       "name": "session token durability invalidates a rejected bearer in memory even when secure deletion fails",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
       "status": "passed"
     },
     {
@@ -167,30 +203,6 @@
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
-      "status": "passed"
-    },
-    {
       "name": "Hosted-only App sync boundary offers account sync and local recovery without Drive controls in any build",
       "status": "passed"
     },
@@ -200,6 +212,22 @@
     },
     {
       "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
+      "status": "passed"
+    },
+    {
+      "name": "keeps local writing independent of an unavailable Keychain",
+      "status": "passed"
+    },
+    {
+      "name": "does not silently replace an invalid native marker and allows a repaired read",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
       "status": "passed"
     },
     {
@@ -304,22 +332,6 @@
     },
     {
       "name": "leaving sign-in cancels before the library is connected",
-      "status": "passed"
-    },
-    {
-      "name": "keeps local writing independent of an unavailable Keychain",
-      "status": "passed"
-    },
-    {
-      "name": "does not silently replace an invalid native marker and allows a repaired read",
-      "status": "passed"
-    },
-    {
-      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
-      "status": "passed"
-    },
-    {
-      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
       "status": "passed"
     },
     {

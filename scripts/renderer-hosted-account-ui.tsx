@@ -8,9 +8,21 @@ import {
 import { useAuthStore } from '../src/renderer/store/auth';
 import { i18next } from '../src/renderer/lib/i18n';
 import '../src/styles/index.css';
+import '../src/styles/ui-controls.css';
 import '../src/styles/settings.css';
 
-const observations = { profileWrites: 0, passwordWrites: 0, failNext: false };
+const observations = {
+  profileWrites: 0,
+  passwordWrites: 0,
+  failNext: false,
+  failNextPassword: false,
+  holdPassword: false,
+  parentEscapes: 0,
+};
+let releasePassword = () => {};
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') observations.parentEscapes++;
+});
 useAuthStore.setState({
   hostedUser: {
     id: 'synthetic-account',
@@ -32,6 +44,14 @@ useAuthStore.setState({
   changeHostedPassword: async (current, next, confirmation) => {
     validateHostedPassword(current, next, confirmation);
     observations.passwordWrites++;
+    if (observations.holdPassword)
+      await new Promise<void>((resolve) => {
+        releasePassword = resolve;
+      });
+    if (observations.failNextPassword) {
+      observations.failNextPassword = false;
+      throw new Error('INVALID_PASSWORD');
+    }
   },
 });
 export function Fixture() {
@@ -53,6 +73,7 @@ export function Fixture() {
 Object.assign(window, {
   __HOSTED_ACCOUNT_UI__: {
     observations,
+    releasePassword: () => releasePassword(),
     offline: () => useAuthStore.setState({ hostedStatus: 'offline' }),
   },
 });

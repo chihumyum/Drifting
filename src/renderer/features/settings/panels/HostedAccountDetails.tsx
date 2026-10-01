@@ -4,11 +4,13 @@ import { useAuthStore } from '../../../store/auth';
 import type { HostedProfile } from '../../../lib/hosted-profile';
 import {
   HOSTED_NAME_MAX_LENGTH,
-  prepareHostedAvatar,
-  validateHostedPassword,
+  loadHostedAvatar,
+  type HostedAvatarSource,
 } from '../../../lib/hosted-account';
 import { AccountAvatar } from '../../../components/ui/AccountAvatar';
 import { SettingsRow, SettingsSectionHeader } from '../SettingsPrimitives';
+import { HostedPasswordDialog } from './HostedPasswordDialog';
+import { HostedAvatarCropDialog } from './HostedAvatarCropDialog';
 
 export function HostedAccountDetails({
   user,
@@ -20,12 +22,12 @@ export function HostedAccountDetails({
   const { t } = useTranslation();
   const [name, setName] = useState<string | null>(null);
   const [image, setImage] = useState<string | null | undefined>(undefined);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [avatarSource, setAvatarSource] = useState<HostedAvatarSource | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ key: string; error: boolean } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const avatarButton = useRef<HTMLButtonElement>(null);
   const operation = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -34,6 +36,7 @@ export function HostedAccountDetails({
       mounted.current = false;
     };
   }, []);
+  useEffect(() => () => avatarSource?.release(), [avatarSource]);
   const displayName = name ?? user.name;
   const displayImage = image === undefined ? user.image : image;
   const dirty = displayName.trim() !== user.name || (displayImage ?? null) !== (user.image ?? null);
@@ -100,12 +103,14 @@ export function HostedAccountDetails({
                     event.target.value = '';
                     if (file)
                       void run(async () => {
-                        const prepared = await prepareHostedAvatar(file);
-                        if (mounted.current) setImage(prepared);
+                        const source = await loadHostedAvatar(file);
+                        if (mounted.current) setAvatarSource(source);
+                        else source.release();
                       });
                   }}
                 />
                 <button
+                  ref={avatarButton}
                   type="button"
                   className="set-btn"
                   onClick={() => fileInput.current?.click()}
@@ -162,94 +167,43 @@ export function HostedAccountDetails({
           </div>
         </fieldset>
       </form>
-      <SettingsSectionHeader title={t('settings.hosted.password_title')} />
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void run(async () => {
-            validateHostedPassword(currentPassword, newPassword, confirmation);
-            try {
-              await useAuthStore
-                .getState()
-                .changeHostedPassword(currentPassword, newPassword, confirmation);
-            } finally {
-              if (mounted.current) {
-                setCurrentPassword('');
-                setNewPassword('');
-                setConfirmation('');
-              }
-            }
-          }, 'settings.hosted.password_saved');
-        }}
-      >
-        <fieldset className="set-account-fields" disabled={disabled || busy}>
-          <SettingsRow
-            label={
-              <label htmlFor="hosted-current-password">
-                {t('settings.hosted.current_password')}
-              </label>
-            }
-            control={
-              <input
-                id="hosted-current-password"
-                className="set-input"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-            }
-          />
-          <SettingsRow
-            label={<label htmlFor="hosted-new-password">{t('settings.hosted.new_password')}</label>}
-            desc={t('settings.hosted.password_description')}
-            control={
-              <input
-                id="hosted-new-password"
-                className="set-input"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                maxLength={128}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-            }
-          />
-          <SettingsRow
-            label={
-              <label htmlFor="hosted-confirm-password">
-                {t('settings.hosted.confirm_password')}
-              </label>
-            }
-            control={
-              <input
-                id="hosted-confirm-password"
-                className="set-input"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                maxLength={128}
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-              />
-            }
-          />
-          <p className="set-row__desc">{t('settings.hosted.password_sessions')}</p>
-          <div className="set-account-actions">
-            <button
-              className="set-btn"
-              type="submit"
-              disabled={!currentPassword || !newPassword || !confirmation}
-            >
-              {t('settings.hosted.change_password')}
-            </button>
-          </div>
-        </fieldset>
-      </form>
+      <SettingsRow
+        label={t('settings.hosted.password_title')}
+        control={
+          <button
+            type="button"
+            className="set-btn"
+            disabled={disabled || busy}
+            onClick={() => {
+              setNotice(null);
+              setPasswordOpen(true);
+            }}
+          >
+            {t('settings.hosted.change_password')}
+          </button>
+        }
+      />
+      {passwordOpen && (
+        <HostedPasswordDialog
+          disabled={disabled}
+          onClose={() => setPasswordOpen(false)}
+          onSaved={() => {
+            setPasswordOpen(false);
+            setNotice({ key: 'settings.hosted.password_saved', error: false });
+          }}
+        />
+      )}
+      {avatarSource && (
+        <HostedAvatarCropDialog
+          source={avatarSource}
+          returnFocusRef={avatarButton}
+          onClose={() => setAvatarSource(null)}
+          onConfirm={(cropped) => {
+            setImage(cropped);
+            setAvatarSource(null);
+          }}
+        />
+      )}
       {notice && (
         <p role={notice.error ? 'alert' : 'status'} className="set-account-notice">
           {t(notice.key)}

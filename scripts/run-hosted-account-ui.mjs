@@ -16,6 +16,12 @@ const sources = [
   'scripts/renderer-hosted-account-ui.html',
   'scripts/renderer-hosted-account-ui.tsx',
   'src/renderer/features/settings/panels/HostedAccountDetails.tsx',
+  'src/renderer/features/settings/panels/HostedAccountDialog.tsx',
+  'src/renderer/features/settings/panels/HostedPasswordDialog.tsx',
+  'src/renderer/features/settings/panels/HostedAvatarCropDialog.tsx',
+  'src/renderer/components/ui/Modal.tsx',
+  'src/renderer/components/ui/DialogContent.tsx',
+  'src/styles/ui-controls.css',
   'src/renderer/lib/hosted-account.ts',
   'src/renderer/components/ui/AccountAvatar.tsx',
   'src/renderer/features/settings/SettingsPrimitives.tsx',
@@ -32,7 +38,7 @@ if (process.argv.includes('--check')) {
   const report = JSON.parse(readFileSync(output, 'utf8'));
   assert.equal(report.sourceSha256, fingerprint());
   assert.equal(report.status, 'passed');
-  assert.equal(report.checks.length, 8);
+  assert.equal(report.checks.length, 14);
   console.log('Hosted account browser evidence matches current source.');
   process.exit(0);
 }
@@ -128,7 +134,7 @@ try {
     );
   const click = (label) =>
     evaluate(
-      `[...document.querySelectorAll('button')].find(b => b.textContent === ${JSON.stringify(label)}).click()`,
+      `(() => { const scope = document.querySelector('.set-account-modal') ?? document; const button = [...scope.querySelectorAll('button')].find(b => b.textContent === ${JSON.stringify(label)}); button.focus(); button.click(); })()`,
     );
   const checks = [];
   await client.Page.navigate({
@@ -147,38 +153,185 @@ try {
   assert.equal(await evaluate("document.querySelector('#hosted-name').value"), '未保存草稿');
   await click('取消');
   checks.push('failed save preserves the saved profile and editable draft; cancel restores it');
+  const pressKey = (key, code, keyCode, modifiers = 0) =>
+    client.Input.dispatchKeyEvent({
+      type: 'keyDown',
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+      modifiers,
+    });
+  const screenshot = async (name) => {
+    mkdirSync('.local-data/hosted-acceptance', { recursive: true });
+    writeFileSync(
+      `.local-data/hosted-acceptance/${name}.png`,
+      Buffer.from(
+        (await client.Page.captureScreenshot({ captureBeyondViewport: true })).data,
+        'base64',
+      ),
+    );
+  };
   await evaluate(
-    `(async () => { const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 400; const context = canvas.getContext('2d'); context.fillStyle = '#6480a0'; context.fillRect(0, 0, 600, 400); const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png')); const files = new DataTransfer(); files.items.add(new File([blob], 'synthetic.png', { type: 'image/png' })); const input = document.querySelector('input[type=file]'); input.files = files.files; input.dispatchEvent(new Event('change', { bubbles: true })); })()`,
+    `window.__releasedAvatarUrls = []; const revoke = URL.revokeObjectURL.bind(URL); URL.revokeObjectURL = url => { window.__releasedAvatarUrls.push(url); revoke(url); };`,
   );
+  const chooseAvatar = () =>
+    evaluate(
+      `(async () => { const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 400; const context = canvas.getContext('2d'); for (const [x, color] of [[0, '#ff0000'], [200, '#00ff00'], [400, '#0000ff']]) { context.fillStyle = color; context.fillRect(x, 0, 200, 400); } const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png')); const files = new DataTransfer(); files.items.add(new File([blob], 'synthetic.png', { type: 'image/png' })); const input = document.querySelector('input[type=file]'); input.files = files.files; input.dispatchEvent(new Event('change', { bubbles: true })); })()`,
+    );
+  await chooseAvatar();
+  await until("document.querySelector('.set-avatar-crop img')?.complete");
+  assert.equal(
+    await evaluate("getComputedStyle(document.querySelector('.set-account-modal')).position"),
+    'fixed',
+  );
+  assert.equal(
+    await evaluate(
+      "document.querySelector('.set-account-modal .modal-card').getBoundingClientRect().width",
+    ),
+    440,
+  );
+  assert.equal(await evaluate("document.querySelector('.set-account-fields img')"), null);
+  await click('取消');
+  await until("!document.querySelector('.set-account-modal')");
+  assert.equal(await evaluate('window.__releasedAvatarUrls.length'), 1);
+  assert.equal(await evaluate('document.activeElement.textContent'), '选择图片');
+  assert.equal(await evaluate("document.querySelector('.set-account-fields img')"), null);
+  checks.push(
+    'selecting an image opens a draft crop; cancel preserves the avatar, releases its URL and restores focus',
+  );
+  await chooseAvatar();
+  await until("document.querySelector('.set-avatar-crop img')?.complete");
+  await setInput('hosted-avatar-zoom', '2');
+  await until("document.querySelector('.set-avatar-crop img').style.width === '300%'");
+  const box = await evaluate(
+    "(() => { const b = document.querySelector('.set-avatar-crop').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, width: b.width }; })()",
+  );
+  await client.Input.dispatchMouseEvent({
+    type: 'mousePressed',
+    x: box.x,
+    y: box.y,
+    button: 'left',
+    clickCount: 1,
+  });
+  await client.Input.dispatchMouseEvent({
+    type: 'mouseMoved',
+    x: box.x - box.width,
+    y: box.y,
+    button: 'left',
+    buttons: 1,
+  });
+  await client.Input.dispatchMouseEvent({
+    type: 'mouseReleased',
+    x: box.x - box.width,
+    y: box.y,
+    button: 'left',
+    clickCount: 1,
+  });
+  await until("document.querySelector('.set-avatar-crop img').style.left === '-200%'");
+  await pressKey('ArrowRight', 'ArrowRight', 39);
+  await until("parseFloat(document.querySelector('.set-avatar-crop img').style.left) > -200");
+  await pressKey('ArrowLeft', 'ArrowLeft', 37);
+  await until("document.querySelector('.set-avatar-crop img').style.left === '-200%'");
+  await screenshot('avatar-crop-ui');
+  checks.push(
+    'pointer dragging, zoom slider and keyboard panning adjust the crop without exposing blank edges',
+  );
+  await click('使用此头像');
+  await until("!document.querySelector('.set-account-modal')");
   await until("document.querySelector('.set-account-fields img')?.complete");
   assert.equal(
     await evaluate("document.querySelector('.set-account-fields img').naturalWidth"),
     256,
   );
+  assert.equal(await evaluate('window.__releasedAvatarUrls.length'), 2);
   await click('保存资料');
   await until("document.querySelector('.set-rail__who img')?.complete");
-  checks.push('real PNG decoding, square crop, bounded JPEG encoding, preview and saved avatar');
+  const pixel = await evaluate(
+    "(() => { const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256; const ctx = canvas.getContext('2d'); ctx.drawImage(document.querySelector('.set-rail__who img'), 0, 0); return [...ctx.getImageData(128, 128, 1, 1).data]; })()",
+  );
+  assert(
+    pixel[2] > 220 && pixel[0] < 30 && pixel[1] < 30,
+    'Saved crop must contain the user-selected blue region, not the original green center',
+  );
+  checks.push('confirmed crop saves the selected image pixels as a bounded 256px JPEG');
   await click('移除');
   await click('保存资料');
   await until("!document.querySelector('.set-rail__who img')");
   checks.push('avatar removal restores initials');
+  assert.equal(await evaluate("document.querySelectorAll('input[type=password]').length"), 0);
+  await click('修改密码');
+  await until("document.querySelector('#hosted-current-password')");
+  assert.equal(
+    await evaluate("document.querySelector('.set-account-modal').parentElement === document.body"),
+    true,
+  );
+  assert.equal(await evaluate('document.activeElement.id'), 'hosted-current-password');
+  await screenshot('password-dialog-ui');
+  checks.push(
+    'password fields mount only inside a focused portal dialog after clicking Change password',
+  );
+  await setInput('hosted-current-password', 'discard-on-cancel');
+  await click('取消');
+  await until("!document.querySelector('input[type=password]')");
+  assert.equal(await evaluate('document.activeElement.textContent'), '修改密码');
+  await click('修改密码');
+  await until("document.querySelector('#hosted-current-password')");
+  assert.equal(await evaluate("document.querySelector('#hosted-current-password').value"), '');
+  await pressKey('Escape', 'Escape', 27);
+  await until("!document.querySelector('.set-account-modal')");
+  assert.equal(await evaluate('window.__HOSTED_ACCOUNT_UI__.observations.parentEscapes'), 0);
+  assert.equal(await evaluate('window.__HOSTED_ACCOUNT_UI__.observations.passwordWrites'), 0);
+  checks.push('cancel and Escape discard passwords and close only the child dialog');
+  await click('修改密码');
+  await until("document.querySelector('#hosted-current-password')");
+  await evaluate(
+    "[...document.querySelectorAll('.set-account-modal button')].find(b => b.textContent === '取消').focus()",
+  );
+  await pressKey('Tab', 'Tab', 9);
+  assert.equal(await evaluate("document.activeElement.getAttribute('aria-label')"), '关闭');
+  await pressKey('Tab', 'Tab', 9, 8);
+  assert.equal(await evaluate('document.activeElement.textContent'), '取消');
+  checks.push('Tab and Shift-Tab stay within the account dialog');
   await setInput('hosted-current-password', 'old-password');
   await setInput('hosted-new-password', 'new-password');
   await setInput('hosted-confirm-password', 'different-password');
   await click('修改密码');
-  await until("document.querySelector('[role=alert]')?.textContent.includes('不一致')");
+  await until(
+    "document.querySelector('.set-account-modal [role=alert]')?.textContent.includes('不一致')",
+  );
   assert.equal(await evaluate('window.__HOSTED_ACCOUNT_UI__.observations.passwordWrites'), 0);
-  checks.push('mismatched confirmation is rejected before dispatch');
+  checks.push('mismatched confirmation is rejected inside the dialog before dispatch');
+  await evaluate('window.__HOSTED_ACCOUNT_UI__.observations.failNextPassword = true');
   await setInput('hosted-confirm-password', 'new-password');
   await click('修改密码');
-  await until("document.querySelector('[role=status]')?.textContent.includes('密码已修改')");
+  await until(
+    "document.querySelector('.set-account-modal [role=alert]')?.textContent.includes('不正确')",
+  );
   assert.deepEqual(
     await evaluate(
       "[...document.querySelectorAll('input[type=password]')].map(input => input.value)",
     ),
     ['', '', ''],
   );
-  checks.push('successful password change clears all secret inputs');
+  checks.push(
+    'server rejection leaves the dialog open with a local error and cleared secret inputs',
+  );
+  await setInput('hosted-current-password', 'old-password');
+  await setInput('hosted-new-password', 'new-password');
+  await setInput('hosted-confirm-password', 'new-password');
+  await evaluate('window.__HOSTED_ACCOUNT_UI__.observations.holdPassword = true');
+  await click('修改密码');
+  await until("document.querySelector('.set-account-modal fieldset').disabled");
+  await pressKey('Escape', 'Escape', 27);
+  assert.equal(await evaluate("Boolean(document.querySelector('.set-account-modal'))"), true);
+  await evaluate('window.__HOSTED_ACCOUNT_UI__.releasePassword()');
+  await until(
+    "!document.querySelector('.set-account-modal') && document.querySelector('[role=status]')?.textContent.includes('密码已修改')",
+  );
+  assert.equal(await evaluate("document.querySelectorAll('input[type=password]').length"), 0);
+  checks.push(
+    'pending password writes cannot be dismissed; success closes the dialog and removes secrets',
+  );
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
   mkdirSync('.local-data/hosted-acceptance', { recursive: true });
   writeFileSync(
