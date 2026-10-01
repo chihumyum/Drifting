@@ -1750,7 +1750,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         );
       }
       return evidence.length > 0
-        ? `${baseMessage}\n现有相关作者素材（已给出完整相关段落，无需另行打开整份灵感）：\n${evidence.join('\n')}`
+        ? `${baseMessage}\n现有相关作者素材片段：\n${evidence.join('\n')}`
         : baseMessage;
     } catch {
       // Related-material discovery is a convenience projection. The original
@@ -4760,17 +4760,14 @@ function elementRelatedContextForModel(value: unknown): string {
   ];
   if (excerpts.length > 0) {
     sections.push(
-      `作品中的相关片段（当前正文证据，无需另行打开来源）：\n${excerpts.join('\n')}`,
+      `作品中的相关片段：\n${excerpts.join('\n')}`,
     );
   }
   if (relatedNotes.length > 0) {
     sections.push(
-      `与该人物直接相关的批注或待办（无需浏览全部批注）：\n${relatedNotes.join('\n')}`,
+      `与该人物直接相关的批注或待办：\n${relatedNotes.join('\n')}`,
     );
   }
-  sections.push(
-    '以上档案、关系与正文片段可以直接用于当前人物交付；只有一个具体缺失事实会改变写入内容时，才需要继续定向查找。',
-  );
   return `\n${sections.join('\n')}`;
 }
 
@@ -5230,7 +5227,7 @@ function missingAuthoredTargetMessage(projectId: string, value: unknown): string
   if (semantic) {
     const kind = semantic[1]!;
     const name = semantic[2]!.trim();
-    return `${kind}「${name}」尚未建立。当前任务需要它时可以直接创建；无需继续尝试这个名称的其他写法。`;
+    return `${kind}「${name}」尚未建立。`;
   }
   const segments = normalized.split('/').filter(Boolean);
   const referenceIndex = segments[0] === 'chapters' ? 1 : 0;

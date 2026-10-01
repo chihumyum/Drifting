@@ -62,9 +62,11 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   buffered until its complete tool/usage/finish contract validates. Before any
   Agent event or effect escapes, parse/network/rate-limit failures, malformed
   tool arguments, missing required reasoning, unavailable tools and output
-  exhaustion before an action receive at most six provider attempts. An
-  action-serialization recovery may temporarily turn thinking off; the next
-  model iteration restores the turn's frozen reasoning mode. Authentication
+  exhaustion before an action receive at most six provider attempts. Sample
+  recovery appends only the error description, without discarded reasoning or
+  behavioral instructions, and preserves the original reasoning settings,
+  tool choice, output budget, and terminal validation. It does not force a tool
+  call or restrict the number of calls in a valid response. Authentication
   failures and author cancellation are never retried, and tool-free visible
   synthesis is never replayed after text has streamed.
 - Default Agent and summary calls have no client output ceiling. Responses

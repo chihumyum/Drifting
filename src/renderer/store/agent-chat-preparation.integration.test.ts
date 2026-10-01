@@ -53,6 +53,23 @@ afterEach(() => {
 });
 
 describe('chat send preparation ownership', () => {
+  it('does not inject mobile context metadata into the model prompt', async () => {
+    useAgentEditStore.setState({ pendingReverts: [] });
+    const turnContext = [{
+      kind: 'workspace' as const,
+      projectId,
+      label: 'Synthetic visible chapter',
+      entityType: 'node' as const,
+      entityId: 'synthetic-context-node',
+      blockId: 'synthetic-context-block',
+    }];
+    await useAgentChatStore.getState().send({ turnContext });
+    expect(ports.start).toHaveBeenCalledTimes(1);
+    expect(ports.start.mock.calls[0][0].prompt).toBe('Synthetic author prompt');
+    expect(useAgentChatStore.getState().runs[conversationId].transcript.toArray()[0])
+      .toMatchObject({ kind: 'user', text: 'Synthetic author prompt', context: turnContext });
+  });
+
   it('keeps two same-project panel bindings on one shared startup owner', async () => {
     const pending = deferred<never[]>();
     ports.memories.mockImplementationOnce(() => pending.promise);

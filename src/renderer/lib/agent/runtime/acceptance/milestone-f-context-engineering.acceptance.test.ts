@@ -317,7 +317,7 @@ describe('Milestone F context engineering acceptance', () => {
           turnOrdinal: 0,
           kind: 'write_receipt',
           content:
-            '章节「第三章」正文已更新。这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
+            '章节「第三章」正文已更新。当前改动已保存。',
           durableWriteCoverage: [{ turnOrdinal: 0, callId, toolName: 'write_file' }],
         },
       ],

@@ -78,7 +78,7 @@ import { createAgentChatJournalConsumer } from '../lib/agent/runtime/chat-journa
 import type { AgentChatRunState as RunState } from '../lib/agent/runtime/chat-run-projection';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
-import { agentTurnContextPrompt, normalizeAgentTurnContext } from '../lib/agent/turn-context';
+import { normalizeAgentTurnContext } from '../lib/agent/turn-context';
 
 const repo = createAgentConversationRepository();
 const longTaskRepo = createAgentRuntimeLongTaskRepository();
@@ -587,8 +587,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // the product composition. Do not duplicate them into every user prompt;
       // that legacy path grew long tasks quadratically and blurred authorship.
       const promptNotes = reverts.length ? [buildAgentChatRevertNote(reverts, entityDisplayName)] : [];
-      const visibleContextNote = agentTurnContextPrompt(turnContext);
-      if (visibleContextNote) promptNotes.push(visibleContextNote);
       const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
       const r = await (async () => generalAgentTransport.start({
           prompt: promptToSend,

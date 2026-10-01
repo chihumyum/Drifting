@@ -14,6 +14,20 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/system-prompt.test.ts',
     'src/renderer/lib/agent/product-project-context.test.ts',
   ],
+  promptSurfaces: [
+    'src/renderer/lib/agent/runtime/workspace-domain-language.test.ts',
+    'src/renderer/lib/agent/runtime/write-review-feedback.test.ts',
+    'src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.test.ts',
+    'src/renderer/lib/agent/runtime/working-memory-tool-runtime.test.ts',
+    'src/renderer/lib/agent/runtime/long-task-runtime.integration.test.ts',
+  ],
+  conditionalPromptRemoval: [
+    'src/renderer/lib/agent/turn-context.test.ts',
+    'src/renderer/store/agent-chat-preparation.integration.test.ts',
+    'src/renderer/shells/mobile/workspace/mobile-v2-tool-workspaces.acceptance.test.ts',
+    'src/renderer/lib/agent/runtime/context-planner.test.ts',
+    'src/renderer/lib/agent/runtime/drivers/openai-compatible-completion-driver.test.ts',
+  ],
   guidanceLifecycle: ['src/renderer/usecase/useAgentMemory.test.ts'],
   unrestrictedWorkspace: [
     'src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts',
@@ -34,6 +48,14 @@ const LINT_FILES = [
   'src/renderer/lib/agent/runtime/local-transport.ts',
   'src/renderer/lib/agent/runtime/runtime.ts',
   'src/renderer/lib/agent/runtime/system-prompt.ts',
+  'src/renderer/lib/agent/turn-context.ts',
+  'src/renderer/lib/agent/runtime/context-planner.ts',
+  'src/renderer/lib/agent/runtime/drivers/openai-compatible-completion-driver.ts',
+  'src/renderer/lib/agent/runtime/workspace-domain-language.ts',
+  'src/renderer/lib/agent/runtime/write-review-feedback.ts',
+  'src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.ts',
+  'src/renderer/lib/agent/runtime/drifting-write-tool-runtime.ts',
+  'src/renderer/lib/agent/runtime/working-memory-tool-runtime.ts',
   'src/renderer/lib/agent/runtime/types.ts',
   'src/renderer/lib/agent/runtime/long-task-tool-runtime.ts',
   'src/renderer/lib/agent/runtime/drifting-element-patch-write-strategy.ts',
@@ -43,6 +65,7 @@ const LINT_FILES = [
 ];
 const HASHED_SOURCE_FILES = [
   'docs/agent-runtime/author-owned-writing-policy.md',
+  'docs/agent-runtime/provider-extension-protocol.md',
   'src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.mjs',
   ...LINT_FILES,
 ];
@@ -53,6 +76,10 @@ const REQUIRED_ASSERTIONS = {
   capabilityContract: 'publishes no hidden writing defaults or content mutation guards',
   arbitraryEntityWrite: 'lets workspace writes target any project entity without a content-scope gate',
   staleFocusRegression: 'appends to the requested drift without inheriting a stale chapter focus',
+  fullReadingAutonomy: 'requires requested full reading without constraining reasoning or rereads',
+  executionBoundaries: 'keeps domain references, scope, and execution boundaries',
+  noMobileInjection: 'does not inject mobile context metadata into the model prompt',
+  errorOnlyRetry: 'keeps invalid retries error-only and permits answers or multiple tools',
 };
 
 function parseOptions(argv) {
@@ -237,6 +264,10 @@ export async function runMilestoneHAcceptance(options = parseOptions([])) {
           'Drifting supplies workspace mechanics only; the current request and author-owned project rules control writing behavior.',
         retainedSafety:
           'Project isolation, concurrency checks, durable review, and destructive-operation approval protect data rather than prescribe prose.',
+        promptCleanup:
+          'Prompt version 53 retains requested full reading, removes mobile context injection and summary wrapper instructions, and limits provider retry additions to error descriptions without changing inference settings.',
+        liveModelBehavior:
+          'Not verified by this deterministic gate; full-manuscript reading quality requires a live-provider run.',
       },
       passed: vitestPassed && typecheck.passed && lint.passed && capabilities.passed,
     };

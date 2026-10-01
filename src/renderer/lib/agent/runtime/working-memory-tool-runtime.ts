@@ -102,7 +102,7 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_WORKING_MEMORY_READ_TOOL,
         description:
-          'Read the current project-scoped WORKING_MEMORY.md shared by all General Agent conversations. It contains only recent high-signal work context and may have forgotten older work. The current document is already supplied at turn start; call this only to refresh after a concurrent revision conflict.',
+          'Read shared project WORKING_MEMORY.md. The turn-start copy may be stale after concurrent work; this returns the current content and revision.',
         inputSchema: readSchema,
         access: 'read',
         validateInput: (input) => validate(readSchema, input),
@@ -110,7 +110,7 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
         description:
-          'Update shared Working Memory only when important shared context changed and another Agent would otherwise repeat important work, miss an unresolved issue, or misunderstand a durable change. The current content is already supplied at turn start; skip this tool when nothing important changed. Keep Markdown concise, preserve unresolved Current items, place newest Recent entries first, remove stale items, and compact older details when near the budget. Never copy manuscript prose, chat transcript, routine commands, secrets, or minor changes. Copy expectedRevision from the turn-start Working Memory header or a fresh read.',
+          'Replace shared Working Memory when important context changes. Preserve unresolved Current items, put newest Recent results first, and remove stale detail. Supply expectedRevision from the turn-start header or a fresh read.',
         inputSchema: checkpointSchema,
         access: 'write',
         validateInput: (input) => {

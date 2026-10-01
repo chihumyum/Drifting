@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -29,6 +29,16 @@ pnpm agent:capabilities:check
 ## Current product boundary
 
 ### Runtime and authority
+
+- Prompt version 53 removes reading/reasoning micromanagement from the base
+  prompt, tool guidance, saved results, and restored domain state. Requested
+  full reading is explicit. See
+  [`../author-owned-writing-policy.md`](../author-owned-writing-policy.md) and
+  [`milestone-h-writing-intelligence.json`](milestone-h-writing-intelligence.json).
+  Live-provider reading behavior remains unverified by this deterministic gate.
+- Mobile context is no longer appended to the model prompt. Summary wrappers
+  contain no behavioral instructions. OpenAI-compatible sample retries append
+  only an error description and preserve reasoning and tool-choice settings.
 
 - General Agent is the only first-class Agent product. Standalone Shadow CI,
   Element Arc, and Goal Evolve are retired and must not regain panels, routes,

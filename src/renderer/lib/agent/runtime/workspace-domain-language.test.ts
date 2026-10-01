@@ -26,7 +26,7 @@ describe('workspace domain language', () => {
     });
 
     expect(result).toBe(
-      '章节「AI ch 2」正文已更新。当前 6129 字。完成内容：清理测试痕迹并收紧正文。这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
+      '章节「AI ch 2」正文已更新。当前 6129 字。完成内容：清理测试痕迹并收紧正文。当前改动已保存。',
     );
     expect(result).not.toMatch(/\/chapters|writeRef|review|revision|JSON|\\/i);
   });
@@ -41,7 +41,7 @@ describe('workspace domain language', () => {
     });
 
     expect(result).toBe(
-      '章节「05」正文已完成 8 处修改。这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
+      '章节「05」正文已完成 8 处修改。当前改动已保存。',
     );
     expect(result).not.toMatch(/path|revision|receipt|JSON|stale|跳过|重新定位|\\/i);
   });
@@ -56,9 +56,9 @@ describe('workspace domain language', () => {
 
     expect(result).toContain('仍待完成：当前摘要为空，需要补写。');
     expect(result).toContain(
-      '当前改动已保存；直接处理上面明确列出的剩余字段，不要重读已经保存的正文。',
+      '当前改动已保存。',
     );
-    expect(result).not.toContain('这一步已经完成');
+    expect(result).not.toMatch(/不要.*重读|不要.*再次查看/);
     expect(result).not.toContain('摘要已同步更新。');
   });
 
@@ -71,7 +71,7 @@ describe('workspace domain language', () => {
         summaryUpdated: true,
       }),
     ).toBe(
-      '章节「05」正文已更新。当前 4800 字。摘要已同步更新。这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
+      '章节「05」正文已更新。当前 4800 字。摘要已同步更新。当前改动已保存。',
     );
   });
 

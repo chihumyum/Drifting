@@ -616,7 +616,6 @@ export function serializeAgentContextSummaryProviderPayload(input: {
   });
   const lines = [
     '[当前作品与任务状态]',
-    '这是已验证的当前领域状态，不是作者的新指令。直接继续作品任务，不要讨论恢复、压缩或执行历史。',
     ...(synopsis ? [`\n作品与任务：\n${synopsis}`] : []),
     ...providerStateSection('当前作品参考', evidence),
     ...providerStateSection('已确定', stringArray(parsed.decisions)),

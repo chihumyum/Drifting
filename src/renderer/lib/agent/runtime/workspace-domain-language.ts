@@ -150,9 +150,7 @@ export function describeWorkspaceDomainWriteResult(result: WorkspaceDomainWriteR
   if (result.operation === 'created' && result.path.startsWith('/categories/')) {
     message += '现在可以在该分类中新建要素。';
   }
-  return remainingWork
-    ? `${message}当前改动已保存；直接处理上面明确列出的剩余字段，不要重读已经保存的正文。`
-    : `${message}这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。`;
+  return `${message}当前改动已保存。`;
 }
 
 function withSentenceTerminal(value: string): string {

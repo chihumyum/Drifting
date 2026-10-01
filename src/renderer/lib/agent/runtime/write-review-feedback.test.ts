@@ -106,8 +106,7 @@ describe('Agent write review feedback', () => {
 
     expect(rows[0]?.content).toContain('章节「12」正文');
     expect(rows[0]?.content).toContain('已有可靠完成证据并属于当前稿件');
-    expect(rows[0]?.content).toContain('读取或计划不算完成');
-    expect(rows[0]?.content).toContain('若只改摘要、关系、批注、待办或其他独立字段');
+    expect(rows[0]?.content).not.toMatch(/不要.*重读|不要.*再次查看/);
     expect(rows[0]?.content).not.toMatch(/本轮|保存的修改/u);
     expect(rows[0]?.content).not.toContain('清理测试痕迹并收紧正文');
     expect(rows[0]?.content).not.toContain('/chapters/12/prose.md');
@@ -307,7 +306,7 @@ describe('Agent write review feedback', () => {
     });
     expect(archive?.durableWriteCoverage).toHaveLength(6);
     expect(archive?.content).toContain('执行进度中已有可靠完成证据的对象');
-    expect(archive?.content).toContain('读取或计划不算完成');
+    expect(archive?.content).toContain('这些记录证明所列改动已保存');
     expect(archive?.content).not.toContain('审阅');
     expect(archive?.content).not.toMatch(/reviewId|effectId|callId|evidenceHash/);
     expect(
@@ -526,8 +525,8 @@ describe('Agent write review feedback', () => {
       }),
     ]);
     expect(rows[0]?.content).toContain('执行进度中已有可靠完成证据的对象');
-    expect(rows[0]?.content).toContain('读取或计划不算完成');
-    expect(rows[0]?.content).toContain('独立字段，直接处理该字段');
+    expect(rows[0]?.content).not.toMatch(/不要.*重读|不要.*再次查看/);
+    expect(rows[0]?.content).toContain('这些记录证明所列改动已保存');
     expect(rows[0]?.content).not.toMatch(/本轮|已修改/u);
     expect(rows[0]?.content).toContain('批注或待办「old」已删除');
     expect(rows[0]?.content).not.toContain('delete_file');
@@ -562,7 +561,7 @@ describe('Agent write review feedback', () => {
     const content = rows.map((row) => row.content).join('\n');
 
     expect(content).toContain('当前尚需处理：当前摘要为空，需要补写');
-    expect(content).toContain('只处理作者目标本身');
+    expect(content).not.toMatch(/不要.*重读|不要.*再次查看/);
     expect(content).not.toMatch(/完成内容|写入|快照/u);
   });
 
@@ -697,9 +696,10 @@ describe('Agent write review feedback', () => {
       }),
     ]);
     expect(rows[0]?.content).toContain('章节「11」正文已在本轮完整通读');
+    expect(rows[0]?.content).toContain('非完整正文');
+    expect(rows[0]?.content).not.toContain('只有新的具体编辑决定');
     expect(rows[0]?.content).toContain('当前摘要：已对齐的当前摘要');
     expect(rows[0]?.content).toContain('当前修改后的正文片段：「她终于突破了那面墙。」');
-    expect(rows[0]?.content).toContain('更新摘要、关系、批注、待办或其他独立字段不需要重读正文');
     expect(rows[0]?.content).not.toContain('人物.md');
     expect(rows[0]?.content).not.toMatch(/edit_file|\/chapters|effect-|revision|Yjs|SQLite/iu);
   });

@@ -2049,7 +2049,7 @@ describe('durable Agent long-task runtime', () => {
     expect(frozen?.steps).toHaveLength(2);
     const providerProjection = projectAgentLongTaskPlanForProvider(frozen!);
     expect(providerProjection.continuation.instruction).toContain(
-      'This focus is not a scope restriction',
+      'The checklist does not restrict reading or editing related objects',
     );
     expect(providerProjection.continuation.instruction).not.toContain('at most one');
     expect(providerProjection.continuation.instruction).not.toContain(

@@ -214,7 +214,7 @@ export async function loadAgentWriteReviewContextRows(
       kind: 'write_review',
       content:
         `执行进度中已有可靠完成证据的对象：${summarizeDomainTargets(archivedStates.map((state) => state.target))}。` +
-        '读取或计划不算完成；只处理作者目标本身。不要为确认而重读；独立的摘要、关系、批注或待办可以直接处理。',
+        '这些记录证明所列改动已保存。',
       durableWriteCoverage: uniqueWriteCoverage(archivedStates.flatMap((state) => state.coverage)),
     },
     ...exactRows,
@@ -310,7 +310,7 @@ export async function loadAgentDurableWriteReceiptContextRows(
         (remainingWork.length > 0
           ? `当前尚需处理：${summarizeDomainTargets(remainingWork)}。`
           : '') +
-        '读取或计划不算完成；只处理作者目标本身。不要为确认而重读；后续若只改摘要、关系、批注、待办或其他独立字段，直接处理该字段。',
+        '这些记录证明所列改动已保存。',
       durableWriteCoverage: committed.flatMap(({ effect, turnOrdinal, toolPairIsCanonical }) =>
         toolPairIsCanonical
           ? [
@@ -427,7 +427,7 @@ export async function loadAgentAuthoredReadProgressContextRows(
                 .map((passage) => `「${[...passage].slice(0, 320).join('')}」`)
                 .join('；')}。`
             : '') +
-          '只有新的具体编辑决定必须依赖当前正文措辞时才需要再次查看；更新摘要、关系、批注、待办或其他独立字段不需要重读正文。',
+          '以上为阅读进度与当前稿件摘要，非完整正文。',
       };
     });
 }
@@ -453,26 +453,26 @@ function modelFacingReviewState(
   const remainingSuffix = remaining ? `仍待完成：${remaining}。` : '';
   const blockDecisions = blockReviewDecisionCounts(review.decisionNote);
   if (review.status === 'accepted_effect' && blockDecisions?.reverted) {
-    return `${target}当前保留 ${blockDecisions.accepted} 处修改、还原 ${blockDecisions.reverted} 处。${remainingSuffix}作者改变了上次结果；仅在继续修改同一段时查看当前正文。`;
+    return `${target}当前保留 ${blockDecisions.accepted} 处修改、还原 ${blockDecisions.reverted} 处。${remainingSuffix}作者改变了上次结果；继续修改该段前先读取当前正文。`;
   }
   switch (review.status) {
     case 'pending':
     case 'accepted':
     case 'accepted_effect':
       return remaining
-        ? `${target}当前已保存的部分属于稿件。${remainingSuffix}只处理上面明确列出的剩余字段；不要为确认而再次查看正文。`
-        : `${target}已有可靠完成证据并属于当前稿件。读取或计划不算完成；只处理作者目标本身。不要为确认而再次查看；后续若只改摘要、关系、批注、待办或其他独立字段，直接处理该字段。仅当新的具体编辑决定必须依赖当前正文措辞时才查看正文。`;
+        ? `${target}当前已保存的部分属于稿件。${remainingSuffix}`
+        : `${target}已有可靠完成证据并属于当前稿件。`;
     case 'rejected':
     case 'revert_started':
       return `${target}的改动已被作者拒绝，正在还原。依赖它继续编辑前先读取当前内容。`;
     case 'reverted':
-      return `${target}的上一轮修改已被作者拒绝并还原。仅在继续修改同一处时读取当前正文。`;
+      return `${target}的上一轮修改已被作者拒绝并还原。继续修改该处前先读取当前正文。`;
     case 'revert_failed':
       return `${target}的改动被作者拒绝，但自动还原失败。继续编辑前先读取当前内容。`;
     case 'revert_unavailable':
       return `${target}的改动被作者拒绝，但无法安全还原。不要重试，等待作者处理。`;
     default:
-      return `${target}的审阅状态已变化。仅在继续修改同一处时读取当前正文。`;
+      return `${target}的审阅状态已变化。继续修改该处前先读取当前正文。`;
   }
 }
 

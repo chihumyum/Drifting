@@ -21,8 +21,7 @@ describe('Milestone H replacement: author-owned writing policy', () => {
       route,
     );
 
-    expect(system).toContain('Use any project object that helps fulfill the request.');
-    expect(system).toContain('You may create, revise, reorganize, relate, or remove content');
+    expect(system).toContain('Use project objects as needed to fulfill the request.');
     expect(system).not.toContain('internal writing scope');
     expect(system).not.toContain('Authoring-intent contract');
     expect(system).not.toContain('Current editor focus');

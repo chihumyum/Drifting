@@ -28,27 +28,3 @@ export function normalizeAgentTurnContext(
   }
   return [...byKey.values()];
 }
-
-/**
- * Hidden provider note for the same chips the author sees. It is a starting
- * point, not an authority shortcut: the Agent must still read live prose.
- */
-export function agentTurnContextPrompt(refs: readonly AgentConversationContextRef[]): string {
-  if (refs.length === 0) return '';
-  const lines = refs.map((ref) => {
-    if (ref.kind === 'project') return `- Project: ${JSON.stringify(ref.label)}`;
-    const identity = [
-      ref.entityType ? `kind=${ref.entityType}` : '',
-      ref.entityId ? `id=${JSON.stringify(ref.entityId)}` : '',
-      ref.blockId ? `stableBlockId=${JSON.stringify(ref.blockId)}` : '',
-    ]
-      .filter(Boolean)
-      .join(', ');
-    return `- Workspace: ${JSON.stringify(ref.label)}${identity ? ` (${identity})` : ''}`;
-  });
-  return [
-    '[Visible mobile turn context]',
-    ...lines,
-    'Use this only as the author-visible starting point. Read current authored evidence before making factual claims, and report any changes you make precisely — never claim a change you did not perform.',
-  ].join('\n');
-}

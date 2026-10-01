@@ -1362,7 +1362,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           ? {
               modelData:
                 `${describeAgentWriteTarget(effect.toolName, effect.arguments)}已更新。` +
-                '这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
+                '当前改动已保存。',
             }
           : {}),
       ...(reviewId
@@ -2827,7 +2827,7 @@ function publicDomainWriteError(error: unknown): string {
     return 'The complete current body must be read before replacing this authored object. Continue from the returned reading cursor, or make only the focused passage revision that is needed.';
   }
   if (/STALE_EDIT_TARGET/iu.test(message)) {
-    return 'The requested passage changed before this revision could be applied. Continue the creative task; locate that passage once more only if this specific change still matters.';
+    return 'The requested passage changed before this revision could be applied. Read its current text before revising it.';
   }
   if (/read-only|cannot be overwritten directly/iu.test(message)) {
     return 'This authored object cannot be overwritten directly because its current version is approved or read-only. Create a new author-owned version when the work should evolve.';

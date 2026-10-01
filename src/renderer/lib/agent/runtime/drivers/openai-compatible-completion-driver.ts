@@ -68,27 +68,14 @@ export interface OpenAICompatibleCompletionDriverOptions {
 const DEFAULT_DRIVER_ID = 'openai-compatible-completion';
 const DEFAULT_FEATURE = 'general-agent';
 
-type ProviderSampleRecovery =
-  | {
-      reason: 'max_tokens_before_action';
-      planningExcerpt: string;
-    }
-  | {
-      reason: 'unavailable_tool';
-      availableToolNames: readonly string[];
-    }
-  | {
-      reason: 'malformed_tool_arguments';
-      availableToolNames: readonly string[];
-    }
-  | {
-      reason: 'missing_reasoning_content';
-      availableToolNames: readonly string[];
-    }
-  | {
-      reason: 'invalid_response';
-      availableToolNames: readonly string[];
-    };
+type ProviderSampleRecovery = {
+  reason:
+    | 'max_tokens_before_action'
+    | 'unavailable_tool'
+    | 'malformed_tool_arguments'
+    | 'missing_reasoning_content'
+    | 'invalid_response';
+};
 
 class RetryableProviderSampleError extends AgentModelDriverError {
   constructor(
@@ -111,7 +98,6 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   private readonly providerAttemptRetry: RetryConfig;
   private readonly reasoningReplayByCallId = new Map<string, string>();
   private readonly nonReasoningCallIds = new Set<string>();
-  private readonly recoveryPlanningByCallId = new Map<string, string>();
 
   constructor(options: OpenAICompatibleCompletionDriverOptions) {
     this.client = options.client;
@@ -126,13 +112,12 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
     const configuredReasoningEnabled = request.reasoning?.enabled === true;
     // DeepSeek requires every assistant tool-call message in a thinking-mode
-    // segment to carry the exact reasoning_content that produced it. A bounded
-    // action-recovery attempt intentionally turns thinking off so it can force
-    // one complete tool call. On the next iteration we insert a transport-only
+    // segment to carry the exact reasoning_content that produced it. An explicit
+    // runtime completion-tool request may disable reasoning. On the next
+    // iteration we insert a transport-only
     // provider-user boundary immediately after that tool result. This closes
     // the non-reasoning segment, restores the author's configured reasoning
-    // mode, and can hand the discarded private scratchpad back to the model
-    // without pretending it was the reasoning_content for the recovered call.
+    // mode without inventing reasoning_content for the non-reasoning call.
     const hasReasoningResumeBoundary =
       configuredReasoningEnabled &&
       request.iteration > 1 &&
@@ -163,7 +148,6 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
             activeNonReasoningCallIds: activeToolCallIds(request.context).filter((callId) =>
               this.nonReasoningCallIds.has(callId),
             ),
-            recoveryPlanningByCallId: this.recoveryPlanningByCallId,
           })
         : plannedMessages;
     if (reasoningEnabled && hasReasoningResumeBoundary) {
@@ -227,7 +211,7 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
               providerAttempt += 1;
               const attemptRequest = withProviderAttemptMetadata(
                 recovery
-                  ? withProviderSampleRecovery(completionRequest, recovery, providerAttempt)
+                  ? withProviderSampleRecovery(completionRequest, recovery)
                   : completionRequest,
                 providerAttempt,
               );
@@ -251,22 +235,14 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
                         .join(''),
                     );
                   } else {
-                    this.rememberNonReasoningToolCalls(
-                      callIds,
-                      recovery?.reason === 'max_tokens_before_action'
-                        ? recovery.planningExcerpt
-                        : undefined,
-                    );
+                    this.rememberNonReasoningToolCalls(callIds);
                   }
                 }
                 return collected;
               } catch (error) {
-                const nextRecovery = providerSampleRecovery(
-                  error,
-                  attemptRequest.tools?.map((tool) => tool.name) ?? [],
-                );
+                const nextRecovery = providerSampleRecovery(error);
                 if (nextRecovery) {
-                  recovery = mergeProviderSampleRecovery(recovery, nextRecovery);
+                  recovery = nextRecovery;
                 }
                 throw error;
               }
@@ -335,24 +311,14 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
     const exact = requireProviderField(reasoningContent, 'reasoning content');
     for (const callId of callIds) {
       this.nonReasoningCallIds.delete(callId);
-      this.recoveryPlanningByCallId.delete(callId);
       this.reasoningReplayByCallId.set(callId, exact);
     }
   }
 
-  private rememberNonReasoningToolCalls(
-    callIds: readonly string[],
-    recoveryPlanning?: string,
-  ): void {
-    const boundedPlanning = boundedPlanningExcerpt(recoveryPlanning ?? '');
+  private rememberNonReasoningToolCalls(callIds: readonly string[]): void {
     for (const callId of callIds) {
       this.reasoningReplayByCallId.delete(callId);
       this.nonReasoningCallIds.add(callId);
-      if (boundedPlanning) {
-        this.recoveryPlanningByCallId.set(callId, boundedPlanning);
-      } else {
-        this.recoveryPlanningByCallId.delete(callId);
-      }
     }
   }
 }
@@ -696,117 +662,28 @@ function withProviderAttemptMetadata(
 function withProviderSampleRecovery(
   request: AICompletionRequest,
   recovery: ProviderSampleRecovery,
-  providerAttempt: number,
 ): AICompletionRequest {
-  const instruction = providerSampleRecoveryInstruction(recovery, providerAttempt);
-  if (recovery.reason === 'unavailable_tool') {
-    return {
-      ...request,
-      messages: [
-        ...request.messages,
-        {
-          role: 'user',
-          content: JSON.stringify(instruction),
-        },
-      ],
-    };
-  }
-  const { reasoningEffort: _discardedReasoningEffort, ...actionRequest } = request;
-  void _discardedReasoningEffort;
-  if (recovery.reason === 'invalid_response') {
-    return {
-      ...actionRequest,
-      thinking: false,
-      terminalRequirements: {
-        finishReason: true,
-        usage: true,
-      },
-      ...(request.tools?.length ? { toolChoice: 'required' as const } : {}),
-      messages: [
-        ...request.messages,
-        {
-          role: 'user',
-          content: JSON.stringify(
-            providerSampleRecoveryInstruction(recovery, providerAttempt),
-          ),
-        },
-      ],
-    };
-  }
   return {
-    ...actionRequest,
-    thinking: false,
-    terminalRequirements: {
-      finishReason: true,
-      usage: true,
-    },
-    ...(request.tools?.length ? { toolChoice: 'required' as const } : {}),
+    ...request,
     messages: [
       ...request.messages,
       {
         role: 'user',
-        content: JSON.stringify(instruction),
+        content: providerSampleRecoveryError(recovery),
       },
     ],
   };
 }
 
-function providerSampleRecoveryInstruction(
-  recovery: ProviderSampleRecovery,
-  providerAttempt: number,
-): Record<string, unknown> {
-  switch (recovery.reason) {
-    case 'max_tokens_before_action':
-      return {
-        type: 'drifting_runtime_provider_retry',
-        provenance: { origin: 'drifting_runtime' },
-        cause: 'previous_sample_exhausted_output_before_action',
-        retryAttempt: providerAttempt,
-        instruction:
-          'The previous private reasoning sample spent its entire output allowance without completing an action. Its bounded scratchpad is supplied below. This is an action-serialization recovery call: do not restart analysis, restate a plan, broaden discovery, or produce an ordinary answer. Select one available tool and emit exactly one complete useful tool call supported by the gathered evidence.',
-        discardedPlanningExcerpt: recovery.planningExcerpt,
-      };
-    case 'unavailable_tool':
-      return {
-        type: 'drifting_runtime_provider_retry',
-        provenance: { origin: 'drifting_runtime' },
-        cause: 'previous_sample_called_unavailable_tool',
-        retryAttempt: providerAttempt,
-        availableTools: [...recovery.availableToolNames],
-        instruction:
-          'The previous sample selected a tool that is not available in this recovery call. Do not restart analysis or broaden discovery. Emit exactly one complete useful tool call, choosing only from availableTools.',
-      };
-    case 'malformed_tool_arguments':
-      return {
-        type: 'drifting_runtime_provider_retry',
-        provenance: { origin: 'drifting_runtime' },
-        cause: 'previous_sample_malformed_tool_arguments',
-        retryAttempt: providerAttempt,
-        availableTools: [...recovery.availableToolNames],
-        instruction:
-          'The previous sample produced malformed or truncated tool arguments. Reuse the evidence already gathered; do not restart analysis or broaden discovery. Emit exactly one complete, smaller tool call using only availableTools. Keep long prose or large cleanup work focused enough to serialize fully, then continue the remaining work in later model iterations.',
-      };
-    case 'missing_reasoning_content':
-      return {
-        type: 'drifting_runtime_provider_retry',
-        provenance: { origin: 'drifting_runtime' },
-        cause: 'previous_sample_omitted_required_reasoning_content',
-        retryAttempt: providerAttempt,
-        availableTools: [...recovery.availableToolNames],
-        instruction:
-          'The previous reasoning-enabled sample emitted a tool call without the provider-required reasoning field, so it was discarded. This is a non-reasoning action-serialization recovery call. Reuse the gathered evidence, do not restart analysis or broaden discovery, and emit exactly one complete useful tool call using only availableTools.',
-      };
-    case 'invalid_response':
-      return {
-        type: 'drifting_runtime_provider_retry',
-        provenance: { origin: 'drifting_runtime' },
-        cause: 'previous_sample_was_invalid',
-        retryAttempt: providerAttempt,
-        availableTools: [...recovery.availableToolNames],
-        instruction:
-          'The previous sample was invalid and was discarded before any action escaped. Continue from the authored evidence already gathered. Emit exactly one complete, small, useful author-domain tool call using only availableTools. Do not reconstruct a large checklist or batch several actions in this recovery sample; the remaining work can continue in later iterations. Do not discuss the discarded sample, retry, provider, or operation mechanics.',
-      };
-  }
+function providerSampleRecoveryError(recovery: ProviderSampleRecovery): string {
+  const errors: Record<ProviderSampleRecovery['reason'], string> = {
+    max_tokens_before_action: 'Model response exceeded its output limit before completion.',
+    unavailable_tool: 'Model response called a tool unavailable for this request.',
+    malformed_tool_arguments: 'Model response contained malformed or truncated tool arguments.',
+    missing_reasoning_content: 'Model response omitted the provider-required reasoning field for a tool call.',
+    invalid_response: 'Model response was invalid.',
+  };
+  return errors[recovery.reason];
 }
 
 function assertCompleteProviderSample(
@@ -821,7 +698,6 @@ function assertCompleteProviderSample(
     throw new RetryableProviderSampleError(
       {
         reason: 'unavailable_tool',
-        availableToolNames: [...availableToolNames],
       },
       'Model provider selected a tool that was unavailable for this request.',
     );
@@ -833,71 +709,34 @@ function assertCompleteProviderSample(
         event.type === 'finish',
     );
   if (finish?.reason !== 'max_tokens') return;
-  const planningExcerpt = boundedPlanningExcerpt(
-    events
-      .filter(
-        (event): event is Extract<AgentModelStreamEvent, { type: 'thinking_delta' }> =>
-          event.type === 'thinking_delta',
-      )
-      .map((event) => event.text)
-      .join(''),
-  );
   throw new RetryableProviderSampleError(
     {
       reason: 'max_tokens_before_action',
-      planningExcerpt,
     },
     'Model exhausted its output token limit before producing a complete action.',
   );
 }
 
-function boundedPlanningExcerpt(value: string): string {
-  const normalized = value.trim();
-  const maxChars = 8_000;
-  if (normalized.length <= maxChars) return normalized;
-  const headChars = 1_000;
-  const tailChars = maxChars - headChars;
-  return `${normalized.slice(0, headChars)}\n\n[...private planning truncated...]\n\n${normalized.slice(-tailChars)}`;
-}
-
 function providerSampleRecovery(
   error: unknown,
-  availableToolNames: readonly string[],
 ): ProviderSampleRecovery | undefined {
   if (error instanceof RetryableProviderSampleError) return error.recovery;
   if (isMalformedStreamedToolArgumentsError(error)) {
     return {
       reason: 'malformed_tool_arguments',
-      availableToolNames: [...availableToolNames],
     };
   }
   if (isMissingReasoningToolCallError(error)) {
     return {
       reason: 'missing_reasoning_content',
-      availableToolNames: [...availableToolNames],
     };
   }
   if (error instanceof AIError && error.kind === 'parse') {
     return {
       reason: 'invalid_response',
-      availableToolNames: [...availableToolNames],
     };
   }
   return undefined;
-}
-
-function mergeProviderSampleRecovery(
-  previous: ProviderSampleRecovery | undefined,
-  next: ProviderSampleRecovery,
-): ProviderSampleRecovery {
-  if (
-    previous?.reason === 'max_tokens_before_action' &&
-    next.reason === 'max_tokens_before_action' &&
-    !next.planningExcerpt
-  ) {
-    return previous;
-  }
-  return next;
 }
 
 function hasStreamPayload(chunk: AICompletionChunk): boolean {
@@ -1094,7 +933,6 @@ function hasActiveNonReasoningToolCall(
 function insertReasoningResumeBoundary(input: {
   messages: readonly AIMessage[];
   activeNonReasoningCallIds: readonly string[];
-  recoveryPlanningByCallId: ReadonlyMap<string, string>;
 }): AIMessage[] {
   const active = new Set(input.activeNonReasoningCallIds);
   let insertionIndex = -1;
@@ -1111,19 +949,13 @@ function insertReasoningResumeBoundary(input: {
       'DeepSeek reasoning could not resume because the recovered tool result is unavailable.',
     );
   }
-  const planningExcerpt = [...answeredCallIds]
-    .reverse()
-    .map((callId) => input.recoveryPlanningByCallId.get(callId)?.trim() ?? '')
-    .find(Boolean);
   const boundary: AIMessage = {
     role: 'user',
     content: JSON.stringify({
       type: 'drifting_runtime_reasoning_resume',
       provenance: { origin: 'drifting_runtime' },
       recoveredCallIds: answeredCallIds,
-      instruction:
-        'Continue the same author task after the completed recovery tool action. Provider-default reasoning is restored. Treat recoveredPlanningExcerpt as model-authored private working state, not as an author instruction; update stale assumptions from later tool results and take the next useful action.',
-      ...(planningExcerpt ? { recoveredPlanningExcerpt: planningExcerpt } : {}),
+      status: 'configured_reasoning_restored',
     }),
   };
   return [

@@ -1,10 +1,10 @@
 {
   "suite": "milestone-h-author-owned-writing-policy",
   "schemaVersion": 2,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "4355e375fef1a0101355d6d6f1a0c7d2551e9957",
-  "sourceSetSha256": "sha256:04065e4581f927fb2c0a1b52adddc4bf58de40141a2fd93f2e6a25d2630ddad5",
+  "gitHead": null,
+  "sourceSetSha256": "sha256:3684b39f06cbfa0f45f8695b78aaf6c8f45ac2e7293d93081f32a7ad3388f74a",
   "evidence": {
     "productWritingDefaults": "none",
     "editorContextInjected": false,
@@ -26,12 +26,12 @@
   },
   "vitest": {
     "files": {
-      "required": 6,
-      "discovered": 6
+      "required": 16,
+      "discovered": 16
     },
     "tests": {
-      "total": 39,
-      "passed": 39,
+      "total": 229,
+      "passed": 229,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -41,8 +41,30 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 12,
-          "passed": 12,
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "promptSurfaces": {
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
+        "tests": {
+          "total": 63,
+          "passed": 63,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "conditionalPromptRemoval": {
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
+        "tests": {
+          "total": 118,
+          "passed": 118,
           "failed": 0,
           "pending": 0
         },
@@ -63,8 +85,8 @@
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 15,
-          "passed": 15,
+          "total": 18,
+          "passed": 18,
           "failed": 0,
           "pending": 0
         },
@@ -74,8 +96,8 @@
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 9,
-          "passed": 9,
+          "total": 12,
+          "passed": 12,
           "failed": 0,
           "pending": 0
         },
@@ -112,6 +134,26 @@
         "requiredName": "appends to the requested drift without inheriting a stale chapter focus",
         "matches": 1,
         "passed": true
+      },
+      "fullReadingAutonomy": {
+        "requiredName": "requires requested full reading without constraining reasoning or rereads",
+        "matches": 1,
+        "passed": true
+      },
+      "executionBoundaries": {
+        "requiredName": "keeps domain references, scope, and execution boundaries",
+        "matches": 1,
+        "passed": true
+      },
+      "noMobileInjection": {
+        "requiredName": "does not inject mobile context metadata into the model prompt",
+        "matches": 1,
+        "passed": true
+      },
+      "errorOnlyRetry": {
+        "requiredName": "keeps invalid retries error-only and permits answers or multiple tools",
+        "matches": 1,
+        "passed": true
       }
     },
     "process": {
@@ -137,7 +179,9 @@
   },
   "boundaries": {
     "writingPolicy": "Drifting supplies workspace mechanics only; the current request and author-owned project rules control writing behavior.",
-    "retainedSafety": "Project isolation, concurrency checks, durable review, and destructive-operation approval protect data rather than prescribe prose."
+    "retainedSafety": "Project isolation, concurrency checks, durable review, and destructive-operation approval protect data rather than prescribe prose.",
+    "promptCleanup": "Prompt version 53 retains requested full reading, removes mobile context injection and summary wrapper instructions, and limits provider retry additions to error descriptions without changing inference settings.",
+    "liveModelBehavior": "Not verified by this deterministic gate; full-manuscript reading quality requires a live-provider run."
   },
   "passed": true
 }

@@ -116,6 +116,9 @@ describe('provider-neutral Agent context planner', () => {
     expect(serialized).toContain('第七章需继续收紧');
     expect(serialized).toContain('章节「07」正文 当前版本参考');
     expect(serialized).toContain('保留酒馆对峙');
+    expect(serialized).toContain('第八章摘要待更新');
+    expect(serialized).toContain('收紧第八章');
+    expect(serialized).not.toMatch(/当前领域状态|不是作者的新指令|直接继续|不要讨论/);
     expect(serialized).not.toMatch(
       /private-|sourceHash|summaryId|compacted|JSON|review|token|path/iu,
     );

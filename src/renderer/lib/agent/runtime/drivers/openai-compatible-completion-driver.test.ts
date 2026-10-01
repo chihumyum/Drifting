@@ -1060,15 +1060,10 @@ describe('OpenAICompatibleCompletionDriver', () => {
     expect(client.requests).toHaveLength(2);
     expect(client.requests.map((sent) => sent.metadata?.agentProviderAttempt)).toEqual([1, 2]);
     expect(client.requests[0]?.thinking).toBe(true);
-    expect(client.requests[1]?.thinking).toBe(false);
-    expect(client.requests[1]?.toolChoice).toBe('required');
+    expect(client.requests[1]?.thinking).toBe(true);
+    expect(client.requests[1]?.toolChoice).toBe('auto');
     const recoveryMessages = client.requests[1]?.messages ?? [];
-    expect(
-      JSON.parse(recoveryMessages[recoveryMessages.length - 1]?.content ?? '{}'),
-    ).toMatchObject({
-      type: 'drifting_runtime_provider_retry',
-      cause: 'previous_sample_was_invalid',
-    });
+    expect(recoveryMessages[recoveryMessages.length - 1]?.content).toBe('Model response was invalid.');
     expect(events).toContainEqual({
       type: 'tool_call_start',
       callId: 'valid-call',
@@ -1136,7 +1131,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
     ]);
   });
 
-  it('resamples a reasoning-only max-token sample and immediately asks for one concrete action', async () => {
+  it('resamples output exhaustion while preserving reasoning and tool choice', async () => {
     let attempt = 0;
     const client = new FakeStreamingClient((sent) =>
       (async function* (): AsyncIterable<AICompletionChunk> {
@@ -1151,20 +1146,15 @@ describe('OpenAICompatibleCompletionDriver', () => {
           return;
         }
         if (attempt === 2) {
-          expect(sent.thinking).toBe(false);
-          expect(sent.toolChoice).toBe('required');
+          expect(sent.thinking).toBe(true);
+          expect(sent.toolChoice).toBe('auto');
           yield { delta: 'incomplete action serialization' };
           yield { delta: '', finishReason: 'length' };
           yield { delta: '', usage: { inputTokens: 105, outputTokens: 512 } };
           return;
         }
-        const recovery = JSON.parse(sent.messages[sent.messages.length - 1]?.content ?? '{}');
-        expect(recovery).toMatchObject({
-          type: 'drifting_runtime_provider_retry',
-          cause: 'previous_sample_exhausted_output_before_action',
-          retryAttempt: 3,
-          discardedPlanningExcerpt: 'discarded overlong planning attempt 1',
-        });
+        expect(sent.messages[sent.messages.length - 1]?.content).toBe('Model response exceeded its output limit before completion.');
+        yield { delta: '', thinkingDelta: 'continue with the available evidence' };
         yield {
           delta: '',
           toolCallDeltas: [
@@ -1192,12 +1182,12 @@ describe('OpenAICompatibleCompletionDriver', () => {
       },
     });
 
-    const events = await collect(driver, request({ reasoning: { enabled: true } }));
+    const events = await collect(driver, request({ reasoning: { enabled: true, effort: 'max' } }));
 
     expect(client.requests).toHaveLength(3);
     expect(client.requests[0]?.thinking).toBe(true);
-    expect(client.requests.slice(1).every((sent) => sent.thinking === false)).toBe(true);
-    expect(client.requests.slice(1).every((sent) => sent.toolChoice === 'required')).toBe(true);
+    expect(client.requests.slice(1).every((sent) => sent.thinking === true)).toBe(true);
+    expect(client.requests.slice(1).every((sent) => sent.toolChoice === 'auto')).toBe(true);
     expect(
       client.requests
         .slice(1)
@@ -1205,21 +1195,16 @@ describe('OpenAICompatibleCompletionDriver', () => {
           (sent) =>
             sent.terminalRequirements?.finishReason === true &&
             sent.terminalRequirements?.usage === true &&
-            sent.terminalRequirements?.reasoningContentForToolCalls === undefined,
+            sent.terminalRequirements?.reasoningContentForToolCalls === true,
         ),
     ).toBe(true);
-    expect(client.requests.every((sent) => sent.reasoningEffort === undefined)).toBe(true);
-    const firstRetry = JSON.parse(
-      client.requests[1]!.messages[client.requests[1]!.messages.length - 1]?.content ?? '{}',
-    );
-    const secondRetry = JSON.parse(
-      client.requests[2]!.messages[client.requests[2]!.messages.length - 1]?.content ?? '{}',
-    );
-    expect(firstRetry).toMatchObject({
-      retryAttempt: 2,
-      discardedPlanningExcerpt: 'discarded overlong planning attempt 1',
-    });
-    expect(secondRetry.instruction).toBe(firstRetry.instruction);
+    expect(client.requests.every((sent) => sent.reasoningEffort === 'max')).toBe(true);
+    const firstRetryMessages = client.requests[1]!.messages;
+    const secondRetryMessages = client.requests[2]!.messages;
+    const firstRetry = firstRetryMessages[firstRetryMessages.length - 1]?.content;
+    const secondRetry = secondRetryMessages[secondRetryMessages.length - 1]?.content;
+    expect(firstRetry).toBe('Model response exceeded its output limit before completion.');
+    expect(secondRetry).toBe(firstRetry);
     expect(
       events.some(
         (event) =>
@@ -1234,7 +1219,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
     });
   });
 
-  it('returns discarded private planning to the next reasoning-enabled iteration', async () => {
+  it('replays successful retry reasoning without inventing a reasoning resume boundary', async () => {
     let attempt = 0;
     const client = new FakeStreamingClient((sent) =>
       (async function* (): AsyncIterable<AICompletionChunk> {
@@ -1246,7 +1231,9 @@ describe('OpenAICompatibleCompletionDriver', () => {
           return;
         }
         if (attempt === 2) {
-          expect(sent.thinking).toBe(false);
+          expect(sent.thinking).toBe(true);
+          expect(sent.messages[sent.messages.length - 1]?.content).toBe('Model response exceeded its output limit before completion.');
+          yield { delta: '', thinkingDelta: 'recovered inspection reasoning' };
           yield {
             delta: '',
             toolCallDeltas: [
@@ -1271,9 +1258,9 @@ describe('OpenAICompatibleCompletionDriver', () => {
             return false;
           }
         });
-        expect(JSON.parse(boundary?.content ?? '{}')).toMatchObject({
-          recoveredCallIds: ['recovered-inspect'],
-          recoveredPlanningExcerpt: 'inspect A, then edit B and verify C',
+        expect(boundary).toBeUndefined();
+        expect(sent.messages.find((message) => message.role === 'model')).toMatchObject({
+          reasoningContent: 'recovered inspection reasoning',
         });
         yield { delta: '', thinkingDelta: 'use the recovered plan' };
         yield { delta: 'done' };
@@ -1353,13 +1340,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
           yield { delta: '', usage: { inputTokens: 7, outputTokens: 2 } };
           return;
         }
-        const recovery = JSON.parse(sent.messages[sent.messages.length - 1]?.content ?? '{}');
-        expect(recovery).toMatchObject({
-          type: 'drifting_runtime_provider_retry',
-          cause: 'previous_sample_called_unavailable_tool',
-          retryAttempt: 2,
-          availableTools: ['edit_node'],
-        });
+        expect(sent.messages[sent.messages.length - 1]?.content).toBe('Model response called a tool unavailable for this request.');
         yield {
           delta: '',
           toolCallDeltas: [
@@ -1415,7 +1396,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
     });
   });
 
-  it('recovers a malformed-malformed-length sequence with a smaller action call', async () => {
+  it('recovers mixed invalid samples without changing inference settings', async () => {
     let attempt = 0;
     const client = new FakeStreamingClient((sent) =>
       (async function* (): AsyncIterable<AICompletionChunk> {
@@ -1427,24 +1408,16 @@ describe('OpenAICompatibleCompletionDriver', () => {
           });
         }
         if (attempt === 3) {
-          const recovery = JSON.parse(sent.messages[sent.messages.length - 1]?.content ?? '{}');
-          expect(recovery).toMatchObject({
-            cause: 'previous_sample_malformed_tool_arguments',
-            availableTools: ['edit_node'],
-          });
-          expect(sent.thinking).toBe(false);
-          expect(sent.toolChoice).toBe('required');
+          expect(sent.messages[sent.messages.length - 1]?.content).toBe('Model response contained malformed or truncated tool arguments.');
+          expect(sent.thinking).toBe(true);
+          expect(sent.toolChoice).toBe('auto');
           yield { delta: '', thinkingDelta: 'discarded oversized plan' };
           yield { delta: '', finishReason: 'length' };
           yield { delta: '', usage: { inputTokens: 20, outputTokens: 512 } };
           return;
         }
-        const recovery = JSON.parse(sent.messages[sent.messages.length - 1]?.content ?? '{}');
-        expect(recovery).toMatchObject({
-          cause: 'previous_sample_exhausted_output_before_action',
-          retryAttempt: 4,
-          discardedPlanningExcerpt: 'discarded oversized plan',
-        });
+        expect(sent.messages[sent.messages.length - 1]?.content).toBe('Model response exceeded its output limit before completion.');
+        yield { delta: '', thinkingDelta: 'valid edit reasoning' };
         yield {
           delta: '',
           toolCallDeltas: [
@@ -1488,7 +1461,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
 
     expect(client.requests).toHaveLength(4);
     expect(client.requests[0]?.thinking).toBe(true);
-    expect(client.requests.slice(1).every((sent) => sent.thinking === false)).toBe(true);
+    expect(client.requests.slice(1).every((sent) => sent.thinking === true)).toBe(true);
     expect(events).toContainEqual({
       type: 'tool_call_start',
       callId: 'small-valid-edit',
@@ -1508,13 +1481,10 @@ describe('OpenAICompatibleCompletionDriver', () => {
             { code: MISSING_REASONING_TOOL_CALL_CODE },
           );
         }
-        expect(sent.thinking).toBe(false);
-        expect(sent.toolChoice).toBe('required');
-        expect(JSON.parse(sent.messages[sent.messages.length - 1]?.content ?? '{}')).toMatchObject({
-          type: 'drifting_runtime_provider_retry',
-          cause: 'previous_sample_omitted_required_reasoning_content',
-          availableTools: expect.arrayContaining(['read_node']),
-        });
+        expect(sent.thinking).toBe(true);
+        expect(sent.toolChoice).toBe('auto');
+        expect(sent.messages[sent.messages.length - 1]?.content).toBe('Model response omitted the provider-required reasoning field for a tool call.');
+        yield { delta: '', thinkingDelta: 'valid reasoning content' };
         yield {
           delta: '',
           toolCallDeltas: [
@@ -1555,6 +1525,84 @@ describe('OpenAICompatibleCompletionDriver', () => {
       callId: 'call-2',
       name: 'read_node',
     });
+  });
+
+  it.each([
+    ['invalid', 'Model response was invalid.'],
+    ['arguments', 'Model response contained malformed or truncated tool arguments.'],
+    ['reasoning', 'Model response omitted the provider-required reasoning field for a tool call.'],
+    ['unavailable', 'Model response called a tool unavailable for this request.'],
+    ['length', 'Model response exceeded its output limit before completion.'],
+  ] as const)('keeps %s retries error-only and permits answers or multiple tools', async (failure, cause) => {
+    for (const responseKind of ['answer', 'tools'] as const) {
+      let attempt = 0;
+      const client = new FakeStreamingClient((sent) =>
+        (async function* (): AsyncIterable<AICompletionChunk> {
+          attempt += 1;
+          if (attempt === 1) {
+            if (failure === 'invalid') throw new AIError('parse', 'invalid sample');
+            if (failure === 'arguments' || failure === 'reasoning') {
+              throw new AIError('parse', 'invalid tool sample', {
+                code: failure === 'arguments'
+                  ? MALFORMED_STREAMED_TOOL_ARGUMENTS_CODE
+                  : MISSING_REASONING_TOOL_CALL_CODE,
+              });
+            }
+            yield { delta: '', thinkingDelta: 'discarded sample' };
+            if (failure === 'unavailable') {
+              yield {
+                delta: '',
+                toolCallDeltas: [{ index: 0, id: 'discarded-call', nameDelta: 'unavailable', argumentsDelta: '{}' }],
+              };
+            }
+            yield { delta: '', finishReason: failure === 'length' ? 'length' : 'tool_calls' };
+            yield { delta: '', usage: { inputTokens: 10, outputTokens: 5 } };
+            return;
+          }
+          expect(sent).toMatchObject({
+            thinking: true,
+            reasoningEffort: 'max',
+            toolChoice: 'auto',
+            maxOutputTokens: 2048,
+            terminalRequirements: { reasoningContentForToolCalls: true, finishReason: true, usage: true },
+          });
+          expect(sent.messages[sent.messages.length - 1]?.content).toBe(cause);
+          expect(sent.tools).toEqual(client.requests[0]?.tools);
+          expect(sent.system).toBe(client.requests[0]?.system);
+          expect(sent.messages.slice(0, -1)).toEqual(client.requests[0]?.messages);
+          yield { delta: '', thinkingDelta: 'valid retry reasoning' };
+          if (responseKind === 'tools') {
+            yield {
+              delta: '',
+              toolCallDeltas: [
+                { index: 0, id: 'read-a', nameDelta: 'read_node', argumentsDelta: '{"node":"A"}' },
+                { index: 1, id: 'read-b', nameDelta: 'read_node', argumentsDelta: '{"node":"B"}' },
+              ],
+            };
+          } else {
+            yield { delta: 'The available evidence answers the question.' };
+          }
+          yield { delta: '', finishReason: responseKind === 'tools' ? 'tool_calls' : 'stop' };
+          yield { delta: '', usage: { inputTokens: 12, outputTokens: 8 } };
+        })(),
+      );
+      const driver = new OpenAICompatibleCompletionDriver({
+        client,
+        defaultModel: 'deepseek-chat',
+        reasoningMode: 'deepseek',
+        providerAttemptRetry: { maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0, jitter: false },
+      });
+      const events = await collect(driver, request({
+        reasoning: { enabled: true, effort: 'max' },
+        maxOutputTokens: 2048,
+      }));
+      expect(client.requests).toHaveLength(2);
+      expect(events.filter((event) => event.type === 'tool_call_start')).toHaveLength(
+        responseKind === 'tools' ? 2 : 0,
+      );
+      expect(events).toContainEqual({ type: 'finish', reason: responseKind === 'tools' ? 'tool_use' : 'end_turn' });
+      expect(events.some((event) => 'callId' in event && event.callId === 'discarded-call')).toBe(false);
+    }
   });
 
   it.each(['network', 'rate-limit'] as const)(

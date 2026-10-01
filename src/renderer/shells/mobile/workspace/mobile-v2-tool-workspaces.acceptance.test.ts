@@ -54,7 +54,8 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(model).toContain('targetBlockId: target.blockId');
     expect(model).toContain('scrollToBlock(evidence.entityId, evidence.blockId)');
     expect(context).toContain('normalizeAgentTurnContext');
-    expect(context).toContain('agentTurnContextPrompt');
+    expect(context).not.toContain('agentTurnContextPrompt');
+    expect(source('store/agent-chat-store.ts')).not.toContain('visibleContextNote');
   });
 
   it('reflows complete Library/TODO semantics with ordinary mobile action targets', () => {

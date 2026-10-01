@@ -99,7 +99,7 @@ const targetSchema = Type.Object(
       minLength: 1,
       maxLength: 240,
       description:
-        'One exact authored target name. Never combine several characters, chapters, or elements into a fabricated name; create one step per named primary object. A cross-object cleanup deliverable may instead target the current project.',
+        'Exact authored target name; use one step per primary object, or a project target for cross-object work.',
     }),
   },
   { additionalProperties: false },
@@ -113,7 +113,7 @@ const persistedStepWorkKindSchema = Type.Union([
 ]);
 const providerStepWorkKindSchema = Type.Union([Type.Literal('edit'), Type.Literal('review')], {
   description:
-    'Use edit for an author-visible saved result. Use review only for a standalone critique, diagnostic, or review report explicitly requested by the author. Reading, evidence gathering, and ordinary before/after self-checks happen inside the relevant edit and are never checklist items.',
+    'Use edit for saved changes, review for an author-requested critique or report. Evidence gathering and self-checks belong within the deliverable.',
 });
 
 const persistedStepSeedSchema = Type.Object(
@@ -797,7 +797,7 @@ export function projectAgentLongTaskPlanForProvider(
     continuation: {
       nextStepId: nextActionableStep(plan)?.id ?? null,
       instruction:
-        'Resume this same task after compaction or restart. Prioritize the current in_progress item, otherwise the first pending item. Reuse evidence already returned and gather whatever concrete authored evidence is genuinely needed for this deliverable; avoid repeating the same discovery without a new reason. This focus is not a scope restriction: inspect or modify related authored objects when cross-object work requires it. Adopt reliable saved-change notes, never repeat saved work, and mark the current item completed once its authored result is saved. Continue until the checklist is complete or progress is genuinely blocked.',
+        'Continue the unfinished deliverables using current task state and saved results. The checklist does not restrict reading or editing related objects.',
     },
   };
 }
@@ -838,8 +838,7 @@ function taskPlanModelData(
           : '';
     lines.push(
       `当前交付：${next.ordinal + 1}. [${statusLabel[next.status] ?? next.status}]${workKind} ${next.title}${target}${availability}${next.resultNote ? ` — ${next.resultNote}` : ''}`,
-      '其余交付项已排队；优先完成并登记当前项。这只是执行焦点，不是范围限制：跨对象工作确有需要时，可以读取或修改相关作者对象。',
-      '优先复用已经返回的作品证据；按当前交付实际需要获取具体证据，避免没有新理由地重复盘点。可靠的已保存结果无需重做。',
+      '清单记录交付进度，不限制读取或修改相关作品对象。',
     );
   }
   if (projection.activeConstraints.length > 0) {
@@ -953,7 +952,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
         description:
-          'Create or maintain the current writing-task checklist. A checklist contains unfinished author-facing deliverables, never separate steps for reading, browsing, searching, gathering evidence, or ordinary before/after self-checks; do those while completing the relevant edit deliverable. Use review only when the author explicitly requested a standalone critique, diagnostic, or review report with cited evidence. create requires scopeKind and objective. Use whole_book_chapters only when the objective explicitly says every chapter or the entire manuscript; it automatically uses the complete current chapter order and must omit steps. With explicit_targets, make one step per exact named primary authored object; never invent a compound element such as A/B/C档案. A genuinely cross-object cleanup may use one project target. If work was already saved before this checklist became available, include only unfinished deliverables; reliable saved-change notes remain the truth. append_steps adds named work, set_objective renames the task, reconcile_manifest refreshes a changed whole-book chapter list, and set_status changes the whole checklist status. Drifting resolves the active checklist and concurrency details automatically.',
+          'Create or maintain a checklist of unfinished author-facing deliverables. create requires scopeKind and objective. whole_book_chapters requires an explicit whole-manuscript objective, uses current chapter order, and omits steps. explicit_targets uses named objects. append_steps adds work; set_objective renames the task; reconcile_manifest refreshes a changed chapter list; set_status changes task status. The active checklist is resolved automatically.',
         inputSchema: updatePlanProviderSchema,
         access: 'write',
         validateInput: (input) =>
@@ -962,7 +961,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_STEP_TOOL,
         description:
-          'Change one item in the current writing-task checklist. Identify it by its one-based number, exact title, or authored target name. Only one item may be in_progress, but already-finished pending work may be marked completed directly. After a saved change satisfies an item, mark it completed before starting unrelated discovery; reliable saved-change notes remain valid across compaction and must not be repeated. For a standalone review completion, include the structured reviewResult with exact authored quotes. A read-only conclusion inherited from an older checklist completes with a short resultNote. Drifting binds saved reads and edits automatically.',
+          'Update an item by one-based number, exact title, or authored target name. Only one item may be in_progress; finished pending items may complete directly. Edit completion requires saved changes; review completion requires reviewResult with exact authored quotes. Legacy research items use resultNote. Drifting binds saved reads and edits automatically.',
         inputSchema: updateStepProviderSchema,
         access: 'write',
         validateInput: (input) =>
