@@ -18,7 +18,7 @@ describe('Drifting Agent provider context contract', () => {
     ).toMatchObject({
       id: DRIFTING_AGENT_CONTEXT_PROFILE.id,
       contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
-      maxOutputTokens: 8_192,
+      maxOutputTokens: null,
       source: 'driver',
     });
   });

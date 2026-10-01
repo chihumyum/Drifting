@@ -173,8 +173,10 @@ pnpm agent:capabilities:check
   concepts; manuscript recovery belongs to entity snapshot history.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
-  start and exposes one importance-gated checkpoint (`update` or `noop`) before
-  the final response. It is intentionally recent working context, not project
+  start. Working Memory writes are optional: call `checkpoint_working_memory`
+  with `update` only when important shared context changed; otherwise answer
+  directly without a memory tool call. There is no `noop` operation or mandatory
+  pre-final checkpoint. It is intentionally recent working context, not project
   history, canon, manuscript prose, a transcript or the long-term author-rule
   store. SQLite owns a revision-CAS singleton; local mutation and sync outbox are
   atomic; 6k/8k soft/hard token bounds retire the oldest completed `Recent`
@@ -186,6 +188,17 @@ pnpm agent:capabilities:check
   shared `AgentWorkingMemoryView`.
 
 ### Providers and extensions
+
+- ChatGPT subscription model discovery now uses the native account catalog,
+  refreshes on sign-in/menu/focus/online events, and preserves saved model ids
+  through restart or fetch failure. Unknown output ceilings remain null;
+  default Agent and summary requests have no client output cap. Input reserves
+  do not truncate generation or impersonate model capabilities. Configuration,
+  compaction, and pre-call context failures no longer auto-resume unchanged
+  input. Synthetic complete tool-loop, catalog, settings, Responses and native
+  projection tests cover this path; current real-account catalog/UI
+  acceptance remains unverified. The generated bundled model list is fallback
+  evidence, not a live entitlement catalog. See [provider settings](../../ai-provider-settings.md).
 
 - Models & API is the single writable BYOK credential surface. Copilot and
   General Agent choose their own provider/model routes but lazily read the same

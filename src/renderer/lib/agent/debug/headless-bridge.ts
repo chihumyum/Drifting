@@ -284,7 +284,9 @@ function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
     ...(value.thinking === 'adaptive' || value.thinking === 'off'
       ? { thinking: value.thinking }
       : {}),
-    ...(value.effort === 'low' ||
+    ...(value.effort === 'minimal' ||
+    value.effort === 'ultra' ||
+    value.effort === 'low' ||
     value.effort === 'medium' ||
     value.effort === 'high' ||
     value.effort === 'xhigh' ||

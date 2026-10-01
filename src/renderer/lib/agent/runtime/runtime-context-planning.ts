@@ -32,6 +32,8 @@ import type {
  * runtime never infers one from a vendor or model name.
  */
 export const DEFAULT_AGENT_CONTEXT_WINDOW_TOKENS = 32_768 as const;
+/** Input headroom for planning only. Never sent as an output ceiling. */
+export const DEFAULT_AGENT_CONTEXT_OUTPUT_RESERVE_TOKENS = 8_192 as const;
 export const DEFAULT_AGENT_CONTEXT_PROVIDER_OVERHEAD_TOKENS = 512 as const;
 export const DEFAULT_AGENT_CONTEXT_PER_TOOL_OVERHEAD_TOKENS = 8 as const;
 export const DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY =
@@ -83,7 +85,7 @@ export interface AgentRuntimeContextPlanningOptions {
   /** Stable identity of the driver-declared budget contract. */
   providerProfileId?: string;
   /** Provider-declared response ceiling for one invocation. */
-  providerMaxOutputTokens?: number;
+  providerMaxOutputTokens?: number | null;
   /** Provider framing not represented by messages or tool schemas. */
   providerOverheadTokens?: number;
   /** Conservative framing charged once per selected tool schema. */
@@ -137,7 +139,8 @@ export interface AgentRuntimeContextPlanningRequest {
   executableDefinitions: readonly AgentToolDefinition[];
   /** Exact provider-facing schemas selected after this iteration's search. */
   selectedTools: readonly AgentModelToolDefinition[];
-  requestedOutputTokens: number;
+  /** Explicit output ceiling, or null to use input headroom without capping generation. */
+  requestedOutputTokens: number | null;
   signal: AbortSignal;
 }
 
@@ -152,6 +155,9 @@ export interface AgentRuntimeVerifiedContextPlan {
 const BUDGET_FAILURES = new Set([
   'PINNED_CONTEXT_EXCEEDS_BUDGET',
   'CONTEXT_BUDGET_EXCEEDED',
+]);
+
+const COMPACTION_FAILURES = new Set([
   'COMPACTOR_FAILED',
   'COMPACTOR_TIMEOUT',
   'COMPACTOR_ABORTED',
@@ -202,13 +208,22 @@ function buildAccessResolver(
   return (toolName) => accessByName.get(toolName) ?? null;
 }
 
-function planningFailure(error: { code: string; message: string }): AgentRuntimeError {
+function planningFailure(
+  error: { code: string; message: string },
+  request: AgentRuntimeContextPlanningRequest,
+): AgentRuntimeError {
+  // Nothing changed before the first provider call: automatic continuation
+  // would submit the same unplannable input again. Later physical context
+  // boundaries can checkpoint actual progress for the next execution slice.
+  const resumable = request.purpose === 'completed_turn' || request.iteration > 1;
   return new AgentRuntimeError(
     BUDGET_FAILURES.has(error.code)
-      ? 'BUDGET_EXCEEDED'
-      : error.code === 'HASH_UNAVAILABLE'
-        ? 'INTERNAL_ERROR'
-        : 'PROTOCOL_VIOLATION',
+      ? (resumable ? 'BUDGET_EXCEEDED' : 'CONTEXT_PLANNING_FAILED')
+      : COMPACTION_FAILURES.has(error.code)
+        ? 'CONTEXT_PLANNING_FAILED'
+        : error.code === 'HASH_UNAVAILABLE'
+          ? 'INTERNAL_ERROR'
+          : 'PROTOCOL_VIOLATION',
     `Context planning failed (${error.code}): ${error.message}`,
   );
 }
@@ -394,12 +409,9 @@ export class AgentRuntimeContextPlanningCoordinator {
         'contextWindowTokens',
       ),
       providerProfileId: options.providerProfileId?.trim() || 'provider-neutral-fallback-v1',
-      providerMaxOutputTokens: requirePositiveSafeInteger(
-        options.providerMaxOutputTokens ??
-          options.contextWindowTokens ??
-          DEFAULT_AGENT_CONTEXT_WINDOW_TOKENS,
-        'providerMaxOutputTokens',
-      ),
+      providerMaxOutputTokens: options.providerMaxOutputTokens == null
+        ? null
+        : requirePositiveSafeInteger(options.providerMaxOutputTokens, 'providerMaxOutputTokens'),
       providerOverheadTokens: requireNonNegativeSafeInteger(
         options.providerOverheadTokens ?? DEFAULT_AGENT_CONTEXT_PROVIDER_OVERHEAD_TOKENS,
         'providerOverheadTokens',
@@ -455,10 +467,12 @@ export class AgentRuntimeContextPlanningCoordinator {
             selectedProfile.contextWindowTokens,
             'resolvedProviderProfile.contextWindowTokens',
           ),
-          maxOutputTokens: requirePositiveSafeInteger(
-            selectedProfile.maxOutputTokens,
-            'resolvedProviderProfile.maxOutputTokens',
-          ),
+          maxOutputTokens: selectedProfile.maxOutputTokens === null
+            ? null
+            : requirePositiveSafeInteger(
+                selectedProfile.maxOutputTokens,
+                'resolvedProviderProfile.maxOutputTokens',
+              ),
           providerOverheadTokens: requireNonNegativeSafeInteger(
             selectedProfile.providerOverheadTokens,
             'resolvedProviderProfile.providerOverheadTokens',
@@ -478,10 +492,17 @@ export class AgentRuntimeContextPlanningCoordinator {
     if (!providerProfile.id) {
       throw new AgentRuntimeError('INTERNAL_ERROR', 'Resolved provider profile has an empty id');
     }
-    if (request.requestedOutputTokens > providerProfile.maxOutputTokens) {
+    // A planning reserve is not a model capability or a generation limit.
+    // Only compare two explicitly declared ceilings; never invent a provider
+    // limit or silently rewrite the caller's request.
+    const outputReserveTokens = request.requestedOutputTokens === null
+      ? DEFAULT_AGENT_CONTEXT_OUTPUT_RESERVE_TOKENS
+      : requireNonNegativeSafeInteger(request.requestedOutputTokens, 'requestedOutputTokens');
+    if (request.requestedOutputTokens !== null && providerProfile.maxOutputTokens !== null
+      && request.requestedOutputTokens > providerProfile.maxOutputTokens) {
       throw new AgentRuntimeError(
-        'BUDGET_EXCEEDED',
-        `Provider context profile "${providerProfile.id}" allows at most ${providerProfile.maxOutputTokens} output tokens, but this invocation requested ${request.requestedOutputTokens}`,
+        'INTERNAL_ERROR',
+        `Explicit output limit ${request.requestedOutputTokens} exceeds the declared provider limit ${providerProfile.maxOutputTokens} for "${providerProfile.id}"`,
       );
     }
     const providerEpoch = this.resolveProviderEpoch(hookInput);
@@ -555,7 +576,7 @@ export class AgentRuntimeContextPlanningCoordinator {
         ...(supplementalRows ? { supplementalRows } : {}),
         planner: {
           contextWindowTokens: providerProfile.contextWindowTokens,
-          requestedOutputTokens: request.requestedOutputTokens,
+          requestedOutputTokens: outputReserveTokens,
           fixedInputTokens,
           ...(constraintLedger ? { constraintLedger } : {}),
           ...(deterministicSummaries ? { deterministicSummaries } : {}),
@@ -588,7 +609,7 @@ export class AgentRuntimeContextPlanningCoordinator {
         }`,
       );
     }
-    if (!planned.ok) throw planningFailure(planned.error);
+    if (!planned.ok) throw planningFailure(planned.error, request);
 
     try {
       await verifyAgentContextProviderEnvelope({

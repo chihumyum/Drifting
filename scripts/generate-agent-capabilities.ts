@@ -169,6 +169,9 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     '## Long-task execution contract',
     '',
     `- Default task budgets: \`${manifest.longTaskExecution.defaultTaskBudgets}\``,
+    `- Default output control: \`${manifest.longTaskExecution.defaultOutputControl}\``,
+    `- Input reserve policy: \`${manifest.longTaskExecution.inputReservePolicy}\``,
+    `- Context failure policy: \`${manifest.longTaskExecution.contextFailurePolicy}\``,
     `- Continuation authorization: \`${manifest.longTaskExecution.continuationAuthorization}\``,
     `- Safe stop boundary: \`${manifest.longTaskExecution.stopBoundary}\``,
     `- Steering boundary: \`${manifest.longTaskExecution.steeringBoundary}\``,
@@ -192,7 +195,7 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     '',
     `- Provider profile: \`${manifest.contextEngineering.providerProfile.id}\``,
     `- Declared window: ${manifest.contextEngineering.providerProfile.contextWindowTokens.toLocaleString('en-US')} tokens`,
-    `- Maximum output per provider call: ${manifest.contextEngineering.providerProfile.maxOutputTokens.toLocaleString('en-US')} tokens`,
+    `- Declared provider output maximum: ${manifest.contextEngineering.providerProfile.maxOutputTokens === null ? 'unknown (no client default cap)' : `${manifest.contextEngineering.providerProfile.maxOutputTokens.toLocaleString('en-US')} tokens`}`,
     `- Undeclared-provider fallback: ${manifest.contextEngineering.undeclaredProviderWindowTokens.toLocaleString('en-US')} tokens`,
     `- Literary summary schema: v${manifest.contextEngineering.compaction.summarySchemaVersion}`,
     `- Exact citation kinds: ${codeList(manifest.contextEngineering.compaction.exactCitationKinds)}`,
@@ -214,6 +217,8 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     '',
     '## Provider and extension platform',
     '',
+    `- Subscription output budget: \`${manifest.providerExtensionPlatform.subscriptionModelDiscovery.outputBudget}\`.`,
+    `- Subscription model discovery: \`${manifest.providerExtensionPlatform.subscriptionModelDiscovery.catalog}\`; refresh=\`${manifest.providerExtensionPlatform.subscriptionModelDiscovery.refresh}\`; cache=\`${manifest.providerExtensionPlatform.subscriptionModelDiscovery.cache}\`; saved selection=\`${manifest.providerExtensionPlatform.subscriptionModelDiscovery.savedSelection}\`. The bundled subscription models below are fallback choices, not the current account catalog.`,
     `- Certified providers: ${manifest.providerExtensionPlatform.certifiedProviders
       .map(
         (provider) =>

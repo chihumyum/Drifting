@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentModelRequest, AgentModelStreamEvent } from '../types';
 import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
+import { setCodexModelCatalog } from '../agent-provider-contract';
 
 function request(overrides: Partial<AgentModelRequest> = {}): AgentModelRequest {
   return {
@@ -53,6 +54,44 @@ function sse(events: readonly Record<string, unknown>[]): string {
 }
 
 describe('OpenAI Responses Agent driver', () => {
+  it.each(['openai', 'openai-codex'] as const)('omits a default output cap for %s even for long responses', async (provider) => {
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.output_text.delta', delta: 'Finished naturally.' },
+      { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 16_384 } } },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({ provider, transport });
+    const events = await collect(driver, request({ provider, tools: [], maxOutputTokens: null }));
+    expect(JSON.parse(transport.request.mock.calls[0]![0])).not.toHaveProperty('max_output_tokens');
+    expect(events).toContainEqual({ type: 'finish', reason: 'end_turn' });
+    expect(events.find((event) => event.type === 'usage')).toMatchObject({ usage: { outputTokens: 16_384 } });
+  });
+
+  it.each([
+    { efforts: ['low', 'ultra'], enabled: true, expected: 'ultra' },
+    { efforts: ['low', 'ultra'], enabled: false, expected: 'ultra' },
+    { efforts: [], enabled: true, expected: 'none' },
+  ])('keeps discovered capabilities stable and sends $expected reasoning', async ({ efforts, enabled, expected }) => {
+    setCodexModelCatalog([{
+      slug: 'gpt-next', displayName: 'Next', contextWindow: 256_000,
+      supportedReasoningEfforts: efforts, defaultReasoningEffort: 'low',
+      supportsReasoningSummary: false, supportsVerbosity: false,
+    }]);
+    try {
+      const transport = { request: vi.fn<(body: string, signal: AbortSignal) => Promise<Response>>(async () => new Response(sse([{
+        type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } },
+      }]))) };
+      const driver = new OpenAIResponsesAgentDriver({ provider: 'openai-codex', defaultModel: 'gpt-next', transport });
+      setCodexModelCatalog(null);
+      await collect(driver, request({ provider: 'openai-codex', model: 'gpt-next', tools: [], reasoning: { enabled, effort: 'ultra' } }));
+      const body = JSON.parse(transport.request.mock.calls[0]![0] as string);
+      expect(body).toMatchObject({ model: 'gpt-next', reasoning: { effort: expected } });
+      expect(body.reasoning).not.toHaveProperty('summary');
+      expect(body).not.toHaveProperty('text');
+      expect(driver.capabilities.context.contextWindowTokens).toBe(256_000);
+    } finally {
+      setCodexModelCatalog(null);
+    }
+  });
   it('resamples a tool-capable attempt after a rate limit and buffers the stream', async () => {
     let call = 0;
     const fetchMock = vi.fn(async () => {
@@ -774,7 +813,7 @@ describe('OpenAI Responses Agent driver', () => {
       defaultModel: 'gpt-5.6-luna',
       transport,
     });
-    expect(driver.capabilities.context.id).toBe('gpt-5.6-sol:responses-codex-v1');
+    expect(driver.capabilities.context.id).toBe('gpt-5.6-luna:responses-codex-v1');
 
     await expect(
       collect(

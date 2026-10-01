@@ -19,6 +19,7 @@ import { DRIFTING_AGENT_CONTEXT_PROFILE } from '../drifting-agent-product-contra
 import {
   agentProviderOption,
   isAgentProviderId,
+  isCodexModelSelection,
   normalizeAgentProviderModel,
   type AgentProviderId,
 } from '../agent-provider-contract';
@@ -26,6 +27,7 @@ import { AnthropicMessagesAgentDriver } from './anthropic-messages-driver';
 import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
 import { isTauriRuntime, platform } from '../../../../platform';
 import { canUseByokProvider } from '../../../config';
+import { codexModelCatalog } from '../../codex-model-catalog';
 
 export interface DriftingAgentModelDriverOptions {
   createClient?: () => Promise<AgentCompletionClient | LLMClient>;
@@ -94,6 +96,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     if (
       request.model &&
       !agentProviderOption(provider).models.some((candidate) => candidate.value === request.model)
+      && !(provider === 'openai-codex' && isCodexModelSelection(request.model))
     ) {
       throw new AgentModelDriverError(
         'The selected model does not belong to the selected Agent provider.',
@@ -162,6 +165,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
             `${this.featureLabel} can use a ChatGPT subscription only inside the native Drifting app.`,
           );
         }
+        await codexModelCatalog.refresh();
         return new OpenAIResponsesAgentDriver({
           provider,
           defaultModel: model,

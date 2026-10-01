@@ -908,11 +908,13 @@
         "adaptive": "Adaptive"
       },
       "effortOptions": {
+        "minimal": "Minimal",
         "low": "Low",
         "medium": "Medium",
         "high": "High",
         "xhigh": "Extra high",
-        "max": "Max"
+        "max": "Max",
+        "ultra": "Ultra"
       },
       "toolSearchTitle": "Tool search",
       "toolSearch": "Tool search",
@@ -1527,6 +1529,9 @@
       "aria": "Model and reasoning settings",
       "model": "Model",
       "switchModel": "Switch model",
+      "modelsLoading": "Updating ChatGPT models…",
+      "modelsRetry": "Could not update models · Retry",
+      "modelsRefresh": "Refresh models",
       "maxContext": "Max · 1M context",
       "maxContextTitle": "Use the selected model's declared context window up to 1M tokens. Off uses the standard 200k window. Applies to newly submitted turns only.",
       "maxContextUnavailable": "The selected model does not support a 1M-token context window.",

@@ -32,19 +32,18 @@ export {
 const readSchema = Type.Object({}, { additionalProperties: false });
 const checkpointSchema = Type.Object(
   {
-    operation: Type.Union([Type.Literal('update'), Type.Literal('noop')], {
-      description: 'Use update to replace Working Memory, or noop when it should remain unchanged',
+    operation: Type.Literal('update', {
+      description: 'Replace Working Memory only when important shared context changed',
     }),
     expectedRevision: Type.Integer({
       minimum: 0,
       description: 'Exact revision from the turn-start Working Memory header or a fresh read',
     }),
-    contentMd: Type.Optional(
-      Type.String({
-        maxLength: 64_000,
-        description: 'Complete replacement Markdown for update; omit for noop',
-      }),
-    ),
+    contentMd: Type.String({
+      minLength: 1,
+      maxLength: 64_000,
+      description: 'Complete replacement Markdown',
+    }),
   },
   { additionalProperties: false },
 );
@@ -111,25 +110,15 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
         description:
-          'Checkpoint shared Working Memory exactly once before the final response. Use update only when another Agent would otherwise repeat important work, miss an unresolved issue, or misunderstand a durable change. Keep Markdown concise, preserve unresolved Current items, place newest Recent entries first, remove stale items, and compact older details when near the budget. Never copy manuscript prose, chat transcript, routine commands, secrets, or minor changes. Use noop when nothing important changed. Copy expectedRevision from the turn-start Working Memory header or a fresh read.',
+          'Update shared Working Memory only when important shared context changed and another Agent would otherwise repeat important work, miss an unresolved issue, or misunderstand a durable change. The current content is already supplied at turn start; skip this tool when nothing important changed. Keep Markdown concise, preserve unresolved Current items, place newest Recent entries first, remove stale items, and compact older details when near the budget. Never copy manuscript prose, chat transcript, routine commands, secrets, or minor changes. Copy expectedRevision from the turn-start Working Memory header or a fresh read.',
         inputSchema: checkpointSchema,
         access: 'write',
         validateInput: (input) => {
           const checked = validate(checkpointSchema, input);
           if (!checked.ok) return checked;
-          const operation = checked.value.operation;
           const contentMd = checked.value.contentMd;
-          if (operation === 'update' && (typeof contentMd !== 'string' || !contentMd.trim())) {
+          if (typeof contentMd !== 'string' || !contentMd.trim()) {
             return { ok: false, error: 'update requires non-empty contentMd' };
-          }
-          if (operation === 'noop') {
-            // Some otherwise-valid function callers materialize an optional
-            // string as "". It carries exactly the same no-content semantics
-            // as omission for a noop. Retain the exact provider arguments for
-            // durable replay while continuing to reject any non-empty payload.
-            if (typeof contentMd === 'string' && contentMd.trim()) {
-              return { ok: false, error: 'noop contentMd must be omitted or blank' };
-            }
           }
           return checked;
         },
@@ -153,18 +142,6 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
         return { ok: false, error: `Unknown Working Memory tool "${request.name}".` };
       }
       const expectedRevision = request.arguments.expectedRevision as number;
-      if (request.arguments.operation === 'noop') {
-        const snapshot = await this.load(targetProjectId);
-        throwIfAgentAborted(request.signal);
-        if (snapshot.revision !== expectedRevision) {
-          throw new AgentWorkingMemoryConflictError(expectedRevision, snapshot.revision);
-        }
-        return {
-          ok: true,
-          data: { operation: 'noop', revision: snapshot.revision },
-          modelData: 'Working Memory checkpoint complete: no important shared context changed.',
-        };
-      }
       const result = await this.save(targetProjectId, {
         contentMd: request.arguments.contentMd as string,
         expectedRevision,

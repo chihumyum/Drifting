@@ -21,7 +21,8 @@ import type {
 } from '../types';
 import {
   resolveAgentProviderContextProfile,
-  resolveAgentProviderReasoningProfile,
+  agentProviderModelOption,
+  type AgentProviderModelOption,
   type OpenAIResponsesProviderId,
 } from '../agent-provider-contract';
 
@@ -56,7 +57,7 @@ interface OpenAIFunctionCallState {
   ended: boolean;
 }
 
-/** Native Responses API adapter for GPT-5.6 reasoning plus Agent tools. */
+/** Native Responses API adapter for OpenAI reasoning plus Agent tools. */
 export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   readonly id = 'openai-responses-stream';
   readonly capabilities: {
@@ -67,6 +68,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   private readonly provider: OpenAIResponsesProviderId;
   private readonly apiKey: string | null;
   private readonly defaultModel: string;
+  private readonly defaultModelOption: AgentProviderModelOption;
   private readonly endpoint: string;
   private readonly fetchImpl: FetchLike;
   private readonly transport?: OpenAIResponsesTransport;
@@ -79,11 +81,12 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     if (!apiKey && !options.transport) throw new Error('OpenAI API key is empty');
     this.apiKey = apiKey || null;
     this.provider = options.provider ?? 'openai';
+    this.defaultModel = options.defaultModel ?? 'gpt-5.6-sol';
+    this.defaultModelOption = agentProviderModelOption(this.provider, this.defaultModel);
     this.capabilities = {
       reasoning: true,
-      context: resolveAgentProviderContextProfile(this.provider, 'gpt-5.6-sol'),
+      context: resolveAgentProviderContextProfile(this.provider, this.defaultModel),
     };
-    this.defaultModel = options.defaultModel ?? 'gpt-5.6-sol';
     this.endpoint = options.endpoint ?? 'https://api.openai.com/v1/responses';
     this.fetchImpl = options.fetch ?? fetch;
     this.transport = options.transport;
@@ -115,12 +118,18 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   ): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
-    const reasoningProfile = resolveAgentProviderReasoningProfile(this.provider, model);
+    // Hold catalog capabilities stable through this driver's active tool loop.
+    const modelOption = model === this.defaultModel
+      ? this.defaultModelOption
+      : agentProviderModelOption(this.provider, model);
+    const reasoningProfile = modelOption.reasoning;
     const subscription = this.provider === 'openai-codex';
-    const configuredReasoningEnabled = request.reasoning?.enabled === true;
+    const requiresReasoning = !reasoningProfile.thinkingModes.includes('off');
+    const configuredReasoningEnabled = reasoningProfile.efforts.length > 0
+      && (request.reasoning?.enabled === true || requiresReasoning);
     const reasoningEnabled =
       configuredReasoningEnabled &&
-      request.executionMode !== 'required_tool_non_reasoning';
+      (request.executionMode !== 'required_tool_non_reasoning' || requiresReasoning);
     if (reasoningEnabled && request.iteration > 1) {
       assertActiveResponsesReplay(
         request.context,
@@ -145,10 +154,10 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       model,
       instructions: requirePlannedSystem(request.context.systemPrompt),
       input,
-      // The Codex backend is exercised with the official CLI's request shape,
-      // which never sends an output ceiling; the planner budget still bounds
-      // the turn and the incomplete-reason projection is unchanged.
-      ...(subscription ? {} : { max_output_tokens: request.maxOutputTokens }),
+      // Default generation is provider-controlled. Codex never accepts a client
+      // output cap; API-key requests forward only an explicit caller ceiling.
+      ...(!subscription && request.maxOutputTokens !== null
+        ? { max_output_tokens: request.maxOutputTokens } : {}),
       stream: true,
       store: false,
       // OpenAI prefix caching is automatic; the key only routes requests that
@@ -157,10 +166,12 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       prompt_cache_key: `drifting-agent:${request.sessionId}`,
       reasoning: {
         effort,
-        ...(reasoningEnabled ? { summary: 'auto', context: 'current_turn' } : {}),
+        ...(reasoningEnabled && modelOption.responses?.supportsSummary !== false
+          ? { summary: 'auto', context: 'current_turn' } : {}),
       },
       ...(reasoningEnabled ? { include: ['reasoning.encrypted_content'] } : {}),
-      ...(subscription ? { text: { verbosity: 'medium' } } : {}),
+      ...(subscription && modelOption.responses?.supportsVerbosity !== false
+        ? { text: { verbosity: 'medium' } } : {}),
       ...(request.tools.length > 0
         ? {
             tools: request.tools.map((tool) => ({

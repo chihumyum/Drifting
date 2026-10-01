@@ -15,8 +15,8 @@ Every General Agent turn receives only the writing guidance the author owns:
 - active long-term Agent rules created by the author or explicitly approved by
   the author;
 - the project's shared rolling `WORKING_MEMORY.md`, whose current revision is
-  injected at turn start together with its importance-gated checkpoint
-  instruction;
+  injected at turn start; updating it is optional and reserved for important
+  shared changes, with no memory tool call required on unchanged turns;
 - durable task and runtime recovery state required to continue the requested
   work.
 

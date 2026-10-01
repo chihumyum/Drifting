@@ -172,7 +172,7 @@ describe('Drifting context compactor', () => {
       required: ['summary', 'evidence', 'decisions', 'unresolved', 'nextActions'],
       additionalProperties: false,
     });
-    expect(request.maxOutputTokens).toBe(1_024);
+    expect(request).not.toHaveProperty('maxOutputTokens');
     expect(request.thinking).toBe(false);
     expect(request.terminalRequirements).toEqual({
       finishReason: true,
@@ -599,6 +599,7 @@ describe('Drifting context compactor', () => {
       provider: 'anthropic',
       model: 'claude-sonnet-5',
       toolChoice: { force: 'submit_context_summary' },
+      maxOutputTokens: null,
     });
   });
 

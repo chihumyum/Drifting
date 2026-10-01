@@ -38,7 +38,8 @@ The default DeepSeek driver declares:
 | Field                     |          Value |
 | ------------------------- | -------------: |
 | Context window            | 200,000 tokens |
-| Maximum output per call   |   8,192 tokens |
+| Client output ceiling     |           None |
+| Input planning headroom   |   8,192 tokens |
 | Provider framing reserve  |     512 tokens |
 | Per selected tool reserve |       8 tokens |
 
@@ -52,11 +53,16 @@ For every provider call, the planner charges:
 1. exact projected source/summary payload;
 2. the exact selected tool schemas for that iteration;
 3. provider and per-tool framing;
-4. requested output, with the runtime minimum output reserve;
+4. input headroom (8,192 by default), or the explicit caller output request
+   with the planner's minimum reserve;
 5. a ten-percent context safety margin.
 
-The output request must also fit the driver's declared per-call ceiling.
-Budget failures happen before provider I/O.
+Input headroom is only an estimate for fitting input; it never caps generation.
+An unknown provider output ceiling stays null. Only an explicit caller output
+limit is checked against a known provider ceiling, with configuration failure
+on conflict. Compaction errors and first-call input overflow terminate as
+`CONTEXT_PLANNING_FAILED`, avoiding repeated automatic continuation with
+unchanged input. Physical context boundaries after progress remain resumable.
 
 The provider-neutral fallback estimator counts CJK code points directly rather
 than using UTF-8 bytes divided by four. Provider adapters may install a stricter

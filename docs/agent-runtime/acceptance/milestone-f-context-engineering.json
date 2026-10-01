@@ -1,10 +1,10 @@
 {
   "suite": "milestone-f-literary-context-engineering",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v24.19.0",
   "platform": "darwin",
-  "gitHead": "d7c59818b855e5caa3ce095ee62d072d019c19df",
-  "sourceSetSha256": "sha256:d86b20db2d255a335ad3118a509dd67ee3c27e754bcfcbe63994d163dcc25be1",
+  "gitHead": "46e65f044ff73b31cce6cab88c89585d59f94f5f",
+  "sourceSetSha256": "sha256:70585abfdadcac5d1e333ac8da94f2721743e5a94a44fd1a56bbc8aae21dbf41",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
@@ -96,8 +96,8 @@
       "discovered": 15
     },
     "tests": {
-      "total": 175,
-      "passed": 175,
+      "total": 181,
+      "passed": 181,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -118,8 +118,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 57,
-          "passed": 57,
+          "total": 63,
+          "passed": 63,
           "failed": 0,
           "pending": 0
         },
@@ -266,7 +266,7 @@
         "passed": true
       },
       "wholeChapterSummaryRollback": {
-        "requiredName": "rolls back prose, summary, Yjs receipt, and sync outbox when their shared transaction fails",
+        "requiredName": "rolls back prose, summary, Yjs receipt, and sync journal when their shared transaction fails",
         "matches": 1,
         "passed": true
       },

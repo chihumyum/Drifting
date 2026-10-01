@@ -166,6 +166,9 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 ## Long-task execution contract
 
 - Default task budgets: `unlimited`
+- Default output control: `provider-controlled;caller-limits-explicit;required-wire-max-from-model`
+- Input reserve policy: `planning-only-never-output-ceiling`
+- Context failure policy: `configuration-compaction-and-first-call-overflow-fail-without-auto-continuation`
 - Continuation authorization: `renderer-lifetime-author-action`
 - Safe stop boundary: `after-current-tool`
 - Steering boundary: `next-model-iteration-exactly-once`
@@ -180,16 +183,16 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Format: `single-rolling-markdown`
 - Visible document: `WORKING_MEMORY.md`
 - Scope: `project-shared-general-agent-conversations`
-- Lifecycle: `turn-start-read-and-pre-final-importance-checkpoint`
+- Lifecycle: `turn-start-injection-and-on-demand-important-updates`
 - Compaction: `soft-6000-hard-8000-oldest-first-retirement`
 - Concurrency: `sqlite-revision-cas`
 - Sync: `device-local-excluded-from-sync`
 
 ## Context engineering contract
 
-- Provider profile: `deepseek-v4-flash:drifting-context-v1`
+- Provider profile: `deepseek-v4-flash:drifting-context-v2`
 - Declared window: 200,000 tokens
-- Maximum output per provider call: 8,192 tokens
+- Declared provider output maximum: unknown (no client default cap)
 - Undeclared-provider fallback: 32,768 tokens
 - Literary summary schema: v1
 - Exact citation kinds: `canon_fact`, `character_voice`, `author_decision`, `write_outcome`, `task_progress`, `unresolved`
@@ -211,8 +214,10 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 
 ## Provider and extension platform
 
+- Subscription output budget: `provider-controlled-no-client-cap;unknown-ceilings-null;input-reserve-is-not-output-limit`.
+- Subscription model discovery: `native-account-scoped-codex-models`; refresh=`sign-in-account-change-composer-menu-focus-online`; cache=`memory-only-five-minutes-with-stale-response-fencing`; saved selection=`preserved-across-restart-and-discovery-failure`. The bundled subscription models below are fallback choices, not the current account catalog.
 - Certified providers: `deepseek` (`deepseek-v4-flash`, `deepseek-v4-pro`); `anthropic` (`claude-sonnet-5`, `claude-haiku-4-5-20251001`); `openai` (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`); `openai-codex` (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`)
-- Provider reasoning profiles: `deepseek-v4-flash` thinking=`off`, `adaptive` effort=`high`, `max` wire=`deepseek-v4-flash:agent-v2`; `deepseek-v4-pro` thinking=`off`, `adaptive` effort=`high`, `max` wire=`deepseek-v4-pro:agent-v2`; `claude-sonnet-5` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`claude-sonnet-5:messages-v1`; `claude-haiku-4-5-20251001` thinking=`off` effort=`unsupported` wire=`claude-haiku-4-5-20251001:messages-v1`; `gpt-5.6-sol` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-sol:responses-v1`; `gpt-5.6-terra` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-terra:responses-v1`; `gpt-5.6-luna` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-luna:responses-v1`; `gpt-5.6-sol` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-sol:responses-codex-v1`; `gpt-5.6-terra` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-terra:responses-codex-v1`; `gpt-5.6-luna` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-luna:responses-codex-v1`
+- Provider reasoning profiles: `deepseek-v4-flash` thinking=`off`, `adaptive` effort=`high`, `max` wire=`deepseek-v4-flash:agent-v3`; `deepseek-v4-pro` thinking=`off`, `adaptive` effort=`high`, `max` wire=`deepseek-v4-pro:agent-v3`; `claude-sonnet-5` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`claude-sonnet-5:messages-v1`; `claude-haiku-4-5-20251001` thinking=`off` effort=`unsupported` wire=`claude-haiku-4-5-20251001:messages-v1`; `gpt-5.6-sol` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-sol:responses-v1`; `gpt-5.6-terra` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-terra:responses-v1`; `gpt-5.6-luna` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-luna:responses-v1`; `gpt-5.6-sol` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-sol:responses-codex-v1`; `gpt-5.6-terra` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-terra:responses-codex-v1`; `gpt-5.6-luna` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-luna:responses-codex-v1`
 - MCP protocol: `2025-06-18`
 - MCP transports: `stdio`, `streamable_http`
 - Stdio targets: `desktop-only-native-child-host`

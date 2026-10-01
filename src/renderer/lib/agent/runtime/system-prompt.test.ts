@@ -27,7 +27,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(50);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(51);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).toContain('a separate material issue that you directly encountered');
@@ -174,7 +174,7 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('names begin with mcp__ or plugin__');
   });
 
-  it('injects rolling Working Memory and requires one importance-gated checkpoint', () => {
+  it('injects rolling Working Memory and permits direct answers without a checkpoint', () => {
     const system = prompt({
       workingMemory: {
         contentMd: '# Working Memory\n\n## Current\n\n- 继续真机验收。',
@@ -184,7 +184,11 @@ describe('Drifting General Agent system prompt', () => {
     });
 
     expect(system).toContain('short-lived rolling work context');
-    expect(system).toContain('call checkpoint_working_memory exactly once');
+    expect(system).toContain('current content is already supplied at turn start');
+    expect(system).toContain('Call checkpoint_working_memory only when important shared context changed');
+    expect(system).toContain('answer directly without calling a Working Memory tool');
+    expect(system).not.toContain('call checkpoint_working_memory exactly once');
+    expect(system).not.toContain('noop');
     expect(system).toContain('WORKING_MEMORY.md at revision 7');
     expect(system).toContain('继续真机验收');
     expect(system).toContain('routine commands, minor changes, secrets');

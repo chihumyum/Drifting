@@ -60,6 +60,38 @@ const FAST_RETRY = { maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 0, jitter: fals
 describe('Anthropic Messages Agent driver', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('distinguishes a real provider context boundary from an unknown provider failure', async () => {
+    const driver = new AnthropicMessagesAgentDriver({ apiKey: 'test', fetch: async () => new Response(sse([
+      { type: 'message_start', message: { usage: { input_tokens: 180_000 } } },
+      { type: 'message_delta', delta: { stop_reason: 'model_context_window_exceeded' }, usage: { output_tokens: 20_000 } },
+      { type: 'message_stop' },
+    ])) });
+    expect(await collect(driver, request({ maxOutputTokens: null })))
+      .toContainEqual({ type: 'finish', reason: 'context_window_exceeded' });
+  });
+
+  it.each([
+    { model: 'claude-sonnet-5', maximum: 128_000 },
+    { model: 'claude-haiku-4-5-20251001', maximum: 64_000 },
+  ])('uses the required model maximum instead of an arbitrary default for $model', async ({ model, maximum }) => {
+    let body: Record<string, unknown> | undefined;
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test', defaultModel: model,
+      fetch: async (_input, init) => {
+        body = JSON.parse(String(init?.body));
+        return new Response(sse([
+          { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+          { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 16_384 } },
+          { type: 'message_stop' },
+        ]));
+      },
+    });
+    const events = await collect(driver, request({ model, maxOutputTokens: null }));
+    expect(body?.max_tokens).toBe(maximum);
+    expect(driver.capabilities.context.maxOutputTokens).toBe(maximum);
+    expect(events).toContainEqual({ type: 'finish', reason: 'end_turn' });
+  });
+
   it('maps a forced completion tool to Anthropic tool_choice', async () => {
     let body: Record<string, unknown> | undefined;
     const driver = new AnthropicMessagesAgentDriver({

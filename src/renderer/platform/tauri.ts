@@ -951,6 +951,7 @@ export const tauriPlatform: PlatformApi = {
   codexSubscription: {
     request: (body, signal) => nativeOpenAIResponse(body, signal, 'chatgpt_subscription'),
     status: () => invokeContract('codex_oauth_status', undefined),
+    listModels: () => invokeContract('codex_models_list', undefined),
     startLogin: () => invokeContract('codex_oauth_start', undefined),
     cancelLogin: () => invokeContract('codex_oauth_cancel', undefined),
     logout: () => invokeContract('codex_oauth_logout', undefined),

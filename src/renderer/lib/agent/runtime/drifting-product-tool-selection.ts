@@ -28,10 +28,9 @@ import {
 export const DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT = 8 as const;
 
 /**
- * Working Memory is an always-on turn lifecycle boundary, not a retrievable
- * capability: the model is instructed to checkpoint before finishing and to
- * refresh after a conflict regardless of what the author asked for. Bounded
- * selection must therefore pin both tools whenever they are executable.
+ * Important shared context can change during any author task. Keep optional
+ * Working Memory updates and conflict-refresh reads available without requiring
+ * the author to mention memory. Pinning these tools does not require a call.
  */
 const ALWAYS_ON_LIFECYCLE_TOOLS = Object.freeze([
   AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,

@@ -101,7 +101,7 @@ const REQUIRED_ASSERTIONS = {
   wholeChapterSummaryReview:
     'commits whole-chapter prose and summary together and restores the summary when one block is rejected',
   wholeChapterSummaryRollback:
-    'rolls back prose, summary, Yjs receipt, and sync outbox when their shared transaction fails',
+    'rolls back prose, summary, Yjs receipt, and sync journal when their shared transaction fails',
   artifactRestart: 'pages exact Unicode content after closing and reopening the repository',
   checkpointRestart:
     'commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history',

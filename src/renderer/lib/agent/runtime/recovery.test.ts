@@ -487,6 +487,22 @@ function snapshotWithHistory(history: readonly AgentModelMessage[]): AgentRuntim
 }
 
 describe('Agent runtime canonical recovery', () => {
+  it('recovers provider context-window exhaustion with canonical progress available for continuation', async () => {
+    const snapshot = completeSnapshot();
+    // Resumable slices commit as completed rows; the journal records the boundary.
+    snapshot.turns[0] = { ...snapshot.turns[0], errorCode: 'BUDGET_EXCEEDED' };
+    snapshot.events[13] = event(14, {
+      type: 'model_iteration_completed', iteration: 2, stopReason: 'context_window_exceeded',
+    });
+    snapshot.events[14] = event(15, {
+      type: 'turn_finished', outcome: 'budget_exceeded', failureCode: 'BUDGET_EXCEEDED',
+      usage: TOTAL_USAGE, modelIterations: 2, durationMs: 250,
+    });
+    const result = await recoverAgentRuntimeSnapshot(snapshot);
+    expect(result.providerHistory).toHaveLength(4);
+    expect(result.providerHistory[result.providerHistory.length - 1]).toMatchObject({ role: 'assistant' });
+  });
+
   it('replays a durable permission wait without claiming its lost execution stack is resumable', async () => {
     const snapshot = interruptedSnapshot();
     const argumentsValue = { expectedRevision: 'rev-1', title: 'New title' };

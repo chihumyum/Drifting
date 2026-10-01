@@ -12,6 +12,7 @@ import type {
 } from './context-message-adapter';
 import type { AgentContextSourceRow } from './context-planner';
 import type {
+  AgentEffortChoice,
   AgentPermissionRequest,
   AgentPermissionResolutionInput,
   AgentPermissionScope,
@@ -113,7 +114,7 @@ export interface AgentRuntimeUsage {
 
 export interface AgentReasoningOptions {
   enabled: boolean;
-  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  effort?: AgentEffortChoice;
 }
 
 /** Provider-neutral function/tool selection for one model iteration. */
@@ -236,7 +237,8 @@ export interface AgentModelRequest {
    */
   context: AgentContextProviderProjection;
   tools: AgentModelToolDefinition[];
-  maxOutputTokens: number;
+  /** Explicit caller ceiling. Null leaves generation length to the provider. */
+  maxOutputTokens: number | null;
   signal: AbortSignal;
 }
 
@@ -252,7 +254,8 @@ export interface AgentModelContextProfile {
   /** Stable identity; changing any budget field requires a new id. */
   id: string;
   contextWindowTokens: number;
-  maxOutputTokens: number;
+  /** Verified provider ceiling, or null when the provider has not declared one. */
+  maxOutputTokens: number | null;
   providerOverheadTokens: number;
   perToolOverheadTokens: number;
 }
@@ -261,6 +264,7 @@ export type AgentModelStopReason =
   | 'end_turn'
   | 'tool_use'
   | 'max_tokens'
+  | 'context_window_exceeded'
   | 'content_filter'
   | 'unknown';
 
@@ -530,8 +534,8 @@ export interface AgentRuntimeLimits {
   maxTotalTokens: number | null;
   maxCostUsd: number | null;
   maxDurationMs: number | null;
-  /** Provider calls still need a finite response-size request. This is not a task budget. */
-  maxOutputTokensPerIteration: number;
+  /** Optional caller ceiling; null does not impose a per-invocation output budget. */
+  maxOutputTokensPerIteration: number | null;
   maxToolArgumentBytes: number;
   maxToolResultBytes: number;
 }
@@ -552,6 +556,7 @@ export interface AgentJournalSink {
 
 export type AgentRuntimeFailureCode =
   | 'BUDGET_EXCEEDED'
+  | 'CONTEXT_PLANNING_FAILED'
   | 'MAX_MODEL_ITERATIONS'
   | 'MODEL_ERROR'
   | 'MODEL_MAX_TOKENS'

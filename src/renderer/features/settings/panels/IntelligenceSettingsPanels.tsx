@@ -321,7 +321,7 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
   useEffect(() => {
     if (publishedSignedIn === undefined) return;
     events.emit('agent:auth-changed');
-  }, [publishedSignedIn]);
+  }, [publishedSignedIn, status?.account?.accountId, status?.login?.attemptId, status?.login?.phase]);
   const login = status?.login ?? null;
   const account = status?.account ?? null;
   const failureKey = login?.phase === 'failed' ? login.failure ?? 'provider_rejected' : null;

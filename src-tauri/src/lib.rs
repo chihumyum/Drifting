@@ -4,6 +4,7 @@ mod android_image_codec;
 mod app_update;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
+mod codex_models;
 mod codex_oauth;
 mod commands;
 mod data_paths;
@@ -207,6 +208,7 @@ pub fn run() {
             openai_responses::openai_responses_cancel,
             codex_oauth::codex_oauth_start,
             codex_oauth::codex_oauth_status,
+            codex_models::codex_models_list,
             codex_oauth::codex_oauth_cancel,
             codex_oauth::codex_oauth_logout,
             system_fonts::typography_list_system_fonts,

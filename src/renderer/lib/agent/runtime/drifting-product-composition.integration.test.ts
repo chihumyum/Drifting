@@ -589,6 +589,26 @@ describe.sequential('Drifting Agent product composition', () => {
     setAgentEditModeOverride(null);
   });
 
+  it('finishes an unchanged turn in one model round without a Working Memory call', async () => {
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'answer directly while memory updates are available',
+        expectRequest: (request) => {
+          expect(request.tools.map((tool) => tool.name)).toContain('checkpoint_working_memory');
+        },
+        steps: finalSteps('Hello.'),
+      },
+    ]);
+
+    await harness.runTurn('turn-no-memory-change', 'Hello.');
+
+    const snapshot = await harness.composition.repositories.runtime.loadRecoverySnapshot(SESSION_ID);
+    expect(snapshot?.toolCalls).toEqual([]);
+    expect(harness.scalar('SELECT COUNT(*) FROM agent_working_memory')).toBe(0);
+    expect(harness.driver.calls).toHaveLength(1);
+    harness.driver.assertExhausted();
+  });
+
   it('resolves author-facing checklist labels to canonical targets', () => {
     const chapter: BookNode = {
       id: NODE_ID,

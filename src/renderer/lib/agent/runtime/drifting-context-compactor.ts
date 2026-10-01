@@ -24,7 +24,6 @@ import {
 
 const DEFAULT_MODEL = 'deepseek-v4-flash';
 const DEFAULT_MAX_INPUT_TOKENS_PER_REQUEST = 18_000;
-const DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST = 1_024;
 // Real provider latency for an 18k-token structured summary regularly exceeds
 // eight seconds even with summary reasoning disabled. Keep this below the
 // product planner's bounded pass deadline while allowing ordinary chunks to
@@ -60,7 +59,7 @@ export interface DriftingContextCompactorOptions {
   driver?: AgentModelDriver;
   model?: string;
   maxInputTokensPerRequest?: number;
-  maxOutputTokensPerRequest?: number;
+  maxOutputTokensPerRequest?: number | null;
   /** Bound one paid summary call; a timeout falls back for only that chunk. */
   chunkTimeoutMs?: number;
   /** Fraction of the current projection one compactor invocation should try to reclaim. */
@@ -104,10 +103,8 @@ export function createDriftingContextCompactor(
     options.maxInputTokensPerRequest ?? DEFAULT_MAX_INPUT_TOKENS_PER_REQUEST,
     'maxInputTokensPerRequest',
   );
-  const maxOutputTokensPerRequest = positiveInteger(
-    options.maxOutputTokensPerRequest ?? DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST,
-    'maxOutputTokensPerRequest',
-  );
+  const maxOutputTokensPerRequest = options.maxOutputTokensPerRequest == null
+    ? null : positiveInteger(options.maxOutputTokensPerRequest, 'maxOutputTokensPerRequest');
   const chunkTimeoutMs = positiveInteger(
     options.chunkTimeoutMs ?? DEFAULT_CHUNK_TIMEOUT_MS,
     'chunkTimeoutMs',
@@ -295,7 +292,7 @@ async function runCompactionChunkWithTimeout<T>(input: {
 function compactionRequest(input: {
   model: string;
   chunk: CompactionChunk;
-  maxOutputTokens: number;
+  maxOutputTokens: number | null;
   currentEstimatedTokens: number;
   usableInputBudgetTokens: number;
   signal: AbortSignal;
@@ -403,7 +400,7 @@ function compactionRequest(input: {
     ],
     toolChoice: { force: SUMMARY_TOOL_NAME },
     thinking: false,
-    maxOutputTokens: input.maxOutputTokens,
+    ...(input.maxOutputTokens !== null ? { maxOutputTokens: input.maxOutputTokens } : {}),
     terminalRequirements: {
       finishReason: true,
       usage: true,
@@ -507,7 +504,7 @@ async function readDriverSummary(input: {
       },
     ],
     toolChoice: { force: SUMMARY_TOOL_NAME },
-    maxOutputTokens: input.completion.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST,
+    maxOutputTokens: input.completion.maxOutputTokens ?? null,
     signal: input.completion.signal ?? new AbortController().signal,
   })) {
     if (event.type === 'tool_call_start') {

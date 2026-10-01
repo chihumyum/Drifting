@@ -107,6 +107,17 @@ async function collect(
 }
 
 describe('OpenAICompatibleCompletionDriver', () => {
+  it('does not invent an output cap when the caller leaves generation to the provider', async () => {
+    const client = new FakeCompletionClient(() => ({
+      text: 'Finished naturally.', finishReason: 'stop',
+      usage: { inputTokens: 1, outputTokens: 16_384 },
+    }));
+    const driver = new OpenAICompatibleCompletionDriver({ client, defaultModel: 'deepseek-v4-flash' });
+    const events = await collect(driver, request({ maxOutputTokens: null }));
+    expect(client.requests[0]).not.toHaveProperty('maxOutputTokens');
+    expect(events).toContainEqual({ type: 'finish', reason: 'end_turn' });
+  });
+
   it('forwards a forced completion-tool choice to the provider contract', async () => {
     const client = new FakeCompletionClient(() => ({
       text: 'fallback',

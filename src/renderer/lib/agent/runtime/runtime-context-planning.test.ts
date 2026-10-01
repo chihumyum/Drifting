@@ -389,21 +389,21 @@ describe('AgentRuntime context planning integration', () => {
       }),
     );
 
-    expect(result.state.status).toBe('budget_exceeded');
-    expect(result.state.terminal?.failureCode).toBe('BUDGET_EXCEEDED');
+    expect(result.state.status).toBe('failed');
+    expect(result.state.terminal?.failureCode).toBe('CONTEXT_PLANNING_FAILED');
     expect(driver.requests).toHaveLength(0);
     expect(result.lastProviderCallContextEnvelope).toBeUndefined();
     expect(result.completedContextCheckpoint).toBeUndefined();
   });
 
-  it('rejects an invocation above the driver-declared output ceiling before provider I/O', async () => {
+  it.each([null, 1_024])('preserves an explicit caller limit with provider ceiling %s', async (providerLimit) => {
     const driver = new RecordingDriver(() => endTurn());
     const result = await new AgentRuntime({
       driver,
       contextPlanning: {
         contextWindowTokens: 200_000,
         providerProfileId: 'fixture-provider:small-output-v1',
-        providerMaxOutputTokens: 256,
+        providerMaxOutputTokens: providerLimit,
       },
     }).runTurn(
       runInput({
@@ -411,11 +411,52 @@ describe('AgentRuntime context planning integration', () => {
       }),
     );
 
-    expect(result.state.status).toBe('budget_exceeded');
-    expect(result.state.terminal).toMatchObject({
-      failureCode: 'BUDGET_EXCEEDED',
-    });
-    expect(result.state.terminal?.message).toContain('fixture-provider:small-output-v1');
+    expect(result.state.status).toBe('completed');
+    expect(driver.requests).toHaveLength(1);
+    expect(driver.requests[0].maxOutputTokens).toBe(512);
+    expect(result.lastProviderCallContextEnvelope?.plannerCheckpoint.budget.requestedOutputTokens)
+      .toBe(512);
+    // The planner additionally keeps its independent minimum output reserve.
+    expect(result.entries.find((entry) => entry.event.type === 'context_planned')?.event)
+      .toMatchObject({ snapshot: { reservedOutputTokens: 4_096 } });
+    expect(result.completedContextCheckpoint).toBeDefined();
+  });
+
+  it('fails once for conflicting explicit limits instead of silently clamping or requesting continuation', async () => {
+    const driver = new RecordingDriver(() => endTurn());
+    const result = await new AgentRuntime({
+      driver,
+      contextPlanning: { contextWindowTokens: 200_000, providerMaxOutputTokens: 256 },
+    }).runTurn(runInput({ limits: { maxOutputTokensPerIteration: 512 } }));
+    expect(result.state.status).toBe('failed');
+    expect(result.state.terminal?.failureCode).toBe('INTERNAL_ERROR');
+    expect(driver.requests).toHaveLength(0);
+  });
+
+  it('does not turn planning headroom into a provider output ceiling', async () => {
+    const driver = new RecordingDriver(() => endTurn());
+    const result = await new AgentRuntime({
+      driver,
+      contextPlanning: { contextWindowTokens: 200_000, providerMaxOutputTokens: 256 },
+    }).runTurn(runInput());
+    expect(result.state.status).toBe('completed');
+    expect(driver.requests[0].maxOutputTokens).toBeNull();
+    expect(result.lastProviderCallContextEnvelope?.plannerCheckpoint.budget.reservedOutputTokens).toBe(8_192);
+  });
+
+  it.each([0, -1, Number.NaN])('treats invalid provider output metadata %s as a failure, not a resumable context boundary', async (maxOutputTokens) => {
+    const driver = new RecordingDriver(() => endTurn());
+    const result = await new AgentRuntime({
+      driver,
+      contextPlanning: {
+        resolveProviderProfile: () => ({
+          id: 'invalid-provider-profile', contextWindowTokens: 200_000, maxOutputTokens,
+          providerOverheadTokens: 512, perToolOverheadTokens: 8,
+        }),
+      },
+    }).runTurn(runInput());
+    expect(result.state.status).toBe('failed');
+    expect(result.state.terminal?.failureCode).toBe('INTERNAL_ERROR');
     expect(driver.requests).toHaveLength(0);
   });
 
@@ -903,7 +944,10 @@ describe('AgentRuntime context planning integration', () => {
       sameEpoch.state.status,
       otherSession.state.status,
       otherProviderEpoch.state.status,
-    ]).toEqual(['budget_exceeded', 'budget_exceeded', 'budget_exceeded', 'budget_exceeded']);
+    ]).toEqual(['failed', 'failed', 'failed', 'failed']);
+    for (const result of [first, sameEpoch, otherSession, otherProviderEpoch]) {
+      expect(result.state.terminal?.failureCode).toBe('CONTEXT_PLANNING_FAILED');
+    }
     expect(compact).toHaveBeenCalledTimes(3);
     expect(driver.requests).toHaveLength(0);
   });

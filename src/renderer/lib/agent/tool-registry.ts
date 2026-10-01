@@ -1590,22 +1590,21 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   },
   {
     name: 'checkpoint_working_memory',
-    description: '最终回复前更新或明确不更新共享 Working Memory。',
+    description: '仅在有重要共享信息变化时更新 Working Memory；当前记忆已自动进入上下文，无需改动时不要调用。',
     parametersSchema: Type.Object(
       {
-        operation: Type.Union([Type.Literal('update'), Type.Literal('noop')], {
-          description: '使用 update 替换 Working Memory；无需改动时使用 noop',
+        operation: Type.Literal('update', {
+          description: '仅在有重要共享信息变化时替换 Working Memory',
         }),
         expectedRevision: Type.Integer({
           minimum: 0,
           description: '回合开始时或重新读取后得到的精确 Working Memory revision',
         }),
-        contentMd: Type.Optional(
-          Type.String({
-            maxLength: 64_000,
-            description: 'update 时提供完整替换 Markdown；noop 时省略',
-          }),
-        ),
+        contentMd: Type.String({
+          minLength: 1,
+          maxLength: 64_000,
+          description: '完整替换 Markdown',
+        }),
       },
       { additionalProperties: false },
     ),

@@ -64,7 +64,7 @@ export const DEFAULT_AGENT_RUNTIME_LIMITS: AgentRuntimeLimits = {
   maxTotalTokens: null,
   maxCostUsd: null,
   maxDurationMs: null,
-  maxOutputTokensPerIteration: 8_192,
+  maxOutputTokensPerIteration: null,
   maxToolArgumentBytes: 64 * 1024,
   maxToolResultBytes: 128 * 1024,
 };
@@ -263,7 +263,6 @@ function mergeLimits(overrides?: Partial<AgentRuntimeLimits>): AgentRuntimeLimit
   for (const [name, value] of Object.entries(limits)) {
     if (value === null) {
       if (
-        name !== 'maxOutputTokensPerIteration' &&
         name !== 'maxToolArgumentBytes' &&
         name !== 'maxToolResultBytes'
       ) {
@@ -294,7 +293,7 @@ function synthesisOutputTokenReserve(limits: AgentRuntimeLimits): number {
     Math.floor(
       Math.min(
         MAX_SYNTHESIS_OUTPUT_TOKEN_RESERVE,
-        limits.maxOutputTokensPerIteration,
+        limits.maxOutputTokensPerIteration ?? Number.POSITIVE_INFINITY,
         ...aggregateLimits.map((value) => value / 2),
       ),
     ),
@@ -661,7 +660,7 @@ export class AgentRuntime {
     let lastPlanningSelection:
       | {
           iteration: number;
-          requestedOutputTokens: number;
+          requestedOutputTokens: number | null;
           tools: import('./types').AgentModelToolDefinition[];
         }
       | undefined;
@@ -1658,9 +1657,9 @@ export class AgentRuntime {
         iterationDefinitions.length > 0 && !synthesisOnly && hasFutureModelIteration
           ? synthesisReserve
           : 0;
-      let requestMaxOutputTokens = Math.floor(
+      let outputCeiling = Math.floor(
         Math.min(
-          limits.maxOutputTokensPerIteration,
+          limits.maxOutputTokensPerIteration ?? Number.POSITIVE_INFINITY,
           remainingOutputTokens - protectedSynthesisTokens,
           remainingTotalTokens - protectedSynthesisTokens,
         ),
@@ -1668,14 +1667,15 @@ export class AgentRuntime {
       // A steered continuation with no tool results may reach the protected
       // tail after an earlier direct answer. Let it use that tail instead of
       // failing before it can respond.
-      if (requestMaxOutputTokens <= 0 && !hasToolResultsInContext) {
-        requestMaxOutputTokens = Math.floor(
-          Math.min(limits.maxOutputTokensPerIteration, remainingOutputTokens, remainingTotalTokens),
+      if (outputCeiling <= 0 && !hasToolResultsInContext) {
+        outputCeiling = Math.floor(
+          Math.min(limits.maxOutputTokensPerIteration ?? Number.POSITIVE_INFINITY, remainingOutputTokens, remainingTotalTokens),
         );
       }
-      if (requestMaxOutputTokens <= 0) {
+      if (outputCeiling <= 0) {
         budget('No output token budget remains for another model iteration');
       }
+      const requestMaxOutputTokens = Number.isFinite(outputCeiling) ? outputCeiling : null;
       const definitionsByName = groupDefinitions(iterationDefinitions);
       const providerTools = iterationDefinitions.map((definition) => ({
         name: definition.name,
@@ -2123,6 +2123,9 @@ export class AgentRuntime {
 
       if (finishReason === 'max_tokens') {
         throw new AgentRuntimeError('MODEL_MAX_TOKENS', 'Model reached its output token limit');
+      }
+      if (finishReason === 'context_window_exceeded') {
+        budget('Provider reached its context window; preserve progress for continuation');
       }
       if (finishReason === 'content_filter') {
         modelFailure('Model response was blocked by a content filter');

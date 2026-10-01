@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 19,
+  "schemaVersion": 20,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
@@ -1759,6 +1759,9 @@
   ],
   "longTaskExecution": {
     "defaultTaskBudgets": "unlimited",
+    "defaultOutputControl": "provider-controlled;caller-limits-explicit;required-wire-max-from-model",
+    "inputReservePolicy": "planning-only-never-output-ceiling",
+    "contextFailurePolicy": "configuration-compaction-and-first-call-overflow-fail-without-auto-continuation",
     "continuationAuthorization": "renderer-lifetime-author-action",
     "stopBoundary": "after-current-tool",
     "steeringBoundary": "next-model-iteration-exactly-once",
@@ -1772,16 +1775,16 @@
     "format": "single-rolling-markdown",
     "filename": "WORKING_MEMORY.md",
     "scope": "project-shared-general-agent-conversations",
-    "lifecycle": "turn-start-read-and-pre-final-importance-checkpoint",
+    "lifecycle": "turn-start-injection-and-on-demand-important-updates",
     "compaction": "soft-6000-hard-8000-oldest-first-retirement",
     "concurrency": "sqlite-revision-cas",
     "sync": "device-local-excluded-from-sync"
   },
   "contextEngineering": {
     "providerProfile": {
-      "id": "deepseek-v4-flash:drifting-context-v1",
+      "id": "deepseek-v4-flash:drifting-context-v2",
       "contextWindowTokens": 200000,
-      "maxOutputTokens": 8192,
+      "maxOutputTokens": null,
       "providerOverheadTokens": 512,
       "perToolOverheadTokens": 8
     },
@@ -1813,13 +1816,23 @@
     "executionSafety": "data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter"
   },
   "providerExtensionPlatform": {
+    "subscriptionModelDiscovery": {
+      "provider": "openai-codex",
+      "catalog": "native-account-scoped-codex-models",
+      "refresh": "sign-in-account-change-composer-menu-focus-online",
+      "cache": "memory-only-five-minutes-with-stale-response-fencing",
+      "fallback": "last-successful-account-catalog-then-bundled-models",
+      "savedSelection": "preserved-across-restart-and-discovery-failure",
+      "outputBudget": "provider-controlled-no-client-cap;unknown-ceilings-null;input-reserve-is-not-output-limit",
+      "acceptance": "synthetic-catalog-and-native-projection-tests;live-account-unverified"
+    },
     "certifiedProviders": [
       {
         "provider": "deepseek",
         "models": [
           {
             "id": "deepseek-v4-flash",
-            "wireContract": "deepseek-v4-flash:agent-v2",
+            "wireContract": "deepseek-v4-flash:agent-v3",
             "thinkingModes": [
               "off",
               "adaptive"
@@ -1831,7 +1844,7 @@
           },
           {
             "id": "deepseek-v4-pro",
-            "wireContract": "deepseek-v4-pro:agent-v2",
+            "wireContract": "deepseek-v4-pro:agent-v3",
             "thinkingModes": [
               "off",
               "adaptive"

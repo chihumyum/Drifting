@@ -34,7 +34,7 @@ function request(name: string, args: Record<string, unknown>): AgentToolExecutio
 }
 
 describe('Working Memory Agent tools', () => {
-  it('publishes one refresh read and one mandatory checkpoint', () => {
+  it('publishes one refresh read and one optional update tool', () => {
     const runtime = new AgentWorkingMemoryToolRuntime();
     expect(runtime.listDefinitions().map((definition) => definition.name)).toEqual([
       AGENT_WORKING_MEMORY_READ_TOOL,
@@ -54,25 +54,7 @@ describe('Working Memory Agent tools', () => {
     if (result.ok) expect(result.modelData).toContain('WORKING_MEMORY.md · revision 3');
   });
 
-  it('records a semantic no-op without writing', async () => {
-    const save = vi.fn();
-    const runtime = new AgentWorkingMemoryToolRuntime({
-      load: vi.fn(async () => snapshot),
-      save,
-    });
-
-    const result = await runtime.execute(
-      request(AGENT_WORKING_MEMORY_CHECKPOINT_TOOL, {
-        operation: 'noop',
-        expectedRevision: 3,
-      }),
-    );
-
-    expect(result).toMatchObject({ ok: true, data: { operation: 'noop', revision: 3 } });
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  it('accepts a blank optional noop payload without changing the replay arguments', () => {
+  it.each([undefined, '', snapshot.contentMd])('rejects noop with payload %j', (contentMd) => {
     const definition = new AgentWorkingMemoryToolRuntime()
       .listDefinitions()
       .find((candidate) => candidate.name === AGENT_WORKING_MEMORY_CHECKPOINT_TOOL)!;
@@ -81,19 +63,23 @@ describe('Working Memory Agent tools', () => {
       definition.validateInput({
         operation: 'noop',
         expectedRevision: 3,
-        contentMd: '',
+        ...(contentMd === undefined ? {} : { contentMd }),
       }),
-    ).toEqual({
-      ok: true,
-      value: { operation: 'noop', expectedRevision: 3, contentMd: '' },
-    });
+    ).toMatchObject({ ok: false });
+  });
+
+  it.each([undefined, '', ' \n '])('requires non-empty update content %j', (contentMd) => {
+    const definition = new AgentWorkingMemoryToolRuntime()
+      .listDefinitions()
+      .find((candidate) => candidate.name === AGENT_WORKING_MEMORY_CHECKPOINT_TOOL)!;
+
     expect(
       definition.validateInput({
-        operation: 'noop',
+        operation: 'update',
         expectedRevision: 3,
-        contentMd: '# Unexpected content',
+        ...(contentMd === undefined ? {} : { contentMd }),
       }),
-    ).toEqual({ ok: false, error: 'noop contentMd must be omitted or blank' });
+    ).toMatchObject({ ok: false });
   });
 
   it('updates the singleton with revision CAS and Agent provenance', async () => {
@@ -103,13 +89,17 @@ describe('Working Memory Agent tools', () => {
       retiredEntries: 0,
     }));
     const runtime = new AgentWorkingMemoryToolRuntime({ save });
+    const args = {
+      operation: 'update',
+      expectedRevision: 3,
+      contentMd: snapshot.contentMd,
+    };
+    const definition = runtime.listDefinitions()
+      .find((candidate) => candidate.name === AGENT_WORKING_MEMORY_CHECKPOINT_TOOL)!;
+    expect(definition.validateInput(args)).toEqual({ ok: true, value: args });
 
     const result = await runtime.execute(
-      request(AGENT_WORKING_MEMORY_CHECKPOINT_TOOL, {
-        operation: 'update',
-        expectedRevision: 3,
-        contentMd: snapshot.contentMd,
-      }),
+      request(AGENT_WORKING_MEMORY_CHECKPOINT_TOOL, args),
     );
 
     expect(result).toMatchObject({ ok: true, data: { snapshot: { revision: 4 } } });

@@ -414,10 +414,21 @@ fn validate_request(input: &OpenAIResponsesRequestInput) -> Result<(), String> {
     {
         return Err("OPENAI_INVALID_REQUEST: streaming and store policy are invalid".into());
     }
-    if !matches!(
-        body.get("model").and_then(serde_json::Value::as_str),
-        Some("gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna")
-    ) {
+    let model = body
+        .get("model")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    let model_allowed = match input.credential_source {
+        OpenAIResponsesCredentialSource::ApiKey => {
+            matches!(model, "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna")
+        }
+        // Subscription models are discovered per account; the provider remains
+        // the entitlement authority. A saved choice is never silently replaced.
+        OpenAIResponsesCredentialSource::ChatgptSubscription => {
+            crate::codex_models::valid_model_slug(model)
+        }
+    };
+    if !model_allowed {
         return Err("OPENAI_INVALID_REQUEST: model is not certified".into());
     }
     Ok(())
@@ -497,6 +508,16 @@ mod tests {
         assert!(
             validate_request(&input(r#"{"model":"gpt-4o","stream":true,"store":false}"#)).is_err()
         );
+    }
+
+    #[test]
+    fn subscription_accepts_discovered_models_without_broadening_api_key_models() {
+        let mut request = input(r#"{"model":"gpt-next","stream":true,"store":false}"#);
+        assert!(validate_request(&request).is_err());
+        request.credential_source = OpenAIResponsesCredentialSource::ChatgptSubscription;
+        assert!(validate_request(&request).is_ok());
+        request.body = r#"{"model":"bad/slug","stream":true,"store":false}"#.into();
+        assert!(validate_request(&request).is_err());
     }
 
     #[test]

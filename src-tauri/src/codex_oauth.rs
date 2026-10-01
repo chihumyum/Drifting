@@ -122,7 +122,7 @@ pub struct CodexOAuthState {
 }
 
 impl CodexOAuthState {
-    fn client(&self) -> Result<reqwest::Client, String> {
+    pub(crate) fn client(&self) -> Result<reqwest::Client, String> {
         if let Some(client) = self.client.get() {
             return Ok(client.clone());
         }
@@ -246,6 +246,9 @@ pub async fn codex_oauth_logout(
     app: AppHandle,
     state: State<'_, CodexOAuthState>,
 ) -> Result<bool, String> {
+    // Background catalog discovery can refresh credentials. Let any refresh
+    // finish before deletion so it cannot restore the signed-out credential.
+    let _lease = state.refresh.lock().await;
     cancel_active(&state);
     if let Ok(mut login) = state.login.lock() {
         *login = None;

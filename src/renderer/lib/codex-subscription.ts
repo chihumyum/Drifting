@@ -7,12 +7,22 @@
 
 import { platform } from '../platform';
 import type { CodexLoginProjection, CodexSubscriptionStatus } from '../platform';
+import { codexModelCatalog } from './agent/codex-model-catalog';
 
 export type { CodexLoginProjection, CodexSubscriptionStatus };
 
+let lastIdentity: string | undefined;
+
 export const codexSubscription = {
-  status(): Promise<CodexSubscriptionStatus> {
-    return platform.codexSubscription.status();
+  async status(): Promise<CodexSubscriptionStatus> {
+    const status = await platform.codexSubscription.status();
+    const identity = JSON.stringify([status.signedIn, status.account?.accountId, status.account?.email,
+      status.login?.phase === 'authenticated' ? status.login.attemptId : null]);
+    if (identity !== lastIdentity) {
+      lastIdentity = identity;
+      codexModelCatalog.invalidate();
+    }
+    return status;
   },
   /** Starts a sign-in and opens the OpenAI device page for the one-time code. */
   async startLogin(): Promise<CodexLoginProjection> {
@@ -26,8 +36,10 @@ export const codexSubscription = {
   cancelLogin(): Promise<boolean> {
     return platform.codexSubscription.cancelLogin();
   },
-  logout(): Promise<boolean> {
-    return platform.codexSubscription.logout();
+  async logout(): Promise<boolean> {
+    const result = await platform.codexSubscription.logout();
+    codexModelCatalog.invalidate();
+    return result;
   },
 };
 

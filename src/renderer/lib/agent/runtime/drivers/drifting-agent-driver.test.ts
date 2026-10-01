@@ -191,7 +191,7 @@ describe('DriftingAgentModelDriver', () => {
     expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'end_turn' });
   });
 
-  it('routes the ChatGPT subscription through the native Codex transport inside Tauri', async () => {
+  it.each(['gpt-5.6-luna', 'gpt-next'])('routes subscription model %s through the native Codex transport', async (model) => {
     nativeMocks.isTauriRuntime.mockReturnValue(true);
     nativeMocks.codexRequest.mockReset();
     nativeMocks.codexRequest.mockResolvedValue(
@@ -206,7 +206,7 @@ describe('DriftingAgentModelDriver', () => {
     for await (const event of driver.stream({
       ...request(),
       provider: 'openai-codex',
-      model: 'gpt-5.6-luna',
+      model,
     })) {
       events.push(event);
     }
@@ -214,7 +214,7 @@ describe('DriftingAgentModelDriver', () => {
     expect(nativeMocks.request).not.toHaveBeenCalled();
     expect(nativeMocks.codexRequest).toHaveBeenCalledOnce();
     expect(JSON.parse(nativeMocks.codexRequest.mock.calls[0]![0])).toMatchObject({
-      model: 'gpt-5.6-luna',
+      model,
       stream: true,
       store: false,
     });

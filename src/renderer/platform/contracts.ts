@@ -437,6 +437,17 @@ export interface CodexSubscriptionStatus {
   login: CodexLoginProjection | null;
 }
 
+/** Native projection only: no tokens, provider instructions or raw responses. */
+export interface CodexModel {
+  slug: string;
+  displayName: string;
+  contextWindow: number | null;
+  supportedReasoningEfforts: string[];
+  defaultReasoningEffort: string | null;
+  supportsReasoningSummary: boolean;
+  supportsVerbosity: boolean;
+}
+
 export type OpenAIResponsesStreamEvent =
   | {
       type: 'started';
@@ -753,6 +764,7 @@ export interface TauriCommandContract {
   openai_responses_cancel: { args: { requestId: string }; result: boolean };
   codex_oauth_start: { args: undefined; result: CodexLoginProjection };
   codex_oauth_status: { args: undefined; result: CodexSubscriptionStatus };
+  codex_models_list: { args: undefined; result: CodexModel[] };
   codex_oauth_cancel: { args: undefined; result: boolean };
   codex_oauth_logout: { args: undefined; result: boolean };
 }

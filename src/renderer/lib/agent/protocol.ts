@@ -159,7 +159,7 @@ export interface AgentEventEnvelope {
 export type AgentMode = 'oauth' | 'apikey' | 'hosted';
 export type AgentProviderChoice = 'deepseek' | 'anthropic' | 'openai' | 'openai-codex';
 export type AgentModelChoice = string;
-export type AgentEffortChoice = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type AgentEffortChoice = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 export type AgentThinkingChoice = 'adaptive' | 'off';
 export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
 export type AgentToolAccessChoice = 'read_only' | 'read_write';

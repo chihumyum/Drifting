@@ -13,6 +13,9 @@ import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { Switch } from '../../components/ui/Switch';
 import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import { DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS } from '../../lib/agent/runtime/drifting-agent-product-contract';
+import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider-contract';
+import { codexModelCatalog } from '../../lib/agent/codex-model-catalog';
+import { useCodexModelCatalog } from './useCodexModelCatalog';
 
 /**
  * The single composer config control: a quiet summary button that opens an
@@ -47,14 +50,14 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'main' | 'model' | 'memory'>('main');
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const catalog = useCodexModelCatalog(open && view === 'model');
 
-  const modelOptions = agentProviderOption(agentProvider).models;
-  const modelOption = modelOptions.find((m) => m.value === agentModel);
+  const modelOption = agentProviderModelOption(agentProvider, agentModel);
   const reasoningProfile = resolveAgentProviderReasoningProfile(agentProvider, agentModel);
   const supportsThinking = reasoningProfile.thinkingModes.includes('adaptive');
   const supportsMaxContext =
     (modelOption?.context.contextWindowTokens ?? 0) >= DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS;
-  const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
+  const modelShort = modelOption.responses ? modelOption.short : t(`settings.agent.modelOptions.${agentModel}.short`, {
     defaultValue: modelOption?.short ?? agentModel,
   });
   const close = () => {
@@ -142,8 +145,8 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
             >
               <span>{t('agentPanel.config.extendedThinking')}</span>
               <Switch
-                checked={agentThinking === 'adaptive'}
-                disabled={!supportsThinking}
+                checked={supportsThinking && (agentThinking === 'adaptive' || !reasoningProfile.thinkingModes.includes('off'))}
+                disabled={!supportsThinking || !reasoningProfile.thinkingModes.includes('off')}
                 onCheckedChange={(checked) => setAgentThinking(checked ? 'adaptive' : 'off')}
               />
             </div>
@@ -151,7 +154,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
               <span>{t('agentPanel.config.effortLabel')}</span>
               <select
                 className="agt-menu__select"
-                value={agentEffort}
+                value={reasoningProfile.efforts.includes(agentEffort) ? agentEffort : reasoningProfile.defaultEffort}
                 disabled={reasoningProfile.efforts.length === 0}
                 onChange={(event) => setAgentEffort(event.target.value as AgentEffort)}
                 aria-label={t('agentPanel.config.effortLabel')}
@@ -209,9 +212,19 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
             <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
               ‹ {t('agentPanel.config.model')}
             </button>
-            {AGENT_PROVIDER_OPTIONS.map((provider) => (
+            {AGENT_PROVIDER_OPTIONS.map(({ value }) => agentProviderOption(value)).map((provider) => (
               <div key={provider.value}>
                 <div className="agt-menu__sec">{provider.label}</div>
+                {provider.value === 'openai-codex' && (
+                  <button
+                    type="button"
+                    className="agt-menu__row agt-menu__row--btn"
+                    disabled={catalog.state === 'loading'}
+                    onClick={() => void codexModelCatalog.refresh(true)}
+                  >
+                    {t(`agentPanel.config.${catalog.state === 'loading' ? 'modelsLoading' : catalog.state === 'error' ? 'modelsRetry' : 'modelsRefresh'}`)}
+                  </button>
+                )}
                 {provider.models.map((m) => (
                   <button
                     type="button"
@@ -229,7 +242,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                     }}
                   >
                     <span>
-                      {t(`settings.agent.modelOptions.${m.value}.label`, {
+                      {m.responses ? m.label : t(`settings.agent.modelOptions.${m.value}.label`, {
                         defaultValue: m.label,
                       })}
                     </span>

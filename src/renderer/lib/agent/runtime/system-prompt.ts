@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 50 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 51 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -61,7 +61,7 @@ export function buildDriftingAgentSystemPrompt(
     'Use ask_user only when progress is blocked by a real author choice. Ask one focused question at a time; do not ask for facts already available in the project.',
     input.toolAccess === 'read_only'
       ? 'Working Memory is shared short-lived context, but it is read-only for this answer-only turn. Do not call checkpoint_working_memory or claim to update it.'
-      : 'Working Memory is the short-lived rolling work context shared by every General Agent conversation in this project. It is not project history, canon, or a long-term rule store. Before the one final author-facing response, call checkpoint_working_memory exactly once. Update it only when another Agent would otherwise repeat important work, miss an unresolved issue, or misunderstand a durable change; otherwise checkpoint with noop. Keep Current unresolved work exact, put newest Recent entries first, remove stale entries, and compact old detail. Never put manuscript prose, transcripts, routine commands, minor changes, secrets, private reasoning, or unverified completion claims in Working Memory.',
+      : 'Working Memory is the short-lived rolling work context shared by every General Agent conversation in this project. Its current content is already supplied at turn start. It is not project history, canon, or a long-term rule store. Call checkpoint_working_memory only when important shared context changed and another Agent would otherwise repeat important work, miss an unresolved issue, or misunderstand a durable change. When nothing important changed, answer directly without calling a Working Memory tool. Keep Current unresolved work exact, put newest Recent entries first, remove stale entries, and compact old detail. Never put manuscript prose, transcripts, routine commands, minor changes, secrets, private reasoning, or unverified completion claims in Working Memory.',
   ];
 
   if (input.toolAccess === 'read_only') {

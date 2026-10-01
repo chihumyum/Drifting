@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BYOKProvider } from '../lib/byok-keychain';
+import type { AgentEffortChoice } from '../lib/agent/protocol';
 import {
   AGENT_PROVIDER_OPTIONS,
   DEFAULT_AGENT_PROVIDER,
@@ -103,7 +104,7 @@ export type AgentModel = string;
  * (low|medium|high|xhigh|max); 'high' is the default. xhigh/max are only
  * supported by some Opus versions — the SDK falls back / errors otherwise.
  */
-export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type AgentEffort = AgentEffortChoice;
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
 /**

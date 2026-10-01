@@ -22,10 +22,18 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   use `store: false`, request encrypted reasoning content, and replay the exact
   response output items only inside the active tool loop.
 - `openai-codex` is the experimental ChatGPT subscription route. It sends the
-  same GPT-5.6 Responses body through the same native host to the Codex
+  Responses body through the same native host to the Codex
   backend, authorized by the author's own ChatGPT sign-in obtained with the
   official Codex device-code OAuth flow. The body mirrors the official CLI:
-  no `max_output_tokens`, `text.verbosity` set. The OAuth tokens live only in
+  no `max_output_tokens`, and summary/verbosity only when supported by the
+  selected model. Native model discovery populates the picker from the current
+  account catalog; the bundled GPT-5.6 list is a fallback. Context and reasoning
+  controls use returned metadata, and saved model ids survive discovery outages
+  and restarts without silent substitution. Missing output metadata is null,
+  not an invented ceiling. The planner's input headroom never becomes an
+  output cap or blocks a default request against a guessed model maximum.
+  See [provider settings](../ai-provider-settings.md#chatgpt-订阅模型发现)
+  for refresh, cache, and acceptance boundaries. The OAuth tokens live only in
   native secure storage under the renderer-inaccessible `oauth.openai-codex`
   key; a token the backend rejects is refreshed once under a shared lease and
   the bounded body replayed. OpenAI publishes no third-party contract for this
@@ -59,8 +67,15 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   model iteration restores the turn's frozen reasoning mode. Authentication
   failures and author cancellation are never retried, and tool-free visible
   synthesis is never replayed after text has streamed.
-- Model context windows and output ceilings come only from the certified model
-  catalog. The planner may reserve or reduce that budget, never enlarge it.
+- Default Agent and summary calls have no client output ceiling. Responses
+  and OpenAI-compatible adapters omit optional output limits unless explicitly
+  requested. Anthropic Messages requires `max_tokens` and uses the selected
+  model's declared maximum when no caller ceiling exists. Unknown ceilings
+  stay null. Input headroom is independent of output control; explicit caller
+  limits are validated rather than silently clamped.
+- Configuration and compaction failures terminate once. A context that cannot
+  fit before the first provider call cannot auto-resume the same unchanged
+  input; physical context boundaries reached after progress remain resumable.
 - Provider API keys are independent native Keychain entries. They do not enter
   SQLite, localStorage, the sync service, MCP configuration or logs.
 - OpenAI Responses calls leave the WebView entirely: renderer code sends only

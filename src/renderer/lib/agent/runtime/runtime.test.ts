@@ -102,6 +102,19 @@ async function waitUntil(predicate: () => boolean, message: string, turns = 1_00
 }
 
 describe('AgentRuntime', () => {
+  it('preserves provider-reported context exhaustion as a resumable boundary', async () => {
+    const driver = new ScriptedFakeDriver({ rounds: [{ steps: [
+      { op: 'emit', event: { type: 'text_delta', text: 'Verified progress so far.' } },
+      { op: 'emit', event: { type: 'usage', usage: usage(100, 16_384) } },
+      { op: 'emit', event: { type: 'finish', reason: 'context_window_exceeded' } },
+    ] }] });
+    const result = await new AgentRuntime({ driver }).runTurn(input());
+    expect(result.state.status).toBe('budget_exceeded');
+    expect(result.state.terminal?.failureCode).toBe('BUDGET_EXCEEDED');
+    expect(result.completedContextCheckpoint).toBeDefined();
+    expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
+  });
+
   it('gates a write before the scheduler and executes only after a provenance-bound approval', async () => {
     const clock = new ManualAgentClock();
     const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({

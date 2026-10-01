@@ -29,9 +29,9 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         request.definitions.map((definition) => [definition.name, definition]),
       );
       const selected: string[] = [];
-      // Working Memory is an always-on turn lifecycle boundary. Keep its
-      // checkpoint and conflict-refresh read available even when tool search
-      // narrows the much larger authored-domain catalog.
+      // Keep optional Working Memory updates and conflict-refresh reads
+      // available regardless of the author's wording. Availability does not
+      // require a call on turns without important shared context changes.
       append(selected, available, 'checkpoint_working_memory', request.limit);
       append(selected, available, 'read_working_memory', request.limit);
       for (const name of DRIFTING_DOMAIN_PROVIDER_TOOLS) {

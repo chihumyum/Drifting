@@ -104,6 +104,9 @@ describe('Drifting Agent capability manifest', () => {
     const contract = buildDriftingAgentCapabilityManifest().longTaskExecution;
     expect(contract).toMatchObject({
       defaultTaskBudgets: 'unlimited',
+      defaultOutputControl: 'provider-controlled;caller-limits-explicit;required-wire-max-from-model',
+      inputReservePolicy: 'planning-only-never-output-ceiling',
+      contextFailurePolicy: 'configuration-compaction-and-first-call-overflow-fail-without-auto-continuation',
       stopBoundary: 'after-current-tool',
       steeringBoundary: 'next-model-iteration-exactly-once',
       restartBehavior: 'durable-plan-manual-reauthorization',
@@ -121,6 +124,7 @@ describe('Drifting Agent capability manifest', () => {
         DEFAULT_AGENT_RUNTIME_LIMITS.maxTotalTokens,
         DEFAULT_AGENT_RUNTIME_LIMITS.maxCostUsd,
         DEFAULT_AGENT_RUNTIME_LIMITS.maxDurationMs,
+        DEFAULT_AGENT_RUNTIME_LIMITS.maxOutputTokensPerIteration,
       ].every((limit) => limit === null),
     ).toBe(true);
   });
@@ -150,7 +154,7 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(19);
+    expect(manifest.schemaVersion).toBe(20);
     expect(manifest.product).toMatchObject({
       contextWindowTokens: 200_000,
       maxContextWindowTokens: 1_000_000,
@@ -197,7 +201,7 @@ describe('Drifting Agent capability manifest', () => {
       format: 'single-rolling-markdown',
       filename: 'WORKING_MEMORY.md',
       scope: 'project-shared-general-agent-conversations',
-      lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint',
+      lifecycle: 'turn-start-injection-and-on-demand-important-updates',
       compaction: 'soft-6000-hard-8000-oldest-first-retirement',
       concurrency: 'sqlite-revision-cas',
       sync: 'device-local-excluded-from-sync',
@@ -206,6 +210,13 @@ describe('Drifting Agent capability manifest', () => {
 
   it('publishes certified providers, concrete MCP transports, and exact durable grants', () => {
     const platform = buildDriftingAgentCapabilityManifest().providerExtensionPlatform;
+    expect(platform.subscriptionModelDiscovery).toMatchObject({
+      provider: 'openai-codex',
+      catalog: 'native-account-scoped-codex-models',
+      savedSelection: 'preserved-across-restart-and-discovery-failure',
+      outputBudget: 'provider-controlled-no-client-cap;unknown-ceilings-null;input-reserve-is-not-output-limit',
+      acceptance: 'synthetic-catalog-and-native-projection-tests;live-account-unverified',
+    });
     expect(platform.certifiedProviders.map((item) => item.provider)).toEqual([
       'deepseek',
       'anthropic',

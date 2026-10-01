@@ -469,10 +469,10 @@ describe('Milestone F context engineering acceptance', () => {
       requestedOutputTokens: 1_024,
     };
     await expect(faultCoordinator.plan(faultRequest)).rejects.toMatchObject({
-      code: 'BUDGET_EXCEEDED',
+      code: 'CONTEXT_PLANNING_FAILED',
     });
     await expect(faultCoordinator.plan({ ...faultRequest, iteration: 2 })).rejects.toMatchObject({
-      code: 'BUDGET_EXCEEDED',
+      code: 'CONTEXT_PLANNING_FAILED',
     });
 
     const retrieval = Object.fromEntries(

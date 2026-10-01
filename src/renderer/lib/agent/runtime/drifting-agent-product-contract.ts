@@ -11,9 +11,9 @@ export const DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS = 32_768 a
  * profile instead of inheriting this one by model-name guesswork.
  */
 export const DRIFTING_AGENT_CONTEXT_PROFILE = Object.freeze({
-  id: 'deepseek-v4-flash:drifting-context-v1',
+  id: 'deepseek-v4-flash:drifting-context-v2',
   contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
-  maxOutputTokens: 8_192,
+  maxOutputTokens: null,
   providerOverheadTokens: 512,
   perToolOverheadTokens: 8,
 }) satisfies Readonly<AgentModelContextProfile>;
@@ -61,7 +61,8 @@ export function resolveDriftingAgentContextProfile(input: {
           ? `${declared.id}:capped-${requested}`
           : declared.id,
       contextWindowTokens: Math.min(requested, declaredWindow),
-      maxOutputTokens: positive(declared.maxOutputTokens, 'declared.maxOutputTokens'),
+      maxOutputTokens: declared.maxOutputTokens === null
+        ? null : positive(declared.maxOutputTokens, 'declared.maxOutputTokens'),
       providerOverheadTokens: positive(
         declared.providerOverheadTokens,
         'declared.providerOverheadTokens',

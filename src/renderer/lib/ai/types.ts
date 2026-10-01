@@ -21,7 +21,7 @@ export type GoogleModel =
   | (string & {});
 
 export type AIFeatureId = string;
-export type AIReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type AIReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 export interface AIMessage {
   // 'tool' carries a tool-call RESULT back to the model (function-calling loop);

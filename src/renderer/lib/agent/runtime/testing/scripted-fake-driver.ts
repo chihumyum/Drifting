@@ -37,7 +37,7 @@ export interface AgentModelRequestSnapshot {
   readonly toolChoice?: AgentModelToolChoice;
   readonly messages: readonly AgentModelMessage[];
   readonly tools: readonly AgentToolDefinitionSnapshot[];
-  readonly maxOutputTokens: number;
+  readonly maxOutputTokens: number | null;
   readonly signalAborted: boolean;
 }
 

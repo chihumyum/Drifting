@@ -1,8 +1,8 @@
 {
   "kind": "todo_agent_handoff_acceptance",
   "status": "passed",
-  "generatedAt": "2026-09-30T04:13:59.556Z",
-  "sourceSha256": "7a115f7f32e5f82c6069c79c78b85e2cf6a23ed1eeafcde179d878a3884c076d",
+  "generatedAt": "2026-10-01T06:58:41.315Z",
+  "sourceSha256": "1166417d8e124c36899d341a2f2f68c245de99c6772c72caa16988c671d9901a",
   "suites": [
     "src/renderer/store/agent-todo-background.integration.test.ts",
     "src/renderer/features/comments/todo-agent-task.test.ts",
@@ -62,7 +62,7 @@
       "status": "passed"
     },
     {
-      "name": "Drifting General Agent system prompt injects rolling Working Memory and requires one importance-gated checkpoint",
+      "name": "Drifting General Agent system prompt injects rolling Working Memory and permits direct answers without a checkpoint",
       "status": "passed"
     },
     {

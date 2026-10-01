@@ -57,10 +57,7 @@ type AnthropicReasoningReplayBlock =
 /** Native Anthropic Messages adapter; no Claude Agent SDK or Node host needed. */
 export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   readonly id = 'anthropic-messages-stream';
-  readonly capabilities = {
-    reasoning: true,
-    context: resolveAgentProviderContextProfile('anthropic', 'claude-sonnet-5'),
-  } as const;
+  readonly capabilities;
 
   private readonly apiKey: string;
   private readonly defaultModel: string;
@@ -77,6 +74,10 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
     if (!options.apiKey.trim()) throw new Error('Anthropic API key is empty');
     this.apiKey = options.apiKey;
     this.defaultModel = options.defaultModel ?? 'claude-sonnet-5';
+    this.capabilities = {
+      reasoning: true,
+      context: resolveAgentProviderContextProfile('anthropic', this.defaultModel),
+    } as const;
     this.endpoint = options.endpoint ?? 'https://api.anthropic.com/v1/messages';
     this.fetchImpl = options.fetch ?? fetch;
     this.providerAttemptRetry = options.providerAttemptRetry ?? DEFAULT_PROVIDER_ATTEMPT_RETRY;
@@ -107,6 +108,13 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   ): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
+    // Messages requires max_tokens. Use the selected model's declared maximum
+    // when the caller has not requested a smaller ceiling, not a runtime default.
+    const maxOutputTokens = request.maxOutputTokens
+      ?? resolveAgentProviderContextProfile('anthropic', model).maxOutputTokens;
+    if (maxOutputTokens === null) {
+      throw new AgentModelDriverError('The selected Anthropic model has no declared output maximum.');
+    }
     const reasoningProfile = resolveAgentProviderReasoningProfile(
       'anthropic',
       model,
@@ -148,7 +156,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
         },
         body: JSON.stringify({
           model,
-          max_tokens: request.maxOutputTokens,
+          max_tokens: maxOutputTokens,
           stream: true,
           ...(request.context.systemPrompt
             ? {
@@ -614,6 +622,8 @@ function normalizeAnthropicStopReason(value: string): AgentModelStopReason {
       return 'tool_use';
     case 'max_tokens':
       return 'max_tokens';
+    case 'model_context_window_exceeded':
+      return 'context_window_exceeded';
     case 'refusal':
       return 'content_filter';
     default:

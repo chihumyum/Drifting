@@ -179,7 +179,7 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
         description: tool.description,
         parametersSchema: tool.inputSchema,
       })),
-      maxOutputTokens: request.maxOutputTokens,
+      ...(request.maxOutputTokens !== null ? { maxOutputTokens: request.maxOutputTokens } : {}),
       thinking: reasoningEnabled,
       ...(reasoningEnabled && request.reasoning?.effort
         ? { reasoningEffort: request.reasoning.effort }

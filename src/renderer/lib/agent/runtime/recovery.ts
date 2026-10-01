@@ -1443,7 +1443,7 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
       };
 
     case 'model_iteration_completed': {
-      const reasons = ['end_turn', 'tool_use', 'max_tokens', 'content_filter', 'unknown'];
+      const reasons = ['end_turn', 'tool_use', 'max_tokens', 'context_window_exceeded', 'content_filter', 'unknown'];
       if (
         !isPositiveInteger(value.iteration) ||
         typeof value.stopReason !== 'string' ||

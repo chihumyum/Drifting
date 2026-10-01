@@ -39,7 +39,7 @@ import {
 import { DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT } from './drifting-product-tool-selection';
 import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 19 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 20 as const;
 
 export type DriftingAgentToolOwner =
   | 'workspace-runtime'
@@ -119,7 +119,7 @@ export interface DriftingAgentCapabilityManifest {
     format: 'single-rolling-markdown';
     filename: 'WORKING_MEMORY.md';
     scope: 'project-shared-general-agent-conversations';
-    lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint';
+    lifecycle: 'turn-start-injection-and-on-demand-important-updates';
     compaction: 'soft-6000-hard-8000-oldest-first-retirement';
     concurrency: 'sqlite-revision-cas';
     sync: 'device-local-excluded-from-sync';
@@ -138,6 +138,16 @@ export interface DriftingAgentCapabilityManifest {
   };
   authorControl: typeof AGENT_AUTHOR_CONTROL_CONTRACT;
   providerExtensionPlatform: {
+    subscriptionModelDiscovery: {
+      provider: 'openai-codex';
+      catalog: string;
+      refresh: string;
+      cache: string;
+      fallback: string;
+      savedSelection: string;
+      outputBudget: string;
+      acceptance: string;
+    };
     certifiedProviders: Array<{
       provider: string;
       models: Array<{
@@ -329,7 +339,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       format: 'single-rolling-markdown',
       filename: 'WORKING_MEMORY.md',
       scope: 'project-shared-general-agent-conversations',
-      lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint',
+      lifecycle: 'turn-start-injection-and-on-demand-important-updates',
       compaction: 'soft-6000-hard-8000-oldest-first-retirement',
       concurrency: 'sqlite-revision-cas',
       sync: 'device-local-excluded-from-sync',
@@ -348,6 +358,16 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     },
     authorControl: AGENT_AUTHOR_CONTROL_CONTRACT,
     providerExtensionPlatform: {
+      subscriptionModelDiscovery: {
+        provider: 'openai-codex',
+        catalog: 'native-account-scoped-codex-models',
+        refresh: 'sign-in-account-change-composer-menu-focus-online',
+        cache: 'memory-only-five-minutes-with-stale-response-fencing',
+        fallback: 'last-successful-account-catalog-then-bundled-models',
+        savedSelection: 'preserved-across-restart-and-discovery-failure',
+        outputBudget: 'provider-controlled-no-client-cap;unknown-ceilings-null;input-reserve-is-not-output-limit',
+        acceptance: 'synthetic-catalog-and-native-projection-tests;live-account-unverified',
+      },
       certifiedProviders: AGENT_PROVIDER_OPTIONS.map((provider) => ({
         provider: provider.value,
         models: provider.models.map((model) => ({

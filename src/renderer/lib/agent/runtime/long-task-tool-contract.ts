@@ -14,6 +14,9 @@ export const AGENT_LONG_TASK_TOOL_CONTRACTS = [
 /** Machine-readable product promises closed by Milestone E. */
 export const AGENT_LONG_TASK_EXECUTION_CONTRACT = {
   defaultTaskBudgets: 'unlimited',
+  defaultOutputControl: 'provider-controlled;caller-limits-explicit;required-wire-max-from-model',
+  inputReservePolicy: 'planning-only-never-output-ceiling',
+  contextFailurePolicy: 'configuration-compaction-and-first-call-overflow-fail-without-auto-continuation',
   continuationAuthorization: 'renderer-lifetime-author-action',
   stopBoundary: 'after-current-tool',
   steeringBoundary: 'next-model-iteration-exactly-once',

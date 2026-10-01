@@ -16,6 +16,20 @@ Drifting 只有一个凭据管理入口：**设置 → 模型与 API**。每个 
 
 ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订阅」行只驱动 OpenAI Codex 设备码登录并读取非敏感账号状态，OAuth token 全程在原生 Rust 侧读写、刷新与注入，`secure_storage` 拒绝 renderer 访问 `oauth.` 前缀。它不是 Copilot provider，也不进入 BYOK 密钥选择器。只要该登录有效，General Agent 页面就视为已有可用凭据并允许进入 composer；实际发送仍使用 composer 当前明确选择的 provider，不做静默 fallback。OpenAI 未对第三方应用开放该路径，用量计入作者本人的 ChatGPT 套餐，随时可能失效，不构成任何发布声明。
 
+## ChatGPT 订阅模型发现
+
+General Agent 在登录或账号变化、composer 挂载、打开模型菜单、窗口重新获得焦点和恢复联网时，自动请求当前账号的模型目录；菜单也提供「刷新模型」。原生 `codex_models_list` 复用现有 Codex OAuth 凭据和固定 `https://chatgpt.com/backend-api/codex/models?client_version=0.0.0` 路由，使用当前原生 host 的开发客户端版本身份。请求拒绝重定向，限制为 30 秒、8 MiB；401 只刷新凭据后重试一次。renderer 只收到模型名称、标识和能力字段，不接收 token、原始目录或其中的 instructions。
+
+目录保留服务端 `visibility: list` 模型的顺序和名称，不用 `supported_in_api` 过滤订阅模型。上下文和推理档位跟随目录，包括 `minimal` / `ultra`；没有 `none` 的推理模型不能关闭推理，不支持的 summary / verbosity 参数不会发送。缺少上下文元数据时采用 32,768 token 本地输入规划回退；目录没有提供的输出上限记为 `null`（未知），不能用预留量冒充模型能力。
+
+General Agent 默认不设置单次或累计输出上限；摘要压缩也不再默认设置 1,024 token 上限。OAuth 请求不发送 `max_output_tokens`，由模型和服务端结束生成。API Key Responses 和 OpenAI-compatible driver 只转发调用方明确设置的输出限制；Anthropic Messages 必须填写 `max_tokens`，未指定时使用所选模型已声明的最大值。上下文规划保留 8,192 token 输入余量，但它不进入生成请求、不截断长回答，也不因超过某个 profile 的输出值而拒绝默认请求。
+
+明确指定的限制与已知模型规格冲突属于配置错误；压缩失败、熔断或第一次调用前无法容纳的上下文属于失败，不触发自动续接。完整合成 tool-loop 覆盖新目录模型与重启后未加载的模型，通过实际 Responses driver 验证读取工具、结果回传、每次 16,384 token 用量及自然结束；两次请求均无输出上限。更广的预算和续接审计见 [执行控制审计](agent-runtime/execution-control-audit.md)。
+
+缓存只在当前进程内保留，运行时复用期限为五分钟，菜单或账号事件可强制刷新。同一账号更新失败保留最后一次成功目录，首次失败使用内置列表；退出和账号变化清空旧目录，迟到的旧请求不能覆盖新状态。已选择的新模型 id 在重启、目录失败或模型退役后仍保留，服务端拒绝时显式报错，不静默换成旧模型。API Key provider 的静态认证列表不受影响。
+
+[官方 Sign in with ChatGPT 模型说明](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) 使用注册应用的 `api.openai.com/v1/models` 路由；本次延续仓库既有 Codex 设备码路由，没有迁移 OAuth 客户端或推理端点。新目录的真实账号联网与 UI 验收尚未完成，合成验收不表示所有列出的模型均已通过付费 tool-loop 测试。
+
 ## 路由归属
 
 - Copilot 在自己的设置中选择 `copilotByokProvider + copilotByokModel`；运行时从全局 Keychain 取得对应 key。切换 provider 会清空上一个 provider 的 model id，并在下一次调用前重建 client，不能把旧 provider 的模型或凭据带进新路由。
@@ -40,6 +54,10 @@ General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool proto
 
 ```bash
 pnpm exec vitest run \
+  src/renderer/lib/agent/codex-model-catalog.test.ts \
+  src/renderer/lib/agent/runtime/runtime-context-planning.test.ts \
+  src/renderer/lib/agent/runtime/drivers/openai-responses-driver.test.ts \
+  src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.test.ts \
   src/renderer/lib/ai/provider-settings.acceptance.test.ts \
   src/renderer/lib/ai/local-copilot-boundary.acceptance.test.ts \
   src/renderer/lib/ai/run-structured.test.ts \
@@ -52,6 +70,8 @@ pnpm exec vitest run \
   src/renderer/lib/ai/client/providers/anthropic.test.ts
 pnpm agent:capabilities:check
 pnpm typecheck
+cargo test --manifest-path src-tauri/Cargo.toml --locked codex_
+cargo test --manifest-path src-tauri/Cargo.toml --locked openai_responses
 ```
 
 离线验收覆盖设置入口唯一性、direct route、provider/model 切换、output language、完整本地 prompt builder、退役 hosted endpoint 缺席、旧 Keychain 条目迁移，以及 provider adapter conformance。四家 provider 的真实付费 endpoint、原生设置页视觉与物理设备交互仍是手工/付费验收边界。

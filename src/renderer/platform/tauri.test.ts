@@ -342,6 +342,7 @@ describe('tauri native OpenAI and Keychain status transport', () => {
         };
       }
       if (command === 'codex_oauth_cancel') return false;
+      if (command === 'codex_models_list') return [{ slug: 'gpt-next', displayName: 'Next' }];
       if (command === 'codex_oauth_logout') return true;
       throw new Error(`unexpected command: ${command}`);
     });
@@ -355,6 +356,8 @@ describe('tauri native OpenAI and Keychain status transport', () => {
       account: { email: 'author@example.com' },
     });
     await expect(tauriPlatform.codexSubscription.cancelLogin()).resolves.toBe(false);
+    await expect(tauriPlatform.codexSubscription.listModels()).resolves.toEqual([{ slug: 'gpt-next', displayName: 'Next' }]);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_models_list', undefined);
     await expect(tauriPlatform.codexSubscription.logout()).resolves.toBe(true);
     expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_oauth_start', undefined);
     expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_oauth_logout', undefined);

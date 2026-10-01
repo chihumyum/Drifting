@@ -908,11 +908,13 @@
         "adaptive": "自适应"
       },
       "effortOptions": {
+        "minimal": "最低",
         "low": "低",
         "medium": "中",
         "high": "高",
         "xhigh": "超高",
-        "max": "最大"
+        "max": "最大",
+        "ultra": "极高"
       },
       "toolSearchTitle": "工具检索",
       "toolSearch": "工具检索",
@@ -1527,6 +1529,9 @@
       "aria": "模型与推理设置",
       "model": "模型",
       "switchModel": "切换模型",
+      "modelsLoading": "正在更新 ChatGPT 模型…",
+      "modelsRetry": "模型更新失败 · 重试",
+      "modelsRefresh": "刷新模型",
       "maxContext": "Max · 1M 上下文",
       "maxContextTitle": "开启后使用当前模型声明的完整上下文窗口，最高 100 万 token；关闭时使用 20 万 token 标准窗口。只影响新提交的轮次。",
       "maxContextUnavailable": "当前模型不支持 100 万 token 上下文。",

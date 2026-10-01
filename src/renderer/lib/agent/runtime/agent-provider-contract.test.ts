@@ -21,10 +21,10 @@ describe('General Agent provider contract', () => {
       expect(new Set(models).size).toBe(models.length);
       for (const model of provider.models) {
         expect(model.context.contextWindowTokens).toBeGreaterThan(0);
-        expect(model.context.maxOutputTokens).toBeGreaterThan(0);
-        expect(model.context.maxOutputTokens).toBeLessThanOrEqual(
-          model.context.contextWindowTokens,
-        );
+        if (model.context.maxOutputTokens !== null) {
+          expect(model.context.maxOutputTokens).toBeGreaterThan(0);
+          expect(model.context.maxOutputTokens).toBeLessThanOrEqual(model.context.contextWindowTokens);
+        }
         expect(model.context.id).toContain(model.value);
         expect(model.reasoning.thinkingModes).toContain('off');
         expect(model.reasoning.defaultThinking).toBe('off');
