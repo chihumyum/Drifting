@@ -194,14 +194,39 @@
   background: hsl(var(--surface));
   box-shadow: inset 0 0 0 1px hsl(var(--rule));
 }
-.set-rail__item--active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  background: hsl(var(--accent));
+.set-rail__sections {
+  list-style: none;
+  margin: 3px 0 6px;
+  padding: 0 0 0 26px;
+}
+.set-rail__section {
+  display: block;
+  width: 100%;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.set-rail__section:hover {
+  background: hsl(var(--ink-1) / 0.04);
+  color: hsl(var(--ink-1));
+}
+.set-rail__section--active {
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+}
+.set-rail__item:focus-visible,
+.set-rail__section:focus-visible {
+  outline: 1px solid hsl(var(--accent));
+  outline-offset: -1px;
 }
 .set-rail__glyph {
   width: 16px;

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Switch } from '../../components/ui/Switch';
 
@@ -55,8 +55,9 @@ export function SettingsSectionHeader({
   hint?: string;
   action?: ReactNode;
 }) {
+  const id = useId();
   return (
-    <div className="set-sec__head">
+    <div className="set-sec__head" id={id} data-settings-section={title}>
       <div className="set-sec__title">{title}</div>
       <div className="set-sec__head-right">
         {hint && <div className="set-sec__hint">{hint}</div>}
@@ -75,8 +76,9 @@ export function SettingsGroupHeader({
   hint?: string;
   desc?: string;
 }) {
+  const id = useId();
   return (
-    <div style={{ margin: '26px 0 6px', paddingTop: 18, borderTop: '1px solid hsl(var(--rule))' }}>
+    <div id={id} data-settings-section={label} style={{ margin: '26px 0 6px', paddingTop: 18, borderTop: '1px solid hsl(var(--rule))' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'hsl(var(--ink-1))' }}>{label}</div>
         {hint && (

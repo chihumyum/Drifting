@@ -3,11 +3,19 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { matchesAccelerator } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
-import { useAuthStore } from '../../../store/auth';
 import { useSettingsPanels } from '../useSettingsPanels';
 import { SettingsLoadStatus } from '../SettingsLoadStatus';
 import { TrashRailPanel } from '../panels/TrashSettingsPanel';
-import { AccountAvatar } from '../../../components/ui/AccountAvatar';
+import { DesktopSettingsRail } from './DesktopSettingsRail';
+import {
+  filterSettingsNavigation,
+  readSettingsSections,
+  sameSettingsSections,
+  settingsItemAtTop,
+  settingsTargetScrollTop,
+  type SettingsNavigationSection,
+  type SettingsSections,
+} from './settings-section-navigation';
 
 import {
   hostedAccountSettingsEnabled,
@@ -157,6 +165,8 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     accountSettingsEnabled ? 'account' : 'trash',
   );
   const [query, setQuery] = useState('');
+  const [sections, setSections] = useState<SettingsSections>({});
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
   const panelRefs = useRef<Partial<Record<RailId, HTMLElement>>>({});
@@ -183,25 +193,49 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     return () => document.removeEventListener('keydown', onKey, true);
   }, [isOpen, onClose]);
 
-  // Scroll-spy: highlight whichever panel's top edge is closest under the
-  // header. Mirrors the v2 mockup behavior.
+  // Headings own their labels and presence; the rail follows deferred content,
+  // conditional sections and language changes without a second section catalog.
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!isOpen || !main) return;
+    let frame = 0;
+    const refresh = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = readSettingsSections(main);
+        setSections(previous => sameSettingsSections(previous, next) ? previous : next);
+      });
+    };
+    const observer = new MutationObserver(refresh);
+    observer.observe(main, { subtree: true, childList: true, characterData: true,
+      attributes: true, attributeFilter: ['data-settings-section', 'hidden'] });
+    refresh();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [isOpen]);
+
+  // Scroll-spy keeps both levels aligned with manual scrolling.
   useEffect(() => {
     if (!isOpen) return;
     const main = mainRef.current;
     if (!main) return;
     const onScroll = () => {
-      const top = main.scrollTop;
-      let current: RailId = RAIL[0].id;
-      for (const r of RAIL) {
-        const el = panelRefs.current[r.id];
-        if (!el) continue;
-        if (el.offsetTop - 100 <= top) current = r.id;
-      }
-      setActive(current);
+      const top = main.getBoundingClientRect().top + 100;
+      const mounted = RAIL.flatMap(r => {
+        const element = panelRefs.current[r.id];
+        return element ? [{ id: r.id, element }] : [];
+      });
+      const atBottom = main.scrollTop > 0 && main.scrollTop + main.clientHeight >= main.scrollHeight - 1;
+      const current = (atBottom ? mounted[mounted.length - 1] : settingsItemAtTop(mounted, top)) ?? mounted[0];
+      if (!current) return;
+      const children = sections[current.id] ?? [];
+      const child = atBottom ? children[children.length - 1] : settingsItemAtTop(children, top);
+      setActive(current.id);
+      setActiveSection(child?.id ?? null);
     };
     main.addEventListener('scroll', onScroll, { passive: true });
-    return () => main.removeEventListener('scroll', onScroll);
-  }, [isOpen, RAIL]);
+    const frame = requestAnimationFrame(onScroll);
+    return () => { main.removeEventListener('scroll', onScroll); cancelAnimationFrame(frame); };
+  }, [isOpen, RAIL, sections]);
 
   // On open: jump to either the deep-link target or the previously active
   // rail. The component stays mounted while closed, so `active` survives —
@@ -221,7 +255,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
       if (hasDeepLink) setActive(target);
       const el = panelRefs.current[target];
       const main = mainRef.current;
-      if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
+      if (el && main) main.scrollTo({ top: settingsTargetScrollTop(main, el), behavior: 'auto' });
     };
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
@@ -236,26 +270,23 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     if (!isOpen || !panels) return;
     const raf = requestAnimationFrame(() => {
       const el = panelRefs.current[pendingRailRef.current ?? active];
-      if (el && mainRef.current) mainRef.current.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
+      if (el && mainRef.current) mainRef.current.scrollTo({ top: settingsTargetScrollTop(mainRef.current, el), behavior: 'auto' });
     });
     return () => cancelAnimationFrame(raf);
     // Selection changes already scroll in onRail; loading completion is separate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, panels]);
 
-  const onRail = useCallback((id: RailId) => {
+  const onRail = useCallback((id: RailId, section?: SettingsNavigationSection) => {
     pendingRailRef.current = id;
     setActive(id);
-    const el = panelRefs.current[id];
+    setActiveSection(section?.id ?? null);
+    const el = section?.element ?? panelRefs.current[id];
     const main = mainRef.current;
-    if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
+    if (el && main) main.scrollTo({ top: settingsTargetScrollTop(main, el), behavior: 'auto' });
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return RAIL;
-    return RAIL.filter((r) => r.label.toLowerCase().includes(q) || r.id.includes(q));
-  }, [query, RAIL]);
+  const filtered = useMemo(() => filterSettingsNavigation(RAIL, sections, query), [query, RAIL, sections]);
 
   if (!isOpen) return null;
 
@@ -268,7 +299,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
         onClose={onClose}
       />
       <div className="set-body">
-        <SetRail items={filtered} active={active} onSelect={onRail} />
+        <DesktopSettingsRail items={filtered} active={active} activeSection={activeSection} onSelect={onRail} />
         <main className="set-main set-main--instant-section-nav" ref={mainRef}>
           {panels ? (
             <LoadedSettingsPanels
@@ -387,66 +418,5 @@ function SetHead({
       </div>
 
     </div>
-  );
-}
-
-// ─── Rail ────────────────────────────────────────────────────────────
-
-function SetRail({
-  items,
-  active,
-  onSelect,
-}: {
-  items: RailDef[];
-  active: RailId;
-  onSelect: (id: RailId) => void;
-}) {
-  const { t } = useTranslation();
-  const user = useAuthStore((s) => s.hostedUser);
-  const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
-  const groups: { name: string; items: RailDef[] }[] = [];
-  for (const r of items) {
-    const g = groups[groups.length - 1];
-    if (g && g.name === r.group) g.items.push(r);
-    else groups.push({ name: r.group, items: [r] });
-  }
-
-  return (
-    <nav className="set-rail">
-      <div className="set-rail__who">
-        <div className="set-rail__who-avatar"><AccountAvatar image={user?.image} initial={initial} /></div>
-        <div className="set-rail__who-body">
-          <div className="set-rail__who-name">
-            {user?.name ?? user?.email ?? t('settings.local_user')}
-          </div>
-          <div className="set-rail__who-meta">{t('settings.models.sidebarMeta')}</div>
-        </div>
-      </div>
-
-      {groups.map((g) => (
-        <div className="set-rail__group" key={g.name}>
-          <div className="set-rail__group-title">{g.name}</div>
-          {g.items.map((r) => (
-            <button
-              key={r.id}
-              className={'set-rail__item' + (active === r.id ? ' set-rail__item--active' : '')}
-              onClick={() => onSelect(r.id)}
-            >
-              <span className="set-rail__glyph">{r.glyph}</span>
-              <span className="set-rail__label">{r.label}</span>
-              {r.badge && (
-                <span
-                  className={
-                    'set-rail__badge' + (r.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')
-                  }
-                >
-                  {r.badge.text}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      ))}
-    </nav>
   );
 }

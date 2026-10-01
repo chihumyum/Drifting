@@ -42,6 +42,7 @@ out
 # Database files
 databases/
 .local-data/
+.qa/
 *.db
 *.db-shm
 *.db-wal

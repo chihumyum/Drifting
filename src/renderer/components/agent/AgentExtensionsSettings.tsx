@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { uuidv7 } from 'uuidv7';
 
@@ -46,6 +46,7 @@ const POLICY_OPTIONS: Array<{ value: string; labelKey: string }> = [
 
 export function AgentExtensionsSettings({ open }: { open: boolean }) {
   const { t } = useTranslation();
+  const navigationId = useId();
   const projectId = useProjectStore((state) => state.currentProject?.id ?? '');
   const extensionPlatform = useMemo(() => getDriftingAgentExtensionPlatform(), []);
   const [servers, setServers] = useState<AgentMcpServerConfig[]>([]);
@@ -233,7 +234,7 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
   return (
     <>
       <div className="set-sec">
-        <div className="set-sec__head">
+        <div className="set-sec__head" id={`${navigationId}-servers`} data-settings-section={t('settings.agent.extensions.title')}>
           <div>
             <div className="set-sec__title">{t('settings.agent.extensions.title')}</div>
             <div className="set-row__desc">{t('settings.agent.extensions.desc')}</div>
@@ -459,7 +460,7 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
       </div>
 
       <div className="set-sec">
-        <div className="set-sec__head">
+        <div className="set-sec__head" id={`${navigationId}-grants`} data-settings-section={t('settings.agent.extensions.grantsTitle')}>
           <div>
             <div className="set-sec__title">{t('settings.agent.extensions.grantsTitle')}</div>
             <div className="set-row__desc">{t('settings.agent.extensions.grantsDesc')}</div>
