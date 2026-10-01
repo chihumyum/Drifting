@@ -64,6 +64,8 @@ export interface PlotGridEditorApi {
   moveVisual(axis: PlotGridVisualAxis, id: string, delta: -1 | 1): boolean;
   setLabel(axis: PlotGridVisualAxis, id: string, label: string): void;
   setCell(cell: PlotGridCellRef, text: string): void;
+  /** Clear header and cell text while retaining rows, columns, and size. */
+  clearContents(): void;
   cellText(cell: PlotGridCellRef): string;
   neighbor(cell: PlotGridCellRef, direction: PlotGridDirection): PlotGridCellRef | null;
   position(cell: PlotGridCellRef): PlotGridCellPosition | null;
@@ -426,6 +428,7 @@ export function PlotGridEditor({
       moveVisual: (axis, id, delta) => draft.move(view.dataAxis(axis), id, delta),
       setLabel: (axis, id, label) => draft.setLabel(view.dataAxis(axis), id, label),
       setCell: (cell, text) => draft.setCell(cell.rowId, cell.colId, text, { rerender: true }),
+      clearContents: draft.clearContents,
       cellText: (cell) => draft.cellText(cell.rowId, cell.colId),
       neighbor: (cell, direction) => plotGridNeighbor(view, cell, direction),
       position: (cell) => plotGridCellPosition(view, cell),

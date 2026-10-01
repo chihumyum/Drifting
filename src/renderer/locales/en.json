@@ -1337,6 +1337,9 @@
     "createPatch": "Create patch"
   },
   "plotGrid": {
+    "clear": "Clear",
+    "clearTitle": "Clear plot planner contents",
+    "clearConfirm": "Clear all row and column labels and cell text in this plot planner? The table structure, dimensions, and prose will be preserved. This cannot be undone.",
     "columnPlaceholder": "Column",
     "rowPlaceholder": "Row",
     "deleteColumn": "Delete this column",

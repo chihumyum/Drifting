@@ -1337,6 +1337,9 @@
     "createPatch": "创建补丁"
   },
   "plotGrid": {
+    "clear": "清空",
+    "clearTitle": "清空情节规划器内容",
+    "clearConfirm": "清空当前情节规划器的所有行列标题和单元格文字？表格结构、尺寸和正文将保留。此操作无法撤销。",
     "columnPlaceholder": "列",
     "rowPlaceholder": "行",
     "deleteColumn": "删除此列",

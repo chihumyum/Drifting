@@ -158,6 +158,16 @@ export function clonePlotGrid(grid: PlotGrid): PlotGrid {
   };
 }
 
+/** Clear authored text while retaining axis identity, order, and cell dimensions. */
+export function clearPlotGridContents(grid: PlotGrid): PlotGrid {
+  return {
+    ...grid,
+    rows: grid.rows.map((row) => ({ ...row, label: '' })),
+    cols: grid.cols.map((column) => ({ ...column, label: '' })),
+    cells: {},
+  };
+}
+
 export function serializePlotGrid(grid: PlotGrid): string {
   const cells: Record<string, string> = {};
   for (const row of grid.rows) {

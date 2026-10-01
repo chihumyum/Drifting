@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   cellKey,
+  clearPlotGridContents,
   movePlotAxis,
   newAxisId,
   parsePlotGrid,
@@ -35,6 +36,8 @@ export interface PlotGridDraft {
   cellText(rowId: string, colId: string): string;
   setCell(rowId: string, colId: string, text: string, options?: { rerender?: boolean }): void;
   setLabel(axis: PlotGridDataAxis, id: string, label: string): void;
+  /** Clear all header and cell text in one snapshot, preserving the layout. */
+  clearContents(): void;
   /** Append one axis at the end; returns it. */
   add(axis: PlotGridDataAxis): PlotAxis;
   /** Insert one axis next to `id`; null when `id` is unknown. */
@@ -141,6 +144,28 @@ export function usePlotGridDraft(
     [commitAxes],
   );
 
+  const clearContents = useCallback(() => {
+    if (
+      !rowsRef.current.some((row) => row.label.length > 0) &&
+      !colsRef.current.some((column) => column.label.length > 0) &&
+      Object.keys(cellsRef.current).length === 0
+    ) return;
+    const cleared = clearPlotGridContents({
+      rows: rowsRef.current,
+      cols: colsRef.current,
+      cells: cellsRef.current,
+      ...sizeRef.current,
+    });
+    rowsRef.current = cleared.rows;
+    colsRef.current = cleared.cols;
+    cellsRef.current = cleared.cells;
+    setRows(cleared.rows);
+    setCols(cleared.cols);
+    setCells(cleared.cells);
+    setVersion((current) => current + 1);
+    emit();
+  }, [emit]);
+
   const add = useCallback<PlotGridDraft['add']>(
     (axis) => {
       const created = { id: newAxisId(axis === 'row' ? 'r' : 'c'), label: '' };
@@ -218,7 +243,7 @@ export function usePlotGridDraft(
   );
 
   return useMemo(
-    () => ({ grid, version, cellText, setCell, setLabel, add, insert, remove, move, grow, setSize }),
-    [grid, version, cellText, setCell, setLabel, add, insert, remove, move, grow, setSize],
+    () => ({ grid, version, cellText, setCell, setLabel, clearContents, add, insert, remove, move, grow, setSize }),
+    [grid, version, cellText, setCell, setLabel, clearContents, add, insert, remove, move, grow, setSize],
   );
 }

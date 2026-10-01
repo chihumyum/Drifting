@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize2, Plus } from 'lucide-react';
+import { Eraser, Maximize2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
+import { requestConfirmation } from '../../store/confirmation-store';
 import {
   clonePlotGrid,
   diffPlotGrid,
@@ -40,6 +41,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
 
   const [dragHeight, setDragHeight] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [isClearPending, setIsClearPending] = useState(false);
 
   const dockRef = useRef<HTMLDivElement>(null);
   const gridApiRef = useRef<PlotGridEditorApi | null>(null);
@@ -49,6 +51,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
   const latestGridRef = useRef<PlotGrid | null>(null);
   const persistChainRef = useRef<Promise<void>>(Promise.resolve());
   const onPersistRef = useRef(onPersist);
+  const clearConfirmationRef = useRef<AbortController | null>(null);
   useEffect(() => {
     onPersistRef.current = onPersist;
   }, [onPersist]);
@@ -76,6 +79,28 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
   }, [nodeId]);
 
   useEffect(() => flush, [flush]);
+  useEffect(() => () => clearConfirmationRef.current?.abort(), []);
+
+  const handleClear = async () => {
+    if (clearConfirmationRef.current) return;
+    const controller = new AbortController();
+    clearConfirmationRef.current = controller;
+    setIsClearPending(true);
+    try {
+      const confirmed = await requestConfirmation(t('plotGrid.clearConfirm'), {
+        title: t('plotGrid.clearTitle'),
+        confirmLabel: t('plotGrid.clear'),
+        destructive: true,
+        signal: controller.signal,
+      });
+      if (!confirmed || controller.signal.aborted) return;
+      gridApiRef.current?.clearContents();
+      flush();
+    } finally {
+      clearConfirmationRef.current = null;
+      if (!controller.signal.aborted) setIsClearPending(false);
+    }
+  };
 
   const boundsForCurrentShell = useCallback(() => {
     const dock = dockRef.current;
@@ -199,6 +224,16 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
         >
           <Maximize2 aria-hidden="true" />
           {t('plotGrid.fit')}
+        </button>
+        <button
+          type="button"
+          className="plot-planner__add plot-planner__clear"
+          title={t('plotGrid.clearTitle')}
+          disabled={isClearPending}
+          onClick={() => void handleClear()}
+        >
+          <Eraser aria-hidden="true" />
+          {t('plotGrid.clear')}
         </button>
       </div>
       <div className="plot-planner__body">

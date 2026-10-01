@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clearPlotGridContents,
   diffPlotGrid,
   movePlotAxis,
   readPlotGridProjection,
@@ -68,6 +69,25 @@ describe('normalized Plot Grid domain boundary', () => {
         value: 'Beat',
       },
     ]);
+  });
+
+  it('clears labels and cells without changing axis identity, order, size, or the source', () => {
+    const before = JSON.stringify(GRID);
+    const cleared = clearPlotGridContents(GRID);
+    expect(cleared).toEqual({
+      rows: [{ id: 'row-a', label: '' }, { id: 'row-b', label: '' }],
+      cols: [{ id: 'column-a', label: '' }, { id: 'column-b', label: '' }],
+      cells: {},
+      cellW: 200,
+      cellH: 80,
+    });
+    expect(JSON.stringify(GRID)).toBe(before);
+    expect(diffPlotGrid(GRID, cleared)).toEqual([
+      { type: 'row.label.set', rowId: 'row-a', label: '' },
+      { type: 'column.label.set', columnId: 'column-a', label: '' },
+      { type: 'cell.value.set', rowId: 'row-a', columnId: 'column-a', value: '' },
+    ]);
+    expect(diffPlotGrid(cleared, clearPlotGridContents(cleared))).toEqual([]);
   });
 
   it('emits exact field/removal actions and explicit moves for a changed relative order', () => {

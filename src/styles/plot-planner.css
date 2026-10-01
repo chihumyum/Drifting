@@ -62,6 +62,10 @@
   width: 13px;
   height: 13px;
 }
+.plot-planner__add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .plot-planner__body {
   flex: 1;
   min-height: 0;

@@ -4,8 +4,9 @@ import path from 'node:path';
 
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
+import * as Y from 'yjs';
 
-import { diffPlotGrid, serializePlotGrid, type PlotGrid } from '../domain/plot-grid';
+import { clearPlotGridContents, diffPlotGrid, serializePlotGrid, type PlotGrid } from '../domain/plot-grid';
 import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import type { DbClient } from '../lib/db';
 import {
@@ -21,6 +22,7 @@ import {
   SyncMutationTable,
   SyncOrderRegisterTable,
   SyncGenerationTable,
+  yjsUpdates,
 } from '../schema/drizzle';
 import { createAuthoredTransactionRunner } from '../sync/journal';
 import { applyPlotGridMutationsInTransaction } from './plot-grid-write';
@@ -256,6 +258,73 @@ describe('normalized Plot Grid authored writer', () => {
       .where(eq(SyncMutationTable.changeSetId, changeSets[1]!.changeSetId));
     expect(clearMutations).toMatchObject([
       { action: 'field.set', targetKind: 'plot-grid-cell', targetId: original.id },
+    ]);
+  });
+
+  it('durably clears the current planner without changing prose or another planner', async () => {
+    const db = await createDatabase();
+    await apply(db, diffPlotGrid(null, GRID));
+    const otherNodeId = 'node-other-planner';
+    await db.insert(BookNodeTable).values({
+      id: otherNodeId, projectId: PROJECT_ID, title: 'Other chapter',
+      positionX: 0, positionY: 0, createdAt: NOW, updatedAt: NOW,
+    });
+    const otherGrid: PlotGrid = {
+      ...GRID,
+      rows: [{ id: 'other-row', label: 'Other character' }],
+      cols: [{ id: 'other-column', label: 'Other beat' }],
+      cells: { 'other-row:other-column': 'Other plan' },
+    };
+    await runner(db)(PROJECT_ID, 'plot-grid.mutate', ({ tx, changes }) =>
+      applyPlotGridMutationsInTransaction(tx, changes, {
+        projectId: PROJECT_ID, nodeId: otherNodeId, mutations: diffPlotGrid(null, otherGrid),
+      }),
+    );
+    const prose = new Y.Doc();
+    prose.getText('synthetic-prose').insert(0, 'Prose survives clearing the planner.');
+    await db.insert(yjsUpdates).values({
+      docId: `node-content:${NODE_ID}`, updateBlob: Buffer.from(Y.encodeStateAsUpdate(prose)), createdAt: NOW,
+    });
+    prose.destroy();
+    await db.update(NodeContentTable).set({ contentJson: '{"type":"doc"}', outlineJson: '["Scene"]' })
+      .where(eq(NodeContentTable.nodeId, NODE_ID));
+    const contentBefore = await db.select().from(NodeContentTable);
+    const proseBefore = await db.select().from(yjsUpdates);
+    const documentsBefore = await db.select().from(PlotGridDocumentTable);
+    const rowsBefore = await db.select().from(PlotGridRowTable);
+    const columnsBefore = await db.select().from(PlotGridColumnTable);
+    const cellsBefore = await db.select().from(PlotGridCellTable);
+    const changeSetsBefore = await db.select().from(SyncChangeSetTable);
+
+    const cleared = clearPlotGridContents(GRID);
+    await apply(db, diffPlotGrid(GRID, cleared));
+
+    expect(await db.select().from(NodeContentTable)).toEqual(contentBefore.map((content) =>
+      content.nodeId === NODE_ID
+        ? { ...content, plotGridJson: serializePlotGrid(cleared), updatedAt: expect.any(String) }
+        : content,
+    ));
+    expect(await db.select().from(yjsUpdates)).toEqual(proseBefore);
+    expect(await db.select().from(PlotGridDocumentTable)).toEqual(documentsBefore);
+    expect(await db.select().from(PlotGridRowTable)).toEqual(rowsBefore.map((row) =>
+      GRID.rows.some(({ id }) => id === row.id) ? { ...row, label: '' } : row,
+    ));
+    expect(await db.select().from(PlotGridColumnTable)).toEqual(columnsBefore.map((column) =>
+      GRID.cols.some(({ id }) => id === column.id) ? { ...column, label: '' } : column,
+    ));
+    expect(await db.select().from(PlotGridCellTable)).toEqual(cellsBefore.map((cell) =>
+      cell.rowId === 'row-a' ? { ...cell, value: '' } : cell,
+    ));
+    const clearChangeSets = (await db.select().from(SyncChangeSetTable)).filter((changeSet) =>
+      !changeSetsBefore.some(({ changeSetId }) => changeSetId === changeSet.changeSetId),
+    );
+    expect(clearChangeSets).toHaveLength(1);
+    const clearMutations = await db.select().from(SyncMutationTable)
+      .where(eq(SyncMutationTable.changeSetId, clearChangeSets[0]!.changeSetId));
+    expect(clearMutations.map(({ action, targetKind }) => ({ action, targetKind }))).toEqual([
+      { action: 'field.set', targetKind: 'plot-grid-row' },
+      { action: 'field.set', targetKind: 'plot-grid-column' },
+      { action: 'field.set', targetKind: 'plot-grid-cell' },
     ]);
   });
 
