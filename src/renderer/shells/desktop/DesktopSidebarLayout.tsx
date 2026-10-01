@@ -1,8 +1,12 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { SIDEBAR_SPLIT_MIN_WIDTH } from '../../lib/sidebar-tabs';
 import { useUiStore, type SidebarType } from '../../store/ui-store';
 import type { SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarPaneContext } from '../../lib/sidebar-pane-context';
+import {
+  clampSidebarSplitRatio, sidebarSplitRatioBounds, SIDEBAR_DIVIDER_WIDTH,
+  SIDEBAR_MIN_WIDTH, type DimensionBounds,
+} from '../../lib/layout-geometry';
 
 /** Each stable pane owns its tab strip and body, including duplicate tabs. */
 export function DesktopSidebarLayout({
@@ -14,7 +18,12 @@ export function DesktopSidebarLayout({
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const split = panels.length === 2;
-  const ratio = useUiStore((s) => side === 'left' ? s.leftPanelSplitRatio : s.rightPanelSplitRatio);
+  const preferredRatio = useUiStore((s) => side === 'left' ? s.leftPanelSplitRatio : s.rightPanelSplitRatio);
+  const storedWidth = useUiStore((s) => s.sidebars[side].width);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const width = measuredWidth ?? storedWidth;
+  const ratio = clampSidebarSplitRatio(preferredRatio, side, width);
+  const ratioBounds = sidebarSplitRatioBounds(side, width);
   const setRatio = useUiStore((s) => side === 'left' ? s.setLeftPanelSplitRatio : s.setRightPanelSplitRatio);
   const setSplitAvailable = useUiStore((s) => s.setSidebarSplitAvailable);
   const focusPane = useUiStore((s) => s.focusSidebarPane);
@@ -24,7 +33,10 @@ export function DesktopSidebarLayout({
     const node = rootRef.current;
     if (!node) return;
     const measure = () => {
-      if (node.clientWidth > 0) setSplitAvailable(side, node.clientWidth >= SIDEBAR_SPLIT_MIN_WIDTH);
+      if (node.clientWidth > 0) {
+        setMeasuredWidth(node.clientWidth);
+        setSplitAvailable(side, node.clientWidth >= SIDEBAR_SPLIT_MIN_WIDTH);
+      }
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -41,7 +53,10 @@ export function DesktopSidebarLayout({
     const onMove = (event: MouseEvent) => {
       event.preventDefault();
       const rect = bodyRef.current?.getBoundingClientRect();
-      if (rect && rect.width > 0) setRatio((event.clientX - rect.left) / rect.width);
+      if (rect && rect.width > SIDEBAR_DIVIDER_WIDTH) {
+        const next = (event.clientX - rect.left - SIDEBAR_DIVIDER_WIDTH / 2) / (rect.width - SIDEBAR_DIVIDER_WIDTH);
+        setRatio(clampSidebarSplitRatio(next, side, rect.width));
+      }
     };
     const preventSelection = (event: Event) => event.preventDefault();
     const stop = () => {
@@ -68,7 +83,8 @@ export function DesktopSidebarLayout({
           <Fragment key={panel.id}>
             {index > 0 && <ColumnDivider
               ratio={ratio}
-              onChange={setRatio}
+              bounds={ratioBounds}
+              onChange={(next) => setRatio(clampSidebarSplitRatio(next, side, width))}
               onMouseDown={onDividerMouseDown}
             />}
             <div data-sidebar-pane={panel.id} data-sidebar-panel={panel.tab}
@@ -76,7 +92,8 @@ export function DesktopSidebarLayout({
               onFocusCapture={() => focusPane(side, panel.id)}
               style={{
               flex: `${split ? (index === 0 ? ratio : 1 - ratio) : 1} 1 0`,
-              minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              minWidth: split ? SIDEBAR_MIN_WIDTH[side] : 0,
+              minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
             }}>
               <SidebarPaneContext.Provider value={panel.id}>
                 {panel.header}
@@ -90,14 +107,16 @@ export function DesktopSidebarLayout({
   );
 }
 
-function ColumnDivider({ ratio, onChange, onMouseDown }: {
+function ColumnDivider({ ratio, bounds, onChange, onMouseDown }: {
   ratio: number;
+  bounds: DimensionBounds;
   onChange: (ratio: number) => void;
   onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   return (
     <div onMouseDown={onMouseDown} role="separator" aria-orientation="vertical"
-      tabIndex={0} aria-valuenow={Math.round(ratio * 100)} aria-valuemin={20} aria-valuemax={80}
+      tabIndex={0} aria-valuenow={Math.round(ratio * 100)}
+      aria-valuemin={Math.round(bounds.min * 100)} aria-valuemax={Math.round(bounds.max * 100)}
       onKeyDown={(event) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();

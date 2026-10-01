@@ -109,8 +109,8 @@ describe('desktop sidebar rendered acceptance', () => {
     const renderWidth = (paneId: 'primary' | 'secondary') => renderToStaticMarkup(
       createElement(SidebarPaneContext.Provider, { value: paneId }, createElement(Width)),
     );
-    expect(renderWidth('primary')).toBe('150');
-    expect(renderWidth('secondary')).toBe('450');
+    expect(renderWidth('primary')).toBe('288');
+    expect(renderWidth('secondary')).toBe('312');
     state().toggleLeftSidebarTab('primary', 'elements');
     expect(renderWidth('secondary')).toBe('601');
   });

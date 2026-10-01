@@ -1,5 +1,5 @@
 /**
- * The count that replaces a layer's glyph (group dot / tab glyph) once a run has
+ * The count shown in a group's activity slot once a run has
  * finished and left unviewed changes beneath it — see agentActivityBubble.ts for
  * the cell → group → tab bubble it's part of. A plain, low-key number (no pill,
  * no blink), as quiet as the glyph it stands in for. It only shows once the run

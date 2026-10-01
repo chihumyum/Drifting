@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { GroupHeaderCell, type GroupHeaderCellProps } from './GroupHeaderCell';
+
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -101,7 +106,7 @@ describe('ElementPanel compact text index', () => {
     const frameDisclosure = block(
       header,
       "{collapseChrome === 'frame' && (",
-      '{!agentBusy && (agentSelfAdded || agentSelfChanged)',
+      "{agentIndicatorPlacement === 'leading' && !agentBusy",
     );
     const frameLabel = block(
       header,
@@ -146,7 +151,8 @@ describe('ElementPanel compact text index', () => {
     expect(frameLabel).not.toContain('aria-expanded');
     expect(panel).not.toContain('isUncategorized || compactIndex');
     expect(panel).toContain("activateTarget({ entityType: 'category', id: categoryId })");
-    expect(header).toContain('showRestingColorMarker || agentBusy');
+    expect(header).toContain('showRestingColorMarker || leadingBusy');
+    expect(panel).toContain('agentIndicatorPlacement="count"');
   });
 
   it('reuses the borderless material-card surface and keeps selection as highlight only', () => {
@@ -273,5 +279,43 @@ describe('ElementPanel compact text index', () => {
     expect(docs).toContain('`.element-panel-item-label`');
     expect(docs).toContain('固定 disclosure hit area');
     expect(docs).toContain('文本 label 单击进入 editor');
+  });
+});
+
+
+describe('category Agent activity count slot', () => {
+  it.each(['frame', 'chevron'] as const)('replaces the element count without a leading activity marker in %s mode', (collapseChrome) => {
+    const cases: [Partial<GroupHeaderCellProps>, string][] = [
+      [{ agentSelfAdded: true, agentSelfChanged: true, agentDoneCount: 3 }, 'groupBodyAdded'],
+      [{ agentSelfChanged: true, agentDoneCount: 3 }, 'groupBodyChanged'],
+      [{ agentDoneCount: 3 }, 'childChanges'],
+      [{ agentBusy: true, agentSelfAdded: true, agentDoneCount: 3 }, 'working'],
+    ];
+    for (const [activity, title] of cases) {
+      const html = renderToStaticMarkup(createElement(GroupHeaderCell, {
+        name: 'Synthetic category', count: 14, color: '#888', collapsed: false,
+        collapseChrome, onToggleCollapsed: () => {}, agentIndicatorPlacement: 'count', ...activity,
+      }));
+      const countStart = html.indexOf('class="left-sb-group-header__count"');
+      expect(countStart).toBeGreaterThan(html.indexOf('Synthetic category'));
+      expect(html.slice(0, countStart)).not.toContain('agentActivity.');
+      expect(html.slice(countStart)).toContain(`agentActivity.${title}`);
+      expect(html).not.toContain('· 14');
+    }
+    const idle = renderToStaticMarkup(createElement(GroupHeaderCell, {
+      name: 'Synthetic category', count: 14, color: '#888', collapsed: false,
+      collapseChrome, onToggleCollapsed: () => {}, agentIndicatorPlacement: 'count',
+    }));
+    expect(idle).toContain('· 14');
+    expect(idle).not.toContain('agentActivity.');
+  });
+
+  it('keeps other group markers ahead of their name and retains their normal count', () => {
+    const html = renderToStaticMarkup(createElement(GroupHeaderCell, {
+      name: 'Synthetic storyline', count: 14, color: '#888', collapsed: false,
+      onToggleCollapsed: () => {}, agentSelfAdded: true,
+    }));
+    expect(html.indexOf('agentActivity.groupBodyAdded')).toBeLessThan(html.indexOf('Synthetic storyline'));
+    expect(html).toContain('· 14');
   });
 });

@@ -70,12 +70,12 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 ## Tabs and motion
 
 - 顶部文档 Tab 与左右栏 Panel Tab 都由自身绘制静态矩形选中态。
-- 左右栏 Panel Tab 统一使用 `label` 文字样式：相同 UI 字体、`500` 字重、保留原始大小写；小／标准／大字号分别为 `11.5 / 13 / 15px`。完整文字的单侧横向 padding 为 `10px`，紧凑模式为 `8px`；Tab 之间不额外留 gap，整行两端各留 `6px`，恢复双栏按钮前也不额外留 gap。
+- 左右栏 Panel Tab 统一使用 `label` 文字样式：相同 UI 字体、`500` 字重、保留原始大小写；小／标准／大字号分别为 `11.5 / 13 / 15px`。单侧横向 padding 为 `10px`；Tab 之间不额外留 gap，整行两端各留 `6px`，恢复双栏按钮前也不额外留 gap。
 - 桌面 Universal 新建入口是一个紧跟已打开文档 Tab 列表末尾的 `+`，与 Tab 一起处于横向滚动条带内；零 Tab 时它位于条带起点。它不是贴住顶栏右缘的固定命令，也不占用既有文档 Tab 的宽度预算：空间不足时入口随条带自然溢出。默认和 hover 都保持未选中 Tab 的透明底与次级文字色，键盘 `focus-visible` 只保留克制的轮廓。
 - Universal 新建先打开会话级“新建…”占位 Tab，默认是斜体 Preview，与实体 Tab 共用一个预览位；打开时替换已有实体 Preview，随后打开其他新实体 Preview 会替换未固定的占位。切换到 Home 或已打开的 Tab 只改变焦点。双击占位 Tab 后固定，保留已选类型与归属；提交创建前也会自动固定，保护后台结果和失败重试。该 Tab 使用普通静态矩形选中态，可切换、可关闭，但不可拖拽或 split；固定后仍仅保留在当前会话，关闭未提交占位不产生实体。选择类型后，章节/灵感/元素只补齐现有归属，故事线/类目直接使用默认名称创建，最终由真实实体 Tab 原位替换。
 - 左右栏的桌面 Tab 行使用 `32 / 34px`；其下单行 panel header 最小高度为 `28 / 30px`，不用大块上下 padding 制造空白。Review 的类型/范围筛选和 Agent 的会话/工具动作都属于这一级 header，必须复用 `workspace-panel-header-row` 与同一套小字号纯文字控件，不能在 Tab 下再造一层大标题或带框按钮栏。
 - Panel Tab 的默认、hover 与 active 背景完全一致；只用暗淡文字与黑色文字的切换表达未选中和选中，不使用彩色 label、`border-bottom`、inset shadow 或其他下划线。
-- 左栏三个 Panel Tab 使用互斥的响应式表示：可用宽度至少 `220px` 时只显示“章节 / 元素 / 灵感”等文字；更窄时只显示对应 glyph，并以 title/aria-label 保留名称。任何宽度都不同时并排图标与文字。
+- 左右栏 Panel Tab 始终显示完整标题，不再按宽度切换为图标或缩写。两侧单栏最小宽度均为 `288px`；双栏每半栏也至少保留 `288px`。鼠标拖拽、键盘调节、恢复已存比例和窗口缩放均使用这个下限，旧的窄侧栏宽度会自动归一化。
 - 不存在跨 Tab 滑动的 pill indicator，也不为选中态测量 DOM 几何。
 - 文档 Tab 切换和自动滚动是即时的；拖拽重排仍保留窄插入线，因为它表达 drop 位置而不是选中动画。
 - 桌面完整 Settings 左侧 Section 点击后直接定位到目标内容，不播放纵向滚动动画，避免 scroll-spy 沿途快速切换左栏选中态；用户手动滚动右侧内容时仍由 scroll-spy 同步当前 Section。这个即时定位约束只属于桌面完整 Settings，不改变移动设置页及其他共享滚动面的行为。
@@ -94,6 +94,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 元素 panel 不再设置 category footer、横向 chip 导航或独立高度状态。category header、元素 cell 与“未分类”组全部留在同一个纵向滚动面内；sticky header 负责持续表达当前结构，不在底部重复一套可视 category 状态。
 - `GroupHeaderCell` 的新增动作使用紧随 label/count 的共享 inline slot：category 的 `+` 在紧凑索引中常驻，并作为唯一的 category 创建入口打开锚定菜单，菜单打开期间触发器继续可见，再分流到“新建元素”和“新建分组”；章节故事线与一级灵感 group 继续在当前 header hover/focus 时显示；element group 与二级灵感 group 也把动态 `+` 放在各自 label/count 之后。显隐选择器只命中当前 header，父 group hover 不得连带揭示后代按钮。element group 不是独立实体，而是 element 的 `groupName`；因此“新建分组”必须输入名称并同时创建、打开首个 element，不制造无法持久化的空 group。
 - 元素 panel 提供可持久化的“紧凑索引 / 名称列表”两种纯文字显示模式，由 header 左侧“X 类 · XX 元素”摘要直接往返切换。紧凑索引中，展开的 category 以自身颜色的 `1px` 细框包住全部内容；顶边不是完整横线，而是由 category 文本 label 两侧分别发出，并由 sticky header 同层的竖向接缝连接左右边与底边，label 使用普通 `--chrome-bg` 切开中段，整个容器保持透明且不叠加色洗。label 前的固定 disclosure hit area 在展开时显示与同层 `+` 一致的普通前景色 `−`，点击收起后同一位置变成 category 色方块，点击再展开；真实 category 的文本 label 单击进入 editor、双击固定 tab，不再兼任折叠。没有 element 的 category 永远保持不可展开的方形色块，但文本 label 仍可进入 editor；通过创建菜单加入第一个 element 后才获得彩框。具名 element group 在彩色 category 框内再以低对比度的 `1px --rule` 中性细线框住其文字卡片，不增加底色；连续具名 group 不加额外 margin，其间距与 group label 到下方卡片的距离相同，只有最后一个具名 group 与随后未分组卡片之间增加语义间距。未分组元素不画 group 框。文字卡片直接复用素材库/TODO 卡片的无边框 `.workspace-list-row` 背景、圆角和 hover token，不再定义独立卡片色；选中时只切换到 `--surface` 高亮。紧凑卡片与旧名称列表的 element label 共同复用 `.element-panel-item-label`：`--font-sans`、`12.5px`、常态字重 `400`、`1.35` 行高与 `-0.005em` 字距，选中时统一升为 `500`，两种视图不得分别定义另一套字号或字重。卡片使用 wrapping flex flow：名称估算宽度决定其初始 `flex-basis`，同行剩余空间由卡片共同吸收，因此短名称可在一行容纳更多项、长名称获得更多阅读空间，最后一行也不遗留固定方块造成的空洞；栏宽不足时自然退回单列。完整名称直接显示并允许换行，Agent 活动只占末端小状态标记。
+- 元素 panel 的 category 标题在紧凑索引和名称列表中都将 Agent 状态放在名称右侧的元素数量位置：忙碌提示、category 自身的 `A` / `M`、子元素待查看数量按此顺序优先显示；没有 Agent 状态时恢复元素总数。左侧只保留折叠／类别颜色，不再额外插入 Agent 标识，故事线和漂流分组沿用原有位置。
 - 标签、状态 chip、菜单、popover、dialog 和预览内容保持小圆角；头像、状态点、spinner 与 switch 可以保留其语义形状。它们不计作一级页面模块，也不应被无差别的全局 `border-radius: 0` 误伤。
 - 不使用 inset-left vertical accent bar；强调状态继续使用背景 wash、细分隔线、字重或语义颜色。
 

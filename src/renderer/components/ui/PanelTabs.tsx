@@ -17,17 +17,15 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
 
 interface PanelTabProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active: boolean;
-  compact?: boolean;
   typography?: 'label' | 'caps';
 }
 
 /**
  * Shared sidebar panel tab. Both sidebars use a real button with identical
- * geometry; glyph/activity content and responsive labels remain caller slots.
+ * geometry; labels and activity content remain caller slots.
  */
 export function PanelTab({
   active,
-  compact = false,
   typography = 'caps',
   className = '',
   children,
@@ -41,7 +39,6 @@ export function PanelTab({
         'app-panel-tab',
         `app-panel-tab--${typography}`,
         active ? 'is-active' : '',
-        compact ? 'is-compact' : '',
         className,
       ]
         .filter(Boolean)

@@ -1,6 +1,6 @@
 {
   "kind": "desktop-typography",
-  "fingerprint": "27b071c37ba6292548d62db868c9d0991fa4a95112424e5e4d04434caea154fa",
+  "fingerprint": "54c845c2012d0073f95dd412860ffd38ab1cb38dfdbf191d87627636d0ac020a",
   "sources": [
     "scripts/desktop-typography-ui.html",
     "scripts/desktop-typography-ui.tsx",

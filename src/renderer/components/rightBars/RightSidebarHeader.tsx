@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import type { RightSidebarTab, SidebarPaneId } from '../../lib/sidebar-tabs';
@@ -13,19 +12,6 @@ export function RightSidebarHeader({ paneId, activeTab }: {
 }) {
   const { t } = useTranslation();
   const toggleTab = useUiStore((s) => s.toggleRightSidebarTab);
-  const trayRef = useRef<HTMLDivElement | null>(null);
-  const [trayWidth, setTrayWidth] = useState(Number.POSITIVE_INFINITY);
-  useEffect(() => {
-    const node = trayRef.current;
-    if (!node) return;
-    const update = () => setTrayWidth(node.clientWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(node);
-    return () => ro.disconnect();
-  }, []);
-  const compactLabels = trayWidth < 200;
-  const shortLabels = { review: 'RV', library: 'LIB', stats: 'SS', companion: 'AI' };
 
   return (
     <div
@@ -35,13 +21,13 @@ export function RightSidebarHeader({ paneId, activeTab }: {
         background: 'var(--workspace-ui-bg)', flexShrink: 0,
       }}
     >
-      <PanelTabTray ref={trayRef} className="rightbar-tab-tray">
+      <PanelTabTray className="rightbar-tab-tray">
         {RIGHT_SIDEBAR_TABS.map((tab) => {
           const label = tab === 'companion' ? 'Agent' : t(`rightSidebar.tabs.${tab}`);
           return (
             <PanelTab key={tab} active={activeTab === tab}
-              onClick={() => toggleTab(paneId, tab)} typography="label" compact={compactLabels} aria-label={label} title={label}>
-              <span>{compactLabels ? shortLabels[tab] : label}</span>
+              onClick={() => toggleTab(paneId, tab)} typography="label" aria-label={label} title={label}>
+              <span>{label}</span>
             </PanelTab>
           );
         })}

@@ -53,6 +53,8 @@ export interface GroupHeaderCellProps {
   // is busy the color dot blinks accent; once the run finishes and leaves
   // unviewed changes the dot is replaced by the plain `agentDoneCount`.
   agentBusy?: boolean;
+  // Categories put activity in the count slot; other groups keep their leading marker.
+  agentIndicatorPlacement?: 'leading' | 'count';
   agentDoneCount?: number;
   // The GROUP entity's OWN body (storyline / category prose) has unreviewed agent
   // changes. Takes priority over the child `agentDoneCount`: show "M" first, then
@@ -83,6 +85,7 @@ export function GroupHeaderCell({
   stickyBackground,
   rightExtra,
   agentBusy = false,
+  agentIndicatorPlacement = 'leading',
   agentDoneCount = 0,
   agentSelfChanged = false,
   agentSelfAdded = false,
@@ -91,6 +94,38 @@ export function GroupHeaderCell({
   const showRestingColorMarker = collapseChrome === 'chevron';
   const frameControlBackground =
     collapseChrome === 'frame' && !collapsed ? 'var(--chrome-bg)' : 'transparent';
+  const leadingBusy = agentIndicatorPlacement === 'leading' && agentBusy;
+  const agentIndicator = agentBusy ? (
+    <span
+      className="agent-glyph-busy"
+      title={t('agentActivity.working')}
+      aria-label={t('agentActivity.working')}
+      style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 2, background: 'hsl(var(--accent))' }}
+    />
+  ) : agentSelfAdded || agentSelfChanged ? (
+    <span
+      title={t(
+        agentSelfAdded ? 'agentActivity.groupBodyAdded' : 'agentActivity.groupBodyChanged',
+      )}
+      style={{
+        minWidth: 7,
+        flexShrink: 0,
+        textAlign: 'center',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 'var(--ui-font-caption, 10px)',
+        fontWeight: 600,
+        lineHeight: 1,
+        color: 'hsl(var(--ink-2))',
+      }}
+    >
+      {agentSelfAdded ? 'A' : 'M'}
+    </span>
+  ) : agentDoneCount > 0 ? (
+    <AgentCountBadge count={agentDoneCount} title={t('agentActivity.childChanges')} />
+  ) : null;
+  const countContent = agentIndicatorPlacement === 'count' && agentIndicator
+    ? agentIndicator
+    : <>· {count}</>;
   return (
     <div
       className={`left-sb-group-header${
@@ -189,57 +224,38 @@ export function GroupHeaderCell({
             )}
           </button>
         )}
-        {!agentBusy && (agentSelfAdded || agentSelfChanged) ? (
-          <span
-            aria-hidden
-            title={t(
-              agentSelfAdded ? 'agentActivity.groupBodyAdded' : 'agentActivity.groupBodyChanged',
-            )}
-            style={{
-              width: 7,
-              flexShrink: 0,
-              textAlign: 'center',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--ui-font-caption, 10px)',
-              fontWeight: 600,
-              lineHeight: 1,
-              color: 'hsl(var(--ink-2))',
-            }}
-          >
-            {agentSelfAdded ? 'A' : 'M'}
-          </span>
-        ) : !agentBusy && agentDoneCount > 0 ? (
-          <AgentCountBadge count={agentDoneCount} title={t('agentActivity.childChanges')} />
+        {agentIndicatorPlacement === 'leading' && !agentBusy && agentIndicator ? (
+          agentIndicator
         ) : glyph ? (
           // Custom leading glyph (e.g. drift group folder) replaces the color
           // dot. Busy still tints it accent so the activity read survives.
           <span
             aria-hidden
-            className={agentBusy ? 'agent-glyph-busy' : undefined}
-            title={agentBusy ? t('agentActivity.working') : undefined}
+            className={leadingBusy ? 'agent-glyph-busy' : undefined}
+            title={leadingBusy ? t('agentActivity.working') : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
               lineHeight: 1,
-              color: agentBusy ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
+              color: leadingBusy ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
             }}
           >
             {glyph}
           </span>
-        ) : showRestingColorMarker || agentBusy ? (
+        ) : showRestingColorMarker || leadingBusy ? (
           <span
             aria-hidden
-            className={agentBusy ? 'agent-glyph-busy' : undefined}
-            title={agentBusy ? t('agentActivity.working') : undefined}
+            className={leadingBusy ? 'agent-glyph-busy' : undefined}
+            title={leadingBusy ? t('agentActivity.working') : undefined}
             style={{
               width: 7,
               height: 7,
               borderRadius: 2,
               // Busy overrides the group color with accent so the glow reads;
               // at rest it keeps the storyline/category color.
-              background: agentBusy ? 'hsl(var(--accent))' : color,
+              background: leadingBusy ? 'hsl(var(--accent))' : color,
               flexShrink: 0,
             }}
           />
@@ -281,6 +297,7 @@ export function GroupHeaderCell({
               {name}
             </span>
             <span
+              className="left-sb-group-header__count"
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--ui-font-caption, 9.5px)',
@@ -288,7 +305,7 @@ export function GroupHeaderCell({
                 flexShrink: 0,
               }}
             >
-              · {count}
+              {countContent}
             </span>
           </button>
         ) : (
@@ -309,6 +326,7 @@ export function GroupHeaderCell({
               {name}
             </span>
             <span
+              className="left-sb-group-header__count"
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--ui-font-caption, 9.5px)',
@@ -316,7 +334,7 @@ export function GroupHeaderCell({
                 flexShrink: 0,
               }}
             >
-              · {count}
+              {countContent}
             </span>
           </>
         )}

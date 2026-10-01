@@ -656,6 +656,7 @@ export function ElementPanel({
                   addButtonExpanded={categoryCreateCategoryId === categoryId}
                   addButtonVisibility={compactIndex ? 'always' : 'hover'}
                   sticky
+                  agentIndicatorPlacement="count"
                   agentBusy={activity.busy || agentSelfBusy}
                   agentDoneCount={activity.doneCount}
                   agentSelfChanged={agentSelfChanged}

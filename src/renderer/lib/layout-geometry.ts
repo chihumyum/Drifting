@@ -1,9 +1,11 @@
 export type SidebarSide = 'left' | 'right';
 
-const SIDEBAR_MIN_WIDTH: Record<SidebarSide, number> = {
-  left: 140,
-  right: 200,
+export const SIDEBAR_MIN_WIDTH: Record<SidebarSide, number> = {
+  left: 288,
+  right: 288,
 };
+
+export const SIDEBAR_DIVIDER_WIDTH = 1;
 
 const SIDEBAR_MAX_VIEWPORT_RATIO: Record<SidebarSide, number> = {
   left: 0.6,
@@ -55,6 +57,19 @@ export function clampSidebarWidth(
   oppositeOpenWidth: number,
 ): number {
   return clampDimension(width, sidebarWidthBounds(side, viewportWidth, oppositeOpenWidth));
+}
+
+/** Apply the same pixel minimum to each pane, including restored split ratios. */
+export function sidebarSplitRatioBounds(side: SidebarSide, width: number): DimensionBounds {
+  const available = Number.isFinite(width) ? width - SIDEBAR_DIVIDER_WIDTH : 0;
+  const min = available > 0
+    ? Math.min(0.5, Math.max(0.2, SIDEBAR_MIN_WIDTH[side] / available))
+    : 0.5;
+  return { min, max: 1 - min };
+}
+
+export function clampSidebarSplitRatio(ratio: number, side: SidebarSide, width: number): number {
+  return clampDimension(Number.isFinite(ratio) ? ratio : 0.5, sidebarSplitRatioBounds(side, width));
 }
 
 export function verticalDockBounds(

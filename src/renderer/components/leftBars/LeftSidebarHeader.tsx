@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import type { LeftSidebarTab, SidebarPaneId } from '../../lib/sidebar-tabs';
@@ -6,14 +6,8 @@ import { SidebarSplitButton } from '../SidebarSplitButton';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import type { ActivityMark } from '../../store/agent-activity-store';
-import { AgentCountBadge } from './AgentCountBadge';
 import { type GroupActivity } from './agentActivityBubble';
 import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
-
-// 三个纯文字 tab 平分整条 header 宽度所需的最小值。宽度足够时只显示
-// label；低于此值时只显示 glyph，绝不把两种表示并排。220px 也为较长的
-// 英文 label 留出余量，避免 ResizeObserver 在临界宽度附近来回切换。
-const FULL_TABS_MIN_WIDTH = 220;
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
 
@@ -40,11 +34,8 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
   const { t } = useTranslation();
   const toggleTab = useUiStore((s) => s.toggleLeftSidebarTab);
 
-  // Aggregate agent activity per tab — the top of the cell → group → tab
-  // bubble (#17). A tab blinks its glyph while a panel cell is busy; only once
-  // the run finishes and leaves unviewed changes is the glyph replaced by a
-  // plain count of those cells, reverting to the glyph once the user has opened
-  // them all (count → 0).
+  // Aggregate unviewed activity into the persistent text labels. Busy labels
+  // pulse; completed changes append their count until reviewed.
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -66,21 +57,8 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
     return res;
   }, [agentActive, agentTouched, bookNodes]);
 
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [compact, setCompact] = useState(false);
-  useLayoutEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const measure = () => setCompact(el.clientWidth < FULL_TABS_MIN_WIDTH);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   return (
     <div
-      ref={rootRef}
       className="workspace-local-divider workspace-panel-tab-row"
       style={{
         display: 'flex',
@@ -96,24 +74,18 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
       <PanelTabTray className="leftbar-tab-tray">
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}
-          glyph="§"
-          compact={compact}
           isActive={activeTab === 'nodes'}
           activity={tabActivity.nodes}
           onClick={() => toggleTab(paneId, 'nodes')}
         />
         <PanelTab
           label={t('leftSidebar.tabs.elements')}
-          glyph="◆"
-          compact={compact}
           isActive={activeTab === 'elements'}
           activity={tabActivity.elements}
           onClick={() => toggleTab(paneId, 'elements')}
         />
         <PanelTab
           label={t('leftSidebar.tabs.drifts')}
-          glyph="❦"
-          compact={compact}
           isActive={activeTab === 'drift'}
           activity={tabActivity.drift}
           onClick={() => toggleTab(paneId, 'drift')}
@@ -126,44 +98,11 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
 
 function PanelTab({
   label,
-  glyph,
-  compact,
   isActive,
   activity,
   onClick,
 }: {
   label: string;
-  glyph?: string;
-  compact: boolean;
-  isActive: boolean;
-  activity?: GroupActivity;
-  onClick: () => void;
-}) {
-  return (
-    <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
-      <PanelTabButton
-        label={label}
-        glyph={glyph}
-        compact={compact}
-        isActive={isActive}
-        activity={activity}
-        onClick={onClick}
-      />
-    </div>
-  );
-}
-
-function PanelTabButton({
-  label,
-  glyph,
-  compact,
-  isActive,
-  activity,
-  onClick,
-}: {
-  label: string;
-  glyph?: string;
-  compact: boolean;
   isActive: boolean;
   activity?: GroupActivity;
   onClick: () => void;
@@ -181,45 +120,17 @@ function PanelTabButton({
   return (
     <SharedPanelTab
       onClick={onClick}
-      title={compact ? label : statusTitle}
+      title={statusTitle ?? label}
       aria-label={statusTitle ? `${label}: ${statusTitle}` : label}
       active={isActive}
-      compact={compact}
       typography="label"
     >
-      {compact ? (
-        !busy && doneCount > 0 ? (
-          <AgentCountBadge count={doneCount} title={t('agentActivity.unviewedChanges')} />
-        ) : (
-          glyph && (
-            <span
-              aria-hidden
-              className={busy ? 'agent-glyph-busy' : undefined}
-              title={busy ? t('agentActivity.working') : undefined}
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                fontSize: 12.5,
-                color: busy
-                  ? 'hsl(var(--accent))'
-                  : isActive
-                    ? 'hsl(var(--ink-1))'
-                    : 'hsl(var(--ink-4))',
-                lineHeight: 1,
-              }}
-            >
-              {glyph}
-            </span>
-          )
-        )
-      ) : (
-        <span
-          className={busy ? 'agent-glyph-busy' : undefined}
-          style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
-        >
-          {expandedLabel}
-        </span>
-      )}
+      <span
+        className={busy ? 'agent-glyph-busy' : undefined}
+        style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
+      >
+        {expandedLabel}
+      </span>
     </SharedPanelTab>
   );
 }
