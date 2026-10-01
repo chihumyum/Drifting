@@ -1,0 +1,449 @@
+{
+  "schemaVersion": 2,
+  "engine": "Chromium",
+  "scope": "Synthetic renderer text layout; not Tauri visual acceptance",
+  "cases": [
+    {
+      "width": 420,
+      "indent": "0px",
+      "paragraphWidth": 324,
+      "oldWidth": 324,
+      "fixedWidth": 324,
+      "oldMatches": false,
+      "fixedMatches": true,
+      "expectedLines": 23,
+      "oldLines": 23,
+      "fixedLines": 23,
+      "sourceWrap": "pretty",
+      "fixedWrap": "pretty"
+    },
+    {
+      "width": 420,
+      "indent": "2em",
+      "paragraphWidth": 324,
+      "oldWidth": 324,
+      "fixedWidth": 324,
+      "oldMatches": false,
+      "fixedMatches": true,
+      "expectedLines": 23,
+      "oldLines": 23,
+      "fixedLines": 23,
+      "sourceWrap": "pretty",
+      "fixedWrap": "pretty"
+    },
+    {
+      "width": 720,
+      "indent": "0px",
+      "paragraphWidth": 624,
+      "oldWidth": 624,
+      "fixedWidth": 624,
+      "oldMatches": true,
+      "fixedMatches": true,
+      "expectedLines": 12,
+      "oldLines": 12,
+      "fixedLines": 12,
+      "sourceWrap": "pretty",
+      "fixedWrap": "pretty"
+    },
+    {
+      "width": 720,
+      "indent": "2em",
+      "paragraphWidth": 624,
+      "oldWidth": 624,
+      "fixedWidth": 624,
+      "oldMatches": false,
+      "fixedMatches": true,
+      "expectedLines": 12,
+      "oldLines": 12,
+      "fixedLines": 12,
+      "sourceWrap": "pretty",
+      "fixedWrap": "pretty"
+    },
+    {
+      "width": 960,
+      "indent": "0px",
+      "paragraphWidth": 864,
+      "oldWidth": 864,
+      "fixedWidth": 864,
+      "oldMatches": false,
+      "fixedMatches": true,
+      "expectedLines": 9,
+      "oldLines": 9,
+      "fixedLines": 9,
+      "sourceWrap": "pretty",
+      "fixedWrap": "pretty"
+    },
+    {
+      "width": 960,
+      "indent": "2em",
+      "paragraphWidth": 864,
+      "oldWidth": 864,
+      "fixedWidth": 864,
+      "oldMatches": false,
+      "fixedMatches": true,
+      "expectedLines": 9,
+      "oldLines": 9,
+      "fixedLines": 9,
+      "sourceWrap": "pretty",
+      "fixedWrap": "pretty"
+    }
+  ],
+  "dynamicCases": [
+    {
+      "surface": "manuscript",
+      "width": 420,
+      "indent": "0px",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 19,
+      "prefixLayoutShiftFrames": 8
+    },
+    {
+      "surface": "manuscript",
+      "width": 420,
+      "indent": "0px",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 420,
+      "indent": "0px",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 420,
+      "indent": "2em",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 16,
+      "prefixLayoutShiftFrames": 9
+    },
+    {
+      "surface": "manuscript",
+      "width": 420,
+      "indent": "2em",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 420,
+      "indent": "2em",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 720,
+      "indent": "0px",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 20,
+      "prefixLayoutShiftFrames": 6
+    },
+    {
+      "surface": "manuscript",
+      "width": 720,
+      "indent": "0px",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 720,
+      "indent": "0px",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 720,
+      "indent": "2em",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 15,
+      "prefixLayoutShiftFrames": 6
+    },
+    {
+      "surface": "manuscript",
+      "width": 720,
+      "indent": "2em",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 720,
+      "indent": "2em",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 960,
+      "indent": "0px",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 7,
+      "prefixLayoutShiftFrames": 5
+    },
+    {
+      "surface": "manuscript",
+      "width": 960,
+      "indent": "0px",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 960,
+      "indent": "0px",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 960,
+      "indent": "2em",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 16,
+      "prefixLayoutShiftFrames": 6
+    },
+    {
+      "surface": "manuscript",
+      "width": 960,
+      "indent": "2em",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "manuscript",
+      "width": 960,
+      "indent": "2em",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 420,
+      "indent": "0px",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 19,
+      "prefixLayoutShiftFrames": 13
+    },
+    {
+      "surface": "entity",
+      "width": 420,
+      "indent": "0px",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 420,
+      "indent": "0px",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 420,
+      "indent": "2em",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 17,
+      "prefixLayoutShiftFrames": 13
+    },
+    {
+      "surface": "entity",
+      "width": 420,
+      "indent": "2em",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 420,
+      "indent": "2em",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 720,
+      "indent": "0px",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 15,
+      "prefixLayoutShiftFrames": 7
+    },
+    {
+      "surface": "entity",
+      "width": 720,
+      "indent": "0px",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 720,
+      "indent": "0px",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 720,
+      "indent": "2em",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 9,
+      "prefixLayoutShiftFrames": 6
+    },
+    {
+      "surface": "entity",
+      "width": 720,
+      "indent": "2em",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 720,
+      "indent": "2em",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 960,
+      "indent": "0px",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 13,
+      "prefixLayoutShiftFrames": 7
+    },
+    {
+      "surface": "entity",
+      "width": 960,
+      "indent": "0px",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 960,
+      "indent": "0px",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 960,
+      "indent": "2em",
+      "scenario": "insert",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null,
+      "prefixMismatchFrames": 11,
+      "prefixLayoutShiftFrames": 8
+    },
+    {
+      "surface": "entity",
+      "width": 960,
+      "indent": "2em",
+      "scenario": "delete",
+      "frames": 267,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    },
+    {
+      "surface": "entity",
+      "width": 960,
+      "indent": "2em",
+      "scenario": "replace",
+      "frames": 327,
+      "mismatchFrames": 0,
+      "firstMismatch": null
+    }
+  ],
+  "caret": {
+    "frames": 10296,
+    "mismatches": 0
+  },
+  "visibility": {
+    "cases": 20,
+    "mismatches": 0
+  }
+}

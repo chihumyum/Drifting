@@ -8,12 +8,14 @@ export function SettingsToggle({
   on,
   onChange,
   disabled = false,
+  'aria-label': ariaLabel,
 }: {
   on: boolean;
   onChange: (next: boolean) => void;
   disabled?: boolean;
+  'aria-label'?: string;
 }) {
-  return <Switch checked={on} onCheckedChange={onChange} disabled={disabled} />;
+  return <Switch checked={on} onCheckedChange={onChange} disabled={disabled} aria-label={ariaLabel} />;
 }
 
 export function SettingsSegment<T extends string>({

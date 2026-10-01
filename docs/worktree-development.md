@@ -49,16 +49,23 @@ Each profile has:
   avoid that limitation without changing product Rust code. Changing the port
   also changes the frontend storage origin.
 
-The launcher forces local-only mode and overrides inherited `DRIFTING_DB_DIR`,
+The launcher defaults to local-only mode and overrides inherited `DRIFTING_DB_DIR`,
 `CARGO_TARGET_DIR`, app flags and custom runners. It retains host toolchain and
 macOS signing configuration, but drops inherited app credentials, Hosted
 configuration and debug-bridge endpoints. Vite does not read checkout dotenv
 files for this launch. Generated configs and `profile.json` remain in the
 ignored profile directory; no existing database or credentials are copied.
 
+For an explicitly authorized Hosted acceptance run, use
+`pnpm dev:worktree --online --instance sync-ui --no-watch`.
+It reads the same exact service origin as `pnpm dev:online`, enables Hosted and
+includes that origin in the profile identity and CSP. Another service gets a
+different library and credential service; the default local profile is not uploaded.
+Allow the manifest's exact development origin in the operator's service CORS
+configuration when testing remote authentication. Do not enable wildcard CORS.
+
 Use only synthetic data in these profiles. A fresh profile starts without cloud
-bindings. Google Drive is temporarily suspended in all App builds; this launcher
-also disables Hosted, so its library stays local. It does not seed fixtures, grant MCP access or
+bindings. Google Drive is temporarily suspended in all App builds. The launcher does not seed fixtures, grant MCP access or
 claim UI acceptance. Configure test-owned MCP access from the isolated app if
 needed. Existing acceptance collectors keep their own fixture workflows.
 

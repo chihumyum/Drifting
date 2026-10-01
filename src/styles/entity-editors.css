@@ -10,9 +10,12 @@
 .elem-body .ProseMirror {
   outline: none;
   min-height: 120px;
+  font-family: var(--font-content);
+  font-size: var(--editor-font-size, 17.5px);
+  line-height: var(--editor-line-height, 1.75);
 }
 .elem-body .ProseMirror p {
-  margin: 0 0 var(--editor-paragraph-spacing, 1em);
+  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
 }
 .elem-body .ProseMirror em {
   font-style: italic;
@@ -820,14 +823,13 @@
 .patch-card__body .ProseMirror {
   outline: none;
   min-height: 1.6em;
-  font-family: var(--font-sans);
-  /* Body is the primary read-target — bigger than title + anchor combined. */
-  font-size: 15px;
-  line-height: 1.7;
+  font-family: var(--font-content);
+  font-size: var(--editor-font-size, 17.5px);
+  line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
 }
 .patch-card__body .ProseMirror p {
-  margin: 0 0 0.6em;
+  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
 }
 .patch-card__body .ProseMirror p:last-child {
   margin-bottom: 0;

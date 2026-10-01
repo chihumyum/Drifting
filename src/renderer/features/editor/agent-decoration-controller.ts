@@ -16,6 +16,7 @@ export function attachAgentDecorationController(input: {
   entityId: string;
   store: AgentDecorationStore;
   presentationNeeded: boolean;
+  revealAnimationEnabled?: boolean;
   onReady(ready: boolean): void;
   onError(error: unknown): void;
 }) {
@@ -23,6 +24,7 @@ export function attachAgentDecorationController(input: {
   const select = createAgentDecorationSelector(input.entityType, input.entityId);
   let projection = select(store.getState());
   let presentationNeeded = input.presentationNeeded;
+  let revealAnimationEnabled = input.revealAnimationEnabled ?? true;
   let dirty = true;
   let disposed = false;
   let lastReady: boolean | undefined;
@@ -31,7 +33,7 @@ export function attachAgentDecorationController(input: {
     lastReady = value;
     input.onReady(value);
   };
-  const hasProjection = () => projection.approveChanges.length > 0 || projection.autoRevealBlockIds !== undefined;
+  const hasProjection = () => projection.approveChanges.length > 0 || (revealAnimationEnabled && projection.autoRevealBlockIds !== undefined);
   const flush = () => {
     if (disposed || editor.isDestroyed) return;
     if (!dirty) { ready(true); return; }
@@ -40,7 +42,7 @@ export function attachAgentDecorationController(input: {
       const current = AgentDiffPluginKey.getState(editor.state);
       if (!current) throw new Error('Agent decoration plugin is missing');
       const next = hasProjection()
-        ? buildAgentEditorDecorations(editor.state.doc, projection.approveChanges, projection.autoRevealBlockIds)
+        ? buildAgentEditorDecorations(editor.state.doc, projection.approveChanges, revealAnimationEnabled ? projection.autoRevealBlockIds : undefined)
         : DecorationSet.empty;
       if (current !== DecorationSet.empty || next !== DecorationSet.empty) {
         editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, next));
@@ -78,6 +80,11 @@ export function attachAgentDecorationController(input: {
   editor.on('update', onUpdate);
   changed();
   return {
+    setRevealAnimationEnabled(value: boolean) {
+      if (disposed || editor.isDestroyed || revealAnimationEnabled === value) return;
+      revealAnimationEnabled = value;
+      changed();
+    },
     setPresentationNeeded(value: boolean) {
       if (disposed || editor.isDestroyed) return;
       presentationNeeded = value;

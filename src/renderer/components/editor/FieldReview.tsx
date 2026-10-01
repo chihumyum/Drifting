@@ -15,10 +15,13 @@
  * with the prose reveal; the prose-only machinery (ProseMirror decorations, the
  * rect-tracking portal overlay) doesn't apply to a form field and isn't needed.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
+import { useSettingsStore } from '../../store/settings-store';
+import { createAgentEditSeenTracker } from './agent-edit-animation';
+import { AgentRevealText } from './AgentRevealText';
 
 /** Static red (deleted) / green (inserted) token diff of two strings. */
 export function FieldDiff({ oldText, newText }: { oldText: string; newText: string }) {
@@ -72,6 +75,7 @@ function FieldReveal({
   newText: string;
   onDone: () => void;
 }) {
+  const revealAnimationEnabled = useSettingsStore((s) => s.agentEditRevealAnimation);
   const segs = useMemo(() => diffTokens(oldText, newText), [oldText, newText]);
   const { delChars, insChars } = useMemo(() => {
     let d = 0;
@@ -91,6 +95,10 @@ function FieldReveal({
   });
 
   useEffect(() => {
+    if (!revealAnimationEnabled) {
+      doneRef.current();
+      return;
+    }
     const duration = Math.max(MIN_REVEAL_MS, Math.min(MAX_REVEAL_MS, total * CHAR_MS));
     let raf = 0;
     let start = 0;
@@ -105,42 +113,15 @@ function FieldReveal({
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
     };
-  }, [total]);
+  }, [total, revealAnimationEnabled]);
 
-  const erased = Math.min(progress, delChars);
-  const shownIns = Math.max(0, progress - delChars);
-  const nodes: ReactNode[] = [];
-  let delOff = 0;
-  let insOff = 0;
-  segs.forEach((s, idx) => {
-    if (s.kind === 'equal') {
-      nodes.push(<span key={idx}>{s.text}</span>);
-      return;
-    }
-    if (s.kind === 'del') {
-      const removed = Math.min(Math.max(erased - delOff, 0), s.text.length);
-      delOff += s.text.length;
-      const rest = s.text.slice(removed);
-      if (rest)
-        nodes.push(
-          <del key={idx} className="field-diff__del">
-            {rest}
-          </del>,
-        );
-      return;
-    }
-    const shown = Math.min(Math.max(shownIns - insOff, 0), s.text.length);
-    insOff += s.text.length;
-    if (shown)
-      nodes.push(
-        <ins key={idx} className="field-diff__ins">
-          {s.text.slice(0, shown)}
-        </ins>,
-      );
-  });
-  if (progress < total) nodes.push(<span key="caret" className="agent-reveal__caret" />);
+  if (!revealAnimationEnabled) return <span>{newText}</span>;
 
-  return <span className="field-diff">{nodes}</span>;
+  return (
+    <span className="field-diff">
+      <AgentRevealText segments={segs} progress={progress} classPrefix="field-diff" />
+    </span>
+  );
 }
 
 export function FieldReview({
@@ -155,6 +136,7 @@ export function FieldReview({
   onReject: () => void;
 }) {
   const { t } = useTranslation();
+  const revealAnimationEnabled = useSettingsStore((s) => s.agentEditRevealAnimation);
   const mode = change.mode ?? 'approve';
   const ref = useRef<HTMLDivElement>(null);
   // Once true, the diff types itself in; its onDone resolves the change.
@@ -176,18 +158,21 @@ export function FieldReview({
     if (!el) return undefined;
     let hold = 0;
     let raf = 0;
+    let armed = false;
+    const seenTracker = createAgentEditSeenTracker(() => setCommitting(true));
     const arm = () => {
-      if (hold) return;
+      if (armed) return;
+      armed = true;
       hold = window.setTimeout(() => setCommitting(true), AUTO_HOLD_MS);
     };
     const check = () => {
-      if (hold) return;
+      if (armed) return;
       const r = el.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
       const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
-      if (visible > 0 && (visible >= r.height * FIELD_REVEAL_RATIO || visible >= vh * FIELD_REVEAL_RATIO)) {
-        arm();
-      }
+      const enough = visible > 0 && (visible >= r.height * FIELD_REVEAL_RATIO || visible >= vh * FIELD_REVEAL_RATIO);
+      if (!revealAnimationEnabled) seenTracker.update(enough ? [change] : []);
+      else if (enough) arm();
     };
     const schedule = () => {
       if (raf) return;
@@ -206,16 +191,17 @@ export function FieldReview({
     const grace = window.setTimeout(() => {
       const r = el.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
-      if (Math.min(r.bottom, vh) - Math.max(r.top, 0) > 0) arm();
+      if (revealAnimationEnabled && Math.min(r.bottom, vh) - Math.max(r.top, 0) > 0) arm();
     }, FIELD_AUTO_GRACE_MS);
     return () => {
+      seenTracker.dispose();
       window.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
       if (hold) window.clearTimeout(hold);
       if (raf) window.cancelAnimationFrame(raf);
       window.clearTimeout(grace);
     };
-  }, [mode, change.blockId]);
+  }, [mode, change, revealAnimationEnabled]);
 
   // For a KV row the key isn't part of the value diff, so show it as a prefix —
   // colored with the op (new = green, deleted = red struck) so a new fact reads
@@ -240,6 +226,8 @@ export function FieldReview({
             newText={change.newText}
             onDone={() => acceptRef.current()}
           />
+        ) : mode === 'auto' && !revealAnimationEnabled ? (
+          <span>{change.newText}</span>
         ) : (
           <FieldDiff oldText={change.oldText} newText={change.newText} />
         )}

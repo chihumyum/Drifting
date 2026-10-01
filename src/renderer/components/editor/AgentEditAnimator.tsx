@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +15,9 @@ import {
   type AgentEditReviewBatch,
 } from '../../store/agent-edit-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { entityKey, type ActivityEntityType } from '../../lib/agent/tool-entity-ref';
+import { AgentRevealText } from './AgentRevealText';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
 import { revertEntityBlock } from '../../lib/agent/chapter-prose';
 import {
@@ -28,8 +29,12 @@ import { agentChangeUsesAutoRevealMask } from '../../lib/extensions/agent-diff-d
 import {
   agentEditAnimationKey,
   agentEditOpaqueBackground,
+  agentEditProseStyle,
   agentEditRectInScrollHost,
+  agentEditRevealCount,
+  agentEditRevealTiming,
   bulkAgentEditRevealChanges,
+  createAgentEditSeenTracker,
 } from './agent-edit-animation';
 
 /**
@@ -69,13 +74,6 @@ interface AgentEditAnimatorProps {
   id: string | null | undefined;
 }
 
-// Reveal timing: erase the deleted chars then type the inserted chars, one at a
-// time (typewriter), then fade out onto the real block. Pace is per-character,
-// clamped so tiny edits still register and big rewrites don't drag.
-const CHAR_MS = 25;
-const MIN_REVEAL_MS = 500;
-const MAX_REVEAL_MS = 2500;
-const EXIT_MS = 320;
 // A change whose anchor never appears in the DOM clears after this, so a tick /
 // "M" can never get wedged on a block that won't render.
 const ANCHOR_GRACE_MS = 4500;
@@ -148,6 +146,7 @@ interface AnchorBox {
   left: number;
   width: number;
   height: number;
+  prose: CSSProperties;
 }
 
 function sameAnchorBox(a: AnchorBox | null, b: AnchorBox | null): boolean {
@@ -158,7 +157,8 @@ function sameAnchorBox(a: AnchorBox | null, b: AnchorBox | null): boolean {
       a.top === b.top &&
       a.left === b.left &&
       a.width === b.width &&
-      a.height === b.height)
+      a.height === b.height &&
+      Object.keys(a.prose).every((key) => a.prose[key as keyof CSSProperties] === b.prose[key as keyof CSSProperties]))
   );
 }
 
@@ -186,14 +186,17 @@ function useAnchorBox(
         if (observedAnchor) ro.observe(observedAnchor);
       }
       const next = el
-        ? agentEditRectInScrollHost(
+        ? {
+          ...agentEditRectInScrollHost(
             el.getBoundingClientRect(),
             host.getBoundingClientRect(),
             host.scrollTop,
             host.scrollLeft,
             host.clientTop,
             host.clientLeft,
-          )
+          ),
+          prose: readProseStyle(el),
+        }
         : null;
       setBox((previous) => (sameAnchorBox(previous, next) ? previous : next));
     };
@@ -211,7 +214,15 @@ function useAnchorBox(
     const page = scrollEl.querySelector('.page');
     if (page) ro.observe(page);
     const mo = new MutationObserver(schedule);
-    mo.observe(page ?? host, { childList: true, subtree: true });
+    mo.observe(page ?? host, {
+      childList: true, subtree: true, attributes: true,
+      attributeFilter: ['style', 'class', 'dir', 'lang'],
+    });
+    // Preferences update root CSS variables; an equal-height paragraph can
+    // change its wrapping/indent without triggering ResizeObserver.
+    mo.observe(document.documentElement, {
+      attributes: true, attributeFilter: ['style', 'class', 'dir', 'lang'],
+    });
     window.addEventListener('resize', schedule);
     return () => {
       window.removeEventListener('resize', schedule);
@@ -227,37 +238,17 @@ function useAnchorBox(
 /** Copy the prose typography of the anchor block so the overlay reads as the
  *  same text morphing in place (and an opaque background to occlude the real
  *  block underneath during the crossfade). */
-function useProseStyle(scrollEl: HTMLElement, c: AgentBlockChange): CSSProperties {
-  // Read the anchor block's typography once so the overlay reads as the same
-  // text morphing in place — via useMemo (not an effect) so the style is ready
-  // on first paint and we never setState-in-effect.
-  return useMemo<CSSProperties>(() => {
-    const el = anchorEl(scrollEl, c);
-    if (!el) return {};
-    const cs = getComputedStyle(el);
-    const backgroundCandidates: string[] = [];
-    let backgroundNode: HTMLElement | null = el;
-    while (backgroundNode) {
-      backgroundCandidates.push(getComputedStyle(backgroundNode).backgroundColor);
-      backgroundNode = backgroundNode.parentElement;
-    }
-    const bg = agentEditOpaqueBackground(backgroundCandidates);
-    return {
-      fontFamily: cs.fontFamily,
-      fontSize: cs.fontSize,
-      fontWeight: cs.fontWeight as CSSProperties['fontWeight'],
-      lineHeight: cs.lineHeight,
-      letterSpacing: cs.letterSpacing,
-      color: cs.color,
-      textAlign: cs.textAlign as CSSProperties['textAlign'],
-      paddingTop: cs.paddingTop,
-      paddingBottom: cs.paddingBottom,
-      paddingLeft: cs.paddingLeft,
-      paddingRight: cs.paddingRight,
-      background: bg,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollEl, c.blockId, c.op]);
+function readProseStyle(el: HTMLElement): CSSProperties {
+  const backgroundCandidates: string[] = [];
+  let backgroundNode: HTMLElement | null = el;
+  while (backgroundNode) {
+    backgroundCandidates.push(getComputedStyle(backgroundNode).backgroundColor);
+    backgroundNode = backgroundNode.parentElement;
+  }
+  return {
+    ...agentEditProseStyle(getComputedStyle(el)),
+    background: agentEditOpaqueBackground(backgroundCandidates),
+  };
 }
 
 /**
@@ -272,6 +263,7 @@ function RevealOverlay({
   scrollEl,
   host,
   change,
+  revealCount,
   onDone,
   crossfade = true,
   offsetTop = 0,
@@ -280,6 +272,7 @@ function RevealOverlay({
   scrollEl: HTMLElement;
   host: HTMLElement;
   change: AgentBlockChange;
+  revealCount: number;
   onDone: () => void;
   /** Auto changed/new blocks stay masked in ProseMirror while typing. At
    *  completion they swap atomically to the real block, so no crossfade. */
@@ -289,11 +282,11 @@ function RevealOverlay({
    *  deletes' heights). 0 for everything else. */
   offsetTop?: number;
   /** Report this overlay's live height up so the parent can stack the run (and
-   *  let the column compact as each delete erases). Only wired for deletions. */
+   *  let the column compact as each deletion finishes). Only wired for deletions. */
   onMeasure?: (key: string, height: number) => void;
 }) {
+  const revealAnimationEnabled = useSettingsStore((s) => s.agentEditRevealAnimation);
   const rect = useAnchorBox(scrollEl, host, change);
-  const prose = useProseStyle(scrollEl, change);
   const segs = useMemo(() => diffTokens(change.oldText, change.newText), [change.oldText, change.newText]);
   const { delChars, insChars } = useMemo(() => {
     let d = 0;
@@ -305,6 +298,8 @@ function RevealOverlay({
     return { delChars: d, insChars: i };
   }, [segs]);
   const total = delChars + insChars;
+  const [countAtStart] = useState(revealCount);
+  const { durationMs, exitMs } = agentEditRevealTiming(total, countAtStart);
 
   const [progress, setProgress] = useState(0);
   const [fading, setFading] = useState(false);
@@ -314,7 +309,7 @@ function RevealOverlay({
   });
 
   // Report the overlay's live height so the parent can stack a run of deletions
-  // that share one anchor (and let the column compact as each erases). Gated to
+  // that share one anchor (and let the column compact as each finishes). Gated to
   // deletions — they're the only changes that can collapse onto a shared anchor;
   // a changed/new block owns its own anchor and never stacks.
   const key = keyOf(change);
@@ -341,13 +336,19 @@ function RevealOverlay({
   );
 
   useEffect(() => {
-    const duration = Math.max(MIN_REVEAL_MS, Math.min(MAX_REVEAL_MS, total * CHAR_MS));
+    if (!revealAnimationEnabled) {
+      // Finish outside React's effect phase: the owner atomically clears its
+      // presentation with flushSync. No frame, typewriter or fade is needed.
+      let cancelled = false;
+      queueMicrotask(() => { if (!cancelled) done.current(); });
+      return () => { cancelled = true; };
+    }
     let raf = 0;
     let exitTimer = 0;
     let start = 0;
     const tick = (ts: number) => {
       if (!start) start = ts;
-      const t = total === 0 ? 1 : Math.min(1, (ts - start) / duration);
+      const t = total === 0 ? 1 : Math.min(1, (ts - start) / durationMs);
       setProgress(Math.round(t * total));
       if (t < 1) {
         raf = window.requestAnimationFrame(tick);
@@ -361,7 +362,7 @@ function RevealOverlay({
         done.current();
       } else {
         setFading(true);
-        exitTimer = window.setTimeout(() => done.current(), EXIT_MS);
+        exitTimer = window.setTimeout(() => done.current(), exitMs);
       }
     };
     raf = window.requestAnimationFrame(tick);
@@ -369,35 +370,9 @@ function RevealOverlay({
       if (raf) window.cancelAnimationFrame(raf);
       if (exitTimer) window.clearTimeout(exitTimer);
     };
-  }, [total, change.op, crossfade]);
+  }, [total, change.op, crossfade, revealAnimationEnabled, durationMs, exitMs]);
 
-  if (!rect) return null;
-
-  const erased = Math.min(progress, delChars);
-  const shownIns = Math.max(0, progress - delChars);
-  const nodes: ReactNode[] = [];
-  let delOff = 0;
-  let insOff = 0;
-  segs.forEach((s, idx) => {
-    if (s.kind === 'equal') {
-      nodes.push(<span key={idx}>{s.text}</span>);
-      return;
-    }
-    if (s.kind === 'del') {
-      // Erase from the front, so the remaining (un-erased) tail is the slice.
-      const removed = Math.min(Math.max(erased - delOff, 0), s.text.length);
-      delOff += s.text.length;
-      const rest = s.text.slice(removed);
-      if (rest) nodes.push(<span key={idx} className="agent-reveal__del">{rest}</span>);
-      return;
-    }
-    const shown = Math.min(Math.max(shownIns - insOff, 0), s.text.length);
-    insOff += s.text.length;
-    if (shown) nodes.push(<span key={idx} className="agent-reveal__ins">{s.text.slice(0, shown)}</span>);
-  });
-  if (!fading && progress < total) {
-    nodes.push(<span key="caret" className="agent-reveal__caret" />);
-  }
+  if (!rect || !revealAnimationEnabled) return null;
 
   // A deletion hangs just BELOW its surviving predecessor (no-ghost fallback);
   // anchored to its in-place ghost or the first block, it sits at that top.
@@ -405,7 +380,7 @@ function RevealOverlay({
   const onGhost = !!aEl && aEl.classList.contains('agent-diff-deleted-block');
   const top = aEl && deletionHangsBelow(aEl, change) ? rect.top + rect.height : rect.top;
   const pos: CSSProperties = {
-    ...prose,
+    ...rect.prose,
     // The overlay host is an in-flow child of `.editor-scroll`, so these stable
     // content coordinates move in the same compositor transaction as the prose.
     position: 'absolute',
@@ -413,11 +388,10 @@ function RevealOverlay({
     top: top + offsetTop,
     left: rect.left,
     width: rect.width,
-    // Hold the FULL height so the overlay keeps occluding what's underneath as its
-    // text erases. Crucial for a deletion over its struck ghost: without this the
-    // overlay shrinks with the shrinking text and progressively UNCOVERS the ghost,
-    // which fully shows for an instant at the end (the "flash"). Auto-mode
-    // deletions (no ghost to occlude) keep auto-height.
+    transitionDuration: `${exitMs}ms`,
+    // Keep occluding the anchor when the animation switches between the old and
+    // new text layouts. A deletion over its struck ghost must cover that ghost
+    // until the owner removes both together. Unanchored deletions use auto-height.
     minHeight: change.op === 'deleted' ? (onGhost ? rect.height : undefined) : rect.height,
   };
   return (
@@ -427,7 +401,7 @@ function RevealOverlay({
       className={`agent-reveal agent-reveal--${change.op}${fading ? ' agent-reveal--fade' : ''}`}
       style={pos}
     >
-      {nodes}
+      <AgentRevealText segments={segs} progress={progress} showCaret={!fading} />
     </div>
   );
 }
@@ -585,7 +559,9 @@ function syncDurableBlockDecisions(
 export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: AgentEditAnimatorProps) {
   // Each change carries its OWN mode (stamped at record time), so the global
   // toggle only governs future edits: an 'auto' change reveals + auto-applies, an
-  // 'approve' change shows ✓/✗ — even after the toggle flips. No global read here.
+  // 'approve' change shows ✓/✗ — even after the edit-mode toggle flips.
+  // The appearance preference only controls motion, never that review mode.
+  const revealAnimationEnabled = useSettingsStore((s) => s.agentEditRevealAnimation);
   const pending = useAgentEditStore((s) => s.pending);
   const editKey = id ? entityKey(entityType, id) : null;
   const entry = editKey ? pending[editKey] : undefined;
@@ -610,6 +586,10 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   const [revealing, setRevealing] = useState<Map<string, AgentBlockChange>>(() => new Map());
   const [committing, setCommitting] = useState<Map<string, AgentBlockChange>>(
     () => new Map(),
+  );
+  const revealCount = useMemo(
+    () => agentEditRevealCount(changes, revealing.values(), committing.values()),
+    [changes, revealing, committing],
   );
   const [bulkBusy, setBulkBusy] = useState(false);
   const settlingRef = useRef(new Set<string>());
@@ -637,8 +617,14 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // predecessor (block-diff anchors every delete to its nearest survivor), so
   // without an offset they'd pin to the same spot and overlap. Each delete sits
   // below the summed heights of the earlier deletes in its run; the column
-  // compacts as they erase (and as each resolves out of the run).
+  // compacts as each deletion resolves out of the run.
   const [heights, setHeights] = useState<Map<string, number>>(() => new Map());
+  useLayoutEffect(() => useSettingsStore.subscribe((state, previous) => {
+    if (previous.agentEditRevealAnimation && !state.agentEditRevealAnimation) {
+      setRevealing(new Map());
+      setHeights(new Map());
+    }
+  }), []);
   const reportHeight = useCallback((k: string, h: number) => {
     setHeights((prev) => (prev.get(k) === h ? prev : new Map(prev).set(k, h)));
   }, []);
@@ -971,6 +957,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     if (!scrollEl || !id || autoChanges.length === 0) return undefined;
 
     const fired = new Set<string>(); // change keys whose reveal has been kicked off
+    const seenTracker = createAgentEditSeenTracker(resolve);
 
     const check = () => {
       const v = scrollEl.getBoundingClientRect();
@@ -986,9 +973,13 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
         // ≥35% of the block is visible, OR its visible slice covers ≥35% of the
         // viewport (the block-taller-than-viewport case).
         if (visible >= r.height * REVEAL_RATIO || visible >= v.height * REVEAL_RATIO) {
-          fired.add(k);
+          if (revealAnimationEnabled) fired.add(k);
           toFire.push(c);
         }
+      }
+      if (!revealAnimationEnabled) {
+        seenTracker.update(toFire);
+        return;
       }
       if (toFire.length === 0) return;
       setRevealing((prev) => {
@@ -1022,12 +1013,13 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     mo.observe(scrollEl, { childList: true, subtree: true });
 
     return () => {
+      seenTracker.dispose();
       scrollEl.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       mo.disconnect();
       if (raf) window.cancelAnimationFrame(raf);
     };
-  }, [scrollEl, id, changesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scrollEl, id, changesKey, revealAnimationEnabled, resolve]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Portal into the positioned in-flow spread. The ancestor `.editor-scroll`
   // clips it naturally, and WebKit scrolls the overlay in the same compositor
@@ -1053,11 +1045,11 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     const t = window.setTimeout(() => {
       for (const c of autoChanges) {
         const el = anchorEl(scrollEl, c);
-        if (!el || intersectsViewport(el, scrollEl)) resolve(c);
+        if (!el || (revealAnimationEnabled && intersectsViewport(el, scrollEl))) resolve(c);
       }
     }, ANCHOR_GRACE_MS);
     return () => window.clearTimeout(t);
-  }, [scrollEl, id, changesKey, resolve]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scrollEl, id, changesKey, resolve, revealAnimationEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep rendering while a reveal (auto) or commit (approve) is in flight even
   // after its change resolves out of the store — otherwise the overlay would
@@ -1072,7 +1064,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
               viewport. Rendered off `revealing` alone — that map is only ever
               populated by the auto effect, so a reveal still finishes if its change
               resolves out from under it. */}
-          {[...revealing.values()].map((c) => {
+          {revealAnimationEnabled && [...revealing.values()].map((c) => {
             const maskedAutoReveal = agentChangeUsesAutoRevealMask(c);
             return (
               <RevealOverlay
@@ -1080,6 +1072,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
                 scrollEl={scrollEl}
                 host={layerHost}
                 change={c}
+                revealCount={revealCount}
                 crossfade={!maskedAutoReveal}
                 offsetTop={stackOffsets.get(keyOf(c)) ?? 0}
                 onMeasure={reportHeight}
@@ -1131,6 +1124,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
               scrollEl={scrollEl}
               host={layerHost}
               change={change}
+              revealCount={revealCount}
               onDone={() => {
                 if (change.op === 'deleted') {
                   resolve(change);

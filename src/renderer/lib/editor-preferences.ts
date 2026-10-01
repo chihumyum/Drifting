@@ -1,11 +1,10 @@
 /**
  * Authored-content preferences → CSS variables.
  *
- * Manuscript prose and entity-editor content share --editor-font-family
- * through the semantic --font-content alias. The remaining editor layout
- * properties (--editor-font-size, --editor-line-height, --editor-max-width,
- * --editor-indent) stay manuscript-only. Centralising the application here
- * keeps styles independent from the settings store.
+ * Manuscript prose, entity bodies/templates and patch bodies share the content
+ * font, font size, line height and paragraph spacing on desktop and mobile.
+ * Layout-specific preferences remain owned by each surface's styles.
+ * Centralising the application here keeps styles independent from the store.
  */
 import type {
   EditorFontSource,

@@ -7,6 +7,7 @@ import { homedir, networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { hostedEnvironment } from './hosted-environment.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const coreDir = path.resolve(path.dirname(scriptPath), '..');
@@ -154,19 +155,19 @@ function findAndroidNdk(env) {
 
 export function createMobileEnvironment(
   target,
-  { baseEnvironment = process.env, envFile = localEnvPath } = {},
+  { baseEnvironment = process.env, envFile = localEnvPath, mode = 'configured' } = {},
 ) {
   if (!supportedTargets.has(target)) {
     throw new TypeError(`Unsupported mobile target: ${target}`);
   }
+  if (!['configured', 'local', 'online'].includes(mode)) throw new TypeError(`Unsupported mobile mode: ${mode}`);
   // Explicit shell and CI values take precedence over ignored local settings.
   // The resulting object is passed directly to Tauri, Gradle/Xcode and Cargo.
-  const merged = {
-    ...readLocalEnvironment(envFile),
-    ...stringEnvironment(baseEnvironment),
-  };
+  const localEnvironment = readLocalEnvironment(envFile);
+  const shellEnvironment = stringEnvironment(baseEnvironment);
+  const merged = { ...localEnvironment, ...shellEnvironment };
   const apiBaseUrl = resolveApiBaseUrl(merged);
-  const localOnly = (merged.VITE_LOCAL_ONLY_MODE ?? 'true') !== 'false';
+  const localOnly = mode === 'local' || (mode !== 'online' && (merged.VITE_LOCAL_ONLY_MODE ?? 'true') !== 'false');
   const env = {
     ...merged,
     VITE_API_BASE_URL: merged.VITE_API_BASE_URL ?? apiBaseUrl,
@@ -174,8 +175,8 @@ export function createMobileEnvironment(
     VITE_LOCAL_ONLY_MODE: String(localOnly),
     VITE_REQUIRE_AUTH: 'false',
     VITE_AI_TRANSPORT: 'direct',
-    ...(localOnly ? {} : { DRIFTING_HOSTED_ORIGIN: apiBaseUrl }),
     VITE_CLOSED_BETA: merged.VITE_CLOSED_BETA ?? 'false',
+    ...(localOnly ? {} : hostedEnvironment(shellEnvironment, localEnvironment)),
   };
 
   if (target === 'android') {
@@ -250,7 +251,7 @@ async function assertServiceReachable(apiBaseUrl) {
   let response;
   try {
     response = await fetch(new URL('/health', apiBaseUrl), {
-      signal: AbortSignal.timeout(2_000),
+      signal: AbortSignal.timeout(10_000),
     });
   } catch {
     throw new Error(
@@ -273,9 +274,12 @@ export async function runMobileDev() {
     return;
   }
 
+  const rawArguments = process.argv.slice(3);
+  const online = rawArguments.includes('--online');
+  if (online && target !== 'ios') throw new Error('--online is currently supported by the iOS launcher only.');
   let env;
   try {
-    env = createMobileEnvironment(target);
+    env = createMobileEnvironment(target, { mode: online ? 'online' : 'configured' });
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
@@ -294,7 +298,7 @@ export async function runMobileDev() {
     return;
   }
 
-  const rawForwardedArgs = process.argv.slice(3);
+  const rawForwardedArgs = rawArguments.filter(argument => argument !== '--online');
   // pnpm 10 preserves the first `--` used to separate script arguments. It is
   // not a Tauri runner separator, so remove only that leading marker.
   const forwardedArgs = rawForwardedArgs[0] === '--' ? rawForwardedArgs.slice(1) : rawForwardedArgs;

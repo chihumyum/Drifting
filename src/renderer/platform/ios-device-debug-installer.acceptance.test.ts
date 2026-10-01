@@ -12,6 +12,19 @@ const {
 } = installer;
 
 describe('standalone iOS device Debug installer', () => {
+  it('explicit online installation carries the origin into native configuration and bundled CSP', async () => {
+    const execute = vi.fn(async (command: string) => command === '/usr/bin/plutil' ? 'cc.drifting.client\n' : '');
+    const createEnvironment = vi.fn(() => ({ DRIFTING_HOSTED_ORIGIN: 'https://service.example.test',
+      VITE_API_BASE_URL: 'https://service.example.test', VITE_LOCAL_ONLY_MODE: 'false' }));
+    await installIosDebugDevice(['--device', 'paired-id', '--online', '--no-launch'], {
+      baseEnvironment: {}, platform: 'darwin', pathExists: () => true, execute,
+      createEnvironment, writeOauthConfiguration: () => ({ googleDriveOAuthConfigured: false }),
+    });
+    expect(createEnvironment).toHaveBeenCalledWith('ios', expect.objectContaining({ mode: 'online' }));
+    const args = execute.mock.calls[0] as unknown as [string, string[]];
+    const config = JSON.parse(args[1][args[1].indexOf('--config') + 1]);
+    expect(config.app.security.csp).toContain('https://service.example.test');
+  });
   it('accepts pnpm argument forwarding, explicit devices, and no-launch mode', () => {
     expect(
       parseIosDeviceDebugArguments(['--', '--device', 'Author iPhone', '--no-launch'], {}),

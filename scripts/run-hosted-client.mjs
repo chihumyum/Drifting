@@ -4,14 +4,17 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
+import { createDesktopTauriEnvironment } from './run-desktop-tauri.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [target = 'desktop', command = 'dev', ...args] = process.argv.slice(2);
 if (!['desktop', 'ios', 'android'].includes(target) || !['dev', 'build'].includes(command))
   throw new Error('Usage: hosted:client <desktop|ios|android> <dev|build> [Tauri options]');
-const peer = process.env.DRIFTING_HOSTED_LAB_INSTANCE === 'peer';
-const labIdentifier = `cc.drifting.client.hosted-lab${peer ? '.peer' : ''}`;
-const labName = peer ? 'Drifting Hosted Peer' : 'Drifting Hosted Lab';
-const origin = new URL(process.env.DRIFTING_HOSTED_ORIGIN ?? 'http://localhost:3000').origin;
+const instance = process.env.DRIFTING_HOSTED_LAB_INSTANCE ?? '';
+if (instance && !/^[a-z][a-z0-9-]{0,31}$/.test(instance)) throw new Error('Invalid Hosted lab instance.');
+const labIdentifier = `cc.drifting.client.hosted-lab${instance ? `.${instance}` : ''}`;
+const labName = instance === 'peer' ? 'Drifting Hosted Peer' : `Drifting Hosted Lab${instance ? ` ${instance}` : ''}`;
+const onlineEnvironment = createDesktopTauriEnvironment({ mode: 'online' });
+const origin = onlineEnvironment.DRIFTING_HOSTED_ORIGIN;
 if (command === 'build' && !args.includes('--debug') && !origin.startsWith('https://'))
   throw new Error('Release Hosted clients require an HTTPS DRIFTING_HOSTED_ORIGIN.');
 const config = JSON.parse(readFileSync(path.join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
@@ -72,8 +75,9 @@ const env = {
   VITE_API_BASE_URL: origin,
   API_BASE_URL: origin,
   DRIFTING_HOSTED_ORIGIN: origin,
+  DRIFTING_VITE_CACHE_DIR: path.join(root, '.local-data', `hosted-lab${instance ? `-${instance}` : ''}`, 'vite-cache'),
   DRIFTING_DB_DIR:
-    process.env.DRIFTING_DB_DIR ?? `.local-data/hosted-lab${peer ? '-peer' : ''}/databases`,
+    process.env.DRIFTING_DB_DIR ?? `.local-data/hosted-lab${instance ? `-${instance}` : ''}/databases`,
 };
 if (target === 'ios' && command === 'build') {
   const sdk =

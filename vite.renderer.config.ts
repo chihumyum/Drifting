@@ -33,6 +33,9 @@ export default defineConfig(({ command }) => {
   }
 
   return {
+    // Independent Hosted labs must not invalidate another running client's
+    // optimized dependency URLs while compiling their mobile renderer.
+    cacheDir: process.env.DRIFTING_VITE_CACHE_DIR || undefined,
     // Release builds accept only explicit process variables. This prevents ignored
     // developer .env files (including BYOK keys) from leaking into a bundle.
     envDir: isBuild ? false : undefined,

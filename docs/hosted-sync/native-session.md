@@ -1,5 +1,8 @@
 # Mac Hosted acceptance — 2026-09-30
 
+This is the historical Mac milestone. The author reopened Tauri iOS scope on
+2026-10-01; its VPS/simulator runbook and separate evidence are in [ios.md](ios.md).
+
 The author narrowed this milestone to Mac. All accounts and writing used for
 interactive acceptance were synthetic. Two independent Tauri app instances ran
 on one physical Mac, with separate SQLite libraries and credential services.

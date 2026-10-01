@@ -269,6 +269,8 @@ interface SettingsState {
   /** Null keeps the stylesheet-owned light/dark accent palette. */
   accentColor: string | null;
   setAccentColor: (color: string | null) => void;
+  agentEditRevealAnimation: boolean;
+  setAgentEditRevealAnimation: (enabled: boolean) => void;
 
   // 编辑器
   /** Device-local because installed/imported font availability is not portable. */
@@ -499,6 +501,8 @@ export const useSettingsStore = create<SettingsState>()(
       setThemeMode: (mode) => set({ themeMode: mode }),
       accentColor: null,
       setAccentColor: (color) => set({ accentColor: normalizeAccentColor(color) }),
+      agentEditRevealAnimation: true,
+      setAgentEditRevealAnimation: (enabled) => set({ agentEditRevealAnimation: enabled }),
 
       editorFontSource: EDITOR_STYLE_DEFAULTS.editorFontSource,
       setEditorFontSource: (source) => set({ editorFontSource: source }),
@@ -1040,6 +1044,7 @@ export const useSettingsStore = create<SettingsState>()(
           merged.agentTurnIterationLimit,
         );
         merged.accentColor = normalizeAccentColor(merged.accentColor);
+        merged.agentEditRevealAnimation = merged.agentEditRevealAnimation !== false;
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';

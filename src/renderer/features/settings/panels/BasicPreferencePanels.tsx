@@ -13,6 +13,8 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const accentColor = useSettingsStore((s) => s.accentColor);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
+  const agentEditRevealAnimation = useSettingsStore((s) => s.agentEditRevealAnimation);
+  const setAgentEditRevealAnimation = useSettingsStore((s) => s.setAgentEditRevealAnimation);
   const resolvedTheme =
     themeMode === 'system'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -99,6 +101,20 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
                 </button>
               )}
             </div>
+          }
+        />
+      </div>
+      <div className="set-sec">
+        <SettingsSectionHeader title={t('settings.appearance.animations')} hint="MOTION" />
+        <SettingsRow
+          label={t('settings.appearance.agent_edit_reveal')}
+          desc={t('settings.appearance.agent_edit_reveal_desc')}
+          control={
+            <SettingsToggle
+              on={agentEditRevealAnimation}
+              onChange={setAgentEditRevealAnimation}
+              aria-label={t('settings.appearance.agent_edit_reveal')}
+            />
           }
         />
       </div>

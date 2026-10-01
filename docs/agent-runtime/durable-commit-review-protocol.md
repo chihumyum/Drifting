@@ -116,14 +116,15 @@ for that marker. Replaying an idempotent committed result may rebuild a missing
 presentation marker but must not execute the mutation again.
 
 The sidebar `A` marker outranks `M` but remains below active tool execution. It
-clears only after every initial textual block completes its first-open reveal,
+clears only after every initial textual block completes its first-open reveal
+(or is seen with reveal animation disabled),
 or after empty-editor hydration proves there is no prose to reveal. Opening the
 entity alone does not clear it.
 
 Creation captures its review mode for the complete initial prose:
 
-- auto mode treats every textual top-level block as `new` and masks the durable
-  live block before paint until its reveal completes;
+- auto mode treats every textual top-level block as `new` and, when reveal
+  animation is enabled, masks the durable live block before paint until its reveal completes;
 - approve mode persists one ordinary SQLite review block per textual block and
   uses the same accept/reject and guarded inverse protocol as later edits;
 - an existing durable approve-mode review always outranks rebuildable Added
@@ -134,6 +135,55 @@ materialized, a ProseMirror decoration masks initial textual blocks; after
 materialization, the ordinary block projection takes ownership atomically.
 Long documents reveal on first viewport entry without exposing completed live
 text underneath a duplicate animation. Masking preserves layout geometry.
+
+Settings → Appearance → Agent edit reveal animation defaults to on and persists
+locally. Turning it off immediately removes auto-reveal masks (including pre-live
+guards and Added first-open masks) and skips prose/field typing and commit fades.
+The gutter highlight, scrollbar ticks, and unread activity remain: auto prose
+changes clear only after their result stays sufficiently in view for 500 ms;
+scrolling away cancels that dwell, and offscreen changes remain unread. Missing
+anchors retain the existing grace cleanup. Approval diffs and accept/reject
+decisions are independent of this preference. Turning it off during a reveal
+shows the live result and uses the same seen tracking without replaying motion.
+
+Machine coverage for this preference lives in `settings-store-appearance.test.ts`,
+`agent-decoration-controller.test.ts`, and `agent-edit-animation.test.ts`.
+
+Prose reveal speed follows the current editor's outstanding paragraph count,
+including offscreen pending changes and active auto/approval commit overlays.
+Review/block identity deduplicates a pending change and its overlay, including
+rejection inverses; field reviews and other editors do not inflate this count.
+Each overlay samples the count when it starts. Relative to the original pace,
+1–3 paragraphs run at 0.8×, 4–8 at 1×, 9–16 at 1.5×, 17–24 at 2×, 25–48 at
+2.5×, and more than 48 at 3×. Both the original 500–2500 ms character-based
+typing duration and the 320 ms commit fade are divided by that speed; typing stays within
+167–3125 ms without distorting the requested ratios. New reveals slow down as
+the queue drains, while an in-flight
+reveal never restarts or changes pace because a sibling finished. The disabled
+animation setting retains its independent 500 ms seen dwell. Timing and queue
+selection are covered by `agent-edit-animation.test.ts`.
+
+Reveal layout uses the live paragraph's measured border box at the configured
+editor width, including paragraph padding/borders. Its resolved typography,
+first-line indent, whitespace and wrapping rules are captured with the same
+geometry snapshot. Resizes, replaced prose nodes and root/paragraph style changes
+refresh that snapshot, so changing editor width or typography cannot leave the
+overlay using its initial layout. `AgentRevealText` keeps the complete old text
+in layout during erasure, then the complete new text during insertion. Unshown
+characters use `visibility: hidden`, and the caret is out of flow. Rendering only
+a changing prefix causes wrapping (including `text-wrap: pretty`, punctuation
+and words) to relocate already-visible glyphs at line ends even with the correct
+container width. The two phases never reserve old and new text simultaneously.
+Prose and field reveals share this rendering.
+
+The isolated Chromium check
+`pnpm exec tsx scripts/check-agent-reveal-layout.mjs` compares glyph positions
+at three page widths with and without first-line indent, using synthetic prose.
+It exercises production reveal markup at every character boundary for insertion,
+deletion and replacement in manuscript and entity editor styles, and reproduces
+the prior prefix-based line shifts. Regenerate `acceptance/reveal-layout.json` with
+`--output=docs/agent-runtime/acceptance/reveal-layout.json`. This verifies renderer
+layout, not Tauri/WKWebView visual acceptance.
 
 Added state may be cached in localStorage only as a rebuildable presentation.
 SQLite/Yjs remain authoritative, and presentation failure after a committed
@@ -163,7 +213,8 @@ animation selection and accepted/reverted direction must be covered by pure
 tests. Reveal overlays and their per-block controls must portal into the
 positioned in-flow editor spread and use scroll-content coordinates; they must
 not chase asynchronously scrolled prose from a fixed body layer. Animation
-failure never changes the durable decision. In auto mode, every already-durable
+failure never changes the durable decision. With reveal animation enabled in
+auto mode, every already-durable
 `new` or `changed` prose block is masked in the real ProseMirror flow until its
 overlay completes, for existing files and Added first-open prose alike. The
 completed overlay and real block swap atomically; the finished live text must

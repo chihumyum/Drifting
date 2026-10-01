@@ -6,7 +6,7 @@ const root = process.cwd();
 const read = (relative: string) => readFileSync(resolve(root, relative), 'utf8');
 
 function cssBlock(source: string, selector: string): string {
-  const start = source.indexOf(`${selector} {`);
+  const start = `\n${source}`.indexOf(`\n${selector} {`);
   expect(start).toBeGreaterThanOrEqual(0);
   const end = source.indexOf('\n}', start);
   expect(end).toBeGreaterThan(start);
@@ -41,6 +41,29 @@ describe('mobile Editor Settings presentation', () => {
     expect(preview).toContain('writing-mode: horizontal-tb;');
     expect(preview).toContain('word-break: normal;');
     expect(preview).not.toContain('100vw - 320px');
+  });
+
+  it.each([
+    ['src/styles/index.css', '.page__body .ProseMirror'],
+    ['src/styles/entity-editors.css', '.elem-body .ProseMirror'],
+    ['src/styles/entity-editors.css', '.patch-card__body .ProseMirror'],
+  ])('shares typography preferences on the actual editor: %s %s', (file, selector) => {
+    const css = read(file);
+    const body = cssBlock(css, selector);
+    const paragraph = cssBlock(css, `${selector} p`);
+
+    expect(body).toContain('font-family: var(--font-content);');
+    expect(body).toContain('font-size: var(--editor-font-size, 17.5px);');
+    expect(body).toContain('line-height: var(--editor-line-height, 1.75);');
+    expect(paragraph).toContain('margin: 0 0 var(--editor-paragraph-spacing, 1.1em);');
+  });
+
+  it('inherits the selected mobile body size and line height without extra minimums', () => {
+    const css = read('src/styles/mobile-workspace.css');
+    const body = cssBlock(css, '.m-workspace .page__body .ProseMirror');
+
+    expect(body).not.toMatch(/(?:font-size|line-height|font)\s*:/);
+    expect(body).toContain('text-wrap: wrap;');
   });
 
   it('makes typography controls full-width and touch-sized without changing desktop CSS', () => {

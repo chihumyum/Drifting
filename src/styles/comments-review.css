@@ -705,13 +705,17 @@
   background: hsl(var(--story-3) / 0.18);
   border-radius: 2px;
 }
-/* Blinking typewriter caret at the active edit point. */
+.agent-reveal__unshown {
+  visibility: hidden;
+}
+/* The caret paints at the reveal boundary without adding width or an inline
+   break opportunity. Its appearance cannot push a completed line over the edge. */
 .agent-reveal__caret {
+  position: absolute;
   display: inline-block;
   width: 2px;
   height: 1em;
-  margin-left: 1px;
-  vertical-align: text-bottom;
+  transform: translateX(1px);
   background: hsl(var(--ink-2));
   animation: agentRevealCaret 0.9s steps(1) infinite;
 }
@@ -863,6 +867,7 @@
   margin-bottom: 6px;
 }
 .field-review {
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: 8px;

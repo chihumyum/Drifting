@@ -236,6 +236,8 @@
       "accent_reset": "Restore default",
       "density": "Density",
       "animations": "Animations & transitions",
+      "agent_edit_reveal": "Agent edit reveal animation",
+      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields character by character. Turn off to show results immediately; unread change markers and edit review remain available.",
       "animations_desc": "Interface transitions and activity feedback."
     },
     "editor": {

@@ -33,6 +33,20 @@ afterEach(() => {
 });
 
 describe('isolated worktree development', () => {
+  it('opts into Hosted with service-scoped isolation and matching renderer, native and CSP configuration', () => {
+    const root = fixture();
+    writeFileSync(path.join(root, '.env.local'), 'DRIFTING_HOSTED_ORIGIN=https://service.example.test\nVITE_LOCAL_ONLY_MODE=true\n');
+    const local = createWorktreePlan({ root, baseEnvironment: {} });
+    const hosted = createWorktreePlan({ root, online: true, baseEnvironment: {} });
+    const other = createWorktreePlan({ root, online: true, baseEnvironment: { DRIFTING_HOSTED_ORIGIN: 'https://other.example.test' } });
+    expect(parseWorktreeArguments(['--online']).online).toBe(true);
+    expect(hosted.manifest.mode).toBe('hosted');
+    expect(hosted.manifest.profileId).not.toBe(local.manifest.profileId);
+    expect(other.manifest.profileId).not.toBe(hosted.manifest.profileId);
+    expect(hosted.environment).toMatchObject({ VITE_LOCAL_ONLY_MODE: 'false',
+      DRIFTING_HOSTED_ORIGIN: 'https://service.example.test', VITE_API_BASE_URL: 'https://service.example.test' });
+    expect(hosted.tauriConfig.app.security.devCsp).toContain('https://service.example.test');
+  });
   it('keeps stable profiles per canonical checkout and separates checkouts and instances', () => {
     const root = fixture();
     const a = createWorktreePlan({ root, baseEnvironment: {} });
@@ -187,7 +201,7 @@ describe('isolated worktree development', () => {
     expect(signals.listenerCount('SIGTERM')).toBe(0);
   });
 
-  it.each([['--instance', '../escape'], ['--port', '5173oops'], ['--port', '80'], ['--port', '65536'], ['--config', 'other.json'], ['--online'], ['--instance']])('rejects invalid or isolation-breaking arguments %j', (...args) => {
+  it.each([['--instance', '../escape'], ['--port', '5173oops'], ['--port', '80'], ['--port', '65536'], ['--config', 'other.json'], ['--instance']])('rejects invalid or isolation-breaking arguments %j', (...args) => {
     expect(() => parseWorktreeArguments(args)).toThrow();
   });
 });

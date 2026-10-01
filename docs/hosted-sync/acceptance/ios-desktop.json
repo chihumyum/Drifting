@@ -1,0 +1,52 @@
+{
+  "kind": "hosted-ios-desktop-native",
+  "generatedAt": "2026-10-01T08:11:55.617Z",
+  "sourceSha256": "32b2b52762a9cb62e65ea22e1ddbcb4b0cbd2479e33cbe17941ec9ab5e2491b2",
+  "sourceScope": "Hosted integration, shared platform, native transport, launch and build configuration",
+  "status": "passed",
+  "synthetic": true,
+  "service": "operator-configured HTTPS VPS",
+  "clients": [
+    "macOS Tauri isolated worktree build",
+    "iOS Tauri iPhone Simulator build"
+  ],
+  "checks": [
+    {
+      "name": "Desktop project and Chinese prose restored on iOS through Hosted",
+      "status": "passed"
+    },
+    {
+      "name": "Desktop edits automatically reach the open iOS editor",
+      "status": "passed"
+    },
+    {
+      "name": "iOS edits automatically reach the open desktop editor",
+      "status": "passed"
+    },
+    {
+      "name": "iOS native cold restart retains its session and previously synced prose",
+      "status": "passed"
+    },
+    {
+      "name": "Restarted iOS catches up with desktop edits made while it was stopped",
+      "status": "passed"
+    }
+  ],
+  "finalProse": {
+    "sha256": "3cd35b73e2ce88c58abab72a038c7b3cd1f1faa3b0b155d3c27aa97bd05db499",
+    "characters": 357
+  },
+  "boundaries": {
+    "transport": "real HTTPS and native Hosted object transport",
+    "input": "synthetic DOM input through actual ProseMirror editors",
+    "renderer": "desktop development renderer; iOS bundled development renderer with private loopback debug instrumentation",
+    "foregroundWake": "synthetic DOM focus event",
+    "storage": "independent native SQLite/Yjs libraries",
+    "iosRestart": "native process termination and relaunch",
+    "physicalDevice": "not claimed",
+    "physicalIme": "not claimed",
+    "networkOutage": "not claimed",
+    "backgroundExecution": "not claimed",
+    "releaseSigning": "not claimed"
+  }
+}

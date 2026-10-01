@@ -34,6 +34,19 @@ afterEach(() => {
 });
 
 describe('mobile Tauri environment', () => {
+  it('explicit iOS online mode uses one validated origin despite local defaults', () => {
+    const envFile = localEnv('VITE_LOCAL_ONLY_MODE=true\nVITE_API_BASE_URL=http://localhost:3000\nDRIFTING_HOSTED_ORIGIN=https://service.example.test\n');
+    const environment = createMobileEnvironment('ios', { baseEnvironment: {}, envFile, mode: 'online' });
+    expect(environment).toMatchObject({ VITE_LOCAL_ONLY_MODE: 'false', VITE_REQUIRE_AUTH: 'false',
+      VITE_API_BASE_URL: 'https://service.example.test', API_BASE_URL: 'https://service.example.test',
+      DRIFTING_HOSTED_ORIGIN: 'https://service.example.test' });
+    const override = createMobileEnvironment('ios', { envFile, mode: 'online', baseEnvironment: { VITE_API_BASE_URL: 'https://override.example.test/' } });
+    expect(override.DRIFTING_HOSTED_ORIGIN).toBe('https://override.example.test');
+    expect(createMobileEnvironment('ios', { envFile, baseEnvironment: {} }).VITE_LOCAL_ONLY_MODE).toBe('true');
+    for (const origin of ['https://secret@service.example.test', 'https://service.example.test/api', 'https://service.example.test?key=secret']) {
+      expect(() => createMobileEnvironment('ios', { envFile, mode: 'online', baseEnvironment: { DRIFTING_HOSTED_ORIGIN: origin } })).toThrow(/exact HTTP/);
+    }
+  });
   it('passes ignored root env values to both native mobile build chains', () => {
     const iosClientId = '123456789012-ios.apps.googleusercontent.com';
     const iosReversedClientId = 'com.googleusercontent.apps.123456789012-ios';

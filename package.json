@@ -39,6 +39,7 @@
     "icons:mobile": "node scripts/gen-mobile-icons.mjs",
     "icons:mobile:check": "node scripts/check-mobile-icons.mjs",
     "mobile:ios:dev": "node scripts/run-mobile-dev.mjs ios",
+    "mobile:ios:online": "node scripts/run-mobile-dev.mjs ios --online",
     "mobile:android:dev": "node scripts/run-mobile-dev.mjs android",
     "mobile:ios:debug": "node scripts/run-mobile-debug.mjs ios",
     "mobile:ios:device:debug": "node scripts/install-ios-debug-device.mjs",
@@ -160,6 +161,7 @@
     "apple:durability:check": "node scripts/apple-prose-durability-acceptance.mjs --check",
     "hosted:client": "node scripts/run-hosted-client.mjs",
     "hosted:acceptance": "node scripts/run-hosted-acceptance.mjs",
+    "hosted:ios:acceptance": "node scripts/run-hosted-ios-acceptance.mjs",
     "mcp:acceptance": "node scripts/run-mcp-acceptance.mjs",
     "mcp:check": "node scripts/run-mcp-acceptance.mjs --check",
     "mcp:smoke": "node scripts/mcp-live-smoke.mjs"

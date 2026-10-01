@@ -42,8 +42,8 @@ describe('mobile dev scripts', () => {
     expect(runner).toContain("path.join(homedir(), 'Library', 'Android', 'sdk')");
     expect(runner).toContain("'dev', '--config', devConfig, ...forwardedArgs");
     expect(runner).toContain("path.join(repoDir, '.env.local')");
-    expect(runner).toContain('...readLocalEnvironment(envFile)');
-    expect(runner).toContain('...stringEnvironment(baseEnvironment)');
+    expect(runner).toContain('readLocalEnvironment(envFile)');
+    expect(runner).toContain('stringEnvironment(baseEnvironment)');
     expect(runner).toContain('writeIosGoogleOauthLocalConfig(env)');
   });
 

@@ -14,6 +14,7 @@ import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
+import { hostedEnvironment, normalizeHostedOrigin } from './hosted-environment.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoDir = path.resolve(path.dirname(scriptPath), '..');
@@ -29,19 +30,6 @@ function stringEnvironment(environment) {
 function readLocalEnvironment(filePath) {
   if (!existsSync(filePath)) return {};
   return parseEnv(readFileSync(filePath, 'utf8'));
-}
-
-function hostedOrigin(environment) {
-  return environment.DRIFTING_HOSTED_ORIGIN || environment.VITE_API_BASE_URL || environment.API_BASE_URL;
-}
-
-function normalizeHostedOrigin(value) {
-  const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
-    || url.pathname !== '/' || url.search || url.hash || url.hostname.includes('*')) {
-    throw new TypeError('DRIFTING_HOSTED_ORIGIN must be an exact HTTP(S) origin without credentials, path or wildcards.');
-  }
-  return url.origin;
 }
 
 export function createDesktopTauriEnvironment({
@@ -71,18 +59,9 @@ export function createDesktopTauriEnvironment({
   };
 
   if (mode === 'online') {
-    const origin = normalizeHostedOrigin(
-      hostedOrigin(shellEnvironment) || hostedOrigin(localEnvironment) || 'http://localhost:3000',
-    );
     return {
       ...environment,
-      VITE_LOCAL_ONLY_MODE: 'false',
-      VITE_REQUIRE_AUTH: 'false',
-      VITE_AI_TRANSPORT: 'direct',
-      VITE_CLOSED_BETA: 'false',
-      DRIFTING_HOSTED_ORIGIN: origin,
-      VITE_API_BASE_URL: origin,
-      API_BASE_URL: origin,
+      ...hostedEnvironment(shellEnvironment, localEnvironment),
     };
   }
   return {

@@ -236,6 +236,8 @@
       "accent_reset": "恢复默认",
       "density": "界面密度",
       "animations": "动效与过渡",
+      "agent_edit_reveal": "Agent 编辑 reveal 动画",
+      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改。关闭后直接显示结果，改动标记保留到看过后，仍可审核修改。",
       "animations_desc": "界面过渡与任务活动反馈。"
     },
     "editor": {

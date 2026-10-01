@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { hostedSecurityOverride } from './hosted-environment.mjs';
 
 import {
   createMobileEnvironment,
@@ -16,7 +17,7 @@ const repoDir = path.resolve(path.dirname(scriptPath), '..');
 const bundleIdentifier = 'cc.drifting.client';
 
 export const IOS_DEVICE_DEBUG_USAGE = [
-  'Usage: pnpm mobile:ios:device:debug -- --device <name-or-id> [--no-launch]',
+  'Usage: pnpm mobile:ios:device:debug -- --device <name-or-id> [--no-launch] [--online]',
   '',
   'The device may also be supplied through DRIFTING_IOS_DEVICE.',
 ].join('\n');
@@ -30,6 +31,7 @@ export function parseIosDeviceDebugArguments(
   let device = environment.DRIFTING_IOS_DEVICE?.trim() || '';
   let launch = true;
   let help = false;
+  let online = false;
 
   for (let index = 0; index < argumentsWithoutSeparator.length; index += 1) {
     const argument = argumentsWithoutSeparator[index];
@@ -41,6 +43,7 @@ export function parseIosDeviceDebugArguments(
       launch = false;
       continue;
     }
+    if (argument === '--online') { online = true; continue; }
     if (argument === '--device' || argument === '-d') {
       const value = argumentsWithoutSeparator[index + 1]?.trim();
       if (!value || value.startsWith('-')) {
@@ -59,7 +62,7 @@ export function parseIosDeviceDebugArguments(
     );
   }
 
-  return Object.freeze({ device, launch, help });
+  return Object.freeze({ device, launch, help, ...(online ? { online } : {}) });
 }
 
 export function createIosDeviceDebugPlan({
@@ -202,17 +205,20 @@ export async function installIosDebugDevice(
   }
 
   const environment = createEnvironment('ios', {
+    mode: options.online ? 'online' : 'local',
     baseEnvironment: {
       ...baseEnvironment,
+      ...(options.online ? {} : {
       VITE_LOCAL_ONLY_MODE: 'true',
       VITE_REQUIRE_AUTH: 'false',
       VITE_AI_TRANSPORT: 'direct',
       VITE_API_BASE_URL: 'http://localhost:3000',
       API_BASE_URL: 'http://localhost:3000',
+      }),
     },
   });
   const oauth = writeOauthConfiguration(environment);
-  console.log('Building standalone iOS arm64 Debug archive in local-only mode.');
+  console.log(`Building standalone iOS arm64 Debug archive in ${options.online ? 'Hosted' : 'local-only'} mode.`);
   console.log(
     oauth.googleDriveOAuthConfigured
       ? 'Google Drive iOS OAuth build configuration: configured'
@@ -223,7 +229,12 @@ export async function installIosDebugDevice(
     device: options.device,
     launch: options.launch,
   });
-  await execute(plan.build.command, plan.build.arguments, { environment });
+  const buildArguments = [...plan.build.arguments];
+  if (options.online) {
+    const config = JSON.parse(readFileSync(path.join(repoDir, 'src-tauri/tauri.conf.json'), 'utf8'));
+    buildArguments.push('--config', JSON.stringify({ app: { security: hostedSecurityOverride(config, environment.DRIFTING_HOSTED_ORIGIN) } }));
+  }
+  await execute(plan.build.command, buildArguments, { environment });
   if (!pathExists(plan.appPath)) {
     throw new Error(`Tauri completed without producing the expected app bundle: ${plan.appPath}`);
   }

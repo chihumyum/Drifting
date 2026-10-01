@@ -7,7 +7,9 @@ OAuth actions, project provisioning, project sync and Agent conversation sync
 are suspended in all builds, including public local-only builds. The retained
 Drive implementation, schema and recovery records are not deleted. Builds without
 a configured Hosted service continue locally. The author narrowed this
-milestone to Mac on 2026-09-30; mobile implementation and acceptance are deferred.
+milestone to Mac on 2026-09-30. On 2026-10-01 the author resumed Tauri iOS
+Hosted integration, with iPhone Simulator acceptance against the operator's VPS;
+Android and physical iOS devices remain outside this milestone. See [iOS](ios.md).
 
 ## Local operator loop
 
@@ -122,8 +124,9 @@ publish downloaded files only after fsync and rename. A cancelled or corrupted
 transfer leaves the canonical destination unmodified. The service can read stored
 content; this integration does not claim end-to-end encryption.
 
-Mobile launcher work from the initial investigation is retained, but mobile is
-not an acceptance gate for this milestone. No physical mobile usability is claimed.
+iOS shares account, native object transport and local-first sync with desktop.
+Its explicit online launch and installation paths use the same configured origin
+for renderer requests, native transport and CSP. No physical mobile usability is claimed.
 
 ## Acceptance and remaining device gates
 

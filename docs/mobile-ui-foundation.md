@@ -57,6 +57,12 @@ font, size, line height, paragraph spacing/indent, Tab indent, and the scaled
 paper-width model update immediately while range and segmented controls retain
 full-width touch targets.
 
+Manuscript and whole-book prose, entity notes and body templates, and patch
+bodies share the selected font, size, line height and paragraph spacing.
+Mobile prose uses the selected values directly, without an additional 17px
+font-size or 1.72 line-height minimum; the settings controls retain their shared
+valid ranges.
+
 This is an implemented foundation with static, build, state-machine, and dated
 Simulator evidence. It is not a claim that current interactions have passed
 complete iOS and Android physical-device acceptance.
