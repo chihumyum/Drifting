@@ -21,6 +21,16 @@ export function markdownShareHeading(title: string, level: number): string {
   return `${'#'.repeat(level)} ${text}`;
 }
 
+export function markdownShareSummary(summary: string): string {
+  const text = summary.replace(/\r\n?/g, '\n').trim();
+  if (!text) return '';
+  // Summaries are plain text. Escape their Markdown syntax just like prose,
+  // and distinguish them from the chapter body without adding a heading level.
+  return docToBlocks(JSON.stringify({ type: 'doc', content: [{ type: 'blockquote',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  }] }))[0]?.markdown ?? '';
+}
+
 export function proseToShareMarkdown(contentJson: string, headingOffset: number): string {
   // A corrupt body must fail the complete export, never quietly omit a chapter.
   const json: unknown = JSON.parse(contentJson);

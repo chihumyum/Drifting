@@ -31,7 +31,7 @@ async function fixture() {
   await db.insert(ProjectTable).values({ id: PROJECT, name: '合成书稿', userId: 'synthetic', createdAt: NOW, updatedAt: NOW });
   const node = async (id: string, order: number, text: string, overrides: Partial<typeof BookNodeTable.$inferInsert> = {}) => {
     await db.insert(BookNodeTable).values({ id, projectId: PROJECT, title: `Chapter ${id}`, bookOrder: order,
-      kind: 'chapter', summary: 'PRIVATE SUMMARY', positionX: 0, positionY: 0, createdAt: NOW, updatedAt: NOW, ...overrides });
+      kind: 'chapter', summary: '', positionX: 0, positionY: 0, createdAt: NOW, updatedAt: NOW, ...overrides });
     await db.insert(NodeContentTable).values({ nodeId: id, contentJson: prose(text), plotGridJson: '{"private":"PLAN"}', createdAt: NOW, updatedAt: NOW });
   };
   return { db, node, gateway };
@@ -40,7 +40,7 @@ async function fixture() {
 describe('editor Markdown sharing acceptance', () => {
   it('reads all never-mounted chapters across Yjs batch boundaries in book order, excluding drift and trash', async () => {
     const { node, gateway } = await fixture();
-    for (let index = 40; index >= 0; index--) await node(`c${index}`, index + .5, `Unique prose ${index}`);
+    for (let index = 40; index >= 0; index--) await node(`c${index}`, index + .5, `Unique prose ${index}`, { summary: `Chapter overview ${index}` });
     await node('drift', 1, 'PRIVATE DRIFT', { kind: 'drift', bookOrder: null });
     await node('trash', 2, 'PRIVATE TRASH', { deletedAt: NOW });
     const before = gateway.database.prepare('SELECT total_changes() AS changes').get();
@@ -48,9 +48,23 @@ describe('editor Markdown sharing acceptance', () => {
     expect(result.documentCount).toBe(41);
     expect(result.filename).toBe('合成书稿.md');
     expect(result.markdown.match(/^## Chapter c\d+$/gm)).toEqual(Array.from({ length: 41 }, (_, index) => `## Chapter c${index}`));
-    for (let index = 0; index <= 40; index++) expect(result.markdown).toContain(`Unique prose ${index}`);
+    for (let index = 0; index <= 40; index++) expect(result.markdown).toContain(`## Chapter c${index}\n\n> Chapter overview ${index}\n\nUnique prose ${index}`);
     expect(result.markdown).not.toMatch(/PRIVATE|PLAN|drift|trash/);
     expect(gateway.database.prepare('SELECT total_changes() AS changes').get()).toEqual(before);
+  });
+
+  it('places chapter summaries below titles in single and whole-book shares, escaping text and omitting blank summaries', async () => {
+    const { node } = await fixture();
+    await node('summary', 1, 'Chapter prose', { summary: '  合成 *概要* <tag>\r\n第二行 👋  ' });
+    await node('blank', 2, 'Blank-summary prose', { summary: ' \r\n\t ' });
+    await node('drift', 3, 'Drift prose', { kind: 'drift', bookOrder: null, summary: 'PRIVATE DRIFT SUMMARY' });
+    const expectedSummary = '> 合成 \\*概要\\* \\<tag><br>第二行 👋';
+    const read = (id: string) => readMarkdownShare({ projectId: PROJECT, title: '', kind: 'node', id });
+    expect((await read('summary')).markdown).toBe(`# Chapter summary\n\n${expectedSummary}\n\nChapter prose\n`);
+    expect((await read('blank')).markdown).toBe('# Chapter blank\n\nBlank-summary prose\n');
+    expect((await read('drift')).markdown).toBe('# Chapter drift\n\nDrift prose\n');
+    const book = await readMarkdownShare({ projectId: PROJECT, title: '', kind: 'book' });
+    expect(book.markdown).toBe(`# 合成书稿\n\n## Chapter summary\n\n${expectedSummary}\n\nChapter prose\n\n## Chapter blank\n\nBlank-summary prose\n`);
   });
 
   it('uses live CRDT including empty prose, persisted snapshot plus update, and seed-only content', async () => {

@@ -10,12 +10,13 @@ import {
   NodeContentTable, ProjectTable, StorylineTable,
 } from '../../schema/drizzle';
 import { readPersistedYjsDocuments, YJS_DOCUMENT_READ_BATCH_SIZE, type PersistedYjsDocument } from '../../sqlite-repo/yjs-repo';
-import { markdownShareFilename, markdownShareHeading, proseToShareMarkdown,
+import { markdownShareFilename, markdownShareHeading, markdownShareSummary, proseToShareMarkdown,
   type MarkdownShareDocument, type MarkdownShareTarget } from './markdown-share';
 
 interface ShareSection {
   title: string;
   level: number;
+  summary?: string;
   docId?: string;
   seed?: string | null;
 }
@@ -34,6 +35,7 @@ export async function readMarkdownShare(
     let sections: ShareSection[] = [];
     if (target.kind === 'book' || target.kind === 'node') {
       const nodes = await tx.select({ id: BookNodeTable.id, title: BookNodeTable.title,
+        kind: BookNodeTable.kind, summary: BookNodeTable.summary,
         bookOrder: BookNodeTable.bookOrder, seed: NodeContentTable.contentJson,
       }).from(BookNodeTable).leftJoin(NodeContentTable, eq(BookNodeTable.id, NodeContentTable.nodeId))
         .where(and(eq(BookNodeTable.projectId, target.projectId), isNull(BookNodeTable.deletedAt),
@@ -42,11 +44,12 @@ export async function readMarkdownShare(
       if (target.kind === 'node') {
         if (!nodes[0]) throw new Error('The document is no longer available');
         title = nodes[0].title;
-        sections = [{ title, level: 1, docId: proseDocId('node', nodes[0].id), seed: nodes[0].seed }];
+        sections = [{ title, level: 1, docId: proseDocId('node', nodes[0].id), seed: nodes[0].seed,
+          summary: nodes[0].kind === 'chapter' ? nodes[0].summary : undefined }];
       } else {
         const acts = await tx.select().from(BookActTable).where(eq(BookActTable.projectId, target.projectId));
         const segments = deriveActSegments(acts, nodes);
-        const chapter = (node: typeof nodes[number]): ShareSection => ({ title: node.title,
+        const chapter = (node: typeof nodes[number]): ShareSection => ({ title: node.title, summary: node.summary,
           level: acts.length ? 3 : 2, docId: proseDocId('node', node.id), seed: node.seed });
         sections.push({ title, level: 1 });
         if (!segments.length) sections.push(...nodes.map(chapter));
@@ -88,6 +91,8 @@ export async function readMarkdownShare(
   for (const section of source.sections) {
     signal?.throwIfAborted();
     parts.push(markdownShareHeading(section.title, section.level));
+    const summary = markdownShareSummary(section.summary ?? '');
+    if (summary) parts.push(summary);
     if (!section.docId) continue;
     const persisted = source.persisted.get(section.docId)!;
     const json = source.live.get(section.docId) ?? (persisted.snapshot || persisted.updates.length

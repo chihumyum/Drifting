@@ -198,7 +198,6 @@ export function EditorTopBar({
             menuHeader={menuHeader}
             translate={t}
             onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
-            shareWholeBook={shareTarget?.kind === 'book'}
           />
         )}
       </div>
@@ -344,7 +343,6 @@ interface EditorBarMenuProps {
   menuHeader?: ReactNode;
   translate?: Translate;
   onShare?: () => void;
-  shareWholeBook?: boolean;
 }
 
 function EditorBarMenu({
@@ -355,7 +353,6 @@ function EditorBarMenu({
   menuHeader,
   translate,
   onShare,
-  shareWholeBook,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -399,7 +396,7 @@ function EditorBarMenu({
               onShare();
             }}>
               <Share2 size={14} aria-hidden="true" />
-              {translate?.(shareWholeBook ? 'markdownShare.menuBook' : 'markdownShare.menu') ?? 'Share Markdown…'}
+              {translate?.('markdownShare.menu') ?? 'Share'}
             </button>
             <div className="menu-surface__divider" />
           </>}

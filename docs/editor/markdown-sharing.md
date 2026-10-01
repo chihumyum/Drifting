@@ -1,20 +1,25 @@
 # Editor Markdown sharing
 
-The editor's three-dot menu opens **Share Markdown**: a read-only floating
+The editor's three-dot menu item **Share** directly opens a read-only floating
 dialog containing the complete, unrendered Markdown, with **Copy all** and
 **Save .md**. The text field supports normal selection and Cmd/Ctrl+A and C.
 Closing the dialog leaves the manuscript unchanged; opening it again captures
 fresh content. A failed read offers retry and never enables a partial export.
+Markdown is the only sharing format; there is no format-selection submenu.
 
 - Node (chapter or drift), element, category and storyline editors share the
   current document's title and full prose body.
-- **Read whole book** has a separate **Share whole book as Markdown** item,
+- **Read whole book** has the same **Share** item,
   above its current-chapter menu section. It reads every non-trashed chapter
   in book order, including chapters that have never been mounted or loaded.
   Acts and chapters retain their hierarchy; prose headings are shifted below
   their containing chapter. Drift nodes and act-note bindings are excluded.
-- Comments, summaries, KV facts, planning grids and related entities are not
-  included. Entity links retain visible text without internal IDs or targets.
+- Chapter summaries appear as Markdown blockquotes immediately below each
+  chapter title, before its prose, in both single-chapter and whole-book shares.
+  Empty summaries are omitted. Plain-text formatting characters are escaped and
+  line breaks preserved. Other entity summaries, comments, KV facts, planning
+  grids and related entities are not included. Entity links retain visible text
+  without internal IDs or targets.
 - Source rows and persisted Yjs snapshots/updates are captured in one SQLite
   transaction, with bounded Yjs batches. Live Yjs documents override persisted
   state, including an intentionally empty document. Only seed-only documents
@@ -32,7 +37,8 @@ cargo test --manifest-path src-tauri/Cargo.toml markdown_share::tests
 ```
 
 These checks cover local data selection and conversion, live/persisted/seed
-precedence, complete-book reads, corruption failure, cancellation and native
+precedence, complete-book reads, chapter-summary placement and escaping,
+corruption failure, cancellation and native
 filename limits. They do not claim Hosted links or real-device mobile sharing.
 
 Browser UI verification on 2026-10-02 used the production menu, dialog and
