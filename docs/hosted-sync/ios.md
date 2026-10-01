@@ -13,6 +13,7 @@ Paths, credentials, query strings and wildcard origins are rejected.
 ```sh
 pnpm mobile:ios:online
 pnpm mobile:ios:device:debug -- --device <paired-device> --online
+pnpm mobile:ios:device:release -- --online
 DRIFTING_HOSTED_LAB_INSTANCE=ios-test pnpm hosted:client ios dev <simulator-name> --no-watch
 DRIFTING_HOSTED_LAB_INSTANCE=ios-test pnpm hosted:client ios build --debug --target aarch64-sim --archive-only
 pnpm dev:worktree --online --instance ios-peer --no-watch
@@ -22,6 +23,10 @@ The ordinary mobile commands remain local by default. `--online` explicitly
 overrides an old local-only flag and aligns renderer URL, compiled native origin
 and CSP. The standalone device installer packages the renderer and does not need
 Vite; its physical installation is not covered by the simulator gate.
+The Release installer requires HTTPS, selects a single available paired physical
+device automatically, and prompts in the terminal when several devices match.
+Use `--device <identifier>` for non-interactive runs. It installs ordinary
+`cc.drifting.client` in place; see the [device runbook](../mobile-device-acceptance.md#standalone-ios-device-release-install).
 
 Named Hosted labs have separate identities, libraries and Vite dependency caches.
 Do not run two builds against one lab library. A service preflight waits up to

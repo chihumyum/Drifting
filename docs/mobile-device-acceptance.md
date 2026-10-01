@@ -71,6 +71,37 @@ Google OAuth xcconfig，以 local-only 配置运行 `tauri ios build --debug --t
 Yjs、资源、Keychain 或授权状态。只安装不启动时追加 `--no-launch`。如果确实需要空白沙盒，必须
 由维护者明确在设备上卸载 App；该破坏性步骤不属于此脚本。
 
+## Standalone iOS device Release install
+
+构建 Release 并安装到真机，连接托管服务时使用：
+
+```bash
+pnpm mobile:ios:device:release -- --online
+```
+
+预先在被忽略的 `.env.local` 或 shell 配置 `DRIFTING_HOSTED_ORIGIN`（必须是 HTTPS origin）
+和 `DRIFTING_APPLE_DEVELOPMENT_TEAM`。省略 `--online` 则构建 local-only 包。
+命令通过 `devicectl` 筛选已配对、可用的 iPhone/iPad：只有一台时自动选中，多台时在终端列出
+名称、型号和标识，输入序号选择；`q`、空输入或 Ctrl-C 取消，不会开始构建或安装。
+模拟器、离线设备和其他 Apple 设备不参与选择。支持 Xcode 旧版与新版设备 JSON 格式。
+
+也可显式指定 `--device "<设备名称或 identifier>"` 或 `DRIFTING_IOS_DEVICE`；同名设备仍需
+选择。无交互终端且有多个候选时会报错，须传唯一标识，不会默认安装到第一台设备。
+只安装不启动追加 `--no-launch`。
+
+脚本使用 `tauri ios build --target aarch64 --archive-only --ci`（不带 `--debug`），自动选择
+iphoneos SDK 并启用仓库的 SwiftPM 兼容 wrapper。输出为
+`src-tauri/gen/apple/build/drifting_iOS.xcarchive/Products/Applications/Drifting.app`。
+它与 Debug 共用签名及 bundle identifier 校验，然后原位安装 `cc.drifting.client`；保留现有
+App 数据，不执行卸载。这里安装的是普通 Drifting，独立 Hosted Lab App 不会被覆盖。
+前端资源已内嵌，运行时无需 Vite 或连接 Mac；此命令不导出 IPA、不上传 App Store/TestFlight。
+Release 编译仍须有效的真机开发签名和包含目标设备的 provisioning profile。
+
+自动化验收：`pnpm exec vitest run src/renderer/platform/ios-device-release-installer.acceptance.test.ts
+src/renderer/platform/ios-device-debug-installer.acceptance.test.ts`。覆盖设备筛选、多设备选择与取消、
+非交互失败、HTTPS/CSP、Release 构建参数、签名/包身份失败阻断安装及失败后的流程停止。
+这属于脚本验收，不代表完成真机安装或触摸/IME 验收。
+
 ## First-time setup
 
 ### Xcode 27 compatibility
@@ -102,7 +133,7 @@ iOS/Android 工程已在 `src-tauri/gen` 初始化，不要重复运行 init 命
 - 安装并启动过 Xcode，在 Xcode 中登录 Apple ID。
 - 真机签名团队通过被 Git 忽略的根目录 `.env.local` 中的
   `DRIFTING_APPLE_DEVELOPMENT_TEAM` 配置，值为 10 位大写字母或数字的 Team ID；显式 shell
-  环境变量优先。`mobile:ios:dev` 和 `mobile:ios:device:debug` 会把它写入被忽略的
+  环境变量优先。`mobile:ios:dev`、`mobile:ios:device:debug` 和 `mobile:ios:device:release` 会把它写入被忽略的
   `GoogleOAuth.local.xcconfig`，由 Debug、Release 共用的 `GoogleOAuth.xcconfig` 引入。
   模拟器不要求配置团队；真机签名需要有效配置。不要把 Xcode 自动写回的
   `DEVELOPMENT_TEAM` 提交到 `project.pbxproj`，也不要在受版本控制的 xcconfig 或 Tauri

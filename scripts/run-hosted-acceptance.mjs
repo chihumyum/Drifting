@@ -18,7 +18,7 @@ function fingerprint() {
   ]
     .filter(
       (file) =>
-        /^(src\/|src-tauri\/src\/|src-tauri\/build.rs$|src-tauri\/Cargo.(toml|lock)$|src-tauri\/tauri.*json$|scripts\/(hosted-environment|install-ios-debug|run-(hosted-|mobile-dev|desktop-tauri|worktree-dev))|package.json$|pnpm-lock.yaml$)/.test(
+        /^(src\/|src-tauri\/src\/|src-tauri\/build.rs$|src-tauri\/Cargo.(toml|lock)$|src-tauri\/tauri.*json$|scripts\/(hosted-environment|install-ios-|ios-device-selection|run-(hosted-|mobile-dev|desktop-tauri|worktree-dev))|package.json$|pnpm-lock.yaml$)/.test(
           file,
         ) && existsSync(file),
     )

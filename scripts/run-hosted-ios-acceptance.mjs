@@ -13,7 +13,7 @@ process.chdir(root);
 const reportPath = 'docs/hosted-sync/acceptance/ios-desktop.json';
 function fingerprint() {
   const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' })
-    .trim().split('\n').filter(file => /^(src\/renderer\/(sync\/|platform\/|store\/auth|lib\/(auth-client|session-token|hosted-|config|feature-access)|features\/auth\/|app\/effects\/AppEffects)|src-tauri\/src\/|src-tauri\/build.rs$|src-tauri\/Cargo.(toml|lock)$|src-tauri\/tauri.*json$|scripts\/(hosted-environment|run-hosted|run-mobile-dev|run-worktree-dev|run-desktop-tauri|install-ios-debug)|vite.renderer.config.ts$|package.json$|pnpm-lock.yaml$)/.test(file) && existsSync(file));
+    .trim().split('\n').filter(file => /^(src\/renderer\/(sync\/|platform\/|store\/auth|lib\/(auth-client|session-token|hosted-|config|feature-access)|features\/auth\/|app\/effects\/AppEffects)|src-tauri\/src\/|src-tauri\/build.rs$|src-tauri\/Cargo.(toml|lock)$|src-tauri\/tauri.*json$|scripts\/(hosted-environment|run-hosted|run-mobile-dev|run-worktree-dev|run-desktop-tauri|install-ios-|ios-device-selection)|vite.renderer.config.ts$|package.json$|pnpm-lock.yaml$)/.test(file) && existsSync(file));
   const hash = createHash('sha256');
   for (const file of [...new Set(files)].sort()) hash.update(file).update('\0').update(readFileSync(file));
   return hash.digest('hex');
