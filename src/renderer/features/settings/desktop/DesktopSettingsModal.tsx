@@ -9,12 +9,12 @@ import { TrashRailPanel } from '../panels/TrashSettingsPanel';
 import { DesktopSettingsRail } from './DesktopSettingsRail';
 import {
   filterSettingsNavigation,
-  readSettingsSections,
-  sameSettingsSections,
+  readSettingsNavigation,
+  sameSettingsNavigation,
   settingsItemAtTop,
   settingsTargetScrollTop,
   type SettingsNavigationSection,
-  type SettingsSections,
+  type SettingsNavigationIndex,
 } from './settings-section-navigation';
 
 import {
@@ -165,7 +165,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     accountSettingsEnabled ? 'account' : 'trash',
   );
   const [query, setQuery] = useState('');
-  const [sections, setSections] = useState<SettingsSections>({});
+  const [navigation, setNavigation] = useState<SettingsNavigationIndex>({});
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -193,8 +193,8 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     return () => document.removeEventListener('keydown', onKey, true);
   }, [isOpen, onClose]);
 
-  // Headings own their labels and presence; the rail follows deferred content,
-  // conditional sections and language changes without a second section catalog.
+  // Rendered headings and body copy own the search index, including deferred
+  // content, conditional visibility and language changes.
   useEffect(() => {
     const main = mainRef.current;
     if (!isOpen || !main) return;
@@ -202,13 +202,13 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     const refresh = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const next = readSettingsSections(main);
-        setSections(previous => sameSettingsSections(previous, next) ? previous : next);
+        const next = readSettingsNavigation(main);
+        setNavigation(previous => sameSettingsNavigation(previous, next) ? previous : next);
       });
     };
     const observer = new MutationObserver(refresh);
     observer.observe(main, { subtree: true, childList: true, characterData: true,
-      attributes: true, attributeFilter: ['data-settings-section', 'hidden'] });
+      attributes: true, attributeFilter: ['data-settings-section', 'hidden', 'aria-hidden', 'class', 'style', 'open'] });
     refresh();
     return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   }, [isOpen]);
@@ -227,7 +227,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
       const atBottom = main.scrollTop > 0 && main.scrollTop + main.clientHeight >= main.scrollHeight - 1;
       const current = (atBottom ? mounted[mounted.length - 1] : settingsItemAtTop(mounted, top)) ?? mounted[0];
       if (!current) return;
-      const children = sections[current.id] ?? [];
+      const children = navigation[current.id]?.sections ?? [];
       const child = atBottom ? children[children.length - 1] : settingsItemAtTop(children, top);
       setActive(current.id);
       setActiveSection(child?.id ?? null);
@@ -235,7 +235,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     main.addEventListener('scroll', onScroll, { passive: true });
     const frame = requestAnimationFrame(onScroll);
     return () => { main.removeEventListener('scroll', onScroll); cancelAnimationFrame(frame); };
-  }, [isOpen, RAIL, sections]);
+  }, [isOpen, RAIL, navigation]);
 
   // On open: jump to either the deep-link target or the previously active
   // rail. The component stays mounted while closed, so `active` survives —
@@ -286,7 +286,7 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
     if (el && main) main.scrollTo({ top: settingsTargetScrollTop(main, el), behavior: 'auto' });
   }, []);
 
-  const filtered = useMemo(() => filterSettingsNavigation(RAIL, sections, query), [query, RAIL, sections]);
+  const filtered = useMemo(() => filterSettingsNavigation(RAIL, navigation, query), [query, RAIL, navigation]);
 
   if (!isOpen) return null;
 

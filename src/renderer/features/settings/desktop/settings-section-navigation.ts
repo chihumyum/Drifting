@@ -2,40 +2,79 @@ export interface SettingsNavigationSection {
   id: string;
   label: string;
   element: HTMLElement;
+  searchText: string;
 }
 
-export type SettingsSections = Record<string, SettingsNavigationSection[]>;
+export type SettingsNavigationIndex = Record<string, {
+  searchText: string;
+  sections: SettingsNavigationSection[];
+}>;
 
-/** Read mounted, visible headings so conditional sections and translations stay in sync. */
-export function readSettingsSections(main: HTMLElement): SettingsSections {
-  const sections: SettingsSections = {};
-  for (const element of main.querySelectorAll<HTMLElement>('[data-settings-section]')) {
-    const panel = element.closest<HTMLElement>('.set-panel');
-    const label = element.dataset.settingsSection?.trim();
-    if (!panel?.id || !element.id || !label || !element.getClientRects().length) continue;
-    (sections[panel.id] ??= []).push({ id: element.id, label, element });
+const normalizeSearchText = (text: string) => text.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+
+/** Index rendered copy in document order, including panels without subsection headings. */
+export function readSettingsNavigation(main: HTMLElement): SettingsNavigationIndex {
+  const index: SettingsNavigationIndex = {};
+  for (const panel of main.querySelectorAll<HTMLElement>('.set-panel[id]')) {
+    if (!panel.getClientRects().length) continue;
+    const sections: SettingsNavigationSection[] = [];
+    const panelText: string[] = [];
+    const sectionText: string[][] = [];
+    const append = (text: string) => {
+      panelText.push(text);
+      sectionText[sectionText.length - 1]?.push(text);
+    };
+    const visit = (element: HTMLElement) => {
+      // Search explanatory copy, never input values or concealed/retired content.
+      if (element.matches('[hidden], [aria-hidden="true"], input, textarea, select, script, style, template')) return;
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return;
+      const label = element.dataset.settingsSection?.trim();
+      if (label && element.id && element.getClientRects().length) {
+        sections.push({ id: element.id, label, element, searchText: '' });
+        sectionText.push([]);
+      }
+      const block = !style.display.startsWith('inline') && style.display !== 'contents';
+      if (block || element.tagName === 'BR') append(' ');
+      const children = element.matches('details:not([open])')
+        ? Array.from(element.children).filter(child => child.tagName === 'SUMMARY').slice(0, 1)
+        : element.childNodes;
+      for (const child of children) {
+        if (child.nodeType === 3) append(child.textContent ?? '');
+        else if (child.nodeType === 1) visit(child as HTMLElement);
+      }
+      if (block) append(' ');
+    };
+    visit(panel);
+    sections.forEach((section, position) => { section.searchText = normalizeSearchText(sectionText[position].join('')); });
+    index[panel.id] = { searchText: normalizeSearchText(panelText.join('')), sections };
   }
-  return sections;
+  return index;
 }
 
-export function sameSettingsSections(previous: SettingsSections, next: SettingsSections): boolean {
+export function sameSettingsNavigation(previous: SettingsNavigationIndex, next: SettingsNavigationIndex): boolean {
   return Object.keys(previous).length === Object.keys(next).length &&
-    Object.entries(next).every(([id, sections]) => previous[id]?.length === sections.length &&
-      sections.every((section, index) => {
-        const old = previous[id][index];
-        return old.id === section.id && old.label === section.label && old.element === section.element;
+    Object.entries(next).every(([id, panel]) => previous[id]?.searchText === panel.searchText &&
+      previous[id]?.sections.length === panel.sections.length &&
+      panel.sections.every((section, position) => {
+        const old = previous[id].sections[position];
+        return old.id === section.id && old.label === section.label && old.element === section.element &&
+          old.searchText === section.searchText;
       }));
 }
 
 export function filterSettingsNavigation<T extends { id: string; label: string }>(
-  items: T[], sections: SettingsSections, query: string,
+  items: T[], index: SettingsNavigationIndex, query: string,
 ): (T & { sections: SettingsNavigationSection[] })[] {
-  const q = query.trim().toLocaleLowerCase();
+  const q = normalizeSearchText(query);
   return items.flatMap((item) => {
-    const children = sections[item.id] ?? [];
-    const parentMatches = !q || item.label.toLocaleLowerCase().includes(q) || item.id.includes(q);
-    const matches = parentMatches ? children : children.filter(child => child.label.toLocaleLowerCase().includes(q));
-    return parentMatches || matches.length ? [{ ...item, sections: matches }] : [];
+    const panel = index[item.id];
+    const children = panel?.sections ?? [];
+    const parentMatches = !q || normalizeSearchText(item.label).includes(q) || item.id.includes(q);
+    const matches = parentMatches ? children : children.filter(child =>
+      normalizeSearchText(child.label).includes(q) || child.searchText.includes(q));
+    return parentMatches || matches.length || panel?.searchText.includes(q)
+      ? [{ ...item, sections: matches }] : [];
   });
 }
 

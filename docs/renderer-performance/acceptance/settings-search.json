@@ -1,0 +1,21 @@
+{
+  "kind": "settings-body-search-browser",
+  "generatedAt": "2026-10-02T19:54:58.411Z",
+  "sourceSha256": "b6ee25d570409fdab2f03c9a931167a7299a87de455b486e9115c8bb6dd187f9",
+  "status": "passed",
+  "synthetic": true,
+  "checks": [
+    "Body-only Chinese query typed before deferred panels load finds the owning section after mount",
+    "Clicking a body search result immediately scrolls to its owning heading",
+    "Individual setting labels and related descriptions retain all matching panels",
+    "Inline markup, case and whitespace normalize without crossing sibling group boundaries",
+    "Panel introductions and panels without subsection headings remain searchable",
+    "Hidden attributes, CSS display/visibility, aria-hidden and form values are excluded",
+    "Body-only text mutations refresh an active query without changing the heading",
+    "Conditional visibility adds and removes text from the active search",
+    "Collapsed details are indexed only while expanded and refresh when toggled",
+    "Locale changes replace indexed descriptions for an already-entered query",
+    "Category searches and clearing the query preserve the permanently expanded navigation"
+  ],
+  "boundaries": "Headless Chrome with the real desktop Settings shell, editor/appearance panels, and synthetic deferred panels. Tauri window not exercised."
+}

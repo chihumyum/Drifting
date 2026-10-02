@@ -3,11 +3,11 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   filterSettingsNavigation,
-  readSettingsSections,
-  sameSettingsSections,
+  sameSettingsNavigation,
   settingsItemAtTop,
   settingsTargetScrollTop,
   type SettingsNavigationSection,
+  type SettingsNavigationIndex,
 } from './settings-section-navigation';
 
 const root = process.cwd();
@@ -18,33 +18,50 @@ function read(relativePath: string): string {
 
 describe('desktop settings section navigation', () => {
   const elementAt = (top: number) => ({ getBoundingClientRect: () => ({ top }) }) as HTMLElement;
-  const section = (id: string, label: string, top = 0): SettingsNavigationSection => ({ id, label, element: elementAt(top) });
+  const section = (id: string, label: string, top = 0, searchText = ''): SettingsNavigationSection => ({ id, label, element: elementAt(top), searchText });
 
   it('finds translated subsections while retaining their parent and filters unrelated children', () => {
     const items = [{ id: 'editor', label: '编辑器' }, { id: 'agent', label: 'Agent' }, { id: 'trash', label: '回收站' }];
-    const sections = { editor: [section('preview', '预览'), section('type', '排版')], agent: [section('memory', 'Memory')] };
-    expect(filterSettingsNavigation(items, sections, ' 排版 ')).toEqual([{ ...items[0], sections: [sections.editor[1]] }]);
-    expect(filterSettingsNavigation(items, sections, 'EDITOR')[0].sections).toEqual(sections.editor);
+    const sections = {
+      editor: { searchText: '', sections: [section('preview', '预览'), section('type', '排版')] },
+      agent: { searchText: '', sections: [section('memory', 'Memory')] },
+    };
+    expect(filterSettingsNavigation(items, sections, ' 排版 ')).toEqual([{ ...items[0], sections: [sections.editor.sections[1]] }]);
+    expect(filterSettingsNavigation(items, sections, 'EDITOR')[0].sections).toEqual(sections.editor.sections);
     expect(filterSettingsNavigation(items, sections, 'mEMory')[0].id).toBe('agent');
     expect(filterSettingsNavigation(items, sections, '')).toHaveLength(3);
     expect(filterSettingsNavigation(items, sections, 'missing')).toEqual([]);
   });
 
-  it('reads only mounted visible headings and notices translated or replaced content', () => {
-    const heading = (id: string, label: string, visible = true, panel: string | null = 'editor') => ({
-      id, dataset: { settingsSection: label }, closest: () => panel ? { id: panel } : null,
-      getClientRects: () => visible ? [{}] : [],
-    });
-    const headings = [heading('preview', '预览'), heading('hidden', 'Hidden', false), heading('empty', ''), heading('outside', 'Outside', true, null)];
-    const main = { querySelectorAll: () => headings } as unknown as HTMLElement;
-    const sections = readSettingsSections(main);
-    expect(sections.editor.map(s => s.id)).toEqual(['preview']);
-    expect(sameSettingsSections(sections, readSettingsSections(main))).toBe(true);
-    headings[0].dataset.settingsSection = 'Preview';
-    expect(sameSettingsSections(sections, readSettingsSections(main))).toBe(false);
-    headings[0] = heading('preview', '预览');
-    expect(sameSettingsSections(sections, readSettingsSections(main))).toBe(false);
-    expect(sameSettingsSections(sections, {})).toBe(false);
+  it('finds body-only matches in the right group and ungrouped panel descriptions', () => {
+    const items = [{ id: 'editor', label: '编辑器' }, { id: 'privacy', label: '隐私' }];
+    const typesetting = section('type', '排版', 0, '字号 调整正文大小');
+    const flow = section('flow', '写作', 0, '自动保存 每隔 3 秒');
+    const index: SettingsNavigationIndex = {
+      editor: { searchText: '面板简介 字号 调整正文大小 自动保存 每隔 3 秒', sections: [typesetting, flow] },
+      privacy: { searchText: 'api key 留在本机', sections: [] },
+    };
+    expect(filterSettingsNavigation(items, index, '正文大小')).toEqual([{ ...items[0], sections: [typesetting] }]);
+    expect(filterSettingsNavigation(items, index, '每隔\n  3 秒')[0].sections).toEqual([flow]);
+    expect(filterSettingsNavigation(items, index, 'API KEY')).toEqual([{ ...items[1], sections: [] }]);
+    expect(filterSettingsNavigation(items, index, '面板简介')).toEqual([{ ...items[0], sections: [] }]);
+    expect(filterSettingsNavigation(items, index, 'missing')).toEqual([]);
+  });
+
+  it('notices changed body copy even when headings and elements stay the same', () => {
+    const preview = section('preview', '预览', 0, '原说明');
+    const previous = { editor: { searchText: '原说明', sections: [preview] } };
+    expect(sameSettingsNavigation(previous, { editor: { ...previous.editor } })).toBe(true);
+    expect(sameSettingsNavigation(previous, { editor: { ...previous.editor, searchText: '新说明' } })).toBe(false);
+    for (const changed of [
+      { ...preview, searchText: '新说明' },
+      { ...preview, label: 'Preview' },
+      { ...preview, element: elementAt(0) },
+    ]) {
+      expect(sameSettingsNavigation(previous, { editor: { ...previous.editor, sections: [changed] } })).toBe(false);
+    }
+    expect(sameSettingsNavigation(previous, { editor: { ...previous.editor, sections: [] } })).toBe(false);
+    expect(sameSettingsNavigation(previous, {})).toBe(false);
   });
 
   it('measures nested targets relative to the scroll surface and tracks the last heading passed', () => {
