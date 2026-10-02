@@ -38,3 +38,18 @@ node scripts/run-renderer-startup-placeholder.mjs --check
 
 该证据覆盖 HTML 返回后至 React 首次提交；原生窗口创建至 HTML 返回前的时间和完整
 应用启动速度不在测量范围。截图仅保存在本机 `.qa/startup-placeholder/`。
+
+## 开发模式冷启动
+
+`src/styles/index.css` 使用 `source(none)` 关闭 Tailwind 的全仓库自动源发现，
+保留 `tailwind.config.js` 中的 `index.html` 和 `src/**/*.{js,ts,jsx,tsx}` 作为工具类来源。
+开发服务仍会跟踪这些来源的变化，文档、Rust 和 Apple 原生目录不再成为样式扫描来源。
+以后把带有 Tailwind 工具类的 UI 移到 `src` 之外时，需显式更新该来源配置。
+
+2026-10-03 的本机隔离诊断中，原配置的 CSS 初始化耗时约 18.6 秒，其中约 18.1 秒
+用于登记扫描依赖；限定来源后约为 0.20 秒。使用全新 Vite 缓存和隔离 Chromium，
+前端入口加载从约 22.7 秒降到 2.26 秒。这些是单次诊断值，不是性能预算，
+也不包含 Rust 编译、原生窗口创建、数据库打开或实际项目加载。
+
+同一变更重新生成上述开发/生产启动占位报告，验证样式构建、加载反馈和 React 接管。
+报告不将诊断耗时当作完整应用冷启动验收。
