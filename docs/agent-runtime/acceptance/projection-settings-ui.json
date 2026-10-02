@@ -1,0 +1,20 @@
+{
+  "kind": "markdown-projection-settings-browser",
+  "generatedAt": "2026-10-02T16:30:47.484Z",
+  "sourceSha256": "d666df7a9da31c35a6c628717e2d61878c8101f753df8da9c24f50a11afb8611",
+  "status": "passed",
+  "synthetic": true,
+  "checks": [
+    "MCP shows a projection hint without directory controls",
+    "canceling folder selection preserves the current output",
+    "choose, refresh and reset use the current project and update the shown path",
+    "a failed folder change shows an error and preserves the previous path",
+    "Chinese controls wrap without horizontal overflow at two desktop widths",
+    "standalone settings explain that a project must be open"
+  ],
+  "boundaries": {
+    "browser": "real React components and clicks; synthetic native picker and service actions",
+    "filesystemAndScheduler": "separate pnpm mcp:acceptance",
+    "nativePicker": "not exercised"
+  }
+}

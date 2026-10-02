@@ -152,8 +152,11 @@ Internal receipts and freshness enforcement remain unchanged.
 - The desktop project runtime automatically maintains a structured Markdown
   directory even when no MCP client is connected. MCP initialization tells the
   external Agent the **actual local directory**, structure and **READ-ONLY / NO
-  REVERSE SYNC** restriction. Settings → General Agent → External agent access
-  shows the path, generation status, copy and refresh actions.
+  REVERSE SYNC** restriction. Settings → Sync & Data → Local data shows the path,
+  generation status, output folder picker, restore-default, copy and refresh
+  actions. Output locations are per project and device-local; previous output
+  is retained on relocation. The MCP panel only links to these settings in one
+  explanatory sentence. New connections use the saved custom location.
   `get_project_overview` reports the same projection status to both Agents.
 
 See [local Markdown projection](../local-data-export.md#automatic-read-only-project-projection)
@@ -162,9 +165,11 @@ does not establish the tool read coverage required before writing through MCP.
 
 ## Acceptance
 
-The 2026-10-02 shared reading/search and Markdown projection update has source,
-production SQLite/Yjs, scheduler and native filesystem/IPC acceptance. The older
-packaged Mac reports below predate this update and do not certify its new UI.
+The 2026-10-03 configurable projection location update has source, production
+SQLite/Yjs, scheduler and native filesystem/IPC acceptance, including persistent
+custom paths, reset, collision protection, retry and MCP initialization paths.
+The older packaged Mac reports below predate this update and do not certify its
+native folder picker UI.
 
 `pnpm mcp:acceptance` runs the actual domain-runtime/SQLite integration cases and
 native IPC/authentication and client-configuration tests, then generates

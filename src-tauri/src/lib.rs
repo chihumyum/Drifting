@@ -192,6 +192,8 @@ pub fn run() {
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
             markdown_projection::markdown_projection_info,
+            markdown_projection::markdown_projection_pick_output_root,
+            markdown_projection::markdown_projection_set_output_root,
             markdown_projection::markdown_projection_remove,
             markdown_projection::markdown_projection_write,
             mcp_server::mcp_server_list,

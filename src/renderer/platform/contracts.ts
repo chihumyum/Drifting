@@ -11,6 +11,7 @@ import type { McpClient, McpServerConnection, McpServerCreateInput, McpServerPer
 
 export interface MarkdownProjectionInfo {
   directory: string;
+  customRoot: string | null;
   generatedAt: string | null;
   readOnly: true;
   reverseSync: false;
@@ -743,6 +744,11 @@ export interface TauriCommandContract {
   ai_log_get_dir: { args: undefined; result: string };
   markdown_projection_remove: { args: { projectId: string }; result: void };
   markdown_projection_info: { args: { projectId: string }; result: MarkdownProjectionInfo };
+  markdown_projection_pick_output_root: { args: { title: string }; result: string | null };
+  markdown_projection_set_output_root: {
+    args: { projectId: string; customRoot: string | null };
+    result: MarkdownProjectionInfo;
+  };
   markdown_projection_write: {
     args: { projectId: string; generatedAt: string; entries: { path: string; text: string }[] };
     result: MarkdownProjectionInfo;

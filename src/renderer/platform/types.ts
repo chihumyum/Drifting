@@ -375,6 +375,8 @@ export interface PlatformApi {
   readonly markdownProjection: {
     remove(projectId: string): Promise<void>;
     info(projectId: string): Promise<MarkdownProjectionInfo>;
+    pickOutputRoot(title: string): Promise<string | null>;
+    setOutputRoot(projectId: string, customRoot: string | null): Promise<MarkdownProjectionInfo>;
     write(projectId: string, generatedAt: string, entries: { path: string; text: string }[]): Promise<MarkdownProjectionInfo>;
   };
   readonly mcpServer: McpServerPlatformApi;

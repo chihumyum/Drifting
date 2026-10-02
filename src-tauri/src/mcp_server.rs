@@ -721,7 +721,7 @@ mod local {
                     Some(serde_json::json!({"jsonrpc":"2.0","id":id,"result":{
                         "protocolVersion":"2025-11-25", "capabilities":{"tools":{"listChanged":true}},
                         "serverInfo":{"name":"Drifting", "version":env!("CARGO_PKG_VERSION")},
-                        "instructions":format!("Operate only on the authorized project, which must be open in Drifting. Read targets through tools before modifying them; filesystem reads do not establish write coverage. Paginate read_chapter with cursor and version; other large results use read_tool_result. After reconnect, read again. Never automatically retry an uncertain write. Changes use the app's live Yjs and review system. A structured, READ-ONLY Markdown projection of this project is automatically maintained at {}. Start with README.md, index.md and manifest.json. project/chapters contains stable entity-ID directories with index.md (title, summary, relations) and prose.md (body only). Other directories contain drifts, elements, categories, storylines, comments and library notes. prose.md line numbers match read_chapter. The manifest records generation time and file SHA-256 hashes; check freshness and hashes before citing a disk snapshot. Projection refresh is asynchronous while the project is open; get_project_overview reports its status. This is a one-way projection: NO REVERSE SYNC. Do not edit projection files; changes there never update Drifting and can be overwritten. Use authorized MCP write tools for edits. The directory is local to the Mac running Drifting.", crate::markdown_projection::project_directory(server.directory.parent().expect("MCP directory parent"), &grant.project_id).display())
+                        "instructions":format!("Operate only on the authorized project, which must be open in Drifting. Read targets through tools before modifying them; filesystem reads do not establish write coverage. Paginate read_chapter with cursor and version; other large results use read_tool_result. After reconnect, read again. Never automatically retry an uncertain write. Changes use the app's live Yjs and review system. A structured, READ-ONLY Markdown projection of this project is automatically maintained at {}. Start with README.md, index.md and manifest.json. project/chapters contains stable entity-ID directories with index.md (title, summary, relations) and prose.md (body only). Other directories contain drifts, elements, categories, storylines, comments and library notes. prose.md line numbers match read_chapter. The manifest records generation time and file SHA-256 hashes; check freshness and hashes before citing a disk snapshot. Projection refresh is asynchronous while the project is open; get_project_overview reports its current directory and status, including after output location changes. This is a one-way projection: NO REVERSE SYNC. Do not edit projection files; changes there never update Drifting and can be overwritten. Use authorized MCP write tools for edits. The directory is local to the Mac running Drifting.", crate::markdown_projection::resolved_project_directory(server.directory.parent().expect("MCP directory parent"), &grant.project_id).map(|path| path.display().to_string()).unwrap_or_else(|_| "an unavailable output location (check Settings → Sync & Data → Local data)".into()))
                     }}))
                 } else if !initialized {
                     Some(rpc_error(&id, -32000, "Initialize first"))
@@ -1062,6 +1062,21 @@ mod local {
                 replacement
             );
         }
+        #[test]
+        fn initialize_reports_persisted_custom_projection_location() {
+            let (_dir, server, grant, credential) = fixture();
+            let custom = tempfile::tempdir().unwrap();
+            let root = server.directory.parent().unwrap();
+            crate::markdown_projection::set_output_root(root, &grant.project_id, Some(custom.path().to_string_lossy().into_owned())).unwrap();
+            let directory = crate::markdown_projection::resolved_project_directory(root, &grant.project_id).unwrap();
+            let mut client = connect(&credential);
+            assert_eq!(read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"], true);
+            let response = request(&mut client, 1, "initialize");
+            let instructions = response["result"]["instructions"].as_str().unwrap();
+            assert!(instructions.contains(directory.to_str().unwrap()));
+            assert!(!instructions.contains(crate::markdown_projection::project_directory(root, &grant.project_id).to_str().unwrap()));
+        }
+
         #[test]
         fn socket_authentication_project_scope_revocation_and_duplicate_ids() {
             let (_dir, server, grant, mut credential) = fixture();

@@ -553,7 +553,24 @@
       "auto_snapshot_active": "Active",
       "import_files": "Import",
       "import_files_desc": "From Scrivener / Word / Markdown / plain text.",
-      "select_file": "Choose file…"
+      "select_file": "Choose file…",
+      "projection": {
+        "title": "Local Markdown projection",
+        "description": "Automatically maintain structured Markdown for “{{project}}” for local reading, search and external tools. This is read-only: editing these files never syncs back to Drifting.",
+        "openProject": "Open a project to view its projection status and choose its output location.",
+        "locationHint": "This location applies to the current project on this device only. A markdown-projections/project-ID subfolder is created inside the selected folder. Previous output is kept when you switch locations.",
+        "customLocation": "Current output directory · Custom",
+        "defaultLocation": "Current output directory · Default",
+        "ready": "Markdown projection is up to date",
+        "error": "Markdown projection refresh failed",
+        "pending": "Updating Markdown projection",
+        "choose": "Choose output folder",
+        "reset": "Restore default location",
+        "copy": "Copy projection directory",
+        "refresh": "Refresh projection",
+        "copied": "Projection directory copied",
+        "changed": "Output location updated and projection regenerated. Previous output was kept."
+      }
     },
     "keys": {
       "kicker": "KEYBOARD",
@@ -993,12 +1010,7 @@
         }
       },
       "mcpAccess": {
-        "projectionDescription": "Drifting automatically maintains structured Markdown for external agents to read, grep, diff and cite by line. This projection is read-only: there is no reverse sync, and editing files never updates Drifting. Agents receive the directory and this restriction when connecting.",
-        "projectionReady": "Markdown projection updated",
-        "projectionError": "Markdown projection failed; refresh and verify the manifest",
-        "projectionPending": "Updating Markdown projection",
-        "projectionCopy": "Copy projection directory",
-        "projectionRefresh": "Refresh projection",
+        "projectionDescription": "External Agents can also read the read-only Markdown projection; configure it in Sync & Data → Local data.",
         "title": "External agent access",
         "desc": "Allow tools such as Codex, Claude Code, or Antigravity to access “{{project}}”. Each connection is limited to this project.",
         "name": "Connection name",

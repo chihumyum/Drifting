@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-01T18:52:58.182Z",
-  "sourceSha256": "4d03b09039f7da08caf53790c72d80b020beebd98aec357902447e2cfce2327a",
+  "generatedAt": "2026-10-02T17:12:37.555Z",
+  "sourceSha256": "4908e96477ba12cfb894b0d6bc21ea88feb9f8c003ec91d37c5953d3c964b9e2",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -23,6 +23,26 @@
     },
     {
       "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
       "status": "passed"
     },
     {
@@ -218,7 +238,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
       "status": "passed"
     },
     {
@@ -226,7 +246,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
       "status": "passed"
     },
     {
@@ -234,11 +258,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
@@ -246,11 +270,15 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
       "status": "passed"
     },
     {
@@ -263,10 +291,6 @@
     },
     {
       "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
@@ -290,11 +314,35 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
       "status": "passed"
     }
   ],

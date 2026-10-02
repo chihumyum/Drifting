@@ -24,6 +24,7 @@ import {
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
 import { hostedAccountSettingsEnabled } from '../hosted-settings-policy';
+import { MarkdownProjectionSettings } from './MarkdownProjectionSettings';
 
 export function KeysPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -198,6 +199,7 @@ export function SyncPanel({
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.sync.local_data')} hint="LOCAL" />
+        <MarkdownProjectionSettings projectRuntimeMounted={projectImportEnabled} />
         <SettingsRow
           label={t('settings.account.export_all')}
           desc={t('settings.account.export_all_desc')}

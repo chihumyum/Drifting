@@ -553,7 +553,24 @@
       "auto_snapshot_active": "已启用",
       "import_files": "导入",
       "import_files_desc": "从 Scrivener / Word / Markdown / 纯文本 导入。",
-      "select_file": "选择文件…"
+      "select_file": "选择文件…",
+      "projection": {
+        "title": "Markdown 本地投影",
+        "description": "自动生成「{{project}}」的结构化 Markdown，供本地阅读、检索和外部工具使用。投影只读，修改文件不会反向同步到 Drifting。",
+        "openProject": "打开项目后，可查看投影状态并设置该项目的输出位置。",
+        "locationHint": "位置仅对当前项目在本机生效。所选文件夹内会生成 markdown-projections/项目标识 子目录；切换位置后保留旧目录。",
+        "customLocation": "当前输出目录 · 自定义",
+        "defaultLocation": "当前输出目录 · 默认",
+        "ready": "Markdown 投影已更新",
+        "error": "Markdown 投影更新失败",
+        "pending": "正在更新 Markdown 投影",
+        "choose": "选择输出文件夹",
+        "reset": "恢复默认位置",
+        "copy": "复制投影目录",
+        "refresh": "刷新投影",
+        "copied": "已复制投影目录",
+        "changed": "输出位置已更新，投影已重新生成。旧目录已保留。"
+      }
     },
     "keys": {
       "kicker": "键盘 · KEYBOARD",
@@ -993,12 +1010,7 @@
         }
       },
       "mcpAccess": {
-        "projectionDescription": "自动生成结构化 Markdown 目录，供外部 Agent 阅读、grep、diff 和按行审稿。投影只读，不能反向同步；修改文件不会更新 Drifting。连接时会向 Agent 说明目录位置和这一限制。",
-        "projectionReady": "Markdown 投影已更新",
-        "projectionError": "Markdown 投影更新失败，请重新刷新后核对清单",
-        "projectionPending": "正在更新 Markdown 投影",
-        "projectionCopy": "复制投影目录",
-        "projectionRefresh": "刷新投影",
+        "projectionDescription": "外部 Agent 也可读取只读 Markdown 投影；在「同步与数据 → 本地数据」中设置。",
         "title": "外部 Agent 访问",
         "desc": "授权 Codex、Claude Code、Antigravity 等工具访问「{{project}}」。连接仅限这个项目。",
         "name": "连接名称",

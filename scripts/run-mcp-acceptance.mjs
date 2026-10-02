@@ -33,6 +33,8 @@ function fingerprint() {
             'src-tauri/Cargo.lock',
             'src/renderer/app/providers/ProjectRuntimeProvider.tsx',
             'src/renderer/features/settings/panels/AgentSettingsPanel.tsx',
+            'src/renderer/features/settings/panels/MarkdownProjectionSettings.tsx',
+            'src/renderer/features/settings/panels/ControlSettingsPanels.tsx',
             'src/renderer/locales/en.json',
             'src/renderer/locales/zh-CN.json',
             'scripts/run-mcp-acceptance.mjs',
@@ -48,7 +50,7 @@ function fingerprint() {
     // Only this feature's translations affect its contract. Unrelated UI copy
     // must not stale the MCP evidence during concurrent feature work.
     const content = /^src\/renderer\/locales\/(en|zh-CN)\.json$/.test(file)
-      ? JSON.stringify(JSON.parse(readFileSync(file, 'utf8')).settings.agent.mcpAccess)
+      ? JSON.stringify((({ settings }) => ({ mcp: settings.agent.mcpAccess, projection: settings.sync.projection }))(JSON.parse(readFileSync(file, 'utf8'))))
       : readFileSync(file);
     hash.update(file).update('\0').update(content);
   }
