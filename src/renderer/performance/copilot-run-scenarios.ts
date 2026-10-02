@@ -6,7 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { BlockId } from '../lib/extensions/block-id';
 import { registerCopilotCapability, type CapabilityDetectContext, type CapabilityDetectResult } from '../lib/copilot/capability';
 import { useCopilot } from '../hooks/useCopilot';
-import { useSettingsStore } from '../store/settings-store';
+import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
 import { events, type AiTaskEvent } from '../lib/events';
 import { copilotRunCalls, deferred } from './copilot-run-services';
 
@@ -85,6 +85,39 @@ export async function runCopilotRunScenarios() {
       render(false);
     }
     check('closed owners release every manual command listener', (events.all.get('copilot:manual-run')?.length ?? 0) === initialListeners);
+    const autoId = 'synthetic-auto-capability' as CopilotTaskId;
+    registerCopilotCapability({ id: autoId, metadataKind: 'element-candidate', displayName: 'Synthetic automatic capability', description: 'IME and disabled ownership check', trigger: 'editor-block-debounced', defaultDebounceMs: 250,
+      detect: input => { const call = { ...input, ...deferred<CapabilityDetectResult[]>() }; detections.push(call); return call.promise; },
+      accept: async () => { throw new Error('Cannot accept synthetic suggestions'); },
+    });
+    flushSync(() => useSettingsStore.setState({ copilotTaskConfigs: {
+      elementExtract: { ...originalSettings.copilotTaskConfigs.elementExtract, enabled: false },
+      elementPatch: { ...originalSettings.copilotTaskConfigs.elementPatch, enabled: false },
+      [autoId]: { enabled: true, debounceMs: 250 },
+    }, copilotGenerateSummaries: false }));
+    render(true);
+    const idleContexts = copilotRunCalls.contexts.length;
+    for (let index = 0; index < 20; index++) editor.commands.insertContent('字');
+    await new Promise(resolve => setTimeout(resolve, 350));
+    check('automatic Copilot off performs no context scans or detections during editing', copilotRunCalls.contexts.length === idleContexts);
+    flushSync(() => useSettingsStore.setState({ copilotAutoTrigger: true }));
+    editor.view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    editor.commands.insertContent('候选');
+    await new Promise(resolve => setTimeout(resolve, 650));
+    check('automatic Copilot waits through multiple debounce intervals in IME composition', editor.view.composing && copilotRunCalls.contexts.length === idleContexts);
+    editor.view.dom.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 350));
+    check('automatic Copilot resumes context preparation after composition', copilotRunCalls.contexts.length === idleContexts + 1);
+    const beforeDisable = detections.length;
+    flushSync(() => useSettingsStore.setState({ copilotAutoTrigger: false }));
+    last(copilotRunCalls.contexts).resolve(context()); await settle();
+    check('switching off invalidates pending automatic context before detection', detections.length === beforeDisable);
+    flushSync(() => useSettingsStore.setState({ copilotAutoTrigger: true }));
+    editor.commands.insertContent('继续');
+    flushSync(() => useSettingsStore.setState({ copilotAutoTrigger: false }));
+    await new Promise(resolve => setTimeout(resolve, 350));
+    check('switching off clears a queued automatic debounce', copilotRunCalls.contexts.length === idleContexts + 1);
+    render(false);
     render(true); const destroyed = await beginDetection(); editor.destroy(); destroyed.resolve([suggestion]); await settle(); render(false);
     check('editor destruction aborts outstanding detection before late persistence', destroyed.signal.aborted && copilotRunCalls.writes.length === 2);
     const started = tasks.filter(task => task.state === 'started');
@@ -96,7 +129,7 @@ export async function runCopilotRunScenarios() {
   } finally {
     flushSync(() => root.unmount()); if (!editor.isDestroyed) editor.destroy(); host.remove(); prose.remove();
     events.off('ai-task', onTask);
-    useSettingsStore.setState({ copilotAutoTrigger: originalSettings.copilotAutoTrigger, copilotGenerateSummaries: originalSettings.copilotGenerateSummaries, copilotSummarySectionSize: originalSettings.copilotSummarySectionSize });
+    useSettingsStore.setState({ copilotAutoTrigger: originalSettings.copilotAutoTrigger, copilotTaskConfigs: originalSettings.copilotTaskConfigs, copilotGenerateSummaries: originalSettings.copilotGenerateSummaries, copilotSummarySectionSize: originalSettings.copilotSummarySectionSize });
     detections.forEach(call => call.resolve([]));
     copilotRunCalls.blockedWrite?.resolve(); copilotRunCalls.blockedWrite = null;
     copilotRunCalls.summaries.forEach(call => call.resolve());

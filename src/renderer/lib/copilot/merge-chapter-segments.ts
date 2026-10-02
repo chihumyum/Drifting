@@ -36,6 +36,7 @@ export async function mergeChapterSegments(params: {
   signal?: AbortSignal;
 }): Promise<void> {
   const { editor, projectId, chapterId, signal } = params;
+  if (signal?.aborted || editor.isDestroyed || !editor.isEditable) return;
 
   // Doc-order index per block id (for ordering sections + union output).
   const orderByBlock = new Map<string, number>();
@@ -97,6 +98,9 @@ export async function mergeChapterSegments(params: {
       log.info('[segment-merge] merge call failed, leaving group as-is', err);
       continue;
     }
+    // A provider may complete despite cancellation. Retired automatic jobs
+    // must not resume scanning or replace summaries after Copilot is disabled.
+    if (signal?.aborted || editor.isDestroyed || !editor.isEditable) return;
     if (!merged) continue;
 
     // Recompute per-block hashes from current text so the merged section's

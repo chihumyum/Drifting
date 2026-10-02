@@ -57,3 +57,6 @@ layout also execute on the renderer. Their contribution to the reported click
 stall has not been measured. The static audit found no unconditional plain-text
 click handler that disables focus. Native WebKit physical-click/IME behavior,
 the author's live project and the exact intermittent symptom remain unverified.
+
+The follow-up [IME and inactive Copilot audit](editor-ime-copilot.md) adds
+composition guards to derived work and checks inactive Copilot ownership.

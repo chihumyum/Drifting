@@ -61,6 +61,11 @@ export async function runInlineCopilotScenarios() {
     const first = open(); await settle();
     check('fixed popover portals outside transformed and clipped editor parents', panel()?.parentElement === document.body && panel()?.style.position === 'fixed');
     check('current invocation remains mounted', useCopilotInlineStore.getState().ctx === first && panel());
+    for (const key of ['Enter', 'Escape']) {
+      const candidateKey = new KeyboardEvent('keydown', { key, isComposing: true, bubbles: true, cancelable: true });
+      document.querySelector('textarea')!.dispatchEvent(candidateKey);
+      check(`IME ${key} is reserved for the candidate window`, !candidateKey.defaultPrevented && useCopilotInlineStore.getState().ctx === first);
+    }
     const unrelatedHost = document.createElement('div'); document.body.append(unrelatedHost); const unrelatedRoot = createRoot(unrelatedHost);
     try {
       const currentPanel = panel();
@@ -92,6 +97,9 @@ export async function runInlineCopilotScenarios() {
     const spanCtx = { ...context(), mode: 'selection' as const, spanWithinBlock: true, spanSource: captureInlineSpanSource(editor.state.doc, 1, 17) };
     flushSync(() => useCopilotInlineStore.getState().open(spanCtx)); await settle(); instruction(); click('copilotInline.actions.inlineSelection');
     inlineServiceCalls.edits[1].resolve({ refused: false, reason: 'Synthetic current revision', span: { from: 1, to: 17, oldText: 'Synthetic prose.', newText: 'Synthetic revised.', source: spanCtx.spanSource, diff: [{ type: 'delete', text: 'Synthetic prose.' }, { type: 'insert', text: 'Synthetic revised.' }] } }); await settle();
+    const candidateEnter = new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, cancelable: true });
+    window.dispatchEvent(candidateEnter);
+    check('IME Enter cannot accept a ready revision', !candidateEnter.defaultPrevented && JSON.stringify(editor.getJSON()) === beforeEdit && panel());
     click('copilotInline.actions.accept ↵'); await settle();
     check('current edit applies through the real editor and releases its invocation', editor.getText() === 'Synthetic revised.' && !panel() && !useCopilotInlineStore.getState().ctx);
     check('current edit remains one undoable prose change', editor.commands.undo() && JSON.stringify(editor.getJSON()) === beforeEdit);
@@ -108,6 +116,22 @@ export async function runInlineCopilotScenarios() {
     check('author change survives rejected apply and remains undoable', editor.commands.undo() && JSON.stringify(editor.getJSON()) === beforeEdit);
     open(); await settle(); flushSync(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))); await settle();
     check('Escape releases current context and portal', useCopilotInlineStore.getState().ctx === null && !panel());
+    open(); await settle();
+    const closingListeners = [...keyListeners];
+    // Exercise the listener retained in the event queue after store closure,
+    // independently of when React performs passive effect cleanup.
+    useCopilotInlineStore.getState().close();
+    for (const key of ['Enter', 'Escape']) {
+      const event = new KeyboardEvent('keydown', { key, cancelable: true });
+      for (const listener of closingListeners) {
+        if (typeof listener === 'function') listener(event); else listener.handleEvent(event);
+      }
+      check(`closed invocation cannot consume editor ${key}`, !event.defaultPrevented);
+    }
+    editor.view.focus(); await settle();
+    for (let index = 0; index < 20; index++) editor.commands.insertContent('字');
+    await settle();
+    check('closed popover retains no key listeners, span trackers or focus timer', !panel() && keyListeners.size === 0 && spanListeners.size === 0 && document.activeElement === editor.view.dom);
     open(); await settle(); flushSync(() => editor.setEditable(false)); await settle();
     check('readonly transition releases the invocation', !panel() && !useCopilotInlineStore.getState().ctx);
     editor.setEditable(true); await settle(); check('editable return does not revive the old invocation', !panel());

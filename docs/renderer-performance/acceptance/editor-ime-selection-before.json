@@ -1,0 +1,324 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_editor_ime_run",
+  "generatedAt": "2026-10-02T17:41:44.107Z",
+  "status": "measured",
+  "source": {
+    "commit": "5622d3800a8783e953ceddb2b62039c07b6f0ddb",
+    "rendererFingerprint": "1d8950dba5857ccd9802ad2cd1ec51a9c36a5da5da6e71b0dd921c4e2a0d818c",
+    "fingerprintVersion": 2,
+    "dirty": true,
+    "build": "vite-production-isolated-harness"
+  },
+  "scenarios": [],
+  "editorIme": {
+    "profiles": [
+      {
+        "characters": 5000,
+        "candidatePauseMs": 1300,
+        "duringComposition": {
+          "serializations": 0,
+          "saves": 0,
+          "geometryReads": 0,
+          "autoLinks": 0,
+          "focusRetained": true,
+          "liveYjsPreserved": true
+        },
+        "afterCommit": {
+          "saves": 2,
+          "autoLinks": 1,
+          "typewriterResumed": true,
+          "focusRetained": true,
+          "finalProjectionMatchesYjsReplay": true
+        }
+      },
+      {
+        "characters": 50000,
+        "candidatePauseMs": 1300,
+        "duringComposition": {
+          "serializations": 0,
+          "saves": 0,
+          "geometryReads": 0,
+          "autoLinks": 0,
+          "focusRetained": true,
+          "liveYjsPreserved": true
+        },
+        "afterCommit": {
+          "saves": 2,
+          "autoLinks": 1,
+          "typewriterResumed": true,
+          "focusRetained": true,
+          "finalProjectionMatchesYjsReplay": true
+        }
+      },
+      {
+        "characters": 200000,
+        "candidatePauseMs": 1300,
+        "duringComposition": {
+          "serializations": 0,
+          "saves": 0,
+          "geometryReads": 0,
+          "autoLinks": 0,
+          "focusRetained": true,
+          "liveYjsPreserved": true
+        },
+        "afterCommit": {
+          "saves": 2,
+          "autoLinks": 1,
+          "typewriterResumed": true,
+          "focusRetained": true,
+          "finalProjectionMatchesYjsReplay": true
+        }
+      }
+    ],
+    "scope": "Real Tiptap/ProseMirror/Yjs, DOM composition events and synthetic document transactions in isolated Chromium; no native macOS candidate window, WebKit, SQLite durability or physical input latency claim."
+  },
+  "inlineCopilot": {
+    "checks": [
+      "unmount releases the global invocation and its retained prose",
+      "return does not revive the previous invocation",
+      "fixed popover portals outside transformed and clipped editor parents",
+      "current invocation remains mounted",
+      "IME Enter is reserved for the candidate window",
+      "IME Escape is reserved for the candidate window",
+      "matching node in another project creates no duplicate portal",
+      "unrelated owner cleanup preserves the current invocation and portal",
+      "available action: copilotInline.actions.ask",
+      "first controlled stream starts",
+      "available action: copilotInline.actions.ask",
+      "replacement aborts only the old stream and preserves new context",
+      "obsolete stream cannot clear the new conversation busy state",
+      "current stream completes normally",
+      "available action: copilotInline.actions.chapterSummary",
+      "available action: copilotInline.actions.chapterSummary",
+      "chapter summary calls are controlled without database writes",
+      "old summary completion cannot change a new invocation",
+      "current summary completion remains visible",
+      "available action: copilotInline.actions.inlineCursor",
+      "controlled inline edit starts",
+      "unmount aborts inline edit and cannot revive a late preview",
+      "available action: copilotInline.actions.inlineSelection",
+      "IME Enter cannot accept a ready revision",
+      "available action: copilotInline.actions.accept ↵",
+      "current edit applies through the real editor and releases its invocation",
+      "current edit remains one undoable prose change",
+      "available action: copilotInline.actions.inlineSelection",
+      "available action: copilotInline.actions.accept ↵",
+      "actual popover reports target conflict without altering author text",
+      "conflict feedback cannot retry the invalid captured target",
+      "available action: copilotInline.actions.close",
+      "conflict dismissal releases captured context",
+      "author change survives rejected apply and remains undoable",
+      "Escape releases current context and portal",
+      "closed invocation cannot consume editor Enter",
+      "closed invocation cannot consume editor Escape",
+      "closed popover retains no key listeners, span trackers or focus timer",
+      "readonly transition releases the invocation",
+      "editable return does not revive the old invocation",
+      "source mismatch remains invisible and cannot clear another project context",
+      "100 hide and return cycles leave no invocation, portal or prose changes",
+      "editor destruction releases its invocation and portal",
+      "all owned window keyboard listeners are released",
+      "owned span transaction tracking releases on success, conflict and destruction"
+    ],
+    "conflictFeedback": true,
+    "spanTrackers": {
+      "additions": 3,
+      "removals": 3,
+      "remaining": 0,
+      "peak": 1
+    },
+    "cycles": 100,
+    "listeners": {
+      "additions": 120,
+      "removals": 120,
+      "remaining": 0,
+      "peak": 1
+    },
+    "services": {
+      "edits": 3,
+      "asks": 2,
+      "summaries": 2
+    },
+    "scope": "Actual production React popover and Tiptap in isolated Chromium; deferred service doubles, no external model requests, database writes or native input. StrictMode development effect replay is not inferred from this production build."
+  },
+  "copilotRuns": {
+    "checks": [
+      "context preparation is controlled",
+      "unmount during context preparation does not start an orphaned capability",
+      "out-of-order context completion cannot replace the latest capability",
+      "replacement aborts detection before waiting for new context",
+      "late aborted detection cannot write or cancel its replacement",
+      "manual task replacement ends each started task exactly once",
+      "unmount aborts an active detector and suppresses its late suggestions",
+      "readonly return cannot revive a retired invocation",
+      "settings rebind invalidates the previous effect context preparation",
+      "project replacement invalidates pending old-project context",
+      "incoming project owns the current capability",
+      "current suggestions retain their authored anchor and write normally",
+      "already-started persistence finishes without launching remaining writes after closure",
+      "summary remains owned after its detector completes",
+      "unmount aborts the outstanding summary",
+      "late old summary completion cannot release a new owner summary lock",
+      "current summary completion permits the next summary",
+      "closed owners release every manual command listener",
+      "automatic Copilot off performs no context scans or detections during editing",
+      "automatic Copilot waits through multiple debounce intervals in IME composition",
+      "automatic Copilot resumes context preparation after composition",
+      "switching off invalidates pending automatic context before detection",
+      "switching off clears a queued automatic debounce",
+      "editor destruction aborts outstanding detection before late persistence",
+      "task IDs do not repeat after remount or settings rebind",
+      "every announced task has exactly one terminal event"
+    ],
+    "cycles": 100,
+    "detections": 11,
+    "writes": 2,
+    "summaries": 3,
+    "remainingManualListeners": 0,
+    "scope": "Actual React hook and Tiptap editor with deferred synthetic services; no model or SQLite calls."
+  },
+  "copilotTodos": {
+    "checks": [
+      "disabled TODO parser starts no initial scan or writes",
+      "TODO initial scan yields to an open candidate window",
+      "TODO scan resumes once composition ends",
+      "disabling during a write stops remaining TODO creates",
+      "controlled stale TODO cleanup starts one delete",
+      "unmount during cleanup stops remaining TODO deletes",
+      "closed automatic TODO work leaves editor focus and content intact"
+    ],
+    "creates": 1,
+    "deletes": 1,
+    "scope": "Actual React hook and Tiptap, synthetic composition events, controlled comment services; no native input or database writes."
+  },
+  "environment": {
+    "documentFocused": true,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+    "viewport": [
+      1280,
+      813
+    ],
+    "devicePixelRatio": 1,
+    "platform": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "node": "v24.19.0",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/154.0.8037.95",
+      "revision": "@05d469856e75794131cc2e5d9b2f6b6f10a70388",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+      "jsVersion": "15.4.80.19"
+    },
+    "runnerImage": null,
+    "runnerImageVersion": null
+  },
+  "imeSelection": {
+    "profiles": [
+      {
+        "initial": {
+          "review": false,
+          "composing": false,
+          "trustedCompositionStarts": 0,
+          "decorationTransactions": 0,
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 5,
+          "pmHead": 5,
+          "text": "合成正文",
+          "reviewTint": false,
+          "yjsMatches": true
+        },
+        "during": {
+          "review": false,
+          "composing": true,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 11,
+          "pmHead": 11,
+          "text": "合成正文ASDFFA",
+          "reviewTint": false,
+          "yjsMatches": true
+        },
+        "committed": {
+          "review": false,
+          "composing": false,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 7,
+          "pmHead": 7,
+          "text": "合成正文合成",
+          "reviewTint": false,
+          "yjsMatches": true
+        }
+      },
+      {
+        "initial": {
+          "review": true,
+          "composing": false,
+          "trustedCompositionStarts": 0,
+          "decorationTransactions": 0,
+          "originalWidgetConnected": true,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 5,
+          "pmHead": 5,
+          "text": "合成正文",
+          "reviewTint": false,
+          "yjsMatches": true
+        },
+        "during": {
+          "review": true,
+          "composing": true,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 1,
+          "originalWidgetConnected": false,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 11,
+          "pmHead": 11,
+          "text": "合成正文ASDFFA",
+          "reviewTint": false,
+          "yjsMatches": true
+        },
+        "committed": {
+          "review": true,
+          "composing": false,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 2,
+          "originalWidgetConnected": false,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 7,
+          "pmHead": 7,
+          "text": "合成正文合成",
+          "reviewTint": true,
+          "yjsMatches": true
+        }
+      }
+    ],
+    "scope": "Chromium engine IME via CDP, trusted composition/input events and synthetic prose; not the macOS input method or WebKit."
+  },
+  "validationMode": "measurement",
+  "limitations": [
+    "Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.",
+    "Animation-frame callback is not a compositor paint measurement.",
+    "Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.",
+    "Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN."
+  ]
+}

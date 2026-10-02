@@ -21,12 +21,15 @@ export function attachAgentDecorationController(input: {
   onError(error: unknown): void;
 }) {
   const { editor, store } = input;
+  const dom = editor.view.dom;
   const select = createAgentDecorationSelector(input.entityType, input.entityId);
   let projection = select(store.getState());
   let presentationNeeded = input.presentationNeeded;
   let revealAnimationEnabled = input.revealAnimationEnabled ?? true;
   let dirty = true;
   let disposed = false;
+  let nativeComposition = false;
+  let compositionEndTimer: ReturnType<typeof setTimeout> | undefined;
   let lastReady: boolean | undefined;
   const ready = (value: boolean) => {
     if (lastReady === value) return;
@@ -76,8 +79,40 @@ export function attachAgentDecorationController(input: {
     projection = next;
     changed();
   });
-  const onUpdate = () => { if (!disposed && !editor.isDestroyed) changed(); };
+  const onUpdate = () => {
+    if (disposed || editor.isDestroyed) return;
+    if ((nativeComposition || editor.view.composing) && hasProjection()) {
+      // The plugin already maps the existing decorations through this edit.
+      // Rebuilding a diff can remove a deletion widget before marked text;
+      // WebKit may then select the whole IME composition. Avoid this extra
+      // rewrite until commit, without hiding prose or correcting selection.
+      dirty = true;
+      return;
+    }
+    changed();
+  };
+  const onCompositionStart = () => {
+    nativeComposition = true;
+    if (compositionEndTimer !== undefined) clearTimeout(compositionEndTimer);
+    compositionEndTimer = undefined;
+  };
+  const onCompositionEnd = () => {
+    nativeComposition = false;
+    if (compositionEndTimer !== undefined) clearTimeout(compositionEndTimer);
+    // Let ProseMirror ingest the final native DOM mutation before diffing.
+    compositionEndTimer = setTimeout(() => {
+      compositionEndTimer = undefined;
+      if (!disposed && !editor.isDestroyed && !editor.view.composing) {
+        flush();
+      }
+    }, 0);
+  };
   editor.on('update', onUpdate);
+  // Capture precedes ProseMirror's compositionstart DOM flush, which can emit
+  // an update before view.composing becomes true.
+  dom.addEventListener('compositionstart', onCompositionStart, { capture: true });
+  dom.addEventListener('compositionend', onCompositionEnd);
+  dom.addEventListener('blur', onCompositionEnd);
   changed();
   return {
     setRevealAnimationEnabled(value: boolean) {
@@ -95,6 +130,10 @@ export function attachAgentDecorationController(input: {
       disposed = true;
       unsubscribe();
       editor.off('update', onUpdate);
+      dom.removeEventListener('compositionstart', onCompositionStart, { capture: true });
+      dom.removeEventListener('compositionend', onCompositionEnd);
+      dom.removeEventListener('blur', onCompositionEnd);
+      if (compositionEndTimer !== undefined) clearTimeout(compositionEndTimer);
       if (!editor.isDestroyed) editor.view.dom.removeAttribute('data-agent-projection-blocked');
     },
   };

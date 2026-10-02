@@ -1,6 +1,6 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-02T17:12:37.555Z",
+  "generatedAt": "2026-10-02T20:10:29.249Z",
   "sourceSha256": "4908e96477ba12cfb894b0d6bc21ea88feb9f8c003ec91d37c5953d3c964b9e2",
   "status": "passed",
   "synthetic": true,
@@ -238,10 +238,6 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
@@ -254,7 +250,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
       "status": "passed"
     },
     {
@@ -262,7 +258,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
@@ -270,15 +266,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
       "status": "passed"
     },
     {
@@ -290,15 +278,27 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
       "status": "passed"
     },
     {
@@ -318,14 +318,6 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
@@ -338,11 +330,19 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
       "status": "passed"
     }
   ],

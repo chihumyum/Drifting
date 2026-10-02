@@ -17,7 +17,9 @@ const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9)
 const assertInputBudget = process.argv.includes('--assert-input-budget');
 const ci = process.argv.includes('--ci');
 const editorFocusOnly = process.argv.includes('--editor-focus');
-if (editorFocusOnly && (ci || assertInputBudget)) throw new Error('Focused editor checks cannot replace full CI or input budgets');
+const editorImeOnly = process.argv.includes('--editor-ime');
+if (editorFocusOnly && editorImeOnly) throw new Error('Select only one focused editor scenario');
+if ((editorFocusOnly || editorImeOnly) && (ci || assertInputBudget)) throw new Error('Focused editor checks cannot replace full CI or input budgets');
 if (ci && assertInputBudget) throw new Error('CI checks deterministic contracts; run device timing budgets separately');
 const chrome = resolveHeadlessBrowser();
 const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-perf-'));
@@ -168,6 +170,11 @@ try {
           return { code: `import { agentPanelRenders } from ${JSON.stringify(path.join(root, 'src/renderer/performance/agent-panel-counters'))};\n`
             + code.replace(counter[1], `${counter[1]}\n  agentPanelRenders.${counter[0]}++;`), map: null };
         }
+        if (id.endsWith('/hooks/useTodoAutoParse.ts')) {
+          const source = "'../usecase/useComment'";
+          if (code.split(source).length !== 2) throw new Error('Expected one TODO parser service import');
+          return { code: code.replace(source, "'../performance/copilot-run-services'"), map: null };
+        }
         if (id.endsWith('/hooks/useCopilot.ts')) {
           for (const service of ['../usecase/useComment', '../lib/copilot/base-block-context', '../lib/copilot/produce-block-section-summary']) {
             const source = `'${service}'`;
@@ -210,12 +217,46 @@ try {
   await client.Page.bringToFront();
   console.log('[renderer] running deterministic scenarios');
   const result = await withDeadline(client.Runtime.evaluate({
-    expression: `window.__DRIFTING_PERFORMANCE_HARNESS__.${editorFocusOnly ? 'editorFocus' : 'run'}()`, awaitPromise: true, returnByValue: true,
+    expression: `window.__DRIFTING_PERFORMANCE_HARNESS__.${editorImeOnly ? 'editorIme' : editorFocusOnly ? 'editorFocus' : 'run'}()`, awaitPromise: true, returnByValue: true,
   }), 8 * 60 * 1000, 'Renderer scenarios');
   if (result.exceptionDetails || pageErrors.length) throw new Error(`Harness failed: ${JSON.stringify(result.exceptionDetails ?? pageErrors)}`);
+  if (editorImeOnly) {
+    const probe = async (expression) => {
+      const response = await client.Runtime.evaluate({ expression: `window.__DRIFTING_PERFORMANCE_HARNESS__.imeSelectionProbe.${expression}`, returnByValue: true });
+      if (response.exceptionDetails) throw new Error(`IME selection probe failed: ${JSON.stringify(response.exceptionDetails)}`);
+      return response.result.value;
+    };
+    const profiles = [];
+    const checks = [];
+    const check = (id, passed) => { if (!passed) throw new Error(`IME selection: ${id}`); checks.push({ id, passed: true }); };
+    for (const mode of ['plain-prose', 'pending-review', 'linked-prose']) {
+      const review = mode === 'pending-review';
+      await probe(`start(${review}, ${mode === 'linked-prose'})`);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const initial = await probe('arm()');
+      for (const text of ['A', 'AS', 'ASD', 'ASDF', 'ASDFF', 'ASDFFA']) {
+        await client.Input.imeSetComposition({ text, selectionStart: text.length, selectionEnd: text.length });
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      const during = await probe('snapshot()');
+      await client.Input.insertText({ text: '合成' });
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const committed = await probe('snapshot()');
+      const prefix = mode;
+      check(`${prefix}:trusted-composition`, during.trustedCompositionStarts === 1 && during.composing);
+      check(`${prefix}:no-decoration-rebuild-during-composition`, during.decorationTransactions === 0);
+      check(`${prefix}:caret-stays-collapsed`, during.domCollapsed && during.pmAnchor === during.pmHead && during.focused);
+      check(`${prefix}:commit-preserves-prose-and-yjs`, !committed.composing && committed.text === '合成正文合成' && committed.yjsMatches && committed.focused && committed.domCollapsed);
+      if (review) check(`${prefix}:review-refreshes-after-commit`, committed.reviewTint && committed.decorationTransactions > 0);
+      await probe('stop()');
+      profiles.push({ initial, during, committed });
+    }
+    result.result.value.imeSelection = { profiles, checks,
+      scope: 'Chromium engine IME via CDP, trusted composition/input events and synthetic prose; not the macOS input method or WebKit.' };
+  }
   if (sourceFingerprint !== fingerprint()) throw new Error('Source changed during measurement; discard this run');
   const report = {
-    schemaVersion: 1, kind: editorFocusOnly ? 'renderer_editor_focus_run' : 'renderer_performance_run', generatedAt: new Date().toISOString(),
+    schemaVersion: 1, kind: editorImeOnly ? 'renderer_editor_ime_run' : editorFocusOnly ? 'renderer_editor_focus_run' : 'renderer_performance_run', generatedAt: new Date().toISOString(),
     status: 'measured', source: {
       commit: sourceCommit, rendererFingerprint: sourceFingerprint,
       fingerprintVersion: rendererFingerprintVersion,
@@ -228,7 +269,9 @@ try {
       runnerImage: process.env.ImageOS ?? null, runnerImageVersion: process.env.ImageVersion ?? null },
     validationMode: ci ? 'deterministic-ci' : 'measurement',
     limitations: [
-      'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
+      editorImeOnly
+        ? 'Synthetic transactions plus Chromium engine composition through CDP; not macOS IME, WebKit, or app-wide acceptance.'
+        : 'Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.',
       'Animation-frame callback is not a compositor paint measurement.',
       'Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.',
       'Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN.',

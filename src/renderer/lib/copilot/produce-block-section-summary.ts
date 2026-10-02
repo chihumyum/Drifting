@@ -40,6 +40,7 @@ export async function produceBlockSectionSummary(
   input: ProduceBlockSectionSummaryInput,
 ): Promise<void> {
   if (input.blockIds.length === 0) return;
+  if (input.signal?.aborted || input.editor.isDestroyed || !input.editor.isEditable) return;
 
   // Snapshot current block texts. Same snapshot drives both the LLM input
   // and the stored per-block hashes — no race between text-read and hash-
@@ -72,6 +73,7 @@ export async function produceBlockSectionSummary(
     log.info('[copilot:summary] generation failed, skipping persist', err);
     return;
   }
+  if (input.signal?.aborted || input.editor.isDestroyed || !input.editor.isEditable) return;
   if (!summaryText) {
     log.info('[copilot:summary] empty summary returned, skipping persist');
     return;

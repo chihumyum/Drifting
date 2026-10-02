@@ -37,6 +37,9 @@ import { runGraphOverlayScenarios } from './graph-overlay-scenarios';
 import { runTimelineScenarios } from './timeline-scenarios';
 import { runWorkspaceProjectionScenarios } from './workspace-projection-scenarios';
 import { runEditorContextMenuScenarios } from './editor-context-menu-scenarios';
+import { runEditorImeScenarios } from './editor-ime-scenarios';
+import { imeSelectionProbe } from './editor-ime-selection-scenarios';
+import { runCopilotTodoScenarios } from './copilot-todo-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -161,16 +164,24 @@ async function run() {
     inlineCopilot: await runInlineCopilotScenarios(),
     inlineEditApply: await runInlineEditApplyScenarios(),
     copilotRuns: await runCopilotRunScenarios(),
+    copilotTodos: await runCopilotTodoScenarios(),
+    editorIme: await runEditorImeScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
   };
 }
 
 Object.assign(window, { __DRIFTING_PERFORMANCE_HARNESS__: {
+  imeSelectionProbe,
   run,
+  async editorIme() {
+    return { scenarios: [], editorIme: await runEditorImeScenarios(),
+      agentDecorations: runAgentDecorationScenarios(), decorationReadiness: runDecorationReadinessScenario(),
+      inlineCopilot: await runInlineCopilotScenarios(), copilotRuns: await runCopilotRunScenarios(), copilotTodos: await runCopilotTodoScenarios(),
+      environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio } };
+  },
   async editorFocus() {
     return { scenarios: [], editorContextMenus: await runEditorContextMenuScenarios(),
-      environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
-    };
+      environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio } };
   },
 } });

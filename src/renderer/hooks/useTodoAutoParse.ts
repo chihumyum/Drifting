@@ -38,7 +38,7 @@
  * source stays 'manual' so it renders as a normal anchored todo, NOT a
  * Copilot accept/reject Review card (ReviewItemCard keys that off source).
  */
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
 import { isBlockType } from '../lib/extensions/block-id';
@@ -103,10 +103,14 @@ export function useTodoAutoParse({
   // actual block change (not on every intra-block cursor move / keystroke).
   const lastActiveRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) return;
     loadedRef.current = false;
     lastActiveRef.current = null;
+    let disposed = false;
+    let running = false;
+    const isCurrent = () => !disposed && useSettingsStore.getState().copilotAutoTrigger
+      && !editor.isDestroyed && editor.isEditable;
 
     const del = async (id: string): Promise<void> => {
       try {
@@ -116,7 +120,16 @@ export function useTodoAutoParse({
       }
     };
 
-    const scan = async (ignoreActive: boolean): Promise<void> => {
+    const reconcile = async (ignoreActive: boolean): Promise<void> => {
+      const scannedDoc = editor.state.doc;
+      const canContinue = () => {
+        if (!isCurrent()) return false;
+        if (editor.view.composing || editor.state.doc !== scannedDoc) {
+          schedule(ignoreActive);
+          return false;
+        }
+        return true;
+      };
       // The block the cursor is in is still being composed — skip projecting it
       // (a blur sweep passes ignoreActive so even that block gets swept).
       const active = ignoreActive ? null : activeBlockId(editor);
@@ -161,6 +174,7 @@ export function useTodoAutoParse({
       // 3) CREATE: a marker block with no projection in any status, as long as
       //    the cursor has left it (the block is "done").
       for (const [blockId, raw] of markers) {
+        if (!canContinue()) return;
         if (byBlock.has(blockId)) continue;
         if (blockId === active) continue;
         const meta: TodoAutoparseMeta = {
@@ -194,7 +208,10 @@ export function useTodoAutoParse({
           // Marker still here — keep the oldest, drop accidental duplicates
           // (self-heals todos accreted by the previous text-keyed dedup bug).
           const sorted = open.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-          for (const dupe of sorted.slice(1)) await del(dupe.id);
+          for (const dupe of sorted.slice(1)) {
+            if (!canContinue()) return;
+            await del(dupe.id);
+          }
           continue;
         }
 
@@ -202,19 +219,36 @@ export function useTodoAutoParse({
         // still present) or the whole block was deleted. The latter is only
         // trusted once the doc is confirmed loaded.
         if (docBlockIds.has(blockId) || loadedRef.current) {
-          for (const c of open) await del(c.id);
+          for (const c of open) {
+            if (!canContinue()) return;
+            await del(c.id);
+          }
         }
       }
     };
 
+    const scan = async (ignoreActive: boolean): Promise<void> => {
+      if (!isCurrent()) return;
+      // Candidate pauses and an outstanding write must not start another full
+      // scan. Reconcile once from the latest document when it is available.
+      if (editor.view.composing || running) { schedule(ignoreActive); return; }
+      running = true;
+      try { await reconcile(ignoreActive); } finally { running = false; }
+    };
+
     const schedule = (ignoreActive: boolean): void => {
+      if (!isCurrent()) return;
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => void scan(ignoreActive), DEBOUNCE_MS);
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        void scan(ignoreActive);
+      }, DEBOUNCE_MS);
     };
 
     // Reconcile when the cursor moves to a DIFFERENT block (the marker block is
     // "done"). Intra-block moves / keystrokes are ignored so we don't churn.
     const onSelection = (): void => {
+      if (!isCurrent()) return;
       const next = activeBlockId(editor);
       if (next === lastActiveRef.current) return;
       lastActiveRef.current = next;
@@ -227,12 +261,14 @@ export function useTodoAutoParse({
     editor.on('blur', onBlur);
     // Initial sweep so markers already in loaded prose project without a fresh
     // edit (skips only the block the cursor happens to land in).
-    timerRef.current = setTimeout(() => void scan(false), DEBOUNCE_MS);
+    schedule(false);
 
     return () => {
+      disposed = true;
       editor.off('selectionUpdate', onSelection);
       editor.off('blur', onBlur);
       if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
     };
   }, [editor, enabled, projectId, nodeId, createComment, deleteComment]);
 }

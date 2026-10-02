@@ -101,6 +101,16 @@ export function useCopilot({
     let updateCount = 0;
     let fireCount = 0;
 
+    const schedule = (cap: CopilotCapability): void => {
+      if (!owner.canStart() || !useSettingsStore.getState().copilotAutoTrigger) return;
+      const existing = timers[cap.id];
+      if (existing) clearTimeout(existing);
+      timers[cap.id] = setTimeout(() => {
+        timers[cap.id] = null;
+        void runFor(cap);
+      }, effectiveDebounceMs(cap, taskConfigs));
+    };
+
     const runFor = async (
       cap: CopilotCapability,
       opts?: { force?: boolean; instruction?: string; selectionBlockIds?: string[] },
@@ -110,6 +120,13 @@ export function useCopilot({
       const forced = opts?.force === true;
       const selectionBlockIds = opts?.selectionBlockIds ?? [];
       const isSelectionRun = selectionBlockIds.length > 0;
+
+      if (!forced) {
+        if (!useSettingsStore.getState().copilotAutoTrigger || !owner.canStart()) return;
+        // A pause in choosing an IME candidate is not a completed edit.
+        // Yield before coverage scans and model preparation, retaining one timer.
+        if (editor.view.composing) { schedule(cap); return; }
+      }
 
       // Pause automatic fires while the inline-Copilot popover is open — the
       // user is actively steering Copilot there, so a background fire would
@@ -129,6 +146,7 @@ export function useCopilot({
           ? buildSelectionBlockContext(editor, nodeId, selectionBlockIds)
           : await buildBaseBlockContext({ editor, chapterId: nodeId });
         if (!invocation.isCurrent()) return;
+        if (!forced && editor.view.composing) { schedule(cap); return; }
         if (!baseContext) {
           log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (empty context)`);
           return;
@@ -300,13 +318,7 @@ export function useCopilot({
       // its own debounce — element-candidate at 3s, element-patch at 12s,
       // etc. No shared timer, no cross-cap coupling.
       for (const cap of enabledCaps) {
-        const existing = timers[cap.id];
-        if (existing) clearTimeout(existing);
-        const debounceMs = effectiveDebounceMs(cap, taskConfigs);
-        timers[cap.id] = setTimeout(() => {
-          timers[cap.id] = null;
-          void runFor(cap);
-        }, debounceMs);
+        schedule(cap);
       }
     };
 

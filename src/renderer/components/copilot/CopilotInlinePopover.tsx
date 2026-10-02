@@ -198,14 +198,14 @@ export function CopilotInlinePopover({ editor, nodeId, projectId }: CopilotInlin
   useEffect(() => {
     if (!visible) return;
     if (phase === 'input') {
-      const id = setTimeout(() => textareaRef.current?.focus(), 0);
+      const id = setTimeout(() => { if (isCurrent()) textareaRef.current?.focus(); }, 0);
       return () => clearTimeout(id);
     }
     if (phase === 'chat' && !chatBusy) {
-      const id = setTimeout(() => chatInputRef.current?.focus(), 0);
+      const id = setTimeout(() => { if (isCurrent()) chatInputRef.current?.focus(); }, 0);
       return () => clearTimeout(id);
     }
-  }, [visible, ctx, phase, chatBusy]);
+  }, [visible, ctx, phase, chatBusy, isCurrent]);
 
   // Reset the chat-history mirror on each new invocation. Lives in an effect,
   // not the render-phase reset above, since refs can't be mutated in render.
@@ -403,6 +403,9 @@ export function CopilotInlinePopover({ editor, nodeId, projectId }: CopilotInlin
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
+      // Store closure can precede React's effect cleanup. Never consume the
+      // editor's keys in that gap, or the candidate window's Enter/Escape.
+      if (!isCurrent() || e.isComposing || e.keyCode === 229 || editor.view.composing) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         doClose();
@@ -413,7 +416,7 @@ export function CopilotInlinePopover({ editor, nodeId, projectId }: CopilotInlin
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [visible, phase, doClose, acceptResult]);
+  }, [visible, phase, doClose, acceptResult, isCurrent, editor]);
 
   if (!visible || !ctx) return null;
 

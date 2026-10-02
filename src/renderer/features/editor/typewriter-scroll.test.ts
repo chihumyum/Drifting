@@ -33,9 +33,12 @@ function fixture() {
     removeAttribute: (key: string) => attributes.delete(key),
   };
   const callbacks = new Map<string, Set<() => void>>();
+  const compositionEvents = new EventTarget();
   const editor = {
     isDestroyed: false, isFocused: true, state: { selection: { empty: true, head: 1 } },
-    view: { dom: { closest: () => viewport,
+    view: { composing: false, dom: { closest: () => viewport,
+      addEventListener: compositionEvents.addEventListener.bind(compositionEvents),
+      removeEventListener: compositionEvents.removeEventListener.bind(compositionEvents),
       setAttribute: (key: string, value: string) => caretAttributes.set(key, value),
       removeAttribute: (key: string) => caretAttributes.delete(key) },
     coordsAtPos: vi.fn(() => ({ top: 590, bottom: 610 })) },
@@ -44,7 +47,7 @@ function fixture() {
   };
   const controller = new TypewriterScrollController(editor as unknown as Editor);
   const dispose = controller.attach();
-  return { controller, editor, dispose, properties, attributes, caretAttributes, viewport, reads,
+  return { controller, editor, dispose, properties, attributes, caretAttributes, viewport, reads, compositionEvents,
     height(value: number) { height = value; },
     listeners: () => [...callbacks.values()].reduce((sum, listeners) => sum + listeners.size, 0),
     emit(event: string) { for (const fn of [...callbacks.get(event) ?? []]) fn(); },
@@ -61,6 +64,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('visibility-owned typewriter work', () => {
+  it('does not measure, scroll or repaint during composition, then aligns the committed caret', () => {
+    const f = fixture(); f.present(true);
+    // A frame queued before compositionstart must also yield.
+    f.editor.view.composing = true;
+    paint();
+    f.emit('update'); f.emit('selectionUpdate');
+    expect(frames.size).toBe(0);
+    expect(f.editor.view.coordsAtPos).not.toHaveBeenCalled();
+    expect(f.viewport.scrollTop).toBe(300);
+    expect(f.caretAttributes.size).toBe(0);
+    f.editor.view.composing = false;
+    f.compositionEvents.dispatchEvent(new Event('compositionend'));
+    paint();
+    expect(f.editor.view.coordsAtPos).toHaveBeenCalledOnce();
+    expect(f.viewport.scrollTop).toBe(400);
+    f.dispose();
+    f.compositionEvents.dispatchEvent(new Event('compositionend'));
+    expect(frames.size).toBe(0);
+  });
   it('prepares tail geometry without moving an incoming hidden caret', () => {
     const f = fixture();
     f.present(false, true);

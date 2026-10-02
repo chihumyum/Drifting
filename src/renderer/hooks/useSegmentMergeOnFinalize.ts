@@ -9,7 +9,7 @@
  * on mount), gated by the Copilot master + summary switches. 'discarded' is
  * excluded — no point summarizing a parked chapter.
  */
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
@@ -40,7 +40,7 @@ export function useSegmentMergeOnFinalize({
   });
   const prevRef = useRef<string | undefined>(status);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prev = prevRef.current;
     prevRef.current = status;
     if (!enabled || !summaries) return;

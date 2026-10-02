@@ -1,5 +1,11 @@
 # Renderer performance work and evidence
 
+The 2026-10-03 [IME and inactive Copilot audit](editor-ime-copilot.md) defers
+derived work during composition, closes late Copilot write/key ownership gaps,
+and adds focused `--editor-ime` browser evidence. The follow-up covers trusted
+Chromium engine composition. The temporary live-selection recorder has been
+removed; the intermittent native selection symptom and its cause remain unresolved.
+
 The 2026-10-02 [editor focus investigation](editor-focus-handoff.md) removes
 full-document projection work from synchronous blur and avoids rebuilding unused
 Yjs seeds during chapter saves. Its focused browser evidence does not reproduce

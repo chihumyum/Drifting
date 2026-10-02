@@ -250,6 +250,12 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
     clearTimeout(st.timer);
     st.timer = null;
   }
+  // Changing marks around native marked text can terminate/restart composition.
+  // This also guards a timer queued before compositionstart and explicit flushes.
+  if (view.composing) {
+    scheduleAutoDetect(view, markType, st);
+    return;
+  }
   const { autoDetectEnabled, autoDetectTargets } = st.config;
   if (!autoDetectEnabled) return;
   const matcher = getMergedMatcher(autoDetectTargets);

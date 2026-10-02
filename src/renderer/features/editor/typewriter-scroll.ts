@@ -184,6 +184,7 @@ export class TypewriterScrollController {
     this.editor.on('focus', this.scheduleAlignment);
     this.editor.on('selectionUpdate', this.scheduleAlignment);
     this.editor.on('update', this.scheduleAlignment);
+    this.editor.view.dom.addEventListener('compositionend', this.scheduleAlignment);
     this.scheduleAlignment();
     return true;
   }
@@ -191,7 +192,7 @@ export class TypewriterScrollController {
   private alignCaret = (): void => {
     this.alignmentFrame = 0;
     if (!this.listening || !this.visible || this.editor.isDestroyed ||
-        !this.editor.isFocused || !this.editor.state.selection.empty) return;
+        this.editor.view.composing || !this.editor.isFocused || !this.editor.state.selection.empty) return;
     const viewport = this.bindViewport();
     if (!viewport) return;
     try {
@@ -213,7 +214,7 @@ export class TypewriterScrollController {
 
   private scheduleAlignment = (): void => {
     if (!this.listening || !this.visible || this.editor.isDestroyed ||
-        !this.editor.isFocused || !this.editor.state.selection.empty || this.alignmentFrame) return;
+        this.editor.view.composing || !this.editor.isFocused || !this.editor.state.selection.empty || this.alignmentFrame) return;
     this.alignmentFrame = requestAnimationFrame(this.alignCaret);
   };
 
@@ -223,6 +224,7 @@ export class TypewriterScrollController {
       this.editor.off('focus', this.scheduleAlignment);
       this.editor.off('selectionUpdate', this.scheduleAlignment);
       this.editor.off('update', this.scheduleAlignment);
+      this.editor.view.dom.removeEventListener('compositionend', this.scheduleAlignment);
     }
     if (this.alignmentFrame) cancelAnimationFrame(this.alignmentFrame);
     this.alignmentFrame = 0;
