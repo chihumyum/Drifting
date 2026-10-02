@@ -166,4 +166,11 @@ async function run() {
   };
 }
 
-Object.assign(window, { __DRIFTING_PERFORMANCE_HARNESS__: { run } });
+Object.assign(window, { __DRIFTING_PERFORMANCE_HARNESS__: {
+  run,
+  async editorFocus() {
+    return { scenarios: [], editorContextMenus: await runEditorContextMenuScenarios(),
+      environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
+    };
+  },
+} });

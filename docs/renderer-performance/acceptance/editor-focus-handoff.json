@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_editor_focus_run",
+  "generatedAt": "2026-10-02T20:08:12.854Z",
+  "status": "measured",
+  "source": {
+    "commit": "fbc521fb6cb92f8999ca701c17699900328566b5",
+    "rendererFingerprint": "b9dddb1b34d14eb416b263a4af4dadcab0d8a9f5046a2731a04d119467c527a6",
+    "fingerprintVersion": 2,
+    "dirty": true,
+    "build": "vite-production-isolated-harness"
+  },
+  "scenarios": [],
+  "editorContextMenus": {
+    "groups": [
+      {
+        "editors": 1,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 214,
+        "removals": 214,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      },
+      {
+        "editors": 5,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 218,
+        "removals": 218,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "retiring another owner preserves the incoming menu",
+          "new invocation uses current labels",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      },
+      {
+        "editors": 20,
+        "actionCycles": 100,
+        "comments": 100,
+        "maxDocumentListeners": 2,
+        "additions": 218,
+        "removals": 218,
+        "remainingDocumentListeners": 0,
+        "remainingHideTimers": 0,
+        "checks": [
+          "inactive owners do not open or subscribe",
+          "100 action cycles release listeners and reject detached actions",
+          "outside click closes synchronously",
+          "escape closes synchronously",
+          "hiding cancels hover timer and global listeners",
+          "hidden timer cannot recreate a menu",
+          "selection changes invalidate action context",
+          "document changes invalidate action context",
+          "formatting uses live selection and preserves prose",
+          "formatting keeps undo continuity",
+          "read-only editor rejects custom actions",
+          "retiring another owner preserves the incoming menu",
+          "new invocation uses current labels",
+          "editor destruction releases its menu and subscriptions",
+          "all owners dispose idempotently"
+        ]
+      }
+    ],
+    "collaborativeFormats": {
+      "checks": [
+        "heading and generated trailing block enter one Yjs undo item",
+        "format undo restores exact content and block identities",
+        "format redo restores exact content and block identities",
+        "split creates unique identities in one undo item",
+        "split undo restores original block",
+        "split redo restores assigned block identities",
+        "explicitly excluded write assigns IDs without entering history"
+      ],
+      "scope": "Real Yjs, Collaboration, StarterKit trailing node and BlockId; synthetic DOM actions."
+    },
+    "initialSessionFocus": {
+      "checks": [
+        "initialization cannot blur a subsequently focused editor",
+        "inactive initialization cannot clear another editor selection"
+      ]
+    },
+    "blurFocusHandoff": {
+      "profiles": [
+        {
+          "characters": 5000,
+          "mode": "synchronous-blur-reference",
+          "focusHandoffMs": 0.5,
+          "synchronousSerializations": 1,
+          "saves": 1,
+          "focusRetained": true,
+          "prosePreserved": true
+        },
+        {
+          "characters": 5000,
+          "mode": "deferred-blur",
+          "focusHandoffMs": 0.2999999523162842,
+          "synchronousSerializations": 0,
+          "saves": 1,
+          "focusRetained": true,
+          "prosePreserved": true
+        },
+        {
+          "characters": 50000,
+          "mode": "synchronous-blur-reference",
+          "focusHandoffMs": 0.9000000953674316,
+          "synchronousSerializations": 1,
+          "saves": 1,
+          "focusRetained": true,
+          "prosePreserved": true
+        },
+        {
+          "characters": 50000,
+          "mode": "deferred-blur",
+          "focusHandoffMs": 0.5,
+          "synchronousSerializations": 0,
+          "saves": 1,
+          "focusRetained": true,
+          "prosePreserved": true
+        },
+        {
+          "characters": 200000,
+          "mode": "synchronous-blur-reference",
+          "focusHandoffMs": 2.200000047683716,
+          "synchronousSerializations": 1,
+          "saves": 1,
+          "focusRetained": true,
+          "prosePreserved": true
+        },
+        {
+          "characters": 200000,
+          "mode": "deferred-blur",
+          "focusHandoffMs": 1.5999999046325684,
+          "synchronousSerializations": 0,
+          "saves": 1,
+          "focusRetained": true,
+          "prosePreserved": true
+        }
+      ],
+      "scope": "Real Tiptap/Yjs and synchronous DOM focus in isolated Chromium. One diagnostic timing sample per profile; no physical clicks, native WebKit, SQLite or input-to-paint budget."
+    },
+    "scope": "Actual DOM and Tiptap editors in isolated Chromium; no React shell, native input, or memory/latency budget inferred."
+  },
+  "environment": {
+    "documentFocused": true,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+    "viewport": [
+      1280,
+      813
+    ],
+    "devicePixelRatio": 1,
+    "platform": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "node": "v24.4.0",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/154.0.8037.95",
+      "revision": "@05d469856e75794131cc2e5d9b2f6b6f10a70388",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+      "jsVersion": "15.4.80.19"
+    },
+    "runnerImage": null,
+    "runnerImageVersion": null
+  },
+  "validationMode": "measurement",
+  "limitations": [
+    "Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.",
+    "Animation-frame callback is not a compositor paint measurement.",
+    "Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.",
+    "Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN."
+  ]
+}

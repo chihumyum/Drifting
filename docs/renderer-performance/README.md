@@ -1,5 +1,10 @@
 # Renderer performance work and evidence
 
+The 2026-10-02 [editor focus investigation](editor-focus-handoff.md) removes
+full-document projection work from synchronous blur and avoids rebuilding unused
+Yjs seeds during chapter saves. Its focused browser evidence does not reproduce
+or close the reported intermittent native focus failure.
+
 The [startup placeholder](startup-placeholder.md) provides loading feedback from
 the HTML document through the first React commit, including before the app modules load.
 

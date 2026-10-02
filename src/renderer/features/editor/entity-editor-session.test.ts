@@ -20,6 +20,7 @@ function fixture(id = 'chapter') {
   const callbacks = new Map<string, Set<() => void>>();
   const emitter = {
     isDestroyed: false, isFocused: false, state: EditorState.create({ doc: document() }),
+    view: { composing: false },
     getJSON() { return this.state.doc.toJSON(); },
     on(name: string, fn: () => void) { const listeners = callbacks.get(name) ?? new Set(); listeners.add(fn); callbacks.set(name, listeners); },
     off(name: string, fn: () => void) { callbacks.get(name)?.delete(fn); },
@@ -38,7 +39,39 @@ function fixture(id = 'chapter') {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('canonical editor session ownership', () => {
-  it('keeps a 400 ms trailing save, flushes blur/close, and cancels retired timers', () => {
+  it('waits through a long IME candidate pause and serializes only the committed draft', () => {
+    vi.useFakeTimers();
+    const f = fixture(); f.session.attach();
+    const serialize = vi.spyOn(f.emitter, 'getJSON');
+    f.update(document('Before composition'));
+    vi.advanceTimersByTime(300);
+    f.emitter.view.composing = true;
+    f.update(document('Temporary candidate', 'han'));
+    vi.advanceTimersByTime(2400);
+    expect(serialize).not.toHaveBeenCalled();
+    expect(f.persist).not.toHaveBeenCalled();
+    f.update(document('Committed text', '汉字'));
+    f.emitter.view.composing = false;
+    vi.advanceTimersByTime(400);
+    expect(f.persist).toHaveBeenCalledOnce();
+    expect(f.persist.mock.calls[0][1].pmJson).toContain('汉字');
+    f.session.detach();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('retains explicit save and teardown while composition is active', () => {
+    vi.useFakeTimers();
+    const f = fixture(); f.session.attach(); f.emitter.view.composing = true;
+    f.update(document('Draft')); vi.advanceTimersByTime(500);
+    f.session.saveNow();
+    expect(f.persist).toHaveBeenCalledOnce();
+    f.update(document('Latest draft'));
+    f.session.detach();
+    expect(f.persist).toHaveBeenCalledTimes(2);
+    expect(f.persist.mock.calls[1][1].outline[0].text).toBe('Latest draft');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('keeps a 400 ms trailing save, yields blur, flushes close, and cancels retired timers', () => {
     vi.useFakeTimers();
     const f = fixture(); const dispose = f.session.attach();
     f.update(document('One')); vi.advanceTimersByTime(300);
@@ -48,6 +81,8 @@ describe('canonical editor session ownership', () => {
     expect(f.persist).toHaveBeenCalledTimes(1);
     expect(f.persist.mock.calls[0][1].outline[0].text).toBe('Two');
     f.update(document('Blur')); f.emit('blur');
+    expect(f.persist).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(0);
     expect(f.persist).toHaveBeenCalledTimes(2);
     f.update(document('Close')); dispose();
     expect(f.persist).toHaveBeenCalledTimes(3);
@@ -56,6 +91,37 @@ describe('canonical editor session ownership', () => {
     expect(vi.getTimerCount()).toBe(0);
     vi.advanceTimersByTime(1000);
     expect(f.persist).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(['close', 'save'] as const)('does no full-document work during blur and preserves an immediate %s', action => {
+    vi.useFakeTimers();
+    const f = fixture(); f.session.attach();
+    const serialize = vi.spyOn(f.emitter, 'getJSON');
+    f.update(document('Pending focus handoff', '文'.repeat(50_000)));
+    f.emit('blur'); f.emit('blur');
+    expect(serialize).not.toHaveBeenCalled();
+    expect(f.persist).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+    if (action === 'close') f.session.detach(); else f.session.saveNow();
+    expect(f.persist).toHaveBeenCalledOnce();
+    expect(f.persist.mock.calls[0][1].pmJson).toContain('文'.repeat(50_000));
+    vi.advanceTimersByTime(1000);
+    expect(f.persist).toHaveBeenCalledOnce();
+    f.session.detach();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('coalesces a blur followed by more typing into the latest draft', () => {
+    vi.useFakeTimers();
+    const f = fixture(); f.session.attach();
+    f.update(document('Before blur')); f.emit('blur');
+    f.update(document('After refocus'));
+    vi.advanceTimersByTime(399);
+    expect(f.persist).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(f.persist).toHaveBeenCalledOnce();
+    expect(f.persist.mock.calls[0][1].outline[0].text).toBe('After refocus');
+    f.session.detach();
   });
 
   it('never sends a retiring editor draft to the incoming source callback', () => {

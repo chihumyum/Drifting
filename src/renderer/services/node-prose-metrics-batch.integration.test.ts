@@ -11,7 +11,8 @@ import { registerLiveYDoc } from '../lib/yjs-doc-registry';
 import { BookNodeTable, NodeContentTable, ProjectTable, YjsDocumentRevisionTable, yjsSnapshots, yjsUpdates } from '../schema/drizzle';
 import * as yjsRepo from '../sqlite-repo/yjs-repo';
 import * as durability from './yjs-local-durability.service';
-import { deriveCanonicalNodeProseProjection, reconcileProjectProseMetrics } from './node-prose-metrics.service';
+import * as entityYjs from '../hooks/useEntityYjsDoc';
+import { deriveCanonicalNodeProseProjection, materializeCanonicalNodeProse, reconcileProjectProseMetrics } from './node-prose-metrics.service';
 
 const NOW = '2026-09-30T00:00:00.000Z';
 const PROJECT = 'synthetic-metrics';
@@ -79,6 +80,27 @@ async function expected(doc: Y.Doc, revision: number) {
 }
 
 describe('bounded prose metrics with product SQLite', () => {
+  it.each(['live', 'closed'] as const)('does not rebuild a seed during a %s editor save, even if the cache is corrupt', async mode => {
+    const { db, doc, rows } = await fixture();
+    if (mode === 'live') registerSession(db, doc);
+    const seed = vi.spyOn(entityYjs, 'createEntitySeedUpdate');
+    await db.update(NodeContentTable).set({ contentJson: 'invalid stale cache' });
+    const projection = await materializeCanonicalNodeProse(PROJECT, 'node-0', 'invalid fallback', { publishToDataStore: false });
+    expect(seed).not.toHaveBeenCalled();
+    expect(projection.contentJson).toBe((await expected(doc, mode === 'live' ? 4 : 3)).contentJson);
+    expect(rows()[0]).toMatchObject({ content_json: projection.contentJson, word_count_basis_kind: 'yjs' });
+  });
+
+  it('constructs a seed only for an unseeded document and still rejects a corrupt seed', async () => {
+    const { db } = await fixture(1, false);
+    const seed = vi.spyOn(entityYjs, 'createEntitySeedUpdate');
+    await materializeCanonicalNodeProse(PROJECT, 'node-0', undefined, { publishToDataStore: false });
+    expect(seed).toHaveBeenCalledOnce();
+    await db.update(NodeContentTable).set({ contentJson: 'invalid seed' });
+    await expect(materializeCanonicalNodeProse(PROJECT, 'node-0')).rejects.toThrow();
+    expect(seed).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps exact formatting, outline, hash and revision across bounded groups; repeat does not write', async () => {
     const { gateway, doc, rows } = await fixture(18);
     const read = vi.spyOn(yjsRepo, 'readPersistedYjsDocuments');

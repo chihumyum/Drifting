@@ -143,12 +143,28 @@ export class EntityEditorSession {
   private onUpdate = (): void => {
     if (!this.attached || this.editor.isDestroyed) return;
     this.pendingPersist = true;
-    this.cancelTimer();
-    this.timer = setTimeout(() => { this.timer = null; this.persist(); }, PERSIST_DEBOUNCE_MS);
+    this.schedulePersist(PERSIST_DEBOUNCE_MS);
     this.saveSelection();
   };
+  private schedulePersist(delay: number): void {
+    this.cancelTimer();
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      // A pause while choosing an IME candidate is not an idle editor. Keep
+      // derived JSON/outline work off composition; Yjs updates persist separately.
+      if (this.editor.view.composing) this.schedulePersist(PERSIST_DEBOUNCE_MS);
+      else this.persist();
+    }, delay);
+  }
   private onSelectionUpdate = (): void => { this.saveSelection(); };
-  private onBlur = (): void => { this.flush(); this.saveSelection(true); };
+  private onBlur = (): void => {
+    // Blur runs inside the browser's focus handoff. Do not serialize the whole
+    // document or publish projections before the clicked editor can focus.
+    // Yjs durability is independently queued; explicit save/teardown still
+    // flush projections synchronously and cancel this task.
+    if (this.pendingPersist) this.schedulePersist(0);
+    this.saveSelection(true);
+  };
   private onDestroy = (): void => { this.detach(); };
 
   private saveSelection(force = false): void {

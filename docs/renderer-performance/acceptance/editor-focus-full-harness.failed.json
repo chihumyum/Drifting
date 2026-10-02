@@ -1,0 +1,11 @@
+{
+  "kind": "renderer_performance_failure",
+  "status": "failed",
+  "generatedAt": "2026-10-02T15:54:08.954Z",
+  "source": {
+    "commit": "5622d3800a8783e953ceddb2b62039c07b6f0ddb",
+    "rendererFingerprint": "de47524606d6dbecfaa0ddf6896ea55986b361f343a3f36bce78238c74d3c2b7",
+    "fingerprintVersion": 2
+  },
+  "error": "Error: Harness failed: {\"exceptionId\":1,\"text\":\"Uncaught (in promise) Error: Agent panel owner duplicated or missing at cycle 0\",\"lineNumber\":300,\"columnNumber\":4650,\"scriptId\":\"3\",\"stackTrace\":{\"callFrames\":[{\"functionName\":\"yR\",\"scriptId\":\"3\",\"url\":\"http://127.0.0.1:58992/assets/renderer-performance-B8id10b5.js\",\"lineNumber\":299,\"columnNumber\":4649}]},\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":\"Error: Agent panel owner duplicated or missing at cycle 0\\n    at yR (http://127.0.0.1:58992/assets/renderer-performance-B8id10b5.js:300:4650)\\n    at async Object.oN [as run] (http://127.0.0.1:58992/assets/renderer-performance-B8id10b5.js:4193:16927)\",\"objectId\":\"-473329382974819977.2.2\"}}"
+}

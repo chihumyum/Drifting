@@ -72,6 +72,50 @@ async function runInitialSessionFocus() {
   } finally { sessions.forEach(session => session.detach()); editor.destroy(); other.destroy(); root.remove(); otherRoot.remove(); }
 }
 
+async function runBlurFocusHandoff() {
+  const profiles = [];
+  for (const characters of [5_000, 50_000, 200_000]) {
+    for (const legacy of [true, false]) {
+      const root = document.createElement('div'); const incomingRoot = document.createElement('div');
+      document.body.append(root, incomingRoot);
+      const doc = new Y.Doc();
+      const editor = new Editor({ element: root, extensions: [StarterKit.configure({ undoRedo: false }), Collaboration.configure({ document: doc })] });
+      const incoming = new Editor({ element: incomingRoot, extensions: [StarterKit], content: '<p>Synthetic focus target.</p>' });
+      editor.commands.setContent({ type: 'doc', content: Array.from({ length: characters / 100 }, (_, index) => ({
+        type: 'paragraph', attrs: { id: `synthetic-focus-${index}` }, content: [{ type: 'text', text: '合成正文'.repeat(25) }],
+      })) });
+      const owner = new EntityEditorSession(editor, { projectId: 'synthetic-focus', sourceKind: 'node', sourceId: 'source' });
+      let serializations = 0; let saves = 0; let savedText = '';
+      const getJSON = editor.getJSON.bind(editor);
+      editor.getJSON = () => { serializations++; return getJSON(); };
+      owner.updateOptions({ onPersist: (_editor, derived) => { saves++; savedText = derived.pmJson; }, selectionKey: null, autoFocus: true, isCommandActive: true });
+      owner.attach();
+      // Negative control restores the previous synchronous blur behavior.
+      if (legacy) editor.on('blur', owner.flush);
+      try {
+        editor.view.focus();
+        editor.view.dispatch(editor.state.tr.insertText('x', 1));
+        const before = serializations; const start = performance.now();
+        incoming.view.focus();
+        const focusHandoffMs = performance.now() - start;
+        const synchronousSerializations = serializations - before;
+        ensure(document.activeElement === incoming.view.dom, 'Focus did not reach the incoming prose editor');
+        ensure(synchronousSerializations === (legacy ? 1 : 0), 'Blur performed unexpected synchronous full-document work');
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        ensure(saves === 1 && serializations === 1, 'Blur must persist exactly once after yielding');
+        ensure(savedText === JSON.stringify(getJSON()), 'Deferred projection lost the latest prose');
+        ensure(document.activeElement === incoming.view.dom, 'Projection stole the incoming editor focus');
+        profiles.push({ characters, mode: legacy ? 'synchronous-blur-reference' : 'deferred-blur',
+          focusHandoffMs, synchronousSerializations, saves, focusRetained: true, prosePreserved: true });
+      } finally {
+        if (legacy) editor.off('blur', owner.flush);
+        owner.detach(); editor.destroy(); incoming.destroy(); doc.destroy(); root.remove(); incomingRoot.remove();
+      }
+    }
+  }
+  return { profiles, scope: 'Real Tiptap/Yjs and synchronous DOM focus in isolated Chromium. One diagnostic timing sample per profile; no physical clicks, native WebKit, SQLite or input-to-paint budget.' };
+}
+
 export async function runEditorContextMenuScenarios() {
   const groups = [];
   for (const count of [1, 5, 20]) {
@@ -171,5 +215,5 @@ export async function runEditorContextMenuScenarios() {
       window.setTimeout = savedTimeout; window.clearTimeout = savedClear;
     }
   }
-  return { groups, collaborativeFormats: await runCollaborativeFormats(), initialSessionFocus: await runInitialSessionFocus(), scope: 'Actual DOM and Tiptap editors in isolated Chromium; no React shell, native input, or memory/latency budget inferred.' };
+  return { groups, collaborativeFormats: await runCollaborativeFormats(), initialSessionFocus: await runInitialSessionFocus(), blurFocusHandoff: await runBlurFocusHandoff(), scope: 'Actual DOM and Tiptap editors in isolated Chromium; no React shell, native input, or memory/latency budget inferred.' };
 }

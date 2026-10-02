@@ -248,14 +248,18 @@ async function captureNodeProjection(
   nodeId: string,
   fallbackContentJson?: string | null,
 ): Promise<CanonicalNodeProseProjection> {
-  const contentJson =
-    fallbackContentJson ??
-    (await createBookContentRepository(undefined, projectId).findByNodeId(nodeId))?.contentJson ??
-    EMPTY_DOCUMENT;
-  const seedUpdate = await createEntitySeedUpdate(contentJson);
   const base = await createYjsProsePersistenceCoordinator().readBase(
     proseDocId('node', nodeId),
-    seedUpdate,
+    async (tx) => {
+      // Most saves already have canonical Yjs state. Constructing a discarded
+      // full-document seed here would block the renderer on every save/blur.
+      // The coordinator calls this only after proving no live/durable state,
+      // and keeps the fallback read inside that same SQLite transaction.
+      const contentJson = fallbackContentJson ??
+        (await createBookContentRepository(tx, projectId).findByNodeId(nodeId))?.contentJson ??
+        EMPTY_DOCUMENT;
+      return createEntitySeedUpdate(contentJson);
+    },
   );
   return deriveCanonicalNodeProseProjection(nodeId, base);
 }
