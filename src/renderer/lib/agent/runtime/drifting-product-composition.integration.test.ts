@@ -200,6 +200,23 @@ async function waitForDone(events: AgentEventEnvelope[], count: number): Promise
   );
 }
 
+class DeclaredContextFakeDriver extends ScriptedFakeDriver {
+  readonly capabilities;
+
+  constructor(rounds: readonly ScriptedDriverRound[], contextWindowTokens: number) {
+    super({ id: 'deterministic-product-driver', rounds });
+    this.capabilities = {
+      context: {
+        id: `synthetic-model:${contextWindowTokens}`,
+        contextWindowTokens,
+        maxOutputTokens: null,
+        providerOverheadTokens: 512,
+        perToolOverheadTokens: 8,
+      },
+    };
+  }
+}
+
 class ProductAgentHarness {
   readonly events: AgentEventEnvelope[] = [];
   readonly nodeRepository;
@@ -212,7 +229,7 @@ class ProductAgentHarness {
     readonly directory: string,
     readonly gateway: ProductFileBackedSqliteGateway,
     readonly database: DbClient,
-    readonly driver: ScriptedFakeDriver,
+    readonly driver: DeclaredContextFakeDriver,
     context: AgentToolContext,
   ) {
     this.nodeRepository = createBookNodeSqliteRepository(PROJECT_ID, database);
@@ -222,10 +239,6 @@ class ProductAgentHarness {
       database,
       getContext: () => context,
       authoredJournal: this.authoredJournal,
-      // The scripted provider has no real model metadata. Declare the same
-      // explicit window this acceptance fixture is exercising rather than
-      // letting an unknown driver inherit the product provider profile.
-      contextWindowTokens: 200_000,
       createId: (kind) => (kind === 'session' ? SESSION_ID : `unexpected-${kind}`),
     });
     const subscription = this.composition.transport.subscribeEvents((event) =>
@@ -236,7 +249,10 @@ class ProductAgentHarness {
     }
   }
 
-  static async create(rounds: readonly ScriptedDriverRound[]): Promise<ProductAgentHarness> {
+  static async create(
+    rounds: readonly ScriptedDriverRound[],
+    contextWindowTokens = 256_000,
+  ): Promise<ProductAgentHarness> {
     const directory = await mkdtemp(path.join(tmpdir(), 'drifting-agent-product-runtime-'));
     const databasePath = path.join(directory, 'drifting.db');
     const gateway = new ProductFileBackedSqliteGateway(databasePath);
@@ -261,10 +277,7 @@ class ProductAgentHarness {
         directory,
         gateway,
         database,
-        new ScriptedFakeDriver({
-          id: 'deterministic-product-driver',
-          rounds,
-        }),
+        new DeclaredContextFakeDriver(rounds, contextWindowTokens),
         context,
       );
       harnessRef.current = harness;
@@ -609,6 +622,26 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
+  it.each([64_000, 400_000, 1_050_000, 2_000_000])(
+    'plans and persists the declared %i-token window without a product override',
+    async (contextWindowTokens) => {
+      harness = await ProductAgentHarness.create([
+        { name: 'answer', steps: finalSteps('Ready.') },
+      ], contextWindowTokens);
+      await harness.runTurn('declared-window', 'Say ready.');
+      const planned = harness.rows(
+        "SELECT payload_json FROM agent_runtime_event WHERE turn_id = 'declared-window' AND event_type = 'context_planned' ORDER BY seq",
+      ).map((row) => JSON.parse(String(row.payload_json)) as {
+        event: { snapshot: { contextWindowTokens: number } };
+      });
+      expect(planned.length).toBeGreaterThan(0);
+      expect(planned.every((payload) =>
+        payload.event.snapshot.contextWindowTokens === contextWindowTokens,
+      )).toBe(true);
+      harness.driver.assertExhausted();
+    },
+  );
+
   it('resolves author-facing checklist labels to canonical targets', () => {
     const chapter: BookNode = {
       id: NODE_ID,
@@ -700,7 +733,7 @@ describe.sequential('Drifting Agent product composition', () => {
       );
     expect(plannedContexts.length).toBeGreaterThan(0);
     expect(
-      plannedContexts.every((payload) => payload.event.snapshot.contextWindowTokens === 200_000),
+      plannedContexts.every((payload) => payload.event.snapshot.contextWindowTokens === 256_000),
     ).toBe(true);
     harness.driver.assertExhausted();
   });

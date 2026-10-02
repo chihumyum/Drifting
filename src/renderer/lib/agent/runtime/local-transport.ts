@@ -391,7 +391,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         ...(input.provider ? { provider: input.provider } : {}),
         systemPrompt: buildDriftingAgentSystemPrompt(input, route),
         ...(input.model ? { model: input.model } : {}),
-        ...(input.contextMode ? { contextMode: input.contextMode } : {}),
         reasoning: !this.supportsReasoning
           ? { enabled: false }
           : {

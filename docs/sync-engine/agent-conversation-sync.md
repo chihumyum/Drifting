@@ -31,6 +31,14 @@ bounded batch of 16 conversations, at most 16 turns per conversation, and acknow
 uses missing local bindings as a resumable cursor. A failed export is recorded
 per conversation rather than starving sibling histories.
 
+Only `agent_conversation.source=chat` belongs to this protocol. Migration
+`0005_agent_conversation_source` marks existing external MCP audit conversations
+as `external_mcp`, removes their export-queue entries, and limits enqueue triggers
+and backfill to internal chats. The General Agent history, restore, continuation
+and deletion paths exclude external records while retaining their local runtime
+and review provenance. Old MCP branches already received from earlier clients
+remain stored as immutable objects and are not projected into chats.
+
 ## Portable history
 
 Branch metadata has stable identity and immutable ancestry. Title updates use

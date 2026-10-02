@@ -18,8 +18,7 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 | Hidden certified domain operations | 31 |
 | Domain lifecycle contracts | 11 |
 | Closed domain lifecycle operations | 53 |
-| Standard context window | 200,000 tokens |
-| Max context request | 1,000,000 tokens |
+| Context window policy | model-declared (full selected model window) |
 | App concurrency cap | none |
 
 The installed model surface is deliberately domain-native. Each read and mutation has
@@ -190,8 +189,8 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 
 ## Context engineering contract
 
-- Provider profile: `deepseek-v4-flash:drifting-context-v2`
-- Declared window: 200,000 tokens
+- Default model profile: `deepseek-v4-flash:agent-v3`
+- Default model declared window: 200,000 tokens
 - Declared provider output maximum: unknown (no client default cap)
 - Undeclared-provider fallback: 32,768 tokens
 - Literary summary schema: v1

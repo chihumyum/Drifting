@@ -510,12 +510,12 @@ export class AgentChatSyncRuntime implements RegisteredSyncGenerationRuntime {
       .select({ count: sql<number>`count(*)` })
       .from(Queue)
       .innerJoin(Conversations, eq(Conversations.id, Queue.conversationId))
-      .where(eq(Conversations.projectId, this.projectId));
+      .where(and(eq(Conversations.projectId, this.projectId), eq(Conversations.source, 'chat')));
     const unbound = await db
       .select({ count: sql<number>`count(*)` })
       .from(Conversations)
       .leftJoin(Bindings, eq(Bindings.conversationId, Conversations.id))
-      .where(and(eq(Conversations.projectId, this.projectId), isNull(Bindings.conversationId)));
+      .where(and(eq(Conversations.projectId, this.projectId), eq(Conversations.source, 'chat'), isNull(Bindings.conversationId)));
     const pending = await db
       .select({ count: sql<number>`count(*)` })
       .from(Objects)

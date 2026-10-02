@@ -367,9 +367,6 @@ interface SettingsState {
   setAgentProvider: (provider: AgentProviderId) => void;
   agentModel: AgentModel;
   setAgentModel: (m: AgentModel) => void;
-  /** Requests the selected model's declared context window, capped at 1M. */
-  agentMaxContext: boolean;
-  setAgentMaxContext: (on: boolean) => void;
   agentEffort: AgentEffort;
   setAgentEffort: (e: AgentEffort) => void;
   agentThinking: AgentThinking;
@@ -635,8 +632,6 @@ export const useSettingsStore = create<SettingsState>()(
             ),
           };
         }),
-      agentMaxContext: false,
-      setAgentMaxContext: (on) => set({ agentMaxContext: on }),
       agentEffort: 'high',
       setAgentEffort: (e) =>
         set((state) => ({
@@ -994,9 +989,6 @@ export const useSettingsStore = create<SettingsState>()(
           next.agentProvider = provider;
           next.agentModel = normalizeAgentProviderModel(provider, next.agentModel);
         }
-        if (version < 23) {
-          next.agentMaxContext = false;
-        }
         if (version < 24) {
           const provider = normalizeAgentProvider(next.agentProvider);
           const model = normalizeAgentProviderModel(provider, next.agentModel);
@@ -1054,7 +1046,8 @@ export const useSettingsStore = create<SettingsState>()(
           merged.agentModel,
           merged.agentEffort,
         );
-        merged.agentMaxContext = merged.agentMaxContext === true;
+        // Retire the product context cap even for same-version persisted settings.
+        delete (merged as unknown as Record<string, unknown>).agentMaxContext;
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
         merged.agentAllowDangerousOperations =
           persistedSettings?.agentAllowDangerousOperations === true;

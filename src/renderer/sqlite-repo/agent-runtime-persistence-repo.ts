@@ -96,6 +96,8 @@ export interface UpdateAgentRuntimeToolCall {
 export interface AcceptAgentRuntimeTurnInput {
   session: PersistedAgentRuntimeSession;
   turn: PersistedAgentRuntimeTurn;
+  /** Verified continuation context, stored atomically before the new prompt. */
+  continuationMessages?: PersistedAgentRuntimeMessage[];
   promptMessage: PersistedAgentRuntimeMessage;
 }
 
@@ -1061,7 +1063,7 @@ export function createAgentRuntimePersistenceRepository(
       return rows.length > 0;
     },
 
-    async acceptTurn({ session, turn, promptMessage }) {
+    async acceptTurn({ session, turn, promptMessage, continuationMessages = [] }) {
       return dbProvider().transaction(async (tx) => {
         const existingSession = await getSession(session.id, tx);
         if (existingSession && !sameSessionIdentity(existingSession, session)) {
@@ -1115,6 +1117,17 @@ export function createAgentRuntimePersistenceRepository(
             'Accepted turn, prompt, and session ownership do not match.',
           );
         }
+        const acceptedMessages = [...continuationMessages, promptMessage];
+        if (continuationMessages.some((message, index) =>
+          message.sessionId !== session.id || message.turnId !== turn.id ||
+          message.status !== 'complete' ||
+          message.ordinal !== promptMessage.ordinal - continuationMessages.length + index
+        ) || new Set(acceptedMessages.map((message) => message.id)).size !== acceptedMessages.length) {
+          throw new AgentRuntimePersistenceConflictError(
+            'ROUTE_OWNERSHIP_MISMATCH',
+            'Continuation messages must belong to the accepted turn and precede its prompt.',
+          );
+        }
 
         const existingTurn = await getTurn(turn.id, tx);
         const existingMessage = await getMessage(promptMessage.id, tx);
@@ -1125,6 +1138,27 @@ export function createAgentRuntimePersistenceRepository(
             sameTurn(existingTurn, turn) &&
             sameMessage(existingMessage, promptMessage)
           ) {
+            const existingContinuation = await tx.select({ id: AgentRuntimeMessageTable.id })
+              .from(AgentRuntimeMessageTable)
+              .where(and(
+                eq(AgentRuntimeMessageTable.turnId, turn.id),
+                lt(AgentRuntimeMessageTable.ordinal, promptMessage.ordinal),
+              ));
+            if (existingContinuation.length !== continuationMessages.length) {
+              throw new AgentRuntimePersistenceConflictError(
+                'MESSAGE_ID_CONFLICT',
+                'Continuation context differs from the accepted turn.',
+              );
+            }
+            for (const message of continuationMessages) {
+              const existing = await getMessage(message.id, tx);
+              if (!existing || !sameMessage(existing, message)) {
+                throw new AgentRuntimePersistenceConflictError(
+                  'MESSAGE_ID_CONFLICT',
+                  'Continuation context conflicts with the accepted turn.',
+                );
+              }
+            }
             return 'duplicate';
           }
           throw new AgentRuntimePersistenceConflictError(
@@ -1152,7 +1186,7 @@ export function createAgentRuntimePersistenceRepository(
           .from(AgentRuntimeMessageTable)
           .where(eq(AgentRuntimeMessageTable.sessionId, session.id));
         const expectedMessageOrdinal = (maxMessageRows[0]?.ordinal ?? -1) + 1;
-        if (promptMessage.ordinal !== expectedMessageOrdinal) {
+        if (acceptedMessages[0]!.ordinal !== expectedMessageOrdinal) {
           throw new AgentRuntimePersistenceConflictError(
             'MESSAGE_ORDINAL_CONFLICT',
             `Agent session ${session.id} expected message ordinal ${expectedMessageOrdinal}, received ${promptMessage.ordinal}.`,
@@ -1160,7 +1194,7 @@ export function createAgentRuntimePersistenceRepository(
         }
 
         await tx.insert(AgentRuntimeTurnTable).values(turn);
-        await insertMessage(tx, promptMessage);
+        for (const message of acceptedMessages) await insertMessage(tx, message);
         await tx
           .update(AgentRuntimeSessionTable)
           .set({

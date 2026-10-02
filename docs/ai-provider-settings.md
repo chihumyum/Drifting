@@ -22,6 +22,8 @@ General Agent 在登录或账号变化、composer 挂载、打开模型菜单、
 
 目录保留服务端 `visibility: list` 模型的顺序和名称，不用 `supported_in_api` 过滤订阅模型。上下文和推理档位跟随目录，包括 `minimal` / `ultra`；没有 `none` 的推理模型不能关闭推理，不支持的 summary / verbosity 参数不会发送。缺少上下文元数据时采用 32,768 token 本地输入规划回退；目录没有提供的输出上限记为 `null`（未知），不能用预留量冒充模型能力。
 
+General Agent 的上下文窗口直接使用所选模型声明的长度，不设置额外的 200K／1M 产品上限，也不提供 Standard／Max 开关。BYOK 使用模型配置中的声明；ChatGPT 订阅使用账号模型目录的 `context_window`，缺失时保守回退到 32,768 token。旧的 Max 偏好在设置加载时移除。输出预留、工具开销和安全余量在模型窗口内部计算，不改变窗口本身。
+
 General Agent 默认不设置单次或累计输出上限；摘要压缩也不再默认设置 1,024 token 上限。OAuth 请求不发送 `max_output_tokens`，由模型和服务端结束生成。API Key Responses 和 OpenAI-compatible driver 只转发调用方明确设置的输出限制；Anthropic Messages 必须填写 `max_tokens`，未指定时使用所选模型已声明的最大值。上下文规划保留 8,192 token 输入余量，但它不进入生成请求、不截断长回答，也不因超过某个 profile 的输出值而拒绝默认请求。
 
 明确指定的限制与已知模型规格冲突属于配置错误；压缩失败、熔断或第一次调用前无法容纳的上下文属于失败，不触发自动续接。完整合成 tool-loop 覆盖新目录模型与重启后未加载的模型，通过实际 Responses driver 验证读取工具、结果回传、每次 16,384 token 用量及自然结束；两次请求均无输出上限。更广的预算和续接审计见 [执行控制审计](agent-runtime/execution-control-audit.md)。
@@ -33,7 +35,7 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 ## 路由归属
 
 - Copilot 在自己的设置中选择 `copilotByokProvider + copilotByokModel`；运行时从全局 Keychain 取得对应 key。切换 provider 会清空上一个 provider 的 model id，并在下一次调用前重建 client，不能把旧 provider 的模型或凭据带进新路由。
-- General Agent 的 `agentProvider + agentModel + reasoning/context` 只在右侧对话框的 composer 配置菜单中选择。设置页保留 Agent memory、MCP 和 usage 等持久管理面。
+- General Agent 的 `agentProvider + agentModel + reasoning` 只在右侧对话框的 composer 配置菜单中选择。设置页保留 Agent memory、MCP 和 usage 等持久管理面。
 - standalone Shadow CI、Element Arc 与 Goal Evolve 已于 2026-08-05 移除；它们不再拥有 provider route 或独立凭据消费者。
 
 General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool protocol，另有复用 OpenAI Responses 契约的实验性 `openai-codex` 订阅路由。Google 虽然统一管理凭据，但在其 Agent Runtime tool loop 完成认证前只供 Copilot 选择。

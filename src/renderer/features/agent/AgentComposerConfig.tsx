@@ -12,7 +12,6 @@ import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { Switch } from '../../components/ui/Switch';
 import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
-import { DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS } from '../../lib/agent/runtime/drifting-agent-product-contract';
 import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider-contract';
 import { codexModelCatalog } from '../../lib/agent/codex-model-catalog';
 import { useCodexModelCatalog } from './useCodexModelCatalog';
@@ -20,7 +19,7 @@ import { useCodexModelCatalog } from './useCodexModelCatalog';
 /**
  * The single composer config control: a quiet summary button that opens an
  * upward menu. The menu adjusts the active model, provider-aware reasoning,
- * context budget and edit-review behavior.
+ * and edit-review behavior.
  */
 export function AgentComposerConfig({ preserveInputFocus = false }: { preserveInputFocus?: boolean }) {
   const { t } = useTranslation();
@@ -32,8 +31,6 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
   const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
   const agentEffort = useSettingsStore((s) => s.agentEffort);
   const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
-  const agentMaxContext = useSettingsStore((s) => s.agentMaxContext);
-  const setAgentMaxContext = useSettingsStore((s) => s.setAgentMaxContext);
   const agentEditMode = useSettingsStore((s) => s.agentEditMode);
   const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
   const agentAllowDangerousOperations = useSettingsStore(
@@ -55,8 +52,6 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
   const modelOption = agentProviderModelOption(agentProvider, agentModel);
   const reasoningProfile = resolveAgentProviderReasoningProfile(agentProvider, agentModel);
   const supportsThinking = reasoningProfile.thinkingModes.includes('adaptive');
-  const supportsMaxContext =
-    (modelOption?.context.contextWindowTokens ?? 0) >= DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS;
   const modelShort = modelOption.responses ? modelOption.short : t(`settings.agent.modelOptions.${agentModel}.short`, {
     defaultValue: modelOption?.short ?? agentModel,
   });
@@ -118,21 +113,6 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                 <span className="agt-menu__caret">›</span>
               </span>
             </button>
-            <div
-              className="agt-menu__row"
-              title={
-                supportsMaxContext
-                  ? t('agentPanel.config.maxContextTitle')
-                  : t('agentPanel.config.maxContextUnavailable')
-              }
-            >
-              <span>{t('agentPanel.config.maxContext')}</span>
-              <Switch
-                checked={supportsMaxContext && agentMaxContext}
-                disabled={!supportsMaxContext}
-                onCheckedChange={setAgentMaxContext}
-              />
-            </div>
             <div className="agt-menu__divider" />
             <div className="agt-menu__sec">{t('agentPanel.config.reasoning')}</div>
             <div

@@ -10,8 +10,6 @@ import type {
 } from '../tool-registry.types';
 import {
   DRIFTING_AGENT_CONTEXT_PROFILE,
-  DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
-  DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
   DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS,
 } from './drifting-agent-product-contract';
 import {
@@ -39,7 +37,7 @@ import {
 import { DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT } from './drifting-product-tool-selection';
 import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 21 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 22 as const;
 
 export type DriftingAgentToolOwner =
   | 'workspace-runtime'
@@ -71,8 +69,7 @@ export interface DriftingAgentCapabilityManifest {
   product: {
     runtimeHost: 'tauri-renderer';
     providerNeutralProtocol: true;
-    contextWindowTokens: number;
-    maxContextWindowTokens: number;
+    contextWindowPolicy: 'model-declared';
     dynamicToolRegistration: 'project-scoped-runtime';
     concurrency: typeof DRIFTING_AGENT_CONCURRENCY_CONTRACT;
   };
@@ -283,8 +280,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     product: {
       runtimeHost: 'tauri-renderer',
       providerNeutralProtocol: true,
-      contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
-      maxContextWindowTokens: DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
+      contextWindowPolicy: 'model-declared',
       dynamicToolRegistration: 'project-scoped-runtime',
       concurrency: DRIFTING_AGENT_CONCURRENCY_CONTRACT,
     },

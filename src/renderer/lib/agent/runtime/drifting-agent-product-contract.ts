@@ -1,35 +1,16 @@
 import type { AgentModelContextProfile } from './types';
+import { DEFAULT_AGENT_PROVIDER, resolveAgentProviderContextProfile } from './agent-provider-contract';
 
-/** Pure product constants consumed by runtime and capability tooling. */
-export const DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS = 200_000 as const;
-export const DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS = 1_000_000 as const;
 export const DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS = 32_768 as const;
 
-/**
- * Current General Agent provider contract. Keep this object in lockstep with
- * the concrete default driver; alternate drivers must declare their own
- * profile instead of inheriting this one by model-name guesswork.
- */
-export const DRIFTING_AGENT_CONTEXT_PROFILE = Object.freeze({
-  id: 'deepseek-v4-flash:drifting-context-v2',
-  contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
-  maxOutputTokens: null,
-  providerOverheadTokens: 512,
-  perToolOverheadTokens: 8,
-}) satisfies Readonly<AgentModelContextProfile>;
+/** The default router advertises its default model's declaration, not a product cap. */
+export const DRIFTING_AGENT_CONTEXT_PROFILE = resolveAgentProviderContextProfile(
+  DEFAULT_AGENT_PROVIDER,
+  undefined,
+);
 
 export interface ResolvedDriftingAgentContextProfile extends AgentModelContextProfile {
   source: 'driver' | 'explicit_override' | 'conservative_fallback';
-}
-
-export type DriftingAgentContextMode = 'standard' | 'max';
-
-export function requestedDriftingAgentContextWindowTokens(
-  mode: DriftingAgentContextMode | undefined,
-): number {
-  return mode === 'max'
-    ? DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS
-    : DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS;
 }
 
 function positive(value: number, label: string): number {
@@ -40,27 +21,28 @@ function positive(value: number, label: string): number {
 }
 
 /**
- * Resolve the exact budget installed into the planner. Product intent may cap
- * a driver's declared window, but can never enlarge it. An unknown custom
- * driver receives 32k unless a DEV/test caller explicitly supplies a window.
+ * Use the model's entire declared window. Only an explicit DEV/test override
+ * may reduce it; an undeclared custom driver receives a conservative fallback.
  */
 export function resolveDriftingAgentContextProfile(input: {
   declared?: AgentModelContextProfile;
+  /** DEV/test override only; production follows the model declaration. */
   requestedContextWindowTokens?: number;
 }): ResolvedDriftingAgentContextProfile {
   const requested =
     input.requestedContextWindowTokens === undefined
-      ? DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS
+      ? undefined
       : positive(input.requestedContextWindowTokens, 'requestedContextWindowTokens');
   const declared = input.declared;
   if (declared) {
     const declaredWindow = positive(declared.contextWindowTokens, 'declared.contextWindowTokens');
     return {
       id:
-        requested < declaredWindow
+        requested !== undefined && requested < declaredWindow
           ? `${declared.id}:capped-${requested}`
           : declared.id,
-      contextWindowTokens: Math.min(requested, declaredWindow),
+      contextWindowTokens: requested === undefined
+        ? declaredWindow : Math.min(requested, declaredWindow),
       maxOutputTokens: declared.maxOutputTokens === null
         ? null : positive(declared.maxOutputTokens, 'declared.maxOutputTokens'),
       providerOverheadTokens: positive(
@@ -74,7 +56,7 @@ export function resolveDriftingAgentContextProfile(input: {
       source: 'driver',
     };
   }
-  if (input.requestedContextWindowTokens !== undefined) {
+  if (requested !== undefined) {
     return {
       ...DRIFTING_AGENT_CONTEXT_PROFILE,
       id: `explicit-context-window:${requested}`,

@@ -25,28 +25,40 @@ context bridge and produce:
 `verifyAgentContextProviderEnvelope` must succeed before a checkpoint is
 accepted or recovered. There is no unplanned provider-history fallback.
 
+### Interrupted continuation
+
+When the author explicitly continues a trailing chain of aborted or
+process-interrupted turns, restore the exact original requests, received
+steering and clarification answers. Retain completed, catalog-certified
+read call/result pairs from the validated journal and durable tool rows;
+identical read requests keep their newest completed result. These are prior
+observations, not proof of current freshness or a finished review. Reads
+superseded by a later write start, or taken during an unresolved write, require
+fresh observations. Partial assistant prose, reasoning, pending reads and write
+calls never become completed history. Writes remain governed by durable
+receipts and reviews.
+
+Accept the restored context and the new prompt together in one SQLite
+transaction, using ordinary normalized message rows owned by the new turn.
+Its completed checkpoint must include that context, so another restart after
+completion preserves the task and evidence. Repeated interruptions retain
+the original request and newer author corrections without duplicating read
+pairs. A new unrelated request does not revive the interrupted task.
+
 ## 2. Provider-aware budget
 
-The standard product mode caps a declared provider window at 200,000 tokens.
-Max mode requests the provider's declared window up to 1,000,000 tokens. It
-never invents support: a 200k declaration remains 200k, and an unknown custom
-driver remains on the conservative fallback. Context mode, provider and model
-are captured when the author submits the turn and cannot change midway.
+The selected model's declared context window is used in full, without a product
+window cap or a Standard/Max setting. Bundled BYOK profiles supply their explicit
+model declarations; the ChatGPT subscription catalog supplies `context_window`.
+Provider and model are captured when the author submits the turn. Each planning
+boundary resolves that model's current declaration.
 
-The default DeepSeek driver declares:
-
-| Field                     |          Value |
-| ------------------------- | -------------: |
-| Context window            | 200,000 tokens |
-| Client output ceiling     |           None |
-| Input planning headroom   |   8,192 tokens |
-| Provider framing reserve  |     512 tokens |
-| Per selected tool reserve |       8 tokens |
-
-A driver declaration is authoritative. Product configuration and Standard/Max
-mode may reduce its window, but must never enlarge it. A custom driver with no
-declaration receives the conservative 32,768-token fallback; only an explicit
-DEV/test override may choose another value.
+The default router's advertised profile is derived from the default model in
+`agent-provider-contract.ts`, not a second product-level window. An injected
+custom driver uses its own declaration. Missing model metadata or an undeclared
+custom driver retains the conservative 32,768-token fallback. An explicit DEV/test
+override may reduce a declaration (or supply a window for a synthetic driver),
+but is not exposed as an author preference.
 
 For every provider call, the planner charges:
 

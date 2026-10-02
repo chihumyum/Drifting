@@ -1,11 +1,10 @@
 {
-  "schemaVersion": 21,
+  "schemaVersion": 22,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
     "providerNeutralProtocol": true,
-    "contextWindowTokens": 200000,
-    "maxContextWindowTokens": 1000000,
+    "contextWindowPolicy": "model-declared",
     "dynamicToolRegistration": "project-scoped-runtime",
     "concurrency": {
       "admissionPolicy": "unbounded-user-owned",
@@ -1782,7 +1781,7 @@
   },
   "contextEngineering": {
     "providerProfile": {
-      "id": "deepseek-v4-flash:drifting-context-v2",
+      "id": "deepseek-v4-flash:agent-v3",
       "contextWindowTokens": 200000,
       "maxOutputTokens": null,
       "providerOverheadTokens": 512,

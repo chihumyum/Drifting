@@ -181,6 +181,12 @@ export function createRepositoryAgentTransportPersistence(
   } | null> => {
     const snapshot = await repository.loadRecoverySnapshot(sessionId);
     if (!snapshot) return null;
+    if (snapshot.session.provider === 'mcp') {
+      throw new AgentTransportPersistenceError(
+        'AGENT_SESSION_ROUTE_MISMATCH',
+        'External MCP sessions cannot be resumed as Agent chats.',
+      );
+    }
     try {
       const result = await recovery.recoverSnapshot(snapshot);
       return {
@@ -288,9 +294,12 @@ export function createRepositoryAgentTransportPersistence(
       }
 
       const snapshot = recoveredSnapshot?.snapshot ?? null;
+      const continuation = snapshot
+        ? interruptedContextForContinuation(snapshot, input.prompt, options.resolveToolAccess)
+        : [];
       const history = [
         ...(recoveredSnapshot?.providerHistory ?? []),
-        ...(snapshot ? interruptedAuthorIntentForContinuation(snapshot, input.prompt) : []),
+        ...continuation,
       ];
       const nextTurnOrdinal =
         (snapshot?.turns[snapshot.turns.length - 1]?.ordinal ?? -1) + 1;
@@ -302,6 +311,17 @@ export function createRepositoryAgentTransportPersistence(
       try {
         await repository.acceptTurn({
           session: durableSession,
+          continuationMessages: continuation.map((message, index) => ({
+            id: `agent-message:${input.turnId}:continuation:${index}`,
+            sessionId: durableSession.id,
+            turnId: input.turnId,
+            ordinal: nextMessageOrdinal + index,
+            role: message.role,
+            status: 'complete',
+            content: clonePortableData(message.content),
+            createdAt: input.acceptedAt,
+            completedAt: input.acceptedAt,
+          })),
           turn: {
             id: input.turnId,
             sessionId: durableSession.id,
@@ -319,7 +339,7 @@ export function createRepositoryAgentTransportPersistence(
             id: promptMessageId,
             sessionId: durableSession.id,
             turnId: input.turnId,
-            ordinal: nextMessageOrdinal,
+            ordinal: nextMessageOrdinal + continuation.length,
             role: 'user',
             status: 'complete',
             content: input.prompt,
@@ -465,7 +485,7 @@ export function createRepositoryAgentTransportPersistence(
           .filter(
             (message) =>
               message.turnId === input.turnId &&
-              message.id !== turn.promptMessageId,
+              message.ordinal > prompt.ordinal,
           )
           .sort((left, right) => left.ordinal - right.ordinal);
         const sameCompletion =
@@ -510,6 +530,10 @@ export function createRepositoryAgentTransportPersistence(
       if (resumableSlice) {
         const context = [
           ...providerHistory,
+          ...snapshot.messages
+            .filter((message) => message.turnId === input.turnId && message.ordinal < prompt.ordinal)
+            .sort((left, right) => left.ordinal - right.ordinal)
+            .map((message) => ({ role: message.role, content: clonePortableData(message.content) }) as AgentModelMessage),
           ...input.turnMessages.map(clonePortableData),
         ];
         let verifiedV2: Awaited<
@@ -705,33 +729,82 @@ const defaultRecoveryCodec: AgentRuntimeRecoveryCodec = {
 };
 
 /**
- * An aborted turn must not adopt partial assistant output, but the author's
- * request remains the task identity. When the next message explicitly asks to
- * continue, restore only the substantive prompts from the trailing aborted
- * turns. A new unrelated request keeps the historical fail-closed behavior.
+ * Restore author intent and certified completed reads across a trailing chain
+ * of stopped turns. Streamed prose/reasoning and writes are never adopted;
+ * durable write/review state is supplied by the runtime's receipt owners.
+ * The returned messages become canonical rows of the new turn at acceptance,
+ * so completing that turn and restarting cannot lose this context again.
  */
-function interruptedAuthorIntentForContinuation(
+function interruptedContextForContinuation(
   snapshot: AgentRuntimeRecoverySnapshot,
   currentPrompt: string,
+  resolveAccess: RepositoryAgentTransportPersistenceOptions['resolveToolAccess'],
 ): AgentModelMessage[] {
   if (!looksLikeContinuationRequest(currentPrompt)) return [];
   const messagesById = new Map(snapshot.messages.map((message) => [message.id, message]));
-  const prompts: string[] = [];
+  const trailingTurns: AgentRuntimeRecoverySnapshot['turns'] = [];
   for (const turn of [...snapshot.turns].sort((left, right) => right.ordinal - left.ordinal)) {
-    if (turn.status !== 'aborted') break;
-    const row = turn.promptMessageId ? messagesById.get(turn.promptMessageId) : null;
-    if (row?.role !== 'user' || typeof row.content !== 'string') continue;
-    const prompt = row.content.trim();
-    if (!prompt || isBareContinuationPrompt(prompt) || prompts.includes(prompt)) continue;
-    prompts.unshift(prompt);
-    if (prompts.length >= 3) break;
+    if (turn.status !== 'aborted' && turn.status !== 'interrupted') break;
+    trailingTurns.unshift(turn);
+    const prompt = turn.promptMessageId ? messagesById.get(turn.promptMessageId)?.content : null;
+    // A substantive unrelated request starts a new task, even if both tasks
+    // were interrupted before either could commit a completed turn.
+    if (typeof prompt === 'string' && prompt.trim() && !looksLikeContinuationRequest(prompt)) break;
   }
-  return prompts.map((content) => ({ role: 'user' as const, content }));
+  const entries: AgentModelMessage[][] = [];
+  const latestRead = new Map<string, number>();
+  const tools = new Map(snapshot.toolCalls.map((call) => [toolProjectionKey(call.sessionId, call.turnId, call.callId), call]));
+  for (const turn of trailingTurns) {
+    const row = turn.promptMessageId ? messagesById.get(turn.promptMessageId) : null;
+    if (row?.role === 'user' && typeof row.content === 'string' && row.content.trim() && !isBareContinuationPrompt(row.content)) {
+      entries.push([{ role: 'user', content: row.content }]);
+    }
+    const ready = new Map<string, Extract<AgentRuntimeEvent, { type: 'tool_call_ready' }>>();
+    const activeWrites = new Set<string>();
+    for (const eventRow of snapshot.events.filter((event) => event.turnId === turn.id).sort((a, b) => a.seq - b.seq)) {
+      const event = persistedRuntimeEvent(eventRow.payload);
+      if (event?.type === 'steering_received') {
+        entries.push([{ role: 'user', content: event.text }]);
+      } else if (event?.type === 'user_input_received') {
+        entries.push([{ role: 'user', content: event.response.text }]);
+      } else if (event?.type === 'tool_call_ready') {
+        ready.set(event.callId, event);
+      } else if (event?.type === 'tool_execution_started' && event.access === 'write') {
+        // Restored reads must not look newer than a later mutation. Without a
+        // target-level freshness proof, retire prior reads at any write start.
+        for (const index of latestRead.values()) entries[index] = [];
+        latestRead.clear();
+        activeWrites.add(event.callId);
+      } else if (event?.type === 'tool_result' && activeWrites.delete(event.callId)) {
+        continue;
+      } else if (event?.type === 'tool_result' && event.ok && event.source === 'executor') {
+        if (activeWrites.size > 0) continue;
+        const call = ready.get(event.callId);
+        const durable = tools.get(toolProjectionKey(snapshot.session.id, turn.id, event.callId));
+        if (!call || call.name !== event.name || durable?.status !== 'completed' ||
+          durable.access !== 'read' || durable.name !== event.name ||
+          resolveAccess(event.name, snapshot.session.projectId) !== 'read' ||
+          !samePortableValue(durable.arguments, call.arguments)) continue;
+        const key = canonicalAgentRuntimeJson([call.name, call.arguments]);
+        const previous = latestRead.get(key);
+        if (previous !== undefined) entries[previous] = [];
+        latestRead.set(key, entries.length);
+        // Scope call ids to their origin: providers may reuse ids across turns.
+        const callId = `continued:${turn.id}:${event.callId}`;
+        entries.push([
+          { role: 'assistant', content: [{ type: 'tool_call', callId, name: call.name,
+            arguments: clonePortableData(call.arguments), rawArguments: call.rawArguments }] },
+          { role: 'tool', content: [{ callId, name: event.name, ok: true, content: event.content }] },
+        ]);
+      }
+    }
+  }
+  return entries.flat();
 }
 
 function looksLikeContinuationRequest(value: string): boolean {
   const prompt = value.trim();
-  return /^(?:继续|接着|接下去|接上次|从刚才|把刚才|完成刚才|go\s+on\b|continue\b|resume\b|keep\s+going\b|pick\s+up\b)/iu.test(
+  return /^(?:请\s*)?(?:继续|接着|接下去|接上次|从刚才|把刚才|完成刚才|go\s+on\b|continue\b|resume\b|keep\s+going\b|pick\s+up\b)/iu.test(
     prompt,
   );
 }

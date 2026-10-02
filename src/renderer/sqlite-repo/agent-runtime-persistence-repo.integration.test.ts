@@ -201,6 +201,26 @@ describe('agent runtime persistence repository against real SQLite', () => {
     return createAgentRuntimePersistenceRepository(client);
   }
 
+  it('atomically accepts continuation context and rejects altered or partial acceptance replays', async () => {
+    const repository = setup();
+    const continuation = { ...message(), id: 'continued-request', content: 'Audit the notes only.' };
+    const input = {
+      session: session(), turn: turn(), continuationMessages: [continuation],
+      promptMessage: { ...message(), ordinal: 1, content: 'Continue.' },
+    };
+    await expect(repository.acceptTurn({ ...input, continuationMessages: [{ ...continuation, sessionId: 'foreign-session' }] }))
+      .rejects.toMatchObject({ code: 'ROUTE_OWNERSHIP_MISMATCH' });
+    expect(await repository.getSession('session-1')).toBeNull();
+    await expect(repository.acceptTurn(input)).resolves.toBe('inserted');
+    await expect(repository.acceptTurn(input)).resolves.toBe('duplicate');
+    await expect(repository.acceptTurn({ ...input, continuationMessages: [] }))
+      .rejects.toMatchObject({ code: 'MESSAGE_ID_CONFLICT' });
+    await expect(repository.acceptTurn({ ...input, continuationMessages: [{ ...continuation, content: 'Edit everything.' }] }))
+      .rejects.toMatchObject({ code: 'MESSAGE_ID_CONFLICT' });
+    const snapshot = await repository.loadRecoverySnapshot('session-1');
+    expect(snapshot?.messages.map((row) => row.content)).toEqual(['Audit the notes only.', 'Continue.']);
+  });
+
   it('atomically accepts, journals, settles, checkpoints, and replays one turn', async () => {
     const repository = setup();
     const accepted = await repository.acceptTurn({

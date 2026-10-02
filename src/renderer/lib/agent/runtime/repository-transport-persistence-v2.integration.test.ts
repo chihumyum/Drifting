@@ -442,6 +442,120 @@ describe('file-backed Agent V2 context recovery', () => {
     directory = undefined;
   });
 
+  it.each([false, true])('preserves interrupted author intent and completed reads through repeated restart and a completed continuation (writes: %s)', async (withWrites) => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-agent-interrupted-context-'));
+    const databasePath = join(directory, 'runtime.sqlite');
+    gateway = new FileSqliteGateway(databasePath, true);
+    const openPersistence = () => {
+      const repository = createAgentRuntimePersistenceRepository(createDatabaseClient(gateway!));
+      return { repository, persistence: createRepositoryAgentTransportPersistence({
+        repository, resolveToolAccess: (name) => name === 'read_complex' ? 'read' : 'write',
+      }) };
+    };
+    let { repository, persistence } = openPersistence();
+    const prepare = (turnId: string, prompt: string) => persistence.prepareTurn({
+      candidateSessionId: 'session-interrupted-context',
+      resumeSessionId: 'session-interrupted-context',
+      newConversation: false, route: ROUTE, provider: 'test-provider', model: 'test-model',
+      turnId, prompt, acceptedAt: NOW,
+    });
+    const append = async (turnId: string, events: AgentRuntimeEvent[]) => {
+      for (const [index, event] of events.entries()) {
+        await persistence.appendJournal({
+          schemaVersion: 1, sessionId: 'session-interrupted-context', turnId, route: ROUTE,
+          seq: index + 1, eventId: `${turnId}:${String(index + 1).padStart(8, '0')}`,
+          wallTimeMs: Date.parse(NOW) + index + 1, event,
+        });
+      }
+    };
+    await prepare('turn-interrupted', 'Read with nested arguments.');
+    const journal = nonLexicalToolJournal();
+    const toolEvents = (callId: string, name: string, access: 'read' | 'write', content?: string): AgentRuntimeEvent[] => [
+      { type: 'tool_call_started', iteration: 2, callId, name },
+      { type: 'tool_args_delta', iteration: 2, callId, delta: NON_LEXICAL_TOOL_RAW_ARGUMENTS },
+      { type: 'tool_call_ready', iteration: 2, callId, name,
+        arguments: NON_LEXICAL_TOOL_ARGUMENTS, rawArguments: NON_LEXICAL_TOOL_RAW_ARGUMENTS },
+      { type: 'tool_execution_started', callId, name, access },
+      ...(content === undefined ? [] : [{ type: 'tool_result' as const, callId, name,
+        ok: true, content, source: 'executor' as const }]),
+    ];
+    const calls = [
+      toolEvents('read-again', 'read_complex', 'read', 'Latest completed reading.'),
+      ...(withWrites ? [
+        toolEvents('write-done', 'write_complex', 'write', 'A write committed.'),
+        toolEvents('write-uncertain', 'write_complex', 'write'),
+      ] : []),
+      toolEvents('read-pending', 'read_complex', 'read'),
+    ];
+    await append('turn-interrupted', [
+      ...journal.slice(0, journal.findIndex((event) => event.type === 'text_delta') + 1),
+      ...calls.flatMap((events) => events.slice(0, 3)),
+      { type: 'model_usage', iteration: 2, usage: USAGE },
+      { type: 'model_iteration_completed', iteration: 2, stopReason: 'tool_use' },
+      ...calls.flatMap((events) => events.slice(3)),
+      { type: 'steering_received', messageId: 'steer-audit', text: 'Only audit; do not edit.' },
+    ]);
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    ({ repository, persistence } = openPersistence());
+    const resumed = await prepare('turn-resume-once', '继续');
+    const callId = 'continued:turn-interrupted:read-again';
+    const expected: AgentModelMessage[] = [
+      { role: 'user', content: 'Read with nested arguments.' },
+      ...(!withWrites ? [
+      { role: 'assistant', content: [{ type: 'tool_call', callId, name: 'read_complex',
+        arguments: NON_LEXICAL_TOOL_ARGUMENTS, rawArguments: NON_LEXICAL_TOOL_RAW_ARGUMENTS }] },
+      { role: 'tool', content: [{ callId, name: 'read_complex', ok: true, content: 'Latest completed reading.' }] },
+      ] satisfies AgentModelMessage[] : []),
+      { role: 'user', content: 'Only audit; do not edit.' },
+    ];
+    expect(resumed.history).toEqual(expected);
+    expect(JSON.stringify(resumed.history)).not.toContain('Nested arguments survived.');
+    const accepted = await repository.loadRecoverySnapshot('session-interrupted-context');
+    expect(accepted?.messages.filter((row) => row.turnId === 'turn-resume-once')
+      .map(({ role, content }) => ({ role, content }))).toEqual([
+      ...expected, { role: 'user', content: '继续' },
+    ]);
+
+    // A second interruption must keep the first task and both author corrections.
+    await append('turn-resume-once', [
+      { type: 'turn_started', prompt: '继续' },
+      { type: 'steering_received', messageId: 'steer-names', text: 'Keep names unchanged.' },
+    ]);
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    ({ repository, persistence } = openPersistence());
+    const resumedAgain = await prepare('turn-resume-twice', '请继续');
+    expected.push({ role: 'user', content: 'Keep names unchanged.' });
+    expect(resumedAgain.history).toEqual(expected);
+    const turnMessages: AgentModelMessage[] = [
+      { role: 'user', content: '请继续' }, HISTORY[1]!,
+    ];
+    await append('turn-resume-twice', completeJournal().map((event) =>
+      event.type === 'turn_started' ? { ...event, prompt: '请继续' } : event));
+    const planned = await planAgentModelContext({
+      systemPrompt: 'Drifting durable policy.', messages: [...expected, ...turnMessages],
+      resolveToolAccess: () => 'read',
+      planner: { contextWindowTokens: 20_000, requestedOutputTokens: 1_000, fixedInputTokens: 100 },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    const commit = {
+      sessionId: 'session-interrupted-context', turnId: 'turn-resume-twice', turnMessages,
+      contextCheckpointV2: { canonicalSourceRows: planned.bridge.sourceRows, providerEnvelope: planned.envelope },
+      outcome: 'completed' as const, errorCode: null, errorMessage: null, endedAt: ENDED,
+    };
+    await persistence.commitTurn(commit);
+    await persistence.commitTurn(commit);
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    ({ repository, persistence } = openPersistence());
+    const settled = await repository.loadRecoverySnapshot('session-interrupted-context');
+    expect(settled?.checkpoints[0]?.context).toMatchObject({ schemaVersion: 2 });
+    const next = await prepare('turn-after-completion', 'Discuss the findings.');
+    expect(next.history).toEqual([...expected, ...turnMessages]);
+  });
+
   it('adopts one exact history when SQLite committed but the first commit acknowledgement was lost', async () => {
     directory = mkdtempSync(join(tmpdir(), 'drifting-agent-lost-commit-ack-'));
     const databasePath = join(directory, 'runtime.sqlite');

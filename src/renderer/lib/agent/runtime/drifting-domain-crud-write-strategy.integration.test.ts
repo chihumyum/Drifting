@@ -24,6 +24,7 @@ import {
   StorylineTable,
 } from '../../../schema/drizzle';
 import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
+import { createAgentConversationRepository } from '../../../sqlite-repo/agent-conversation-repo';
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
 import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
 import { createYjsRepository } from '../../../sqlite-repo/yjs-repo';
@@ -153,7 +154,7 @@ describe('workspace domain CRUD transactions', () => {
       composition: fixture.composition,
       ensureConversation: async (conversationId) => {
         await fixture.database.insert(AgentConversationTable).values({ id: conversationId,
-          projectId: PROJECT_ID, title: 'Synthetic MCP', mode: 'byok', messagesJson: '[]',
+          projectId: PROJECT_ID, title: 'Synthetic MCP', source: 'external_mcp', mode: 'byok', messagesJson: '[]',
           createdAt: AT, updatedAt: AT });
       },
     });
@@ -236,6 +237,11 @@ describe('workspace domain CRUD transactions', () => {
     const review = changed.structuredContent?.ok ? changed.structuredContent.presentation?.review : undefined;
     expect(review?.id).toBeTruthy();
     if (!review) throw new Error('Missing MCP write review');
+    const conversations = createAgentConversationRepository();
+    expect((await conversations.listByProject(PROJECT_ID)).some(row => row.id === 'mcp-test:prose-writer:conversation')).toBe(false);
+    await conversations.softDeleteAllByProject(PROJECT_ID, AT);
+    expect(fixture.scalar("SELECT count(*) FROM agent_conversation WHERE id = 'mcp-test:prose-writer:conversation' AND deleted_at IS NULL")).toBe(1);
+    expect(fixture.scalar("SELECT count(*) FROM agent_runtime_write_effect WHERE session_id = 'mcp-test:prose-writer' AND phase = 'result_committed'")).toBe(2);
     await fixture.composition.tools.rejectReview(review.id, 'Synthetic MCP acceptance');
     expect(JSON.stringify(await mcpCall(writer, 'read_chapter', { chapter: 'External chapter' }))).toContain('Initial synthetic prose.');
     await writer.close();

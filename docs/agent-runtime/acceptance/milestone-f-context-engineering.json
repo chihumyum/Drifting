@@ -1,10 +1,10 @@
 {
   "suite": "milestone-f-literary-context-engineering",
   "schemaVersion": 1,
-  "nodeVersion": "v24.19.0",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "46e65f044ff73b31cce6cab88c89585d59f94f5f",
-  "sourceSetSha256": "sha256:70585abfdadcac5d1e333ac8da94f2721743e5a94a44fd1a56bbc8aae21dbf41",
+  "gitHead": "35c5d9e028d986e92652332cd92bfe91caf7761f",
+  "sourceSetSha256": "sha256:9d730c354fcc99d51e6fc8fc81846609cc7c13aff5ea721421066b9736a6fe70",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
@@ -23,9 +23,9 @@
       "slices": 3,
       "compactedSlices": 2,
       "compactorCalls": 28,
-      "medianTokenReduction": 0.6222936250887868,
+      "medianTokenReduction": 0.6238508038886028,
       "maxContextWindowRatio": 0.74582,
-      "finalEstimatedInputTokens": 128967
+      "finalEstimatedInputTokens": 128429
     },
     "retrieval": {
       "canon_fact": {
@@ -92,12 +92,12 @@
   },
   "vitest": {
     "files": {
-      "required": 15,
-      "discovered": 15
+      "required": 18,
+      "discovered": 18
     },
     "tests": {
-      "total": 181,
-      "passed": 181,
+      "total": 222,
+      "passed": 222,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -115,11 +115,11 @@
         "passed": true
       },
       "providerBudgetAndPlanning": {
-        "requiredFiles": 3,
-        "discoveredFiles": 3,
+        "requiredFiles": 4,
+        "discoveredFiles": 4,
         "tests": {
-          "total": 63,
-          "passed": 63,
+          "total": 77,
+          "passed": 77,
           "failed": 0,
           "pending": 0
         },
@@ -137,11 +137,11 @@
         "passed": true
       },
       "durablePagingAndRestart": {
-        "requiredFiles": 2,
-        "discoveredFiles": 2,
+        "requiredFiles": 4,
+        "discoveredFiles": 4,
         "tests": {
-          "total": 10,
-          "passed": 10,
+          "total": 33,
+          "passed": 33,
           "failed": 0,
           "pending": 0
         },
@@ -151,8 +151,8 @@
         "requiredFiles": 6,
         "discoveredFiles": 6,
         "tests": {
-          "total": 84,
-          "passed": 84,
+          "total": 88,
+          "passed": 88,
           "failed": 0,
           "pending": 0
         },
@@ -171,12 +171,12 @@
         "passed": true
       },
       "providerTarget": {
-        "requiredName": "installs the current default driver at the 200k product target",
+        "requiredName": "installs the default model declaration without a separate product target",
         "matches": 1,
         "passed": true
       },
       "providerCannotBeEnlarged": {
-        "requiredName": "never enlarges a smaller provider declaration",
+        "requiredName": "never enlarges a smaller provider declaration with a DEV override",
         "matches": 1,
         "passed": true
       },
@@ -205,8 +205,13 @@
         "matches": 1,
         "passed": true
       },
-      "maxContextMode": {
-        "requiredName": "lets Max request 1M while still capping to the provider declaration",
+      "declaredModelWindows": {
+        "requiredName": "uses discovered model windows without standard or Max caps",
+        "matches": 1,
+        "passed": true
+      },
+      "retiredContextPreference": {
+        "requiredName": "retires a persisted Max preference of false",
         "matches": 1,
         "passed": true
       },
@@ -277,6 +282,21 @@
       },
       "checkpointRestart": {
         "requiredName": "commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history",
+        "matches": 1,
+        "passed": true
+      },
+      "interruptedContinuation": {
+        "requiredName": "preserves interrupted author intent and completed reads through repeated restart and a completed continuation (writes: false)",
+        "matches": 1,
+        "passed": true
+      },
+      "interruptedWriteSafety": {
+        "requiredName": "preserves interrupted author intent and completed reads through repeated restart and a completed continuation (writes: true)",
+        "matches": 1,
+        "passed": true
+      },
+      "atomicContinuation": {
+        "requiredName": "atomically accepts continuation context and rejects altered or partial acceptance replays",
         "matches": 1,
         "passed": true
       },

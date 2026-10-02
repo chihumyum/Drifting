@@ -15,7 +15,7 @@ otherwise valid work, or repeatedly retry an unchanged local failure.
 | Anthropic requires an output parameter | Use the selected model's declared maximum, or an explicit caller ceiling. No invented 8k fallback in the Agent driver. |
 | Anthropic's real context-window stop was treated as unknown failure | Normalize `model_context_window_exceeded` as a resumable physical boundary, with persisted progress. |
 | Iteration/tool/aggregate token/cost/duration limits | Already null by default. Explicit caller limits and cancellation remain effective. |
-| Standard/Max context, tool argument limits, result paging, retries | Retained: selected input mode, payload integrity, recoverable paged results, and bounded pre-effect transport/protocol retries. These are not default generation budgets. |
+| Context, tool argument limits, result paging, retries | Context uses the full selected model declaration; Standard/Max caps are removed. Payload integrity, recoverable paged results, and bounded pre-effect transport/protocol retries remain. These are not default generation budgets. |
 
 Synthetic evidence exercises discovery/unresolved model paths through the real
 Responses driver and runtime: tool call, result return, 16,384 output tokens per

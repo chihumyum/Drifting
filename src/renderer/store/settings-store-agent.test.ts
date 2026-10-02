@@ -1,4 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.hoisted(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  });
+});
+
 import {
   AGENT_TOOL_SEARCH_DEFAULT,
   AGENT_TURN_ITERATION_LIMIT_DEFAULT,
@@ -12,14 +22,17 @@ describe('General Agent product settings', () => {
   it('starts fresh installations with bounded automatic tool search', () => {
     expect(AGENT_TOOL_SEARCH_DEFAULT).toBe('auto');
     expect(useSettingsStore.getInitialState().agentToolSearch).toBe('auto');
-    expect(useSettingsStore.getInitialState().agentMaxContext).toBe(false);
     expect(useSettingsStore.getInitialState().agentAllowDangerousOperations).toBe(false);
   });
 
-  it('persists Max as an explicit user-controlled Agent setting', () => {
-    useSettingsStore.getState().setAgentMaxContext(true);
-    expect(useSettingsStore.getState().agentMaxContext).toBe(true);
-    useSettingsStore.getState().setAgentMaxContext(false);
+  it.each([false, true])('retires a persisted Max preference of %s', (agentMaxContext) => {
+    const current = useSettingsStore.getInitialState();
+    const merged = useSettingsStore.persist.getOptions().merge!({
+      agentMaxContext, agentProvider: 'openai', agentModel: 'gpt-5.6-sol',
+    }, current);
+    expect(merged).not.toHaveProperty('agentMaxContext');
+    expect(merged).not.toHaveProperty('setAgentMaxContext');
+    expect(merged).toMatchObject({ agentProvider: 'openai', agentModel: 'gpt-5.6-sol' });
   });
 
   it('keeps dangerous operations opt-in', () => {

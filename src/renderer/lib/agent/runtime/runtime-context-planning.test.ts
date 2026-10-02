@@ -101,19 +101,19 @@ function endTurn(text = 'final answer'): readonly AgentModelStreamEvent[] {
 }
 
 describe('AgentRuntime context planning integration', () => {
-  it('captures Max context mode into every planning boundary for the turn', async () => {
-    const hookModes: Array<'standard' | 'max' | undefined> = [];
+  it('uses the selected model declaration at every planning boundary', async () => {
+    const hookModels: Array<string | undefined> = [];
     const driver = new RecordingDriver(() => endTurn());
     const runtime = new AgentRuntime({
       driver,
       tools: toolRuntime([]),
       contextPlanning: {
         resolveProviderProfile: (input) => {
-          hookModes.push(input.contextMode);
+          hookModels.push(input.model);
           return {
-            id: input.contextMode === 'max' ? 'test-max-1m' : 'test-standard-200k',
-            contextWindowTokens: input.contextMode === 'max' ? 1_000_000 : 200_000,
-            maxOutputTokens: 8_192,
+            id: 'synthetic-model:declared',
+            contextWindowTokens: 1_050_000,
+            maxOutputTokens: null,
             providerOverheadTokens: 512,
             perToolOverheadTokens: 8,
           };
@@ -121,14 +121,14 @@ describe('AgentRuntime context planning integration', () => {
       },
     });
 
-    const result = await runtime.runTurn(runInput({ contextMode: 'max' }));
+    const result = await runtime.runTurn(runInput({ model: 'synthetic-model' }));
 
     expect(result.state.status).toBe('completed');
-    expect(hookModes).toEqual(['max', 'max']);
+    expect(hookModels).toEqual(['synthetic-model', 'synthetic-model']);
     const planned = result.entries.find((entry) => entry.event.type === 'context_planned');
     expect(planned?.event).toMatchObject({
       type: 'context_planned',
-      snapshot: { contextWindowTokens: 1_000_000 },
+      snapshot: { contextWindowTokens: 1_050_000 },
     });
   });
 

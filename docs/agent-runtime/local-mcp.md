@@ -120,6 +120,16 @@ reconnecting cannot inherit another client's observations. Changing a document
 after it was read makes a stale full-body replacement fail. Runtime reviews are
 available through the normal editor review UI; MCP does not approve its own work.
 
+External tool conversations have durable `source=external_mcp`; internal chats
+use `source=chat`. General Agent history, usage, restore, continuation, rename
+and deletion operate only on internal chats. Clearing chat history leaves MCP
+call/turn records, write receipts and editor reviews intact. MCP conversations
+do not enter the Agent chat export queue or backfill. Migration
+`0005_agent_conversation_source` classifies existing MCP identities and runtime
+provider records without deleting their data, using the normal native safety
+snapshot migration path. Old MCP branch objects received through chat sync are
+retained without projecting them into resumable chats.
+
 MCP wire revision: `2025-11-25`, with stdio `initialize`, `ping`, `tools/list`,
 `tools/call`, initialized notifications, tool-list change notifications and
 cancellation. The official SDK is used only for development acceptance, not

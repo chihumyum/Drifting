@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-02T20:10:29.249Z",
-  "sourceSha256": "4908e96477ba12cfb894b0d6bc21ea88feb9f8c003ec91d37c5953d3c964b9e2",
+  "generatedAt": "2026-10-02T22:00:25.473Z",
+  "sourceSha256": "4961cd83c97e5b8e4e5b4955816d581f39250234969cf895412a7430b60139e4",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -55,6 +55,134 @@
     },
     {
       "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership filters history, direct hydration and usage by source rather than title or credentials",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership does not rename or delete external audit records through chat management",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership ignores a saved MCP selection and rejects direct open and continuation",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership excludes MCP inserts, updates and completed tool turns from chat sync while retaining audit rows",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership does not project MCP branches received from older clients into chat history",
+      "status": "passed"
+    },
+    {
+      "name": "migrates old MCP identities and provider records without deleting history or audit data",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership ignores an older same-project list success",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership ignores an older same-project list failure",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership clears the previous project list synchronously while the next list loads",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership rejects the first binding after navigating A to B to A",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership restores the saved existing conversation only once from the latest list",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership does not let automatic restore invalidate an explicit pending conversation load",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership does not restore an old conversation after the author starts drafting a new prompt",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership preserves restore opt-out across a same-project remount",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership keeps a newer project isolated from a late successful list",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership retains the existing empty-list fallback for the latest failed read",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership stops a superseded hydration after canonical route lookup",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership restores canonical messages and keeps the display cache on projection failure",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership abandons automatic hydration if a new draft starts before the transcript is visible",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership keeps recovering pending controls when the author types after the restored transcript is visible",
+      "status": "passed"
+    },
+    {
+      "name": "conversation navigation and history ownership does not load a manifest after navigation supersedes the pending plan read",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation preserves the active conversation and saved pointer of a newly bound project",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation queues a new send until clear completes before the SQLite update",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation queues a new send until clear completes after the SQLite update",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation cleans only the returned IDs and retains a conversation created after the committed clear",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation retains the transcript and pointer after a failed delete write",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation retains the transcript and pointer after a failed clear write",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation honors an explicit project when settings clear an unbound project",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation does not hydrate deleted rows while usage still includes their historical spend",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation invalidates only a hydration affected by deleting old while loading old",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation invalidates only a hydration affected by deleting old while loading sibling",
+      "status": "passed"
+    },
+    {
+      "name": "committed conversation removal and concurrent navigation finishes durable deletion and releases waiters when the cancellation transport throws",
       "status": "passed"
     },
     {
@@ -238,14 +366,6 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
       "status": "passed"
     },
@@ -254,7 +374,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
       "status": "passed"
     },
     {
@@ -262,15 +386,15 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
@@ -282,7 +406,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
@@ -294,11 +422,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
+      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
       "status": "passed"
     },
     {
@@ -310,7 +438,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
     {
@@ -318,7 +446,15 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
@@ -326,15 +462,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {

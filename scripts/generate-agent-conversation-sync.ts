@@ -29,6 +29,9 @@ const sourceFiles = [
   'scripts/generate-agent-conversation-sync.ts',
   baseline,
   'drizzle/0001_agent_chat_sync.sql',
+  'drizzle/0005_agent_conversation_source.sql',
+  'src/renderer/domain/agent-conversation-source.ts',
+  'src/renderer/sqlite-repo/agent-conversation-source.integration.test.ts',
   'src-tauri/src/google_drive_sync.rs',
   'src-tauri/src/google_drive_sync_legacy_fixture.rs',
   'src-tauri/src/database.rs',
@@ -90,6 +93,7 @@ if (process.argv.includes('--check')) {
     const jsonPath = path.join(temporary, 'tests.json');
     const suites = [
       'src/renderer/sync/agent-chat',
+      'src/renderer/sqlite-repo/agent-conversation-source.integration.test.ts',
       'src/renderer/sync/providers/google-drive/tauri-transport.test.ts',
       'src/renderer/sync/production-runtime.test.ts',
       'src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts',

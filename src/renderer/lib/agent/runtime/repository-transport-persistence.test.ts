@@ -135,6 +135,7 @@ function fakeRepository(): FakeRepository {
       accepted.push(structuredClone(input));
       state.session = structuredClone(input.session);
       state.turns.push(structuredClone(input.turn));
+      state.messages.push(...structuredClone(input.continuationMessages ?? []));
       state.messages.push(structuredClone(input.promptMessage));
       return 'inserted' as const;
     }),
@@ -476,12 +477,12 @@ describe('repository Agent transport persistence adapter', () => {
     expect(fake.accepted[0]?.promptMessage.ordinal).toBe(2);
   });
 
-  it('restores only the author request when explicitly continuing an aborted turn', async () => {
+  it.each(['aborted', 'interrupted', 'running'] as const)('restores the author request when explicitly continuing a %s turn', async (status) => {
     const fake = fakeRepository();
     fake.state.session = session({ status: 'idle' });
     fake.state.turns[0] = {
       ...fake.state.turns[0]!,
-      status: 'aborted',
+      status,
       endedAt: LATER,
       errorCode: null,
       errorMessage: 'Agent turn aborted by user',
@@ -525,12 +526,12 @@ describe('repository Agent transport persistence adapter', () => {
     });
   });
 
-  it('does not revive an aborted author request when the author changes tasks', async () => {
+  it.each(['aborted', 'interrupted'] as const)('does not revive a %s author request when the author changes tasks', async (status) => {
     const fake = fakeRepository();
     fake.state.session = session({ status: 'idle' });
     fake.state.turns[0] = {
       ...fake.state.turns[0]!,
-      status: 'aborted',
+      status,
       endedAt: LATER,
       errorCode: null,
       errorMessage: 'Agent turn aborted by user',
@@ -565,6 +566,27 @@ describe('repository Agent transport persistence adapter', () => {
         acceptedAt: NOW,
       }),
     ).resolves.toMatchObject({ history: [] });
+  });
+
+  it('does not cross a newer interrupted task when following a continuation chain', async () => {
+    const fake = fakeRepository();
+    fake.state.session.status = 'interrupted';
+    fake.state.turns[0]!.status = 'interrupted';
+    fake.state.messages[0]!.content = 'Rewrite the first chapter.';
+    fake.state.turns.push({ ...fake.state.turns[0]!, id: 'turn-new-task', ordinal: 1, promptMessageId: 'prompt-new-task' });
+    fake.state.messages.push({ ...fake.state.messages[0]!, id: 'prompt-new-task', turnId: 'turn-new-task',
+      ordinal: 1, content: 'Audit the character notes without editing.' });
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository: fake.repository,
+      recovery: { recoverSnapshot: async () => ({ providerHistory: [] }) },
+      resolveToolAccess: () => 'read',
+    });
+    const prepared = await persistence.prepareTurn({
+      candidateSessionId: 'unused', resumeSessionId: 'session-1', newConversation: false,
+      route: { kind: 'chat', projectId: 'project-1', conversationId: 'conversation-1' },
+      provider: 'provider-old', model: 'model-old', turnId: 'turn-continue', prompt: '继续', acceptedAt: NOW,
+    });
+    expect(prepared.history).toEqual([{ role: 'user', content: 'Audit the character notes without editing.' }]);
   });
 
   it('repairs stale state, accepts the prompt before the provider, and commits a checkpoint from completed-turn history only', async () => {

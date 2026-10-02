@@ -33,6 +33,7 @@ import {
 } from '../../lib/agent/runtime/chat-journal-projection';
 import type { AgentRuntimeJournalEntry, AgentModelMessage } from '../../lib/agent/runtime/types';
 import type { AgentChatMessage } from '../../domain/agent-conversation';
+import { isExternalMcpConversationIdentity } from '../../domain/agent-conversation-source';
 import { portableDisplay, historyResultRefs } from './payload';
 import { events } from '../../lib/events';
 import {
@@ -337,7 +338,7 @@ export class AgentConversationSyncRepository {
       .select({ id: Conversations.id })
       .from(Conversations)
       .leftJoin(Bindings, eq(Bindings.conversationId, Conversations.id))
-      .where(and(eq(Conversations.projectId, projectId), isNull(Bindings.conversationId)))
+      .where(and(eq(Conversations.projectId, projectId), eq(Conversations.source, 'chat'), isNull(Bindings.conversationId)))
       .orderBy(asc(Conversations.id))
       .limit(limit);
     for (const row of missing)
@@ -405,7 +406,7 @@ export class AgentConversationSyncRepository {
       .select()
       .from(Conversations)
       .where(eq(Conversations.id, id));
-    if (!conversation) return false;
+    if (!conversation || conversation.source !== 'chat') return false;
     const [binding] = await this.db.select().from(Bindings).where(eq(Bindings.conversationId, id));
     const [branch] = await this.db.select().from(Branches).where(eq(Branches.id, id));
     const runtime = createAgentRuntimePersistenceRepository(this.db);
@@ -637,6 +638,13 @@ export class AgentConversationSyncRepository {
     const conversationIds: string[] = [];
     for (const branch of branches) {
       signal?.throwIfAborted();
+      const [owner] = await this.db.select({ source: Conversations.source }).from(Conversations).where(eq(Conversations.id, branch.id));
+      if (owner?.source === 'external_mcp' || isExternalMcpConversationIdentity(branch.id) || isExternalMcpConversationIdentity(branch.rootId)) {
+        // Old clients may already have published MCP placeholders. Keep those
+        // immutable objects, but never project them into a resumable chat.
+        await this.db.update(Branches).set({ readiness: 'archive' }).where(eq(Branches.id, branch.id));
+        continue;
+      }
       const rows = await this.db
         .select()
         .from(Objects)
@@ -785,6 +793,9 @@ export class AgentConversationSyncRepository {
   }
 
   async forkForContinuation(id: string): Promise<string> {
+    const [conversation] = await this.db.select().from(Conversations).where(eq(Conversations.id, id));
+    if (conversation?.source === 'external_mcp' || isExternalMcpConversationIdentity(id))
+      throw new ChatHistoryUnavailable('External MCP sessions cannot be continued as Agent chats');
     const [binding] = await this.db.select().from(Bindings).where(eq(Bindings.conversationId, id));
     if (!binding) return id;
     const [branch] = await this.db.select().from(Branches).where(eq(Branches.id, id));
@@ -794,10 +805,6 @@ export class AgentConversationSyncRepository {
     if (binding.localOwner) return id;
     if (!branch.headTurnId)
       throw new ChatHistoryUnavailable('Agent history is not ready to continue');
-    const [conversation] = await this.db
-      .select()
-      .from(Conversations)
-      .where(eq(Conversations.id, id));
     if (!conversation) throw new ChatHistoryUnavailable('Conversation no longer exists');
     const forkId = uuidv7();
     const now = new Date().toISOString();

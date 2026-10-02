@@ -75,7 +75,7 @@ The machine report is written to
 and the normative execution state machine lives in
 [`long-task-execution-protocol.md`](long-task-execution-protocol.md).
 
-For provider-aware Standard 200k/Max 1M budgeting, bounded same-turn literary
+For model-declared context budgeting, bounded same-turn literary
 compaction, malformed-output fallback, exact author-constraint retention, ranked
 search, artifact paging, multi-slice restart and compactor-fault regression:
 

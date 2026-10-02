@@ -163,7 +163,6 @@ export type AgentEffortChoice = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' 
 export type AgentThinkingChoice = 'adaptive' | 'off';
 export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
 export type AgentToolAccessChoice = 'read_only' | 'read_write';
-export type AgentContextModeChoice = 'standard' | 'max';
 export type AgentPromptSource = 'author' | 'runtime_continuation';
 
 export type AgentStartRoute =
@@ -185,8 +184,6 @@ export interface AgentStartInput {
   resume?: string;
   turnId?: string;
   model?: AgentModelChoice;
-  /** Standard uses the product 200k cap; Max requests the model's declared window up to 1M. */
-  contextMode?: AgentContextModeChoice;
   effort?: AgentEffortChoice;
   thinking?: AgentThinkingChoice;
   toolSearch?: AgentToolSearchChoice;

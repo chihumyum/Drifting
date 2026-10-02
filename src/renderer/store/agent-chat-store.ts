@@ -596,7 +596,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           mode: auth,
           provider: settings.agentProvider,
           model: settings.agentModel,
-          contextMode: settings.agentMaxContext ? 'max' : 'standard',
           effort: settings.agentEffort,
           thinking: settings.agentThinking,
           // The runtime always consults the product selection strategy; the

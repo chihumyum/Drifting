@@ -893,7 +893,7 @@
       "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与所选 provider 的 API Key。",
       "credentialPrivacy": "凭据存于本机；代理模式会将其临时转发给所配置的服务。",
       "chatConfigTitle": "对话配置",
-      "chatConfigDesc": "Provider、模型、上下文与推理参数都在右侧 General Agent 输入框的配置菜单中选择；API Key 统一在「模型与 API」管理。",
+      "chatConfigDesc": "Provider、模型与推理参数都在右侧 General Agent 输入框的配置菜单中选择；API Key 统一在「模型与 API」管理。",
       "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 provider API Key",
       "auth": {
         "oauth": {
@@ -1586,9 +1586,6 @@
       "modelsLoading": "正在更新 ChatGPT 模型…",
       "modelsRetry": "模型更新失败 · 重试",
       "modelsRefresh": "刷新模型",
-      "maxContext": "Max · 1M 上下文",
-      "maxContextTitle": "开启后使用当前模型声明的完整上下文窗口，最高 100 万 token；关闭时使用 20 万 token 标准窗口。只影响新提交的轮次。",
-      "maxContextUnavailable": "当前模型不支持 100 万 token 上下文。",
       "reasoning": "推理",
       "extendedThinking": "扩展思考",
       "extendedThinkingTitle": "使用所选 provider 已认证的原生推理模式；只影响新提交的轮次。",

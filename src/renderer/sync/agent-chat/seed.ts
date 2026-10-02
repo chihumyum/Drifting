@@ -13,6 +13,7 @@ import {
 } from '../../schema/drizzle';
 import { AgentConversationSyncRepository, ChatHistoryUnavailable } from './repository';
 import { canonicalJson } from './protocol';
+import { isExternalMcpConversationIdentity } from '../../domain/agent-conversation-source';
 import {
   createAgentRuntimeCheckpointContextV4,
   hashAgentRuntimeCheckpointPayload,
@@ -32,6 +33,10 @@ export async function seedAgentChatSession(
   provider: string,
   model: string | null,
 ): Promise<void> {
+  const [conversation] = await db.select({ source: Conversations.source }).from(Conversations)
+    .where(and(eq(Conversations.id, conversationId), eq(Conversations.projectId, projectId)));
+  if (conversation?.source === 'external_mcp' || isExternalMcpConversationIdentity(conversationId))
+    throw new ChatHistoryUnavailable('External MCP sessions cannot be continued as Agent chats');
   const [binding] = await db
     .select()
     .from(Bindings)

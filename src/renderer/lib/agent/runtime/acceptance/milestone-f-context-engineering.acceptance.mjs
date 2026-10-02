@@ -14,6 +14,7 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.test.ts',
   ],
   providerBudgetAndPlanning: [
+    'src/renderer/store/settings-store-agent.test.ts',
     'src/renderer/lib/agent/runtime/drifting-agent-product-contract.test.ts',
     'src/renderer/lib/agent/runtime/context-planner.test.ts',
     'src/renderer/lib/agent/runtime/runtime-context-planning.test.ts',
@@ -24,6 +25,8 @@ const TEST_GROUPS = {
   ],
   durablePagingAndRestart: [
     'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts',
+    'src/renderer/sqlite-repo/agent-runtime-persistence-repo.integration.test.ts',
+    'src/renderer/lib/agent/runtime/repository-transport-persistence.test.ts',
     'src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts',
   ],
   longTaskNoDuplicateWrites: [
@@ -39,6 +42,9 @@ const TEST_GROUPS = {
 const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
 const LINT_FILES = [
   'scripts/generate-agent-capabilities.ts',
+  'src/renderer/features/agent/AgentComposerConfig.tsx',
+  'src/renderer/store/settings-store.ts',
+  'src/renderer/lib/agent/runtime/agent-provider-contract.ts',
   'src/renderer/lib/agent/tool-handlers.ts',
   'src/renderer/lib/agent/tool-registry.ts',
   'src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.test.ts',
@@ -58,6 +64,8 @@ const LINT_FILES = [
   'src/renderer/lib/agent/runtime/runtime.ts',
   'src/renderer/lib/agent/runtime/types.ts',
   'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts',
+  'src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts',
+  'src/renderer/lib/agent/runtime/repository-transport-persistence.ts',
   ...TEST_FILES,
 ];
 const HASHED_SOURCE_FILES = [
@@ -71,15 +79,16 @@ const REQUIRED_ASSERTIONS = {
     'preserves literary evidence and author constraints across 200k multi-slice compaction, restart, and compactor faults',
   syntheticBookRetrieval:
     'recalls canon, voice, aliases, writing rules, and chapter evidence from the synthetic fixture',
-  providerTarget: 'installs the current default driver at the 200k product target',
-  providerCannotBeEnlarged: 'never enlarges a smaller provider declaration',
+  providerTarget: 'installs the default model declaration without a separate product target',
+  providerCannotBeEnlarged: 'never enlarges a smaller provider declaration with a DEV override',
   undeclaredProviderFallback: 'uses a conservative window for an undeclared custom driver',
   safeCompactorFallback:
     'leaves committed-write proof to durable receipts and rejects forged provider evidence',
   sameTurnOversize: 'compacts older tool batches inside one oversized current turn',
   sameTurnChunking: 'chunks inside one turn at tool-topology boundaries without splitting a pair',
   boundedCompactorCalls: 'stops after enough chunk gain instead of compacting all history',
-  maxContextMode: 'lets Max request 1M while still capping to the provider declaration',
+  declaredModelWindows: 'uses discovered model windows without standard or Max caps',
+  retiredContextPreference: 'retires a persisted Max preference of false',
   mixedChunkGain:
     'keeps a no-gain short chunk exact while applying profitable full-compactor chunks',
   activeTurnWriteDelta:
@@ -105,6 +114,12 @@ const REQUIRED_ASSERTIONS = {
   artifactRestart: 'pages exact Unicode content after closing and reopening the repository',
   checkpointRestart:
     'commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history',
+  interruptedContinuation:
+    'preserves interrupted author intent and completed reads through repeated restart and a completed continuation (writes: false)',
+  interruptedWriteSafety:
+    'preserves interrupted author intent and completed reads through repeated restart and a completed continuation (writes: true)',
+  atomicContinuation:
+    'atomically accepts continuation context and rejects altered or partial acceptance replays',
   duplicateWriteReplay:
     'persists one authorized effect and replays duplicates without mutation or post-write review',
   longTaskIdempotency: 'uses one crash-safe command transaction with exact replay and CAS',

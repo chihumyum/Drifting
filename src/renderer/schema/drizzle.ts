@@ -979,11 +979,8 @@ export const LibraryItemTable = sqliteTable(
   ],
 );
 
-// Agent conversation (local-only chat history for the right-sidebar Agent).
-// Display transcript lives here as a JSON blob; the SDK's own session file is
-// the source of truth for *resuming* context — sdkSessionId points at it.
-// Not synced cross-device (transcripts can be large / contain unpublished
-// prose). Cascade-deletes with the project.
+// Conversation identity shared by internal chats and external tool audit records.
+// Only source=chat participates in the Agent panel and Agent chat sync protocol.
 export const AgentConversationTable = sqliteTable(
   'agent_conversation',
   {
@@ -992,6 +989,7 @@ export const AgentConversationTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
+    source: text('source').$type<'chat' | 'external_mcp'>().notNull().default('chat'),
     // The SDK session to `resume` for context continuity; null until the first
     // turn reports one. If the SDK's transcript file is gone, resuming starts
     // fresh — the conversation stays viewable from messagesJson regardless.

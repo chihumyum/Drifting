@@ -781,7 +781,6 @@ export interface AgentRuntimeRunInput {
   promptSource?: AgentPromptSource;
   provider?: string;
   model?: string;
-  contextMode?: 'standard' | 'max';
   systemPrompt?: string;
   reasoning?: AgentReasoningOptions;
   /**

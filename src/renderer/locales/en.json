@@ -893,7 +893,7 @@
       "unavailableFuture": "Reopen the project. If this persists, check the app version and the selected provider API key.",
       "credentialPrivacy": "Credentials are stored locally; proxy mode forwards them transiently to the configured service.",
       "chatConfigTitle": "Chat configuration",
-      "chatConfigDesc": "Choose provider, model, context, and reasoning from the configuration menu beside the General Agent composer. Manage API keys centrally under Models & API.",
+      "chatConfigDesc": "Choose provider, model, and reasoning from the configuration menu beside the General Agent composer. Manage API keys centrally under Models & API.",
       "hostedDisabledTitle": "Hosted is unavailable · beta uses your own provider API key",
       "auth": {
         "oauth": {
@@ -1586,9 +1586,6 @@
       "modelsLoading": "Updating ChatGPT models…",
       "modelsRetry": "Could not update models · Retry",
       "modelsRefresh": "Refresh models",
-      "maxContext": "Max · 1M context",
-      "maxContextTitle": "Use the selected model's declared context window up to 1M tokens. Off uses the standard 200k window. Applies to newly submitted turns only.",
-      "maxContextUnavailable": "The selected model does not support a 1M-token context window.",
       "reasoning": "Reasoning",
       "extendedThinking": "Extended thinking",
       "extendedThinkingTitle": "Use the selected provider's certified native reasoning mode. Applies to newly submitted turns only.",

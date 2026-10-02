@@ -25,6 +25,11 @@ function fingerprint() {
           (file.startsWith('src/renderer/services/export/relational-markdown.') ||
             file.startsWith('src/renderer/services/export/markdown-zip.')) ||
           file.startsWith('src/renderer/lib/persistence-lifecycle.') ||
+          file.startsWith('src/renderer/sync/agent-chat/') ||
+          file.startsWith('src/renderer/sqlite-repo/agent-conversation-') ||
+          file === 'src/renderer/domain/agent-conversation-source.ts' ||
+          file === 'src/renderer/schema/drizzle.ts' ||
+          file.startsWith('drizzle/') ||
           file === 'src/renderer/usecase/useProject.ts' ||
           [
             'src-tauri/src/lib.rs',
@@ -88,6 +93,9 @@ if (process.argv.includes('--record-live')) {
       'vitest',
       'run',
       'src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts',
+      'src/renderer/sqlite-repo/agent-conversation-source.integration.test.ts',
+      'src/renderer/store/agent-chat-navigation.integration.test.ts',
+      'src/renderer/store/agent-chat-removal.integration.test.ts',
       'src/renderer/components/agent/AgentMcpAccessState.test.ts',
       'src/renderer/lib/agent/prose-read-view.test.ts',
       'src/renderer/lib/agent/runtime/drifting-read-tool-runtime.integration.test.ts',

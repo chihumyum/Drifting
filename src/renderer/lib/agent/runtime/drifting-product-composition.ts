@@ -94,10 +94,7 @@ import {
 } from './write-review-feedback';
 import type { GeneralAgentTransport } from '../transport';
 import { DriftingWorkspaceToolRuntime } from './drifting-workspace-tool-runtime';
-import {
-  requestedDriftingAgentContextWindowTokens,
-  resolveDriftingAgentContextProfile,
-} from './drifting-agent-product-contract';
+import { resolveDriftingAgentContextProfile } from './drifting-agent-product-contract';
 import { resolveAgentProviderContextProfile } from './agent-provider-contract';
 import { loadStorylineMembershipSnapshot } from './domain-crud-revision';
 import { createDurableDynamicPermissionAuthority } from './durable-permission-authority';
@@ -109,9 +106,6 @@ import {
 import { AgentExtensionManager } from './agent-extension-manager';
 import { platform } from '../../../platform';
 import type { AgentAuthoredJournal } from './agent-authored-journal';
-
-/** Product-level provider window. Planner defaults stay conservative for reuse. */
-export { DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS } from './drifting-agent-product-contract';
 
 export interface DriftingAgentProductRepositories {
   runtime: AgentRuntimePersistenceRepository;
@@ -136,7 +130,7 @@ export interface CreateDriftingAgentProductCompositionOptions {
   authoredJournal?: AgentAuthoredJournal;
   /** Static limits, or a live getter resolved at every turn start. */
   limits?: Partial<AgentRuntimeLimits> | (() => Partial<AgentRuntimeLimits>);
-  /** Test/DEV override; product defaults to the exported 200k window. */
+  /** Test/DEV override; production uses the selected model's declared window. */
   contextWindowTokens?: number;
   /** Test/DEV cap that can only make read-result paging happen earlier. */
   readResultBudgetCharsCap?: number;
@@ -353,10 +347,10 @@ export function createDriftingAgentProductComposition(
       perToolOverheadTokens: contextProfile.perToolOverheadTokens,
       resolveProviderProfile: (input) =>
         resolveDriftingAgentContextProfile({
-          declared: resolveAgentProviderContextProfile(input.provider, input.model),
-          requestedContextWindowTokens:
-            options.contextWindowTokens ??
-            requestedDriftingAgentContextWindowTokens(input.contextMode),
+          declared: options.driver
+            ? options.driver.capabilities?.context
+            : resolveAgentProviderContextProfile(input.provider, input.model),
+          requestedContextWindowTokens: options.contextWindowTokens,
         }),
       // A long writing turn can expose several disjoint, topology-safe runs.
       // Each provider chunk keeps its own short timeout and deterministic

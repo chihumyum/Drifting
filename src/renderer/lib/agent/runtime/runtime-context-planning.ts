@@ -49,7 +49,6 @@ export interface AgentRuntimeContextPlanningHookInput {
   driverId: string;
   provider?: string;
   model?: string;
-  contextMode?: 'standard' | 'max';
   context: AgentRuntimeContext;
   systemPrompt: string;
   messages: readonly AgentModelMessage[];
@@ -131,7 +130,6 @@ export interface AgentRuntimeContextPlanningRequest {
   driverId: string;
   provider?: string;
   model?: string;
-  contextMode?: 'standard' | 'max';
   context: AgentRuntimeContext;
   systemPrompt?: string;
   messages: readonly AgentModelMessage[];
@@ -447,7 +445,6 @@ export class AgentRuntimeContextPlanningCoordinator {
       driverId: request.driverId,
       ...(request.provider ? { provider: request.provider } : {}),
       ...(request.model ? { model: request.model } : {}),
-      ...(request.contextMode ? { contextMode: request.contextMode } : {}),
       context: request.context,
       systemPrompt,
       messages: request.messages,

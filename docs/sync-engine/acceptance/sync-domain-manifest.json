@@ -2,18 +2,18 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "f2a8e356560251d6740f2aa13f7f4e93ff000a5ca9ea8620c8d3b68ea79179ca",
+  "schemaSha256": "222b332e765a3e984cf9e1fbb507719944741797adf1b31ba16225bc542af9de",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
     "tableCount": 93,
-    "fieldCount": 976,
+    "fieldCount": 977,
     "includedTableCount": 26,
     "excludedTableCount": 67,
     "classCounts": {
       "authored": 168,
       "crdt": 10,
       "derived": 92,
-      "device-local": 369,
+      "device-local": 370,
       "secret": 5,
       "transport": 313,
       "extension": 19
@@ -322,6 +322,12 @@
         },
         {
           "field": "sdk_session_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
+        },
+        {
+          "field": "source",
           "classification": "device-local",
           "disposition": "exclude",
           "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."

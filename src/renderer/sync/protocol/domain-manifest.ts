@@ -842,6 +842,7 @@ const runtimeTables: Readonly<Record<string, readonly string[]>> = {
     'id',
     'project_id',
     'title',
+    'source',
     'sdk_session_id',
     'runtime_session_id',
     'mode',

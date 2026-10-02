@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-10-01
+Updated: 2026-10-03
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -174,8 +174,8 @@ pnpm agent:capabilities:check
 - Stop waits for the current tool's durable boundary. Steer applies exactly once
   at the next model boundary. Automatic continuation never reauthorizes itself
   after restart and pauses after repeated slices without durable progress.
-- Context budgets are provider-declared. Standard and Max behavior, output and
-  schema reserves, compaction topology, source-hash citations, retained author
+- Context windows use each selected model declaration in full, with no Standard/Max
+  cap. Output and schema reserves, compaction topology, source-hash citations, retained author
   constraints, search provenance, and oversized artifact paging are defined in
   the generated inventory and context protocol.
 - Agent chats are independent flat sessions. Author-visible Agent checkpoint,

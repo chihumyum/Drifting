@@ -154,10 +154,9 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(21);
+    expect(manifest.schemaVersion).toBe(22);
     expect(manifest.product).toMatchObject({
-      contextWindowTokens: 200_000,
-      maxContextWindowTokens: 1_000_000,
+      contextWindowPolicy: 'model-declared',
       concurrency: {
         admissionPolicy: 'unbounded-user-owned',
         activeTurnCardinality: 'one-per-conversation',

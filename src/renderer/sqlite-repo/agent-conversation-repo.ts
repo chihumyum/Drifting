@@ -82,6 +82,7 @@ export interface AgentConversationUsage {
 export interface AgentConversationRemovalReceipt { id: string; projectId: string; deletedAt: string }
 
 export interface AgentConversationRepository {
+  /** Internal chats only. External tool conversations retain separate audit ownership. */
   listByProject(projectId: string): Promise<AgentConversationSummary[]>;
   get(id: string): Promise<AgentConversation | null>;
   create(input: CreateAgentConversationInput): Promise<void>;
@@ -120,6 +121,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         .where(
           and(
             eq(AgentConversationTable.projectId, projectId),
+            eq(AgentConversationTable.source, 'chat'),
             isNull(AgentConversationTable.deletedAt),
           ),
         )
@@ -154,7 +156,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
           messagesJson: AgentConversationTable.messagesJson,
         })
         .from(AgentConversationTable)
-        .where(eq(AgentConversationTable.projectId, projectId))
+        .where(and(eq(AgentConversationTable.projectId, projectId), eq(AgentConversationTable.source, 'chat')))
         .orderBy(desc(AgentConversationTable.updatedAt));
       return rows.map((r) => {
         let inputTokens = 0;
@@ -189,7 +191,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
       const rows = await getDb()
         .select()
         .from(AgentConversationTable)
-        .where(and(eq(AgentConversationTable.id, id), isNull(AgentConversationTable.deletedAt)))
+        .where(and(eq(AgentConversationTable.id, id), eq(AgentConversationTable.source, 'chat'), isNull(AgentConversationTable.deletedAt)))
         .limit(1);
       return rows[0] ? recordToDomain(rows[0]) : null;
     },
@@ -200,6 +202,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         projectId: input.projectId,
         title: input.title,
         mode: input.mode,
+        source: 'chat',
         messagesJson: JSON.stringify(input.messages),
         sdkSessionId: input.sdkSessionId ?? null,
         runtimeSessionId: input.runtimeSessionId ?? null,
@@ -222,7 +225,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
       await getDb()
         .update(AgentConversationTable)
         .set(set)
-        .where(eq(AgentConversationTable.id, id));
+        .where(and(eq(AgentConversationTable.id, id), eq(AgentConversationTable.source, 'chat')));
       void wakeConversationSync(id).catch(() => {});
     },
 
@@ -230,7 +233,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
       const rows = await getDb()
         .update(AgentConversationTable)
         .set({ deletedAt, updatedAt: deletedAt })
-        .where(eq(AgentConversationTable.id, id))
+        .where(and(eq(AgentConversationTable.id, id), eq(AgentConversationTable.source, 'chat')))
         .returning({ id: AgentConversationTable.id, projectId: AgentConversationTable.projectId });
       void wakeConversationSync(id).catch(() => {});
       return rows.map(row => ({ ...row, deletedAt }));
@@ -243,6 +246,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         .where(
           and(
             eq(AgentConversationTable.projectId, projectId),
+            eq(AgentConversationTable.source, 'chat'),
             isNull(AgentConversationTable.deletedAt),
           ),
         )

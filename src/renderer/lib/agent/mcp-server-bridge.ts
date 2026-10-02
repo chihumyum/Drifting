@@ -52,6 +52,7 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
                 id,
                 projectId,
                 title: `MCP · ${grant.name}`,
+                source: 'external_mcp',
                 sdkSessionId: null,
                 runtimeSessionId: event.sessionId,
                 mode: 'byok',

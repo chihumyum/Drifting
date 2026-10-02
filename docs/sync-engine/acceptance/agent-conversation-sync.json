@@ -19,42 +19,45 @@
       "crates/drifting-core/src/file_io.rs": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
-      "scripts/generate-agent-conversation-sync.ts": "2e083e27d2398976b272e1eb929aa493186277a6bf62c752eadf530b0f354372",
+      "drizzle/0005_agent_conversation_source.sql": "25b99bdfaf7e002c8601cf6106999d549a2b74727ad4b94aa71fbff4ca00e5b0",
+      "scripts/generate-agent-conversation-sync.ts": "1c7a9b5e4bc3aa3dedf1e6bbdeda0769a55cae64f769d168c73742190f22fd58",
       "src-tauri/src/database.rs": "c17443c1e4a6b66361a4e671e946835cc034dd67ec2ce88839c7a30c7ad47389",
       "src-tauri/src/google_drive_sync.rs": "db6f67c12002e5081c2403b77b01770cfc6acf2ea595b52e6a254d2362a9bf8b",
       "src-tauri/src/google_drive_sync_legacy_fixture.rs": "214c31ca12538b54c6bd6d556f26b70d5d0775b88f867301026c975742f58063",
       "src-tauri/src/mcp_stdio.rs": "48c385cbd4571c60a89e29d1013029c9cb26ffec924543d18d0eba2c5be74ce2",
+      "src/renderer/domain/agent-conversation-source.ts": "37a221e11da9ed0a625e8b36c3b0e4b6399f6a4fdbd289bc5e8ce426cf4534c0",
       "src/renderer/features/agent/chat-display-projection.test.ts": "eee1f278530a4db6eb502acacb6ac1efbb6aa0875fdafb12ca5319a21e254b22",
       "src/renderer/features/agent/chat-display-projection.ts": "3ed2ecce0b1333bf697cfc90805540138a071758be7422498e1e2c17eb4ad9b5",
-      "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "51a0ce295e8dc842c7718c07e9b55af2fd1e36f0b4df1f05f4908c17c1f6312d",
-      "src/renderer/features/agent/useAgentChatMessages.ts": "6685393d3cc43c71fc4ea954fcc2f159faf50353dc3f4b6ab6a3427303168f63",
-      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "29ee9564927f9a9d82c85d2c4f014f511d4d23f77d2c6b7dfd761563b2a2f3d8",
+      "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "8c10be0f12df5a25f2d7bac5e12445bf74e8281480daca8fa26736d2bf6dd1f5",
+      "src/renderer/features/agent/useAgentChatMessages.ts": "f03884f1c35ecbb1677d91c9cb3d924c962c2c9121ba39ce6bdfb0d9c05b701b",
+      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "25b4e9ee19449ff41cc482134001a66b6c95aaba2173a56945fc5cdd0c214db9",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts": "51d399cf3dffefd538e86f3b173d4b3bffb10e092d088be4adb92bfbdfb7fd6c",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.ts": "152db7e49f552b39e1dd5bba8d61d23a73dc000d28ed229137e87b5f4777e24f",
       "src/renderer/lib/agent/runtime/chat-message-publication.ts": "23992bb0ea3be5f8885deac0ebcc9ac18cbb37601ca93689bc1497fc82a679f1",
       "src/renderer/lib/agent/runtime/recovered-transcript.ts": "0891a2e3e4b22a2a1edf7c4450ef00908595fa62df224f366814b97ade9e7120",
-      "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "bd4818aa8f8ad0e80c8713c36cf3f35185bf55402c3285513ca3640785ee185f",
-      "src/renderer/lib/events.ts": "450249da4402ebb8609233cbf3665802d09ef7d8644898855c312df637e8380b",
-      "src/renderer/platform/contracts.ts": "248daf210c533a2d9435bbf0157f44ce9ec5a489acd61d5eeae1456c66ac1c8c",
-      "src/renderer/platform/types.ts": "2655245f198fbfc82ce3c1c4e1f3c7034795f0a50781196eb8c83c9b2b3eea2f",
-      "src/renderer/schema/drizzle.ts": "b27a674f229c9d91fb6d4992f4c4144cbbce1f9eab3256f5447590057ac8b5b3",
-      "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "27d71a8ddf9ead7a8ba3840f7161993516ee723a1876da37e6a1e0329d2f2fc5",
-      "src/renderer/sqlite-repo/agent-conversation-repo.ts": "44b089770371795c6dc52ae4534cb89e632e2e85f80084cf1ec45c223ac3902d",
-      "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts": "17e33829609d5a685bcb54f65de2bab41ad18bdce69c200180441aec49dde6fb",
+      "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "808b8d9dbe1360ac6eb46fd3d9bea5b3f351ed0e5e17442881b9641de03cb990",
+      "src/renderer/lib/events.ts": "6b426014fdb2def7e5678059b0c5fe2a4cb4dff2f747e401520a8b2535def7ab",
+      "src/renderer/platform/contracts.ts": "eccf21a9a395ec0fabf5908e5538134ae04596af495c2ff9f7cf7a2f6b13b988",
+      "src/renderer/platform/types.ts": "1e43058c2d96c82b5aa670b56ad13ddff84522cfbec5a1aef4fe22cd9849a972",
+      "src/renderer/schema/drizzle.ts": "4549cff1126d0c581eedb8f96e82b74fa16f81abfc4104a56d61496ed51733de",
+      "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "aed2e0929eef1031c7a6bc029c5d9541003c436d49fca41633168f343b90aec0",
+      "src/renderer/sqlite-repo/agent-conversation-repo.ts": "9a6ee360bfcbf3d1613b1151107a1d76f5061c095e23e6718b28c685756a2b37",
+      "src/renderer/sqlite-repo/agent-conversation-source.integration.test.ts": "622351e2eab065379de1f431edbc85ac884208719c4f17d01c955c809414c6ce",
+      "src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts": "aeda817893c54bdb0bf73a75a560d07b965c43da0118a614c68d823b33c2a719",
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts": "51455b6af31b0b01036df7ae951649522ba237ef230e262eec49884367136316",
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f",
       "src/renderer/store/agent-chat-events.integration.test.ts": "d88c9941a6ff74b4f54f70392260d9194a8f034ab2217634ba58c277d73da629",
-      "src/renderer/store/agent-chat-store.ts": "908cd0f71b1b4b693fdd3b7984fbd04cd620f0f7794d86fd5771055e569a320c",
+      "src/renderer/store/agent-chat-store.ts": "fd752c9935e40d3c2e57ab2f4466217b561d30b1dff13af5a2ea23a03423a5b7",
       "src/renderer/sync/agent-chat/agent-chat.integration.test.ts": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217",
       "src/renderer/sync/agent-chat/imported-history.ts": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af",
       "src/renderer/sync/agent-chat/payload.ts": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c",
       "src/renderer/sync/agent-chat/protocol.ts": "368d5bab483867663ece81db2ec9fb492d6df9bd76d961e096fc8623e5321464",
-      "src/renderer/sync/agent-chat/repository.ts": "836b39f0c4ce44e318b020251110f2326e6df579a2566108b5f1ffdae349e02e",
-      "src/renderer/sync/agent-chat/runtime.ts": "c5edf303fc6942f14a0777160cf928a4f8b9afd53f4cbf3f533b8be66bc53e0c",
-      "src/renderer/sync/agent-chat/seed.ts": "4f335f75d8203c2196817b313926808ce6300791f0ef8d728fab647a034c7766",
-      "src/renderer/sync/production-runtime.test.ts": "3b0af580f9d88f9ee58c0ba718baa7d578749cff4553afcc962abdcc7cd7aa45",
-      "src/renderer/sync/production-runtime.ts": "5e97c7546d010bdc6210f5f1804c2708a391ca62de4488207a4d2e45da9574be",
-      "src/renderer/sync/protocol/domain-manifest.ts": "f9db9d3cfda6b1b174d41096ff742e8d35563dd67f20e7f908622c5f708fc766",
+      "src/renderer/sync/agent-chat/repository.ts": "0ebe73546cc85b956b21ad38cb589253b8a792d748c38e50e1cfddbae2c3e1ea",
+      "src/renderer/sync/agent-chat/runtime.ts": "a3954b82fc0bc7be63a3aa2dfd8e71fc31744924c4fef9fe911e2f2dacee0217",
+      "src/renderer/sync/agent-chat/seed.ts": "8efc900a0c3c44135d3600c0c7e5e72bfa31ae86d028802ed1bf5e1514d9af45",
+      "src/renderer/sync/production-runtime.test.ts": "f995e2f1b6652ac10976c6374b248ae71c2e6bdf0a14c81b877177f807f7024c",
+      "src/renderer/sync/production-runtime.ts": "ceeb2beb3bb9a5ef9c36a1bb0a3cbe29ac45a735739a69ba3e3611ca4ab82edf",
+      "src/renderer/sync/protocol/domain-manifest.ts": "d7d83147a81f6c7c21fd38122d035988471debb144670110d350fde1cd75c5a8",
       "src/renderer/sync/providers/google-drive/tauri-transport.test.ts": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1",
       "src/renderer/sync/providers/google-drive/tauri-transport.ts": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
     }
@@ -62,7 +65,7 @@
   "automated": {
     "status": "passed",
     "renderer": {
-      "passed": 60,
+      "passed": 67,
       "failed": 0,
       "skipped": 0,
       "cases": [
@@ -239,7 +242,31 @@
           "status": "passed"
         },
         {
+          "name": "internal chat and external MCP conversation ownership does not project MCP branches received from older clients into chat history",
+          "status": "passed"
+        },
+        {
+          "name": "internal chat and external MCP conversation ownership does not rename or delete external audit records through chat management",
+          "status": "passed"
+        },
+        {
+          "name": "internal chat and external MCP conversation ownership excludes MCP inserts, updates and completed tool turns from chat sync while retaining audit rows",
+          "status": "passed"
+        },
+        {
+          "name": "internal chat and external MCP conversation ownership filters history, direct hydration and usage by source rather than title or credentials",
+          "status": "passed"
+        },
+        {
+          "name": "internal chat and external MCP conversation ownership ignores a saved MCP selection and rejects direct open and continuation",
+          "status": "passed"
+        },
+        {
           "name": "keeps tree and array subscribers on the same coalesced control and owner boundary",
+          "status": "passed"
+        },
+        {
+          "name": "migrates old MCP identities and provider records without deleting history or audit data",
           "status": "passed"
         },
         {
@@ -272,6 +299,10 @@
         },
         {
           "name": "product file-backed migration acceptance refuses a database created by a newer migration journal",
+          "status": "passed"
+        },
+        {
+          "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
           "status": "passed"
         },
         {
@@ -315,7 +346,7 @@
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
     },
     "native": {
-      "passed": 90,
+      "passed": 128,
       "failed": 0,
       "ignored": 1,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"
