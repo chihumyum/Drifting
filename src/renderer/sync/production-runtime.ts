@@ -149,6 +149,11 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       writerIdentity,
       domainKernel: productionSyncDomainMaterializationKernel,
       flushLocalDurability: flushLocalApplicationPersistence,
+      async onRemoteProjectDeleted({ projectId, receipt }) {
+        const { cleanupDeletedProject } = await import('../services/project-deletion-cleanup');
+        await cleanupDeletedProject(projectId, receipt);
+        events.emit('sync:authority-changed');
+      },
       reconcileOpenYjsDocuments: ({ projectId, docIds }) =>
         reconcileOpenYjsDocumentSessions(projectId, docIds),
       onRemoteChangeCommitted: ({ projectId, projectionImpact, proseDocIds }) => {

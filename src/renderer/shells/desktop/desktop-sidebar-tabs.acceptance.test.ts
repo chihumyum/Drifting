@@ -17,6 +17,14 @@ vi.mock('../../store/ui-store', async (importOriginal) => {
   };
 });
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('../../store/sidebar-metrics-store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../store/sidebar-metrics-store')>();
+  type Metrics = ReturnType<typeof actual.useSidebarMetricsStore.getState>;
+  return { useSidebarMetricsStore: Object.assign(
+    <T,>(select: (state: Metrics) => T) => select(actual.useSidebarMetricsStore.getState()),
+    actual.useSidebarMetricsStore,
+  ) };
+});
 vi.mock('../../hooks/useProjectNavigation', () => ({
   useProjectNavigation: () => ({ projectId: 'synthetic-project' }),
 }));
@@ -52,11 +60,15 @@ import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { SidebarPaneContext } from '../../lib/sidebar-pane-context';
+import { useSidebarMetricsStore } from '../../store/sidebar-metrics-store';
 
 const state = () => useUiStore.getState();
 
 describe('desktop sidebar rendered acceptance', () => {
-  beforeEach(() => useUiStore.setState(useUiStore.getInitialState(), true));
+  beforeEach(() => {
+    useUiStore.setState(useUiStore.getInitialState(), true);
+    useSidebarMetricsStore.setState({ minimumWidths: { left: 216, right: 224 } });
+  });
 
   it('renders every left tab in each pane, with no disabled tabs and an independent toolbar', () => {
     state().setSidebarSplitAvailable('left', true);
@@ -109,8 +121,8 @@ describe('desktop sidebar rendered acceptance', () => {
     const renderWidth = (paneId: 'primary' | 'secondary') => renderToStaticMarkup(
       createElement(SidebarPaneContext.Provider, { value: paneId }, createElement(Width)),
     );
-    expect(renderWidth('primary')).toBe('288');
-    expect(renderWidth('secondary')).toBe('312');
+    expect(renderWidth('primary')).toBe('216');
+    expect(renderWidth('secondary')).toBe('384');
     state().toggleLeftSidebarTab('primary', 'elements');
     expect(renderWidth('secondary')).toBe('601');
   });

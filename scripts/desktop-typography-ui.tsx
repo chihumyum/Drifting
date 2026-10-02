@@ -2,7 +2,12 @@
 import { useLayoutEffect, useState } from 'react';
 import { AgentTypographyFixture, measureAgentTypography } from './agent-typography-fixture';
 import { createRoot } from 'react-dom/client';
-import { PanelTab, PanelTabTray } from '../src/renderer/components/ui/PanelTabs';
+import { LeftSidebarHeader } from '../src/renderer/components/leftBars/LeftSidebarHeader';
+import { RightSidebarHeader } from '../src/renderer/components/rightBars/RightSidebarHeader';
+import { useSidebarMetricsStore } from '../src/renderer/store/sidebar-metrics-store';
+import { useUiStore } from '../src/renderer/store/ui-store';
+import { DesktopSidebarLayout } from '../src/renderer/shells/desktop/DesktopSidebarLayout';
+import { sidebarSplitMinWidth } from '../src/renderer/lib/layout-geometry';
 import { ContextMenuSurface } from '../src/renderer/components/ui/ContextMenuSurface';
 import { AppearancePanel } from '../src/renderer/features/settings/panels/BasicPreferencePanels';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
@@ -28,6 +33,50 @@ function element(selector: string): HTMLElement {
 }
 
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+function SidebarFixture({ side }: { side: 'left' | 'right' }) {
+  const layout = useUiStore((s) => s.desktopSidebarTabs[side]);
+  const width = useUiStore((s) => s.sidebars[side].width);
+  const panels = layout.panes.map((pane) => ({
+    ...pane,
+    header: side === 'left'
+      ? <LeftSidebarHeader paneId={pane.id} activeTab="nodes" />
+      : <RightSidebarHeader paneId={pane.id} activeTab="review" />,
+    content: <div>Synthetic panel</div>,
+  }));
+  return <div id={`sidebar-${side}`} style={{ width, height: 70, marginTop: 16 }}>
+    <DesktopSidebarLayout side={side} panels={panels} />
+  </div>;
+}
+
+async function measureSidebars() {
+  const samples = [];
+  for (const locale of ['zh-CN', 'en']) {
+    setI18nLocale(locale);
+    await document.fonts.ready;
+    await frame(); await frame();
+    for (const side of ['left', 'right'] as const) {
+      const min = useSidebarMetricsStore.getState().minimumWidths[side];
+      const threshold = sidebarSplitMinWidth(min);
+      for (const width of [min, threshold - 1, threshold]) {
+        useUiStore.getState().setSidebarWidth(side, width);
+        await frame(); await frame();
+        const rows = [...element(`#sidebar-${side}`).querySelectorAll<HTMLElement>('.workspace-panel-tab-row')];
+        const fits = rows.every((row) => {
+          const labels = [...row.querySelectorAll<HTMLElement>('[data-panel-tab-label]')].map((label) => label.getBoundingClientRect());
+          const bounds = row.getBoundingClientRect();
+          return labels.every((label, i) => label.left >= bounds.left + 5.9 && label.right <= bounds.right - 5.9
+            && (i === 0 || label.left - labels[i - 1].right >= 11.9));
+        });
+        const panes = rows.length;
+        samples.push({ locale, side, min, threshold, width, panes, fits,
+          passed: min > 0 && fits && panes === (width >= threshold ? 2 : 1) });
+      }
+    }
+  }
+  setI18nLocale(new URLSearchParams(location.search).get('locale') === 'en' ? 'en' : 'zh-CN');
+  return samples;
+}
 
 function contrast(foreground: string, background: string): number {
   const canvas = document.createElement('canvas');
@@ -91,7 +140,9 @@ async function measure() {
       }
       const agent = measureAgentTypography(size);
       checks[`${key}:agentConversation`] = agent.passed;
-      samples.push({ key, agent: agent.samples, ...sizes, footerHeight: footer.getBoundingClientRect().height, contrast: Number(ratio.toFixed(2)) });
+      const sidebars = await measureSidebars();
+      checks[`${key}:sidebarDensity`] = sidebars.every((sample) => sample.passed);
+      samples.push({ key, sidebars, agent: agent.samples, ...sizes, footerHeight: footer.getBoundingClientRect().height, contrast: Number(ratio.toFixed(2)) });
     }
     root.dataset.shellMode = 'mobile';
     await frame();
@@ -124,9 +175,8 @@ export function Fixture() {
         <output id="typography-result" style={{ display: 'block', whiteSpace: 'pre-wrap', fontSize: 13 }}>{report ? JSON.stringify(report, null, 2) : 'Not run'}</output>
       </details>
       {report && <a download={`desktop-typography-${innerWidth}.json`} href={`data:application/json,${encodeURIComponent(JSON.stringify(report, null, 2))}`}>Download report</a>}
-      <div className="workspace-panel-tab-row" style={{ width: 240, marginTop: 16 }}>
-        <PanelTabTray><PanelTab active typography="label">章节</PanelTab><PanelTab active={false} typography="label">元素</PanelTab><PanelTab active={false} typography="label">灵感</PanelTab></PanelTabTray>
-      </div>
+      <SidebarFixture side="left" />
+      <SidebarFixture side="right" />
       <footer className="bsb">12,345 字 · 今日新增 678 字</footer>
       <div id="overlay-boundary" style={{ position: 'fixed', bottom: 'var(--super-view-bottom-inset)', pointerEvents: 'none' }} />
       <div className="page__body"><div className="ProseMirror">正文保持作者选择的 21px。Manuscript typography stays independent.</div></div>

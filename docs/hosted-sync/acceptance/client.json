@@ -1,91 +1,11 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-01T08:11:56.630Z",
-  "sourceSha256": "ca05fa36e59ba5894fdb163748990d11c9019cf5c2e9d1a38465440a226a7248",
+  "generatedAt": "2026-10-02T12:26:34.365Z",
+  "sourceSha256": "289a9cd2eaf65ac04008eb68a056cc3c1b72956073d3bc063883cb03ad32c158",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
   "checks": [
-    {
-      "name": "local-only account boundary rejects account actions before the Better Auth client can dispatch",
-      "status": "passed"
-    },
-    {
-      "name": "local-only account boundary opens the local SQLite replica before a cold protected route becomes ready",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library adopts a verified account without replacing local identity or database",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library expires authentication without closing the library or forgetting the expected account",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library rejects another account before binding or exporting local data",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library retains the session if remote sign-out fails, and clears it after a successful retry",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library opens the library without waiting for a stalled account request",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library does not authorize a changed token until its account is verified",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library does not rebind a session whose request finished after sign-out",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted sessions preserve the local writing library does not authorize a token replaced while validating the account",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits saves trimmed names and avatar removal to all display state without changing the library",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits keeps the saved profile on a rejected edit and blocks invalid requests before sending",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits discards profile responses that arrive after sign-out",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits drains older profile refreshes and prevents refreshes and duplicate edits during saving",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits validates confirmation and leaves authentication intact when the old password is wrong",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits persists and revalidates the rotated bearer before rebinding sync after a password change",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits does not restore a revoked token when storing the new session fails",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits does not adopt a delayed password response after sign-out",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted account edits expires rejected credentials without losing the expected profile or local identity",
-      "status": "passed"
-    },
-    {
-      "name": "In-flight sync during a password change waits for rotation and ignores the expired request token",
-      "status": "passed"
-    },
     {
       "name": "Hosted credential response ownership ignores stale response credentials after another login or logout",
       "status": "passed"
@@ -179,6 +99,26 @@
       "status": "passed"
     },
     {
+      "name": "ProductSyncRuntimeControl keeps deletion suspended when an overlapping provider change releases its hold",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl holds a coordinator mounted while deletion is already in progress",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl publishes only sanitized diagnostics and detaches by coordinator identity",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl routes manual requests only to registered production SyncGenerations",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl waits for a fresh successful cycle with an empty durable frontier",
+      "status": "passed"
+    },
+    {
       "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
       "status": "passed"
     },
@@ -203,6 +143,86 @@
       "status": "passed"
     },
     {
+      "name": "local-only account boundary rejects account actions before the Better Auth client can dispatch",
+      "status": "passed"
+    },
+    {
+      "name": "local-only account boundary opens the local SQLite replica before a cold protected route becomes ready",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library adopts a verified account without replacing local identity or database",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library expires authentication without closing the library or forgetting the expected account",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library rejects another account before binding or exporting local data",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library retains the session if remote sign-out fails, and clears it after a successful retry",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library opens the library without waiting for a stalled account request",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library does not authorize a changed token until its account is verified",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library does not rebind a session whose request finished after sign-out",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sessions preserve the local writing library does not authorize a token replaced while validating the account",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits saves trimmed names and avatar removal to all display state without changing the library",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits keeps the saved profile on a rejected edit and blocks invalid requests before sending",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits discards profile responses that arrive after sign-out",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits drains older profile refreshes and prevents refreshes and duplicate edits during saving",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits validates confirmation and leaves authentication intact when the old password is wrong",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits persists and revalidates the rotated bearer before rebinding sync after a password change",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits does not restore a revoked token when storing the new session fails",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits does not adopt a delayed password response after sign-out",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted account edits expires rejected credentials without losing the expected profile or local identity",
+      "status": "passed"
+    },
+    {
+      "name": "In-flight sync during a password change waits for rotation and ignores the expired request token",
+      "status": "passed"
+    },
+    {
       "name": "Hosted-only App sync boundary offers account sync and local recovery without Drive controls in any build",
       "status": "passed"
     },
@@ -212,70 +232,6 @@
     },
     {
       "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
-      "status": "passed"
-    },
-    {
-      "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
-      "status": "passed"
-    },
-    {
-      "name": "still rolls back takeover for unresolved local integrity: local-quarantine",
-      "status": "passed"
-    },
-    {
-      "name": "still rolls back takeover for unresolved local integrity: conflict",
-      "status": "passed"
-    },
-    {
-      "name": "still rolls back takeover for unresolved local integrity: gap",
-      "status": "passed"
-    },
-    {
-      "name": "rolls back the entire adoption if account ownership changes before commit",
-      "status": "passed"
-    },
-    {
-      "name": "cancels an unfinished Drive connect locally before connecting Hosted",
-      "status": "passed"
-    },
-    {
-      "name": "cancels an unfinished Drive disconnect, then quiesces before local replica adoption",
-      "status": "passed"
-    },
-    {
-      "name": "leaves a retained transition alone if it cannot safely be cancelled",
-      "status": "passed"
-    },
-    {
-      "name": "restores runtime control and stops before upload when local adoption fails",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted current-client real HTTP and SQLite acceptance connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted current-client real HTTP and SQLite acceptance restores exact synthetic asset bytes and preserves local prose through rejected credentials and a SQLite reopen",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted current-client real HTTP and SQLite acceptance takes over an offline Drive replica with retained remote quarantine, keeps immutable history, and provisions a fresh Hosted generation",
-      "status": "passed"
-    },
-    {
-      "name": "Hosted service recovery after offline startup revalidates on a timer or focus without a browser online event, then resumes discovery",
-      "status": "passed"
-    },
-    {
-      "name": "connects the existing local library after a verified login",
-      "status": "passed"
-    },
-    {
-      "name": "never uploads when account ownership is rejected",
-      "status": "passed"
-    },
-    {
-      "name": "leaving sign-in cancels before the library is connected",
       "status": "passed"
     },
     {
@@ -319,6 +275,130 @@
       "status": "passed"
     },
     {
+      "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
+      "status": "passed"
+    },
+    {
+      "name": "still rolls back takeover for unresolved local integrity: local-quarantine",
+      "status": "passed"
+    },
+    {
+      "name": "still rolls back takeover for unresolved local integrity: conflict",
+      "status": "passed"
+    },
+    {
+      "name": "still rolls back takeover for unresolved local integrity: gap",
+      "status": "passed"
+    },
+    {
+      "name": "rolls back the entire adoption if account ownership changes before commit",
+      "status": "passed"
+    },
+    {
+      "name": "cancels an unfinished Drive connect locally before connecting Hosted",
+      "status": "passed"
+    },
+    {
+      "name": "cancels an unfinished Drive disconnect, then quiesces before local replica adoption",
+      "status": "passed"
+    },
+    {
+      "name": "leaves a retained transition alone if it cannot safely be cancelled",
+      "status": "passed"
+    },
+    {
+      "name": "restores runtime control and stops before upload when local adoption fails",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance deletes remote bytes before local data, survives a lost acknowledgement and removes an offline peer without resurrection",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance restores exact synthetic asset bytes and preserves local prose through rejected credentials and a SQLite reopen",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted current-client real HTTP and SQLite acceptance takes over an offline Drive replica with retained remote quarantine, keeps immutable history, and provisions a fresh Hosted generation",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary retains all local data while remote confirmation is pending, then commits purge and asset inventory",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary preserves prose and retries the same remote identity after offline",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary preserves prose and retries the same remote identity after needs-reauth",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary preserves prose and retries the same remote identity after server-does-not-support-delete",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary preserves prose and retries the same remote identity after lost-response",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary rejects signed-out and wrong-account deletion without sending requests",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary keeps the project if account ownership changes while DELETE is in flight",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary does not fall back to local-only deletion after Hosted disconnect",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary deletes pending genesis remotely before it can be published",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary includes retained Hosted generations from historical connect receipts",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary rejects a library change between remote confirmation and the local transaction",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary a local-only build cannot silently discard evidence of an unowned remote copy",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary pure local builds can delete never-synced data without a network dependency",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted project deletion boundary applies a confirmed server tombstone idempotently without touching another project",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted service recovery after offline startup revalidates on a timer or focus without a browser online event, then resumes discovery",
+      "status": "passed"
+    },
+    {
+      "name": "connects the existing local library after a verified login",
+      "status": "passed"
+    },
+    {
+      "name": "never uploads when account ownership is rejected",
+      "status": "passed"
+    },
+    {
+      "name": "leaving sign-in cancels before the library is connected",
+      "status": "passed"
+    },
+    {
       "name": "keeps local writing independent of an unavailable Keychain",
       "status": "passed"
     },
@@ -332,6 +412,22 @@
     },
     {
       "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
+      "status": "passed"
+    },
+    {
+      "name": "SyncGenerationProvisionSupervisor drains cancelled work and prevents foreground wakeups until the deletion hold is released",
+      "status": "passed"
+    },
+    {
+      "name": "SyncGenerationProvisionSupervisor coalesces wakeups into one strictly serialized lane",
+      "status": "passed"
+    },
+    {
+      "name": "SyncGenerationProvisionSupervisor uses bounded full-jitter retry without losing the durable request",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary deletes without reopening and validates the exact durable remote receipt",
       "status": "passed"
     },
     {
@@ -352,6 +448,10 @@
     },
     {
       "name": "Hosted provider response boundary bounds discovery pagination and checks ownership after each page",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted sync credential rotation accepts terminal deletion only with an exact authenticated generation receipt",
       "status": "passed"
     },
     {

@@ -22,6 +22,34 @@ function runtime(syncGenerationId: string): RegisteredSyncGenerationRuntime {
 }
 
 describe('ProductSyncRuntimeControl', () => {
+  it('keeps deletion suspended when an overlapping provider change releases its hold', async () => {
+    const coordinator = new SyncEngineCoordinator();
+    const control = new ProductSyncRuntimeControl();
+    const detach = control.attach(coordinator);
+    const releaseDeletion = await control.hold();
+    const releaseProviderChange = await control.quiesceForProviderChange();
+    releaseProviderChange();
+    releaseProviderChange();
+    coordinator.setSuspended(false);
+    expect(coordinator.diagnostics().suspended).toBe(true);
+    releaseDeletion();
+    expect(coordinator.diagnostics().suspended).toBe(false);
+    detach();
+    coordinator.shutdown();
+  });
+
+  it('holds a coordinator mounted while deletion is already in progress', async () => {
+    const control = new ProductSyncRuntimeControl();
+    const release = await control.hold();
+    const coordinator = new SyncEngineCoordinator();
+    const detach = control.attach(coordinator);
+    expect(coordinator.diagnostics().suspended).toBe(true);
+    release();
+    expect(coordinator.diagnostics().suspended).toBe(false);
+    detach();
+    coordinator.shutdown();
+  });
+
   it('publishes only sanitized diagnostics and detaches by coordinator identity', () => {
     const coordinator = new SyncEngineCoordinator();
     coordinator.register(runtime('sync-generation-b'));

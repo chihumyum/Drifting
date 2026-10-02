@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { SIDEBAR_SPLIT_MIN_WIDTH } from '../../lib/sidebar-tabs';
 import { useUiStore, type SidebarType } from '../../store/ui-store';
 import type { SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarPanelStateContext } from '../../hooks/useSidebarPanelState';
 import { sidebarPanelKey } from '../../store/sidebar-panel-store';
 import type { SidebarPanelScope } from '../../store/sidebar-panel-store';
 import { SidebarPaneContext } from '../../lib/sidebar-pane-context';
+import { useSidebarMetricsStore } from '../../store/sidebar-metrics-store';
 import {
   clampSidebarSplitRatio, sidebarSplitRatioBounds, SIDEBAR_DIVIDER_WIDTH,
-  SIDEBAR_MIN_WIDTH, type DimensionBounds,
+  sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
 
 /** Each stable pane owns its tab strip and body, including duplicate tabs. */
@@ -26,8 +26,9 @@ export function DesktopSidebarLayout({
   const storedWidth = useUiStore((s) => s.sidebars[side].width);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
   const width = measuredWidth ?? storedWidth;
-  const ratio = clampSidebarSplitRatio(preferredRatio, side, width);
-  const ratioBounds = sidebarSplitRatioBounds(side, width);
+  const minimumWidth = useSidebarMetricsStore((state) => state.minimumWidths[side]);
+  const ratio = clampSidebarSplitRatio(preferredRatio, minimumWidth, width);
+  const ratioBounds = sidebarSplitRatioBounds(minimumWidth, width);
   const setRatio = useUiStore((s) => side === 'left' ? s.setLeftPanelSplitRatio : s.setRightPanelSplitRatio);
   const setSplitAvailable = useUiStore((s) => s.setSidebarSplitAvailable);
   const focusPane = useUiStore((s) => s.focusSidebarPane);
@@ -39,14 +40,14 @@ export function DesktopSidebarLayout({
     const measure = () => {
       if (node.clientWidth > 0) {
         setMeasuredWidth(node.clientWidth);
-        setSplitAvailable(side, node.clientWidth >= SIDEBAR_SPLIT_MIN_WIDTH);
+        if (minimumWidth > 0) setSplitAvailable(side, node.clientWidth >= sidebarSplitMinWidth(minimumWidth));
       }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [side, setSplitAvailable]);
+  }, [side, minimumWidth, setSplitAvailable]);
 
   useEffect(() => () => stopDragging.current(), [split]);
 
@@ -59,7 +60,7 @@ export function DesktopSidebarLayout({
       const rect = bodyRef.current?.getBoundingClientRect();
       if (rect && rect.width > SIDEBAR_DIVIDER_WIDTH) {
         const next = (event.clientX - rect.left - SIDEBAR_DIVIDER_WIDTH / 2) / (rect.width - SIDEBAR_DIVIDER_WIDTH);
-        setRatio(clampSidebarSplitRatio(next, side, rect.width));
+        setRatio(clampSidebarSplitRatio(next, minimumWidth, rect.width));
       }
     };
     const preventSelection = (event: Event) => event.preventDefault();
@@ -88,7 +89,7 @@ export function DesktopSidebarLayout({
             {index > 0 && <ColumnDivider
               ratio={ratio}
               bounds={ratioBounds}
-              onChange={(next) => setRatio(clampSidebarSplitRatio(next, side, width))}
+              onChange={(next) => setRatio(clampSidebarSplitRatio(next, minimumWidth, width))}
               onMouseDown={onDividerMouseDown}
             />}
             <div data-sidebar-pane={panel.id} data-sidebar-panel={panel.tab}
@@ -96,7 +97,7 @@ export function DesktopSidebarLayout({
               onFocusCapture={() => focusPane(side, panel.id)}
               style={{
               flex: `${split ? (index === 0 ? ratio : 1 - ratio) : 1} 1 0`,
-              minWidth: split ? SIDEBAR_MIN_WIDTH[side] : 0,
+              minWidth: split ? minimumWidth : 0,
               minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
             }}>
               <SidebarPaneContext.Provider value={panel.id}>

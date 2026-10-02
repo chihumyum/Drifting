@@ -19,6 +19,8 @@ import {
   updateMobileProjectShelfSession,
 } from '../shells/mobile/standalone/mobile-project-shelf-session';
 import { events } from '../lib/events';
+import { canUseHostedService } from '../lib/config';
+import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 
 function WindowDragStrip() {
@@ -168,6 +170,8 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProjectSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const openDelete = (project: ProjectSummary) => { setDeleteError(null); setConfirmDelete(project); };
   const [busy, setBusy] = useState(false);
 
   useProjectRoutePreload(!loading && Boolean(user?.id));
@@ -176,6 +180,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     const data = await loadProjectSummaries();
     log.debug('Loaded project summaries:', data);
     setProjects(data);
+    setConfirmDelete(current => current && data.some(project => project.id === current.id) ? current : null);
   }, [loadProjectSummaries]);
 
   useEffect(() => {
@@ -316,14 +321,15 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const handleDelete = useCallback(async () => {
     if (!confirmDelete || busy) return;
     setBusy(true);
+    setDeleteError(null);
     try {
       const ok = await deleteProject(confirmDelete.id);
-      if (ok) {
-        setProjects((prev) => prev.filter((p) => p.id !== confirmDelete.id));
-      }
+      if (!ok) throw new Error('Project deletion did not commit');
+      setProjects((prev) => prev.filter((p) => p.id !== confirmDelete.id));
       setConfirmDelete(null);
     } catch (e) {
       log.error('Failed to delete project:', e);
+      setDeleteError(projectDeletionErrorKey(e));
     } finally {
       setBusy(false);
     }
@@ -353,12 +359,13 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           onSettings={() => navigate('/settings')}
           onOpen={(project) => handleOpen(project.id)}
           onEdit={setEditing}
-          onDelete={setConfirmDelete}
+          onDelete={openDelete}
         />
 
         {confirmDelete && (
           <DeleteModal
             project={confirmDelete}
+            error={deleteError}
             busy={busy}
             onConfirm={handleDelete}
             onClose={() => (busy ? undefined : setConfirmDelete(null))}
@@ -526,7 +533,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                   row={row}
                   onOpen={() => handleOpen(row.project.id)}
                   onEdit={() => setEditing(row.project)}
-                  onDelete={() => setConfirmDelete(row.project)}
+                  onDelete={() => openDelete(row.project)}
                 />
               ))}
               <div
@@ -551,7 +558,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                   row={row}
                   onOpen={() => handleOpen(row.project.id)}
                   onEdit={() => setEditing(row.project)}
-                  onDelete={() => setConfirmDelete(row.project)}
+                  onDelete={() => openDelete(row.project)}
                 />
               ))}
               <div
@@ -588,6 +595,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
       {confirmDelete && (
         <DeleteModal
           project={confirmDelete}
+          error={deleteError}
           busy={busy}
           onConfirm={handleDelete}
           onClose={() => (busy ? undefined : setConfirmDelete(null))}
@@ -802,12 +810,13 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
 
 interface DeleteModalProps {
   project: ProjectSummary;
+  error: string | null;
   busy: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
 
-function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
+function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalProps) {
   const { t } = useTranslation();
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -841,6 +850,9 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
               elements: stats.elements,
             })}
           </p>
+          <p className="pp-modal__sub">{t(canUseHostedService()
+            ? 'projectPicker.delete.remoteBody' : 'projectPicker.delete.localBody')}</p>
+          {error && <p role="alert" className="pp-modal__sub">{t(error)}</p>}
         </div>
         <div className="pp-modal__foot">
           <button
@@ -858,7 +870,8 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? t('projectPicker.delete.deleting') : t('common.delete')}
+            {busy ? t('projectPicker.delete.deleting') : t(canUseHostedService()
+              ? 'projectPicker.delete.everywhere' : 'common.delete')}
           </button>
         </div>
       </div>

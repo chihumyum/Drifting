@@ -32,6 +32,19 @@ export class ProductSyncRuntimeControl {
   private unsubscribeStatus: () => void = () => {};
   private readonly listeners = new Set<Listener>();
   private snapshot: ProductSyncRuntimeSnapshot = EMPTY_SNAPSHOT;
+  private holds = 0;
+
+  async hold(): Promise<() => void> {
+    this.holds += 1;
+    await this.coordinator?.suspendAndDrain();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.holds -= 1;
+      if (this.holds === 0) this.coordinator?.resumeAfterProviderChange();
+    };
+  }
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -47,6 +60,7 @@ export class ProductSyncRuntimeControl {
       throw new Error('A production SyncEngine coordinator is already exposed');
     }
     this.coordinator = coordinator;
+    if (this.holds > 0) void coordinator.suspendAndDrain();
     this.unsubscribeStatus();
     this.unsubscribeStatus = coordinator.statusStore.subscribe(() => {
       this.refresh();
@@ -68,9 +82,7 @@ export class ProductSyncRuntimeControl {
 
   /** Stop provider callbacks before the local replica changes ownership. */
   async quiesceForProviderChange(): Promise<() => void> {
-    const coordinator = this.coordinator;
-    await coordinator?.suspendAndDrain();
-    return () => coordinator?.resumeAfterProviderChange();
+    return this.hold();
   }
 
   triggerManual(syncGenerationId?: string): void {

@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
 import { clampSidebarWidth } from '../lib/layout-geometry';
+import { useSidebarMetricsStore } from '../store/sidebar-metrics-store';
 
 // Must match the `width` transition duration in index.css `.sidebar-shell`
 // so children stay mounted through the outgoing slide, then unmount cleanly.
@@ -17,6 +18,7 @@ interface SidebarProps {
 
 export function Sidebar({ sidebarType, topBar, children, collapsedContent }: SidebarProps) {
   const sidebarState = useUiStore((state) => state.sidebars[sidebarType]);
+  const minimumWidth = useSidebarMetricsStore((state) => state.minimumWidths[sidebarType]);
   const oppositeType: SidebarType = sidebarType === 'left' ? 'right' : 'left';
   const oppositeSidebarState = useUiStore((state) => state.sidebars[oppositeType]);
   // Fallback if state is missing (should not happen with correct store setup)
@@ -28,6 +30,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     sidebarType,
     typeof window === 'undefined' ? 1440 : window.innerWidth,
     oppositeOpenWidth,
+    minimumWidth,
   );
 
   // Resize Logic
@@ -48,6 +51,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         sidebarType,
         window.innerWidth,
         opposite.isOpen ? opposite.width : 0,
+        minimumWidth,
       );
       if (next !== own.width) setSidebarWidth(sidebarType, next);
     };
@@ -61,6 +65,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     persistedWidth,
     setSidebarWidth,
     sidebarType,
+    minimumWidth,
   ]);
 
   // Keep children mounted for the duration of the collapse animation so the
@@ -103,6 +108,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         sidebarType,
         window.innerWidth,
         opposite.isOpen ? opposite.width : 0,
+        minimumWidth,
       );
 
       setSidebarWidth(sidebarType, newWidth);
@@ -147,7 +153,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         body.style.removeProperty('-webkit-user-select');
       }
     };
-  }, [isResizing, oppositeType, setSidebarWidth, setResizingSidebar, sidebarType]);
+  }, [isResizing, minimumWidth, oppositeType, setSidebarWidth, setResizingSidebar, sidebarType]);
 
   // Two-layer geometry so open/close reads as a real slide:
   //   - outer (`.sidebar-shell`) is the layout-sized box; its `width`

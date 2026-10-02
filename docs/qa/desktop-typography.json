@@ -1,6 +1,6 @@
 {
   "kind": "desktop-typography",
-  "fingerprint": "e6684e8fc49e38ef69aa3db75e7734661adc4a93298ae383e55ad93bfae8ca7a",
+  "fingerprint": "d2af616231db1cf02718a042422722caf0b9f3469ec6f30f045d724bbd0b7208",
   "sources": [
     "scripts/agent-typography-fixture.tsx",
     "src/styles/agent-panel.css",
@@ -25,7 +25,13 @@
     "src/renderer/app/effects/AppEffects.tsx",
     "src/renderer/main.tsx",
     "src/renderer/locales/en.json",
-    "src/renderer/locales/zh-CN.json"
+    "src/renderer/locales/zh-CN.json",
+    "src/renderer/components/leftBars/LeftSidebarHeader.tsx",
+    "src/renderer/components/rightBars/RightSidebarHeader.tsx",
+    "src/renderer/shells/desktop/DesktopSidebarLayout.tsx",
+    "src/renderer/hooks/useSidebarTabMinimumWidth.ts",
+    "src/renderer/store/sidebar-metrics-store.ts",
+    "src/renderer/lib/layout-geometry.ts"
   ],
   "runs": [
     {
@@ -50,10 +56,15 @@
         "light:small:章节": true,
         "light:small:元素": true,
         "light:small:灵感": true,
+        "light:small:Review": true,
+        "light:small:素材库": true,
+        "light:small:统计": true,
+        "light:small:Agent": true,
         "light:small:较小": true,
         "light:small:标准": true,
         "light:small:较大": true,
         "light:small:agentConversation": true,
+        "light:small:sidebarDensity": true,
         "light:standard:body": true,
         "light:standard:caption": true,
         "light:standard:panelTab": true,
@@ -69,10 +80,15 @@
         "light:standard:章节": true,
         "light:standard:元素": true,
         "light:standard:灵感": true,
+        "light:standard:Review": true,
+        "light:standard:素材库": true,
+        "light:standard:统计": true,
+        "light:standard:Agent": true,
         "light:standard:较小": true,
         "light:standard:标准": true,
         "light:standard:较大": true,
         "light:standard:agentConversation": true,
+        "light:standard:sidebarDensity": true,
         "light:large:body": true,
         "light:large:caption": true,
         "light:large:panelTab": true,
@@ -88,10 +104,15 @@
         "light:large:章节": true,
         "light:large:元素": true,
         "light:large:灵感": true,
+        "light:large:Review": true,
+        "light:large:素材库": true,
+        "light:large:统计": true,
+        "light:large:Agent": true,
         "light:large:较小": true,
         "light:large:标准": true,
         "light:large:较大": true,
         "light:large:agentConversation": true,
+        "light:large:sidebarDensity": true,
         "dark:small:body": true,
         "dark:small:caption": true,
         "dark:small:panelTab": true,
@@ -107,10 +128,15 @@
         "dark:small:章节": true,
         "dark:small:元素": true,
         "dark:small:灵感": true,
+        "dark:small:Review": true,
+        "dark:small:素材库": true,
+        "dark:small:统计": true,
+        "dark:small:Agent": true,
         "dark:small:较小": true,
         "dark:small:标准": true,
         "dark:small:较大": true,
         "dark:small:agentConversation": true,
+        "dark:small:sidebarDensity": true,
         "dark:standard:body": true,
         "dark:standard:caption": true,
         "dark:standard:panelTab": true,
@@ -126,10 +152,15 @@
         "dark:standard:章节": true,
         "dark:standard:元素": true,
         "dark:standard:灵感": true,
+        "dark:standard:Review": true,
+        "dark:standard:素材库": true,
+        "dark:standard:统计": true,
+        "dark:standard:Agent": true,
         "dark:standard:较小": true,
         "dark:standard:标准": true,
         "dark:standard:较大": true,
         "dark:standard:agentConversation": true,
+        "dark:standard:sidebarDensity": true,
         "dark:large:body": true,
         "dark:large:caption": true,
         "dark:large:panelTab": true,
@@ -145,16 +176,143 @@
         "dark:large:章节": true,
         "dark:large:元素": true,
         "dark:large:灵感": true,
+        "dark:large:Review": true,
+        "dark:large:素材库": true,
+        "dark:large:统计": true,
+        "dark:large:Agent": true,
         "dark:large:较小": true,
         "dark:large:标准": true,
         "dark:large:较大": true,
         "dark:large:agentConversation": true,
+        "dark:large:sidebarDensity": true,
         "mobileFallback": true,
         "mobileProse": true
       },
       "samples": [
         {
           "key": "light:small",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 105,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 210,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 211,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 157,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 314,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 315,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 177,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 354,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 355,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 12,
@@ -201,6 +359,128 @@
         },
         {
           "key": "light:standard",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 114,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 228,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 229,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 189,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 378,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 379,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 193,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 386,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 387,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 14,
@@ -247,6 +527,128 @@
         },
         {
           "key": "light:large",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 126,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 252,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 253,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 211,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 422,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 423,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 194,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 388,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 389,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 216,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 432,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 433,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 16,
@@ -293,6 +695,128 @@
         },
         {
           "key": "dark:small",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 105,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 210,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 211,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 157,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 314,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 315,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 177,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 354,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 355,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 12,
@@ -339,6 +863,128 @@
         },
         {
           "key": "dark:standard",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 114,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 228,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 229,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 189,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 378,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 379,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 193,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 386,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 387,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 14,
@@ -385,6 +1031,128 @@
         },
         {
           "key": "dark:large",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 126,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 252,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 253,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 211,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 422,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 423,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 194,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 388,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 389,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 216,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 432,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 433,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 16,
@@ -453,10 +1221,15 @@
         "light:small:章节": true,
         "light:small:元素": true,
         "light:small:灵感": true,
+        "light:small:Review": true,
+        "light:small:素材库": true,
+        "light:small:统计": true,
+        "light:small:Agent": true,
         "light:small:较小": true,
         "light:small:标准": true,
         "light:small:较大": true,
         "light:small:agentConversation": true,
+        "light:small:sidebarDensity": true,
         "light:standard:body": true,
         "light:standard:caption": true,
         "light:standard:panelTab": true,
@@ -472,10 +1245,15 @@
         "light:standard:章节": true,
         "light:standard:元素": true,
         "light:standard:灵感": true,
+        "light:standard:Review": true,
+        "light:standard:素材库": true,
+        "light:standard:统计": true,
+        "light:standard:Agent": true,
         "light:standard:较小": true,
         "light:standard:标准": true,
         "light:standard:较大": true,
         "light:standard:agentConversation": true,
+        "light:standard:sidebarDensity": true,
         "light:large:body": true,
         "light:large:caption": true,
         "light:large:panelTab": true,
@@ -491,10 +1269,15 @@
         "light:large:章节": true,
         "light:large:元素": true,
         "light:large:灵感": true,
+        "light:large:Review": true,
+        "light:large:素材库": true,
+        "light:large:统计": true,
+        "light:large:Agent": true,
         "light:large:较小": true,
         "light:large:标准": true,
         "light:large:较大": true,
         "light:large:agentConversation": true,
+        "light:large:sidebarDensity": true,
         "dark:small:body": true,
         "dark:small:caption": true,
         "dark:small:panelTab": true,
@@ -510,10 +1293,15 @@
         "dark:small:章节": true,
         "dark:small:元素": true,
         "dark:small:灵感": true,
+        "dark:small:Review": true,
+        "dark:small:素材库": true,
+        "dark:small:统计": true,
+        "dark:small:Agent": true,
         "dark:small:较小": true,
         "dark:small:标准": true,
         "dark:small:较大": true,
         "dark:small:agentConversation": true,
+        "dark:small:sidebarDensity": true,
         "dark:standard:body": true,
         "dark:standard:caption": true,
         "dark:standard:panelTab": true,
@@ -529,10 +1317,15 @@
         "dark:standard:章节": true,
         "dark:standard:元素": true,
         "dark:standard:灵感": true,
+        "dark:standard:Review": true,
+        "dark:standard:素材库": true,
+        "dark:standard:统计": true,
+        "dark:standard:Agent": true,
         "dark:standard:较小": true,
         "dark:standard:标准": true,
         "dark:standard:较大": true,
         "dark:standard:agentConversation": true,
+        "dark:standard:sidebarDensity": true,
         "dark:large:body": true,
         "dark:large:caption": true,
         "dark:large:panelTab": true,
@@ -548,16 +1341,143 @@
         "dark:large:章节": true,
         "dark:large:元素": true,
         "dark:large:灵感": true,
+        "dark:large:Review": true,
+        "dark:large:素材库": true,
+        "dark:large:统计": true,
+        "dark:large:Agent": true,
         "dark:large:较小": true,
         "dark:large:标准": true,
         "dark:large:较大": true,
         "dark:large:agentConversation": true,
+        "dark:large:sidebarDensity": true,
         "mobileFallback": true,
         "mobileProse": true
       },
       "samples": [
         {
           "key": "light:small",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 105,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 210,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 211,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 157,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 314,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 315,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 177,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 354,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 355,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 12,
@@ -604,6 +1524,128 @@
         },
         {
           "key": "light:standard",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 114,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 228,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 229,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 189,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 378,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 379,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 193,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 386,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 387,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 14,
@@ -650,6 +1692,128 @@
         },
         {
           "key": "light:large",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 126,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 252,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 253,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 211,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 422,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 423,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 194,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 388,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 389,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 216,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 432,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 433,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 16,
@@ -696,6 +1860,128 @@
         },
         {
           "key": "dark:small",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 105,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 210,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 105,
+              "threshold": 211,
+              "width": 211,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 157,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 314,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 157,
+              "threshold": 315,
+              "width": 315,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 177,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 354,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 177,
+              "threshold": 355,
+              "width": 355,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 12,
@@ -742,6 +2028,128 @@
         },
         {
           "key": "dark:standard",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 114,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 228,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 114,
+              "threshold": 229,
+              "width": 229,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 189,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 378,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 189,
+              "threshold": 379,
+              "width": 379,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 173,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 346,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 173,
+              "threshold": 347,
+              "width": 347,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 193,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 386,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 193,
+              "threshold": 387,
+              "width": 387,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 14,
@@ -788,6 +2196,128 @@
         },
         {
           "key": "dark:large",
+          "sidebars": [
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 126,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 252,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "left",
+              "min": 126,
+              "threshold": 253,
+              "width": 253,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 211,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 422,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "zh-CN",
+              "side": "right",
+              "min": 211,
+              "threshold": 423,
+              "width": 423,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 194,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 388,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "left",
+              "min": 194,
+              "threshold": 389,
+              "width": 389,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 216,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 432,
+              "panes": 1,
+              "fits": true,
+              "passed": true
+            },
+            {
+              "locale": "en",
+              "side": "right",
+              "min": 216,
+              "threshold": 433,
+              "width": 433,
+              "panes": 2,
+              "fits": true,
+              "passed": true
+            }
+          ],
           "agent": [
             {
               "body": 16,

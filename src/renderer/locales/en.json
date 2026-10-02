@@ -2039,6 +2039,13 @@
       "localDraft": "LOCAL · DRAFT"
     },
     "delete": {
+      "everywhere": "Delete locally and from Hosted",
+      "remoteBody": "Permanently deletes the Hosted project, snapshots, attachments and Agent conversations, and removes it from other devices. Local data is removed only after Hosted confirms deletion. Offline or failed requests keep the local project.",
+      "localBody": "Hosted is disabled in this build. Previously synced projects require Hosted access and confirmed remote deletion before their local copy can be removed.",
+      "connectRequired": "Connect to Hosted before deleting this project and its remote data. The local project has been kept.",
+      "accountRequired": "Sign in to this project's Hosted account and retry. The local project has been kept.",
+      "syncChanged": "The sync connection or project changed. Please retry after the transition finishes.",
+      "failed": "Deletion is incomplete; the local project has been kept. Check your connection and server support for remote deletion, then retry.",
       "kicker": "DELETE PROJECT",
       "titlePrefix": "Delete",
       "body": "This cannot be undone. {{words}} words · {{nodes}} chapters · {{elements}} elements will be removed.",

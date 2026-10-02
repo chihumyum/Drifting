@@ -1,6 +1,8 @@
 import { and, asc, count, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 import type { DbClient, DbTransaction } from '../../lib/db';
+import { applyHostedGenerationDeletion } from '../hosted/project-deletion';
+import type { ProjectDeletionReceipt } from '../../sqlite-repo/project-deletion-repo';
 import { boundedProseDocIds } from '../prose-change-scope';
 import {
   SyncBlobStateTable,
@@ -122,6 +124,7 @@ export interface SyncEngineCheckpointHook {
 }
 
 export interface SqliteSyncGenerationRuntimeOptions {
+  readonly onRemoteProjectDeleted?: (input: { projectId: string; receipt: ProjectDeletionReceipt }) => Promise<void>;
   readonly db: DbClient;
   readonly syncGenerationId: string;
   readonly projectId?: string;
@@ -362,6 +365,7 @@ export class SqliteSyncGenerationRuntime {
   private readonly statusListeners = new Set<(runtime: SqliteSyncGenerationRuntime) => void>();
   private readonly stateRepository: SqliteSyncEngineStateRepository;
   private providerGenerationPromise: Promise<ProviderGeneration> | null = null;
+  private readonly onRemoteProjectDeleted: SqliteSyncGenerationRuntimeOptions['onRemoteProjectDeleted'];
   private activeTriggers: ReadonlySet<SchedulerTrigger> = new Set();
   private currentTransferProgress: SyncGenerationTransferProgress | null = null;
   private readonly lane: SyncGenerationCycleLane;
@@ -371,6 +375,7 @@ export class SqliteSyncGenerationRuntime {
       throw new Error('provider binding SyncGeneration does not match runtime SyncGeneration');
     }
     this.db = options.db;
+    this.onRemoteProjectDeleted = options.onRemoteProjectDeleted;
     this.syncGenerationId = options.syncGenerationId;
     this.projectId = options.projectId;
     this.provider = options.provider;
@@ -456,6 +461,18 @@ export class SqliteSyncGenerationRuntime {
       this.emitStatus();
       return result;
     } catch (error) {
+      if (this.provider.kind === 'hosted' && error && typeof error === 'object' &&
+          'code' in error && error.code === 'GENERATION_DELETED' &&
+          'syncGenerationId' in error && error.syncGenerationId === this.syncGenerationId) {
+        const deleted = await applyHostedGenerationDeletion(this.db, this.syncGenerationId);
+        if (deleted) {
+          await this.onRemoteProjectDeleted?.(deleted);
+          this.onRemoteChangeCommitted?.({ projectId: deleted.projectId,
+            changeSetId: `hosted-deletion:${this.syncGenerationId}`, projectionImpact: 'workspace' });
+        }
+        return { pulledObjects: 0, publishedBlobs: 0, publishedSegments: 0,
+          checkpointCreated: false, converged: true, requiresRepull: false };
+      }
       await this.persistFailureBindingState(error);
       throw error;
     } finally {

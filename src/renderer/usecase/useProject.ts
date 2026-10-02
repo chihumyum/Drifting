@@ -5,7 +5,6 @@ import { createProjectRepository } from '../sqlite-repo/project-repo';
 import { initDatabase } from '../lib/db';
 import { readProjectStats } from '../sqlite-repo/project-stats-repo';
 import type { ProjectSummary } from '../domain/project-summary';
-import { runAuthoredTransaction } from '../sync/journal';
 import { v7 as uuidv7 } from 'uuid';
 import { withAtomicSyncTransaction } from './sync-helpers';
 import { defaultProjectKvJson } from '../domain/kv';
@@ -14,15 +13,9 @@ import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import LogLevel from 'loglevel';
-import { deleteProjectDataInTransaction } from '../sqlite-repo/project-deletion-repo';
 import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
-import { assetStoreService } from '../services/asset-store.service';
-import { useRecentEntitiesStore } from '../store/recent-entities-store';
-import { useWritingStatsStore } from '../store/writing-stats-store';
-import { useUiStore } from '../store/ui-store';
-import { useSettingsStore } from '../store/settings-store';
-import { useAgentEditStore } from '../store/agent-edit-store';
 import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.service';
+import { cleanupDeletedProject } from '../services/project-deletion-cleanup';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
 
@@ -271,61 +264,14 @@ export function useProject({ userId }: UseProjectContext) {
   const deleteProject = useCallback(
     async (id: string): Promise<boolean> => {
       await ensureDb();
-      const deletion = await runAuthoredTransaction(id, 'project.purge', async ({
-        tx,
-        changes,
-        generation,
-      }) => {
-        if (!generation) throw new Error(`Project ${id} has no active SyncGeneration`);
-        // Capture every file coordinate on the same transaction that deletes
-        // its metadata. This includes soft-deleted assets and closes the race
-        // where an import could commit between inventory and project cascade.
-        const receipt = await deleteProjectDataInTransaction(tx, id);
-        if (!receipt) return null;
-        changes.add({
-          action: 'sync-generation.purge',
-          target: {
-            family: 'sync-generation',
-            kind: 'sync-generation',
-            id: generation.syncGenerationId,
-            incarnation: generation.generationNumber,
-          },
-          payload: {},
-        });
-        return receipt;
-      });
+      const { deleteProjectEverywhere } = await import('../sync/hosted/delete-project');
+      const deletion = await deleteProjectEverywhere(id, userId);
       if (!deletion) return false;
 
-      // SQLite is now committed. Remove every rebuildable/presentation trace
-      // keyed by this project before attempting fallible native file cleanup.
-      useProjectStore.getState().removeProject(id);
-      useRecentEntitiesStore.getState().clearProject(id);
-      useWritingStatsStore.getState().clearProject(id);
-      useUiStore.getState().clearProjectTabs(id);
-      useSettingsStore.getState().clearProjectSettings(id);
-      useAgentEditStore
-        .getState()
-        .clearProject(id, deletion.proseDocIds, deletion.agentReviewIds);
-
-      const cleanupResults = await Promise.allSettled([
-        import('../services/markdown-projection.service').then(module => module.removeMarkdownProjection(id)),
-        ...deletion.assetIds.map((assetId) => assetStoreService.deleteAsset(id, assetId)),
-      ]);
-      const cleanupFailures = cleanupResults.flatMap((result) =>
-        result.status === 'rejected' ? [result.reason] : [],
-      );
-      if (cleanupFailures.length > 0) {
-        // The project is already durably deleted, so returning false or
-        // throwing would tell the UI a retry is safe when it is not. Keep the
-        // failure visible until a durable project-directory GC lands.
-        log.warn(
-          `Project ${id} was deleted, but ${cleanupFailures.length} local asset cleanup(s) failed`,
-          new AggregateError(cleanupFailures),
-        );
-      }
+      await cleanupDeletedProject(id, deletion);
       return true;
     },
-    [ensureDb],
+    [ensureDb, userId],
   );
 
   return useMemo(

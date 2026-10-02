@@ -23,6 +23,25 @@ beforeEach(() => {
   mocks.binding = { accountSubject: 'synthetic', token: 'old' };
 });
 describe('Hosted sync credential rotation', () => {
+  it('accepts terminal deletion only with an exact authenticated generation receipt', async () => {
+    const receipt = { code: 'GENERATION_DELETED', namespace: 'project-v1', syncGenerationId: 'fixture', deletedAt: '2026-10-02T00:00:00.000Z' };
+    const input = { method: 'GET' as const, path: '/api/sync/v1/project-v1/generations/fixture/cursor' };
+    const transport = new TauriHostedObjectTransport();
+    mocks.request.mockRejectedValue(new Error(`HOSTED_DELETION_RECEIPT:${JSON.stringify(receipt)}`));
+    await expect(transport.request(input)).rejects.toMatchObject({ code: 'GENERATION_DELETED', syncGenerationId: 'fixture' });
+    for (const invalid of [{ ...receipt, syncGenerationId: 'other' }, { ...receipt, namespace: 'agent-chat-v1' },
+      { ...receipt, deletedAt: 'invalid' }, { code: 'GONE' }]) {
+      mocks.request.mockRejectedValue(new Error(`HOSTED_DELETION_RECEIPT:${JSON.stringify(invalid)}`));
+      await expect(transport.request(input)).rejects.toMatchObject({ code: 'REMOTE_STORE_CORRUPT' });
+    }
+    mocks.request.mockRejectedValue(new Error('GENERATION_DELETED'));
+    await expect(transport.request(input)).rejects.toMatchObject({ code: 'provider-unavailable' });
+    mocks.request.mockImplementation(async () => {
+      mocks.binding = { accountSubject: 'other', token: 'other' };
+      throw new Error(`HOSTED_DELETION_RECEIPT:${JSON.stringify(receipt)}`);
+    });
+    await expect(transport.request(input)).rejects.toMatchObject({ code: 'needs-reauth' });
+  });
   it('retries a stale rejection without expiring or blocking the newly rotated session', async () => {
     mocks.request.mockImplementation(async () => {
       mocks.binding = { accountSubject: 'synthetic', token: 'new' };

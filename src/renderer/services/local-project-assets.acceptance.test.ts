@@ -142,17 +142,21 @@ describe('clean local project asset architecture', () => {
   it('removes app-owned source directories only after project deletion commits', () => {
     const projectUsecase = source('../usecase/useProject.ts');
     const deletionRepo = source('../sqlite-repo/project-deletion-repo.ts');
-    const transaction = projectUsecase.indexOf('const deletion = await runAuthoredTransaction');
+    const command = source('../sync/hosted/project-deletion.ts');
+    const cleanup = source('./project-deletion-cleanup.ts');
+    const transaction = command.indexOf('return db.transaction');
     const capture = deletionRepo.indexOf('const assets = await tx');
-    const purge = projectUsecase.indexOf('deleteProjectDataInTransaction(tx, id)', transaction);
-    const committed = projectUsecase.indexOf('if (!deletion) return false', purge);
-    const fileCleanup = projectUsecase.indexOf('assetStoreService.deleteAsset(id, assetId)');
+    const purge = command.indexOf('deleteProjectDataInTransaction(tx, projectId)', transaction);
+    const committed = projectUsecase.indexOf('if (!deletion) return false');
+    const fileCleanup = projectUsecase.indexOf('await cleanupDeletedProject(id, deletion)');
 
     expect(transaction).toBeGreaterThan(-1);
     expect(capture).toBeGreaterThan(-1);
     expect(purge).toBeGreaterThan(transaction);
     expect(committed).toBeGreaterThan(purge);
     expect(fileCleanup).toBeGreaterThan(committed);
+    expect(cleanup).toContain('assetStoreService.deleteAsset(id, assetId)');
+    expect(command.indexOf('await dependencies.deleteRemote')).toBeLessThan(transaction);
   });
 
   it('records the frozen public Alpha compatibility rule as a durable agent policy', () => {

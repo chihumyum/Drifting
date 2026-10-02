@@ -1,11 +1,15 @@
 export type SidebarSide = 'left' | 'right';
 
-export const SIDEBAR_MIN_WIDTH: Record<SidebarSide, number> = {
-  left: 288,
-  right: 288,
-};
-
 export const SIDEBAR_DIVIDER_WIDTH = 1;
+
+export function sidebarTabMinimumWidth(labelWidths: number[], gap: number, outerPadding: number): number {
+  return Math.ceil(labelWidths.reduce((sum, width) => sum + width, 0)
+    + Math.max(0, labelWidths.length - 1) * gap + outerPadding);
+}
+
+export function sidebarSplitMinWidth(minimumWidth: number): number {
+  return minimumWidth * 2 + SIDEBAR_DIVIDER_WIDTH;
+}
 
 const SIDEBAR_MAX_VIEWPORT_RATIO: Record<SidebarSide, number> = {
   left: 0.6,
@@ -39,8 +43,9 @@ export function sidebarWidthBounds(
   side: SidebarSide,
   viewportWidth: number,
   oppositeOpenWidth: number,
+  minimumWidth: number,
 ): DimensionBounds {
-  const min = SIDEBAR_MIN_WIDTH[side];
+  const min = minimumWidth;
   const safeViewport = Number.isFinite(viewportWidth) ? Math.max(0, viewportWidth) : 0;
   const safeOpposite = Number.isFinite(oppositeOpenWidth)
     ? Math.max(0, oppositeOpenWidth)
@@ -55,21 +60,22 @@ export function clampSidebarWidth(
   side: SidebarSide,
   viewportWidth: number,
   oppositeOpenWidth: number,
+  minimumWidth: number,
 ): number {
-  return clampDimension(width, sidebarWidthBounds(side, viewportWidth, oppositeOpenWidth));
+  return clampDimension(width, sidebarWidthBounds(side, viewportWidth, oppositeOpenWidth, minimumWidth));
 }
 
 /** Apply the same pixel minimum to each pane, including restored split ratios. */
-export function sidebarSplitRatioBounds(side: SidebarSide, width: number): DimensionBounds {
+export function sidebarSplitRatioBounds(minimumWidth: number, width: number): DimensionBounds {
   const available = Number.isFinite(width) ? width - SIDEBAR_DIVIDER_WIDTH : 0;
   const min = available > 0
-    ? Math.min(0.5, Math.max(0.2, SIDEBAR_MIN_WIDTH[side] / available))
+    ? Math.min(0.5, Math.max(0.2, minimumWidth / available))
     : 0.5;
   return { min, max: 1 - min };
 }
 
-export function clampSidebarSplitRatio(ratio: number, side: SidebarSide, width: number): number {
-  return clampDimension(Number.isFinite(ratio) ? ratio : 0.5, sidebarSplitRatioBounds(side, width));
+export function clampSidebarSplitRatio(ratio: number, minimumWidth: number, width: number): number {
+  return clampDimension(Number.isFinite(ratio) ? ratio : 0.5, sidebarSplitRatioBounds(minimumWidth, width));
 }
 
 export function verticalDockBounds(

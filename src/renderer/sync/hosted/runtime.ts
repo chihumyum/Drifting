@@ -8,6 +8,10 @@ import { SyncGenerationProvisionSupervisor } from '../provision/supervisor';
 import { discoverHostedProjects } from './connect';
 
 let requestDiscovery: (() => void) | null = null;
+let discoverySupervisor: SyncGenerationProvisionSupervisor | null = null;
+export async function holdHostedDiscovery(): Promise<() => void> {
+  return discoverySupervisor ? discoverySupervisor.hold() : () => {};
+}
 export function requestHostedDiscovery(): void {
   requestDiscovery?.();
 }
@@ -26,6 +30,7 @@ export function installHostedDiscoveryRuntime(): () => void {
     },
   });
   const request = () => supervisor.requestRun();
+  discoverySupervisor = supervisor;
   const refresh = () => {
     void useAuthStore.getState().refreshHostedSession().then(request);
   };
@@ -49,5 +54,6 @@ export function installHostedDiscoveryRuntime(): () => void {
     events.off('sync:authority-changed', request);
     if (requestDiscovery === request) requestDiscovery = null;
     supervisor.stop();
+    if (discoverySupervisor === supervisor) discoverySupervisor = null;
   };
 }

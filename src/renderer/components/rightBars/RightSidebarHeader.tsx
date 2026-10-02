@@ -5,6 +5,7 @@ import { SidebarSplitButton } from '../SidebarSplitButton';
 import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
+import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 
 export function RightSidebarHeader({ paneId, activeTab }: {
   paneId: SidebarPaneId;
@@ -12,6 +13,7 @@ export function RightSidebarHeader({ paneId, activeTab }: {
 }) {
   const { t } = useTranslation();
   const toggleTab = useUiStore((s) => s.toggleRightSidebarTab);
+  const tabTrayRef = useSidebarTabMinimumWidth('right');
 
   return (
     <div
@@ -21,13 +23,13 @@ export function RightSidebarHeader({ paneId, activeTab }: {
         background: 'var(--workspace-ui-bg)', flexShrink: 0,
       }}
     >
-      <PanelTabTray className="rightbar-tab-tray">
+      <PanelTabTray ref={tabTrayRef} className="rightbar-tab-tray">
         {RIGHT_SIDEBAR_TABS.map((tab) => {
           const label = tab === 'companion' ? 'Agent' : t(`rightSidebar.tabs.${tab}`);
           return (
             <PanelTab key={tab} active={activeTab === tab}
               onClick={() => toggleTab(paneId, tab)} typography="label" aria-label={label} title={label}>
-              <span>{label}</span>
+              <span data-panel-tab-label>{label}</span>
             </PanelTab>
           );
         })}

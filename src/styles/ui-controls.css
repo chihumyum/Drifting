@@ -91,6 +91,24 @@
   letter-spacing: 0.12em;
 }
 
+/* Desktop panes can narrow to their labels. Intrinsic bases give longer
+   English labels room without reserving the same empty width for short ones.
+   Large activity counts remain reachable by scrolling/focusing the tab row. */
+html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) {
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .app-panel-tab {
+  flex: 1 0 auto;
+  padding-inline: 0;
+}
+
+[data-panel-tab-label] {
+  display: inline-block;
+}
+
 .app-panel-tab:disabled {
   cursor: default;
   opacity: 0.45;

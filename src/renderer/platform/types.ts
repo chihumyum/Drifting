@@ -356,7 +356,7 @@ export interface PlatformApi {
   readonly auth: AuthPlatformApi;
   readonly keychain: KeychainPlatformApi;
   readonly hostedSync: {
-    request(input: { origin: string; token: string; path: string; method: 'GET' | 'PUT';
+    request(input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE';
       sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number;
       signal?: AbortSignal }): Promise<unknown>;
   };

@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from 'vitest';
 import { SyncGenerationProvisionSupervisor } from './supervisor';
 
 describe('SyncGenerationProvisionSupervisor', () => {
+  it('drains cancelled work and prevents foreground wakeups until the deletion hold is released', async () => {
+    let aborted = false;
+    const runOnce = vi.fn(async (signal: AbortSignal) => {
+      if (runOnce.mock.calls.length === 1) await new Promise<void>(resolve => {
+        signal.addEventListener('abort', () => { aborted = true; resolve(); }, { once: true });
+      });
+    });
+    const supervisor = new SyncGenerationProvisionSupervisor({ canUseProvider: () => true, runOnce, onError: vi.fn() });
+    supervisor.requestRun();
+    await vi.waitFor(() => expect(runOnce).toHaveBeenCalledOnce());
+    const resume = await supervisor.hold();
+    expect(aborted).toBe(true);
+    supervisor.requestRun();
+    await supervisor.drain();
+    expect(runOnce).toHaveBeenCalledOnce();
+    resume(); resume();
+    await supervisor.drain();
+    expect(runOnce).toHaveBeenCalledTimes(2);
+    supervisor.stop();
+  });
   it('coalesces wakeups into one strictly serialized lane', async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {

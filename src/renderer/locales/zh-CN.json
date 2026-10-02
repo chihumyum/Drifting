@@ -2039,6 +2039,13 @@
       "localDraft": "LOCAL · 草稿"
     },
     "delete": {
+      "everywhere": "删除本地及远端",
+      "remoteBody": "将永久删除 Hosted 远端项目、历史快照、附件和 Agent 对话，并在其他设备同步移除。远端确认成功后才删除本地；离线或删除失败时保留本地项目。",
+      "localBody": "此版本未启用 Hosted。曾经同步的项目必须先恢复 Hosted 连接，确认删除远端后才能移除本地。",
+      "connectRequired": "请先连接 Hosted 同步，再删除项目及远端数据。本地项目已保留。",
+      "accountRequired": "请登录此项目所属的 Hosted 账号后重试。本地项目已保留。",
+      "syncChanged": "同步连接正在切换或项目状态已变化，请稍后重试。",
+      "failed": "删除尚未完成，本地项目已保留。请检查网络及服务端是否支持远端删除，然后重试。",
       "kicker": "DELETE PROJECT · 删除项目",
       "titlePrefix": "确认删除",
       "body": "删除后将无法恢复。{{words}} 字 · {{nodes}} 章 · {{elements}} 个元素都会移除。",

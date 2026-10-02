@@ -8,6 +8,7 @@ import { useAgentActivityStore } from '../../store/agent-activity-store';
 import type { ActivityMark } from '../../store/agent-activity-store';
 import { type GroupActivity } from './agentActivityBubble';
 import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
+import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
 
@@ -33,6 +34,7 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
 }) {
   const { t } = useTranslation();
   const toggleTab = useUiStore((s) => s.toggleLeftSidebarTab);
+  const tabTrayRef = useSidebarTabMinimumWidth('left');
 
   // Aggregate unviewed activity into the persistent text labels. Busy labels
   // pulse; completed changes append their count until reviewed.
@@ -71,7 +73,7 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
         zIndex: 20,
       }}
     >
-      <PanelTabTray className="leftbar-tab-tray">
+      <PanelTabTray ref={tabTrayRef} className="leftbar-tab-tray">
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}
           isActive={activeTab === 'nodes'}
@@ -115,8 +117,6 @@ function PanelTab({
     : doneCount > 0
       ? t('agentActivity.unviewedChanges')
       : undefined;
-  const expandedLabel =
-    !busy && doneCount > 0 ? `${label} ${doneCount > 99 ? '99+' : doneCount}` : label;
   return (
     <SharedPanelTab
       onClick={onClick}
@@ -129,7 +129,8 @@ function PanelTab({
         className={busy ? 'agent-glyph-busy' : undefined}
         style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
       >
-        {expandedLabel}
+        <span data-panel-tab-label>{label}</span>
+        {!busy && doneCount > 0 ? ` ${doneCount > 99 ? '99+' : doneCount}` : null}
       </span>
     </SharedPanelTab>
   );

@@ -28,6 +28,11 @@ const log = loglevel.getLogger('GoogleDriveSyncGenerationProvision');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
 
 let activeProductSupervisor: SyncGenerationProvisionSupervisor | null = null;
+let hostedSupervisor: SyncGenerationProvisionSupervisor | null = null;
+
+export async function holdHostedProvisioning(): Promise<() => void> {
+  return hostedSupervisor ? hostedSupervisor.hold() : () => {};
+}
 
 /** Settings/manual retry entrypoint. Returns false before the App runtime is installed. */
 export function requestGoogleDriveSyncGenerationProvisioning(): boolean {
@@ -96,6 +101,7 @@ export function installHostedSyncGenerationProvisioningRuntime(): () => void {
 
 function installProvisioningRuntime(mode: 'google-drive' | 'hosted'): () => void {
   const supervisor = createProductSupervisor(mode);
+  if (mode === 'hosted') hostedSupervisor = supervisor;
   if (mode === 'google-drive') activeProductSupervisor = supervisor;
   let databaseReady = false;
   const request = () => {
@@ -125,5 +131,6 @@ function installProvisioningRuntime(mode: 'google-drive' | 'hosted'): () => void
     events.off('db:ready', onDatabaseReady);
     supervisor.stop();
     if (activeProductSupervisor === supervisor) activeProductSupervisor = null;
+    if (hostedSupervisor === supervisor) hostedSupervisor = null;
   };
 }

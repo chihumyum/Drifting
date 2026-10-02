@@ -70,6 +70,24 @@ fn request_url(origin: &str, path: &str) -> Result<Url, String> {
     Ok(url)
 }
 async fn response_error(response: reqwest::Response) -> String {
+    if response.status().as_u16() == 410 {
+        // Forward only a bounded deletion receipt. The provider validates its exact scope.
+        let mut stream = response.bytes_stream();
+        let mut body = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let Ok(chunk) = chunk else {
+                return "REMOTE_STORE_CORRUPT".into();
+            };
+            if body.len() + chunk.len() > 4096 {
+                return "REMOTE_STORE_CORRUPT".into();
+            }
+            body.extend_from_slice(&chunk);
+        }
+        if let Ok(value) = serde_json::from_slice::<Value>(&body) {
+            return format!("HOSTED_DELETION_RECEIPT:{}", value);
+        }
+        return "REMOTE_STORE_CORRUPT".into();
+    }
     match response.status().as_u16() {
         401 => "needs-reauth",
         403 => "permission-denied",
@@ -88,7 +106,10 @@ async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, Strin
     if input.token.is_empty() || input.token.len() > 8192 {
         return Err("needs-reauth".into());
     }
-    if !matches!(input.method.as_str(), "GET" | "PUT") {
+    if !matches!(input.method.as_str(), "GET" | "PUT" | "DELETE") {
+        return Err("HOSTED_INVALID_METHOD".into());
+    }
+    if input.method == "DELETE" && (input.source_ref.is_some() || input.destination_ref.is_some()) {
         return Err("HOSTED_INVALID_METHOD".into());
     }
     let client = Client::builder()

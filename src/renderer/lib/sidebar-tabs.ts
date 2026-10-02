@@ -1,4 +1,3 @@
-export const SIDEBAR_SPLIT_MIN_WIDTH = 600;
 export const LEFT_SIDEBAR_TABS = ['nodes', 'elements', 'drift'] as const;
 export const RIGHT_SIDEBAR_TABS = ['review', 'library', 'stats', 'companion'] as const;
 export type LeftSidebarTab = (typeof LEFT_SIDEBAR_TABS)[number];

@@ -23,6 +23,12 @@ const sources = [
   'src/renderer/lib/interface-typography.ts', 'src/renderer/store/settings-store.ts',
   'src/renderer/app/effects/AppEffects.tsx', 'src/renderer/main.tsx',
   'src/renderer/locales/en.json', 'src/renderer/locales/zh-CN.json',
+  'src/renderer/components/leftBars/LeftSidebarHeader.tsx',
+  'src/renderer/components/rightBars/RightSidebarHeader.tsx',
+  'src/renderer/shells/desktop/DesktopSidebarLayout.tsx',
+  'src/renderer/hooks/useSidebarTabMinimumWidth.ts',
+  'src/renderer/store/sidebar-metrics-store.ts',
+  'src/renderer/lib/layout-geometry.ts',
 ];
 function fingerprint() {
   const hash = createHash('sha256');
@@ -34,7 +40,7 @@ function validateRun(run) {
   assert.equal(run.samples.length, 6);
   for (const dark of ['light', 'dark']) for (const size of ['small', 'standard', 'large']) {
     const key = `${dark}:${size}`;
-    for (const check of ['body', 'caption', 'panelTab', 'description', 'heading', 'prose', 'wrapping', 'portal', 'viewport', 'footerInset', 'contrast', 'settingsFit', 'agentConversation']) {
+    for (const check of ['body', 'caption', 'panelTab', 'description', 'heading', 'prose', 'wrapping', 'portal', 'viewport', 'footerInset', 'contrast', 'settingsFit', 'agentConversation', 'sidebarDensity']) {
       assert.equal(run.checks[`${key}:${check}`], true, `${key}:${check}`);
     }
     const sample = run.samples.find((item) => item.key === key);
@@ -46,6 +52,12 @@ function validateRun(run) {
     assert.deepEqual([sample.body, sample.caption, sample.panelTab, sample.description, sample.heading], expected);
     const agentExpected = { small: [12, 11.5, 10.5, 13.5], standard: [14, 13, 12, 16], large: [16, 15, 14, 18] }[size];
     assert.equal(sample.agent.length, 2);
+    assert.equal(sample.sidebars.length, 12);
+    for (const sidebar of sample.sidebars) {
+      assert(sidebar.passed && sidebar.fits);
+      assert.equal(sidebar.threshold, sidebar.min * 2 + 1);
+      assert.equal(sidebar.panes, sidebar.width >= sidebar.threshold ? 2 : 1);
+    }
     for (const pane of sample.agent) {
       for (const role of ['body', 'user', 'composer', 'code', 'inlineCode']) assert.equal(pane[role], agentExpected[0]);
       for (const role of ['thinking', 'tool']) assert.equal(pane[role], agentExpected[1]);

@@ -18,6 +18,7 @@ export class SyncGenerationProvisionSupervisor {
   private running = false;
   private queued = false;
   private stopped = false;
+  private holds = 0;
   private failureCount = 0;
   private controller: AbortController | null = null;
   private cancelRetry: () => void = () => {};
@@ -27,6 +28,7 @@ export class SyncGenerationProvisionSupervisor {
   requestRun(): void {
     if (this.stopped) return;
     this.queued = true;
+    if (this.holds > 0) return;
     this.cancelRetry();
     this.cancelRetry = () => {};
     if (this.running) return;
@@ -36,12 +38,25 @@ export class SyncGenerationProvisionSupervisor {
       .then(() => this.drainQueue())
       .finally(() => {
         this.running = false;
-        if (this.queued && !this.stopped) this.requestRun();
+        if (this.queued && !this.stopped && this.holds === 0) this.requestRun();
       });
   }
 
   async drain(): Promise<void> {
     await this.tail;
+  }
+
+  async hold(): Promise<() => void> {
+    this.holds += 1;
+    this.deactivate();
+    await this.drain();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.holds -= 1;
+      if (this.holds === 0) this.requestRun();
+    };
   }
 
   deactivate(): void {
@@ -59,7 +74,7 @@ export class SyncGenerationProvisionSupervisor {
   }
 
   private async drainQueue(): Promise<void> {
-    while (this.queued && !this.stopped) {
+    while (this.queued && !this.stopped && this.holds === 0) {
       this.queued = false;
       if (!this.dependencies.canUseProvider()) return;
       const controller = new AbortController();

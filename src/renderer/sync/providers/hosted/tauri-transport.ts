@@ -10,6 +10,7 @@ export class HostedTransportError extends Error {
   constructor(
     readonly code: string,
     readonly retryable: boolean,
+    readonly syncGenerationId?: string,
   ) {
     super(code);
     this.name = 'HostedTransportError';
@@ -28,6 +29,22 @@ export class TauriHostedObjectTransport implements HostedObjectTransport {
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
+      const marker = 'HOSTED_DELETION_RECEIPT:';
+      const markerIndex = detail.indexOf(marker);
+      if (markerIndex !== -1) {
+        let receipt: { code?: unknown; namespace?: unknown; syncGenerationId?: unknown; deletedAt?: unknown };
+        try { receipt = JSON.parse(detail.slice(markerIndex + marker.length)); }
+        catch { throw new HostedTransportError('REMOTE_STORE_CORRUPT', false); }
+        const parts = input.path.split('?')[0].split('/');
+        const current = getHostedSessionBinding();
+        if (current?.accountSubject !== binding.accountSubject || current.token !== binding.token)
+          throw new HostedTransportError('needs-reauth', false);
+        if (receipt?.code !== 'GENERATION_DELETED' || parts[5] !== 'generations' ||
+            receipt.namespace !== parts[4] || receipt.syncGenerationId !== decodeURIComponent(parts[6] ?? '') ||
+            typeof receipt.deletedAt !== 'string' || !Number.isFinite(Date.parse(receipt.deletedAt)))
+          throw new HostedTransportError('REMOTE_STORE_CORRUPT', false);
+        throw new HostedTransportError('GENERATION_DELETED', false, String(receipt.syncGenerationId));
+      }
       const codes = [
         'needs-reauth',
         'permission-denied',

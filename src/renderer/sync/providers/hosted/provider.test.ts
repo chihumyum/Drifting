@@ -39,6 +39,18 @@ function setup() {
 }
 
 describe('Hosted provider response boundary', () => {
+  it('deletes without reopening and validates the exact durable remote receipt', async () => {
+    const { provider, request, changeAccount } = setup();
+    const input = { accountSubject: 'account-a', syncGenerationId: 'generation-a', signal: new AbortController().signal };
+    request.mockResolvedValue({ status: 'deleted', syncGenerationId: 'generation-a', deletedAt: '2026-10-02T00:00:00.000Z' });
+    await provider.deleteProjectGeneration(input);
+    expect(request).toHaveBeenCalledWith({ path: '/api/sync/v1/project-v1/generations/generation-a', method: 'DELETE', signal: input.signal });
+    expect(request).toHaveBeenCalledOnce();
+    request.mockResolvedValueOnce({ status: 'deleted', syncGenerationId: 'other', deletedAt: '2026-10-02T00:00:00.000Z' });
+    await expect(provider.deleteProjectGeneration(input)).rejects.toMatchObject({ code: 'REMOTE_STORE_CORRUPT' });
+    request.mockImplementationOnce(async () => { changeAccount(); return {}; });
+    await expect(provider.deleteProjectGeneration(input)).rejects.toMatchObject({ code: 'INVALID_GENERATION' });
+  });
   it('rejects an account change while a response is in flight', async () => {
     const { provider, request, changeAccount } = setup();
     const generation = await provider.openGeneration(binding);

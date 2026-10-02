@@ -489,7 +489,7 @@ export interface TauriCommandContract {
   keychain_set: { args: { key: string; value: string }; result: boolean };
   keychain_delete: { args: { key: string }; result: boolean };
   hosted_sync_request: {
-    args: { input: { origin: string; token: string; path: string; method: 'GET' | 'PUT'; transferId: string;
+    args: { input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE'; transferId: string;
       sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number } };
     result: unknown;
   };

@@ -22,7 +22,7 @@ export interface HostedObjectTransport {
   readonly accountSubject: () => string | null;
   request(input: {
     path: string;
-    method: 'GET' | 'PUT';
+    method: 'GET' | 'PUT' | 'DELETE';
     signal?: AbortSignal;
     sourceRef?: string;
     destinationRef?: string;
@@ -56,6 +56,29 @@ export class HostedObjectLogProvider implements ObjectLogProvider, ProjectSnapsh
     private readonly transport: HostedObjectTransport,
     readonly namespace: HostedNamespace = 'project-v1',
   ) {}
+  /** Does not open the generation: deletion must also work after a lost acknowledgement. */
+  async deleteProjectGeneration(input: {
+    accountSubject: string;
+    syncGenerationId: string;
+    signal: AbortSignal;
+  }): Promise<void> {
+    const assertAccount = () => {
+      if (this.namespace !== 'project-v1' || !input.accountSubject ||
+          input.accountSubject !== this.transport.accountSubject())
+        throw new ObjectLogProviderError('INVALID_GENERATION', 'Hosted deletion account changed');
+      throwIfProviderAborted(input.signal);
+    };
+    assertAccount();
+    const result = record(await this.transport.request({
+      path: `${this.root()}/generations/${encodeURIComponent(input.syncGenerationId)}`,
+      method: 'DELETE',
+      signal: input.signal,
+    }));
+    assertAccount();
+    if (result.status !== 'deleted' || result.syncGenerationId !== input.syncGenerationId ||
+        typeof result.deletedAt !== 'string' || !Number.isFinite(Date.parse(result.deletedAt)))
+      throw new ObjectLogProviderError('REMOTE_STORE_CORRUPT', 'Invalid Hosted deletion receipt');
+  }
   private root() {
     return `/api/sync/v1/${this.namespace}`;
   }

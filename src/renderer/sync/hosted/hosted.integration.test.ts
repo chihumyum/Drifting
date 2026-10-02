@@ -1,4 +1,5 @@
 import { adoptDriveReplicaForHosted } from './adopt-drive';
+import { deleteProjectWithRemoteConfirmation } from './project-deletion';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -115,7 +116,7 @@ async function device(label: string, account: Awaited<ReturnType<typeof createAc
     read: (ref, s) => objects.read(ref, s),
     write: (ref, bytes, s) => objects.write(ref, bytes, s),
   });
-  const network = { online: true, loseUploadResponse: false, token: account.token };
+  const network = { online: true, loseUploadResponse: false, loseDeleteResponse: false, token: account.token };
   const transport: HostedObjectTransport = {
     accountSubject: () => account.accountSubject,
     async request(input) {
@@ -136,14 +137,27 @@ async function device(label: string, account: Awaited<ReturnType<typeof createAc
         body,
         signal: input.signal,
       });
+      if (response.status === 410) {
+        const receipt = await response.json() as { code: string; syncGenerationId: string; namespace: string; deletedAt: string };
+        const parts = input.path.split('?')[0].split('/');
+        expect(receipt.code).toBe('GENERATION_DELETED');
+        expect(receipt.namespace).toBe(parts[4]);
+        expect(receipt.syncGenerationId).toBe(decodeURIComponent(parts[6]));
+        expect(Number.isFinite(Date.parse(receipt.deletedAt))).toBe(true);
+        throw Object.assign(new Error(receipt.code), { code: receipt.code, syncGenerationId: receipt.syncGenerationId, retryable: false });
+      }
       if (!response.ok)
         throw Object.assign(new Error(`Hosted ${response.status}`), {
-          code: response.status === 401 ? 'needs-reauth' : 'provider-unavailable',
+          code: response.status === 410 ? 'GENERATION_DELETED' : response.status === 401 ? 'needs-reauth' : 'provider-unavailable',
           retryable: response.status !== 401,
         });
       if (input.sourceRef && network.loseUploadResponse) {
         network.loseUploadResponse = false;
         throw new Error('Injected lost acknowledgement after server commit');
+      }
+      if (input.method === 'DELETE' && network.loseDeleteResponse) {
+        network.loseDeleteResponse = false;
+        throw new Error('Injected lost deletion acknowledgement');
       }
       if (input.destinationRef) {
         const bytes = new Uint8Array(await response.arrayBuffer());
@@ -413,6 +427,43 @@ async function loadDoc(db: DbClient, nodeId: string) {
 }
 
 describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance', () => {
+  it('deletes remote bytes before local data, survives a lost acknowledgement and removes an offline peer without resurrection',
+    { timeout: 150_000 }, async () => {
+      const account = await createAccount();
+      const a = await device('delete-source', account);
+      const b = await device('delete-peer', account);
+      const project = await seed(a.db, randomUUID());
+      const doc = new Y.Doc();
+      await author(a, project, doc, 'Synthetic deletion fixture.');
+      doc.destroy();
+      await restoreCloudSyncGenerations(a.restoreInput);
+      await restoreCloudSyncGenerations(b.restoreInput);
+      b.network.online = false;
+      const peerDoc = await loadDoc(b.db, project.nodeId);
+      await author(b, project, peerDoc, 'Unpublished offline peer edit.');
+      peerDoc.destroy();
+      const remove = () => deleteProjectWithRemoteConfirmation({ db: a.db, projectId: project.projectId,
+        userId: 'drifting-library.db', signal,
+        dependencies: { hostedEnabled: true, accountSubject: () => account.accountSubject,
+          deleteRemote: input => a.provider.deleteProjectGeneration(input) } });
+      a.network.online = false;
+      await expect(remove()).rejects.toThrow('offline');
+      expect(await a.db.select().from(ProjectTable)).toHaveLength(1);
+      a.network.online = true;
+      a.network.loseDeleteResponse = true;
+      await expect(remove()).rejects.toThrow('lost deletion acknowledgement');
+      expect(await a.db.select().from(ProjectTable)).toHaveLength(1);
+      expect(await a.provider.discover({ ...account, signal })).toEqual([]);
+      await remove();
+      expect(await a.db.select().from(ProjectTable)).toEqual([]);
+      b.network.online = true;
+      await b.cycle(project.syncGenerationId);
+      expect(await b.db.select().from(ProjectTable)).toEqual([]);
+      expect(await b.db.select().from(SyncGenerationTable)).toMatchObject([{ status: 'purged' }]);
+      const fresh = await device('delete-fresh', account);
+      expect((await restoreCloudSyncGenerations(fresh.restoreInput)).restored).toEqual([]);
+      expect(await fresh.db.select().from(ProjectTable)).toEqual([]);
+    });
   it(
     'connects two local libraries, merges offline prose, recovers lost upload responses and discovers newly provisioned projects',
     { timeout: 150_000 },
@@ -712,6 +763,21 @@ describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance'
         pendingSegments: 0,
         pendingTransfers: 0,
       });
+      const deletedGenerations: string[] = [];
+      await deleteProjectWithRemoteConfirmation({
+        db: a.db, projectId: project.projectId, userId: 'drifting-library.db', signal,
+        dependencies: {
+          hostedEnabled: true, accountSubject: () => account.accountSubject,
+          deleteRemote: async input => {
+            deletedGenerations.push(input.syncGenerationId);
+            await a.provider.deleteProjectGeneration(input);
+          },
+        },
+      });
+      expect(deletedGenerations).toEqual([newGeneration]);
+      expect(await a.db.select().from(SyncQuarantinedObjectTable)).toEqual(quarantineBefore);
+      await b.cycle(newGeneration!);
+      expect(await b.db.select().from(ProjectTable)).toHaveLength(0);
       doc.destroy();
       restored.destroy();
       roundTrip.destroy();

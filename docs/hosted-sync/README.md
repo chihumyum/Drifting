@@ -120,6 +120,38 @@ sync and retains local data; it does not imply pending changes reached the serve
 
 ## Versioned service contract
 
+### Project deletion
+
+The bookshelf and project actions share one **Delete locally and from Hosted**
+command. Configured Hosted builds require a connected owning account; there is
+no local-only fallback. The client drains discovery, provisioning and sync,
+keeping sync suspended until overlapping deletion/provider-change holds release,
+checks current bindings plus historical connection receipts, and calls
+`DELETE /api/sync/v1/project-v1/generations/{id}` for every owned Hosted generation.
+Only matching successful deletion receipts permit the local SQLite purge and
+subsequent asset/presentation cleanup. Offline, unsupported-server, account-change
+and ambiguous-response failures keep the local project and leave the confirmation
+dialog open with a retryable error. Never-synced projects in service-disabled
+local builds retain local deletion; unowned remote evidence blocks that path.
+Suspended Drive history is retained outside the Hosted deletion contract.
+
+The service deletes live project objects and the same generation's `agent-chat-v1`
+objects in one PostgreSQL transaction, retaining permanent generation tombstones.
+Retries return the same deletion receipt, discovery omits the removed snapshots,
+and old devices cannot reopen or upload to either deleted stream. A scoped
+HTTP 410 receipt includes `GENERATION_DELETED`, namespace, generation ID and deletion
+time; the client validates the receipt and current account before applying the
+local purge. A generic HTTP error never authorizes local deletion. This also
+recovers a crash or lost acknowledgement after the server committed deletion.
+Backups follow the operator's separate retention policy.
+
+Deploy the service migration and endpoint before using this client action.
+The real HTTP/SQLite tests in `hosted.integration.test.ts` cover offline failure,
+lost DELETE response, an offline peer with pending prose and fresh-device discovery.
+`project-deletion.integration.test.ts` covers local atomicity, ownership, historical
+generations and local-only boundaries. `pnpm hosted:acceptance` regenerates their
+machine-checkable report; native UI and production deployment remain separate gates.
+
 Paths start `/api/sync/v1/project-v1` or `/api/sync/v1/agent-chat-v1`. The provider
 opens account-owned generations, enumerates inventory and changes using opaque
 cursors, uploads immutable objects with SHA-256, and downloads them into native
