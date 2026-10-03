@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import type { DbClient } from '../../lib/db';
@@ -13,7 +13,10 @@ import {
   SyncApplyReceiptTable,
   SyncChangeSetTable,
   SyncConflictTable,
+  SyncEntityLifecycleTable,
   SyncFieldClockTable,
+  SyncOrderRegisterTable,
+  SyncReducerSnapshotTable,
   SyncSetTagTable,
   SyncGenerationTable,
   SyncGenerationWriterStateTable,
@@ -29,13 +32,24 @@ import {
   type SyncMutationTargetFamily,
 } from '../protocol';
 import {
+  canonicalReducerSnapshot,
+  compactReducerReceipts,
+  createCanonicalReducerState,
+  replaySyncChangeSets,
+} from './reducer';
+import {
   applyVerifiedRemoteChangeSetInTransaction,
+  DEFAULT_SQLITE_REDUCER_PROFILE,
+  getSqliteReducerLoadDiagnostics,
   invalidateSqliteReducerStateCache,
   LocalAuthoredSemanticConflictError,
   observeLocalAuthoredReducerInTransaction,
+  setSqliteReducerSnapshotIntervalForTest,
+  SQLITE_REDUCER_V1_TARGET_KINDS,
   SyncReducerRejectedError,
   type SyncDomainMaterializationKernel,
 } from './sqlite-materializer';
+import { encodeReducerState, REDUCER_STATE_SNAPSHOT_FORMAT } from './state-snapshot';
 
 const PROJECT_ID = 'project-materializer';
 const SYNC_GENERATION_ID = 'sync-generation-materializer';
@@ -510,5 +524,158 @@ describe('SQLite SyncEngine reducer materializer', () => {
     expect(await db.select().from(SyncChangeSetTable)).toHaveLength(1);
     expect(await db.select().from(SyncApplyReceiptTable)).toHaveLength(1);
     expect(await db.select().from(SyncConflictTable)).toEqual([]);
+  });
+});
+
+describe('reducer state compaction and incremental metadata', () => {
+  afterEach(() => setSqliteReducerSnapshotIntervalForTest(null));
+
+  async function history(count: number, startSeq = 1): Promise<SyncChangeSetV1[]> {
+    const changes: SyncChangeSetV1[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const seq = startSeq + index;
+      const writer = `remote-${seq % 3}`;
+      const other = `node-${seq % 4}`;
+      const step = seq % 6;
+      const mutations =
+        step === 0 ? [{ action: 'entity.create' as const, kind: 'node', id: other, payload: { seed: { title: `t${seq}` } } }]
+        : step === 1 ? [{ action: 'field.set' as const, kind: 'node', id: NODE_ID, payload: { field: 'title', value: `title ${seq}` } }]
+        : step === 2 ? [{ action: 'set.add' as const, kind: 'membership', id: 'storyline-1', payload: { memberId: other, value: seq } }]
+        : step === 3 ? [{ action: 'order.move' as const, kind: 'chapter', id: other, payload: { positionKey: `m${seq % 7}` } }]
+        : step === 4 ? [{ action: 'entity.trash' as const, kind: 'node', id: other, payload: {} }]
+        : [{ action: 'tuple.set' as const, kind: 'node', id: NODE_ID, payload: { tuple: 'graph.position', value: { x: seq, y: -seq } } }];
+      // Every writer lane keeps its own sequence; wall clocks interleave.
+      changes.push(await remoteChangeSet({ writer, seq: Math.floor((seq - 1) / 3) + 1, wallMs: 1_000 + ((seq * 7) % 40), mutations }));
+    }
+    return changes;
+  }
+
+  async function apply(db: DbClient, changeSet: SyncChangeSetV1) {
+    return db.transaction((tx) => applyVerifiedRemoteChangeSetInTransaction(tx, {
+      changeSet,
+      identity: identity(),
+      clock: { nowMs: 1, nowIso: NOW },
+      kernel: nodeKernel(),
+    }));
+  }
+
+  async function metadata(db: DbClient) {
+    const sorted = <T,>(rows: T[]) => rows.map((row) => JSON.stringify(row, (_key, value: unknown) =>
+      value instanceof Uint8Array ? [...value] : value,
+    )).sort();
+    return {
+      fields: sorted(await db.select().from(SyncFieldClockTable)),
+      sets: sorted(await db.select().from(SyncSetTagTable)),
+      orders: sorted(await db.select().from(SyncOrderRegisterTable)),
+      lifecycles: sorted(await db.select().from(SyncEntityLifecycleTable)),
+    };
+  }
+
+  it('resumes from a persisted snapshot, replays only the uncovered tail and matches a full replay', async () => {
+    setSqliteReducerSnapshotIntervalForTest(5);
+    const changes = await history(24);
+    const { db } = await createDatabase();
+    for (const changeSet of changes.slice(0, 23)) await apply(db, changeSet);
+    expect(await db.select({
+      receiptCount: SyncReducerSnapshotTable.receiptCount,
+      codec: SyncReducerSnapshotTable.codec,
+    }).from(SyncReducerSnapshotTable)).toEqual([{ receiptCount: 20, codec: 'cbor+gzip' }]);
+
+    invalidateSqliteReducerStateCache();
+    const resumed = await apply(db, changes[23]);
+    // Every lane of the snapshot was contiguous, so it holds coverage only.
+    expect(getSqliteReducerLoadDiagnostics()).toMatchObject({
+      source: 'snapshot',
+      startReceipts: 0,
+      replayedChangeSets: 3,
+    });
+
+    setSqliteReducerSnapshotIntervalForTest(1_000);
+    const { db: reference } = await createDatabase();
+    let replayed: Awaited<ReturnType<typeof apply>> | null = null;
+    for (const changeSet of changes) replayed = await apply(reference, changeSet);
+    expect(canonicalReducerSnapshot(compactReducerReceipts(resumed.state!)))
+      .toEqual(canonicalReducerSnapshot(compactReducerReceipts(replayed!.state!)));
+    expect(await metadata(db)).toEqual(await metadata(reference));
+  });
+
+  it('discards a snapshot covering a receipt that SQLite does not have', async () => {
+    setSqliteReducerSnapshotIntervalForTest(1_000);
+    const changes = await history(6);
+    const { db } = await createDatabase();
+    for (const changeSet of changes.slice(0, 5)) await apply(db, changeSet);
+    const foreign = (await history(1, 50))[0];
+    const stale = replaySyncChangeSets(
+      createCanonicalReducerState({ projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, syncGenerationId: SYNC_GENERATION_ID }),
+      [...changes.slice(0, 5), foreign],
+      { ...DEFAULT_SQLITE_REDUCER_PROFILE, externallyMaterializedActions: new Set(['yjs.update', 'asset.bind', 'asset.unbind', 'sync-generation.purge']) },
+    ).state;
+    await db.insert(SyncReducerSnapshotTable).values({
+      syncGenerationId: SYNC_GENERATION_ID,
+      profileKey: JSON.stringify([
+        [...SQLITE_REDUCER_V1_TARGET_KINDS].sort(),
+        ['asset.bind', 'asset.unbind', 'sync-generation.purge', 'yjs.update'],
+      ]),
+      formatVersion: REDUCER_STATE_SNAPSHOT_FORMAT,
+      codec: 'cbor',
+      receiptCount: stale.receipts.size,
+      stateBlob: encodeReducerState(stale),
+      createdAt: NOW,
+    });
+
+    invalidateSqliteReducerStateCache();
+    const result = await apply(db, changes[5]);
+    expect(getSqliteReducerLoadDiagnostics()).toMatchObject({ source: 'journal', replayedChangeSets: 5 });
+    expect(result.state!.receipts.has(foreign.changeSetId)).toBe(false);
+    expect(await db.select().from(SyncReducerSnapshotTable)).toEqual([]);
+  });
+
+  it('reuses the predecessor state after a rolled-back write instead of replaying history', async () => {
+    const changes = await history(4);
+    const { db, gateway } = await createDatabase();
+    for (const changeSet of changes.slice(0, 3)) await apply(db, changeSet);
+    const lastRebuild = getSqliteReducerLoadDiagnostics();
+
+    gateway.failNextExecute((statement) => statement.includes('sync_apply_receipt'));
+    await expect(apply(db, changes[3])).rejects.toThrow(/sync_apply_receipt/u);
+    const retried = await apply(db, changes[3]);
+    expect(retried.status).toBe('applied');
+    expect(retried.state!.receipts.size).toBe(4);
+    expect(getSqliteReducerLoadDiagnostics()).toBe(lastRebuild);
+  });
+
+  it('writes only changed metadata, which a full rebuild leaves unchanged', async () => {
+    setSqliteReducerSnapshotIntervalForTest(1_000);
+    const changes = await history(30);
+    const { db } = await createDatabase();
+    for (const changeSet of changes.slice(0, 29)) await apply(db, changeSet);
+    const incremental = await metadata(db);
+
+    // A rebuilt state rewrites every metadata row from the journal.
+    invalidateSqliteReducerStateCache();
+    await apply(db, changes[29]);
+    const repaired = await metadata(db);
+    const lastChange = changes[29].changeSetId;
+    const withoutLast = (rows: string[]) => rows.filter((row) => !row.includes(lastChange));
+    expect(withoutLast(repaired.fields)).toEqual(withoutLast(incremental.fields));
+    expect(withoutLast(repaired.sets)).toEqual(withoutLast(incremental.sets));
+    expect(withoutLast(repaired.orders)).toEqual(withoutLast(incremental.orders));
+    expect(withoutLast(repaired.lifecycles)).toEqual(withoutLast(incremental.lifecycles));
+  });
+
+  it('upserts only the registers a warm write touched', async () => {
+    setSqliteReducerSnapshotIntervalForTest(1_000);
+    const changes = await history(31);
+    const { db, gateway } = await createDatabase();
+    for (const changeSet of changes.slice(0, 30)) await apply(db, changeSet);
+    const metadataWrites = /insert into "sync_(field_clock|set_tag|order_register|entity_lifecycle|generation_purge)"/u;
+    const execute = vi.spyOn(gateway, 'execute');
+    // history step 1 sets one node title: exactly one field clock row changes.
+    const touchOne = changes[30];
+    expect(touchOne.mutations).toHaveLength(1);
+    await apply(db, touchOne);
+    const writes = execute.mock.calls.filter(([statement]) => metadataWrites.test(statement));
+    expect(writes).toHaveLength(1);
+    expect(await metadata(db)).toMatchObject({ fields: expect.arrayContaining([expect.stringContaining(touchOne.changeSetId)]) });
   });
 });

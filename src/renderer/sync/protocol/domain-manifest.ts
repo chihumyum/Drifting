@@ -1404,6 +1404,29 @@ const syncTransportTables: Readonly<
       'change_set_id',
     ],
   },
+  sync_reducer_base: {
+    scope: 'project-via-reference',
+    fields: [
+      'sync_generation_id',
+      'profile_key',
+      'payload_version',
+      'pages_cbor',
+      'source_checkpoint_id',
+      'created_at',
+    ],
+  },
+  sync_reducer_snapshot: {
+    scope: 'project-via-reference',
+    fields: [
+      'sync_generation_id',
+      'profile_key',
+      'format_version',
+      'codec',
+      'receipt_count',
+      'state_blob',
+      'created_at',
+    ],
+  },
   sync_frontier: {
     scope: 'project-via-reference',
     fields: [

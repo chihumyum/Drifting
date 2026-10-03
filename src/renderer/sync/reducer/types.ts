@@ -109,6 +109,13 @@ export interface ReducerConflict {
 
 export interface CanonicalReducerState {
   readonly identity: ReducerSyncGenerationIdentity;
+  /**
+   * Compacted receipts: every change-set of a writer lane (`reducerLaneKey`)
+   * with `deviceSeq` up to the value has been applied. Change-set IDs are
+   * `${writerId}:${writerEpoch}:${deviceSeq}`, so this loses no identity.
+   */
+  readonly coverage: ReadonlyMap<string, number>;
+  /** Applied change-sets outside `coverage`, keyed by ID, valued by signature. */
   readonly receipts: ReadonlyMap<string, string>;
   readonly generationPurge: SyncGenerationPurgeRegister | null;
   readonly fields: ReadonlyMap<string, FieldRegister>;
@@ -263,8 +270,15 @@ export type ReducerIngestResult =
       readonly rejection: ReducerRejection;
     };
 
+export interface ReducerCoverageEntry {
+  readonly writerId: string;
+  readonly writerEpoch: string;
+  readonly deviceSeq: number;
+}
+
 export interface ReducerSnapshot {
   readonly identity: ReducerSyncGenerationIdentity;
+  readonly coverage: readonly ReducerCoverageEntry[];
   readonly receipts: readonly { changeSetId: string; signature: string }[];
   readonly generationPurge: SyncGenerationPurgeRegister | null;
   readonly fields: readonly FieldRegister[];

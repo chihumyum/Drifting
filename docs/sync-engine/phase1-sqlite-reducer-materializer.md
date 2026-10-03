@@ -59,11 +59,39 @@ domain + journal transaction back.
   runs again and no longer reports it.
 - Reducer metadata code never writes domain tables. Only the injected typed
   domain kernel may do that, so remote sync cannot bypass existing validators.
-- Immutable receipt-backed history is replayed once after process start or
-  cache invalidation. Later applies reuse canonical state keyed by
-  `syncGenerationId` only when its receipt count matches SQLite; a rolled-back optimistic cache entry is
-  therefore rejected automatically. Restore/checkpoint activation calls
-  `invalidateSqliteReducerStateCache()`.
+- Canonical state is rebuilt once after process start or cache invalidation
+  (`state-store.ts`). Later applies reuse it only when its receipt count
+  matches SQLite. The cache also keeps the predecessor of the latest optimistic
+  write, so a rolled-back write falls back to it instead of rebuilding.
+  Restore/checkpoint activation calls `invalidateSqliteReducerStateCache()` and
+  deletes that SyncGeneration's `sync_reducer_snapshot` rows.
+- Receipts compact to per-lane coverage: a change-set ID is
+  `writer:epoch:seq`, so a contiguous applied prefix of a lane becomes one
+  coverage entry and only receipts above it stay explicit. A covered change-set
+  is a duplicate. Coverage is part of the canonical snapshot.
+- A rebuild uses `replaySyncChangeSets`: one owned working state, with effects
+  and conflicts derived once from the final state and the last applied
+  change-set. It is equivalent to folding `reduceSyncChangeSet` and linear in
+  history. A single reduction shares unchanged registers and the append-only
+  receipt ledger with its predecessor and copies only containers it writes.
+- `sync_reducer_snapshot` is a local, derived compaction of canonical state
+  (plain CBOR with gzip, key order preserved), written in the applying
+  transaction once 2,000 receipts are uncovered. It is keyed by SyncGeneration
+  and a data-only profile key; profiles with a projection validator are never
+  persisted. Bump `REDUCER_STATE_SNAPSHOT_FORMAT` whenever reducer semantics,
+  change-set signatures or state shape change.
+- `sync_reducer_base` is the authoritative compacted state a payload v2
+  checkpoint restore installed (canonical reducer-state pages, as verified).
+  The history it covers does not exist locally. A base that does not match its
+  SyncGeneration or the current profile fails closed instead of being dropped.
+- A rebuild starts from the first usable source: a snapshot whose explicit
+  receipts are applied and whose coverage above the base floor matches SQLite's
+  applied lane counts; else the base; else an empty state. It then replays the
+  change-sets the start state does not cover. An unusable snapshot is deleted.
+  `getSqliteReducerLoadDiagnostics()` reports the source and replay size.
+- Metadata rows are written incrementally: after a cached reduction only
+  registers and containers the change-set replaced are upserted. After a
+  rebuild every row is rewritten, which also repairs drifted metadata.
 
 `yjs.update`, `asset.bind`, `asset.unbind`, and `sync-generation.purge` are explicit
 external typed-reducer actions. They may share an atomic change-set with core
@@ -181,7 +209,14 @@ pnpm exec vitest run \
 The real file-backed SQLite suite covers duplicate delivery, reverse winner
 delivery, remove-before-add, semantic conflict blocking, local post-write
 observation, and an injected failure at the receipt boundary. It asserts both
-`PRAGMA`-backed transaction rollback and absence of local-origin echo.
+`PRAGMA`-backed transaction rollback and absence of local-origin echo. It also
+resumes from a snapshot plus tail and matches a full replay, discards a
+snapshot covering a missing receipt, reuses the predecessor after a rolled-back
+write, proves incremental metadata equals a full rewrite, and limits a warm
+single-field write to one metadata upsert. Reducer unit tests compare bulk
+replay with a step-by-step fold (including validator conflicts and purge) over
+randomized histories and prove a reduction never mutates or iterates its
+predecessor's receipts.
 
 The production suite additionally runs against the real baseline in a
 file-backed database and covers typed field materialization, OR-set membership

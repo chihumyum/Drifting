@@ -1,4 +1,4 @@
-import { assertCanonicalCborValue, type Hlc } from './primitives';
+import { isWellFormedUtf16, type Hlc } from './primitives';
 
 export interface SyncTotalOrderV1 {
   hlc: Hlc;
@@ -22,10 +22,33 @@ export function compareBytes(left: Uint8Array, right: Uint8Array): Comparison {
   return compareNumber(left.byteLength, right.byteLength);
 }
 
+function assertWellFormedString(value: string): void {
+  if (!isWellFormedUtf16(value)) {
+    throw new TypeError('$: string contains an unpaired UTF-16 surrogate');
+  }
+}
+
+/** A high surrogate starts a code point above every BMP code unit. */
+function codePointRank(codeUnit: number): number {
+  return codeUnit >= 0xd800 && codeUnit <= 0xdbff ? codeUnit + 0x10000 : codeUnit;
+}
+
+/**
+ * UTF-8 byte order equals Unicode code point order, so well-formed UTF-16 is
+ * compared in place. Reducer replay sorts with this comparator, and encoding
+ * two byte arrays per comparison dominated its time and garbage.
+ */
 export function compareUtf8Bytewise(left: string, right: string): Comparison {
-  assertCanonicalCborValue(left);
-  assertCanonicalCborValue(right);
-  return compareBytes(new TextEncoder().encode(left), new TextEncoder().encode(right));
+  assertWellFormedString(left);
+  assertWellFormedString(right);
+  const sharedLength = Math.min(left.length, right.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    const leftUnit = left.charCodeAt(index);
+    const rightUnit = right.charCodeAt(index);
+    // After an equal high surrogate both strings continue with low surrogates.
+    if (leftUnit !== rightUnit) return compareNumber(codePointRank(leftUnit), codePointRank(rightUnit));
+  }
+  return compareNumber(left.length, right.length);
 }
 
 export function compareHlc(left: Hlc, right: Hlc): Comparison {

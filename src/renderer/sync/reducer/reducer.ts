@@ -126,6 +126,16 @@ function entityKey(target: Pick<SyncMutationTargetV1, 'kind' | 'id'>): string {
   return JSON.stringify([target.kind, target.id]);
 }
 
+/** The `CanonicalReducerState.lifecycles` key for an entity. */
+export function reducerLifecycleKey(kind: string, id: string): string {
+  return entityKey({ kind, id });
+}
+
+/** The `CanonicalReducerState.coverage` key for a writer lane. */
+export function reducerLaneKey(writerId: string, writerEpoch: string): string {
+  return JSON.stringify([writerId, writerEpoch]);
+}
+
 function registerKey(target: SyncMutationTargetV1, name: string): string {
   return JSON.stringify([target.kind, target.id, target.incarnation, name]);
 }
@@ -155,6 +165,11 @@ function reject(
     conflicts: sortedConflicts(state.conflicts),
     rejection,
   };
+}
+
+/** The receipt value recorded for an applied change-set. */
+export function reducerReceiptSignature(changeSet: ProtocolValidatedChangeSet): string {
+  return changeSetSignature(changeSet as SyncChangeSetV1);
 }
 
 function changeSetSignature(changeSet: SyncChangeSetV1): string {
@@ -218,6 +233,15 @@ function prepareChangeSet(
         path: '$',
         message: 'change-set project, projectSync and generation must match the reducer identity',
       }),
+    };
+  }
+
+  const coveredSeq = state.coverage.get(reducerLaneKey(changeSet.writerId, changeSet.writerEpoch)) ?? 0;
+  if (changeSet.deviceSeq <= coveredSeq) {
+    // A compacted receipt: its exact bytes were verified when first applied.
+    return {
+      ok: false,
+      result: { status: 'duplicate', state, effects: [], conflicts: sortedConflicts(state.conflicts) },
     };
   }
 
@@ -356,48 +380,131 @@ function prepareChangeSet(
   return { ok: true, prepared, signature };
 }
 
-function cloneState(state: CanonicalReducerState): CanonicalReducerState {
-  const sets = new Map<string, OrSetState>();
-  for (const [key, set] of state.sets) {
-    const members = new Map<string, OrSetMemberState>();
-    for (const [memberKey, member] of set.members) {
-      members.set(memberKey, {
-        memberId: member.memberId,
-        adds: new Map(member.adds),
-        removedAddTags: new Map(member.removedAddTags),
-      });
+class ReceiptLedger {
+  readonly ids: string[] = [];
+  readonly signatures: string[] = [];
+  readonly positions = new Map<string, number>();
+}
+
+/**
+ * Receipts only grow within a SyncGeneration. States share one append-only
+ * ledger and each sees its own prefix, so deriving the next state appends in
+ * O(1) instead of copying every historical receipt. Appending to an older
+ * prefix, such as a state kept across a rolled-back write, forks once.
+ */
+class ReceiptView implements ReadonlyMap<string, string> {
+  constructor(
+    private readonly ledger: ReceiptLedger,
+    readonly size: number,
+  ) {}
+
+  static from(receipts: ReadonlyMap<string, string>): ReceiptView {
+    if (receipts instanceof ReceiptView) return receipts;
+    let view = new ReceiptView(new ReceiptLedger(), 0);
+    for (const [changeSetId, signature] of receipts) view = view.with(changeSetId, signature);
+    return view;
+  }
+
+  get(changeSetId: string): string | undefined {
+    const position = this.ledger.positions.get(changeSetId);
+    return position !== undefined && position < this.size ? this.ledger.signatures[position] : undefined;
+  }
+
+  has(changeSetId: string): boolean {
+    return this.get(changeSetId) !== undefined;
+  }
+
+  with(changeSetId: string, signature: string): ReceiptView {
+    let ledger = this.ledger;
+    if (ledger.ids.length !== this.size) {
+      ledger = new ReceiptLedger();
+      for (let position = 0; position < this.size; position += 1) {
+        ledger.positions.set(this.ledger.ids[position], position);
+        ledger.ids.push(this.ledger.ids[position]);
+        ledger.signatures.push(this.ledger.signatures[position]);
+      }
     }
-    sets.set(key, { target: set.target, members });
+    ledger.positions.set(changeSetId, this.size);
+    ledger.ids.push(changeSetId);
+    ledger.signatures.push(signature);
+    return new ReceiptView(ledger, this.size + 1);
   }
 
-  const lifecycles = new Map<string, LifecycleState>();
-  for (const [key, lifecycle] of state.lifecycles) {
-    lifecycles.set(key, {
-      kind: lifecycle.kind,
-      entityId: lifecycle.entityId,
-      seeds: new Map(lifecycle.seeds),
-      trashes: new Map(lifecycle.trashes),
-      purge: lifecycle.purge,
-    });
+  /** Iteration copies the prefix; only exports and diagnostics iterate receipts. */
+  private toMap(): Map<string, string> {
+    const map = new Map<string, string>();
+    for (let position = 0; position < this.size; position += 1) {
+      map.set(this.ledger.ids[position], this.ledger.signatures[position]);
+    }
+    return map;
   }
 
+  entries() {
+    return this.toMap().entries();
+  }
+
+  keys() {
+    return this.toMap().keys();
+  }
+
+  values() {
+    return this.toMap().values();
+  }
+
+  forEach(
+    callback: (value: string, key: string, map: ReadonlyMap<string, string>) => void,
+    thisArg?: unknown,
+  ): void {
+    for (let position = 0; position < this.size; position += 1) {
+      callback.call(thisArg, this.ledger.signatures[position], this.ledger.ids[position], this);
+    }
+  }
+
+  [Symbol.iterator]() {
+    return this.entries();
+  }
+}
+
+/** Builds receipts in their original insertion order, e.g. from a persisted snapshot. */
+export function createReducerReceipts(
+  entries: Iterable<readonly [changeSetId: string, signature: string]>,
+): ReadonlyMap<string, string> {
+  let view = new ReceiptView(new ReceiptLedger(), 0);
+  for (const [changeSetId, signature] of entries) {
+    if (view.has(changeSetId)) throw new Error(`duplicate reducer receipt ${changeSetId}`);
+    view = view.with(changeSetId, signature);
+  }
+  return view;
+}
+
+type MutableReducerState = { -readonly [Key in keyof CanonicalReducerState]: CanonicalReducerState[Key] };
+
+/**
+ * A state being derived from an immutable predecessor. Registers are replaced,
+ * never mutated, so only top-level indexes are copied up front; nested set and
+ * lifecycle containers are copied on first write and tracked as owned.
+ */
+interface ReductionScope {
+  readonly state: MutableReducerState;
+  readonly owned: WeakSet<object>;
+}
+
+function beginReduction(state: CanonicalReducerState): ReductionScope {
   return {
-    identity: state.identity,
-    receipts: new Map(state.receipts),
-    generationPurge: state.generationPurge
-      ? {
-          ...state.generationPurge,
-          target: cloneTarget(state.generationPurge.target),
-          value: cloneCbor(state.generationPurge.value),
-        }
-      : null,
-    fields: new Map(state.fields),
-    tuples: new Map(state.tuples),
-    sets,
-    orders: new Map(state.orders),
-    assetBindings: new Map(state.assetBindings),
-    lifecycles,
-    conflicts: new Map(state.conflicts),
+    state: {
+      identity: state.identity,
+      coverage: state.coverage,
+      receipts: state.receipts,
+      generationPurge: state.generationPurge,
+      fields: new Map(state.fields),
+      tuples: new Map(state.tuples),
+      sets: new Map(state.sets),
+      orders: new Map(state.orders),
+      assetBindings: new Map(state.assetBindings),
+      lifecycles: new Map(state.lifecycles),
+      conflicts: new Map(state.conflicts),
+    },
+    owned: new WeakSet(),
   };
 }
 
@@ -406,49 +513,70 @@ function wins<T>(incoming: LwwValue<T>, current: LwwValue<T> | undefined | null)
 }
 
 function lifecycleFor(
-  state: CanonicalReducerState,
+  scope: ReductionScope,
   target: Pick<SyncMutationTargetV1, 'kind' | 'id'>,
 ): LifecycleState {
   const key = entityKey(target);
-  const existing = state.lifecycles.get(key);
-  if (existing) return existing;
-  const created: LifecycleState = {
-    kind: target.kind,
-    entityId: target.id,
-    seeds: new Map(),
-    trashes: new Map(),
-    purge: null,
-  };
-  (state.lifecycles as Map<string, LifecycleState>).set(key, created);
-  return created;
+  const existing = scope.state.lifecycles.get(key);
+  if (existing && scope.owned.has(existing)) return existing;
+  const owned: LifecycleState = existing
+    ? {
+        kind: existing.kind,
+        entityId: existing.entityId,
+        seeds: new Map(existing.seeds),
+        trashes: new Map(existing.trashes),
+        purge: existing.purge,
+      }
+    : {
+        kind: target.kind,
+        entityId: target.id,
+        seeds: new Map(),
+        trashes: new Map(),
+        purge: null,
+      };
+  (scope.state.lifecycles as Map<string, LifecycleState>).set(key, owned);
+  scope.owned.add(owned);
+  return owned;
 }
 
-function setFor(state: CanonicalReducerState, target: SyncMutationTargetV1): OrSetState {
+function setFor(scope: ReductionScope, target: SyncMutationTargetV1): OrSetState {
   const key = targetKey(target);
-  const existing = state.sets.get(key);
-  if (existing) return existing;
-  const created: OrSetState = { target: cloneTarget(target), members: new Map() };
-  (state.sets as Map<string, OrSetState>).set(key, created);
-  return created;
+  const existing = scope.state.sets.get(key);
+  if (existing && scope.owned.has(existing)) return existing;
+  const owned: OrSetState = existing
+    ? { target: existing.target, members: new Map(existing.members) }
+    : { target: cloneTarget(target), members: new Map() };
+  (scope.state.sets as Map<string, OrSetState>).set(key, owned);
+  scope.owned.add(owned);
+  return owned;
 }
 
-function memberFor(set: OrSetState, memberId: string): OrSetMemberState {
+/** `set` must already be owned by this scope (returned by `setFor`). */
+function memberFor(scope: ReductionScope, set: OrSetState, memberId: string): OrSetMemberState {
   const existing = set.members.get(memberId);
-  if (existing) return existing;
-  const created: OrSetMemberState = {
-    memberId,
-    adds: new Map(),
-    removedAddTags: new Map(),
-  };
-  (set.members as Map<string, OrSetMemberState>).set(memberId, created);
-  return created;
+  if (existing && scope.owned.has(existing)) return existing;
+  const owned: OrSetMemberState = existing
+    ? {
+        memberId: existing.memberId,
+        adds: new Map(existing.adds),
+        removedAddTags: new Map(existing.removedAddTags),
+      }
+    : {
+        memberId,
+        adds: new Map(),
+        removedAddTags: new Map(),
+      };
+  (set.members as Map<string, OrSetMemberState>).set(memberId, owned);
+  scope.owned.add(owned);
+  return owned;
 }
 
 export function mutationAddTag(changeSetId: string, mutationIndex: number): string {
   return `${changeSetId}#${mutationIndex}`;
 }
 
-function applyPreparedMutation(state: CanonicalReducerState, prepared: PreparedMutation): void {
+function applyPreparedMutation(scope: ReductionScope, prepared: PreparedMutation): void {
+  const { state } = scope;
   const { mutation, parsed, order, source } = prepared;
   if (!parsed) {
     if (mutation.action === 'sync-generation.purge') {
@@ -510,7 +638,7 @@ function applyPreparedMutation(state: CanonicalReducerState, prepared: PreparedM
       return;
     }
     case 'set.add': {
-      const member = memberFor(setFor(state, mutation.target), parsed.payload.memberId);
+      const member = memberFor(scope, setFor(scope, mutation.target), parsed.payload.memberId);
       const tag = mutationAddTag(source.changeSetId, source.mutationIndex);
       const add: OrSetAdd = {
         tag,
@@ -524,7 +652,7 @@ function applyPreparedMutation(state: CanonicalReducerState, prepared: PreparedM
       return;
     }
     case 'set.remove': {
-      const member = memberFor(setFor(state, mutation.target), parsed.payload.memberId);
+      const member = memberFor(scope, setFor(scope, mutation.target), parsed.payload.memberId);
       for (const tag of parsed.payload.observedAddTags) {
         const remove: LwwValue<true> = { value: true, order, source };
         if (wins(remove, member.removedAddTags.get(tag))) {
@@ -576,7 +704,7 @@ function applyPreparedMutation(state: CanonicalReducerState, prepared: PreparedM
     }
     case 'entity.create':
     case 'entity.restore': {
-      const lifecycle = lifecycleFor(state, mutation.target);
+      const lifecycle = lifecycleFor(scope, mutation.target);
       const seed: LifecycleSeed = {
         action: parsed.action,
         incarnation: mutation.target.incarnation,
@@ -591,7 +719,7 @@ function applyPreparedMutation(state: CanonicalReducerState, prepared: PreparedM
       return;
     }
     case 'entity.trash': {
-      const lifecycle = lifecycleFor(state, mutation.target);
+      const lifecycle = lifecycleFor(scope, mutation.target);
       const trash: LwwValue<true> = { value: true, order, source };
       const current = lifecycle.trashes.get(mutation.target.incarnation);
       if (wins(trash, current)) {
@@ -600,7 +728,7 @@ function applyPreparedMutation(state: CanonicalReducerState, prepared: PreparedM
       return;
     }
     case 'entity.purge': {
-      const lifecycle = lifecycleFor(state, mutation.target);
+      const lifecycle = lifecycleFor(scope, mutation.target);
       const purge: LwwValue<true> = { value: true, order, source };
       if (wins(purge, lifecycle.purge)) {
         (lifecycle as { purge: LwwValue<true> | null }).purge = purge;
@@ -963,7 +1091,8 @@ export function createCanonicalReducerState(
 ): CanonicalReducerState {
   return {
     identity: { ...identity },
-    receipts: new Map(),
+    coverage: new Map(),
+    receipts: createReducerReceipts([]),
     generationPurge: null,
     fields: new Map(),
     tuples: new Map(),
@@ -988,12 +1117,59 @@ export function reduceSyncChangeSet(
 ): ReducerIngestResult {
   const preparation = prepareChangeSet(state, changeSet, profile);
   if (!preparation.ok) return preparation.result;
+  const scope = beginReduction(state);
+  applyPreparedChangeSet(scope, changeSet, preparation);
+  return finishReduction(scope.state, changeSet, preparation.prepared, profile);
+}
 
-  const next = cloneState(state);
-  for (const prepared of preparation.prepared) applyPreparedMutation(next, prepared);
-  (next.receipts as Map<string, string>).set(changeSet.changeSetId, preparation.signature);
-  const externalEffects = preparation.prepared
-    .map((prepared) => externalEffect(next, prepared))
+/**
+ * Equivalent to folding `reduceSyncChangeSet` over `changeSets` in order, in
+ * linear time. Mutations are applied to one owned working state; effects and
+ * conflicts depend only on the resulting state and the last applied
+ * change-set, so they are derived once instead of after every step.
+ */
+export function replaySyncChangeSets(
+  state: CanonicalReducerState,
+  changeSets: readonly ProtocolValidatedChangeSet[],
+  profile: ReducerProfile,
+): ReducerIngestResult {
+  const scope = beginReduction(state);
+  let last: { changeSet: ProtocolValidatedChangeSet; prepared: readonly PreparedMutation[] } | null = null;
+  for (const changeSet of changeSets) {
+    const preparation = prepareChangeSet(scope.state, changeSet, profile);
+    if (!preparation.ok) {
+      if (preparation.result.status === 'rejected') return preparation.result;
+      continue;
+    }
+    applyPreparedChangeSet(scope, changeSet, preparation);
+    last = { changeSet, prepared: preparation.prepared };
+  }
+  if (!last) {
+    return { status: 'duplicate', state, effects: [], conflicts: sortedConflicts(state.conflicts) };
+  }
+  return finishReduction(scope.state, last.changeSet, last.prepared, profile);
+}
+
+function applyPreparedChangeSet(
+  scope: ReductionScope,
+  changeSet: ProtocolValidatedChangeSet,
+  preparation: { readonly prepared: readonly PreparedMutation[]; readonly signature: string },
+): void {
+  for (const prepared of preparation.prepared) applyPreparedMutation(scope, prepared);
+  scope.state.receipts = ReceiptView.from(scope.state.receipts).with(
+    changeSet.changeSetId,
+    preparation.signature,
+  );
+}
+
+function finishReduction(
+  next: CanonicalReducerState,
+  changeSet: ProtocolValidatedChangeSet,
+  prepared: readonly PreparedMutation[],
+  profile: ReducerProfile,
+): ReducerIngestResult {
+  const externalEffects = prepared
+    .map((entry) => externalEffect(next, entry))
     .filter((effect): effect is ReducerEffect => effect !== null);
   let candidateEffects = [...materializationEffects(next), ...externalEffects]
     .sort((left, right) => utf8Sort(left.effectId, right.effectId));
@@ -1023,9 +1199,50 @@ function cloneRegister<T extends LwwValue<CanonicalCborValue>>(register: T): T {
   return { ...register, value: cloneCbor(register.value) };
 }
 
+/**
+ * Moves every explicit receipt that extends its lane's contiguous applied
+ * prefix into `coverage`. Registers and duplicate detection are unchanged;
+ * only change-sets outside such prefixes keep an explicit receipt.
+ */
+export function compactReducerReceipts(state: CanonicalReducerState): CanonicalReducerState {
+  const lanes = new Map<string, { lane: string; seq: number }>();
+  const seqsByLane = new Map<string, Set<number>>();
+  state.receipts.forEach((signature, changeSetId) => {
+    const { writerId, writerEpoch, deviceSeq } = JSON.parse(signature) as {
+      writerId: string;
+      writerEpoch: string;
+      deviceSeq: number;
+    };
+    const lane = reducerLaneKey(writerId, writerEpoch);
+    lanes.set(changeSetId, { lane, seq: deviceSeq });
+    const seqs = seqsByLane.get(lane) ?? new Set<number>();
+    seqs.add(deviceSeq);
+    seqsByLane.set(lane, seqs);
+  });
+  const coverage = new Map(state.coverage);
+  for (const [lane, seqs] of seqsByLane) {
+    let covered = coverage.get(lane) ?? 0;
+    while (seqs.has(covered + 1)) covered += 1;
+    if (covered > (coverage.get(lane) ?? 0)) coverage.set(lane, covered);
+  }
+  const remaining: (readonly [string, string])[] = [];
+  state.receipts.forEach((signature, changeSetId) => {
+    const { lane, seq } = lanes.get(changeSetId)!;
+    if (seq > (coverage.get(lane) ?? 0)) remaining.push([changeSetId, signature]);
+  });
+  if (remaining.length === state.receipts.size) return state;
+  return { ...state, coverage, receipts: createReducerReceipts(remaining) };
+}
+
 export function canonicalReducerSnapshot(state: CanonicalReducerState): ReducerSnapshot {
   return {
     identity: { ...state.identity },
+    coverage: [...state.coverage]
+      .map(([lane, deviceSeq]) => {
+        const [writerId, writerEpoch] = JSON.parse(lane) as [string, string];
+        return { writerId, writerEpoch, deviceSeq };
+      })
+      .sort((left, right) => utf8Sort(left.writerId, right.writerId) || utf8Sort(left.writerEpoch, right.writerEpoch)),
     receipts: [...state.receipts.entries()]
       .sort(([left], [right]) => utf8Sort(left, right))
       .map(([changeSetId, signature]) => ({ changeSetId, signature })),
@@ -1086,6 +1303,98 @@ export function canonicalReducerSnapshot(state: CanonicalReducerState): ReducerS
       target: conflict.target ? { ...conflict.target } : null,
       details: cloneCbor(conflict.details),
     })),
+  };
+}
+
+function uniqueEntry<V>(map: Map<string, V>, key: string, value: V, label: string): void {
+  if (map.has(key)) throw new Error(`reducer snapshot repeats ${label} ${key}`);
+  map.set(key, value);
+}
+
+/**
+ * Rebuilds a state from its canonical snapshot (the protocol form shipped in
+ * a checkpoint). Keys are recomputed with the reducer's own key functions;
+ * repeated identities are rejected.
+ */
+export function reducerStateFromSnapshot(snapshot: ReducerSnapshot): CanonicalReducerState {
+  const coverage = new Map<string, number>();
+  for (const entry of snapshot.coverage) {
+    uniqueEntry(coverage, reducerLaneKey(entry.writerId, entry.writerEpoch), entry.deviceSeq, 'coverage lane');
+  }
+  const fields = new Map<string, FieldRegister>();
+  for (const register of snapshot.fields) {
+    uniqueEntry(fields, registerKey(register.target, register.field), { ...register }, 'field');
+  }
+  const tuples = new Map<string, TupleRegister>();
+  for (const register of snapshot.tuples) {
+    uniqueEntry(tuples, registerKey(register.target, register.tuple), { ...register }, 'tuple');
+  }
+  const sets = new Map<string, OrSetState>();
+  for (const set of snapshot.sets) {
+    const members = new Map<string, OrSetMemberState>();
+    for (const member of set.members) {
+      const adds = new Map<string, OrSetAdd>();
+      for (const add of member.adds) uniqueEntry(adds, add.tag, { ...add }, 'set add');
+      const removedAddTags = new Map<string, LwwValue<true>>();
+      for (const { addTag, ...remove } of member.removedAddTags) {
+        uniqueEntry(removedAddTags, addTag, remove, 'set remove');
+      }
+      uniqueEntry(members, member.memberId, { memberId: member.memberId, adds, removedAddTags }, 'set member');
+    }
+    uniqueEntry(sets, targetKey(set.target), { target: { ...set.target }, members }, 'set');
+  }
+  const orders = new Map<string, OrderRegister>();
+  for (const register of snapshot.orders) {
+    uniqueEntry(
+      orders,
+      orderKey(register.target.kind, register.target.incarnation, register.entityId),
+      { ...register },
+      'order',
+    );
+  }
+  const assetBindings = new Map<string, AssetBindingRegister>();
+  for (const register of snapshot.assetBindings) {
+    uniqueEntry(assetBindings, targetKey(register.target), { ...register }, 'asset binding');
+  }
+  const lifecycles = new Map<string, LifecycleState>();
+  for (const lifecycle of snapshot.lifecycles) {
+    const seeds = new Map<number, LifecycleSeed>();
+    for (const seed of lifecycle.seeds) {
+      if (seeds.has(seed.incarnation)) throw new Error(`reducer snapshot repeats seed ${seed.incarnation}`);
+      seeds.set(seed.incarnation, { ...seed });
+    }
+    const trashes = new Map<number, LwwValue<true>>();
+    for (const { incarnation, ...trash } of lifecycle.trashes) {
+      if (trashes.has(incarnation)) throw new Error(`reducer snapshot repeats trash ${incarnation}`);
+      trashes.set(incarnation, trash);
+    }
+    uniqueEntry(
+      lifecycles,
+      entityKey({ kind: lifecycle.kind, id: lifecycle.entityId }),
+      {
+        kind: lifecycle.kind,
+        entityId: lifecycle.entityId,
+        seeds,
+        trashes,
+        purge: lifecycle.purge ? { ...lifecycle.purge } : null,
+      },
+      'lifecycle',
+    );
+  }
+  const conflicts = new Map<string, ReducerConflict>();
+  for (const conflict of snapshot.conflicts) uniqueEntry(conflicts, conflict.conflictId, { ...conflict }, 'conflict');
+  return {
+    identity: { ...snapshot.identity },
+    coverage,
+    receipts: createReducerReceipts(snapshot.receipts.map(({ changeSetId, signature }) => [changeSetId, signature] as const)),
+    generationPurge: snapshot.generationPurge ? { ...snapshot.generationPurge } : null,
+    fields,
+    tuples,
+    sets,
+    orders,
+    assetBindings,
+    lifecycles,
+    conflicts,
   };
 }
 

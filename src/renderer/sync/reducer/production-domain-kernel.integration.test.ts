@@ -58,7 +58,7 @@ import {
   SQLITE_REDUCER_V1_TARGET_KINDS,
 } from './sqlite-materializer';
 import type { ReducerEffect } from './types';
-import { canonicalReducerSnapshot } from './reducer';
+import { canonicalReducerSnapshot, compactReducerReceipts } from './reducer';
 import {
   PRODUCTION_DOMAIN_KERNEL_COVERAGE,
   productionSyncDomainMaterializationKernel,
@@ -1266,8 +1266,9 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(await forward.select().from(ProjectTable)).toEqual([]);
     expect(await reverse.select().from(ProjectTable)).toEqual([]);
     expect(forwardFinal.effects.every((effect) => !effect.materialize)).toBe(true);
-    expect(canonicalReducerSnapshot(forwardFinal.state!)).toEqual(
-      canonicalReducerSnapshot(reverseFinal.state!),
+    // A rebuilt state is compacted; compare the canonical compacted form.
+    expect(canonicalReducerSnapshot(compactReducerReceipts(forwardFinal.state!))).toEqual(
+      canonicalReducerSnapshot(compactReducerReceipts(reverseFinal.state!)),
     );
     expect(await forward.select().from(SyncApplyReceiptTable)).toHaveLength(3);
     expect(await reverse.select().from(SyncApplyReceiptTable)).toHaveLength(3);

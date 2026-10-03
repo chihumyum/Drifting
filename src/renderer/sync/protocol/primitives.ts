@@ -61,9 +61,9 @@ export interface CanonicalCborValueIssue {
 }
 
 const MAX_CBOR_DEPTH = 64;
-const MAX_CBOR_NODES = 100_000;
+export const MAX_CBOR_NODES = 100_000;
 
-function isWellFormedUtf16(value: string): boolean {
+export function isWellFormedUtf16(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const codeUnit = value.charCodeAt(index);
     if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {

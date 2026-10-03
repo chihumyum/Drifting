@@ -94,6 +94,8 @@ const APPLICATION_TABLES = [
   'sync_provider_account',
   'sync_provider_binding',
   'sync_quarantined_object',
+  'sync_reducer_base',
+  'sync_reducer_snapshot',
   'sync_remote_object',
   'sync_restore_attempt',
   'sync_segment',
@@ -214,7 +216,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(6);
+    expect(journal.entries).toHaveLength(7);
+    expect(journal.entries[6]?.tag).toBe('0006_sync_reducer_state');
     expect(journal.entries[5]?.tag).toBe('0005_agent_conversation_source');
     expect(journal.entries[4]?.tag).toBe('0004_yjs_materialization_admission');
     expect(journal.entries[3]?.tag).toBe('0003_agent_checkpoint_anchors');

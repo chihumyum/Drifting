@@ -18,7 +18,10 @@ import {
   type Sha256,
 } from '../protocol';
 import { initializeRestoredWriterStateInTransaction } from '../journal/writer-state';
-import { invalidateSqliteReducerStateCache } from '../reducer';
+import {
+  deleteSqliteReducerSnapshotsInTransaction,
+  invalidateSqliteReducerStateCache,
+} from '../reducer';
 import {
   materializeAuthoredTablesV1,
   materializeNormalizedAuthoredProjectionsV1,
@@ -161,6 +164,8 @@ async function materializePreparedRestore(
     localUserId: input.localUserId,
   });
   await materializeReducerStateV1(tx, validated.reducer);
+  // Derived reducer snapshots describe the replaced journal, never this one.
+  await deleteSqliteReducerSnapshotsInTransaction(tx, input.expected.syncGenerationId);
   await initializeRestoredWriterStateInTransaction(tx, {
     syncGenerationId: input.expected.syncGenerationId,
     identity: input.writerIdentity,

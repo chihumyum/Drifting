@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type {
   CanonicalCborValue,
@@ -9,10 +9,13 @@ import type {
 } from '../protocol';
 import {
   canonicalReducerSnapshot,
+  compactReducerReceipts,
   createCanonicalReducerState,
   materializationEffects,
   mutationAddTag,
   reduceSyncChangeSet,
+  reducerStateFromSnapshot,
+  replaySyncChangeSets,
   selectOrderedEntries,
   type CanonicalReducerState,
   type ReducerEffect,
@@ -540,5 +543,192 @@ describe('canonical SyncEngine reducer', () => {
     if (result.status === 'rejected') expect(result.rejection.code).toBe('invalid-mutation-index');
     expect(result.state.fields.size).toBe(0);
     expect(result.state.receipts.size).toBe(0);
+  });
+});
+
+describe('linear replay and structural sharing', () => {
+  const REPLAY_PROFILE: ReducerProfile = {
+    knownTargetKinds: new Set(['node', 'membership', 'chapter', 'prose-document', 'sync-generation']),
+    externallyMaterializedActions: new Set(['yjs.update', 'sync-generation.purge']),
+    validateProjection(projection) {
+      return projection
+        .filter((candidate) => candidate.type === 'field.set' && candidate.value === 'blocked')
+        .map((candidate) => ({
+          code: 'node.blocked-title',
+          scope: candidate.effectId,
+          message: 'test validator blocks this title',
+          blockedEffectIds: [candidate.effectId],
+        }));
+    },
+  };
+
+  function randomHistory(seed: number, withPurge: boolean): SyncChangeSetV1[] {
+    let state = seed >>> 0;
+    const random = () => {
+      state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+      return state / 0x1_0000_0000;
+    };
+    const pick = <T,>(values: readonly T[]): T => values[Math.floor(random() * values.length)];
+    const nodes = ['n1', 'n2', 'n3'];
+    const addTags: string[] = [];
+    const history: SyncChangeSetV1[] = [];
+    const sequences = new Map<string, number>();
+    for (let index = 0; index < 60; index += 1) {
+      const writer = pick(['writer-a', 'writer-b', 'writer-c']);
+      const seq = (sequences.get(writer) ?? 0) + 1;
+      sequences.set(writer, seq);
+      const node = pick(nodes);
+      const mutations: MutationInput[] = [];
+      for (let count = 1 + Math.floor(random() * 3); count > 0; count -= 1) {
+        const roll = random();
+        if (roll < 0.15) {
+          mutations.push({ action: 'entity.create', kind: 'node', id: node, payload: { seed: { title: `t${index}` } } });
+        } else if (roll < 0.35) {
+          mutations.push({ action: 'field.set', kind: 'node', id: node, payload: { field: 'title', value: random() < 0.2 ? 'blocked' : `v${index}` } });
+        } else if (roll < 0.45) {
+          mutations.push({ action: 'tuple.set', kind: 'node', id: node, payload: { tuple: 'graph.position', value: { x: index, y: count } } });
+        } else if (roll < 0.55) {
+          mutations.push({ action: 'set.add', kind: 'membership', id: 's1', payload: { memberId: node, value: index } });
+          addTags.push(mutationAddTag(`${writer}:epoch-1:${seq}`, mutations.length - 1));
+        } else if (roll < 0.62 && addTags.length > 0) {
+          mutations.push({ action: 'set.remove', kind: 'membership', id: 's1', payload: { memberId: node, observedAddTags: [pick(addTags)] } });
+        } else if (roll < 0.7) {
+          mutations.push({ action: 'order.move', kind: 'chapter', id: node, payload: { positionKey: `m${Math.floor(random() * 9)}` } });
+        } else if (roll < 0.78) {
+          mutations.push({ action: 'entity.trash', kind: 'node', id: node, incarnation: Math.floor(random() * 2), payload: {} });
+        } else if (roll < 0.84) {
+          mutations.push({ action: 'entity.restore', kind: 'node', id: node, incarnation: 1, payload: { seed: { title: `restored${index}` } } });
+        } else if (roll < 0.97 || !withPurge) {
+          mutations.push({ action: 'yjs.update', kind: 'prose-document', id: `node-content:${node}`, payload: { update: index } });
+        } else {
+          mutations.push({ action: 'sync-generation.purge', kind: 'sync-generation', id: IDENTITY.syncGenerationId, payload: { reason: 'test' } });
+        }
+      }
+      history.push(changeSet({ writer, seq, wallMs: Math.floor(random() * 50), counter: index, mutations }));
+    }
+    // Duplicate delivery inside the replayed history must stay a no-op.
+    return [...history, history[3], history[17]];
+  }
+
+  it('matches a step-by-step fold exactly, including conflicts and the final effects', () => {
+    let seedsWithConflicts = 0;
+    let seedsWithPurge = 0;
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const history = randomHistory(seed, seed % 4 === 0);
+      let stepwise = createCanonicalReducerState(IDENTITY);
+      let lastApplied: ReturnType<typeof reduceSyncChangeSet> | null = null;
+      for (const change of history) {
+        const result = reduceSyncChangeSet(stepwise, change, REPLAY_PROFILE);
+        expect(result.status).not.toBe('rejected');
+        if (result.status === 'applied') lastApplied = result;
+        stepwise = result.state;
+      }
+      const replayed = replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history, REPLAY_PROFILE);
+      expect(replayed.status).toBe('applied');
+      expect(canonicalReducerSnapshot(replayed.state)).toEqual(canonicalReducerSnapshot(stepwise));
+      expect(replayed.effects).toEqual(lastApplied?.effects);
+      expect(replayed.conflicts).toEqual(lastApplied?.conflicts);
+      if (replayed.conflicts.length > 0) seedsWithConflicts += 1;
+      if (replayed.state.generationPurge) seedsWithPurge += 1;
+
+      // Replaying a suffix on top of a prefix (a persisted snapshot) converges too.
+      const prefix = replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history.slice(0, 25), REPLAY_PROFILE);
+      const resumed = replaySyncChangeSets(prefix.state, history.slice(25), REPLAY_PROFILE);
+      expect(canonicalReducerSnapshot(resumed.state)).toEqual(canonicalReducerSnapshot(stepwise));
+    }
+    expect(seedsWithConflicts).toBeGreaterThan(10);
+    expect(seedsWithPurge).toBeGreaterThan(2);
+  });
+
+  it('never mutates the predecessor state while deriving the next one', () => {
+    const history = randomHistory(7, false);
+    const prior = replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history.slice(0, 40), REPLAY_PROFILE).state;
+    const before = canonicalReducerSnapshot(prior);
+    let next = prior;
+    for (const change of history.slice(40)) next = reduceSyncChangeSet(next, change, REPLAY_PROFILE).state;
+    replaySyncChangeSets(prior, history.slice(40), REPLAY_PROFILE);
+    expect(canonicalReducerSnapshot(prior)).toEqual(before);
+    expect(canonicalReducerSnapshot(next)).not.toEqual(before);
+  });
+
+  it('shares receipts across states and forks when an older state is extended', () => {
+    const [first, second, third] = randomHistory(11, false);
+    const base = reduceSyncChangeSet(createCanonicalReducerState(IDENTITY), first, REPLAY_PROFILE).state;
+    const left = reduceSyncChangeSet(base, second, REPLAY_PROFILE).state;
+    // Extending `base` again is what happens after a rolled-back optimistic write.
+    const right = reduceSyncChangeSet(base, third, REPLAY_PROFILE).state;
+    expect([...base.receipts.keys()]).toEqual([first.changeSetId]);
+    expect([...left.receipts.keys()]).toEqual([first.changeSetId, second.changeSetId]);
+    expect([...right.receipts.keys()]).toEqual([first.changeSetId, third.changeSetId]);
+    expect(left.receipts.has(third.changeSetId)).toBe(false);
+    expect(right.receipts.get(second.changeSetId)).toBeUndefined();
+    expect(reduceSyncChangeSet(right, second, REPLAY_PROFILE).state.receipts.size).toBe(3);
+  });
+
+  it('derives the next state without iterating historical receipts', () => {
+    const history = randomHistory(13, false);
+    const prior = replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history.slice(0, 50), REPLAY_PROFILE).state;
+    const receipts = prior.receipts;
+    const iterated = [
+      vi.spyOn(receipts, 'entries'),
+      vi.spyOn(receipts, 'keys'),
+      vi.spyOn(receipts, 'values'),
+      vi.spyOn(receipts, 'forEach'),
+    ];
+    const result = reduceSyncChangeSet(prior, history[55], REPLAY_PROFILE);
+    expect(result.state.receipts.size).toBe(receipts.size + 1);
+    for (const spy of iterated) expect(spy).not.toHaveBeenCalled();
+  });
+
+  /** Registers and the applied set, independent of how receipts are compacted. */
+  function semantic(state: CanonicalReducerState) {
+    const { coverage, receipts, ...registers } = canonicalReducerSnapshot(state);
+    const applied = receipts.map(({ changeSetId }) => changeSetId);
+    for (const lane of coverage) {
+      for (let seq = 1; seq <= lane.deviceSeq; seq += 1) applied.push(`${lane.writerId}:${lane.writerEpoch}:${seq}`);
+    }
+    return { ...registers, applied: applied.sort() };
+  }
+
+  it('compacts contiguous lanes without changing registers or later reductions', () => {
+    for (let seed = 21; seed <= 30; seed += 1) {
+      const history = randomHistory(seed, false);
+      const prefix = replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history.slice(0, 40), REPLAY_PROFILE).state;
+      const compacted = compactReducerReceipts(prefix);
+      expect(compacted.coverage.size).toBeGreaterThan(0);
+      expect(compacted.receipts.size).toBeLessThan(prefix.receipts.size);
+      expect(semantic(compacted)).toEqual(semantic(prefix));
+
+      for (const covered of history.slice(0, 40)) {
+        expect(reduceSyncChangeSet(compacted, covered, REPLAY_PROFILE).status).toBe('duplicate');
+      }
+      const tail = history.slice(40);
+      expect(semantic(replaySyncChangeSets(compacted, tail, REPLAY_PROFILE).state))
+        .toEqual(semantic(replaySyncChangeSets(prefix, tail, REPLAY_PROFILE).state));
+      // Compaction is idempotent and keeps non-contiguous receipts explicit.
+      expect(compactReducerReceipts(compacted)).toBe(compacted);
+    }
+  });
+
+  it('round-trips the canonical snapshot back into an equivalent state', () => {
+    const history = randomHistory(31, true);
+    for (const state of [
+      replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history, REPLAY_PROFILE).state,
+      compactReducerReceipts(replaySyncChangeSets(createCanonicalReducerState(IDENTITY), history, REPLAY_PROFILE).state),
+    ]) {
+      const restored = reducerStateFromSnapshot(canonicalReducerSnapshot(state));
+      expect(JSON.stringify(canonicalReducerSnapshot(restored))).toBe(JSON.stringify(canonicalReducerSnapshot(state)));
+      const next = changeSet({
+        writer: 'writer-z', seq: 1, wallMs: 99,
+        mutations: [{ action: 'field.set', kind: 'node', id: 'n1', payload: { field: 'title', value: 'after restore' } }],
+      });
+      expect(canonicalReducerSnapshot(reduceSyncChangeSet(restored, next, REPLAY_PROFILE).state))
+        .toEqual(canonicalReducerSnapshot(reduceSyncChangeSet(state, next, REPLAY_PROFILE).state));
+    }
+    const duplicated = canonicalReducerSnapshot(createCanonicalReducerState(IDENTITY));
+    expect(() => reducerStateFromSnapshot({
+      ...duplicated,
+      coverage: [{ writerId: 'w', writerEpoch: 'e', deviceSeq: 1 }, { writerId: 'w', writerEpoch: 'e', deviceSeq: 2 }],
+    })).toThrow(/repeats coverage lane/u);
   });
 });

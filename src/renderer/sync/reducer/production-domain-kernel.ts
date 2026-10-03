@@ -355,8 +355,26 @@ function conflict(
   };
 }
 
+const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, readonly ReducerEffect[]>>();
+
+/**
+ * Validation looks up an entity for nearly every effect in the full
+ * projection. Index each projection once so a write stays linear in its size.
+ */
 function effectsForEntity(effects: readonly ReducerEffect[], kind: string, id: string): readonly ReducerEffect[] {
-  return effects.filter((effect) => effect.target.kind === kind && effect.target.id === id);
+  let index = effectsByEntity.get(effects);
+  if (!index) {
+    const buckets = new Map<string, ReducerEffect[]>();
+    for (const effect of effects) {
+      const key = JSON.stringify([effect.target.kind, effect.target.id]);
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(effect);
+      else buckets.set(key, [effect]);
+    }
+    index = buckets;
+    effectsByEntity.set(effects, index);
+  }
+  return index.get(JSON.stringify([kind, id])) ?? [];
 }
 
 function entityConflict(

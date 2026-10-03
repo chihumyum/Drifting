@@ -2810,6 +2810,55 @@ export const SyncEntityLifecycleTable = sqliteTable(
   ],
 );
 
+/**
+ * Local, derived compaction of the canonical reducer state at a receipt set.
+ * It only shortens startup replay: a missing, stale or undecodable row falls
+ * back to replaying the immutable receipt-backed journal.
+ */
+export const SyncReducerSnapshotTable = sqliteTable(
+  'sync_reducer_snapshot',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'cascade' }),
+    profileKey: text('profile_key').notNull(),
+    formatVersion: integer('format_version').notNull(),
+    codec: text('codec').notNull(),
+    receiptCount: integer('receipt_count').notNull(),
+    stateBlob: blob('state_blob').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.syncGenerationId, t.profileKey] }),
+    check('sync_reducer_snapshot_codec_check', sql`${t.codec} in ('cbor', 'cbor+gzip')`),
+    check(
+      'sync_reducer_snapshot_count_check',
+      sql`${t.formatVersion} >= 1 and ${t.receiptCount} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * Authoritative compacted reducer state installed by a checkpoint restore.
+ * History it covers was never copied into this database, so unlike a
+ * snapshot it cannot be rebuilt from the local journal. Stored as canonical
+ * reducer-state pages, the same versioned form a checkpoint carries.
+ */
+export const SyncReducerBaseTable = sqliteTable(
+  'sync_reducer_base',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .primaryKey()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'cascade' }),
+    profileKey: text('profile_key').notNull(),
+    payloadVersion: integer('payload_version').notNull(),
+    pagesCbor: blob('pages_cbor').notNull(),
+    sourceCheckpointId: text('source_checkpoint_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [check('sync_reducer_base_version_check', sql`${t.payloadVersion} >= 2`)],
+);
+
 export const SyncFrontierTable = sqliteTable(
   'sync_frontier',
   {

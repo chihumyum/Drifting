@@ -4,6 +4,11 @@ The 2026-10-04 [development stall watchdog](dev-stall-watchdog.md) logs debug
 desktop renderer stalls over one second to `logs/renderer-stalls.log`, including
 hard freezes that never recover.
 
+The watchdog traced the 2026-10-04 editor freeze to a quadratic
+[sync reducer replay](sync-reducer-replay-stall.md) on the first write after
+launch. Replay is now linear, a local snapshot shortens restarts, and writes no
+longer copy receipts or rewrite all reducer metadata.
+
 The 2026-10-03 [IME and inactive Copilot audit](editor-ime-copilot.md) defers
 derived work during composition, closes late Copilot write/key ownership gaps,
 and adds focused `--editor-ime` browser evidence. The follow-up covers trusted

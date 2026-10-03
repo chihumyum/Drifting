@@ -1,9 +1,7 @@
-import { and, count, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { DbTransaction } from '../../lib/db';
 import {
-  SyncApplyReceiptTable,
-  SyncChangeSetTable,
   SyncConflictTable,
   SyncEntityLifecycleTable,
   SyncFieldClockTable,
@@ -19,22 +17,17 @@ import {
 } from '../journal/repository';
 import type { SyncJournalClock, SyncWriterIdentitySource } from '../journal/writer-state';
 import {
-  compareSyncTotalOrder,
   compareUtf8Bytewise,
-  decodeSyncChangeSetV1,
   encodeCanonicalCbor,
   type CanonicalCborValue,
   type SyncChangeSetV1,
   type SyncMutationAction,
   type SyncTotalOrderV1,
 } from '../protocol';
-import {
-  createCanonicalReducerState,
-  materializationEffects,
-  reduceSyncChangeSet,
-} from './reducer';
+import { reduceSyncChangeSet, reducerLifecycleKey } from './reducer';
 import type {
   CanonicalReducerState,
+  OrSetMemberState,
   ReducerConflict,
   ReducerEffect,
   ReducerProfile,
@@ -93,41 +86,22 @@ export const LOCAL_SQLITE_REDUCER_PROFILE: ReducerProfile = Object.freeze({
   externallyMaterializedActions: LOCAL_EXTERNAL_ACTIONS,
 });
 
-const reducerStateCache = new Map<string, CanonicalReducerState>();
-const reducerValidatorIds = new WeakMap<NonNullable<ReducerProfile['validateProjection']>, number>();
-let nextReducerValidatorId = 1;
+import {
+  loadSqliteReducerStateInTransaction,
+  persistSqliteReducerSnapshotIfDue,
+  rememberSqliteReducerState,
+  SyncReducerRejectedError,
+  type StoredReducerState,
+} from './state-store';
 
-function reducerCacheKey(identity: {
-  projectId: string;
-  projectSyncId: string;
-  syncGenerationId: string;
-}, profile: ReducerProfile): string {
-  const validator = profile.validateProjection;
-  let validatorId = 0;
-  if (validator) {
-    validatorId = reducerValidatorIds.get(validator) ?? nextReducerValidatorId++;
-    reducerValidatorIds.set(validator, validatorId);
-  }
-  return JSON.stringify([
-    identity.projectId,
-    identity.projectSyncId,
-    identity.syncGenerationId,
-    [...profile.knownTargetKinds].sort(compareUtf8Bytewise),
-    [...(profile.externallyMaterializedActions ?? [])].sort(compareUtf8Bytewise),
-    validatorId,
-  ]);
-}
-
-/** Checkpoint activation/database reset must invalidate the affected SyncGeneration. */
-export function invalidateSqliteReducerStateCache(syncGenerationId?: string): void {
-  if (syncGenerationId === undefined) {
-    reducerStateCache.clear();
-    return;
-  }
-  for (const [key, state] of reducerStateCache) {
-    if (state.identity.syncGenerationId === syncGenerationId) reducerStateCache.delete(key);
-  }
-}
+export {
+  deleteSqliteReducerSnapshotsInTransaction,
+  getSqliteReducerLoadDiagnostics,
+  invalidateSqliteReducerStateCache,
+  setSqliteReducerSnapshotIntervalForTest,
+  SyncReducerRejectedError,
+  type SqliteReducerLoadDiagnostics,
+} from './state-store';
 
 export interface SyncDomainMaterializationContext {
   readonly tx: DbTransaction;
@@ -161,17 +135,6 @@ export interface SqliteReducerApplyResult {
   readonly journal: RecordedSyncChangeSet;
 }
 
-export class SyncReducerRejectedError extends Error {
-  constructor(
-    readonly code: string,
-    readonly path: string,
-    message: string,
-  ) {
-    super(`sync reducer rejected ${code} at ${path}: ${message}`);
-    this.name = 'SyncReducerRejectedError';
-  }
-}
-
 export class LocalAuthoredSemanticConflictError extends Error {
   constructor(readonly conflicts: readonly ReducerConflict[]) {
     const summary = conflicts
@@ -186,23 +149,6 @@ export class LocalAuthoredSemanticConflictError extends Error {
   }
 }
 
-function changeSetOrder(changeSet: SyncChangeSetV1): SyncTotalOrderV1 {
-  return {
-    hlc: changeSet.hlc,
-    writerId: changeSet.writerId,
-    writerEpoch: changeSet.writerEpoch,
-    deviceSeq: changeSet.deviceSeq,
-    mutationIndex: 0,
-  };
-}
-
-function compareChangeSets(left: SyncChangeSetV1, right: SyncChangeSetV1): number {
-  return (
-    compareSyncTotalOrder(changeSetOrder(left), changeSetOrder(right)) ||
-    compareUtf8Bytewise(left.changeSetId, right.changeSetId)
-  );
-}
-
 function profileFor(
   profile: ReducerProfile,
   kernel?: SyncDomainMaterializationKernel,
@@ -212,75 +158,20 @@ function profileFor(
   return { ...profile, externallyMaterializedActions: external };
 }
 
-async function loadAppliedReducerState(
-  tx: DbTransaction,
-  identity: { projectId: string; projectSyncId: string; syncGenerationId: string },
-  profile: ReducerProfile,
-  excludeChangeSetId: string,
-): Promise<CanonicalReducerState> {
-  const cacheKey = reducerCacheKey(identity, profile);
-  const [receiptCount] = await tx
-    .select({ value: count() })
-    .from(SyncApplyReceiptTable)
-    .where(eq(SyncApplyReceiptTable.syncGenerationId, identity.syncGenerationId));
-  const currentReceipt = await tx
-    .select({ changeSetId: SyncApplyReceiptTable.changeSetId })
-    .from(SyncApplyReceiptTable)
-    .where(
-      and(
-        eq(SyncApplyReceiptTable.syncGenerationId, identity.syncGenerationId),
-        eq(SyncApplyReceiptTable.changeSetId, excludeChangeSetId),
-      ),
-    )
-    .limit(1);
-  const expectedReceiptCount = Number(receiptCount?.value ?? 0) - currentReceipt.length;
-  const cached = reducerStateCache.get(cacheKey);
-  if (cached && cached.receipts.size === expectedReceiptCount) return cached;
-
-  const rows = await tx
-    .select({
-      changeSetId: SyncChangeSetTable.changeSetId,
-      encodedBytes: SyncChangeSetTable.encodedBytes,
-    })
-    .from(SyncChangeSetTable)
-    .innerJoin(
-      SyncApplyReceiptTable,
-      and(
-        eq(SyncApplyReceiptTable.changeSetId, SyncChangeSetTable.changeSetId),
-        eq(SyncApplyReceiptTable.syncGenerationId, SyncChangeSetTable.syncGenerationId),
-      ),
-    )
-    .where(eq(SyncChangeSetTable.syncGenerationId, identity.syncGenerationId));
-
-  const changeSets: SyncChangeSetV1[] = [];
-  for (const row of rows) {
-    if (row.changeSetId === excludeChangeSetId) continue;
-    const decoded = await decodeSyncChangeSetV1(row.encodedBytes as Uint8Array);
-    if (!decoded.ok) {
-      throw new SyncReducerRejectedError(
-        'stored-change-set-invalid',
-        `/sync_change_set/${row.changeSetId}`,
-        decoded.reason,
-      );
-    }
-    changeSets.push(decoded.value);
-  }
-  changeSets.sort(compareChangeSets);
-
-  let state = createCanonicalReducerState(identity);
-  for (const changeSet of changeSets) {
-    const reduced = reduceSyncChangeSet(state, changeSet, profile);
-    if (reduced.status === 'rejected') {
-      throw new SyncReducerRejectedError(
-        reduced.rejection.code,
-        reduced.rejection.path,
-        reduced.rejection.message,
-      );
-    }
-    state = reduced.state;
-  }
-  reducerStateCache.set(cacheKey, state);
-  return state;
+/**
+ * The profile receipt-backed history is replayed under. That history has
+ * already passed its owning typed reducer, so core replay retains explicit
+ * external actions as no-ops; an incoming change must still be claimed by its
+ * kernel. Checkpoints capture and restore state under this same profile.
+ */
+export function sqliteReplayReducerProfile(
+  profile: ReducerProfile = LOCAL_SQLITE_REDUCER_PROFILE,
+  kernel?: SyncDomainMaterializationKernel,
+): ReducerProfile {
+  const replay = profileFor(profile, kernel);
+  const external = new Set(replay.externallyMaterializedActions ?? []);
+  for (const action of LOCAL_EXTERNAL_ACTIONS) external.add(action);
+  return { ...replay, externallyMaterializedActions: external };
 }
 
 function conflictFromDraft(draft: SemanticConflictDraft): ReducerConflict {
@@ -353,17 +244,36 @@ function clockColumns(order: SyncTotalOrderV1, source: { changeSetId: string; mu
   };
 }
 
+/**
+ * Values of `next` that are not the identical object in `prior`. Registers and
+ * nested containers are replaced on write, so identity marks every change.
+ */
+function changedValues<T>(next: ReadonlyMap<string, T>, prior: ReadonlyMap<string, T> | undefined): T[] {
+  if (!prior) return [...next.values()];
+  const changed: T[] = [];
+  for (const [key, value] of next) if (prior.get(key) !== value) changed.push(value);
+  return changed;
+}
+
+/**
+ * Upserts reducer metadata. With `previous`, only registers and containers
+ * the latest change-set replaced are written; every earlier row already holds
+ * its value. Without it (a rebuilt state) every row is written, which also
+ * repairs metadata that drifted from the journal.
+ */
 async function persistReducerMetadata(
   tx: DbTransaction,
   input: {
     state: CanonicalReducerState;
+    previous: CanonicalReducerState | null;
+    effects: readonly ReducerEffect[];
     conflicts: readonly OwnedReducerConflict[];
     domainValidationRan: boolean;
     nowIso: string;
   },
 ): Promise<void> {
-  const { state } = input;
-  if (state.generationPurge) {
+  const { state, previous } = input;
+  if (state.generationPurge && state.generationPurge !== previous?.generationPurge) {
     const values = {
       syncGenerationId: state.identity.syncGenerationId,
       ...clockColumns(state.generationPurge.order, state.generationPurge.source),
@@ -373,7 +283,7 @@ async function persistReducerMetadata(
       set: clockColumns(state.generationPurge.order, state.generationPurge.source),
     });
   }
-  for (const register of state.fields.values()) {
+  for (const register of changedValues(state.fields, previous?.fields)) {
     const values = {
       syncGenerationId: state.identity.syncGenerationId,
       targetKind: register.target.kind,
@@ -393,7 +303,7 @@ async function persistReducerMetadata(
       set: clockColumns(register.order, register.source),
     });
   }
-  for (const register of state.tuples.values()) {
+  for (const register of changedValues(state.tuples, previous?.tuples)) {
     const values = {
       syncGenerationId: state.identity.syncGenerationId,
       targetKind: register.target.kind,
@@ -413,8 +323,11 @@ async function persistReducerMetadata(
       set: clockColumns(register.order, register.source),
     });
   }
-  for (const set of state.sets.values()) {
-    for (const member of set.members.values()) {
+  for (const [setKey, set] of state.sets) {
+    const priorSet = previous?.sets.get(setKey);
+    if (previous && priorSet === set) continue;
+    const priorMembers = previous ? (priorSet?.members ?? new Map<string, OrSetMemberState>()) : undefined;
+    for (const member of changedValues(set.members, priorMembers)) {
       for (const add of member.adds.values()) {
         const remove = member.removedAddTags.get(add.tag);
         const values = {
@@ -452,7 +365,7 @@ async function persistReducerMetadata(
       }
     }
   }
-  for (const register of state.orders.values()) {
+  for (const register of changedValues(state.orders, previous?.orders)) {
     const values = {
       syncGenerationId: state.identity.syncGenerationId,
       listKind: register.target.kind,
@@ -478,10 +391,15 @@ async function persistReducerMetadata(
   }
   // Lifecycle rows are the current projection; unresolved histories stay only
   // in the immutable journal + conflict table until their missing seed arrives.
-  const lifecycleEffects = materializationEffects(state)
+  const lifecycleEffects = input.effects
     .filter((effect): effect is Extract<ReducerEffect, { type: 'entity.lifecycle' }> =>
       effect.type === 'entity.lifecycle' && effect.status !== 'unresolved' && !!effect.order && !!effect.source,
-    );
+    )
+    .filter((effect) => {
+      if (!previous) return true;
+      const key = reducerLifecycleKey(effect.target.kind, effect.target.id);
+      return previous.lifecycles.get(key) !== state.lifecycles.get(key);
+    });
   for (const effect of lifecycleEffects) {
     const values = {
       syncGenerationId: state.identity.syncGenerationId,
@@ -574,22 +492,19 @@ async function reduceAndPersist(
   conflicts: readonly ReducerConflict[];
 }> {
   const profile = profileFor(input.profile, input.kernel);
-  // Receipt-backed history has already passed its owning typed reducer. Core
-  // replay may therefore retain those explicit external actions as no-ops,
-  // while the incoming remote change still must be claimed by this kernel.
-  const replayExternal = new Set(profile.externallyMaterializedActions ?? []);
-  for (const action of LOCAL_EXTERNAL_ACTIONS) replayExternal.add(action);
-  const replayProfile = { ...profile, externallyMaterializedActions: replayExternal };
-  const prior = await loadAppliedReducerState(
+  const replayProfile = sqliteReplayReducerProfile(input.profile, input.kernel);
+  const identity = {
+    projectId: input.changeSet.projectId,
+    projectSyncId: input.changeSet.projectSyncId,
+    syncGenerationId: input.changeSet.syncGenerationId,
+  };
+  const loaded = await loadSqliteReducerStateInTransaction(
     tx,
-    {
-      projectId: input.changeSet.projectId,
-      projectSyncId: input.changeSet.projectSyncId,
-      syncGenerationId: input.changeSet.syncGenerationId,
-    },
+    identity,
     replayProfile,
     input.changeSet.changeSetId,
   );
+  const prior = loaded.state;
   const reduced = reduceSyncChangeSet(prior, input.changeSet, profile);
   if (reduced.status === 'rejected') {
     throw new SyncReducerRejectedError(
@@ -610,7 +525,10 @@ async function reduceAndPersist(
   };
   const drafts = input.kernel ? await input.kernel.validate(context) : [];
   const validated = mergeValidation(reduced.effects, reduced.conflicts, drafts);
-  const nextContext = { ...context, effects: validated.effects };
+  const nextContext: SyncDomainMaterializationContext = {
+    ...context,
+    effects: validated.effects,
+  };
 
   if (input.origin === 'local') {
     const priorConflicts = new Set(prior.conflicts.keys());
@@ -630,14 +548,24 @@ async function reduceAndPersist(
 
   await persistReducerMetadata(tx, {
     state: reduced.state,
+    previous: loaded.rebuilt ? null : prior,
+    effects: reduced.effects,
     conflicts: validated.ownedConflicts,
     domainValidationRan: input.kernel !== undefined,
     nowIso: input.clock.nowIso,
   });
-  // This optimistic cache write is rollback-safe: the next transaction checks
-  // its receipt count first and rebuilds if this outer transaction did not
-  // commit. Top-level renderer transactions are serialized by the DB gateway.
-  reducerStateCache.set(reducerCacheKey(reduced.state.identity, replayProfile), reduced.state);
+  const stored: StoredReducerState = {
+    state: reduced.state,
+    receiptRows: loaded.receiptRows + 1,
+    effects: validated.effects,
+  };
+  await persistSqliteReducerSnapshotIfDue(tx, identity, replayProfile, stored, input.clock.nowIso);
+  // Top-level renderer transactions are serialized by the DB gateway.
+  rememberSqliteReducerState(identity, replayProfile, stored, {
+    state: loaded.state,
+    receiptRows: loaded.receiptRows,
+    effects: loaded.effects,
+  });
   return { state: reduced.state, ...validated };
 }
 

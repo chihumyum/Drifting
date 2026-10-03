@@ -28,6 +28,7 @@ import {
   GOLDEN_SNAPSHOT_V1,
 } from './fixtures/v1-fixtures';
 import {
+  compareBytes,
   compareSyncTotalOrder,
   compareUtf8Bytewise,
   nextLocalHlc,
@@ -84,6 +85,30 @@ describe('UTF-8 and HLC total order', () => {
     expect(compareUtf8Bytewise('z', 'é')).toBe(-1);
     expect(compareUtf8Bytewise('😀', '😁')).toBe(-1);
     expect(() => compareUtf8Bytewise('\ud800', '\ufffd')).toThrow(/surrogate/u);
+  });
+
+  it('matches encoded UTF-8 byte order without encoding, including above-BMP code points', () => {
+    const encodedOrder = (left: string, right: string) =>
+      compareBytes(new TextEncoder().encode(left), new TextEncoder().encode(right));
+    // UTF-16 code units would sort U+FFFF after a surrogate pair; UTF-8 does not.
+    expect(compareUtf8Bytewise('\uffff', '\ud83d\ude00')).toBe(-1);
+    expect(compareUtf8Bytewise('a\ud83d\ude00', 'a\ue000')).toBe(1);
+    expect(compareUtf8Bytewise('', '')).toBe(0);
+    expect(compareUtf8Bytewise('ab', 'a')).toBe(1);
+
+    const alphabet = ['a', 'z', '\u00e9', '\u4e2d', '\ud7ff', '\ue000', '\uffff', '\ud83d\ude00', '\ud83d\ude01', '\ud800\udc00', '\u0000'];
+    let seed = 0x9e3779b9;
+    const random = () => {
+      seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0;
+      return seed / 0x1_0000_0000;
+    };
+    const sample = () =>
+      Array.from({ length: Math.floor(random() * 5) }, () => alphabet[Math.floor(random() * alphabet.length)]).join('');
+    for (let index = 0; index < 5_000; index += 1) {
+      const left = sample();
+      const right = random() < 0.2 ? left : sample();
+      expect(compareUtf8Bytewise(left, right)).toBe(encodedOrder(left, right));
+    }
   });
 
   it('uses every frozen tie-break field in order', () => {

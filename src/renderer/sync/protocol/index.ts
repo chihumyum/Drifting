@@ -4,6 +4,7 @@ export * from './change-set';
 export * from './domain-manifest';
 export * from './domain-manifest-schema';
 export * from './order';
+export * from './pages';
 export * from './primitives';
 export * from './provider';
 export * from './segment';
