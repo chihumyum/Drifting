@@ -17,6 +17,10 @@ pnpm dev
 `pnpm dev` 等同于本地模式的 `pnpm tauri:dev`。开发数据库写入
 `.local-data/databases/`，不会要求先启动服务器。
 
+debug 桌面构建会把超过 1 秒的渲染线程卡顿（包括不再恢复的卡死）写入数据库目录旁的
+`logs/renderer-stalls.log`，启动时终端会打印完整路径；记录格式见
+[dev-stall-watchdog.md](docs/renderer-performance/dev-stall-watchdog.md)。
+
 在 macOS 上，`pnpm dev` 会通过 Cargo runner 在每次原生重编译后、启动应用前，
 使用本机第一个未撤销的 `Apple Development` identity 签名 debug 二进制，并固定
 code identifier 为 `cc.drifting.client.dev`。这避免 ad-hoc 签名的 cdhash 变化导致

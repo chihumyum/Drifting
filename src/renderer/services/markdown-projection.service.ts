@@ -3,6 +3,7 @@ import { platform } from '../platform';
 import { getMarkdownProjectionStatus, publishMarkdownProjectionStatus as publish } from './markdown-projection-status';
 import { getDbIfInitialized } from '../lib/db';
 import { getActiveEditor } from '../lib/active-editor';
+import { beginDevActivity } from '../lib/dev-activity';
 import { events } from '../lib/events';
 import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction';
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
@@ -29,7 +30,8 @@ export function createProjectionWorker(
     if (!dirty || disposed || suspended) return;
     if (!forced && shouldDefer()) { request(); return; }
     dirty = false;
-    running = refresh(forced).catch(error => { failed(error); }).finally(() => { running = undefined; });
+    const endActivity = beginDevActivity('markdown-projection', { forced });
+    running = refresh(forced).catch(error => { failed(error); }).finally(() => { running = undefined; endActivity(); });
     await running;
     if (dirty && !disposed) request();
   };

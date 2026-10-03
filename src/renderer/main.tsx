@@ -64,7 +64,13 @@ const queryClient = new QueryClient({
 
 async function bootstrap() {
   applyInitialThemeBeforeRender();
-  await hydratePlatformRuntime();
+  const runtime = await hydratePlatformRuntime();
+  // Development-only: the native side logs renderer stalls over one second.
+  if (import.meta.env.DEV && runtime.target === 'desktop') {
+    void import('./lib/dev-watchdog').then(({ installDevWatchdog }) => {
+      installDevWatchdog();
+    });
+  }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>

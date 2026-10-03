@@ -1,5 +1,9 @@
 # Renderer performance work and evidence
 
+The 2026-10-04 [development stall watchdog](dev-stall-watchdog.md) logs debug
+desktop renderer stalls over one second to `logs/renderer-stalls.log`, including
+hard freezes that never recover.
+
 The 2026-10-03 [IME and inactive Copilot audit](editor-ime-copilot.md) defers
 derived work during composition, closes late Copilot write/key ownership gaps,
 and adds focused `--editor-ime` browser evidence. The follow-up covers trusted

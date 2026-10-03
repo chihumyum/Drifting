@@ -9,6 +9,8 @@ mod codex_oauth;
 mod commands;
 mod data_paths;
 mod database;
+#[cfg(all(debug_assertions, desktop))]
+mod dev_watchdog;
 mod google_drive_sync;
 mod hosted_sync;
 mod image_pipeline;
@@ -164,6 +166,16 @@ pub fn run() {
         main_window.create = false;
     }
 
+    // A reload is not a renderer stall; retire the unloading page's heartbeat.
+    #[cfg(all(debug_assertions, desktop))]
+    let builder = builder.on_page_load(|webview, payload| {
+        if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+            if let Some(watchdog) = webview.try_state::<dev_watchdog::DevWatchdog>() {
+                watchdog.page_load_started();
+            }
+        }
+    });
+
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
@@ -297,6 +309,8 @@ pub fn run() {
             app_update::update_install,
             #[cfg(desktop)]
             app_update::update_dismiss,
+            #[cfg(all(debug_assertions, desktop))]
+            dev_watchdog::dev_watchdog_heartbeat,
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -306,6 +320,10 @@ pub fn run() {
             let data_directories = data_paths::prepare_data_directories(app.handle())
                 .map_err(std::io::Error::other)?;
             let database_directory = data_directories.database_directory;
+            #[cfg(all(debug_assertions, desktop))]
+            app.manage(dev_watchdog::DevWatchdog::start(
+                dev_watchdog::log_directory(&database_directory),
+            ));
             let database_gateway = database::DatabaseGateway::new(database_directory)
                 .map_err(std::io::Error::other)?;
             if !app.manage(database_gateway) {

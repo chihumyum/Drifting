@@ -13,6 +13,7 @@
  * (deleted runs fade out, inserted runs fade in). It tokenizes CJK per-character
  * and Latin per-word so it reads naturally for mixed Chinese/English prose.
  */
+import { beginDevActivity } from '../dev-activity';
 import { docToBlocks } from './serialize';
 
 export type AgentBlockChangeOp = 'new' | 'changed' | 'deleted';
@@ -172,6 +173,16 @@ function tokenize(text: string): string[] {
 export function diffTokens(oldText: string, newText: string): DiffSeg[] {
   const a = tokenize(oldText);
   const b = tokenize(newText);
+  // The LCS table is n×m; label it so the dev watchdog can attribute stalls.
+  const endActivity = beginDevActivity('agent-diff', { oldTokens: a.length, newTokens: b.length });
+  try {
+    return diffTokenLists(a, b);
+  } finally {
+    endActivity();
+  }
+}
+
+function diffTokenLists(a: string[], b: string[]): DiffSeg[] {
   const n = a.length;
   const m = b.length;
 
