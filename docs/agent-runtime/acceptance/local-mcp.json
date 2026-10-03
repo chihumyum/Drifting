@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-02T22:00:25.473Z",
-  "sourceSha256": "4961cd83c97e5b8e4e5b4955816d581f39250234969cf895412a7430b60139e4",
+  "generatedAt": "2026-10-03T19:09:38.423Z",
+  "sourceSha256": "e844b328d39bd21768e4f16917fc02a3150fc1a9aee659e8fa7fdac794b9aa2a",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -186,6 +186,22 @@
       "status": "passed"
     },
     {
+      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
+      "status": "passed"
+    },
+    {
       "name": "MCP client access rows offers each known client once when the project has no connections",
       "status": "passed"
     },
@@ -207,18 +223,6 @@
     },
     {
       "name": "MCP client access rows round-trips full permission without elevating other grants",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
       "status": "passed"
     },
     {
@@ -366,6 +370,150 @@
       "status": "passed"
     },
     {
+      "name": "DriftingWorkspaceToolRuntime domain surface publishes all domain reads and no generic object tools",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface rejects retired generic calls instead of translating them",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface reads a chapter by plain chapter name and hides transport vocabulary from model data",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface treats an empty first-read version \"\" as absent",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface treats an empty first-read version \"   \" as absent",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface accepts a matching chapter version and still rejects a stale one",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface maps create_chapter to the certified node command with runtime-owned freshness",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface prepares chapter title and summary updates without a complete prose read",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface maps a focused chapter revision from currentText/revisedText without public revisions",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface maps explicit relation endpoints and never asks the model for generic attributes",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface maps a comment target type to the hidden canonical kind",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface resolves unique live prose text to a stable block comment anchor",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface fails closed when comment target text is absent from live prose",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWorkspaceToolRuntime domain surface maps comment filters from domain names instead of exposing internal kinds",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver preserves optional tool arguments for openai",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver preserves optional tool arguments for openai-codex",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver omits a default output cap for openai even for long responses",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver omits a default output cap for openai-codex even for long responses",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver keeps discovered capabilities stable and sends 'ultra' reasoning",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver keeps discovered capabilities stable and sends 'ultra' reasoning",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver keeps discovered capabilities stable and sends 'none' reasoning",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver resamples a tool-capable attempt after a rate limit and buffers the stream",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver never resamples a tool-free synthesis attempt",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver maps a forced completion tool to Responses tool_choice",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver serializes a required action with reasoning effort none for one sample",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver replays encrypted reasoning across a tool result followed by author steering",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver reconstructs Codex tool replay when the terminal output array is empty",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver still fails locally when an active reasoning tool call has no replay state",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver fails locally instead of sending a partially retained parallel reasoning batch",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver maps thinking off to reasoning effort none without requesting encrypted state",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver uses a native transport without requiring or serializing an API key",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver mirrors the official CLI body on the ChatGPT subscription route",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver tells the author to sign in when the subscription credential is missing",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver surfaces native model entitlement and request id without raw response data",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver does not leak an authentication response body",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
       "status": "passed"
     },
@@ -374,7 +522,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
@@ -382,15 +530,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
@@ -402,7 +542,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
@@ -410,7 +554,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
@@ -438,11 +582,15 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
       "status": "passed"
     },
     {
@@ -450,15 +598,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
       "status": "passed"
     },
     {

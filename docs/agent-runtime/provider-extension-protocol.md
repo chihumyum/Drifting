@@ -58,6 +58,12 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   Missing usage, missing terminal finish, malformed arguments, authentication,
   rate limit and abort behavior are normalized before the runtime adopts
   provider history.
+- Both OpenAI Responses routes explicitly send `strict: false` for function
+  tools, preserving the canonical schemas' optional fields. Omitting the flag
+  allows Responses to normalize a schema into strict mode and require fields
+  intended only for subsequent reads, such as `read_chapter.version`. Runtime
+  schema validation still runs before execution. See the
+  [official function-calling contract](https://developers.openai.com/api/docs/guides/function-calling#strict-mode).
 - On the current DeepSeek/OpenAI-compatible route, a tool-capable sample is
   buffered until its complete tool/usage/finish contract validates. Before any
   Agent event or effect escapes, parse/network/rate-limit failures, malformed

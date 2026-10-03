@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "35c5d9e028d986e92652332cd92bfe91caf7761f",
-  "sourceSetSha256": "sha256:9d730c354fcc99d51e6fc8fc81846609cc7c13aff5ea721421066b9736a6fe70",
+  "gitHead": "3a03978869135435e00bd5aa167906a6225330fe",
+  "sourceSetSha256": "sha256:e2e6495a9eb29e25a6af54330ccdf23c1897b36ce622a7ea53b4d72bd9e7bdb1",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
@@ -96,8 +96,8 @@
       "discovered": 18
     },
     "tests": {
-      "total": 222,
-      "passed": 222,
+      "total": 225,
+      "passed": 225,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -151,8 +151,8 @@
         "requiredFiles": 6,
         "discoveredFiles": 6,
         "tests": {
-          "total": 88,
-          "passed": 88,
+          "total": 91,
+          "passed": 91,
           "failed": 0,
           "pending": 0
         },

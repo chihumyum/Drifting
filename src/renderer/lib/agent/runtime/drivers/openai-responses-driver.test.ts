@@ -54,6 +54,22 @@ function sse(events: readonly Record<string, unknown>[]): string {
 }
 
 describe('OpenAI Responses Agent driver', () => {
+  it.each(['openai', 'openai-codex'] as const)('preserves optional tool arguments for %s', async (provider) => {
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } } },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({ provider, transport });
+    const inputSchema = {
+      type: 'object', properties: { chapter: { type: 'string' }, version: { type: 'string' } },
+      required: ['chapter'], additionalProperties: false,
+    };
+    await collect(driver, request({ provider, tools: [{ name: 'read_chapter', description: 'Read a chapter.', inputSchema }] }));
+    expect(JSON.parse(transport.request.mock.calls[0]![0]).tools).toEqual([{
+      type: 'function', name: 'read_chapter', description: 'Read a chapter.',
+      parameters: inputSchema, strict: false,
+    }]);
+  });
+
   it.each(['openai', 'openai-codex'] as const)('omits a default output cap for %s even for long responses', async (provider) => {
     const transport = { request: vi.fn(async (_body: string) => new Response(sse([
       { type: 'response.output_text.delta', delta: 'Finished naturally.' },

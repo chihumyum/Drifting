@@ -144,7 +144,10 @@ contains success/review metadata, never another `data`/`modelData` prose copy.
 Internal receipts and freshness enforcement remain unchanged.
 
 - `read_chapter` defaults to numbered body lines (`lineNumbers: false` disables
-  the prefixes). `startLine`/`endLine` select an inclusive range. Long reads
+  the prefixes). `startLine`/`endLine` select an inclusive range; an end beyond
+  the last line stops at the chapter end, while an invalid start or reversed
+  range still fails. A first read omits `version`; an empty/blank version is
+  also treated as absent, never as evidence of a changed chapter. Long reads
   continue with the returned absolute code-point `cursor`; also pass the
   returned `version` to reject content changes between pages. Range pagination
   must retain the same range arguments. A page can begin mid-line and is labeled

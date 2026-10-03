@@ -18,11 +18,13 @@ export function proseReadWindow(content: string, args: Record<string, unknown>) 
   const starts = [0];
   points.forEach((point, index) => { if (point === '\n') starts.push(index + 1); });
   const startLine = Number(args.startLine ?? 1);
-  const endLine = Number(args.endLine ?? starts.length);
+  const requestedEndLine = Number(args.endLine ?? starts.length);
   if (!Number.isInteger(startLine) || startLine < 1 || startLine > starts.length ||
-      !Number.isInteger(endLine) || endLine < startLine || endLine > starts.length) {
+      !Number.isInteger(requestedEndLine) || requestedEndLine < startLine) {
     throw new Error(`Line range must be within 1–${starts.length}`);
   }
+  // Readers need not know the chapter's line count before requesting a window.
+  const endLine = Math.min(requestedEndLine, starts.length);
   const start = starts[startLine - 1]!;
   const end = endLine === starts.length ? points.length : starts[endLine]! - 1;
   const offset = Number(args.offset ?? start);

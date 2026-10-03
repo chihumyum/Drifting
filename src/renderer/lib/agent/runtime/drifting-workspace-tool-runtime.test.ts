@@ -104,6 +104,32 @@ describe('DriftingWorkspaceToolRuntime domain surface', () => {
     );
   });
 
+  it.each(['', '   '])('treats an empty first-read version %j as absent', async (version) => {
+    const runtime = createRuntime(fakeReadRuntime());
+    const result = await runtime.execute(request('read_chapter', {
+      chapter: '第一章 雨夜', cursor: 0, startLine: 1, endLine: 2000,
+      lineNumbers: true, maxCharacters: 32_000, version,
+    }));
+    expect(result).toMatchObject({
+      ok: true,
+      data: { content: '# 雨落旧宅\n\n她没有回头。', totalLines: 3, truncated: false },
+    });
+  });
+
+  it('accepts a matching chapter version and still rejects a stale one', async () => {
+    const runtime = createRuntime(fakeReadRuntime());
+    const first = await runtime.execute(request('read_chapter', { chapter: '第一章 雨夜' }));
+    expect(first.ok).toBe(true);
+    if (!first.ok) throw new Error(first.error);
+    const { version } = first.data as { version: string };
+    expect(await runtime.execute(request('read_chapter', {
+      chapter: '第一章 雨夜', startLine: 3, endLine: 3, version,
+    }))).toMatchObject({ ok: true, data: { content: '她没有回头。' } });
+    expect(await runtime.execute(request('read_chapter', {
+      chapter: '第一章 雨夜', version: `sha256:${'0'.repeat(64)}`,
+    }))).toMatchObject({ ok: false, error: expect.stringContaining('Chapter changed') });
+  });
+
   it('maps create_chapter to the certified node command with runtime-owned freshness', async () => {
     const runtime = createRuntime(fakeReadRuntime());
 

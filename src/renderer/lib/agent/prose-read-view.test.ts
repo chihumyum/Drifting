@@ -22,8 +22,18 @@ describe('shared prose reading and literal search', () => {
   });
   it('rejects invalid ranges and produces content-sensitive versions', async () => {
     expect(() => proseReadWindow('one\n\ntwo', { startLine: 4 })).toThrow('Line range');
+    expect(() => proseReadWindow('one\n\ntwo', { startLine: 3, endLine: 2 })).toThrow('Line range');
+    expect(() => proseReadWindow('one\n\ntwo', { endLine: 3.5 })).toThrow('Line range');
     expect(() => proseReadWindow('one\n\ntwo', { startLine: 3, offset: 1 })).toThrow('cursor');
     expect(await proseReadVersion('雨')).not.toBe(await proseReadVersion('雪'));
+  });
+  it('bounds an overestimated end line to the body and preserves range pagination', () => {
+    const body = 'one\n\n雨😀two';
+    const first = proseReadWindow(body, { startLine: 3, endLine: 2000, limit: 2 });
+    expect(first).toMatchObject({ page: '雨😀', totalLines: 3, truncated: true });
+    const next = proseReadWindow(body, { startLine: 3, endLine: 2000, offset: first.nextOffset });
+    expect(next).toMatchObject({ page: 'two', lineStart: 3, startsMidLine: true, truncated: false });
+    expect(proseReadWindow('', { endLine: 2000 })).toMatchObject({ page: '', totalLines: 1, truncated: false });
   });
   it('matches every literal occurrence, preserves punctuation and pages with a version guard', async () => {
     const documents = [{ evidenceId: 'chapter:1', kind: 'chapter', title: 'Only title hit: elsewhere', fields: [

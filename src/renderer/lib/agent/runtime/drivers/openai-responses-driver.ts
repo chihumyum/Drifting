@@ -179,6 +179,9 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
               name: tool.name,
               description: tool.description,
               parameters: tool.inputSchema,
+              // Preserve the canonical schema's optional fields. Responses can
+              // otherwise normalize them into required fields in strict mode.
+              strict: false,
             })),
             tool_choice: openAIToolChoice(request.toolChoice),
           }

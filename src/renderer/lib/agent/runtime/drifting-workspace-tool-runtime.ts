@@ -1410,7 +1410,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     });
     const numbered = request.name === 'read_chapter';
     const version = numbered ? await proseReadVersion(content) : undefined;
-    if (numbered && request.arguments.version !== undefined && request.arguments.version !== version) {
+    const requestedVersion = request.arguments.version;
+    // A blank first-read placeholder is not a previous content hash.
+    if (numbered && typeof requestedVersion === 'string' && requestedVersion.trim() && requestedVersion !== version) {
       throw new Error('Chapter changed since the previous read; restart reading without cursor/version');
     }
     const window = proseReadWindow(content, { ...request.arguments,

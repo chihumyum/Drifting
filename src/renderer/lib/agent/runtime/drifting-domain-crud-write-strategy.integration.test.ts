@@ -195,6 +195,12 @@ describe('workspace domain CRUD transactions', () => {
     expect(result.content[0]!.text).toContain('1\tUniqueSyntheticBody.');
     expect(result.content[0]!.text).toContain('3\tSecond paragraph.');
     const version = /sha256:[a-f0-9]{64}/u.exec(result.content[0]!.text)![0];
+    const restarted = await mcpCall(writer, 'read_chapter', {
+      chapter: 'Numbered fixture', cursor: 0, startLine: 1, endLine: 2000,
+      maxCharacters: 32_000, lineNumbers: true, version: '',
+    });
+    expect(restarted.isError).toBe(false);
+    expect(restarted.content[0]!.text).toBe(result.content[0]!.text);
     const captured = await readLocalRelationalMarkdownSource(PROJECT_ID);
     expect(captured.books.map(book => book.project.id)).toEqual([PROJECT_ID]);
     const mirror = await buildRelationalMarkdownEntries(captured, true);
