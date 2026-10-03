@@ -46,7 +46,8 @@ fn request_url(origin: &str, path: &str) -> Result<Url, String> {
     if base.scheme() == "http" && !cfg!(debug_assertions) {
         return Err("HOSTED_HTTPS_REQUIRED".into());
     }
-    if let Some(expected) = option_env!("DRIFTING_HOSTED_ORIGIN").filter(|value| !value.is_empty()) {
+    if let Some(expected) = option_env!("DRIFTING_HOSTED_ORIGIN").filter(|value| !value.is_empty())
+    {
         if base.as_str().trim_end_matches('/') != expected.trim_end_matches('/') {
             return Err("HOSTED_ORIGIN_MISMATCH".into());
         }

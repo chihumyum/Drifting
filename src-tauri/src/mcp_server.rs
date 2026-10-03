@@ -1067,14 +1067,28 @@ mod local {
             let (_dir, server, grant, credential) = fixture();
             let custom = tempfile::tempdir().unwrap();
             let root = server.directory.parent().unwrap();
-            crate::markdown_projection::set_output_root(root, &grant.project_id, Some(custom.path().to_string_lossy().into_owned())).unwrap();
-            let directory = crate::markdown_projection::resolved_project_directory(root, &grant.project_id).unwrap();
+            crate::markdown_projection::set_output_root(
+                root,
+                &grant.project_id,
+                Some(custom.path().to_string_lossy().into_owned()),
+            )
+            .unwrap();
+            let directory =
+                crate::markdown_projection::resolved_project_directory(root, &grant.project_id)
+                    .unwrap();
             let mut client = connect(&credential);
-            assert_eq!(read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"], true);
+            assert_eq!(
+                read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"],
+                true
+            );
             let response = request(&mut client, 1, "initialize");
             let instructions = response["result"]["instructions"].as_str().unwrap();
             assert!(instructions.contains(directory.to_str().unwrap()));
-            assert!(!instructions.contains(crate::markdown_projection::project_directory(root, &grant.project_id).to_str().unwrap()));
+            assert!(!instructions.contains(
+                crate::markdown_projection::project_directory(root, &grant.project_id)
+                    .to_str()
+                    .unwrap()
+            ));
         }
 
         #[test]
@@ -1098,9 +1112,14 @@ mod local {
             let instructions = initialized["result"]["instructions"].as_str().unwrap();
             assert!(instructions.contains("NO REVERSE SYNC"));
             assert!(instructions.contains("READ-ONLY"));
-            assert!(instructions.contains(&crate::markdown_projection::project_directory(
-                server.directory.parent().unwrap(), &grant.project_id
-            ).to_string_lossy().to_string()));
+            assert!(instructions.contains(
+                &crate::markdown_projection::project_directory(
+                    server.directory.parent().unwrap(),
+                    &grant.project_id
+                )
+                .to_string_lossy()
+                .to_string()
+            ));
             assert_eq!(
                 request(&mut client, 2, "tools/list")["error"]["code"],
                 -32002

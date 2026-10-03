@@ -17,13 +17,13 @@ mod image_pipeline;
 mod installation_identity;
 #[cfg(target_os = "macos")]
 mod local_lab_session;
+mod markdown_projection;
 mod mcp_http;
 mod mcp_server;
-mod markdown_projection;
 pub use mcp_server::run_stdio_cli as run_mcp_stdio_cli;
+mod markdown_share;
 mod mcp_stdio;
 mod native_capabilities;
-mod markdown_share;
 mod openai_responses;
 mod secure_storage;
 mod state;

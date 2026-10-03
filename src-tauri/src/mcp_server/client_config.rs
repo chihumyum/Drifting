@@ -104,8 +104,9 @@ fn edit(
             let mut doc: Value = if source.trim().is_empty() {
                 json!({})
             } else {
-                serde_json::from_str(source)
-                    .map_err(|_| format!("{client_name} configuration is invalid; it was left unchanged"))?
+                serde_json::from_str(source).map_err(|_| {
+                    format!("{client_name} configuration is invalid; it was left unchanged")
+                })?
             };
             let root = doc
                 .as_object_mut()
@@ -297,12 +298,17 @@ mod tests {
         );
         let installed = fs::read_to_string(&i.config_path).unwrap();
         update(&i, &config(), true).unwrap();
-        let removed: Value = serde_json::from_str(&fs::read_to_string(&i.config_path).unwrap()).unwrap();
+        let removed: Value =
+            serde_json::from_str(&fs::read_to_string(&i.config_path).unwrap()).unwrap();
         assert_eq!(removed, json!({"mcpServers":{}}));
         let backup = fs::read_dir(i.config_path.parent().unwrap())
             .unwrap()
             .flatten()
-            .find(|p| p.file_name().to_string_lossy().contains(".drifting-backup-"))
+            .find(|p| {
+                p.file_name()
+                    .to_string_lossy()
+                    .contains(".drifting-backup-")
+            })
             .unwrap();
         assert_eq!(fs::read_to_string(backup.path()).unwrap(), installed);
     }
