@@ -179,19 +179,19 @@ describe('Drifting Agent capability manifest', () => {
     expect(buildDriftingAgentCapabilityManifest().toolSelection).toEqual({
       authorPreference: 'agent-tool-search-off-auto-on-default-auto',
       offMode: 'complete-installed-surface-stable-per-iteration',
-      boundedMode: 'author-domain-relevance-selection-recomputed-per-iteration',
-      boundedRelevanceLimit: 8,
+      discoveryMode: 'model-requested-schemas-in-tool-results',
+      providerEntrypoints: ['tool_search', 'call_tool'],
       runtimeHardLimit: 128,
       writePrerequisiteReads:
-        'id-and-content-dependent-writes-surface-with-their-minting-read',
+        'complete-directory-discovery-preserves-original-validation',
       alwaysAvailable: [
-        'pending-result-page-forces-read_tool_result',
-        'runtime-owned-repair-lease-bypasses-selection',
-        'runtime-forced-completion-round-bypasses-selection',
-        'working-memory-lifecycle-pins-in-bounded-mode',
+        'complete-authorized-tool-directory',
+        'schema-lookup-and-pagination-through-tool_search',
+        'canonical-permissions-and-write-receipts',
+        'stable-tool-prefix-through-synthesis',
       ],
       promptCaching:
-        'off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints',
+        'fixed-tools-directory-and-dispatch-schemas-results-append-to-context',
     });
   });
 

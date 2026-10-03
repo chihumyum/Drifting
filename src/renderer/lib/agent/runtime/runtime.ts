@@ -18,6 +18,13 @@ import {
 } from './runtime-context-planning';
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import {
+  AgentToolDiscovery,
+  TOOL_SEARCH,
+  CALL_TOOL,
+  discoveryWireOverheadTokens,
+  streamDiscoveredTools,
+} from './tool-discovery';
+import {
   AGENT_RUNTIME_SCHEMA_VERSION,
   AGENT_RUNTIME_TOOL_SEARCH_AUTO_THRESHOLD,
   AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
@@ -44,6 +51,7 @@ import {
   type AgentToolDefinition,
   type AgentToolExecutionAuthorization,
   type AgentToolExecutionPresentation,
+  type AgentToolExecutionRequest,
   type AgentToolExecutionResult,
   type AgentToolPermissionPolicy,
   type AgentToolPermissionPolicyDecision,
@@ -95,6 +103,8 @@ export interface AgentRuntimeDependencies {
   driver: import('./types').AgentModelDriver;
   tools?: AgentToolRuntime;
   toolSelector?: AgentToolSelectionStrategy;
+  /** Capture once per turn; discovery keeps the provider tool prefix fixed. */
+  toolDiscovery?: () => boolean;
   contextPlanning?: AgentRuntimeContextPlanningOptions;
   permissionPolicy?: AgentToolPermissionPolicy;
   clock?: AgentClock;
@@ -525,6 +535,7 @@ export class AgentRuntime {
   private readonly driver: AgentRuntimeDependencies['driver'];
   private readonly tools: AgentToolRuntime;
   private readonly toolSelector?: AgentToolSelectionStrategy;
+  private readonly toolDiscovery?: () => boolean;
   private readonly contextPlanning: AgentRuntimeContextPlanningCoordinator;
   private readonly permissionPolicy?: AgentToolPermissionPolicy;
   private readonly clock: AgentClock;
@@ -536,6 +547,7 @@ export class AgentRuntime {
     this.driver = dependencies.driver;
     this.tools = dependencies.tools ?? emptyToolRuntime;
     this.toolSelector = dependencies.toolSelector;
+    this.toolDiscovery = dependencies.toolDiscovery;
     this.contextPlanning = new AgentRuntimeContextPlanningCoordinator(dependencies.contextPlanning);
     this.permissionPolicy = dependencies.permissionPolicy;
     this.clock = dependencies.clock ?? systemAgentClock;
@@ -563,7 +575,7 @@ export class AgentRuntime {
         `Invalid tool access mode "${String(toolAccess)}"`,
       );
     }
-    const definitions = Object.freeze(
+    const installedDefinitions = Object.freeze(
       [...this.tools.listDefinitions(context)]
         .filter((definition) => toolAccess === 'read_write' || definition.access === 'read')
         .map((definition) => {
@@ -588,7 +600,23 @@ export class AgentRuntime {
           return { ...definition, inputSchema };
         }),
     );
+    const discoveryCatalog = this.toolDiscovery ? new AgentToolDiscovery(installedDefinitions) : null;
+    const discovery = this.toolDiscovery?.() ? discoveryCatalog : null;
+    const definitions = discovery
+      ? Object.freeze([...installedDefinitions, ...discovery.definitions])
+      : installedDefinitions;
+    // A preference change must not invalidate successful discovery calls in
+    // durable history, even when controls are absent from the current wire.
+    const planningDefinitions = discoveryCatalog
+      ? [...installedDefinitions, ...discoveryCatalog.definitions]
+      : definitions;
     const availableDefinitionsByName = groupDefinitions(definitions);
+    // Runtime-owned controls must use the same dispatcher in both the serial
+    // and batched-read paths; the product tool runtime does not own them.
+    const executeTool = async (request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult> =>
+      discovery && request.name === TOOL_SEARCH
+        ? discovery.search(request.arguments)
+        : this.tools.execute(request);
     const completionToolName = input.completionTool?.name.trim();
     if (input.completionTool && !completionToolName) {
       throw new AgentRuntimeError('INTERNAL_ERROR', 'Completion tool name must not be empty');
@@ -965,7 +993,7 @@ export class AgentRuntime {
         decision: 'allow',
         scope: 'once',
       };
-      if (this.permissionPolicy) {
+      if (this.permissionPolicy && !(discovery && call.name === TOOL_SEARCH)) {
         const policyRequest: AgentToolPermissionPolicyRequest = {
           ...baseRequest,
           context,
@@ -1211,7 +1239,8 @@ export class AgentRuntime {
         context,
         ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
         messages,
-        executableDefinitions: definitions,
+        providerWireOverheadTokens: discovery ? discoveryWireOverheadTokens(messages) : 0,
+        executableDefinitions: planningDefinitions,
         selectedTools: lastPlanningSelection.tools,
         requestedOutputTokens: lastPlanningSelection.requestedOutputTokens,
         signal,
@@ -1253,7 +1282,7 @@ export class AgentRuntime {
           access: call.definition?.access ?? 'write',
         });
         executionStarted = true;
-        return this.tools.execute(request);
+        return executeTool(request);
       };
       let normalized: ReturnType<typeof normalizeToolExecution>;
       try {
@@ -1352,7 +1381,7 @@ export class AgentRuntime {
               name: call.name,
               access: call.definition?.access ?? 'read',
             });
-            return this.tools.execute(request);
+            return executeTool(request);
           };
           try {
             const result = await awaitAbortable(this.scheduler.runRead(request, execute));
@@ -1502,6 +1531,7 @@ export class AgentRuntime {
       // Tool access is removed for the reserved/final round so the model must
       // turn the facts already in context into a best-effort author response.
       const shouldSearch =
+        !this.toolDiscovery &&
         !synthesisOnly &&
         (toolSearch === 'on' ||
           (toolSearch === 'auto' &&
@@ -1676,11 +1706,12 @@ export class AgentRuntime {
       }
       const requestMaxOutputTokens = Number.isFinite(outputCeiling) ? outputCeiling : null;
       const definitionsByName = groupDefinitions(iterationDefinitions);
-      const providerTools = iterationDefinitions.map((definition) => ({
-        name: definition.name,
-        description: definition.description,
-        inputSchema: clonePortableData(definition.inputSchema),
-      }));
+      const providerTools = discovery?.providerTools
+        ?? (this.toolDiscovery ? installedDefinitions : iterationDefinitions).map((definition) => ({
+          name: definition.name,
+          description: definition.description,
+          inputSchema: clonePortableData(definition.inputSchema),
+        }));
       // The synthesis-only note is delivered at the volatile message tail,
       // never appended to the system prompt: the system prompt anchors a
       // provider prompt-cache breakpoint and must stay byte-stable across the
@@ -1688,6 +1719,8 @@ export class AgentRuntime {
       // history; the terminal synthesis round is planned with it appended.
       const plannedIterationMessages = synthesisOnly
         ? [...messages, { role: 'user' as const, content: AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE }]
+        : discovery && forceCompletionTool
+          ? [...messages, { role: 'user' as const, content: `Complete this turn with call_tool using this tool definition: ${JSON.stringify(iterationDefinitions.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })))}` }]
         : messages;
       const plannedContext = await awaitAbortable(
         this.contextPlanning.plan({
@@ -1701,7 +1734,8 @@ export class AgentRuntime {
           context,
           ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
           messages: plannedIterationMessages,
-          executableDefinitions: definitions,
+          providerWireOverheadTokens: discovery ? discoveryWireOverheadTokens(plannedIterationMessages) : 0,
+          executableDefinitions: planningDefinitions,
           selectedTools: providerTools,
           requestedOutputTokens: requestMaxOutputTokens,
           signal: controller.signal,
@@ -1747,8 +1781,10 @@ export class AgentRuntime {
           : {}),
         ...(providerTools.length > 0
           ? {
-              toolChoice: forceCompletionTool
-                ? ({ force: completionToolName! } as const)
+              toolChoice: this.toolDiscovery && synthesisOnly
+                ? ('none' as const)
+                : forceCompletionTool
+                ? ({ force: discovery ? CALL_TOOL : completionToolName! } as const)
                 : selectorForcedToolName
                   ? ({ force: selectorForcedToolName } as const)
                   : ('auto' as const),
@@ -1762,7 +1798,9 @@ export class AgentRuntime {
 
       let stream: AsyncIterable<AgentModelStreamEvent>;
       try {
-        stream = this.driver.stream(request);
+        stream = discovery
+          ? streamDiscoveredTools(this.driver, request, limits.maxToolArgumentBytes)
+          : this.driver.stream(request);
       } catch (error) {
         modelDriverFailure(error);
       }

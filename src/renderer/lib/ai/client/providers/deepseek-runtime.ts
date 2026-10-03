@@ -134,7 +134,7 @@ export class DeepSeekProvider implements LLMProvider {
     const chatMessages = buildChatMessages(request);
     const chatTools = buildChatTools(tools);
     const effectiveThinking = request.thinking ?? this.thinking;
-    const toolChoice = effectiveThinking ? undefined : resolveToolChoice(request);
+    const toolChoice = effectiveThinking && request.toolChoice !== 'none' ? undefined : resolveToolChoice(request);
 
     // Body construction — split standard OpenAI fields from DeepSeek
     // extensions. The OpenAI Node SDK doesn't type `thinking` /
@@ -263,7 +263,7 @@ export class DeepSeekProvider implements LLMProvider {
       model: resolveModel(model, this.defaultModel),
       messages: buildChatMessages(request),
       tools: buildChatTools(tools),
-      tool_choice: effectiveThinking ? undefined : resolveToolChoice(request),
+      tool_choice: effectiveThinking && request.toolChoice !== 'none' ? undefined : resolveToolChoice(request),
       max_tokens: maxOutputTokens,
       stream: true,
       stream_options: { include_usage: true },
@@ -492,6 +492,7 @@ function resolveToolChoice(
 ): OpenAI.Chat.ChatCompletionToolChoiceOption | undefined {
   if (
     request.toolChoice === 'auto' ||
+    request.toolChoice === 'none' ||
     request.toolChoice === 'required'
   ) {
     return request.toolChoice;

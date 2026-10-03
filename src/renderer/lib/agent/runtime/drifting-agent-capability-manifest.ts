@@ -34,7 +34,7 @@ import {
   AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
   AGENT_WORKING_MEMORY_READ_TOOL,
 } from './working-memory-tool-contract';
-import { DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT } from './drifting-product-tool-selection';
+import { TOOL_SEARCH, CALL_TOOL } from './tool-discovery';
 import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
 export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 22 as const;
@@ -93,17 +93,17 @@ export interface DriftingAgentCapabilityManifest {
   toolSelection: {
     authorPreference: 'agent-tool-search-off-auto-on-default-auto';
     offMode: 'complete-installed-surface-stable-per-iteration';
-    boundedMode: 'author-domain-relevance-selection-recomputed-per-iteration';
-    boundedRelevanceLimit: number;
+    discoveryMode: 'model-requested-schemas-in-tool-results';
+    providerEntrypoints: readonly string[];
     runtimeHardLimit: number;
-    writePrerequisiteReads: 'id-and-content-dependent-writes-surface-with-their-minting-read';
+    writePrerequisiteReads: 'complete-directory-discovery-preserves-original-validation';
     alwaysAvailable: readonly [
-      'pending-result-page-forces-read_tool_result',
-      'runtime-owned-repair-lease-bypasses-selection',
-      'runtime-forced-completion-round-bypasses-selection',
-      'working-memory-lifecycle-pins-in-bounded-mode',
+      'complete-authorized-tool-directory',
+      'schema-lookup-and-pagination-through-tool_search',
+      'canonical-permissions-and-write-receipts',
+      'stable-tool-prefix-through-synthesis',
     ];
-    promptCaching: 'off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints';
+    promptCaching: 'fixed-tools-directory-and-dispatch-schemas-results-append-to-context';
   };
   domainCrud: {
     totalDomains: number;
@@ -304,19 +304,19 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     toolSelection: {
       authorPreference: 'agent-tool-search-off-auto-on-default-auto',
       offMode: 'complete-installed-surface-stable-per-iteration',
-      boundedMode: 'author-domain-relevance-selection-recomputed-per-iteration',
-      boundedRelevanceLimit: DRIFTING_PRODUCT_DYNAMIC_TOOL_SELECTION_LIMIT,
+      discoveryMode: 'model-requested-schemas-in-tool-results',
+      providerEntrypoints: [TOOL_SEARCH, CALL_TOOL],
       runtimeHardLimit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
       writePrerequisiteReads:
-        'id-and-content-dependent-writes-surface-with-their-minting-read',
+        'complete-directory-discovery-preserves-original-validation',
       alwaysAvailable: [
-        'pending-result-page-forces-read_tool_result',
-        'runtime-owned-repair-lease-bypasses-selection',
-        'runtime-forced-completion-round-bypasses-selection',
-        'working-memory-lifecycle-pins-in-bounded-mode',
+        'complete-authorized-tool-directory',
+        'schema-lookup-and-pagination-through-tool_search',
+        'canonical-permissions-and-write-receipts',
+        'stable-tool-prefix-through-synthesis',
       ],
       promptCaching:
-        'off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints',
+        'fixed-tools-directory-and-dispatch-schemas-results-append-to-context',
     },
     domainCrud: {
       totalDomains: DRIFTING_DOMAIN_CRUD_CONTRACTS.length,

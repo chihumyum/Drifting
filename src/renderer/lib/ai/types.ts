@@ -86,7 +86,7 @@ export interface AICompletionRequest {
    * 'auto' lets the model pick; 'required' forces SOME tool; { force: name }
    * forces a specific tool (e.g. a terminal submit-verdict tool).
    */
-  toolChoice?: 'auto' | 'required' | { force: string };
+  toolChoice?: 'auto' | 'none' | 'required' | { force: string };
   signal?: AbortSignal;
   /**
    * Free-form metadata threaded through interceptors. `feature` is required

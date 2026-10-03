@@ -192,7 +192,7 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
           ? (callIds: readonly string[], reasoningContent: string) =>
               this.rememberReasoningReplay(callIds, reasoningContent)
           : undefined;
-        if (request.tools.length === 0) {
+        if (request.tools.length === 0 || request.toolChoice === 'none') {
           // Tool-free synthesis keeps true progressive text streaming. Once
           // visible output escapes, automatically replaying it would duplicate
           // author-facing prose, so this path intentionally has no mid-stream

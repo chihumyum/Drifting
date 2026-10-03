@@ -27,14 +27,17 @@ accepted or recovered. There is no unplanned provider-history fallback.
 
 ### Interrupted continuation
 
-When the author explicitly continues a trailing chain of aborted or
-process-interrupted turns, restore the exact original requests, received
+When the author explicitly continues or retries (`继续`, `重试`, `retry`) a
+trailing chain of failed, aborted or process-interrupted turns, restore the exact original requests, received
 steering and clarification answers. Retain completed, catalog-certified
 read call/result pairs from the validated journal and durable tool rows;
 identical read requests keep their newest completed result. These are prior
 observations, not proof of current freshness or a finished review. Reads
 superseded by a later write start, or taken during an unresolved write, require
-fresh observations. Partial assistant prose, reasoning, pending reads and write
+fresh observations. Certified `tool_search` results describe the tool protocol
+and survive authored-object writes, so a retry can reuse already-loaded schemas.
+They do not bypass current runtime validation or permissions.
+Partial assistant prose, reasoning, pending reads and write
 calls never become completed history. Writes remain governed by durable
 receipts and reviews.
 

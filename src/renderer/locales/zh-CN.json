@@ -967,11 +967,11 @@
       },
       "toolSearchTitle": "工具检索",
       "toolSearch": "工具检索",
-      "toolSearchDesc": "按授权策略为每轮选择最多 8 个已认证工具 schema。新安装和从旧版升级默认使用“自动”；升级后仍可在这里显式关闭。",
+      "toolSearchDesc": "模型通过 tool_search 按需获取工具定义。完整工具目录和调用入口保持固定，检索结果加入对话上下文。",
       "toolSearchOptions": {
         "off": "关闭 · 全量加载工具",
-        "auto": "自动 · 超阈值才启用",
-        "on": "开启 · 强制工具检索"
+        "auto": "自动 · 按需检索工具",
+        "on": "开启 · 按需检索工具"
       },
       "extensions": {
         "title": "MCP 扩展",

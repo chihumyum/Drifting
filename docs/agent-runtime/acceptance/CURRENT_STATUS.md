@@ -86,23 +86,25 @@ pnpm agent:capabilities:check
 - The installed built-in surface is the complete generated set of narrow,
   explicit author-domain tools. Exact names and counts come only from the
   generated capability inventory.
-- Provider visibility per model iteration is mode-switched by the persisted
-  `agentToolSearch` preference (default `auto`): `off` exposes every installed
-  definition as a stable surface; `auto`/`on` run bounded author-domain
-  relevance selection (8 relevance slots per iteration, plus pinned Working
-  Memory lifecycle tools, runtime repair leases, and the forced completion
-  round, under the 128-tool runtime hard limit). Freshness/id-dependent writes
-  surface only together with the read that mints their arguments, a pending
-  paged result narrows the surface to `read_tool_result`, and an explicit
-  foreign-project request exposes no data tools. The inventory's provider tool
-  selection section is the durable contract.
-- Bounded selection recomputes per model iteration, so the provider tool block
-  can change between iterations of one turn. No shipped driver emits explicit
-  Anthropic `cache_control` breakpoints, but providers with implicit prefix
-  caching (DeepSeek) lose tool-block prefix reuse in bounded mode; `off`
-  remains the cache-stable configuration. Coarse-grained (read/write-phase)
-  selection stability is tracked follow-up work, and no paid live-provider
-  campaign has validated bounded selection quality yet.
+- Provider tool exposure uses the persisted `agentToolSearch` preference
+  (default `auto`). `off` exposes full schemas. `auto`/`on` expose fixed
+  `tool_search` and `call_tool` entrypoints, with the complete authorized tool
+  directory in the search description. No author prompt or task state can
+  prune that directory. The model retrieves exact schemas as normal tool
+  results and dispatches operations through `call_tool`.
+- Search, schema repair, pagination and final synthesis keep the same provider
+  `tools` array within a turn. Synthesis disables invocation with `tool_choice`
+  while preserving the tool prefix. Catalog or access changes take effect at
+  the next turn. Journals, validation, approvals, write receipts and recovery
+  retain the original operation names; discovery changes only provider framing.
+  The planner charges that framing before compaction. See
+  [tool discovery](../tool-discovery.md) and the generated capability inventory.
+  Deterministic runtime/provider tests cover this contract; live account cache
+  hit rates have not been measured.
+- Explicit retry/continuation retains certified tool-search schemas across
+  writes and process restart. Authored-object reads still expire after writes;
+  failed-turn recovery never replays writes. Schema reuse leaves the provider
+  tool prefix fixed and is covered by file-backed runtime recovery tests.
 - Each turn carries an explicit tool-access choice
   (`AgentToolAccessChoice = 'read_only' | 'read_write'`). Answer-only
   `read_only` turns are a hard runtime boundary, not a prompt convention: write

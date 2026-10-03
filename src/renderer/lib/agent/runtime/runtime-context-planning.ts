@@ -137,6 +137,8 @@ export interface AgentRuntimeContextPlanningRequest {
   executableDefinitions: readonly AgentToolDefinition[];
   /** Exact provider-facing schemas selected after this iteration's search. */
   selectedTools: readonly AgentModelToolDefinition[];
+  /** Extra wire framing for fixed-name discovery dispatch, charged before planning. */
+  providerWireOverheadTokens?: number;
   /** Explicit output ceiling, or null to use input headroom without capping generation. */
   requestedOutputTokens: number | null;
   signal: AbortSignal;
@@ -486,6 +488,9 @@ export class AgentRuntimeContextPlanningCoordinator {
           providerOverheadTokens: this.options.providerOverheadTokens,
           perToolOverheadTokens: this.options.perToolOverheadTokens,
         };
+    providerProfile.providerOverheadTokens += requireNonNegativeSafeInteger(
+      request.providerWireOverheadTokens ?? 0, 'providerWireOverheadTokens',
+    );
     if (!providerProfile.id) {
       throw new AgentRuntimeError('INTERNAL_ERROR', 'Resolved provider profile has an empty id');
     }

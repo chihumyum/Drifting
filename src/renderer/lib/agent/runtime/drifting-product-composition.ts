@@ -51,6 +51,7 @@ import {
 } from './dynamic-tool-runtime';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
 import { createDriftingProductToolSelectionStrategy } from './drifting-product-tool-selection';
+import { TOOL_SEARCH, CALL_TOOL } from './tool-discovery';
 import {
   createDriftingWriteToolRuntime,
   resolveDriftingCertifiedToolAccess,
@@ -140,8 +141,9 @@ export interface CreateDriftingAgentProductCompositionOptions {
   allowDangerousOperations?: () => boolean;
   /**
    * Live author preference for provider tool selection. `off` exposes every
-   * installed definition; `auto`/`on` run the bounded author-domain relevance
-   * selector. Product default reads the persisted `agentToolSearch` setting.
+   * installed definition; `auto`/`on` use fixed discovery/dispatch entrypoints
+   * and return requested schemas in tool results. Product default reads the
+   * persisted `agentToolSearch` setting.
    */
   toolSelectionMode?: () => AgentRuntimeToolSearchMode;
   /** Runtime-discovered MCP/plugin tools, project-filtered by the registry. */
@@ -168,6 +170,7 @@ export interface DriftingAgentProductComposition {
  * Dynamic tools remain project/generation-bound and are resolved separately.
  */
 export function resolveDriftingBuiltInToolAccess(name: string): 'read' | 'write' | undefined {
+  if (name === TOOL_SEARCH || name === CALL_TOOL) return 'read';
   return (
     resolveDriftingCertifiedToolAccess(name) ??
     resolveAgentLongTaskToolAccess(name) ??
@@ -297,6 +300,8 @@ export function createDriftingAgentProductComposition(
     options.dynamicTools ??
     new DynamicAgentToolRegistry({
       reservedNames: [
+        TOOL_SEARCH,
+        CALL_TOOL,
         ...AGENT_TOOL_CATALOG.map((tool) => tool.name),
         AGENT_LONG_TASK_READ_TOOL,
         AGENT_LONG_TASK_PLAN_TOOL,
@@ -321,11 +326,9 @@ export function createDriftingAgentProductComposition(
   const transport = createLocalGeneralAgentTransport({
     driver,
     tools: toolRuntime,
-    toolSelector: createDriftingProductToolSelectionStrategy({
-      mode:
-        options.toolSelectionMode ??
-        (() => useSettingsStore.getState().agentToolSearch),
-    }),
+    toolDiscovery: () =>
+      (options.toolSelectionMode?.() ?? useSettingsStore.getState().agentToolSearch) !== 'off',
+    toolSelector: createDriftingProductToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
       createAgentWorkingMemoryAwarePermissionPolicy(
         createAgentLongTaskAwarePermissionPolicy(

@@ -22,6 +22,8 @@ import {
   type AgentRuntimePersistenceRepository,
 } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import { planAgentModelContext } from './context-message-adapter';
+import { AgentRuntimeControlChannel } from './control-plane';
+import { AgentRuntime } from './runtime';
 import {
   AgentRuntimeRecoveryCorruptionError,
   hashAgentRuntimeCheckpointContext,
@@ -36,8 +38,10 @@ import {
 import {
   agentRuntimeUnknownToolResultContent,
   type AgentModelMessage,
+  type AgentModelRequest,
   type AgentRuntimeEvent,
   type AgentRuntimeUsage,
+  type AgentToolDefinition,
 } from './types';
 
 const migrationDirectory = new URL('../../../../../drizzle/', import.meta.url);
@@ -440,6 +444,125 @@ describe('file-backed Agent V2 context recovery', () => {
     gateway = undefined;
     if (directory) rmSync(directory, { recursive: true, force: true });
     directory = undefined;
+  });
+
+  it.each(['aborted', 'failed', 'interrupted'] as const)('reuses discovered schemas after a write and explicit retry across restart (%s)', async (outcome) => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-discovery-retry-'));
+    const databasePath = join(directory, 'runtime.sqlite');
+    gateway = new FileSqliteGateway(databasePath, true);
+    const definitions: AgentToolDefinition[] = ['read_complex', 'write_complex'].map((name) => ({
+      name, access: name === 'read_complex' ? 'read' : 'write', description: 'Synthetic operation.',
+      inputSchema: { type: 'object', properties: { schemaOnlyParameter: { type: 'string' } }, additionalProperties: false },
+      validateInput: (value) => ({ ok: true, value }),
+    }));
+    const openPersistence = () => createRepositoryAgentTransportPersistence({
+      repository: createAgentRuntimePersistenceRepository(createDatabaseClient(gateway!)),
+      resolveToolAccess: (name) => name === 'tool_search' ? 'read' : definitions.find((tool) => tool.name === name)?.access,
+    });
+    let persistence = openPersistence();
+    const prepare = (turnId: string, prompt: string) => persistence.prepareTurn({
+      candidateSessionId: 'session-discovery-retry', resumeSessionId: 'session-discovery-retry',
+      newConversation: false, route: ROUTE, provider: 'test-provider', model: 'test-model',
+      turnId, prompt, acceptedAt: NOW,
+    });
+    const originalPrompt = 'Inspect the synthetic element and simplify its notes.';
+    await prepare('turn-original', originalPrompt);
+    const control = new AgentRuntimeControlChannel('session-discovery-retry', 'turn-original');
+    const requests: AgentModelRequest[] = [];
+    const executions: string[] = [];
+    const runtime = new AgentRuntime({
+      toolDiscovery: () => true,
+      journal: { append: (entry) => persistence.appendJournal(entry) },
+      tools: { listDefinitions: () => definitions, execute: async (request) => {
+        executions.push(request.name);
+        return { ok: true, data: request.access === 'read' ? 'Obsolete pre-write reading.' : 'Write committed once.' };
+      } },
+      driver: { id: 'test-provider', async *stream(request) {
+        requests.push(request);
+        const invocation = [
+          { name: 'tool_search', arguments: { names: ['read_complex', 'write_complex'] } },
+          { name: 'call_tool', arguments: { name: 'read_complex', arguments: {} } },
+          { name: 'call_tool', arguments: { name: 'write_complex', arguments: {} } },
+        ][request.iteration - 1];
+        if (!invocation) {
+          if (outcome === 'aborted') {
+            await control.requestCancellation('Synthetic stop.');
+            yield { type: 'finish', reason: 'end_turn' };
+            return;
+          }
+          throw new Error('Synthetic provider interruption.');
+        }
+        const callId = `call-${request.iteration}`;
+        yield { type: 'tool_call_start', callId, name: invocation.name };
+        yield { type: 'tool_args_delta', callId, delta: JSON.stringify(invocation.arguments) };
+        yield { type: 'tool_call_end', callId };
+        yield { type: 'usage', usage: USAGE };
+        yield { type: 'finish', reason: 'tool_use' };
+      } },
+    });
+    const result = await runtime.runTurn({
+      sessionId: 'session-discovery-retry', turnId: 'turn-original', route: ROUTE,
+      prompt: originalPrompt, control,
+    });
+    expect(result.state.status).toBe(outcome === 'aborted' ? 'aborted' : 'failed');
+    if (outcome !== 'interrupted') {
+      await persistence.commitTurn({
+        sessionId: 'session-discovery-retry', turnId: 'turn-original', turnMessages: result.messages,
+        outcome, errorCode: result.state.terminal?.failureCode ?? null,
+        errorMessage: result.state.terminal?.message ?? null, endedAt: ENDED,
+      });
+    }
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    persistence = openPersistence();
+    await recoverAgentRuntimeSnapshot((await createAgentRuntimePersistenceRepository(
+      createDatabaseClient(gateway),
+    ).loadRecoverySnapshot('session-discovery-retry'))!);
+    const retry = await prepare('turn-retry', '重试');
+    expect(retry.history[0]).toEqual({ role: 'user', content: originalPrompt });
+    const restored = retry.history.flatMap((message) => message.role === 'tool' ? message.content : []);
+    expect(restored.map((tool) => tool.name)).toEqual(['tool_search']);
+    expect(restored[0]!.content).toContain('schemaOnlyParameter');
+    expect(JSON.stringify(retry.history)).not.toContain('Obsolete pre-write reading.');
+    expect(JSON.stringify(retry.history)).not.toContain('Write committed once.');
+
+    // A second interruption after accepting retry must still find the real
+    // author request and schemas beyond the bare retry prompt.
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    persistence = openPersistence();
+    const continued = await prepare('turn-continued', '继续');
+    expect(continued.history).toEqual(retry.history);
+    const resumedRequests: AgentModelRequest[] = [];
+    const resumedRuntime = new AgentRuntime({
+      toolDiscovery: () => true,
+      tools: { listDefinitions: () => definitions, execute: async (request) => {
+        executions.push(request.name);
+        return { ok: true, data: 'Fresh post-write reading.' };
+      } },
+      driver: { id: 'test-provider', async *stream(request) {
+        resumedRequests.push(request);
+        if (request.iteration === 1) {
+          yield { type: 'tool_call_start', callId: 'read-resumed', name: 'call_tool' };
+          yield { type: 'tool_args_delta', callId: 'read-resumed', delta: JSON.stringify({ name: 'read_complex', arguments: {} }) };
+          yield { type: 'tool_call_end', callId: 'read-resumed' };
+          yield { type: 'usage', usage: USAGE };
+          yield { type: 'finish', reason: 'tool_use' };
+        } else {
+          yield { type: 'text_delta', text: 'Synthetic inspection completed.' };
+          yield { type: 'usage', usage: USAGE };
+          yield { type: 'finish', reason: 'end_turn' };
+        }
+      } },
+    });
+    const resumedResult = await resumedRuntime.runTurn({
+      sessionId: 'session-discovery-retry', turnId: 'turn-continued', route: ROUTE,
+      prompt: '继续', history: continued.history,
+    });
+    expect(resumedResult.state.status).toBe('completed');
+    expect(JSON.stringify(resumedRequests[0]!.context)).toContain('schemaOnlyParameter');
+    expect(resumedRequests[0]!.tools).toEqual(requests[0]!.tools);
+    expect(executions).toEqual(['read_complex', 'write_complex', 'read_complex']);
   });
 
   it.each([false, true])('preserves interrupted author intent and completed reads through repeated restart and a completed continuation (writes: %s)', async (withWrites) => {

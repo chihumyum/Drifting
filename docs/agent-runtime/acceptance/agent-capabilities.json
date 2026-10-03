@@ -1029,17 +1029,20 @@
   "toolSelection": {
     "authorPreference": "agent-tool-search-off-auto-on-default-auto",
     "offMode": "complete-installed-surface-stable-per-iteration",
-    "boundedMode": "author-domain-relevance-selection-recomputed-per-iteration",
-    "boundedRelevanceLimit": 8,
-    "runtimeHardLimit": 128,
-    "writePrerequisiteReads": "id-and-content-dependent-writes-surface-with-their-minting-read",
-    "alwaysAvailable": [
-      "pending-result-page-forces-read_tool_result",
-      "runtime-owned-repair-lease-bypasses-selection",
-      "runtime-forced-completion-round-bypasses-selection",
-      "working-memory-lifecycle-pins-in-bounded-mode"
+    "discoveryMode": "model-requested-schemas-in-tool-results",
+    "providerEntrypoints": [
+      "tool_search",
+      "call_tool"
     ],
-    "promptCaching": "off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints"
+    "runtimeHardLimit": 128,
+    "writePrerequisiteReads": "complete-directory-discovery-preserves-original-validation",
+    "alwaysAvailable": [
+      "complete-authorized-tool-directory",
+      "schema-lookup-and-pagination-through-tool_search",
+      "canonical-permissions-and-write-receipts",
+      "stable-tool-prefix-through-synthesis"
+    ],
+    "promptCaching": "fixed-tools-directory-and-dispatch-schemas-results-append-to-context"
   },
   "domainCrud": {
     "totalDomains": 11,

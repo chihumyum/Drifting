@@ -16,6 +16,7 @@ import type {
   AgentStartRoute,
 } from '../protocol';
 import { clonePortableData } from './portable-data';
+import { TOOL_SEARCH } from './tool-discovery';
 import type { AgentContextSummaryCandidate } from './context-planner';
 import {
   createAgentRuntimeCheckpointContextV2,
@@ -744,7 +745,7 @@ function interruptedContextForContinuation(
   const messagesById = new Map(snapshot.messages.map((message) => [message.id, message]));
   const trailingTurns: AgentRuntimeRecoverySnapshot['turns'] = [];
   for (const turn of [...snapshot.turns].sort((left, right) => right.ordinal - left.ordinal)) {
-    if (turn.status !== 'aborted' && turn.status !== 'interrupted') break;
+    if (turn.status !== 'aborted' && turn.status !== 'interrupted' && turn.status !== 'failed') break;
     trailingTurns.unshift(turn);
     const prompt = turn.promptMessageId ? messagesById.get(turn.promptMessageId)?.content : null;
     // A substantive unrelated request starts a new task, even if both tasks
@@ -753,6 +754,7 @@ function interruptedContextForContinuation(
   }
   const entries: AgentModelMessage[][] = [];
   const latestRead = new Map<string, number>();
+  const latestSchema = new Map<string, number>();
   const tools = new Map(snapshot.toolCalls.map((call) => [toolProjectionKey(call.sessionId, call.turnId, call.callId), call]));
   for (const turn of trailingTurns) {
     const row = turn.promptMessageId ? messagesById.get(turn.promptMessageId) : null;
@@ -771,14 +773,15 @@ function interruptedContextForContinuation(
         ready.set(event.callId, event);
       } else if (event?.type === 'tool_execution_started' && event.access === 'write') {
         // Restored reads must not look newer than a later mutation. Without a
-        // target-level freshness proof, retire prior reads at any write start.
+        // target-level freshness proof, retire prior data reads at any write
+        // start. Tool schemas describe the protocol, not authored state.
         for (const index of latestRead.values()) entries[index] = [];
         latestRead.clear();
         activeWrites.add(event.callId);
       } else if (event?.type === 'tool_result' && activeWrites.delete(event.callId)) {
         continue;
       } else if (event?.type === 'tool_result' && event.ok && event.source === 'executor') {
-        if (activeWrites.size > 0) continue;
+        if (activeWrites.size > 0 && event.name !== TOOL_SEARCH) continue;
         const call = ready.get(event.callId);
         const durable = tools.get(toolProjectionKey(snapshot.session.id, turn.id, event.callId));
         if (!call || call.name !== event.name || durable?.status !== 'completed' ||
@@ -786,9 +789,10 @@ function interruptedContextForContinuation(
           resolveAccess(event.name, snapshot.session.projectId) !== 'read' ||
           !samePortableValue(durable.arguments, call.arguments)) continue;
         const key = canonicalAgentRuntimeJson([call.name, call.arguments]);
-        const previous = latestRead.get(key);
+        const latest = call.name === TOOL_SEARCH ? latestSchema : latestRead;
+        const previous = latest.get(key);
         if (previous !== undefined) entries[previous] = [];
-        latestRead.set(key, entries.length);
+        latest.set(key, entries.length);
         // Scope call ids to their origin: providers may reuse ids across turns.
         const callId = `continued:${turn.id}:${event.callId}`;
         entries.push([
@@ -804,7 +808,7 @@ function interruptedContextForContinuation(
 
 function looksLikeContinuationRequest(value: string): boolean {
   const prompt = value.trim();
-  return /^(?:请\s*)?(?:继续|接着|接下去|接上次|从刚才|把刚才|完成刚才|go\s+on\b|continue\b|resume\b|keep\s+going\b|pick\s+up\b)/iu.test(
+  return /^(?:请\s*)?(?:继续|重试|再试一次|接着|接下去|接上次|从刚才|把刚才|完成刚才|retry\b|try\s+again\b|go\s+on\b|continue\b|resume\b|keep\s+going\b|pick\s+up\b)/iu.test(
     prompt,
   );
 }
@@ -812,7 +816,7 @@ function looksLikeContinuationRequest(value: string): boolean {
 function isBareContinuationPrompt(value: string): boolean {
   const prompt = value.trim();
   if (prompt.length > 48) return false;
-  return /^(?:(?:请)?继续(?:把)?(?:刚才|之前|上次)?(?:的)?(?:任务|工作)?(?:做完|完成|下去)?|接着(?:做|来|继续)?|接下去|go\s+on|continue|resume|keep\s+going)[。.!！ ]*$/iu.test(
+  return /^(?:(?:请)?继续(?:把)?(?:刚才|之前|上次)?(?:的)?(?:任务|工作)?(?:做完|完成|下去)?|(?:请)?(?:重试|再试一次)|retry|try\s+again|接着(?:做|来|继续)?|接下去|go\s+on|continue|resume|keep\s+going)[。.!！ ]*$/iu.test(
     prompt,
   );
 }

@@ -48,6 +48,7 @@ export interface LocalGeneralAgentTransportDependencies {
   driver: AgentModelDriver;
   tools?: AgentToolRuntime;
   toolSelector?: AgentToolSelectionStrategy;
+  toolDiscovery?: () => boolean;
   contextPlanning?: AgentRuntimeContextPlanningOptions;
   permissionPolicy?: AgentToolPermissionPolicy;
   clock?: AgentClock;
@@ -182,6 +183,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       driver: dependencies.driver,
       ...(dependencies.tools ? { tools: dependencies.tools } : {}),
       ...(dependencies.toolSelector ? { toolSelector: dependencies.toolSelector } : {}),
+      ...(dependencies.toolDiscovery ? { toolDiscovery: dependencies.toolDiscovery } : {}),
       ...(dependencies.contextPlanning ? { contextPlanning: dependencies.contextPlanning } : {}),
       ...(dependencies.permissionPolicy ? { permissionPolicy: dependencies.permissionPolicy } : {}),
       ...(dependencies.clock ? { clock: dependencies.clock } : {}),

@@ -156,7 +156,8 @@ function projectMessages(request: AICompletionRequest): Record<string, unknown>[
 
 function projectToolChoice(
   request: AICompletionRequest,
-): { type: 'auto' | 'any' } | { type: 'tool'; name: string } {
+): { type: 'auto' | 'any' | 'none' } | { type: 'tool'; name: string } {
+  if (request.toolChoice === 'none') return { type: 'none' };
   if (request.toolChoice === 'auto') return { type: 'auto' };
   if (request.toolChoice === 'required') return { type: 'any' };
   if (request.toolChoice && typeof request.toolChoice === 'object') {

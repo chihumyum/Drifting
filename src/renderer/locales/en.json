@@ -967,11 +967,11 @@
       },
       "toolSearchTitle": "Tool search",
       "toolSearch": "Tool search",
-      "toolSearchDesc": "Selects at most 8 certified tool schemas per iteration after policy filtering. New installs and upgrades use Auto by default; you can still turn it off here.",
+      "toolSearchDesc": "The model retrieves tool schemas with tool_search. The complete directory and dispatch entrypoints stay fixed; search results are appended to conversation context.",
       "toolSearchOptions": {
-        "off": "Off · load all tools",
-        "auto": "Auto · enable above threshold",
-        "on": "On · force tool search"
+        "off": "Off · Load all tool schemas",
+        "auto": "Auto · On-demand tool discovery",
+        "on": "On · On-demand tool discovery"
       },
       "extensions": {
         "title": "MCP extensions",

@@ -94,7 +94,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
-    if (request.tools.length === 0) {
+    if (request.tools.length === 0 || request.toolChoice === 'none') {
       // Tool-free synthesis keeps true progressive text streaming. Once
       // visible output escapes, automatically replaying it would duplicate
       // author-facing prose, so this path intentionally has no retry lease.
@@ -340,7 +340,8 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
 
 function openAIToolChoice(
   choice: AgentModelRequest['toolChoice'],
-): 'auto' | 'required' | { type: 'function'; name: string } {
+): 'auto' | 'none' | 'required' | { type: 'function'; name: string } {
+  if (choice === 'none') return 'none';
   if (choice === 'required') return 'required';
   if (choice && typeof choice === 'object') {
     return { type: 'function', name: choice.force };

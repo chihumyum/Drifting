@@ -477,7 +477,7 @@ describe('repository Agent transport persistence adapter', () => {
     expect(fake.accepted[0]?.promptMessage.ordinal).toBe(2);
   });
 
-  it.each(['aborted', 'interrupted', 'running'] as const)('restores the author request when explicitly continuing a %s turn', async (status) => {
+  it.each(['aborted', 'interrupted', 'running', 'failed'] as const)('restores the author request when explicitly continuing a %s turn', async (status) => {
     const fake = fakeRepository();
     fake.state.session = session({ status: 'idle' });
     fake.state.turns[0] = {
@@ -526,7 +526,7 @@ describe('repository Agent transport persistence adapter', () => {
     });
   });
 
-  it.each(['aborted', 'interrupted'] as const)('does not revive a %s author request when the author changes tasks', async (status) => {
+  it.each(['aborted', 'interrupted', 'failed'] as const)('does not revive a %s author request when the author changes tasks', async (status) => {
     const fake = fakeRepository();
     fake.state.session = session({ status: 'idle' });
     fake.state.turns[0] = {

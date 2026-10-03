@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "3a03978869135435e00bd5aa167906a6225330fe",
-  "sourceSetSha256": "sha256:e2e6495a9eb29e25a6af54330ccdf23c1897b36ce622a7ea53b4d72bd9e7bdb1",
+  "gitHead": "041680d3757294c95a3beaa106f451f3da0a9182",
+  "sourceSetSha256": "sha256:f8c316575725ec518be63087a155c02610e14303ecda199041ad08738bebc78f",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
@@ -92,17 +92,28 @@
   },
   "vitest": {
     "files": {
-      "required": 18,
-      "discovered": 18
+      "required": 20,
+      "discovered": 20
     },
     "tests": {
-      "total": 225,
-      "passed": 225,
+      "total": 251,
+      "passed": 251,
       "failed": 0,
       "pending": 0,
       "todo": 0
     },
     "groups": {
+      "modelDirectedToolDiscovery": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 21,
+          "passed": 21,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
       "syntheticBookAndLongContext": {
         "requiredFiles": 2,
         "discoveredFiles": 2,
@@ -140,8 +151,8 @@
         "requiredFiles": 4,
         "discoveredFiles": 4,
         "tests": {
-          "total": 33,
-          "passed": 33,
+          "total": 38,
+          "passed": 38,
           "failed": 0,
           "pending": 0
         },
@@ -160,6 +171,46 @@
       }
     },
     "requiredAssertions": {
+      "discoveryCompositeDispatch": {
+        "requiredName": "executes named and empty-query discovery locally through the composite runtime read scheduler",
+        "matches": 1,
+        "passed": true
+      },
+      "discoveryRetryAfterFailure": {
+        "requiredName": "reuses discovered schemas after a write and explicit retry across restart (failed)",
+        "matches": 1,
+        "passed": true
+      },
+      "discoveryRetryAfterAbort": {
+        "requiredName": "reuses discovered schemas after a write and explicit retry across restart (aborted)",
+        "matches": 1,
+        "passed": true
+      },
+      "discoveryRetryAfterInterruption": {
+        "requiredName": "reuses discovered schemas after a write and explicit retry across restart (interrupted)",
+        "matches": 1,
+        "passed": true
+      },
+      "fixedToolPrefix": {
+        "requiredName": "keeps a complete directory and fixed tools while schemas arrive only in tool results",
+        "matches": 1,
+        "passed": true
+      },
+      "discoveryPermissions": {
+        "requiredName": "authorizes the real write and never grants authority through the read-only dispatcher",
+        "matches": 1,
+        "passed": true
+      },
+      "discoveryRecovery": {
+        "requiredName": "can switch to full schemas and back without invalidating discovered history",
+        "matches": 1,
+        "passed": true
+      },
+      "discoveryProviderWire": {
+        "requiredName": "preserves openai-codex schemas, call IDs and encrypted reasoning through search/read/write/synthesis",
+        "matches": 1,
+        "passed": true
+      },
       "longBookContext": {
         "requiredName": "preserves literary evidence and author constraints across 200k multi-slice compaction, restart, and compactor faults",
         "matches": 1,

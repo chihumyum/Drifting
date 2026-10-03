@@ -9,6 +9,10 @@ import { fileURLToPath } from 'node:url';
 const CORE_DIRECTORY = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
 const TEST_GROUPS = {
+  modelDirectedToolDiscovery: [
+    'src/renderer/lib/agent/runtime/tool-discovery.test.ts',
+    'src/renderer/lib/agent/runtime/tool-discovery-provider.integration.test.ts',
+  ],
   syntheticBookAndLongContext: [
     'src/renderer/lib/agent/runtime/acceptance/milestone-f-literary-context.acceptance.test.ts',
     'src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.test.ts',
@@ -41,6 +45,12 @@ const TEST_GROUPS = {
 
 const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
 const LINT_FILES = [
+  'src/renderer/lib/agent/runtime/tool-discovery.ts',
+  'src/renderer/lib/agent/runtime/system-prompt.ts',
+  'src/renderer/lib/agent/runtime/drifting-product-tool-selection.ts',
+  'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.ts',
+  'src/renderer/lib/agent/runtime/drivers/anthropic-messages-driver.ts',
+  'src/renderer/lib/agent/runtime/drivers/openai-compatible-completion-driver.ts',
   'scripts/generate-agent-capabilities.ts',
   'src/renderer/features/agent/AgentComposerConfig.tsx',
   'src/renderer/store/settings-store.ts',
@@ -69,12 +79,21 @@ const LINT_FILES = [
   ...TEST_FILES,
 ];
 const HASHED_SOURCE_FILES = [
+  'docs/agent-runtime/tool-discovery.md',
   'docs/agent-runtime/context-engineering-protocol.md',
   'src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.mjs',
   ...LINT_FILES,
 ];
 
 const REQUIRED_ASSERTIONS = {
+  discoveryCompositeDispatch: 'executes named and empty-query discovery locally through the composite runtime read scheduler',
+  discoveryRetryAfterFailure: 'reuses discovered schemas after a write and explicit retry across restart (failed)',
+  discoveryRetryAfterAbort: 'reuses discovered schemas after a write and explicit retry across restart (aborted)',
+  discoveryRetryAfterInterruption: 'reuses discovered schemas after a write and explicit retry across restart (interrupted)',
+  fixedToolPrefix: 'keeps a complete directory and fixed tools while schemas arrive only in tool results',
+  discoveryPermissions: 'authorizes the real write and never grants authority through the read-only dispatcher',
+  discoveryRecovery: 'can switch to full schemas and back without invalidating discovered history',
+  discoveryProviderWire: 'preserves openai-codex schemas, call IDs and encrypted reasoning through search/read/write/synthesis',
   longBookContext:
     'preserves literary evidence and author constraints across 200k multi-slice compaction, restart, and compactor faults',
   syntheticBookRetrieval:

@@ -607,7 +607,7 @@ describe.sequential('Drifting Agent product composition', () => {
       {
         name: 'answer directly while memory updates are available',
         expectRequest: (request) => {
-          expect(request.tools.map((tool) => tool.name)).toContain('checkpoint_working_memory');
+          expect(request.tools[0]?.description).toContain('checkpoint_working_memory');
         },
         steps: finalSteps('Hello.'),
       },
@@ -1305,28 +1305,20 @@ describe.sequential('Drifting Agent product composition', () => {
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
     harness = await ProductAgentHarness.create([
+      { name: 'discover chapter read/write schemas', steps: toolCallSteps('workspace-discovery', 'tool_search', { names: ['read_chapter', 'revise_chapter'] }) },
       {
         name: 'read the authored chapter',
         expectRequest: (request) => {
-          // The default `auto` preference runs bounded author-domain
-          // selection: the read/mutate pair for this request plus the pinned
-          // Working Memory lifecycle tools, never the complete catalog and
-          // never retired generic verbs.
+          // Discovery keeps the wire prefix fixed, with all domain names discoverable.
           const names = request.tools.map((tool) => tool.name);
-          expect(names).toEqual(
-            expect.arrayContaining([
-              'read_chapter',
-              'revise_chapter',
-              'checkpoint_working_memory',
-              'read_working_memory',
-            ]),
-          );
-          expect(names.length).toBeLessThanOrEqual(10);
+          expect(names).toEqual(['tool_search', 'call_tool']);
+          expect(request.tools[0]?.description).toContain('read_chapter');
+          expect(request.tools[0]?.description).toContain('revise_element');
           expect(names).not.toContain('read_node');
           expect(names).not.toContain('edit_blocks');
         },
-        steps: toolCallSteps('workspace-read', 'read_chapter', {
-          chapter: NODE_TITLE,
+        steps: toolCallSteps('workspace-read', 'call_tool', {
+          name: 'read_chapter', arguments: { chapter: NODE_TITLE },
         }),
       },
       {
@@ -1339,7 +1331,8 @@ describe.sequential('Drifting Agent product composition', () => {
           expect(visibleContext).not.toContain('receiptId');
           expect(visibleContext).not.toContain('node_prose');
         },
-        steps: toolCallSteps(writeCallId, 'revise_chapter', {
+        steps: toolCallSteps(writeCallId, 'call_tool', {
+          name: 'revise_chapter', arguments: {
           chapter: NODE_TITLE,
           changes: [
             {
@@ -1347,6 +1340,7 @@ describe.sequential('Drifting Agent product composition', () => {
               revisedText: replacement,
             },
           ],
+          },
         }),
       },
       {
@@ -1400,6 +1394,8 @@ describe.sequential('Drifting Agent product composition', () => {
       toolName: 'read_node',
       callId: `${writeCallId}:workspace:edit-source`,
     });
+    expect(snapshot?.toolCalls.find((call) => call.callId === 'workspace-discovery')).toMatchObject({ name: 'tool_search', status: 'completed', access: 'read' });
+    expect(harness.driver.calls.every((request) => JSON.stringify(request.tools) === JSON.stringify(harness!.driver.calls[0]!.tools))).toBe(true);
     const providerTranscript = snapshot?.messages
       .map((message) => JSON.stringify(message.content))
       .join('\n');

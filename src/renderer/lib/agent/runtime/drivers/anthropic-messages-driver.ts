@@ -84,7 +84,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
-    if (request.tools.length === 0) {
+    if (request.tools.length === 0 || request.toolChoice === 'none') {
       // Tool-free synthesis keeps true progressive text streaming. Once
       // visible output escapes, automatically replaying it would duplicate
       // author-facing prose, so this path intentionally has no retry lease.
@@ -391,7 +391,8 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
 
 function anthropicToolChoice(
   choice: AgentModelRequest['toolChoice'],
-): { type: 'auto' | 'any' } | { type: 'tool'; name: string } {
+): { type: 'auto' | 'any' | 'none' } | { type: 'tool'; name: string } {
+  if (choice === 'none') return { type: 'none' };
   if (choice === 'required') return { type: 'any' };
   if (choice && typeof choice === 'object') return { type: 'tool', name: choice.force };
   return { type: 'auto' };

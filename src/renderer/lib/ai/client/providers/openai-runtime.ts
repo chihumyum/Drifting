@@ -199,6 +199,7 @@ function buildToolChoice(
 ): OpenAI.Chat.ChatCompletionToolChoiceOption | undefined {
   if (!request.tools?.length) return undefined;
   if (request.toolChoice === 'auto') return 'auto';
+  if (request.toolChoice === 'none') return 'none';
   if (request.toolChoice === 'required') return 'required';
   const forced =
     typeof request.toolChoice === 'object'

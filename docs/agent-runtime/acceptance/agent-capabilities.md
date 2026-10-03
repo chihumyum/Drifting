@@ -57,12 +57,12 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 
 - Author preference: `agent-tool-search-off-auto-on-default-auto`
 - Off mode: `complete-installed-surface-stable-per-iteration`
-- Bounded mode: `author-domain-relevance-selection-recomputed-per-iteration`
-- Bounded relevance limit: 8 tools per iteration (plus lifecycle pins and runtime leases)
+- Discovery mode: `model-requested-schemas-in-tool-results`
+- Fixed provider entrypoints: `tool_search`, `call_tool`
 - Runtime hard limit: 128 tools
-- Write prerequisite reads: `id-and-content-dependent-writes-surface-with-their-minting-read`
-- Always available: `pending-result-page-forces-read_tool_result`, `runtime-owned-repair-lease-bypasses-selection`, `runtime-forced-completion-round-bypasses-selection`, `working-memory-lifecycle-pins-in-bounded-mode`
-- Prompt caching: `off-mode-is-the-cache-stable-surface-no-driver-emits-explicit-cache-breakpoints`
+- Write prerequisite reads: `complete-directory-discovery-preserves-original-validation`
+- Always available: `complete-authorized-tool-directory`, `schema-lookup-and-pagination-through-tool_search`, `canonical-permissions-and-write-receipts`, `stable-tool-prefix-through-synthesis`
+- Prompt caching: `fixed-tools-directory-and-dispatch-schemas-results-append-to-context`
 
 ## Domain CRUD closure
 

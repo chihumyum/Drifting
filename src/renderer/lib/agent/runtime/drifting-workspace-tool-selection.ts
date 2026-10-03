@@ -12,8 +12,8 @@ import type {
  * stable author-domain name and schema.
  *
  * This is the `off`-preference (and small-catalog `auto`) surface of the
- * product strategy in `drifting-product-tool-selection.ts`; bounded relevance
- * selection lives in `drifting-tool-selection.ts`.
+ * product strategy in `drifting-product-tool-selection.ts`. Enabled discovery
+ * uses fixed tool_search/call_tool definitions, with schemas in tool results.
  *
  * The selection is intentionally identical from one iteration to the next,
  * including while a paged tool result is pending: the provider tool array is

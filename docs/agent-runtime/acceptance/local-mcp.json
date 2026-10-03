@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-03T19:09:38.423Z",
-  "sourceSha256": "e844b328d39bd21768e4f16917fc02a3150fc1a9aee659e8fa7fdac794b9aa2a",
+  "generatedAt": "2026-10-03T19:10:59.958Z",
+  "sourceSha256": "44cae99de192e6a009c214f605728afd80ee51757b09ef19a1e4c42816089003",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -23,38 +23,6 @@
     },
     {
       "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling coalesces continuous commits without starving refresh or overlapping captures",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
       "status": "passed"
     },
     {
@@ -186,19 +154,35 @@
       "status": "passed"
     },
     {
-      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
+      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
       "status": "passed"
     },
     {
-      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
+      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
       "status": "passed"
     },
     {
-      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
+      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
       "status": "passed"
     },
     {
-      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
+      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling coalesces continuous commits without starving refresh or overlapping captures",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
       "status": "passed"
     },
     {
@@ -223,6 +207,22 @@
     },
     {
       "name": "MCP client access rows round-trips full permission without elevating other grants",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
       "status": "passed"
     },
     {
@@ -510,11 +510,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
     {
@@ -522,11 +522,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
@@ -538,7 +538,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
@@ -546,15 +546,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
@@ -590,11 +590,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
       "status": "passed"
     },
     {
@@ -602,7 +602,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {

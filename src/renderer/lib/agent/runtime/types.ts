@@ -118,7 +118,7 @@ export interface AgentReasoningOptions {
 }
 
 /** Provider-neutral function/tool selection for one model iteration. */
-export type AgentModelToolChoice = 'auto' | 'required' | { force: string };
+export type AgentModelToolChoice = 'auto' | 'none' | 'required' | { force: string };
 
 export interface AgentToolDefinition {
   name: string;
