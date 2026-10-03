@@ -259,9 +259,11 @@ describe('workspace projection invalidation coverage', () => {
       }));
     };
     await remote(1, 'element', 'element', 'name', 'Canonical element');
-    // Synthetic stale materialized row: the next reducer pass restores its
-    // historical winner even though that element is absent from the new wire mutation.
+    // Synthetic stale materialized row. After a reducer rebuild (process start)
+    // the next pass re-applies every historical winner, so it restores this row
+    // even though that element is absent from the new wire mutation.
     await db.update(schema.BookElementTable).set({ name: 'Stale projection' }).where(eq(schema.BookElementTable.id, 'element'));
+    invalidateSqliteReducerStateCache();
     const before = (await capture())!;
     const applied = await remote(2, 'node', 'chapter', 'title', 'Remote chapter');
     expect(applied.effects.some((effect) => effect.materialize && effect.target.kind === 'element')).toBe(true);

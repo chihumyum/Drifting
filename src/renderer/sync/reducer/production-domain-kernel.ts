@@ -1,5 +1,5 @@
 import { insertYjsMaterializationReceiptInTransaction } from '../../sqlite-repo/yjs-materialization-receipt-repo';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
 
@@ -1069,9 +1069,22 @@ async function materializeTuple(context: SyncDomainMaterializationContext, effec
 async function rebuildNormalizedProjections(
   context: SyncDomainMaterializationContext,
   effects: readonly ReducerEffect[],
+  selected: readonly ReducerEffect[],
   affectedGridNodeIds: ReadonlySet<string>,
+  kvOwnerIds: ReadonlySet<string> | null,
 ): Promise<void> {
-  const kvRows = await context.tx.select().from(EntityKvEntryTable).where(eq(EntityKvEntryTable.projectId, context.changeSet.projectId));
+  const kvRows: (typeof EntityKvEntryTable.$inferSelect)[] = [];
+  if (kvOwnerIds === null) {
+    kvRows.push(...await context.tx.select().from(EntityKvEntryTable).where(eq(EntityKvEntryTable.projectId, context.changeSet.projectId)));
+  } else {
+    const owners = [...kvOwnerIds];
+    for (let offset = 0; offset < owners.length; offset += 500) {
+      for (const row of await context.tx.select().from(EntityKvEntryTable).where(and(
+        eq(EntityKvEntryTable.projectId, context.changeSet.projectId),
+        inArray(EntityKvEntryTable.ownerId, owners.slice(offset, offset + 500)),
+      ))) kvRows.push(row);
+    }
+  }
   const positions = new Map(
     effects
       .filter((effect): effect is OrderEffect => effect.type === 'order.position' && effect.target.kind === 'kv-entry' && effect.materialize)
@@ -1106,7 +1119,7 @@ async function rebuildNormalizedProjections(
   }
 
   const gridNodeIds = new Set(affectedGridNodeIds);
-  for (const effect of effects) {
+  for (const effect of selected) {
     if (effect.type === 'tuple.set' && effect.target.kind === 'node-content' && effect.tuple === 'plot-grid-size') {
       gridNodeIds.add(effect.target.id);
     }
@@ -1652,6 +1665,69 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
   );
 }
 
+/** Every entity whose domain rows an effect writes or depends on. */
+function effectEntityIds(effect: ReducerEffect): readonly string[] {
+  if (effect.type === 'set.member') return [effect.target.id, effect.memberId];
+  if (effect.type === 'order.position') return [effect.target.id, effect.entityId];
+  if (effect.type === 'asset.bind' || effect.type === 'asset.unbind') {
+    const parsed = parseProjectAssetMutationV1({ action: effect.type, target: effect.target, payload: effect.payload });
+    return parsed.ok ? [effect.target.id, parsed.value.payload.owner.id] : [effect.target.id];
+  }
+  return [effect.target.id];
+}
+
+interface MaterializationScope {
+  readonly includes: (effect: ReducerEffect) => boolean;
+  readonly kvOwnerIds: ReadonlySet<string>;
+}
+
+/**
+ * Which effects must be re-materialized after `changed` effects. Rows are
+ * converged per entity: a lifecycle upsert resets an entity row from its seed,
+ * so every effect of a dirty entity is re-applied in the usual phase order.
+ * Dependent rows share the entity ID (node content, primary storyline,
+ * aliases, chapter order) or are covered explicitly: order ranks per list and
+ * KV projections per owner. Effects of other entities are unchanged since
+ * they were last materialized, so their rows already hold this projection.
+ */
+async function materializationScope(
+  context: SyncDomainMaterializationContext,
+  changed: ReadonlySet<string>,
+): Promise<MaterializationScope> {
+  const dirty = new Set<string>();
+  for (const effect of context.effects) {
+    if (changed.has(effect.effectId)) for (const id of effectEntityIds(effect)) dirty.add(id);
+  }
+  const touches = (effect: ReducerEffect) => effectEntityIds(effect).some((id) => dirty.has(id));
+  const listKey = (effect: OrderEffect) => JSON.stringify([effect.target.kind, effect.scope]);
+  const lists = new Set<string>();
+  const kvEntryIds = new Set<string>();
+  for (const effect of context.effects) {
+    if (!touches(effect)) continue;
+    if (effect.type === 'order.position') lists.add(listKey(effect));
+    if (effect.target.kind === 'kv-entry') kvEntryIds.add(effect.target.id);
+  }
+  // A recreated owner row needs its projection; a changed entry changes its
+  // owner's. Stored rows name the owner even after a purge removes the seed.
+  const kvOwnerIds = new Set(dirty);
+  for (const id of kvEntryIds) {
+    const owner = candidateRecord(context.effects, 'kv-entry', id)?.ownerId;
+    if (typeof owner === 'string') kvOwnerIds.add(owner);
+  }
+  const entries = [...kvEntryIds];
+  for (let offset = 0; offset < entries.length; offset += 500) {
+    const rows = await context.tx
+      .select({ ownerId: EntityKvEntryTable.ownerId })
+      .from(EntityKvEntryTable)
+      .where(inArray(EntityKvEntryTable.id, entries.slice(offset, offset + 500)));
+    for (const row of rows) kvOwnerIds.add(row.ownerId);
+  }
+  return {
+    includes: (effect) => touches(effect) || (effect.type === 'order.position' && lists.has(listKey(effect))),
+    kvOwnerIds,
+  };
+}
+
 export function createProductionSyncDomainMaterializationKernel(): SyncDomainMaterializationKernel {
   return {
     externallyMaterializedActions: EXTERNAL_ACTIONS,
@@ -1688,8 +1764,16 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
     },
     async materialize(context) {
       if (context.origin !== 'remote') return;
-      const effects = context.effects.filter((effect) => effect.materialize);
-      const affectedGridNodeIds = await collectAffectedGridNodeIds(context, context.effects);
+      const materializable = context.effects.filter((effect) => effect.materialize);
+      // Without a previous projection, converge every row to the full one.
+      const scope = context.changedEffectIds
+        ? await materializationScope(context, context.changedEffectIds)
+        : null;
+      const effects = scope ? materializable.filter(scope.includes) : materializable;
+      const affectedGridNodeIds = await collectAffectedGridNodeIds(
+        context,
+        scope ? context.effects.filter(scope.includes) : context.effects,
+      );
       for (const effect of effects) {
         if (effect.type === 'entity.lifecycle' && effect.status === 'live') await upsertLifecycleLive(context, effect);
       }
@@ -1733,7 +1817,9 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
           }
         }
       }
-      if (effects.length > 0) await rebuildNormalizedProjections(context, effects, affectedGridNodeIds);
+      if (effects.length > 0 || (scope?.kvOwnerIds.size ?? 0) > 0) {
+        await rebuildNormalizedProjections(context, materializable, effects, affectedGridNodeIds, scope?.kvOwnerIds ?? null);
+      }
     },
   };
 }

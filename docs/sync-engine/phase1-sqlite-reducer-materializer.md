@@ -92,6 +92,12 @@ domain + journal transaction back.
 - Metadata rows are written incrementally: after a cached reduction only
   registers and containers the change-set replaced are upserted. After a
   rebuild every row is rewritten, which also repairs drifted metadata.
+- Remote materialization is incremental too. With a cached predecessor the
+  kernel receives the IDs of effects whose content changed. It re-applies every
+  effect of each affected entity, each affected order list, and the KV, alias
+  and Plot Grid projections of affected owners only. After a rebuild it
+  re-applies everything. Derived `updated_at` columns may differ from a full
+  re-application; authored values and membership do not.
 
 `yjs.update`, `asset.bind`, `asset.unbind`, and `sync-generation.purge` are explicit
 external typed-reducer actions. They may share an atomic change-set with core
@@ -213,7 +219,9 @@ observation, and an injected failure at the receipt boundary. It asserts both
 resumes from a snapshot plus tail and matches a full replay, discards a
 snapshot covering a missing receipt, reuses the predecessor after a rolled-back
 write, proves incremental metadata equals a full rewrite, and limits a warm
-single-field write to one metadata upsert. Reducer unit tests compare bulk
+single-field write to one metadata upsert. The production suite compares
+incremental remote materialization with full re-application after every
+change-set of a mixed history (domain tables, excluding derived timestamps). Reducer unit tests compare bulk
 replay with a step-by-step fold (including validator conflicts and purge) over
 randomized histories and prove a reduction never mutates or iterates its
 predecessor's receipts.

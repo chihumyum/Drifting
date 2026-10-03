@@ -1322,3 +1322,135 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(await restored.select().from(SyncApplyReceiptTable)).toHaveLength(3);
   });
 });
+
+describe('incremental remote materialization', () => {
+  const DOMAIN_TABLES = [
+    'project', 'book_node', 'node_content', 'storylines', 'node_storyline_link', 'element',
+    'element_category', 'entity_kv_entry', 'yjs_snapshots', 'yjs_updates', 'yjs_document_revision',
+  ];
+
+  async function scenario(): Promise<SyncChangeSetV1[]> {
+    const empty = '{"type":"doc","content":[]}';
+    const prose = async (kind: string, id: string, incarnation = 0) => ({
+      action: 'yjs.update' as const, kind: 'prose-document', id: `${kind}:${id}`, incarnation,
+      payload: { update: await createYjsProseSeedState(empty) },
+    });
+    const kv = (id: string, key: string, value: string) => ({
+      action: 'entity.create' as const, kind: 'kv-entry', id,
+      payload: { seed: { ownerKind: 'element', ownerId: 'element-1', namespace: 'facts', key, value } },
+    });
+    const kvOrder = (id: string, positionKey: string) => ({
+      action: 'order.move' as const, kind: 'kv-entry', id, payload: { positionKey, scope: 'element:element-1:facts' },
+    });
+    const steps: Parameters<typeof changeSet>[1][] = [
+      [
+        { action: 'entity.create' as const, kind: 'storyline', id: 'storyline-1', payload: { seed: { name: 'One', color: '#111111' } } },
+        await prose('storyline', 'storyline-1'),
+        { action: 'entity.create' as const, kind: 'storyline', id: 'storyline-2', payload: { seed: { name: 'Two', color: '#222222' } } },
+        await prose('storyline', 'storyline-2'),
+        { action: 'order.move' as const, kind: 'storyline', id: 'storyline-1', payload: { positionKey: 'a0' } },
+        { action: 'order.move' as const, kind: 'storyline', id: 'storyline-2', payload: { positionKey: 'a1' } },
+      ],
+      [
+        { action: 'entity.create' as const, kind: 'element', id: 'element-1', payload: { seed: { name: 'Element', summary: '', categoryId: null, groupName: null } } },
+        await prose('element', 'element-1'),
+        kv('kv-1', 'age', '30'),
+        kv('kv-2', 'home', 'harbor'),
+        kvOrder('kv-1', 'a0'),
+        kvOrder('kv-2', 'a1'),
+        { action: 'set.add' as const, kind: 'alias', id: 'element-1', payload: { memberId: 'alias-1', value: 'Alias One' } },
+      ],
+      [
+        { action: 'set.add' as const, kind: 'membership', id: 'storyline-1', payload: { memberId: NODE_ID, value: null } },
+        { action: 'field.set' as const, kind: 'node-storyline-primary', id: NODE_ID, payload: { field: 'storylineId', value: 'storyline-1' } },
+      ],
+      [{ action: 'field.set' as const, kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'Renamed' } }],
+      // Moving one storyline shifts its sibling's numeric rank.
+      [{ action: 'order.move' as const, kind: 'storyline', id: 'storyline-1', payload: { positionKey: 'a2' } }],
+      [{ action: 'tuple.set' as const, kind: 'node', id: NODE_ID, payload: { tuple: 'graph.position', value: { x: 4, y: 8 } } }],
+      [kvOrder('kv-1', 'a3'), { action: 'field.set' as const, kind: 'kv-entry', id: 'kv-2', payload: { field: 'value', value: 'lighthouse' } }],
+      [{ action: 'field.set' as const, kind: 'element', id: 'element-1', payload: { field: 'name', value: 'Renamed element' } }],
+      [{ action: 'entity.trash' as const, kind: 'element', id: 'element-1', payload: {} }],
+      // Restore recreates the row from its seed; aliases and KV must follow.
+      [
+        { action: 'entity.restore' as const, kind: 'element', id: 'element-1', incarnation: 1, payload: { seed: { name: 'Restored', summary: 'again', categoryId: null, groupName: null } } },
+        await prose('element', 'element-1', 1),
+      ],
+      [{ action: 'set.add' as const, kind: 'membership', id: 'storyline-2', payload: { memberId: NODE_ID, value: null } }],
+      [{ action: 'field.set' as const, kind: 'node-storyline-primary', id: NODE_ID, payload: { field: 'storylineId', value: 'storyline-2' } }],
+      [{ action: 'field.set' as const, kind: 'storyline', id: 'storyline-2', payload: { field: 'name', value: 'Two renamed' } }],
+    ];
+    const changes: SyncChangeSetV1[] = [];
+    for (const [index, mutations] of steps.entries()) changes.push(await changeSet(index + 1, mutations));
+    // An older concurrent rename loses LWW and must not touch the row.
+    changes.push(await changeSet(1, [
+      { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'Stale' } },
+    ], { writerId: 'production-kernel-late', wallMs: 1_600_000_000_000 }));
+    return changes;
+  }
+
+  async function run(full: boolean) {
+    const directory = await mkdtemp(path.join(tmpdir(), 'drifting-incremental-materialization-'));
+    temporaryDirectories.push(directory);
+    const gateway = new ProductFileBackedSqliteGateway(path.join(directory, 'drifting.db'));
+    gateways.push(gateway);
+    const db = gateway.client();
+    await db.insert(ProjectTable).values({ id: PROJECT_ID, userId: 'local-user', name: 'Production kernel', createdAt: NOW, updatedAt: NOW });
+    await db.insert(BookNodeTable).values({ id: NODE_ID, title: 'Before', summary: '', projectId: PROJECT_ID, kind: 'chapter', writingStatus: 'draft', positionX: 0, positionY: 0, createdAt: NOW, updatedAt: NOW });
+    await db.insert(SyncGenerationTable).values({ syncGenerationId: SYNC_GENERATION_ID, projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, generationNumber: 1, protocolVersion: 1, domainSchemaVersion: 1, status: 'active', createdAt: NOW, updatedAt: NOW });
+    const changed: (number | null)[] = [];
+    const kernel = {
+      ...productionSyncDomainMaterializationKernel,
+      materialize: (context: Parameters<typeof productionSyncDomainMaterializationKernel.materialize>[0]) => {
+        changed.push(context.changedEffectIds ? context.changedEffectIds.size : null);
+        return productionSyncDomainMaterializationKernel.materialize(context);
+      },
+    };
+    const dumps: Record<string, string[]>[] = [];
+    invalidateSqliteReducerStateCache();
+    for (const value of await scenario()) {
+      if (full) invalidateSqliteReducerStateCache();
+      const result = await db.transaction((tx) => applyVerifiedRemoteChangeSetInTransaction(tx, {
+        changeSet: value,
+        identity: identity(),
+        clock: { nowMs: 1_700_000_000_100, nowIso: NOW },
+        kernel,
+      }));
+      expect(result.conflicts).toEqual([]);
+      dumps.push(Object.fromEntries(DOMAIN_TABLES.map((table) => [
+        table,
+        gateway.database.prepare(`SELECT * FROM "${table}"`).all()
+          .map((row) => JSON.stringify(row, (key, item: unknown) =>
+            // `updated_at` is a derived, unsynchronized column. Full
+            // re-materialization rewrites it from the seed and advances it
+            // for an order move only in the move's own change-set, so its
+            // value there depends on which change-set is current. Yjs rows
+            // also stamp local wall-clock time.
+            key === 'updated_at' || (table.startsWith('yjs_') && key === 'created_at')
+              ? undefined
+              : item instanceof Uint8Array ? [...item] : item))
+          .sort(),
+      ])));
+    }
+    invalidateSqliteReducerStateCache();
+    return { dumps, changed };
+  }
+
+  it('converges domain rows exactly like full re-materialization after every change-set', async () => {
+    const full = await run(true);
+    const incremental = await run(false);
+    expect(full.changed.every((size) => size === null)).toBe(true);
+    expect(incremental.changed[0]).toBeNull();
+    expect(incremental.changed.slice(1).every((size) => size !== null)).toBe(true);
+    for (const [step, dump] of incremental.dumps.entries()) {
+      expect({ step, dump }).toEqual({ step, dump: full.dumps[step] });
+    }
+    const final = incremental.dumps[incremental.dumps.length - 1];
+    expect(final.element.join()).toContain('Alias One');
+    expect(final.element.join()).toContain('lighthouse');
+    expect(final.node_storyline_link.map((row) => JSON.parse(row) as Record<string, unknown>)).toEqual([
+      { node_id: NODE_ID, storyline_id: 'storyline-1', is_primary: 0 },
+      { node_id: NODE_ID, storyline_id: 'storyline-2', is_primary: 1 },
+    ]);
+  });
+});

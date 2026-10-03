@@ -111,6 +111,12 @@ export interface SyncDomainMaterializationContext {
   readonly changeSet: Readonly<SyncChangeSetV1>;
   /** Full deterministic projection; effects with materialize=false are evidence only. */
   readonly effects: readonly ReducerEffect[];
+  /**
+   * Effects whose projection differs from the one last materialized for this
+   * SyncGeneration. Null when that projection is unknown (after a rebuild);
+   * domain rows must then be converged to the full projection.
+   */
+  readonly changedEffectIds?: ReadonlySet<string> | null;
 }
 
 /**
@@ -174,6 +180,23 @@ export function sqliteReplayReducerProfile(
   const external = new Set(replay.externallyMaterializedActions ?? []);
   for (const action of LOCAL_EXTERNAL_ACTIONS) external.add(action);
   return { ...replay, externallyMaterializedActions: external };
+}
+
+/**
+ * Effects whose deterministic projection differs from the one last
+ * materialized. Effects are rebuilt from canonical state on every apply, so
+ * structural equality is exact; a removed effect has nothing to materialize.
+ */
+function changedEffectIds(
+  previous: readonly ReducerEffect[],
+  next: readonly ReducerEffect[],
+): ReadonlySet<string> {
+  const before = new Map(previous.map((effect) => [effect.effectId, JSON.stringify(effect)]));
+  const changed = new Set<string>();
+  for (const effect of next) {
+    if (before.get(effect.effectId) !== JSON.stringify(effect)) changed.add(effect.effectId);
+  }
+  return changed;
 }
 
 function conflictFromDraft(draft: SemanticConflictDraft): ReducerConflict {
@@ -530,6 +553,7 @@ async function reduceAndPersist(
   const nextContext: SyncDomainMaterializationContext = {
     ...context,
     effects: validated.effects,
+    changedEffectIds: loaded.effects ? changedEffectIds(loaded.effects, validated.effects) : null,
   };
 
   if (input.origin === 'local') {
