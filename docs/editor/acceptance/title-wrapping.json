@@ -1,0 +1,87 @@
+{
+  "kind": "editor_title_wrapping",
+  "generatedAt": "2026-10-03T18:55:01.823Z",
+  "status": "passed",
+  "source": {
+    "src/renderer/components/editor/ChapterEditor.tsx": "a791884eb0130e781c399559f8297d3790256fd7f9da75b0d37754c506fd26c1",
+    "src/styles/index.css": "eb0ffcf90a66153d9ef0918cd9ae6c404933b054a1d9746d87d7f9901a9bf872",
+    "src/renderer/hooks/useAutosizeTextArea.ts": "d5f7b34476ea323729b0abe6ba4f4b658d299d0ebdb8b0cf528ad6448ea0783f"
+  },
+  "browser": "Chrome/154.0.8037.95",
+  "baseline": {
+    "tag": "INPUT",
+    "width": 780,
+    "height": 55,
+    "scrollWidth": 1746,
+    "scrollHeight": 56,
+    "lineHeight": 54.6,
+    "value": "自动换行验收：山间观测站的冬日记录与远行计划，以及尚未寄出的回信和新一轮气象观测安排"
+  },
+  "measurements": {
+    "wide": {
+      "tag": "TEXTAREA",
+      "width": 780,
+      "height": 165,
+      "scrollWidth": 780,
+      "scrollHeight": 165,
+      "lineHeight": 54.6,
+      "value": "自动换行验收：山间观测站的冬日记录与远行计划，以及尚未寄出的回信和新一轮气象观测安排"
+    },
+    "narrow": {
+      "tag": "TEXTAREA",
+      "width": 380,
+      "height": 274,
+      "scrollWidth": 380,
+      "scrollHeight": 274,
+      "lineHeight": 54.6,
+      "value": "自动换行验收：山间观测站的冬日记录与远行计划，以及尚未寄出的回信和新一轮气象观测安排"
+    },
+    "unbroken": {
+      "tag": "TEXTAREA",
+      "width": 380,
+      "height": 602,
+      "scrollWidth": 380,
+      "scrollHeight": 602,
+      "lineHeight": 54.6,
+      "value": "UnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitleUnbrokenSyntheticTitle"
+    },
+    "short": {
+      "tag": "TEXTAREA",
+      "width": 380,
+      "height": 56,
+      "scrollWidth": 380,
+      "scrollHeight": 56,
+      "lineHeight": 54.6,
+      "value": "短标题"
+    },
+    "compact": {
+      "tag": "TEXTAREA",
+      "width": 380,
+      "height": 79,
+      "scrollWidth": 380,
+      "scrollHeight": 79,
+      "lineHeight": 26,
+      "value": "自动换行验收：山间观测站的冬日记录与远行计划，以及尚未寄出的回信和新一轮气象观测安排"
+    },
+    "readonly": {
+      "tag": "H1",
+      "width": 380,
+      "height": 273,
+      "scrollWidth": 380,
+      "scrollHeight": 274,
+      "lineHeight": 54.6,
+      "value": "自动换行验收：山间观测站的冬日记录与远行计划，以及尚未寄出的回信和新一轮气象观测安排"
+    }
+  },
+  "checks": {
+    "arrowWithinTitle": true,
+    "arrowAtEnd": true,
+    "imeProtected": true,
+    "savedOnEnter": true,
+    "singleLineValue": true
+  },
+  "limitations": [
+    "Isolated browser renders the production title JSX, shared autosizing hook and stylesheet with synthetic title data.",
+    "Editor body and save callback are synthetic; full Tauri app, native IME and database persistence were not exercised."
+  ]
+}

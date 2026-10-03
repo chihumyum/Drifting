@@ -281,7 +281,8 @@ export function ChapterEditor({
     }
   };
 
-  // 概要 textarea 自动增高，去掉固定 rows 的裁切
+  // Titles and summaries grow with their content and available width.
+  const titleRef = useAutosizeTextArea(titleValue);
   const summaryRef = useAutosizeTextArea(summaryValue);
 
   // Agent summary edits surface for review here (the prop re-syncs summaryValue on
@@ -318,20 +319,27 @@ export function ChapterEditor({
         >
           {/* Title */}
           {showTitle && (
-            <div style={{ flex: literary ? undefined : 1 }}>
+            <div style={{ flex: literary ? undefined : 1, minWidth: 0 }}>
               {editableTitle ? (
-                <input
-                  type="text"
+                <textarea
+                  ref={titleRef}
+                  rows={1}
                   value={titleValue}
                   placeholder={t('chapterEditor.untitledChapter')}
-                  onChange={(e) => setTitleValue(e.target.value)}
+                  onChange={(e) => setTitleValue(e.target.value.replace(/[\r\n]/g, ''))}
                   onBlur={handleTitleSave}
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       e.currentTarget.blur();
                       setTimeout(() => editor?.commands.focus('start'), 50);
-                    } else if (e.key === 'ArrowDown') {
+                    } else if (
+                      e.key === 'ArrowDown' &&
+                      !e.shiftKey &&
+                      e.currentTarget.selectionStart === e.currentTarget.value.length &&
+                      e.currentTarget.selectionEnd === e.currentTarget.value.length
+                    ) {
                       e.preventDefault();
                       editor?.commands.focus('start');
                     } else if (e.key === 'Escape') {
@@ -348,8 +356,12 @@ export function ChapterEditor({
                           width: '100%',
                           fontSize: 20,
                           fontWeight: 700,
+                          lineHeight: 1.3,
                           background: 'transparent',
                           outline: 'none',
+                          resize: 'none',
+                          overflow: 'hidden',
+                          overflowWrap: 'anywhere',
                         }
                   }
                 />
