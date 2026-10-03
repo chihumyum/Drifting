@@ -39,7 +39,7 @@ export const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
 
 export const STATUS_SECTION_LABEL: Record<NodeStatusKind, string> = {
   chapter: 'Writing status',
-  drift: 'Drift status',
+  drift: 'Idea status',
 };
 
 type Translate = (key: string) => string;

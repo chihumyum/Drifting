@@ -62,11 +62,11 @@ export function orderImportFiles<T extends { name: string; webkitRelativePath?: 
 export const TARGET_LABEL: Record<ImportTarget, string> = {
   chapter: 'Chapter',
   element: 'Element',
-  inspiration: 'Drift',
+  inspiration: 'Idea',
 };
 
 export const TARGET_DESC: Record<ImportTarget, string> = {
   chapter: 'Mainline node that enters the timeline and word counts.',
   element: 'Reference material such as people, places, and objects. Requires a category.',
-  inspiration: 'Free-floating drift card outside storylines.',
+  inspiration: 'Free-floating idea card outside storylines.',
 };

@@ -36,7 +36,7 @@ export function describeWorkspaceDomainTarget(path: string): string {
     case 'chapters':
       return describeNodeField('章节', segments[1], field);
     case 'drifts':
-      return describeNodeField('灵感', segments[1], field);
+      return describeNodeField('构想', segments[1], field);
     case 'elements':
       return describeNamedField('要素', segments[2], field, {
         'body.md': '设定',
@@ -96,7 +96,7 @@ export function describeAgentWriteTarget(toolName: string, arguments_: unknown):
     return namedTarget('要素', firstString(record, ['element', 'name', 'entity']));
   }
   const nodeKind =
-    record.kind === 'drift' ? '灵感' : record.kind === 'chapter' ? '章节' : '作品内容';
+    record.kind === 'drift' ? '构想' : record.kind === 'chapter' ? '章节' : '作品内容';
   return namedTarget(nodeKind, firstString(record, ['node', 'entity', 'title', 'name']));
 }
 
@@ -172,7 +172,7 @@ function modelFacingRemainingWork(value: string | undefined): string | null {
   return compact.replace(/[。；;\s]+$/u, '');
 }
 
-function describeNodeField(kind: '章节' | '灵感', name: string | undefined, field: string): string {
+function describeNodeField(kind: '章节' | '构想', name: string | undefined, field: string): string {
   return describeNamedField(kind, name, field, {
     'prose.md': '正文',
     'summary.md': '摘要',

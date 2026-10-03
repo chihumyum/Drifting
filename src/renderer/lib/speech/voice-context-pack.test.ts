@@ -44,7 +44,7 @@ const BASE = {
   storylines: [storyline('灯塔线'), storyline('别项目线', 'other')],
   bookNodes: [
     node('chapter', '第一章 潮雾'),
-    node('drift', '深夜灵感：无面人'),
+    node('drift', '深夜构想：无面人'),
     node('chapter', '别项目章节', 'other'),
   ],
 };
@@ -57,7 +57,7 @@ describe('voice context pack', () => {
     expect(pack).toContain('[地点] 雾港');
     expect(pack).toContain('灯塔线');
     expect(pack).toContain('第一章 潮雾');
-    expect(pack).toContain('深夜灵感：无面人');
+    expect(pack).toContain('深夜构想：无面人');
     expect(pack).not.toContain('别的项目角色');
     expect(pack).not.toContain('别项目线');
     expect(pack).not.toContain('别项目章节');
@@ -68,7 +68,7 @@ describe('voice context pack', () => {
     expect(pack).toContain('林雾生');
     expect(pack).toContain('灯塔线');
     expect(pack).not.toContain('第一章 潮雾');
-    expect(pack).not.toContain('深夜灵感：无面人');
+    expect(pack).not.toContain('深夜构想：无面人');
   });
 
   it('stays coherent for an empty project', () => {

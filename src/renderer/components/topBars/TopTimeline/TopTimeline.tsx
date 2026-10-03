@@ -82,7 +82,7 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
 // Tab bar glyph. For node entities, the caller passes isDrift so chapters
 // (§) can be distinguished from drift nodes (❦ — matches the
-// "灵感" button in LeftSidebarHeader). All-chapters uses ☰ so the bar
+// "构想" button in LeftSidebarHeader). All-chapters uses ☰ so the bar
 // glance.
 function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): string {
   switch (entityType) {

@@ -346,7 +346,7 @@ function resolveRef(
     const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
     if (nodes.some((n) => n.id === r)) return r;
     const m = nodes.filter((n) => n.title.trim().toLowerCase() === low);
-    return m.length === 1 ? m[0].id : fail('chapter/drift', m);
+    return m.length === 1 ? m[0].id : fail('chapter/idea', m);
   }
   if (kind === 'element') {
     const els = s.bookElements.filter((e) => e.projectId === ctx.projectId);
@@ -1239,7 +1239,7 @@ async function setEntityBody(ctx: AgentToolContext, args: Record<string, unknown
   const { entityType, id } = resolveProseTarget(ctx, args);
   if (entityType === 'node') {
     throw new Error(
-      'set_entity_body is for element / storyline / category bodies — use the block tools (edit_block / replace_block_range / insert_blocks) for chapter/drift prose so edits stay diffable',
+      'set_entity_body is for element / storyline / category bodies — use the block tools (edit_block / replace_block_range / insert_blocks) for chapter/idea prose so edits stay diffable',
     );
   }
   const paras = String(args.body ?? '')
@@ -1579,7 +1579,7 @@ function assertChapter(nodeId: string): void {
   const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
   if (node && node.kind !== 'chapter') {
     throw new Error(
-      `"${node.title}" is a drift, not a chapter — only chapters can belong to a storyline`,
+      `"${node.title}" is an idea, not a chapter — only chapters can belong to a storyline`,
     );
   }
 }

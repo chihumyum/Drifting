@@ -452,6 +452,9 @@ describe('Drifting runtime tool selection', () => {
   it('exposes the minimum deterministic tool surface for self-contained catalog reads', () => {
     const strategy = createDriftingToolSelectionStrategy();
 
+    expect(strategy.select(request('list ideas', ['list_inspirations', 'ask_user']))).toEqual([
+      'list_inspirations',
+    ]);
     expect(strategy.select(request('列出现在的全部章节和漂流节点', EXECUTABLE_NAMES))).toEqual([
       'list_nodes',
     ]);

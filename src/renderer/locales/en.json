@@ -172,7 +172,7 @@
       "sign_out_button": "Sign out",
       "danger_zone": "Danger zone",
       "export_all": "Export relational Markdown",
-      "export_all_desc": "Export every project in this local library, including chapters, drifts, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included, and the Markdown archive cannot be imported back into Drifting.",
+      "export_all_desc": "Export every project in this local library, including chapters, ideas, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included, and the Markdown archive cannot be imported back into Drifting.",
       "export_all_btn": "Export Markdown ZIP",
       "exporting": "Exporting…",
       "export_done": "Exported {{count}} Markdown documents.",
@@ -353,7 +353,7 @@
       "entity_link_style_prose": "Prose",
       "entity_link_kind_element": "Element",
       "entity_link_kind_chapter": "Chapter",
-      "entity_link_kind_drift": "Drift",
+      "entity_link_kind_drift": "Idea",
       "entity_link_kind_patch": "Patch",
       "entity_link_kind_category": "Category",
       "entity_link_kind_storyline": "Storyline",
@@ -678,7 +678,7 @@
       "kicker": "ABOUT",
       "title": "Drifting",
       "sub": "The ultimate writing experience",
-      "cnName": "灵感",
+      "cnName": "构想",
       "version": "Version",
       "channel": "Channel",
       "channelDev": "Development",
@@ -843,8 +843,8 @@
       "switchesTitle": "Switches",
       "autoTrigger": "Auto trigger",
       "autoTriggerDesc": "Run tasks in the background after edit debounce. When off, tasks run only when manually triggered.",
-      "enableInDrift": "Enable in drift nodes",
-      "enableInDriftDesc": "Drift is the inspiration draft area and stays quiet by default. Off means Copilot only runs in chapter editors; on runs the same tasks in drift editors too.",
+      "enableInDrift": "Enable in idea editors",
+      "enableInDriftDesc": "Ideas hold free-form drafts. Copilot stays off in idea editors by default; enable it to run the same tasks as in chapter editors.",
       "summaryTitle": "Paragraph summaries",
       "generateSummaries": "Generate paragraph summaries",
       "generateSummariesDesc": "After any task fires, unsummarized blocks that reach the threshold trigger one summary call. Summaries become context for later tasks and improve patch recall; off means no summaries are generated or injected.",
@@ -1198,7 +1198,7 @@
     "actionFailed": "Action failed. Please try again."
   },
   "driftPanel": {
-    "tabLabel": "Drifts",
+    "tabLabel": "Ideas",
     "expandTitle": "Expand {{label}}",
     "collapseTitle": "Collapse {{label}}"
   },
@@ -1282,12 +1282,12 @@
     "jumpTo": "Jump to {{label}}",
     "removeRelation": "Remove link",
     "untitledChapter": "Untitled chapter",
-    "untitledDrift": "Untitled drift",
+    "untitledDrift": "Untitled idea",
     "untitledElement": "Untitled element",
     "untitledStoryline": "Untitled storyline",
     "groups": {
       "chapters": "Chapters",
-      "drifts": "Drifts",
+      "drifts": "Ideas",
       "elements": "Elements",
       "storylines": "Storylines",
       "categories": "Categories"
@@ -1347,7 +1347,7 @@
     "purgeNow": "Delete now",
     "kind": {
       "chapter": "Chapter",
-      "drift": "Drift",
+      "drift": "Idea",
       "element": "Element",
       "storyline": "Storyline",
       "category": "Element category"
@@ -1429,12 +1429,12 @@
     }
   },
   "driftBind": {
-    "title": "Bind floating node",
-    "markerSubtitle": "Choose a floating node for this time marker",
+    "title": "Bind idea",
+    "markerSubtitle": "Choose an idea for this time marker",
     "actSubtitle": "Choose an outline / note for this act",
-    "searchPlaceholder": "Search floating nodes…",
-    "noMatches": "No matching floating nodes",
-    "empty": "No floating nodes are available to bind; they are already used or none exist yet"
+    "searchPlaceholder": "Search ideas…",
+    "noMatches": "No matching ideas",
+    "empty": "No ideas are available to bind; they are already used or none exist yet"
   },
   "agentConfirm": {
     "allowDelete": "Allow delete"
@@ -1597,7 +1597,7 @@
       "reviewEdits": "Review prose edits",
       "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Deletions use the separate permission setting below.",
       "dangerousOperations": "Allow dangerous actions",
-      "dangerousOperationsTitle": "When enabled, Agent can delete chapters, inspirations, elements, relationships, notes, and other objects without asking each time. This affects only later calls; project isolation, argument validation, concurrency checks, and durable receipts remain enforced.",
+      "dangerousOperationsTitle": "When enabled, Agent can delete chapters, ideas, elements, relationships, notes, and other objects without asking each time. This affects only later calls; project isolation, argument validation, concurrency checks, and durable receipts remain enforced.",
       "memory": "Rules",
       "memoryTitle": "Long-term preferences / directives / vetoes controlled by you; only active entries are injected into later chats.",
       "manageMemory": "Manage rules",
@@ -1726,11 +1726,11 @@
       },
       "action": {
         "copy": "Copy",
-        "inspiration": "Save as inspiration",
+        "inspiration": "Save as an idea",
         "todo": "Add TODO",
         "pending": "Working…",
         "copied": "Copied",
-        "inspirationDone": "Saved as inspiration",
+        "inspirationDone": "Saved as an idea",
         "todoDone": "Added to TODO",
         "failed": "Action failed"
       }
@@ -2174,7 +2174,7 @@
     "chooseFiles": "Choose files",
     "chooseFolder": "Choose folder",
     "clear": "Clear",
-    "noStorylines": "This project has no storylines yet. Create one first, or import as drifts.",
+    "noStorylines": "This project has no storylines yet. Create one first, or import as ideas.",
     "noCategories": "This project has no element categories yet. Create one first.",
     "importing": "Importing…",
     "start": "Start import ({{count}})",
@@ -2188,8 +2188,8 @@
         "desc": "Reference material such as characters, places, or items. Requires a category."
       },
       "inspiration": {
-        "label": "Drift",
-        "desc": "Floating drift card — independent from storylines."
+        "label": "Idea",
+        "desc": "Floating idea card — independent from storylines."
       }
     },
     "status": {
@@ -2209,7 +2209,7 @@
     "tabs": {
       "chapters": "Chapters",
       "elements": "Elements",
-      "drifts": "Drifts"
+      "drifts": "Ideas"
     },
     "top": {
       "search": "Search",
@@ -2221,19 +2221,19 @@
       "noElements": "No elements yet.",
       "noChapters": "No chapters yet.",
       "noStorylines": "No storylines yet.",
-      "noDrifts": "No drifts yet."
+      "noDrifts": "No ideas yet."
     },
     "meta": {
       "chapters": "{{count}} chapters",
       "elements": "{{categories}} categories · {{elements}} elements",
-      "drifts": "{{count}} drifts"
+      "drifts": "{{count}} ideas"
     },
     "groups": {
       "renameElementGroupTitle": "Double-click to rename group",
       "addElementToGroup": "New element in this group",
       "newChapterInStoryline": "New chapter in this storyline",
       "unaffiliated": "Unaffiliated",
-      "newDriftInGroup": "New drift here",
+      "newDriftInGroup": "New idea here",
       "newSubGroup": "New subgroup",
       "clickCollapseRename": "Click to collapse · double-click to rename",
       "moveDriftToRoot": "Root level (move out of group)",
@@ -2241,7 +2241,7 @@
       "rename": "Rename",
       "moveToGroup": "Move to group…",
       "deleteGroup": "Delete group",
-      "moveDriftTitle": "Move drift to group",
+      "moveDriftTitle": "Move idea to group",
       "moveGroupTitle": "Move group to"
     },
     "viewMode": {
@@ -2257,7 +2257,7 @@
       "newChapter": "New chapter",
       "newStoryline": "New storyline",
       "newCategory": "New category",
-      "newDrift": "New drift",
+      "newDrift": "New idea",
       "newDriftGroup": "New group"
     },
     "sort": {
@@ -2274,7 +2274,7 @@
       "showNone": "Show neither",
       "duplicatesAll": "Show in every linked group",
       "duplicatesPrimary": "Show only in primary storyline",
-      "drifts": "Sort drifts",
+      "drifts": "Sort ideas",
       "elements": "Sort elements",
       "categoryElements": "Sort elements within categories",
       "storylineChapters": "Sort chapters within storylines",
@@ -2306,7 +2306,7 @@
       "dashboard": "Project overview",
       "allChapters": "Whole book · pacing",
       "chapterContent": "This chapter · fragments and materials",
-      "driftContent": "This drift · fragments and materials",
+      "driftContent": "This idea · fragments and materials",
       "storylineContent": "This storyline · fragments and materials",
       "elementContent": "This element · fragments and materials",
       "categoryContent": "This category · fragments and materials",
@@ -2316,7 +2316,7 @@
       "stats": {
         "all-chapters": "Whole book · pacing",
         "chapter": "This chapter · detailed stats",
-        "drift": "This drift · detailed stats",
+        "drift": "This idea · detailed stats",
         "storyline": "This storyline · detailed stats",
         "element": "This element · detailed stats",
         "category": "This category · detailed stats",
@@ -2354,11 +2354,11 @@
       "chapterLengthRhythm": "Chapter length rhythm",
       "snapshotTitle": "Browse and restore historical versions of this entity (30 days)",
       "snapshotButton": "History snapshots…",
-      "driftCoordinates": "Drift coordinates",
+      "driftCoordinates": "Idea coordinates",
       "chapterCoordinates": "Chapter coordinates",
       "storyline": "Storyline",
       "type": "Type",
-      "driftFreeFragment": "Drift · free-floating",
+      "driftFreeFragment": "Idea · free-floating",
       "chapter": "Chapter",
       "bookPosition": "Book position",
       "chapterOrdinal": "Chapter {{count}}",
@@ -2367,7 +2367,7 @@
       "paragraphSentence": "Paragraphs / sentences",
       "paragraphSentenceValue": "{{paragraphs}} paragraphs · {{sentences}} sentences",
       "dialogueRatio": "Dialogue ratio",
-      "thisFragmentElements": "Elements in this drift",
+      "thisFragmentElements": "Elements in this idea",
       "thisChapterElements": "Elements in this chapter",
       "noMentionedElements": "No elements are @ mentioned in the prose yet.",
       "loading": "Loading stats…",
@@ -2408,7 +2408,7 @@
     },
     "untitled": {
       "chapter": "Untitled chapter",
-      "drift": "Untitled drift",
+      "drift": "Untitled idea",
       "storyline": "Untitled storyline",
       "element": "Untitled element",
       "category": "Untitled category"
@@ -2443,12 +2443,12 @@
     "noCategories": "This project has no categories yet. Go back and create a category before creating an element.",
     "contextTitle": {
       "chapter": "Create chapter",
-      "drift": "Create drift",
+      "drift": "Create idea",
       "element": "Create element"
     },
     "contextSubtitle": {
       "chapter": "Leave the chapter unaffiliated for now or place it in an existing storyline.",
-      "drift": "Keep the drift at the root or place it in an existing drift group.",
+      "drift": "Keep the idea at the root or place it in an existing idea group.",
       "element": "Every element needs a category; its group can be organized later."
     },
     "kinds": {
@@ -2457,7 +2457,7 @@
         "description": "Start a prose chapter and optionally choose its storyline."
       },
       "drift": {
-        "label": "Drift",
+        "label": "Idea",
         "description": "Capture an idea that is not yet part of the manuscript."
       },
       "element": {
@@ -2475,7 +2475,7 @@
     },
     "fields": {
       "storyline": "Storyline",
-      "driftGroup": "Drift group",
+      "driftGroup": "Idea group",
       "categoryRequired": "Category (required)",
       "elementGroup": "Element group"
     },
@@ -2533,7 +2533,7 @@
   "bottomTimeline": {
     "marker": {
       "defaultLabel": "Marker",
-      "boundTitle": "Bound to a drift node · click to open",
+      "boundTitle": "Bound to an idea · click to open",
       "editingTitle": "Enter to save; leave empty to delete",
       "renameTitle": "Double-click to rename",
       "dragTitle": "Drag to adjust position"
@@ -2584,9 +2584,9 @@
       "startActHere": "Start new act here"
     },
     "pinMenu": {
-      "openDrift": "Open drift node",
+      "openDrift": "Open idea",
       "unbind": "Unbind and restore as plain label",
-      "bindDrift": "Bind drift node…",
+      "bindDrift": "Bind idea…",
       "rename": "Rename",
       "deleteMarker": "Delete marker"
     },
@@ -2600,12 +2600,12 @@
       "emptyTrackTitle": "Right-click here to create an act, or click + in the head",
       "chapterCount": "{{count}} chapters",
       "actNote": "Act note",
-      "openActNoteTitle": "Open act note (bound drift node)",
+      "openActNoteTitle": "Open act note (bound idea)",
       "dragBoundary": "Drag to adjust act boundary",
       "createHere": "Create act here",
       "startHere": "Start new act here",
       "openActNote": "Open act note",
-      "unbindDrift": "Unbind drift node",
+      "unbindDrift": "Unbind idea",
       "deleteMergeNext": "Delete this act and merge into next",
       "deleteMergePrev": "Delete this act and merge into previous"
     }
@@ -2626,8 +2626,8 @@
       "titleCounting": "{{title}} · counting words"
     },
     "drift": {
-      "allAnchored": "All drift cards are anchored on the narrative timeline",
-      "empty": "No drift cards yet · create inspiration notes in the left Drift panel",
+      "allAnchored": "All idea cards are anchored on the narrative timeline",
+      "empty": "No ideas yet · create one in the Ideas panel",
       "cardTitle": "{{title}} · {{count}} words · shift-click to start a relation",
       "cardTitleCounting": "{{title}} · counting words · shift-click to start a relation"
     },
@@ -2648,7 +2648,7 @@
     },
     "menu": {
       "startEdgeFromNode": "Create relation from this node",
-      "startEdgeFromDrift": "Create relation from this drift",
+      "startEdgeFromDrift": "Create relation from this idea",
       "deleteAllEdges": "Delete all relations for this node ({{count}})"
     }
   },
@@ -3011,7 +3011,7 @@
       "targetRole": "Object"
     },
     "entityKinds": {
-      "node": "Chapter or inspiration",
+      "node": "Chapter or idea",
       "element": "Element",
       "patch": "Element patch",
       "category": "Element category",
@@ -3059,7 +3059,7 @@
     "unnamedCategory": "Untitled category",
     "uncategorized": "Uncategorized",
     "startEdgeFromElement": "Create relation from this element",
-    "startEdgeFromDrift": "Create relation from this drift",
+    "startEdgeFromDrift": "Create relation from this idea",
     "empty": {
       "noStorylines": "No storylines yet",
       "noCategories": "No element categories yet",
@@ -3084,8 +3084,8 @@
   },
   "nodeEditor": {
     "alerts": {
-      "needStoryline": "Create a storyline from the left sidebar or timeline before converting a drift to a chapter.",
-      "needCategory": "Create a category in the element overview before converting a drift to an element.",
+      "needStoryline": "Create a storyline from the left sidebar or timeline before converting an idea to a chapter.",
+      "needCategory": "Create a category in the element overview before converting an idea to an element.",
       "conversionFailed": "Conversion failed. Please try again.",
       "statusUpdateFailed": "Failed to update writing status. Please try again.",
       "deleteFailed": "Failed to delete node. Please try again."
@@ -3093,12 +3093,12 @@
     "deleteConfirm": "Delete node \"{{name}}\"?",
     "folio": {
       "chapter": "Chapter",
-      "drift": "Drift"
+      "drift": "Idea"
     },
     "empty": {
       "noStorylines": "No storylines yet",
       "noStoryline": "No storyline",
-      "noDrifts": "No drifts yet",
+      "noDrifts": "No ideas yet",
       "noChapters": "No chapters"
     },
     "meta": {
@@ -3115,8 +3115,8 @@
     "conversion": {
       "toChapter": "Convert to chapter",
       "toElement": "Convert to element",
-      "chapterSubtitle": "Choose the storyline this drift belongs to. Its status will reset to draft.",
-      "elementSubtitle": "Choose the category this drift belongs to. The drift node will be deleted and its content moved into a new element.",
+      "chapterSubtitle": "Choose the storyline this idea belongs to. Its status will reset to draft.",
+      "elementSubtitle": "Choose the category this idea belongs to. The idea will be deleted and its content moved into a new element.",
       "noStorylines": "No storylines available",
       "noCategories": "No categories available",
       "converting": "Converting…"
@@ -3130,7 +3130,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete storyline. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, drift ideas, style reminders…",
+    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, ideas, style reminders…",
     "summaryPlaceholder": "One-sentence summary for this storyline…",
     "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "outlineTitle": "{{name}} · OUTLINE",
@@ -3302,7 +3302,7 @@
       "goals": "Writing goals",
       "trash": "Project trash",
       "delete": "Delete project",
-      "deleteBody": "Delete “{{name}}”? Its chapters, inspirations, elements, Agent conversations and trash will be permanently deleted. This cannot be undone.",
+      "deleteBody": "Delete “{{name}}”? Its chapters, ideas, elements, Agent conversations and trash will be permanently deleted. This cannot be undone.",
       "deleteFailed": "The project could not be deleted. Please try again.",
       "saveFailed": "Your changes could not be saved. Please try again.",
       "invalidGoal": "Enter a whole number of words greater than or equal to 0.",
@@ -3375,7 +3375,7 @@
     },
     "statusSection": {
       "chapter": "Writing status",
-      "drift": "Drift status"
+      "drift": "Idea status"
     },
     "menu": {
       "convertToChapter": "Convert to chapter…",

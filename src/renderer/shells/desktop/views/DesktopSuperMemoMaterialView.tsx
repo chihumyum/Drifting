@@ -511,7 +511,7 @@ function EntityFilterButton({
     const { kind, id } = entityFilter;
     if (kind === 'node') {
       const n = bookNodes.find((x) => x.id === id);
-      return n?.title || (n && isChapter(n) ? 'Untitled Chapter' : 'Untitled Drift');
+      return n?.title || t(n && isChapter(n) ? 'topTimeline.untitled.chapter' : 'topTimeline.untitled.drift');
     }
     if (kind === 'element')
       return bookElements.find((x) => x.id === id)?.name || 'Untitled Element';

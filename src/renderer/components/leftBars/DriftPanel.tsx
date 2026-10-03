@@ -238,7 +238,7 @@ export function DriftPanel({
       try {
         const created = await createNode({
           kind: 'drift',
-          title: 'New Drift',
+          title: t('leftSidebar.actions.newDrift'),
           bookOrder: null,
           mainStorylineId: null,
           driftGroupId: groupId,
@@ -249,7 +249,7 @@ export function DriftPanel({
         log.error('Failed to create drift in group', error);
       }
     },
-    [activateTarget, projectId, createNode, expandGroup],
+    [activateTarget, projectId, createNode, expandGroup, t],
   );
 
   const createSubGroup = useCallback(

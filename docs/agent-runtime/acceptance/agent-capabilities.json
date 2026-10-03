@@ -1052,7 +1052,7 @@
         "domain": "node",
         "authoredTargets": [
           "章节「<名称>」",
-          "灵感「<名称>」"
+          "构想「<名称>」"
         ],
         "operations": {
           "create": {

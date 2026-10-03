@@ -28,7 +28,7 @@ export type ReviewSortMode = 'createdAt' | 'updatedAt';
 export type ReviewScope = 'current' | 'project';
 export type ElementPanelViewMode = 'compact' | 'list';
 
-// What the right edge of a node cell (章节 / 灵感) shows. The 章节 and 灵感
+// What the right edge of a node cell (章节 / 构想) shows. The 章节 and 构想
 // panels each keep their own preference (toggled from their respective
 // SortMenu); this is just the shared value type.
 export type NodeCellMeta = 'date' | 'wordCount' | 'both' | 'none';
@@ -616,7 +616,7 @@ interface UiState {
   reviewScope: ReviewScope;
   setReviewScope: (scope: ReviewScope) => void;
 
-  // Right-edge meta shown on node cells (date vs. word count). The 章节 and 灵感
+  // Right-edge meta shown on node cells (date vs. word count). The 章节 and 构想
   // panels keep independent preferences, each toggled from its own SortMenu.
   chapterCellMeta: NodeCellMeta;
   setChapterCellMeta: (mode: NodeCellMeta) => void;

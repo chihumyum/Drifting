@@ -28,10 +28,14 @@ describe('author-facing Agent tool activity', () => {
 
   it('describes explicit domain reads without storage vocabulary', () => {
     expect(describeAgentToolActivity('get_project_overview', {}, 'zh-CN')).toBe('了解作品全貌');
-    expect(describeAgentToolActivity('list_inspirations', {}, 'zh-CN')).toBe('查看灵感列表');
+    expect(describeAgentToolActivity('list_inspirations', {}, 'zh-CN')).toBe('查看构想列表');
+    expect(describeAgentToolActivity('list_inspirations', {}, 'en-US')).toBe('Review ideas');
     expect(
-      describeAgentToolActivity('read_inspiration', { inspiration: '灵感碎片' }, 'zh-CN'),
-    ).toBe('阅读灵感「灵感碎片」');
+      describeAgentToolActivity('read_inspiration', { inspiration: '构想碎片' }, 'zh-CN'),
+    ).toBe('阅读构想「构想碎片」');
+    expect(
+      describeAgentToolActivity('read_inspiration', { inspiration: 'Rain at dawn' }, 'en-US'),
+    ).toBe('Read idea “Rain at dawn”');
     expect(
       describeAgentToolActivity(
         'read_element',

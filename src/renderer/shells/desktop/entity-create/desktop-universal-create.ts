@@ -22,6 +22,7 @@ export async function createUniversalEntity(input: {
   draft: CreateTabDraft;
   bookNodes: BookNode[];
   services: UniversalCreateServices;
+  newDriftTitle?: string;
 }): Promise<WorkspaceTarget> {
   const { kind, projectId, draft, bookNodes, services } = input;
   if (kind === 'chapter') {
@@ -39,7 +40,7 @@ export async function createUniversalEntity(input: {
   if (kind === 'drift') {
     const created = await services.createNode({
       kind: 'drift',
-      title: 'New Drift',
+      title: input.newDriftTitle ?? 'New idea',
       bookOrder: null,
       mainStorylineId: null,
       driftGroupId: draft.driftGroupId,

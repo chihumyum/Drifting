@@ -17,7 +17,7 @@ const route = {
 describe('Milestone H replacement: author-owned writing policy', () => {
   it('removes product-derived editor focus and default literary rules', () => {
     const system = buildDriftingAgentSystemPrompt(
-      { prompt: '写个500字的任意内容追加在这个灵感后面。', projectName: '自由写作' },
+      { prompt: '写个500字的任意内容追加在这个构想后面。', projectName: '自由写作' },
       route,
     );
 

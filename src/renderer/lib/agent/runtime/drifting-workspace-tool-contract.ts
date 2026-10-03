@@ -260,7 +260,7 @@ const notApplicable: DriftingDomainCrudOperationContract = {
 export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract[] = [
   {
     domain: 'node',
-    authoredTargets: ['章节「<名称>」', '灵感「<名称>」'],
+    authoredTargets: ['章节「<名称>」', '构想「<名称>」'],
     operations: {
       create: closedWrite(
         ['create_chapter', 'create_inspiration'],

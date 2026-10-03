@@ -116,6 +116,7 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
             projectId,
             draft: tab.draft,
             bookNodes,
+            newDriftTitle: t('leftSidebar.actions.newDrift'),
             services: { createNode, createStoryline, createElement, createCategory },
           });
           completeCreateTab(target);

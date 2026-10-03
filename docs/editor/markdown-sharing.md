@@ -7,13 +7,13 @@ Closing the dialog leaves the manuscript unchanged; opening it again captures
 fresh content. A failed read offers retry and never enables a partial export.
 Markdown is the only sharing format; there is no format-selection submenu.
 
-- Node (chapter or drift), element, category and storyline editors share the
+- Node (chapter or idea), element, category and storyline editors share the
   current document's title and full prose body.
 - **Read whole book** has the same **Share** item,
   above its current-chapter menu section. It reads every non-trashed chapter
   in book order, including chapters that have never been mounted or loaded.
   Acts and chapters retain their hierarchy; prose headings are shifted below
-  their containing chapter. Drift nodes and act-note bindings are excluded.
+  their containing chapter. Idea nodes and act-note bindings are excluded.
 - Chapter summaries appear as Markdown blockquotes immediately below each
   chapter title, before its prose, in both single-chapter and whole-book shares.
   Empty summaries are omitted. Plain-text formatting characters are escaped and

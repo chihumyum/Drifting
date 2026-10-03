@@ -1,7 +1,7 @@
 # Entity Link appearance and hover preview
 
 Entity Links are inline references from chapter prose to an Element, Chapter,
-Drift, Patch, Category, or Storyline. Their appearance is an editor preference
+Idea, Patch, Category, or Storyline. Their appearance is an editor preference
 and is synchronized with the rest of the user's preferences.
 
 ## Appearance modes
@@ -9,7 +9,7 @@ and is synchronized with the rest of the user's preferences.
 `entityLinkColorMode` supports four modes:
 
 - `contextual`: use the referenced entity's owner color. Elements inherit their
-  Category color, Chapters their primary Storyline color, and Drifts their Drift
+  Category color, Chapters their primary Storyline color, and Ideas their Idea
   group color. Categories and Storylines use their own color. Patch links retain
   the CSS fallback because patches are not hydrated in the entity store.
 - `kind`: use the user-selected color for each of the six target kinds. The
@@ -41,13 +41,13 @@ identity and generation; the project runtime releases its last name projection
 on disposal. Per-editor auto-detection still excludes self/parent before applying
 alias collisions and chapter-last priority. Weak collection caches avoid keeping
 retired prose-bearing records alive. Type-color signatures include node kind so
-chapter/drift changes refresh existing marks as well.
+chapter/idea changes refresh existing marks as well.
 
 ## Shared hover card
 
 `EntityHoverCard` is the single preview surface used by:
 
-- the left Chapter, Drift, and Element panels;
+- the left Chapter, Idea, and Element panels;
 - Entity Links inside the editor;
 - Bottom Timeline items.
 
@@ -63,7 +63,7 @@ therefore stays inside the card's 8px anchor gap instead of darkening a newly
 lightened sidebar or Bottom Timeline cell after the preview appears.
 
 The metadata model performs no database query. It can show chapter status, word
-count and storyline membership; Drift status, word count and group path; Element
+count and storyline membership; Idea status, word count and group path; Element
 category, group, aliases and key/value facts; Storyline counts, words and facts;
 and Category element count and color. Patch links do not open a hover card until
 patch data is available in the same store boundary.

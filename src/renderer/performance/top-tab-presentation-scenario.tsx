@@ -24,7 +24,7 @@ export async function runTopTabPresentationScenario() {
   const translation = i18next.createInstance();
   await translation.init({ lng: 'en', resources: {
     en: { translation: { topTimeline: { untitled: { chapter: 'Untitled chapter', drift: 'Untitled drift' }, newTab: 'New tab', singletons: { allChapters: 'All chapters' } } } },
-    zh: { translation: { topTimeline: { untitled: { chapter: '未命名章节', drift: '未命名灵感' }, newTab: '新建', singletons: { allChapters: '全部章节' } } } },
+    zh: { translation: { topTimeline: { untitled: { chapter: '未命名章节', drift: '未命名构想' }, newTab: '新建', singletons: { allChapters: '全部章节' } } } },
   } });
   for (const nodes of [100, 1000, 5000]) for (const tabCount of [1, 5, 20]) {
     const projectId = 'synthetic-tab-project'; const data = createWorkspaceSharingFixture(projectId, nodes); let generation = 'generation-1';
@@ -76,7 +76,7 @@ export async function runTopTabPresentationScenario() {
       await translation.changeLanguage('zh'); await wait();
       const chineseFallback = elementFor(tabKey(tabs[0])).textContent?.includes('未命名章节') === true;
       data.bookNodes = data.bookNodes.map(node => node.id === tabs[0].id ? { ...node, kind: 'drift', title: '', bookOrder: null, writingStatus: 'drifting' } : node); publish();
-      const driftFallback = elementFor(tabKey(tabs[0])).textContent?.includes('❦未命名灵感') === true;
+      const driftFallback = elementFor(tabKey(tabs[0])).textContent?.includes('❦未命名构想') === true;
       await translation.changeLanguage('en'); await wait();
       container.style.width = '240px'; await wait(); const narrowWidths = widths();
       const active = elementFor(tabKey(tabs[0])); click(active);

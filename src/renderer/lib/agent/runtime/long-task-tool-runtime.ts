@@ -881,7 +881,7 @@ function normalizedProviderStepTitle(
     step.workKind === 'review' ? '审阅' : step.workKind === 'research' ? '调查' : '整理';
   const targetLabel: Record<string, string> = {
     chapter: '章节',
-    drift: '灵感',
+    drift: '构想',
     element: '要素',
     storyline: '故事线',
     category: '要素分类',

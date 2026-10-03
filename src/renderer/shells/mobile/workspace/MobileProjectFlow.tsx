@@ -238,7 +238,7 @@ export function MobileProjectFlow({ onOpenChapters, projectActions }: MobileProj
       {drifts.length > 0 && (
         <>
           <span className="m-flow__label">
-            {t('leftSidebar.tabs.drifts', { defaultValue: '漂流' })} · {drifts.length}
+            {t('leftSidebar.tabs.drifts', { defaultValue: '构想' })} · {drifts.length}
           </span>
           <div className="m-flow__section">
             {drifts.map((node) => (

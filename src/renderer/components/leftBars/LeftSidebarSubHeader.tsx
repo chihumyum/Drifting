@@ -102,7 +102,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
     try {
       const created = await createNode({
         kind: 'drift',
-        title: 'New Drift',
+        title: t('leftSidebar.actions.newDrift'),
         bookOrder: null,
         mainStorylineId: null,
       });
@@ -110,7 +110,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
     } catch (error) {
       log.error('Failed to create drift node', error);
     }
-  }, [projectId, createNode, openEntity]);
+  }, [projectId, createNode, openEntity, t]);
 
   const handleCreateCategory = useCallback(async () => {
     if (!projectId) return;
@@ -234,7 +234,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
     ],
     [t],
   );
-  // Right-edge cell meta toggle — shared by the 章节 and 灵感 menus.
+  // Right-edge cell meta toggle — shared by the 章节 and 构想 menus.
   const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
     () => [
       { value: 'date', label: t('leftSidebar.sort.showDate') },
@@ -373,7 +373,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   };
 
   const renderSecondaryCreate = () => {
-    // 灵感 panel: a "+ group" affordance next to "+ drift" (each group cell also
+    // 构想 panel: a "+ group" affordance next to "+ drift" (each group cell also
     // carries its own "+ drift in this group" button). Other panels have
     // nothing to slot here — the element panel's "+ element" lives per-category.
     if (activeLeftPanel === 'drift') {
@@ -453,7 +453,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {/* "折叠全部" applies to panels with collapsible groups (元素 类目 and,
-            now that drifts can be grouped into folders, 灵感分组). The 章节 panel
+            now that drifts can be grouped into folders, 构想分组). The 章节 panel
             toggles its storyline lanes individually, so it's excluded. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
           <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>

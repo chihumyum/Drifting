@@ -840,11 +840,11 @@ describe('provider-neutral Agent context planner', () => {
           callId: 'write-lana',
           name: 'replace_inspiration_body',
           ok: true,
-          content: '灵感「米拉·索恩」已更新。',
+          content: '构想「米拉·索恩」已更新。',
         }),
         { callId: 'write-lana', toolName: 'replace_inspiration_body', toolAccess: 'write' },
       ),
-      row('write-receipt', 10, 0, 'write_receipt', '灵感「米拉·索恩」已可靠保存。'),
+      row('write-receipt', 10, 0, 'write_receipt', '构想「米拉·索恩」已可靠保存。'),
     ];
 
     const planned = await planAgentContext({

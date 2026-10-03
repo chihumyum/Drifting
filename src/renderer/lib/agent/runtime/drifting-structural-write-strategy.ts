@@ -485,7 +485,7 @@ async function preparePayload(
       const nodes = await createBookNodeSqliteRepository(projectId, db).findAll();
       const title = requiredString(request.arguments.title, 'create_node requires title');
       if (nodes.some((node) => sameName(node.title, title))) {
-        throw new Error(`A chapter or inspiration named "${title}" already exists`);
+        throw new Error(`A chapter or idea named "${title}" already exists`);
       }
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'node');
       const maxOrder = nodes

@@ -589,7 +589,7 @@ function proseWriteStrategy(
           ? request.arguments.summary
           : undefined;
       if (requestedSummary !== undefined && entity.entityType !== 'node') {
-        throw new Error('A combined prose and summary write currently requires a chapter or 灵感');
+        throw new Error('A combined prose and summary write currently requires a chapter or idea');
       }
       const nodeSummary =
         requestedSummary === undefined
@@ -2097,7 +2097,7 @@ function currentNodeSummaryChange(
     .bookNodes.find(
       (candidate) => candidate.id === nodeId && candidate.projectId === projectId,
     );
-  if (!node) throw new Error('The chapter or 灵感 disappeared before its summary was prepared');
+  if (!node) throw new Error('The chapter or idea disappeared before its summary was prepared');
   return node.summary === nextSummary
     ? undefined
     : { before: node.summary, after: nextSummary };

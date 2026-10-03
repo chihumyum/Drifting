@@ -2,7 +2,7 @@
 
 Status: built on 2026-08-03 and updated on 2026-08-18 for the direct Editor Top
 Bar toggle and right-scrollbar review markers across the five prose editors:
-whole book, chapter/drift, element, category, and storyline.
+whole book, chapter/idea, element, category, and storyline.
 
 ## Product contract
 
@@ -53,11 +53,11 @@ alter document content, scroll position or the native scrollbar.
 
 Single-entity editors do not synthesize the entity name as a TOC root. Their
 rails contain only real outline entries inside the editor: prose headings for a
-chapter/drift, and framework sections plus prose headings for element,
+chapter/idea, and framework sections plus prose headings for element,
 category, and storyline editors. Whole-book view keeps its existing
 act/chapter hierarchy.
 
-When a chapter/drift contains no prose headings, the TOC label lane stays
+When a chapter/idea contains no prose headings, the TOC label lane stays
 blank. It does not place H1/H2/H3 construction instructions above the rail.
 Explicit non-prose empty states, such as a whole-book view with no chapters,
 may still provide their own short message.

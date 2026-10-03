@@ -96,7 +96,7 @@ const proseEntityTarget = {
       description: 'P5 已认证的正文写入仅支持 node/chapter/drift；默认 node',
     }),
   ),
-  entity: str('章节或 drift 的项目内唯一名称'),
+  entity: str('章节或构想的项目内唯一名称'),
   expectedRevision,
 };
 
@@ -196,7 +196,7 @@ function registerInternalTool(spec: InternalToolSpec): RegisteredTool {
 const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   {
     name: 'get_overview',
-    description: '一次返回项目设定纲要、故事线、章节/drift 与元素目录。开始全书任务时优先调用。',
+    description: '一次返回项目设定纲要、故事线、章节或构想与元素目录。开始全书任务时优先调用。',
     parametersSchema: noArgs,
     aliases: ['overview', '项目概览', '全书概览'],
     resultBudgetChars: 24_000,
@@ -209,7 +209,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_nodes',
-    description: '按名字列出项目故事线、章节与 drift。章节包含状态、字数和主故事线。',
+    description: '按名字列出项目故事线、章节与构想。章节包含状态、字数和主故事线。',
     parametersSchema: noArgs,
     aliases: ['nodes', 'chapters', '章节列表', '漂流列表'],
     resultBudgetChars: 20_000,
@@ -241,8 +241,8 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
       '把正文读成按段编号的紧凑列表。传 prose:false 只读表头；kind 可指定 element/storyline/category。',
     parametersSchema: Type.Object(
       {
-        node: str('章节/drift 名；配合 kind 时也可传其他正文实体名'),
-        kind: Type.Optional(str('element / storyline / category；省略表示章节或 drift')),
+        node: str('章节或构想名；配合 kind 时也可传其他正文实体名'),
+        kind: Type.Optional(str('element / storyline / category；省略表示章节或构想')),
         prose: Type.Optional(
           Type.Boolean({
             description: '是否包含正文（默认 true）；false 只返回表头',
@@ -260,8 +260,8 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
       '按稳定 blockId 读取一个正文块的 live Yjs 文本，返回当前段号、类型与文本；块已删除时返回 found:false。',
     parametersSchema: Type.Object(
       {
-        node: str('章节/drift 名；配合 kind 时也可传其他正文实体名'),
-        kind: Type.Optional(str('element / storyline / category；省略表示章节或 drift')),
+        node: str('章节或构想名；配合 kind 时也可传其他正文实体名'),
+        kind: Type.Optional(str('element / storyline / category；省略表示章节或构想')),
         blockId: str('正文块 uuid'),
       },
       { additionalProperties: false },
@@ -275,8 +275,8 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
     description: '按 1-based 段号和/或文本片段查找正文块的稳定 blockId；不会修改或补写 blockId。',
     parametersSchema: Type.Object(
       {
-        node: str('章节/drift 名；配合 kind 时也可传其他正文实体名'),
-        kind: Type.Optional(str('element / storyline / category；省略表示章节或 drift')),
+        node: str('章节或构想名；配合 kind 时也可传其他正文实体名'),
+        kind: Type.Optional(str('element / storyline / category；省略表示章节或构想')),
         ordinal: optionalInteger('来自 read_node 的 1-based 段号'),
         contains: optionalStr('段落文本的大小写不敏感子串'),
       },
@@ -312,7 +312,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'where_does_entity_appear',
-    description: '找一个结构实体在哪些章节/drift 正文里被提及，按来源分组返回计数与片段。',
+    description: '找一个结构实体在哪些章节或构想正文里被提及，按来源分组返回计数与片段。',
     parametersSchema: Type.Object(
       {
         kind: str('目标类型 element/node/storyline/category/patch'),
@@ -325,7 +325,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_prose',
-    description: '搜索正文。ranked 按相关性排序；exact 逐字匹配并返回每处命中。scope=chapters 只搜小说章节正文，all 还包含灵感、要素、故事线与分类正文；均不搜索标题或摘要。',
+    description: '搜索正文。ranked 按相关性排序；exact 逐字匹配并返回每处命中。scope=chapters 只搜小说章节正文，all 还包含构想、要素、故事线与分类正文；均不搜索标题或摘要。',
     parametersSchema: Type.Object(
       {
         query: str('要在正文中查找的文本'),
@@ -349,7 +349,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_project',
-    description: '跨章节、灵感标题、要素名/简介/别名与故事线名做快速资料检索，不搜索正文。',
+    description: '跨章节、构想标题、要素名/简介/别名与故事线名做快速资料检索，不搜索正文。',
     parametersSchema: Type.Object({ query: str('要检索的文本') }, { additionalProperties: false }),
     aliases: ['project search', '项目搜索'],
   },
@@ -432,7 +432,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'set_entity_body',
-    description: '整体替换元素、故事线或类目的长正文；章节/drift 必须使用 block 工具。',
+    description: '整体替换元素、故事线或类目的长正文；章节或构想必须使用 block 工具。',
     parametersSchema: Type.Object(
       {
         kind: str('element | storyline | category'),
@@ -478,10 +478,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'rename_node',
-    description: '重命名章节或 drift。',
+    description: '重命名章节或构想。',
     parametersSchema: Type.Object(
       {
-        node: str('章节/drift 名'),
+        node: str('章节或构想名'),
         title: str('新标题'),
         expectedRevision,
       },
@@ -500,10 +500,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'set_node_summary',
-    description: '设置章节或 drift 的梗概。',
+    description: '设置章节或构想的梗概。',
     parametersSchema: Type.Object(
       {
-        node: str('章节/drift 名'),
+        node: str('章节或构想名'),
         summary: str('新梗概'),
         expectedRevision,
       },
@@ -666,7 +666,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'link_chapter_to_storyline',
-    description: '把章节加入一条故事线；drift 不可加入故事线。',
+    description: '把章节加入一条故事线；构想不可加入故事线。',
     parametersSchema: Type.Object(
       {
         chapter: str('章节名'),
@@ -976,7 +976,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'create_node',
-    description: '创建 chapter 或自由漂浮的 drift 节点。',
+    description: '创建章节或自由构想节点。',
     parametersSchema: Type.Object(
       {
         kind: str('chapter | drift'),
@@ -1258,7 +1258,7 @@ function domainRuntimeWriteSpec(
 const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
   domainRuntimeReadSpec(
     'get_project_overview',
-    '读取项目概览：书名、简介、章节、灵感、故事线与写作要素目录，以及只读 Markdown 投影的目录与更新状态（不能反向同步）。',
+    '读取项目概览：书名、简介、章节、构想、故事线与写作要素目录，以及只读 Markdown 投影的目录与更新状态（不能反向同步）。',
     noArgs,
     24_000,
   ),
@@ -1279,12 +1279,12 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
     ),
     32_000,
   ),
-  domainRuntimeReadSpec('list_inspirations', '列出全部自由灵感节点。', noArgs, 20_000),
+  domainRuntimeReadSpec('list_inspirations', '列出全部自由构想节点。', noArgs, 20_000),
   domainRuntimeReadSpec(
     'read_inspiration',
-    '读取一个灵感的当前正文与摘要。',
+    '读取一个构想的当前正文与摘要。',
     Type.Object(
-      { inspiration: str('灵感名'), cursor: domainCursor, maxCharacters: domainReadLimit },
+      { inspiration: str('构想名'), cursor: domainCursor, maxCharacters: domainReadLimit },
       { additionalProperties: false },
     ),
     32_000,
@@ -1301,7 +1301,7 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeReadSpec(
     'find_element_appearances',
-    '查找一个写作要素在哪些章节或灵感正文中出现。',
+    '查找一个写作要素在哪些章节或构想正文中出现。',
     Type.Object({ element: str('要素名') }, { additionalProperties: false }),
     20_000,
   ),
@@ -1377,39 +1377,39 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'create_inspiration',
-    '新建一个自由灵感节点。',
+    '新建一个自由构想节点。',
     Type.Object(
-      { title: str('灵感标题'), body: optionalStr('初始正文'), summary: optionalStr('初始摘要') },
+      { title: str('构想标题'), body: optionalStr('初始正文'), summary: optionalStr('初始摘要') },
       { additionalProperties: false },
     ),
     { effect: 'canon', concurrency: 'exclusive_project', approval: 'review_after' },
   ),
   domainRuntimeWriteSpec(
     'rename_inspiration',
-    '重命名一个灵感节点。',
-    Type.Object({ inspiration: str('当前灵感名'), title: str('新标题') }, { additionalProperties: false }),
+    '重命名一个构想节点。',
+    Type.Object({ inspiration: str('当前构想名'), title: str('新标题') }, { additionalProperties: false }),
   ),
   domainRuntimeWriteSpec(
     'set_inspiration_summary',
-    '设置一个灵感节点的摘要。',
-    Type.Object({ inspiration: str('灵感名'), summary: str('新摘要') }, { additionalProperties: false }),
+    '设置一个构想节点的摘要。',
+    Type.Object({ inspiration: str('构想名'), summary: str('新摘要') }, { additionalProperties: false }),
   ),
   domainRuntimeWriteSpec(
     'revise_inspiration',
-    '按当前原文局部修改一个灵感节点。',
-    Type.Object({ inspiration: str('灵感名'), changes: domainTextChanges }, { additionalProperties: false }),
+    '按当前原文局部修改一个构想节点。',
+    Type.Object({ inspiration: str('构想名'), changes: domainTextChanges }, { additionalProperties: false }),
     { effect: 'prose', approval: 'review_after' },
   ),
   domainRuntimeWriteSpec(
     'replace_inspiration_body',
-    '完整替换一个灵感节点的正文；必须先通读。',
-    Type.Object({ inspiration: str('灵感名'), body: str('完整新正文') }, { additionalProperties: false }),
+    '完整替换一个构想节点的正文；必须先通读。',
+    Type.Object({ inspiration: str('构想名'), body: str('完整新正文') }, { additionalProperties: false }),
     { risk: 'high', effect: 'prose', approval: 'review_after', retry: 'never' },
   ),
   domainRuntimeWriteSpec(
     'delete_inspiration',
-    '删除一个灵感节点；默认请求作者确认。',
-    Type.Object({ inspiration: str('灵感名') }, { additionalProperties: false }),
+    '删除一个构想节点；默认请求作者确认。',
+    Type.Object({ inspiration: str('构想名') }, { additionalProperties: false }),
     { risk: 'critical', effect: 'destructive', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
   ),
   domainRuntimeWriteSpec(

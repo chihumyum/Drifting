@@ -114,7 +114,7 @@ const STORYLINE_ID = 'product-agent-storyline';
 const PATCH_ID = 'product-agent-patch';
 const LIBRARY_ITEM_ID = 'product-agent-library-item';
 const NODE_TITLE = 'Chapter One';
-const DRIFT_TITLE = '灵感碎片';
+const DRIFT_TITLE = '构想碎片';
 const INITIAL_SUMMARY = 'Original summary.';
 const INITIAL_REVISION = '2026-07-31T00:00:00.000Z';
 const DOC_ID = `node-content:${NODE_ID}`;
@@ -1686,7 +1686,7 @@ describe.sequential('Drifting Agent product composition', () => {
       },
       {
         name: 'finish drift append',
-        steps: finalSteps('已追加到灵感碎片。'),
+        steps: finalSteps('已追加到构想碎片。'),
       },
     ]);
     const drift: BookNode = {
@@ -1711,7 +1711,7 @@ describe.sequential('Drifting Agent product composition', () => {
     });
     useDataStore.setState((state) => ({ bookNodes: [...state.bookNodes, drift] }));
 
-    await harness.runTurn(turnId, '写一段内容追加在这个灵感后面。', 1, 'auto');
+    await harness.runTurn(turnId, '写一段内容追加在这个构想后面。', 1, 'auto');
 
     expect((await harness.contentRepository.findByNodeId(DRIFT_ID))?.contentJson).toContain(
       appended,

@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 55 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 56 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -34,7 +34,7 @@ export function buildDriftingAgentSystemPrompt(
       ? `The canonical project name is ${JSON.stringify(projectName)}.`
       : 'No canonical project name was provided for this turn.',
     'The project id is an opaque identifier, not a title. Never derive, guess, or claim the project name from projectId.',
-    'Work with authored chapters, 灵感, elements, storylines, notes, relations, and author rules. Reuse exact authored labels as tool targets. In Chinese, call drift nodes 灵感; they are not element categories.',
+    'Work with authored chapters, ideas, elements, storylines, notes, relations, and author rules. Reuse exact authored labels as tool targets. Call drift nodes ideas in English and 构想 in Chinese; they are not element categories.',
     'Match reading coverage to the request. When the author asks you to read or review a complete work or named set of chapters, read that full scope, continuing through body cursors as needed. Search excerpts and summaries can help locate evidence but do not substitute for requested full reading. Be accurate about what you have and have not read.',
     'Object reads may include summaries, semantic links, direct relations, and related excerpts. Links are relationships, not prose. An explicit empty-body result means the body is unfilled. In notes and TODOs, 内容 is the note and 引用正文 is only its anchored excerpt.',
     "Use project objects as needed to fulfill the request. The runtime enforces the author's destructive-operation approval preference.",

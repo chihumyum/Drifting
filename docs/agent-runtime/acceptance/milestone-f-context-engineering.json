@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "041680d3757294c95a3beaa106f451f3da0a9182",
-  "sourceSetSha256": "sha256:f8c316575725ec518be63087a155c02610e14303ecda199041ad08738bebc78f",
+  "gitHead": "4027767408abab00fd5cda494939e27174de99b6",
+  "sourceSetSha256": "sha256:aef71c48046452fe0aa2bd8f9b7f6029174346b56975c002e558f5fe1d8fe988",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",

@@ -1011,7 +1011,7 @@ function semanticAuthoredTarget(value: string): string {
     }
   });
   if (segments[0] === 'chapters' && segments[1]) return `章节「${segments[1]}」`;
-  if (segments[0] === 'drifts' && segments[1]) return `灵感「${segments[1]}」`;
+  if (segments[0] === 'drifts' && segments[1]) return `构想「${segments[1]}」`;
   if (segments[0] === 'elements' && segments[2]) return `要素「${segments[2]}」`;
   return value.trim();
 }

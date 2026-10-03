@@ -213,7 +213,7 @@ impl WorkspaceStore<'_> {
                     AND (l.state IS NULL OR l.state='live')
             "#, vec![text(&context.sync_generation_id), text(node_id), text(&context.project_id)])?;
             if live.is_empty() {
-                return Err("章节或灵感不存在或已在回收站".into());
+                return Err("章节或构想不存在或已在回收站".into());
             }
             let document = plot_grid_document_id(node_id);
             let existed = !self.query(Some(tx), "SELECT 1 FROM plot_grid_document WHERE id=?", vec![text(&document)])?.is_empty();

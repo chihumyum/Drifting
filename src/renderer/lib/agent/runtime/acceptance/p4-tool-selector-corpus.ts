@@ -52,7 +52,7 @@ export const P4_TOOL_SELECTOR_CORPUS: readonly ToolSelectorAcceptanceIntent[] =
       'browse the manuscript chapter list',
       '给我看看小说的章节目录',
       'show nodes with status and word counts',
-      '有哪些章节与漂流灵感节点',
+      '有哪些章节与漂流构想节点',
       'inspect the manuscript structure by title',
       {
         query: '不要重命名任何章节，只查看当前节点清单',

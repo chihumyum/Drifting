@@ -27,7 +27,7 @@ export const DRIFTING_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   },
   list_nodes: {
     searchIntents: [
-      'browse chapter and drift titles',
+      'browse chapter and idea titles',
       'show manuscript structure',
       '列出章节和漂流节点',
       '查看章节目录',
@@ -156,7 +156,7 @@ export const DRIFTING_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   },
   rename_node: {
     searchIntents: [
-      'rename a chapter or drift',
+      'rename a chapter or idea',
       'change manuscript node title',
       '重命名章节或漂流',
       '修改节点标题',
@@ -217,18 +217,18 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   },
   list_inspirations: {
     searchIntents: [
-      'browse drift and inspiration titles',
+      'browse idea titles',
       'list free floating ideas',
-      '列出漂流灵感节点',
-      '查看灵感目录',
+      '列出构想节点',
+      '查看构想目录',
     ],
   },
   read_inspiration: {
     searchIntents: [
-      'read one drift idea body',
-      'open an inspiration note',
-      '读取漂流灵感正文',
-      '打开灵感节点',
+      'read one idea body',
+      'open an idea',
+      '读取构想正文',
+      '打开构想节点',
     ],
   },
   list_element_categories: {
@@ -351,31 +351,31 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   },
   create_inspiration: {
     searchIntents: [
-      'capture a new drift idea',
-      'add an inspiration note',
-      '新建漂流灵感',
-      '记录一个灵感',
+      'capture a new idea',
+      'add an idea',
+      '新建构想',
+      '记录一个构想',
     ],
   },
   rename_inspiration: {
-    searchIntents: ['rename a drift idea', '重命名漂流灵感', '修改灵感标题'],
+    searchIntents: ['rename an idea', '重命名构想', '修改构想标题'],
   },
   set_inspiration_summary: {
-    searchIntents: ['update an inspiration summary', '设置灵感摘要', '修改漂流梗概'],
+    searchIntents: ['update an idea summary', '设置构想摘要', '修改构想梗概'],
   },
   revise_inspiration: {
     searchIntents: [
-      'edit drift idea passages',
-      'polish an inspiration note',
-      '修改漂流灵感正文',
-      '润色灵感内容',
+      'edit idea passages',
+      'polish an idea',
+      '修改构想正文',
+      '润色构想内容',
     ],
   },
   replace_inspiration_body: {
-    searchIntents: ['replace the whole inspiration body', '整篇替换灵感正文', '重写漂流灵感'],
+    searchIntents: ['replace the whole idea body', '整篇替换构想正文', '重写构想'],
   },
   delete_inspiration: {
-    searchIntents: ['delete a drift idea', '删除漂流灵感', '移除灵感节点'],
+    searchIntents: ['delete an idea', '删除构想', '移除构想节点'],
   },
   create_element: {
     searchIntents: [

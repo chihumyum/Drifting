@@ -312,7 +312,7 @@ export function MobilePaperTools({
         {!nodeId ? (
           <div className="m-tool-empty">
             {t('mobileWorkspace.plotNeedsNode', {
-              defaultValue: '打开章节或灵感纸张后编辑情节网格。',
+              defaultValue: '打开章节或构想纸张后编辑情节网格。',
             })}
           </div>
         ) : initialJson === null ? (

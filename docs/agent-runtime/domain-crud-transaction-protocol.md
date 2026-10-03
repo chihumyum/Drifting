@@ -38,7 +38,7 @@ generic authored-object shape must fail.
 | Domain               | Natural authored target            |
 | -------------------- | ---------------------------------- |
 | Chapters             | `章节「<名称>」`                   |
-| Drifts               | `灵感「<名称>」`                   |
+| Drifts               | `构想「<名称>」`                   |
 | Elements             | `要素「<名称>」（分类「<分类>」）` |
 | Element categories   | `要素分类「<名称>」`               |
 | Storylines           | `故事线「<名称>」`                 |

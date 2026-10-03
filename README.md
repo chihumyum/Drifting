@@ -19,7 +19,7 @@ and discussion.
 ### Write the manuscript. Keep the loose ideas.
 
 Work chapter by chapter or read the whole book together. Navigate an outline of
-acts, chapters, scenes, beats, and notes. Keep fragments in the drift area until
+acts, chapters, scenes, beats, and notes. Keep fragments in Ideas until
 they find a place, without having to assign them to a chapter or storyline.
 
 Comments, to-dos, images, PDFs, and other reference material stay within the
@@ -113,7 +113,7 @@ their respective licenses.
 [Source history](docs/public-history.md)
 
 ## 简体中文
-Drifting 是一个本地优先的长篇写作工作台，把正文、灵感、人物与世界设定、
+Drifting 是一个本地优先的长篇写作工作台，把正文、构想、人物与世界设定、
 故事线和 AI 协作放在同一个项目里。从一段尚未成形的片段，到需要反复推敲的整本书，
 你可以在写作与整理之间来回切换，让材料逐渐长成故事。
 

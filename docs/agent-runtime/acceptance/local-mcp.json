@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-03T19:10:59.958Z",
-  "sourceSha256": "44cae99de192e6a009c214f605728afd80ee51757b09ef19a1e4c42816089003",
+  "generatedAt": "2026-10-03T19:12:36.788Z",
+  "sourceSha256": "1fa03497a5374babaf80d6da697a59c887daa7ee5e209d0a3e3f54514eed085e",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -23,6 +23,38 @@
     },
     {
       "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling coalesces continuous commits without starving refresh or overlapping captures",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
       "status": "passed"
     },
     {
@@ -151,38 +183,6 @@
     },
     {
       "name": "committed conversation removal and concurrent navigation finishes durable deletion and releases waiters when the cancellation transport throws",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling coalesces continuous commits without starving refresh or overlapping captures",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
       "status": "passed"
     },
     {
@@ -514,15 +514,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
     {
@@ -534,11 +530,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
       "status": "passed"
     },
     {
@@ -546,15 +538,23 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
       "status": "passed"
     },
     {
@@ -582,15 +582,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
@@ -598,7 +594,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
       "status": "passed"
     },
     {
@@ -606,15 +602,19 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
       "status": "passed"
     }
   ],

@@ -135,7 +135,7 @@ export function mobileAgentOutputTitle(text: string): string {
     .split(/\n+/u)
     .map((line) => line.replace(/^\s*[-#>*]+\s*/u, '').trim())
     .find(Boolean);
-  if (!first) return 'Agent 灵感';
+  if (!first) return 'Agent 构想';
   const normalized = first.replace(/[*_`]/gu, '').trim();
   return normalized.length > 28 ? `${normalized.slice(0, 28)}…` : normalized;
 }

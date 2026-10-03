@@ -68,7 +68,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 
 | Domain | Authored targets | Create | Read | Update | Delete | Revert |
 | --- | --- | --- | --- | --- | --- | --- |
-| `node` | `章节「<名称>」`, `灵感「<名称>」` | closed | closed | closed | closed | closed |
+| `node` | `章节「<名称>」`, `构想「<名称>」` | closed | closed | closed | closed | closed |
 | `element` | `要素「<名称>」（分类「<分类>」）` | closed | closed | closed | closed | closed |
 | `element_patch` | `要素「<名称>」的写作要素变更「<patchId>」` | closed | closed | closed | closed | closed |
 | `storyline` | `故事线「<名称>」` | closed | closed | closed | closed | closed |

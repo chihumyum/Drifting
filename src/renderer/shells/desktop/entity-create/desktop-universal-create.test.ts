@@ -48,9 +48,10 @@ describe('desktop universal create command', () => {
   });
 
   it.each([
-    [null, null],
-    ['group-a', 'group-a'],
-  ])('creates one drift with its optional group (%s)', async (draftGroup, expectedGroup) => {
+    [null, null, undefined],
+    ['group-a', 'group-a', undefined],
+    ['group-a', 'group-a', '新构想'],
+  ])('creates one idea with its optional group (%s) and localized title', async (draftGroup, expectedGroup, newDriftTitle) => {
     const api = services();
     const draft = { ...initialCreateTabDraft(), driftGroupId: draftGroup };
 
@@ -60,12 +61,13 @@ describe('desktop universal create command', () => {
       draft,
       bookNodes: [],
       services: api,
+      newDriftTitle,
     });
 
     expect(api.createNode).toHaveBeenCalledOnce();
     expect(api.createNode).toHaveBeenCalledWith({
       kind: 'drift',
-      title: 'New Drift',
+      title: newDriftTitle ?? 'New idea',
       bookOrder: null,
       mainStorylineId: null,
       driftGroupId: expectedGroup,

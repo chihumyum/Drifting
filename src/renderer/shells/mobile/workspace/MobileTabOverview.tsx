@@ -246,7 +246,7 @@ export function MobileTabOverview({
             <strong>{t('mobileWorkspace.noPapers', { defaultValue: '没有打开的纸张' })}</strong>
             <span>
               {t('mobileWorkspace.overviewEmptyHint', {
-                defaultValue: '从下方的章节、元素或灵感打开一张纸。',
+                defaultValue: '从下方的章节、元素或构想打开一张纸。',
               })}
             </span>
           </div>

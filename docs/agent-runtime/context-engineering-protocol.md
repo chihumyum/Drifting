@@ -169,7 +169,7 @@ paragraph structure, other punctuation and match cardinality remain exact.
 These are runtime-owned presentation repairs, not instructions for the model
 to reason about serialization.
 
-For an explicitly named chapter, 灵感 or entity, tool selection omits project
+For an explicitly named chapter, 构想 or entity, tool selection omits project
 inventory. A direct read accepts the authored name; opening a named collection
 returns that collection without requiring the model to choose a separate
 browse verb. A missing ordinal chapter is represented as writable manuscript

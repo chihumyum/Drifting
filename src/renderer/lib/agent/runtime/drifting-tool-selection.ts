@@ -355,7 +355,7 @@ function explicitCatalogReads(query: string): readonly string[] {
     reads.push('list_nodes', 'list_chapters');
   }
   if (
-    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:漂流节点|灵感|drifts?|inspirations?|nodes?)|(?:漂流节点|灵感).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:drifts?|inspirations?|nodes?)\b/iu.test(
+    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:漂流节点|构想|灵感|ideas?|drifts?|inspirations?|nodes?)|(?:漂流节点|构想|灵感).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:ideas?|drifts?|inspirations?|nodes?)\b/iu.test(
       request,
     )
   ) {

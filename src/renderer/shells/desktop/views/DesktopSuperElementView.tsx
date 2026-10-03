@@ -209,7 +209,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     | null
   >(null);
   // Drift card right-click — same EntityCellContextMenu surface as the
-  // 灵感 left panel, with `startEdgeFrom` appended so users can wire a
+  // 构想 left panel, with `startEdgeFrom` appended so users can wire a
   // drift card into an element / node from the bottom drawer.
   const [driftContextMenu, setDriftContextMenu] = useState<{
     x: number;

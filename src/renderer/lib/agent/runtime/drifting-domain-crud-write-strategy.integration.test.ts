@@ -545,7 +545,7 @@ describe('workspace domain CRUD transactions', () => {
         },
       ],
       ['formatted-storyline-create', 'create_storyline', { name: '格式故事线', body }],
-      ['formatted-drift-create', 'create_inspiration', { title: '格式灵感', body }],
+      ['formatted-drift-create', 'create_inspiration', { title: '格式构想', body }],
       ['formatted-chapter-create', 'create_chapter', { title: '格式章节', body }],
     ] as const;
 
@@ -575,7 +575,7 @@ describe('workspace domain CRUD transactions', () => {
         "SELECT content_json FROM storylines WHERE name = '格式故事线' AND deleted_at IS NULL",
       ),
       fixture.text(
-        "SELECT nc.content_json FROM node_content nc JOIN book_node n ON n.id = nc.node_id WHERE n.title = '格式灵感' AND n.deleted_at IS NULL",
+        "SELECT nc.content_json FROM node_content nc JOIN book_node n ON n.id = nc.node_id WHERE n.title = '格式构想' AND n.deleted_at IS NULL",
       ),
       fixture.text(
         "SELECT nc.content_json FROM node_content nc JOIN book_node n ON n.id = nc.node_id WHERE n.title = '格式章节' AND n.deleted_at IS NULL",
@@ -622,7 +622,7 @@ describe('workspace domain CRUD transactions', () => {
       FROM storylines WHERE name = '格式故事线' AND deleted_at IS NULL
       UNION ALL
       SELECT 'node-content:' || id, 'node', id
-      FROM book_node WHERE title IN ('格式灵感', '格式章节') AND deleted_at IS NULL
+      FROM book_node WHERE title IN ('格式构想', '格式章节') AND deleted_at IS NULL
     `;
     expect(
       fixture.scalar(`

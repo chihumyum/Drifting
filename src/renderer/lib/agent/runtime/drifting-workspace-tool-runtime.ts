@@ -1434,7 +1434,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const wordCount = entry.target.kind === 'node_prose' ? countWords(content) : null;
     const summary = authoredObjectSummary(entry, projectId);
     if (summary !== null) {
-      // A chapter/灵感 read presents the complete current summary alongside
+      // A chapter/构想 read presents the complete current summary alongside
       // every prose page. Record that authored field as read as well, so a
       // later summary rewrite does not force the model to open the same text
       // through a second product alias merely to satisfy write safety.
@@ -2842,7 +2842,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     if ((segments[0] === 'chapters' || segments[0] === 'drifts') && file === 'prose.md') {
       const title = segments[1]?.trim();
       if (!title || segments.length !== 3) {
-        throw new Error('章节或灵感的名称不完整，无法新建。');
+        throw new Error('章节或构想的名称不完整，无法新建。');
       }
       const body = stripRedundantLeadingAuthoredTitle(content, title);
       return {
@@ -2921,7 +2921,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     throw new Error(
-      '无法从这个名称判断要新建哪种作品对象。请使用“第二章”、“灵感「雨夜片段」”、“人物「林弦」”、“故事线「返乡」”或“要素分类「人物」”这样的作者语义名称。',
+      '无法从这个名称判断要新建哪种作品对象。请使用“第二章”、“构想「雨夜片段」”、“人物「林弦」”、“故事线「返乡」”或“要素分类「人物」”这样的作者语义名称。',
     );
   }
 
@@ -3471,7 +3471,7 @@ function domainCompleteObjectPath(
   const label = toolName === 'delete_chapter'
     ? `章节「${requiredDomainName(args.chapter, 'chapter')}」`
     : toolName === 'delete_inspiration'
-      ? `灵感「${requiredDomainName(args.inspiration, 'inspiration')}」`
+      ? `构想「${requiredDomainName(args.inspiration, 'inspiration')}」`
       : toolName === 'delete_storyline'
         ? `故事线「${requiredDomainName(args.storyline, 'storyline')}」`
         : `要素分类「${requiredDomainName(args.category, 'category')}」`;
@@ -3520,7 +3520,7 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
       {
         path: `${base}/prose.md`,
         writable: true,
-        description: node.kind === 'chapter' ? 'Live chapter manuscript' : 'Live drift manuscript',
+        description: node.kind === 'chapter' ? 'Live chapter manuscript' : 'Live idea manuscript',
         target: { kind: 'node_prose', ...shared },
       },
       {
@@ -3824,7 +3824,7 @@ function workspaceDirectoryDisplayName(
 ): string {
   const rootNames: Record<string, string> = {
     '/chapters': '章节',
-    '/drifts': '灵感',
+    '/drifts': '构想',
     '/elements': '故事元素',
     '/storylines': '故事线',
     '/categories': '元素分类',
@@ -3869,7 +3869,7 @@ function describeWorkspaceDirectory(
     const node = currentNode(nodeTarget.nodeId, projectId);
     const summary = compactDescription(node.summary, 220);
     return [
-      node.kind === 'chapter' ? 'Chapter' : 'Drift',
+      node.kind === 'chapter' ? 'Chapter' : 'Idea',
       canonicalWordCount(node) == null
         ? 'word count pending'
         : `${canonicalWordCount(node)!.toLocaleString('en-US')} words`,
@@ -3887,7 +3887,7 @@ function describeWorkspaceDirectory(
   ).size;
   const labels: Record<string, string> = {
     '/chapters': 'Chapters in reading order',
-    '/drifts': 'Free-floating inspiration notes',
+    '/drifts': 'Free-floating ideas',
     '/elements': 'Characters, places, objects, and other canon',
     '/storylines': 'Storyline canon',
     '/categories': 'Element category canon',
@@ -3994,7 +3994,7 @@ function renderOverview(value: unknown): string {
     '## 作品内容',
     '',
     '- 章节：按作品顺序排列的正文与摘要',
-    '- 灵感：可自由组织的创作片段',
+    '- 构想：可自由组织的创作片段',
     '- 要素：人物、地点、组织、物件与其他设定',
     '- 故事线：故事线说明及其章节关系',
     '- 批注与待办：作者的编辑记录',
@@ -4007,7 +4007,7 @@ function renderOverview(value: unknown): string {
     '## 数量',
     '',
     `- 章节：${Number(counts.chapters ?? 0)}`,
-    `- 灵感：${Number(counts.drifts ?? 0)}`,
+    `- 构想：${Number(counts.drifts ?? 0)}`,
     `- 故事线：${Number(counts.storylines ?? 0)}`,
     `- 要素：${Number(counts.elements ?? 0)}`,
   ]
@@ -4505,7 +4505,7 @@ function semanticAuthoredCreationPath(projectId: string, path: string): string |
     const title = ordinal === null ? chapter : canonicalNewChapterTitle(projectId, ordinal);
     return `/chapters/${pathSegment(title)}/prose.md`;
   }
-  const drift = /^\/(?:灵感|漂移)[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
+  const drift = /^\/(?:构想|灵感|漂移)[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
   if (drift) return `/drifts/${pathSegment(drift)}/prose.md`;
   const storyline = /^\/故事线[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
   if (storyline) return `/storylines/${pathSegment(storyline)}/body.md`;
@@ -4690,7 +4690,7 @@ function workspaceDomainListHeading(path: string): string {
   const headings: Readonly<Record<string, string>> = {
     '/': '作品包含',
     '/chapters': '现有章节',
-    '/drifts': '现有灵感',
+    '/drifts': '现有构想',
     '/elements': '现有要素分类',
     '/storylines': '现有故事线',
     '/categories': '现有要素分类说明',
@@ -4726,7 +4726,7 @@ function workspaceDomainCreationHint(path: string): string | null {
     return '可直接用名称和完整初稿新建章节；标题、摘要与保存细节由 Drifting 管理。';
   }
   if (path === '/drifts') {
-    return '可直接用名称和完整内容新建灵感；标题、摘要与保存细节由 Drifting 管理。';
+    return '可直接用名称和完整内容新建构想；标题、摘要与保存细节由 Drifting 管理。';
   }
   if (path === '/elements') {
     return '要查看已有要素，请继续浏览上面的具体要素分类，例如 要素分类「人物」。新建要素时先选择或建立分类，再提供名称与设定正文。';
@@ -4901,7 +4901,7 @@ function domainFieldValue(key: string, value: unknown): string {
   }
   if (key === 'targetKind' || key === 'fromKind' || key === 'toKind') {
     const labels: Readonly<Record<string, string>> = {
-      node: '章节或灵感',
+      node: '章节或构想',
       element: '要素',
       storyline: '故事线',
       category: '要素分类',
@@ -5306,7 +5306,7 @@ function resolveSemanticChapterFieldAlias(
   entries: readonly WorkspaceEntry[],
   normalized: string,
 ): string | null {
-  const match = /^\/?(章节|灵感|漂移)[「“"](.+?)[」”"](正文|摘要|标题)?$/u.exec(
+  const match = /^\/?(章节|构想|灵感|漂移)[「“"](.+?)[」”"](正文|摘要|标题)?$/u.exec(
     normalized,
   );
   if (!match) return null;
@@ -5332,6 +5332,7 @@ function semanticCollectionPath(path: string): string | null {
   const aliases: Record<string, string> = {
     '/作品': '/',
     '/章节': '/chapters',
+    '/构想': '/drifts',
     '/灵感': '/drifts',
     '/漂移': '/drifts',
     '/元素': '/elements',
