@@ -7,6 +7,9 @@ import type { WorkspaceTarget } from '../features/workspace/navigation/workspace
 export const SidebarPanelStateContext = createContext<string | null>(null);
 export const useSidebarPanelKey = () => useContext(SidebarPanelStateContext);
 
+/** undefined retains pane-local selection; null explicitly clears the highlight. */
+export const SidebarEditorSelectionContext = createContext<WorkspaceTarget | null | undefined>(undefined);
+
 export function useSidebarPanelState<T>(field: string, initial: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
   const key = useSidebarPanelKey();
   const [local, setLocal] = useState(initial);
@@ -36,7 +39,9 @@ export function useSidebarPreference<K extends keyof SidebarPreferences>(field: 
 
 export function useSidebarSelection(fallback: WorkspaceTarget | null) {
   const key = useSidebarPanelKey();
+  const editorSelection = useContext(SidebarEditorSelectionContext);
   const [selected, select] = useSidebarPanelState<WorkspaceTarget | null>('selection', fallback);
+  if (editorSelection !== undefined) return [editorSelection, select] as const;
   return [key ? selected : fallback, select] as const;
 }
 
