@@ -24,7 +24,7 @@ import {
   type SyncMutationAction,
   type SyncTotalOrderV1,
 } from '../protocol';
-import { reduceSyncChangeSet, reducerLifecycleKey } from './reducer';
+import { materializationEffects, reduceSyncChangeSet, reducerLifecycleKey } from './reducer';
 import type {
   CanonicalReducerState,
   OrSetMemberState,
@@ -86,7 +86,9 @@ export const LOCAL_SQLITE_REDUCER_PROFILE: ReducerProfile = Object.freeze({
   externallyMaterializedActions: LOCAL_EXTERNAL_ACTIONS,
 });
 
+import type { ReducerStateProfileV2 } from './state-pages';
 import {
+  installSqliteReducerBaseInTransaction,
   loadSqliteReducerStateInTransaction,
   persistSqliteReducerSnapshotIfDue,
   rememberSqliteReducerState,
@@ -636,4 +638,36 @@ export async function applyVerifiedRemoteChangeSetInTransaction(
     ...reduced,
     journal,
   };
+}
+
+/**
+ * Installs a verified compacted state from a payload v2 checkpoint: every
+ * reducer metadata row it implies, and the state itself as the SyncGeneration's
+ * authoritative base. History it covers is not present locally.
+ */
+export async function installRestoredSqliteReducerStateInTransaction(
+  tx: DbTransaction,
+  input: {
+    readonly state: CanonicalReducerState;
+    readonly profile: ReducerStateProfileV2;
+    readonly pages: readonly Uint8Array[];
+    readonly sourceCheckpointId: string;
+    readonly nowIso: string;
+  },
+): Promise<void> {
+  await persistReducerMetadata(tx, {
+    state: input.state,
+    previous: null,
+    effects: materializationEffects(input.state),
+    conflicts: [...input.state.conflicts.values()].map((conflict) => ({ owner: 'core' as const, conflict })),
+    domainValidationRan: false,
+    nowIso: input.nowIso,
+  });
+  await installSqliteReducerBaseInTransaction(tx, {
+    syncGenerationId: input.state.identity.syncGenerationId,
+    profile: input.profile,
+    pages: input.pages,
+    sourceCheckpointId: input.sourceCheckpointId,
+    nowIso: input.nowIso,
+  });
 }

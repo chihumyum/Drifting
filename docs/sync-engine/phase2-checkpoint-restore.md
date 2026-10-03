@@ -10,10 +10,11 @@ back to a JSON or numeric projection.
 
 ## Shipped boundary
 
-- `captureSnapshotV1` opens one SQLite transaction and captures the current
-  manifest-classified authored rows, reducer metadata, applied frontier, and
-  every project-owned prose document. A later authored transaction cannot enter
-  the captured frontier and remains in the ordinary journal.
+- `captureSnapshot` opens one SQLite transaction and captures the current
+  manifest-classified authored rows, compacted reducer state, applied frontier,
+  and every project-owned prose document. A later authored transaction cannot
+  enter the captured frontier and remains in the ordinary journal. It writes
+  payload v2 only; see [Payload versions](#payload-versions).
 - Prose enumeration is the exact union of persisted `yjs_snapshots`, persisted
   `yjs_updates`, and the four prose-capable seed families:
   `node-content:*`, `storyline:*`, `element:*`, and `category:*`.
@@ -25,11 +26,10 @@ back to a JSON or numeric projection.
   sees only `LocalObjectRef`, never an absolute path.
   The production implementation and restart-safe restore receipts are recorded
   in [`phase2-native-asset-pipeline.md`](phase2-native-asset-pipeline.md).
-- Reducer state carries the applied change-set/receipt ancestry required by the
-  baseline foreign keys together with field clocks, OR-set tags, order
-  registers, lifecycle registers, the terminal `sync_generation_purge` register,
-  and frontier. Restore invalidates the
-  in-process reducer cache only after the activation transaction commits.
+- Reducer state is the compacted canonical reducer state plus the journal rows
+  it still names (see below). Restore materializes every register row it
+  implies and invalidates the in-process reducer cache only after the
+  activation transaction commits.
 - Reducer-state materialization round-trips the SyncGeneration purge register and its
   source mutation. Replaying that state keeps all later non-purge effects
   non-materializing. A complete product snapshot that already contains the
@@ -37,7 +37,7 @@ back to a JSON or numeric projection.
   project; restore therefore cannot overwrite the absorbing state.
 - Every captured writer frontier carries the hash of its highest contiguous,
   fully applied segment. A non-empty applied frontier without that chain head
-  is not a valid v1 checkpoint. Restore keeps the anchor even though it does
+  is not a valid checkpoint. Restore keeps the anchor even though it does
   not recreate historical `sync_segment` rows.
 - Source change-set rows are restored as `origin='remote'`. They remain exact
   reducer ancestry for receipts and clock/register foreign keys, but can never
@@ -71,11 +71,49 @@ back to a JSON or numeric projection.
   or transaction leaves the target project absent and the staged SyncGeneration
   unbound. Native orphan cleanup owns residue if a process dies after a native
   rename and before the SQLite commit.
-- Unknown protocol/payload/schema versions fail closed. There is no historical
-  upconverter or compatibility branch.
+- Unknown protocol/payload/schema versions fail closed. Payload v1 remains
+  restorable because it is part of the frozen public baseline; nothing
+  upconverts one version into the other.
 - Capture detects any missing KV/alias/Plot Grid/order authority and rejects
   the package. This is a corruption/data-loss guard, not a legacy
   compatibility path.
+
+## Payload versions
+
+Payload v1 stored the authored state and the whole receipt-backed journal as
+one canonical CBOR value each. A real history of 42,091 change-sets exceeded
+the 100,000-node canonical limit and bound every change-set ID in one SQL
+statement, so capture failed. Payload v2 removes both bounds:
+
+- Authored state and reducer state are sequences of canonical pages, each with
+  its own hash and at most half the node limit. An authored table spans
+  consecutive pages and always has at least one.
+- Reducer pages hold, in fixed order: a header (identity, data-only reducer
+  profile, maximum carried HLC, purge register), coverage, explicit receipts,
+  every register family, conflicts, the carried journal rows and the frontier.
+- Coverage is the applied frontier. Covered change-sets are applied
+  contiguously and anchored by the frontier's segment heads, so they are not
+  carried. Applied change-sets beyond the frontier keep explicit receipts.
+- Only change-sets named by a register source or an explicit receipt are
+  carried, with all their mutations and receipts. The rest of history stays in
+  published segments.
+- Validation accepts the reducer section only if coverage equals the package
+  frontier, every receipt is a carried change-set beyond it with a matching
+  signature, every carried change-set is covered or receipted, every register
+  source is a carried mutation, the profile equals the local one, and the state
+  has no purge or open conflict. Carried rows pass the same mutation-row
+  checks as v1.
+- Restore inserts the carried rows as `origin='remote'`, writes the implied
+  metadata rows and installs the verified pages unchanged as the
+  SyncGeneration's `sync_reducer_base`. Later rebuilds start from that base
+  and replay only change-sets above its coverage. The reducer base is
+  authoritative, not a cache; see the
+  [materializer rules](phase1-sqlite-reducer-materializer.md#persistence-rules).
+- A base-restored SyncGeneration lacks the covered history, so Drive-to-Hosted
+  adoption, which rebases the complete journal, rejects it.
+
+`changeSetCount` of a checkpoint counts the journal rows present locally: all
+of them for v1, the carried ones after a v2 restore.
 
 ## Deliberate exclusions
 
@@ -91,13 +129,19 @@ back to a JSON or numeric projection.
 ```bash
 pnpm typecheck
 pnpm exec eslint src/renderer/sync/checkpoint --max-warnings=0
-pnpm exec vitest run src/renderer/sync/checkpoint/checkpoint.integration.test.ts
+pnpm exec vitest run src/renderer/sync/checkpoint src/renderer/sync/reducer/state-pages.test.ts
 ```
 
 The integration test uses the product baseline in real file-backed SQLite and
 covers:
 
 - snapshot-only, update-only, combined, and seed-only Yjs capture/restore;
+- v2 compaction carrying only register sources and receipts beyond the
+  frontier, restore as reducer base, a canonical state equal to the source, and
+  a local write reduced on top of the base;
+- payload v1 restore with its complete journal and no base;
+- re-sealed compacted states with wrong coverage, a missing receipt, a missing
+  register source, another profile or another identity;
 - typed authored rows plus reducer ancestry/clock materialization;
 - applied segment-head round-trip, fresh restore writer sequence/HLC anchoring,
   and source-history non-publication semantics;
@@ -116,4 +160,6 @@ Its runner, `node scripts/apple-checkpoint-provenance-acceptance.mjs`, executes
 the checkpoint, protocol and restore suites; `--check` verifies the recorded
 source and required cases. The 13 re-sealed tamper cases and valid round-trip
 cover mutation-row consistency, not complete validation of every reducer
-register's target or clock semantics.
+register's target or clock semantics. That evidence predates payload v2 and
+belongs to the paused Apple-native migration, so it is stale until that
+migration resumes and refreshes it.

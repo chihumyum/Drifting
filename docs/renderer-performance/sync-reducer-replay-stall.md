@@ -43,13 +43,26 @@ takes about 80 ms, after about 3 s of async change-set decoding.
 | First write after a restart (27 KB snapshot, receipts compacted) | 0.13 s |
 | Warm reduction | about 1 ms |
 | Warm remote apply transaction | about 36 ms |
+| Checkpoint v2 capture (6.3 MB, 130 of 42,101 change-sets carried) | 0.24 s |
+| Checkpoint v2 restore into an empty database | 0.33 s |
+
+The capture probe placed the applied frontier at the newest change-sets, as
+published segments would; the database itself had never published one.
 
 The original, the step-by-step fold, the snapshot round trip and
-snapshot-plus-tail produced identical canonical snapshots.
+snapshot-plus-tail produced identical canonical snapshots. After the
+checkpoint round trip, the restored reducer state, authored rows and prose
+matched the source.
+
+## Follow-up: checkpoints
+
+Checkpoint capture failed for the same history. Its reducer payload exceeded
+the canonical CBOR 100,000-node limit, and it bound every change-set ID in one
+statement. Checkpoint payload v2 pages every section, compacts covered history
+to the change-sets registers still name, and installs the restored state as a
+`sync_reducer_base`; see [checkpoint restore](../sync-engine/phase2-checkpoint-restore.md#payload-versions).
 
 ## Not addressed
 
-Checkpoint capture still fails for this history. Its reducer payload exceeds
-the canonical CBOR 100,000-node limit, and it binds every change-set ID in one
-statement. Remote materialization still re-applies the full projection per
-change-set. Both scale with history or project size and remain separate work.
+Remote materialization still re-applies the full projection per change-set,
+so it scales with project size.

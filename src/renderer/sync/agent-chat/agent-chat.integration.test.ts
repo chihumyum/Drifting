@@ -39,7 +39,7 @@ import {
   type ChatTurnPayload,
 } from './protocol';
 import { seedAgentChatSession } from './seed';
-import { captureSnapshotV1 } from '../checkpoint';
+import { captureSnapshot } from '../checkpoint';
 import { createAgentRuntimeResultArtifactRepository } from '../../sqlite-repo/agent-runtime-result-artifact-repo';
 import { loadCanonicalAgentTranscript } from '../../lib/agent/runtime/recovered-transcript';
 import { agentModelMessagesToContextSources } from '../../lib/agent/runtime/context-message-adapter';
@@ -600,7 +600,7 @@ describe('Agent chat extension: two independent product databases', () => {
     const a = await client();
     const net = network();
     const capture = () =>
-      captureSnapshotV1({
+      captureSnapshot({
         db: a.db,
         projectId: 'p',
         syncGenerationId: 'g',

@@ -6,7 +6,7 @@ import {
   compareUtf8Bytewise,
   decodeCanonicalCbor,
   decodeSnapshotCommitMarkerV1,
-  decodeSnapshotPackageV1,
+  decodeSnapshotPackage,
   decodeSyncChangeSetV1,
   encodeCanonicalCbor,
   sha256Bytes,
@@ -14,8 +14,26 @@ import {
   type Hlc,
   type SnapshotCommitMarkerV1,
   type SnapshotPackageV1,
+  type SnapshotPackageV2,
+  type SyncChangeSetV1,
   type SyncMutationV1,
 } from '../protocol';
+import {
+  decodeReducerStatePagesV2,
+  LOCAL_SQLITE_REDUCER_PROFILE,
+  persistentReducerProfileKey,
+  productionSyncDomainMaterializationKernel,
+  reducerLaneKey,
+  reducerProfileDescriptionKey,
+  reducerReceiptSignature,
+  reducerStateFromSnapshot,
+  sqliteReplayReducerProfile,
+  type CanonicalReducerState,
+  type ReducerSnapshot,
+  type ReducerStateHeaderV2,
+  type ReducerStateJournalV2,
+} from '../reducer';
+import { decodeAuthoredStatePagesV2 } from './authored-pages';
 import {
   SNAPSHOT_DOMAIN_TABLE_NAMES_V1,
   proseSeedRows,
@@ -31,13 +49,32 @@ import {
   type SnapshotTableRowsV1,
 } from './types';
 
-export interface ValidatedSnapshotV1 {
-  readonly package: SnapshotPackageV1;
+/** A payload v2 compacted reducer state, verified against its journal rows. */
+export interface ValidatedReducerStateV2 {
+  readonly header: ReducerStateHeaderV2;
+  readonly state: CanonicalReducerState;
+  readonly journal: ReducerStateJournalV2;
+  /** The verified canonical pages, installed unchanged as the restored base. */
+  readonly pages: readonly Uint8Array[];
+}
+
+interface ValidatedSnapshotCommon {
   readonly marker: SnapshotCommitMarkerV1;
   readonly authored: AuthoredStatePayloadV1;
-  readonly reducer: ReducerStatePayloadV1;
   readonly maxChangeSetHlc: Hlc;
 }
+
+export type ValidatedSnapshot =
+  | (ValidatedSnapshotCommon & {
+      readonly payloadVersion: 1;
+      readonly package: SnapshotPackageV1;
+      readonly reducer: ReducerStatePayloadV1;
+    })
+  | (ValidatedSnapshotCommon & {
+      readonly payloadVersion: 2;
+      readonly package: SnapshotPackageV2;
+      readonly reducer: ValidatedReducerStateV2;
+    });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Uint8Array);
@@ -60,7 +97,11 @@ function parseAuthored(bytes: Uint8Array): AuthoredStatePayloadV1 {
   ) {
     throw new SnapshotRestoreError('schema-mismatch', 'Authored state is not current format v1');
   }
-  const tables: SnapshotTableRowsV1[] = value.tables.map((entry, index) => {
+  return parseAuthoredTables(value.tables);
+}
+
+function parseAuthoredTables(entries: readonly unknown[]): AuthoredStatePayloadV1 {
+  const tables: SnapshotTableRowsV1[] = entries.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.table !== 'string' || !Array.isArray(entry.rows)) {
       throw new SnapshotRestoreError('schema-mismatch', `Authored table ${index} is malformed`);
     }
@@ -376,7 +417,7 @@ function assertProjectReferences(authored: AuthoredStatePayloadV1, projectId: st
   }
 }
 
-async function assertAssets(packageValue: SnapshotPackageV1, authored: AuthoredStatePayloadV1): Promise<void> {
+async function assertAssets(packageValue: Pick<SnapshotPackageV1, 'assets'>, authored: AuthoredStatePayloadV1): Promise<void> {
   const metadata = new Map(rows(authored, 'project_asset').map((row) => [String(row.id), row]));
   if (metadata.size !== packageValue.assets.length) {
     throw new SnapshotRestoreError('reference-invalid', 'Asset manifest does not cover every project_asset');
@@ -394,7 +435,7 @@ async function assertAssets(packageValue: SnapshotPackageV1, authored: AuthoredS
   }
 }
 
-async function assertProse(packageValue: SnapshotPackageV1, authored: AuthoredStatePayloadV1): Promise<void> {
+async function assertProse(packageValue: Pick<SnapshotPackageV1, 'proseDocuments'>, authored: AuthoredStatePayloadV1): Promise<void> {
   const seeds = proseSeedRows(authored.tables);
   if (seeds.size !== packageValue.proseDocuments.length) {
     throw new SnapshotRestoreError('reference-invalid', 'Prose manifest does not cover every prose-capable entity');
@@ -429,10 +470,26 @@ function normalizeBytes(value: CanonicalCborValue | undefined): Uint8Array {
   throw new SnapshotRestoreError('schema-mismatch', 'Reducer encoded bytes are not a byte string');
 }
 
-async function assertReducerIdentity(
-  reducer: ReducerStatePayloadV1,
-  packageValue: SnapshotPackageV1,
-): Promise<Hlc> {
+type PackageIdentity = Pick<SnapshotPackageV1, 'projectId' | 'projectSyncId' | 'syncGenerationId' | 'frontier'>;
+
+interface VerifiedJournal {
+  readonly changeSets: ReadonlyMap<string, SyncChangeSetV1>;
+  readonly mutationKeys: ReadonlySet<string>;
+  readonly mutationsByKey: ReadonlyMap<string, Readonly<Record<string, CanonicalCborValue>>>;
+  readonly maxChangeSetHlc: Hlc;
+}
+
+/**
+ * Journal rows must be exactly the verified change-sets they claim: every
+ * row agrees with its encoded bytes, every mutation of each change-set is
+ * present once, and each change-set has one receipt.
+ */
+async function assertJournalRows(
+  journal: Pick<ReducerStatePayloadV1, 'changeSets' | 'mutations' | 'applyReceipts'>,
+  packageValue: PackageIdentity,
+): Promise<VerifiedJournal> {
+  const reducer = journal;
+  const changeSets = new Map<string, SyncChangeSetV1>();
   const changeSetIds = new Set<string>();
   const expectedMutations = new Map<string, SyncMutationV1>();
   const mutationKeys = new Set<string>();
@@ -476,6 +533,7 @@ async function assertReducerIdentity(
     if (compareHlc(maxChangeSetHlc, decoded.value.hlc) < 0) {
       maxChangeSetHlc = decoded.value.hlc;
     }
+    changeSets.set(changeSetId, decoded.value);
     for (const mutation of decoded.value.mutations) {
       expectedMutations.set(`${changeSetId}\u0000${mutation.index}`, mutation);
     }
@@ -525,6 +583,36 @@ async function assertReducerIdentity(
   if (receiptIds.size !== changeSetIds.size) {
     throw new SnapshotRestoreError('reference-invalid', 'Reducer checkpoint must retain one receipt per covered change-set');
   }
+  return { changeSets, mutationKeys, mutationsByKey, maxChangeSetHlc };
+}
+
+function assertFrontierRows(
+  frontier: ReducerStatePayloadV1['frontier'],
+  packageValue: PackageIdentity,
+): void {
+  if (frontier.some((row) => row.sync_generation_id !== packageValue.syncGenerationId)) {
+    throw new SnapshotRestoreError('identity-mismatch', 'Reducer frontier escapes the package SyncGeneration');
+  }
+  const frontierByWriter = new Map(
+    frontier.map((row) => [`${String(row.writer_id)}\u0000${String(row.writer_epoch)}`, row]),
+  );
+  if (frontierByWriter.size !== packageValue.frontier.length) {
+    throw new SnapshotRestoreError('reference-invalid', 'Package and reducer frontier sizes differ');
+  }
+  for (const entry of packageValue.frontier) {
+    const row = frontierByWriter.get(`${entry.writerId}\u0000${entry.writerEpoch}`);
+    const storedHead = row?.segment_head_sha256 == null ? null : `sha256:${String(row.segment_head_sha256)}`;
+    if (!row || row.applied_seq !== entry.appliedSeq || storedHead !== entry.segmentHeadHash) {
+      throw new SnapshotRestoreError('reference-invalid', 'Package frontier differs from reducer frontier');
+    }
+  }
+}
+
+async function assertReducerIdentity(
+  reducer: ReducerStatePayloadV1,
+  packageValue: SnapshotPackageV1,
+): Promise<Hlc> {
+  const { mutationKeys, mutationsByKey, maxChangeSetHlc } = await assertJournalRows(reducer, packageValue);
   const requireMutationSource = (
     row: Readonly<Record<string, CanonicalCborValue>>,
     changeSetKey: string,
@@ -560,25 +648,112 @@ async function assertReducerIdentity(
       requireMutationSource(row, 'removed_by_change_set_id', 'removed_by_mutation_index');
     }
   }
-  for (const collection of [reducer.generationPurges, reducer.fieldClocks, reducer.setTags, reducer.orderRegisters, reducer.lifecycles, reducer.frontier]) {
+  for (const collection of [reducer.generationPurges, reducer.fieldClocks, reducer.setTags, reducer.orderRegisters, reducer.lifecycles]) {
     if (collection.some((row) => row.sync_generation_id !== packageValue.syncGenerationId)) {
       throw new SnapshotRestoreError('identity-mismatch', 'Reducer metadata escapes the package SyncGeneration');
     }
   }
-  const frontierByWriter = new Map(
-    reducer.frontier.map((row) => [`${String(row.writer_id)}\u0000${String(row.writer_epoch)}`, row]),
-  );
-  if (frontierByWriter.size !== packageValue.frontier.length) {
-    throw new SnapshotRestoreError('reference-invalid', 'Package and reducer frontier sizes differ');
+  assertFrontierRows(reducer.frontier, packageValue);
+  return maxChangeSetHlc;
+}
+
+/** Every mutation a compacted state's registers name as their source. */
+function registerSources(snapshot: ReducerSnapshot): { changeSetId: string; mutationIndex: number }[] {
+  const sources: { changeSetId: string; mutationIndex: number }[] = [];
+  const add = (value: { source: { changeSetId: string; mutationIndex: number } } | null) => {
+    if (value) sources.push(value.source);
+  };
+  for (const register of [...snapshot.fields, ...snapshot.tuples, ...snapshot.orders, ...snapshot.assetBindings]) add(register);
+  for (const set of snapshot.sets) {
+    for (const member of set.members) for (const value of [...member.adds, ...member.removedAddTags]) add(value);
   }
-  for (const entry of packageValue.frontier) {
-    const row = frontierByWriter.get(`${entry.writerId}\u0000${entry.writerEpoch}`);
-    const storedHead = row?.segment_head_sha256 == null ? null : `sha256:${String(row.segment_head_sha256)}`;
-    if (!row || row.applied_seq !== entry.appliedSeq || storedHead !== entry.segmentHeadHash) {
-      throw new SnapshotRestoreError('reference-invalid', 'Package frontier differs from reducer frontier');
+  for (const lifecycle of snapshot.lifecycles) {
+    for (const value of [...lifecycle.seeds, ...lifecycle.trashes]) add(value);
+    add(lifecycle.purge);
+  }
+  return sources;
+}
+
+/**
+ * A compacted state is accepted only when its explicit history is exactly
+ * the carried journal: coverage equals the applied frontier, explicit
+ * receipts are carried change-sets beyond it with matching signatures, and
+ * every register source is a carried mutation. Covered history itself is not
+ * carried; the frontier anchors it to complete published segments.
+ */
+async function parseReducerV2(packageValue: SnapshotPackageV2): Promise<{ reducer: ValidatedReducerStateV2; maxChangeSetHlc: Hlc }> {
+  const pages = packageValue.reducerState.pages.map((page) => page.bytes);
+  let decoded: ReturnType<typeof decodeReducerStatePagesV2>;
+  try {
+    decoded = decodeReducerStatePagesV2(pages);
+  } catch (error) {
+    throw new SnapshotRestoreError('schema-mismatch', 'Reducer state pages are malformed', error);
+  }
+  const { header, snapshot, journal } = decoded;
+  if (
+    header.identity.projectId !== packageValue.projectId ||
+    header.identity.projectSyncId !== packageValue.projectSyncId ||
+    header.identity.syncGenerationId !== packageValue.syncGenerationId
+  ) {
+    throw new SnapshotRestoreError('identity-mismatch', 'Reducer state identity differs from the package');
+  }
+  const localProfile = persistentReducerProfileKey(
+    sqliteReplayReducerProfile(LOCAL_SQLITE_REDUCER_PROFILE, productionSyncDomainMaterializationKernel),
+  );
+  if (reducerProfileDescriptionKey(header.profile) !== localProfile) {
+    throw new SnapshotRestoreError('schema-mismatch', 'Reducer state was produced under a different reducer profile');
+  }
+  const verified = await assertJournalRows(journal, packageValue);
+  assertFrontierRows(journal.frontier, packageValue);
+
+  const frontier = packageValue.frontier.filter((entry) => entry.appliedSeq > 0);
+  if (
+    snapshot.coverage.length !== frontier.length ||
+    snapshot.coverage.some((lane, index) =>
+      lane.writerId !== frontier[index].writerId ||
+      lane.writerEpoch !== frontier[index].writerEpoch ||
+      lane.deviceSeq !== frontier[index].appliedSeq,
+    )
+  ) {
+    throw new SnapshotRestoreError('reference-invalid', 'Reducer coverage differs from the applied frontier');
+  }
+  const covered = new Map(snapshot.coverage.map((lane) => [reducerLaneKey(lane.writerId, lane.writerEpoch), lane.deviceSeq]));
+  const isCovered = (changeSet: SyncChangeSetV1) =>
+    changeSet.deviceSeq <= (covered.get(reducerLaneKey(changeSet.writerId, changeSet.writerEpoch)) ?? 0);
+  const explicit = new Set<string>();
+  for (const receipt of snapshot.receipts) {
+    const changeSet = verified.changeSets.get(receipt.changeSetId);
+    if (!changeSet || isCovered(changeSet) || reducerReceiptSignature(changeSet) !== receipt.signature) {
+      throw new SnapshotRestoreError('reference-invalid', `Reducer receipt ${receipt.changeSetId} is not a carried change-set beyond the frontier`);
+    }
+    explicit.add(receipt.changeSetId);
+  }
+  for (const [changeSetId, changeSet] of verified.changeSets) {
+    if (!explicit.has(changeSetId) && !isCovered(changeSet)) {
+      throw new SnapshotRestoreError('reference-invalid', `Carried change-set ${changeSetId} is neither covered nor receipted`);
     }
   }
-  return maxChangeSetHlc;
+  for (const source of registerSources(snapshot)) {
+    if (!verified.mutationKeys.has(`${source.changeSetId}\u0000${source.mutationIndex}`)) {
+      throw new SnapshotRestoreError('reference-invalid', 'Reducer register references a missing source mutation');
+    }
+  }
+  if (snapshot.generationPurge) {
+    throw new SnapshotRestoreError('reference-invalid', 'A terminally purged SyncGeneration cannot be restored as an active project');
+  }
+  if (snapshot.conflicts.length > 0) {
+    throw new SnapshotRestoreError('reference-invalid', 'A checkpoint cannot carry unresolved reducer conflicts');
+  }
+  if (compareHlc(header.maxChangeSetHlc, verified.maxChangeSetHlc) < 0) {
+    throw new SnapshotRestoreError('reference-invalid', 'Reducer header HLC precedes a carried change-set');
+  }
+  let state: CanonicalReducerState;
+  try {
+    state = reducerStateFromSnapshot(snapshot);
+  } catch (error) {
+    throw new SnapshotRestoreError('reference-invalid', 'Reducer state repeats an identity', error);
+  }
+  return { reducer: { header, state, journal, pages }, maxChangeSetHlc: header.maxChangeSetHlc };
 }
 
 function decodeFailureCode(reason: string): 'unknown-version' | 'invalid-marker' | 'invalid-package' {
@@ -586,17 +761,18 @@ function decodeFailureCode(reason: string): 'unknown-version' | 'invalid-marker'
   return 'invalid-package';
 }
 
-export async function validateSnapshotForRestoreV1(input: {
+/** Validates a payload v1 or v2 package; other versions fail closed. */
+export async function validateSnapshotForRestore(input: {
   packageBytes: Uint8Array;
   commitMarkerBytes: Uint8Array;
   expected: { projectId: string; projectSyncId: string; syncGenerationId: string };
-}): Promise<ValidatedSnapshotV1> {
+}): Promise<ValidatedSnapshot> {
   const markerResult = decodeSnapshotCommitMarkerV1(input.commitMarkerBytes);
   if (!markerResult.ok) {
     const code = markerResult.reason.includes('version') ? 'unknown-version' : 'invalid-marker';
     throw new SnapshotRestoreError(code, `Snapshot commit marker rejected: ${markerResult.reason}`);
   }
-  const packageResult = await decodeSnapshotPackageV1(input.packageBytes);
+  const packageResult = await decodeSnapshotPackage(input.packageBytes);
   if (!packageResult.ok) {
     throw new SnapshotRestoreError(
       decodeFailureCode(packageResult.reason),
@@ -604,7 +780,7 @@ export async function validateSnapshotForRestoreV1(input: {
     );
   }
   const marker = markerResult.value;
-  const packageValue = packageResult.value;
+  const packageValue = packageResult.value.value;
   const packageHash = await sha256Bytes(input.packageBytes);
   if (
     marker.packageSha256 !== packageHash ||
@@ -627,23 +803,30 @@ export async function validateSnapshotForRestoreV1(input: {
   }
   if (
     packageValue.protocolVersion !== 1 ||
-    packageValue.payloadVersion !== 1 ||
     packageValue.domainManifestVersion !== 1 ||
     packageValue.sqliteSchemaVersion !== 1
   ) {
     throw new SnapshotRestoreError('schema-mismatch', 'Only current snapshot/domain/SQLite schema v1 is supported');
   }
-  const authored = parseAuthored(packageValue.authoredState.bytes);
-  const reducer = parseReducer(packageValue.reducerState.bytes);
+  const authored = packageResult.value.payloadVersion === 1
+    ? parseAuthored(packageResult.value.value.authoredState.bytes)
+    : parseAuthoredTables(decodeAuthoredStatePagesV2(packageResult.value.value.authoredState.pages.map((page) => page.bytes)));
   assertProjectReferences(authored, packageValue.projectId);
   await assertAssets(packageValue, authored);
   await assertProse(packageValue, authored);
-  const maxChangeSetHlc = await assertReducerIdentity(reducer, packageValue);
+
+  if (packageResult.value.payloadVersion === 2) {
+    const { reducer, maxChangeSetHlc } = await parseReducerV2(packageResult.value.value);
+    return { payloadVersion: 2, package: packageResult.value.value, marker, authored, reducer, maxChangeSetHlc };
+  }
+  const v1 = packageResult.value.value;
+  const reducer = parseReducer(v1.reducerState.bytes);
+  const maxChangeSetHlc = await assertReducerIdentity(reducer, v1);
   if (reducer.generationPurges.length > 0) {
     throw new SnapshotRestoreError(
       'reference-invalid',
       'A terminally purged SyncGeneration cannot be restored as an active project',
     );
   }
-  return { package: packageValue, marker, authored, reducer, maxChangeSetHlc };
+  return { payloadVersion: 1, package: v1, marker, authored, reducer, maxChangeSetHlc };
 }

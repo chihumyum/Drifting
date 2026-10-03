@@ -26,7 +26,7 @@ import {
   materializeAuthoredTablesV1,
   materializeNormalizedAuthoredProjectionsV1,
 } from './domain-catalog';
-import { materializeReducerStateV1 } from './reducer-state';
+import { materializeReducerStateV1, materializeReducerStateV2 } from './reducer-state';
 import {
   SnapshotRestoreError,
   type RestoreFailureCode,
@@ -34,7 +34,7 @@ import {
   type RestoreSnapshotResultV1,
   type RestoreSnapshotsAtomicallyInputV1,
 } from './types';
-import { validateSnapshotForRestoreV1, type ValidatedSnapshotV1 } from './validate';
+import { validateSnapshotForRestore, type ValidatedSnapshot } from './validate';
 
 function rawSha256(value: Sha256): string {
   return value.slice('sha256:'.length);
@@ -140,7 +140,7 @@ async function beginAttempts(
 
 interface PreparedRestore {
   readonly input: RestoreSnapshotInputV1;
-  readonly validated: ValidatedSnapshotV1;
+  readonly validated: ValidatedSnapshot;
   readonly stagingRefs: LocalObjectRef[];
   readonly activationReceipt: string;
 }
@@ -163,7 +163,15 @@ async function materializePreparedRestore(
     nowIso: activationTime,
     localUserId: input.localUserId,
   });
-  await materializeReducerStateV1(tx, validated.reducer);
+  if (validated.payloadVersion === 1) {
+    await materializeReducerStateV1(tx, validated.reducer);
+  } else {
+    await materializeReducerStateV2(tx, {
+      reducer: validated.reducer,
+      sourceCheckpointId: validated.package.snapshotId,
+      nowIso: activationTime,
+    });
+  }
   // Derived reducer snapshots describe the replaced journal, never this one.
   await deleteSqliteReducerSnapshotsInTransaction(tx, input.expected.syncGenerationId);
   await initializeRestoredWriterStateInTransaction(tx, {
@@ -210,7 +218,9 @@ async function materializePreparedRestore(
     logicalKeyId: validated.marker.packageLogicalKeyId,
     contentSha256: rawSha256(validated.marker.packageSha256),
     state: 'published',
-    changeSetCount: validated.reducer.changeSets.length,
+    changeSetCount: validated.payloadVersion === 1
+      ? validated.reducer.changeSets.length
+      : validated.reducer.journal.changeSets.length,
     sizeBytes: input.packageBytes.byteLength,
     createdAt: activationTime,
     publishedAt: activationTime,
@@ -280,10 +290,10 @@ async function materializePreparedRestore(
  * Restore validates every byte and reference before any domain row exists.
  * Only the final SQLite transaction exposes the project and reducer state.
  */
-export async function restoreSnapshotV1(
+export async function restoreSnapshot(
   input: RestoreSnapshotInputV1,
 ): Promise<RestoreSnapshotResultV1> {
-  const results = await restoreSnapshotsAtomicallyV1({ snapshots: [input] });
+  const results = await restoreSnapshotsAtomically({ snapshots: [input] });
   return results[0]!;
 }
 
@@ -292,7 +302,7 @@ export async function restoreSnapshotV1(
  * SQLite transaction. A multi-SyncGeneration recovery can therefore never reveal a
  * prefix of the remote project set before App-wide provider activation.
  */
-export async function restoreSnapshotsAtomicallyV1(
+export async function restoreSnapshotsAtomically(
   input: RestoreSnapshotsAtomicallyInputV1,
 ): Promise<readonly RestoreSnapshotResultV1[]> {
   if (input.snapshots.length === 0) return [];
@@ -316,7 +326,7 @@ export async function restoreSnapshotsAtomicallyV1(
   let activated = false;
   try {
     for (const snapshot of snapshots) {
-      const validated = await validateSnapshotForRestoreV1({
+      const validated = await validateSnapshotForRestore({
         packageBytes: snapshot.packageBytes,
         commitMarkerBytes: snapshot.commitMarkerBytes,
         expected: snapshot.expected,

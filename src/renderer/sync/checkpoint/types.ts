@@ -6,7 +6,7 @@ import type {
   SnapshotAssetV1,
   SnapshotCommitMarkerV1,
   SnapshotKind,
-  SnapshotPackageV1,
+  SnapshotPackageV2,
 } from '../protocol';
 import type { SyncWriterIdentitySource } from '../journal/writer-state';
 
@@ -43,8 +43,8 @@ export interface CapturedAssetSourceV1 {
   readonly sourceRef: LocalObjectRef;
 }
 
-export interface CapturedSnapshotV1 {
-  readonly package: SnapshotPackageV1;
+export interface CapturedSnapshot {
+  readonly package: SnapshotPackageV2;
   readonly packageBytes: Uint8Array;
   readonly packageSha256: Sha256;
   readonly commitMarker: SnapshotCommitMarkerV1;

@@ -21,8 +21,8 @@ import {
   SyncGenerationTable,
 } from '../../schema/drizzle';
 import {
-  restoreSnapshotsAtomicallyV1,
-  validateSnapshotForRestoreV1,
+  restoreSnapshotsAtomically,
+  validateSnapshotForRestore,
   type RestoreSnapshotInputV1,
   type RestoreSnapshotResultV1,
   type SnapshotAssetRestorePort,
@@ -53,6 +53,7 @@ import {
   type Sha256,
   type SnapshotCommitMarkerV1,
   type SnapshotPackageV1,
+  type SnapshotPackageV2,
 } from '../protocol';
 
 const MAX_PROVIDER_PAGES = 10_000;
@@ -457,7 +458,7 @@ interface RemoteSnapshotCandidate {
   readonly markerBytes: Uint8Array;
   readonly markerSourceRef: LocalObjectRef;
   readonly packageObject: RemoteObject;
-  readonly package: SnapshotPackageV1;
+  readonly package: SnapshotPackageV1 | SnapshotPackageV2;
   readonly packageBytes: Uint8Array;
   readonly packageSourceRef: LocalObjectRef;
 }
@@ -575,9 +576,9 @@ async function discoverLatestSnapshot(input: {
     if (packageDownload.contentSha256 !== marker.packageSha256) {
       throw new CloudRestoreError('blocked-corrupt', 'Snapshot package hash differs from marker');
     }
-    let validated: Awaited<ReturnType<typeof validateSnapshotForRestoreV1>>;
+    let validated: Awaited<ReturnType<typeof validateSnapshotForRestore>>;
     try {
-      validated = await validateSnapshotForRestoreV1({
+      validated = await validateSnapshotForRestore({
         packageBytes: packageDownload.bytes,
         commitMarkerBytes: markerDownload.bytes,
         expected: {
@@ -1193,7 +1194,7 @@ export async function restoreCloudSyncGenerations(
     });
     let authorityCompleted = false;
     try {
-      await restoreSnapshotsAtomicallyV1({
+      await restoreSnapshotsAtomically({
         snapshots: atomicInputs,
         ...(atomicInputs.length > 0
           ? {
@@ -1531,7 +1532,7 @@ export async function restoreDiscoveredCloudProjects(
     attemptId,
   );
   try {
-    await restoreSnapshotsAtomicallyV1({
+    await restoreSnapshotsAtomically({
       snapshots: atomicInputs,
       activationBarrier: async ({ tx, activatedAt }) => {
         const [current] = await tx.select().from(SyncAppAuthorityTable).limit(1);

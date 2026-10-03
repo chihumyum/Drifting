@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { DbClient, DbTransaction } from '../../lib/db';
@@ -30,7 +30,7 @@ import {
   type SnapshotKind,
   type SyncObjectKind,
 } from '../protocol';
-import { captureSnapshotV1 } from './capture';
+import { captureSnapshot } from './capture';
 import type { SnapshotAssetCapturePort } from './types';
 
 const DEFAULT_CHANGE_SET_THRESHOLD = 10_000;
@@ -416,7 +416,7 @@ export class ProviderSnapshotPublisher {
 
     await this.options.flushLocalDurability?.();
     const capturedMs = this.nowMs();
-    const captured = await captureSnapshotV1({
+    const captured = await captureSnapshot({
       db: this.options.db,
       projectId: this.options.projectId,
       syncGenerationId: this.options.syncGenerationId,
@@ -512,8 +512,8 @@ export class ProviderSnapshotPublisher {
       });
     }
 
-    const changeSetRows = await this.options.db
-      .select({ changeSetId: SyncChangeSetTable.changeSetId })
+    const [changeSetRows] = await this.options.db
+      .select({ value: count() })
       .from(SyncChangeSetTable)
       .where(eq(SyncChangeSetTable.syncGenerationId, this.options.syncGenerationId));
     const nowIso = this.nowIso();
@@ -610,7 +610,7 @@ export class ProviderSnapshotPublisher {
         logicalKeyId: packagePrepared.logicalKeyId,
         contentSha256: sha256Hex(captured.packageSha256),
         state: 'captured',
-        changeSetCount: changeSetRows.length,
+        changeSetCount: Number(changeSetRows?.value ?? 0),
         sizeBytes: captured.packageBytes.byteLength,
         createdAt: nowIso,
         verifiedAt: nowIso,
@@ -708,11 +708,11 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
         .where(eq(SyncCheckpointTable.syncGenerationId, syncGenerationId))
         .orderBy(desc(SyncCheckpointTable.createdAt))
         .limit(1);
-      const changeSets = await options.db
-        .select({ id: SyncChangeSetTable.changeSetId })
+      const [changeSets] = await options.db
+        .select({ value: count() })
         .from(SyncChangeSetTable)
         .where(eq(SyncChangeSetTable.syncGenerationId, syncGenerationId));
-      const currentCount = changeSets.length;
+      const currentCount = Number(changeSets?.value ?? 0);
       const previousCount = latest?.changeSetCount ?? 0;
       if (currentCount <= previousCount) return false;
       const segments = await options.db

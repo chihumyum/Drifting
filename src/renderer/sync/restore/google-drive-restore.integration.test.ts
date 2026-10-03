@@ -21,7 +21,7 @@ import {
   SyncRestoreAttemptTable,
   SyncGenerationTable,
 } from '../../schema/drizzle';
-import { captureSnapshotV1 } from '../checkpoint';
+import { captureSnapshot } from '../checkpoint';
 import { createSyncAppAuthorityRepository } from '../app-authority-repository';
 import { SqliteSyncGenerationRuntime } from '../engine/durable-runtime';
 import { PlaintextSyncEngineObjectCodec } from '../engine/plaintext-object-codec';
@@ -163,7 +163,7 @@ async function publishRemoteGenesis(input: {
   const projectId = input.projectId ?? 'remote-project';
   const syncGenerationId = input.syncGenerationId ?? 'remote-generation';
   const snapshotId = input.snapshotId ?? 'genesis-remote';
-  const captured = await captureSnapshotV1({
+  const captured = await captureSnapshot({
     db: input.db,
     projectId,
     syncGenerationId,

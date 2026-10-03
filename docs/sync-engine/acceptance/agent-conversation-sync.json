@@ -48,7 +48,7 @@
       "src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts": "8c29caba154af5de9e484c2bdfea745cb3917b716d88f4fbfc4453425890561f",
       "src/renderer/store/agent-chat-events.integration.test.ts": "d88c9941a6ff74b4f54f70392260d9194a8f034ab2217634ba58c277d73da629",
       "src/renderer/store/agent-chat-store.ts": "fd752c9935e40d3c2e57ab2f4466217b561d30b1dff13af5a2ea23a03423a5b7",
-      "src/renderer/sync/agent-chat/agent-chat.integration.test.ts": "e7d402c1c992679568715cbcd64d0de665a683231bb61df84d613fb6a42d8217",
+      "src/renderer/sync/agent-chat/agent-chat.integration.test.ts": "7205953f846c795307d4271d8f1a448e36c05cb027d6a3728aa6c2e4e9514ce1",
       "src/renderer/sync/agent-chat/imported-history.ts": "68c7c5e16fc92462a0bf7eab7c5f80651ac3824f444527c85f1f558a49cc87af",
       "src/renderer/sync/agent-chat/payload.ts": "619c9cf15a110dd9637a94bab43b407d41f8a853aa90940a3fee3c73a8a2731c",
       "src/renderer/sync/agent-chat/protocol.ts": "368d5bab483867663ece81db2ec9fb492d6df9bd76d961e096fc8623e5321464",

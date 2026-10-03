@@ -33,6 +33,7 @@ import {
   SyncFrontierTable,
   SyncMutationTable,
   SyncOrderRegisterTable,
+  SyncReducerBaseTable,
   SyncRestoreAttemptTable,
   SyncSetTagTable,
   SyncGenerationTable,
@@ -44,15 +45,15 @@ import {
 import {
   createLocalObjectRef,
   decodeCanonicalCbor,
-  decodeSnapshotPackageV1,
+  decodeSnapshotPackage,
   encodeCanonicalCbor,
   encodeSnapshotCommitMarkerV1,
-  encodeSnapshotPackageV1,
+  encodeSnapshotPackageV2,
   sha256Bytes,
   type CanonicalCborValue,
   type LocalObjectRef,
   type Sha256,
-  type SnapshotPackageV1,
+  type SnapshotPackageV2,
 } from '../protocol';
 import { SyncChangeBuilder } from '../journal/change-builder';
 import { recordAuthoredChangeSetInTransaction } from '../journal/repository';
@@ -62,23 +63,38 @@ import {
   driftGroupOrderScope,
   fractionalPositionKeysBetween,
 } from '../journal/order-authority';
-import { observeLocalAuthoredReducerInTransaction } from '../reducer/sqlite-materializer';
+import {
+  decodeReducerStatePagesV2,
+  encodeReducerStatePagesV2,
+} from '../reducer/state-pages';
+import {
+  canonicalReducerSnapshot,
+  compactReducerReceipts,
+  getSqliteReducerLoadDiagnostics,
+  invalidateSqliteReducerStateCache,
+  loadSqliteReducerStateInTransaction,
+  LOCAL_SQLITE_REDUCER_PROFILE,
+  observeLocalAuthoredReducerInTransaction,
+  productionSyncDomainMaterializationKernel,
+  sqliteReplayReducerProfile,
+} from '../reducer';
 import {
   replaceElementAliasesInTransaction,
   replaceEntityKvEntriesInTransaction,
 } from '../../usecase/normalized-kv-alias-authority';
 import { applyPlotGridMutationsInTransaction } from '../../usecase/plot-grid-write';
 import {
-  captureSnapshotV1,
-  publishCapturedSnapshotV1,
-  restoreSnapshotV1,
-  restoreSnapshotsAtomicallyV1,
+  captureSnapshot,
+  publishCapturedSnapshot,
+  restoreSnapshot,
+  restoreSnapshotsAtomically,
   SnapshotRestoreError,
-  validateSnapshotForRestoreV1,
-  type CapturedSnapshotV1,
-  type ReducerStatePayloadV1,
+  validateSnapshotForRestore,
+  type CaptureSnapshotInput,
+  type CapturedSnapshot,
   type SnapshotAssetRestorePort,
 } from '.';
+import { captureSnapshotV1ForTest, type CapturedSnapshotV1 } from './capture-v1.test-support';
 
 const PROJECT_ID = 'project-checkpoint';
 const SYNC_GENERATION_ID = 'sync-generation-checkpoint';
@@ -481,8 +497,8 @@ async function stagedTarget(db: DbClient, projectSyncId = PROJECT_SYNC_ID): Prom
   });
 }
 
-async function capture(db: DbClient): Promise<CapturedSnapshotV1> {
-  return captureSnapshotV1({
+function captureInput(db: DbClient): CaptureSnapshotInput {
+  return {
     db,
     projectId: PROJECT_ID,
     syncGenerationId: SYNC_GENERATION_ID,
@@ -502,7 +518,11 @@ async function capture(db: DbClient): Promise<CapturedSnapshotV1> {
         };
       },
     },
-  });
+  };
+}
+
+async function capture(db: DbClient): Promise<CapturedSnapshot> {
+  return captureSnapshot(captureInput(db));
 }
 
 function restorePort(options: { corrupt?: boolean } = {}): SnapshotAssetRestorePort {
@@ -524,14 +544,14 @@ function restorePort(options: { corrupt?: boolean } = {}): SnapshotAssetRestoreP
 
 async function restore(
   db: DbClient,
-  captured: CapturedSnapshotV1,
+  captured: Pick<CapturedSnapshot | CapturedSnapshotV1, 'packageBytes' | 'commitMarkerBytes'>,
   options: {
     blobSources?: ReadonlyMap<string, LocalObjectRef>;
     assetPort?: SnapshotAssetRestorePort;
     expectedProjectSyncId?: string;
   } = {},
 ) {
-  return restoreSnapshotV1({
+  return restoreSnapshot({
     db,
     attemptId: `restore-${crypto.randomUUID()}`,
     stagingRef: createLocalObjectRef('syncobj:test.restore-attempt'),
@@ -553,21 +573,11 @@ async function restore(
 type MutableMutationRow = Record<string, CanonicalCborValue>;
 type MutationRowsTamper = (rows: MutableMutationRow[]) => void | Promise<void>;
 
-async function resealMutationRows(
-  captured: CapturedSnapshotV1,
-  tamper: MutationRowsTamper,
-): Promise<CapturedSnapshotV1> {
-  const decoded = decodeCanonicalCbor(captured.package.reducerState.bytes);
-  if (!decoded.ok) throw new Error('Synthetic reducer state failed to decode');
-  const reducer = decoded.value as unknown as ReducerStatePayloadV1;
-  const mutations = reducer.mutations.map((row) => ({ ...row }));
-  await tamper(mutations);
-  const bytes = encodeCanonicalCbor({ ...reducer, mutations } as unknown as CanonicalCborValue);
-  const packageValue: SnapshotPackageV1 = {
-    ...captured.package,
-    reducerState: { ...captured.package.reducerState, bytes, sha256: await sha256Bytes(bytes) },
-  };
-  const packageBytes = encodeSnapshotPackageV1(packageValue);
+async function repackage(
+  captured: CapturedSnapshot,
+  packageValue: SnapshotPackageV2,
+): Promise<CapturedSnapshot> {
+  const packageBytes = encodeSnapshotPackageV2(packageValue);
   const packageSha256 = await sha256Bytes(packageBytes);
   const commitMarker = { ...captured.commitMarker, packageSha256 };
   return {
@@ -578,6 +588,85 @@ async function resealMutationRows(
     commitMarker,
     commitMarkerBytes: encodeSnapshotCommitMarkerV1(commitMarker),
   };
+}
+
+async function pagesWithHashes(pages: readonly Uint8Array[]) {
+  return Promise.all(pages.map(async (bytes) => ({ bytes, sha256: await sha256Bytes(bytes) })));
+}
+
+type ReducerPages = ReturnType<typeof decodeReducerStatePagesV2>;
+
+/** Rewrites the reducer section and reseals every hash around it. */
+async function resealReducer(
+  captured: CapturedSnapshot,
+  rewrite: (reducer: ReducerPages) => ReducerPages | Promise<ReducerPages>,
+): Promise<CapturedSnapshot> {
+  const reducer = decodeReducerStatePagesV2(captured.package.reducerState.pages.map((page) => page.bytes));
+  const pages = encodeReducerStatePagesV2(await rewrite(reducer));
+  return repackage(captured, {
+    ...captured.package,
+    reducerState: { ...captured.package.reducerState, pages: await pagesWithHashes(pages) },
+  });
+}
+
+/** Rewrites the carried journal mutation rows; every outer hash stays valid. */
+async function resealMutationRows(
+  captured: CapturedSnapshot,
+  tamper: MutationRowsTamper,
+): Promise<CapturedSnapshot> {
+  return resealReducer(captured, async (reducer) => {
+    const mutations = reducer.journal.mutations.map((row) => ({ ...row }));
+    await tamper(mutations);
+    return { ...reducer, journal: { ...reducer.journal, mutations } };
+  });
+}
+
+/**
+ * Appends ordinary local title writes after the seed change-set. The applied
+ * frontier then covers `coveredThrough`; later writes stay beyond it.
+ */
+async function appendTitleWrites(db: DbClient, titles: readonly string[], coveredThrough: number): Promise<void> {
+  for (const [index, title] of titles.entries()) {
+    await db.transaction(async (tx) => {
+      const changes = new SyncChangeBuilder();
+      await tx.update(BookNodeTable).set({ title, updatedAt: NOW }).where(eq(BookNodeTable.id, 'node-snapshot'));
+      changes.add({
+        target: { family: 'entity', kind: 'node', id: 'node-snapshot', incarnation: 0 },
+        action: 'field.set',
+        payload: { field: 'title', value: title },
+      });
+      const clock = { nowMs: SOURCE_HLC_WALL_MS + 10 + index, nowIso: NOW };
+      const recorded = await recordAuthoredChangeSetInTransaction(tx, {
+        projectId: PROJECT_ID,
+        projectSyncId: PROJECT_SYNC_ID,
+        syncGenerationId: SYNC_GENERATION_ID,
+        identity: {
+          installationId: 'installation-checkpoint',
+          createWriterIdentity: () => ({ writerId: 'writer-checkpoint', writerEpoch: 'epoch-1' }),
+        },
+        clock,
+      }, changes);
+      await observeLocalAuthoredReducerInTransaction(tx, { changeSet: recorded.changeSet, clock });
+    });
+  }
+  await db
+    .update(SyncFrontierTable)
+    .set({ receivedSeq: coveredThrough, appliedSeq: coveredThrough, publishedSeq: coveredThrough })
+    .where(eq(SyncFrontierTable.syncGenerationId, SYNC_GENERATION_ID));
+}
+
+const REDUCER_IDENTITY = {
+  projectId: PROJECT_ID,
+  projectSyncId: PROJECT_SYNC_ID,
+  syncGenerationId: SYNC_GENERATION_ID,
+} as const;
+
+/** The compacted reducer state SQLite rebuilds, bypassing the in-process cache. */
+async function rebuiltReducerSnapshot(db: DbClient) {
+  invalidateSqliteReducerStateCache();
+  const profile = sqliteReplayReducerProfile(LOCAL_SQLITE_REDUCER_PROFILE, productionSyncDomainMaterializationKernel);
+  const { state } = await db.transaction((tx) => loadSqliteReducerStateInTransaction(tx, REDUCER_IDENTITY, profile, ''));
+  return { snapshot: canonicalReducerSnapshot(compactReducerReceipts(state)), load: getSqliteReducerLoadDiagnostics() };
 }
 
 const mutationRowTampering: readonly [string, MutationRowsTamper][] = [
@@ -670,7 +759,7 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
       nowIso: () => '2026-08-15T13:00:00.000Z',
     } as const;
     await expect(
-      restoreSnapshotsAtomicallyV1({
+      restoreSnapshotsAtomically({
         snapshots: [
           {
             ...common,
@@ -831,7 +920,7 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     await seedSource(source);
     const captured = await capture(source);
     const calls: string[] = [];
-    await publishCapturedSnapshotV1(captured, {
+    await publishCapturedSnapshot(captured, {
       async ensureBlob({ asset }) { calls.push(`blob:${asset.blobId}`); },
       async publishPackage() { calls.push('package'); },
       async publishCommitMarker() { calls.push('marker'); },
@@ -840,7 +929,7 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
 
     calls.length = 0;
     await expect(
-      publishCapturedSnapshotV1(captured, {
+      publishCapturedSnapshot(captured, {
         async ensureBlob() { calls.push('blob'); },
         async publishPackage() { calls.push('package'); throw new Error('lost package'); },
         async publishCommitMarker() { calls.push('marker'); },
@@ -999,11 +1088,11 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     const captured = await capture(source);
 
     const decoded = captured.package as unknown as Record<string, unknown>;
-    const unknownBytes = encodeCanonicalCbor({ ...decoded, payloadVersion: 2 } as never);
+    const unknownBytes = encodeCanonicalCbor({ ...decoded, payloadVersion: 3 } as never);
     const unknown = await database('unknown-version');
     await stagedTarget(unknown);
     await expect(
-      restoreSnapshotV1({
+      restoreSnapshot({
         db: unknown,
         attemptId: 'restore-unknown',
         stagingRef: createLocalObjectRef('syncobj:test.restore-unknown'),
@@ -1018,40 +1107,27 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     ).rejects.toMatchObject({ code: 'unknown-version' });
     expect(await unknown.select().from(ProjectTable)).toEqual([]);
 
-    const invalidPackage: SnapshotPackageV1 = {
+    const invalidState = Uint8Array.of(0xff, 0xff, 0xff);
+    const invalidCapture = await repackage(captured, {
       ...captured.package,
-      proseDocuments: captured.package.proseDocuments.map((document) =>
+      proseDocuments: await Promise.all(captured.package.proseDocuments.map(async (document) =>
         document.mode === 'full-state' && document.documentId === 'element:element-update'
-          ? {
-              ...document,
-              state: Uint8Array.of(0xff, 0xff, 0xff),
-              stateSha256: `sha256:${'0'.repeat(64)}` as Sha256,
-            }
+          ? { ...document, state: invalidState, stateSha256: await sha256Bytes(invalidState) }
           : document,
-      ),
-    };
-    const invalidState = invalidPackage.proseDocuments.find(
-      (document) => document.mode === 'full-state' && document.documentId === 'element:element-update',
-    );
-    if (!invalidState || invalidState.mode !== 'full-state') throw new Error('missing test document');
-    invalidState.stateSha256 = await sha256Bytes(invalidState.state);
-    const invalidBytes = encodeSnapshotPackageV1(invalidPackage);
-    const invalidMarker = {
-      ...captured.commitMarker,
-      packageSha256: await sha256Bytes(invalidBytes),
-    };
+      )),
+    });
     const invalid = await database('invalid-yjs');
     await stagedTarget(invalid);
     await expect(
-      restoreSnapshotV1({
+      restoreSnapshot({
         db: invalid,
         attemptId: 'restore-invalid-yjs',
         stagingRef: createLocalObjectRef('syncobj:test.restore-invalid-yjs'),
         expected: { projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, syncGenerationId: SYNC_GENERATION_ID },
         localUserId: 'local',
         writerIdentity: restoredWriterIdentity('invalid-yjs'),
-        packageBytes: invalidBytes,
-        commitMarkerBytes: encodeSnapshotCommitMarkerV1(invalidMarker),
+        packageBytes: invalidCapture.packageBytes,
+        commitMarkerBytes: invalidCapture.commitMarkerBytes,
         blobSources: new Map([['blob-keyed-asset-1', ASSET_REF]]),
         assetPort: restorePort(),
       }),
@@ -1068,9 +1144,9 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
       const invalid = await resealMutationRows(captured, tamper);
       // All outer hashes are valid; only the retained row disagrees with its
       // original, independently verified encoded change-set mutation.
-      expect((await decodeSnapshotPackageV1(invalid.packageBytes)).ok).toBe(true);
+      expect((await decodeSnapshotPackage(invalid.packageBytes)).ok).toBe(true);
       expect(await sha256Bytes(invalid.packageBytes)).toBe(invalid.commitMarker.packageSha256);
-      await expect(validateSnapshotForRestoreV1({
+      await expect(validateSnapshotForRestore({
         packageBytes: invalid.packageBytes,
         commitMarkerBytes: invalid.commitMarkerBytes,
         expected: { projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, syncGenerationId: SYNC_GENERATION_ID },
@@ -1102,4 +1178,122 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
       ]);
     },
   );
+
+  it('compacts covered history to register sources and restores it as the reducer base', async () => {
+    const source = await database('compacted-source');
+    await seedSource(source);
+    // Seqs 2-5 overwrite one title under the frontier; seq 6 is applied beyond it.
+    await appendTitleWrites(source, ['Draft 2', 'Draft 3', 'Draft 4', 'Draft 5', 'Draft 6'], 5);
+    const expected = await rebuiltReducerSnapshot(source);
+    const captured = await capture(source);
+    const reducer = decodeReducerStatePagesV2(captured.package.reducerState.pages.map((page) => page.bytes));
+    expect(reducer.snapshot.coverage).toEqual([
+      { writerId: 'writer-checkpoint', writerEpoch: 'epoch-1', deviceSeq: 5 },
+    ]);
+    expect(reducer.snapshot.receipts.map((receipt) => receipt.changeSetId)).toEqual(['writer-checkpoint:epoch-1:6']);
+    expect(reducer.journal.changeSets.map((row) => row.device_seq)).toEqual([1, 6]);
+
+    const target = await database('compacted-target');
+    await stagedTarget(target);
+    await restore(target, captured);
+    const journalSeqs = async () =>
+      (await target.select().from(SyncChangeSetTable).orderBy(asc(SyncChangeSetTable.changeSetId)))
+        .map((row) => `${row.writerId}:${row.deviceSeq}`);
+    expect(await journalSeqs()).toEqual(['writer-checkpoint:1', 'writer-checkpoint:6']);
+    expect(await target.select().from(SyncReducerBaseTable)).toMatchObject([
+      { syncGenerationId: SYNC_GENERATION_ID, payloadVersion: 2, sourceCheckpointId: 'checkpoint-1' },
+    ]);
+    expect(await target.select().from(SyncCheckpointTable)).toMatchObject([{ changeSetCount: 2 }]);
+    expect(
+      await target.select({ title: BookNodeTable.title }).from(BookNodeTable).where(eq(BookNodeTable.id, 'node-snapshot')),
+    ).toEqual([{ title: 'Draft 6' }]);
+    const restored = await rebuiltReducerSnapshot(target);
+    expect(restored.load).toMatchObject({ source: 'base', replayedChangeSets: 0 });
+    expect(restored.snapshot).toEqual(expected.snapshot);
+
+    const changes = new SyncChangeBuilder();
+    changes.add({
+      target: { family: 'entity', kind: 'node', id: 'node-snapshot', incarnation: 0 },
+      action: 'field.set',
+      payload: { field: 'title', value: 'First local write after compacted restore' },
+    });
+    await target.transaction(async (tx) => {
+      const clock = { nowMs: RESTORE_DEVICE_WALL_MS, nowIso: new Date(RESTORE_DEVICE_WALL_MS).toISOString() };
+      const recorded = await recordAuthoredChangeSetInTransaction(tx, {
+        ...REDUCER_IDENTITY,
+        identity: restoredWriterIdentity(),
+        clock,
+      }, changes);
+      await observeLocalAuthoredReducerInTransaction(tx, { changeSet: recorded.changeSet, clock });
+    });
+    const afterWrite = await rebuiltReducerSnapshot(target);
+    expect(afterWrite.load).toMatchObject({ source: 'base', replayedChangeSets: 1 });
+    expect(afterWrite.snapshot.coverage).toEqual([
+      { writerId: 'writer-checkpoint', writerEpoch: 'epoch-1', deviceSeq: 6 },
+      { writerId: 'writer-restored-checkpoint', writerEpoch: 'epoch-restored-checkpoint', deviceSeq: 1 },
+    ]);
+  });
+
+  it('still restores a frozen payload v1 package with its complete journal', async () => {
+    const source = await database('v1-source');
+    await seedSource(source);
+    await appendTitleWrites(source, ['Draft 2', 'Draft 3'], 3);
+    const expected = await rebuiltReducerSnapshot(source);
+    const captured = await captureSnapshotV1ForTest(captureInput(source));
+    expect(captured.package.payloadVersion).toBe(1);
+
+    const target = await database('v1-target');
+    await stagedTarget(target);
+    await restore(target, captured);
+    expect(await target.select().from(SyncChangeSetTable)).toHaveLength(3);
+    expect(await target.select().from(SyncReducerBaseTable)).toEqual([]);
+    expect(await target.select().from(SyncCheckpointTable)).toMatchObject([{ changeSetCount: 3 }]);
+    const restored = await rebuiltReducerSnapshot(target);
+    expect(restored.load).toMatchObject({ source: 'journal', replayedChangeSets: 3 });
+    expect(restored.snapshot).toEqual(expected.snapshot);
+  });
+
+  it.each<[string, (reducer: ReducerPages) => ReducerPages, string, RegExp]>([
+    ['coverage behind the applied frontier', (reducer) => ({
+      ...reducer,
+      snapshot: { ...reducer.snapshot, coverage: reducer.snapshot.coverage.map((lane) => ({ ...lane, deviceSeq: 4 })) },
+    }), 'reference-invalid', /coverage differs from the applied frontier/u],
+    ['a carried change-set without its explicit receipt', (reducer) => ({
+      ...reducer,
+      snapshot: { ...reducer.snapshot, receipts: [] },
+    }), 'reference-invalid', /neither covered nor receipted/u],
+    ['a register source missing from the journal', (reducer) => {
+      const keep = (row: Readonly<Record<string, CanonicalCborValue>>) => row.change_set_id !== 'writer-checkpoint:epoch-1:1';
+      return {
+        ...reducer,
+        journal: {
+          ...reducer.journal,
+          changeSets: reducer.journal.changeSets.filter(keep),
+          mutations: reducer.journal.mutations.filter(keep),
+          applyReceipts: reducer.journal.applyReceipts.filter(keep),
+        },
+      };
+    }, 'reference-invalid', /register references a missing source mutation/u],
+    ['a different reducer profile', (reducer) => ({
+      ...reducer,
+      header: {
+        ...reducer.header,
+        profile: { ...reducer.header.profile, knownTargetKinds: reducer.header.profile.knownTargetKinds.slice(1) },
+      },
+    }), 'schema-mismatch', /different reducer profile/u],
+    ['a foreign reducer identity', (reducer) => ({
+      ...reducer,
+      header: { ...reducer.header, identity: { ...reducer.header.identity, projectSyncId: 'projectSync-foreign' } },
+    }), 'identity-mismatch', /identity differs from the package/u],
+  ])('rejects a resealed compacted reducer state with %s', async (_label, rewrite, code, message) => {
+    const source = await database('compacted-tamper-source');
+    await seedSource(source);
+    await appendTitleWrites(source, ['Draft 2', 'Draft 3'], 2);
+    const invalid = await resealReducer(await capture(source), rewrite);
+    await expect(validateSnapshotForRestore({
+      packageBytes: invalid.packageBytes,
+      commitMarkerBytes: invalid.commitMarkerBytes,
+      expected: REDUCER_IDENTITY,
+    })).rejects.toMatchObject({ code, message: expect.stringMatching(message) });
+  });
 });

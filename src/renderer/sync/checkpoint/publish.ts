@@ -1,8 +1,8 @@
-import type { CapturedSnapshotV1, SnapshotPublishPort } from './types';
+import type { CapturedSnapshot, SnapshotPublishPort } from './types';
 
 /** Publish dependencies first; only the final call makes a snapshot visible. */
-export async function publishCapturedSnapshotV1(
-  captured: CapturedSnapshotV1,
+export async function publishCapturedSnapshot(
+  captured: CapturedSnapshot,
   port: SnapshotPublishPort,
 ): Promise<void> {
   for (const asset of captured.assets) await port.ensureBlob(asset);

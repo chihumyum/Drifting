@@ -13,32 +13,32 @@ import {
 } from '../../schema/drizzle';
 import {
   compareUtf8Bytewise,
-  encodeCanonicalCbor,
   encodeSnapshotCommitMarkerV1,
-  encodeSnapshotPackageV1,
+  encodeSnapshotPackageV2,
   hashCanonicalCbor,
   sha256Bytes,
-  type CanonicalCborValue,
   type Hlc,
   type Sha256,
   type SnapshotKind,
   type SnapshotPackageV1,
+  type SnapshotPackageV2,
+  type SnapshotPageV2,
 } from '../protocol';
+import { encodeAuthoredStatePagesV2 } from './authored-pages';
 import {
   assertNormalizedAuthoredAuthorityV1,
   captureAuthoredTablesV1,
   proseSeedRows,
 } from './domain-catalog';
-import { captureReducerStateV1 } from './reducer-state';
+import { captureCompactedReducerStateV2 } from './reducer-state';
 import {
-  AUTHORED_STATE_FORMAT_V1,
-  type AuthoredStatePayloadV1,
   type CapturedAssetSourceV1,
-  type CapturedSnapshotV1,
+  type CapturedSnapshot,
   type SnapshotAssetCapturePort,
+  type SnapshotTableRowsV1,
 } from './types';
 
-export interface CaptureSnapshotInputV1 {
+export interface CaptureSnapshotInput {
   readonly db: DbExecutor;
   readonly projectId: string;
   readonly syncGenerationId: string;
@@ -68,9 +68,9 @@ function normalizeBlob(value: unknown): Uint8Array {
   throw new Error('Snapshot capture encountered an unsupported SQLite blob');
 }
 
-async function captureProseDocuments(
+export async function captureProseDocuments(
   tx: DbExecutor,
-  authored: readonly import('./types').SnapshotTableRowsV1[],
+  authored: readonly SnapshotTableRowsV1[],
 ): Promise<readonly SnapshotPackageV1['proseDocuments'][number][]> {
   const seeds = proseSeedRows(authored);
   const docIds = [...seeds.keys()].sort(compareUtf8Bytewise);
@@ -135,7 +135,7 @@ async function captureProseDocuments(
   return documents;
 }
 
-async function assertCaptureIsSafe(tx: DbExecutor, syncGenerationId: string): Promise<void> {
+export async function assertCaptureIsSafe(tx: DbExecutor, syncGenerationId: string): Promise<void> {
   const [gaps, conflicts, quarantine] = await Promise.all([
     tx
       .select({ id: SyncFrontierGapTable.id })
@@ -163,82 +163,95 @@ async function assertCaptureIsSafe(tx: DbExecutor, syncGenerationId: string): Pr
   if (quarantine.length) throw new Error('Cannot capture a snapshot while objects are quarantined');
 }
 
-interface ReadCapture {
-  readonly projectId: string;
-  readonly projectSyncId: string;
-  readonly syncGenerationId: string;
-  readonly authored: AuthoredStatePayloadV1;
-  readonly reducer: Awaited<ReturnType<typeof captureReducerStateV1>>;
-  readonly prose: readonly SnapshotPackageV1['proseDocuments'][number][];
-  readonly frontier: readonly {
-    writerId: string;
-    writerEpoch: string;
-    appliedSeq: number;
-    segmentHeadHash: Sha256 | null;
-  }[];
+export interface CaptureFrontierEntry {
+  readonly writerId: string;
+  readonly writerEpoch: string;
+  readonly appliedSeq: number;
+  readonly segmentHeadHash: Sha256 | null;
 }
 
-async function readConsistentCapture(input: CaptureSnapshotInputV1): Promise<ReadCapture> {
-  return input.db.transaction(async (tx) => {
-    const generations = await tx
-      .select()
-      .from(SyncGenerationTable)
-      .where(eq(SyncGenerationTable.syncGenerationId, input.syncGenerationId))
-      .limit(1);
-    const generation = generations[0];
-    if (!generation || generation.projectId !== input.projectId || generation.status !== 'active') {
-      throw new Error('Snapshot capture requires the active SyncGeneration bound to the requested project');
+/** Applied frontier anchored to complete segments, as a package carries it. */
+export async function captureFrontier(tx: DbExecutor, syncGenerationId: string): Promise<CaptureFrontierEntry[]> {
+  const rows = await tx
+    .select()
+    .from(SyncFrontierTable)
+    .where(eq(SyncFrontierTable.syncGenerationId, syncGenerationId))
+    .orderBy(asc(SyncFrontierTable.writerId), asc(SyncFrontierTable.writerEpoch));
+  return rows.map((row) => {
+    if ((row.appliedSeq === 0) !== (row.segmentHeadSha256 === null)) {
+      throw new Error(
+        `Applied frontier ${row.writerId}/${row.writerEpoch} is not anchored to a complete segment`,
+      );
     }
-    if (generation.protocolVersion !== 1 || generation.domainSchemaVersion !== 1) {
-      throw new Error('Snapshot capture supports only the current protocol and domain schema');
-    }
-    await assertCaptureIsSafe(tx, input.syncGenerationId);
-    await assertNormalizedAuthoredAuthorityV1(tx, {
-      projectId: input.projectId,
-      syncGenerationId: input.syncGenerationId,
-    });
-    const authoredTables = await captureAuthoredTablesV1(tx, input.projectId);
-    const authored: AuthoredStatePayloadV1 = {
-      format: AUTHORED_STATE_FORMAT_V1,
-      payloadVersion: 1,
-      tables: authoredTables,
-    };
-    const reducer = await captureReducerStateV1(tx, input.syncGenerationId);
-    const prose = await captureProseDocuments(tx, authoredTables);
-    const frontierRows = await tx
-      .select()
-      .from(SyncFrontierTable)
-      .where(eq(SyncFrontierTable.syncGenerationId, input.syncGenerationId))
-      .orderBy(asc(SyncFrontierTable.writerId), asc(SyncFrontierTable.writerEpoch));
     return {
-      projectId: input.projectId,
-      projectSyncId: generation.projectSyncId,
-      syncGenerationId: generation.syncGenerationId,
-      authored,
-      reducer,
-      prose,
-      frontier: frontierRows.map((row) => {
-        if ((row.appliedSeq === 0) !== (row.segmentHeadSha256 === null)) {
-          throw new Error(
-            `Applied frontier ${row.writerId}/${row.writerEpoch} is not anchored to a complete segment`,
-          );
-        }
-        return {
-          writerId: row.writerId,
-          writerEpoch: row.writerEpoch,
-          appliedSeq: row.appliedSeq,
-          segmentHeadHash: row.segmentHeadSha256 ? protocolSha256(row.segmentHeadSha256) : null,
-        };
-      }),
+      writerId: row.writerId,
+      writerEpoch: row.writerEpoch,
+      appliedSeq: row.appliedSeq,
+      segmentHeadHash: row.segmentHeadSha256 ? protocolSha256(row.segmentHeadSha256) : null,
     };
   });
 }
 
-async function captureAssets(
-  read: ReadCapture,
+/** The active SyncGeneration bound to the project, checked before any read. */
+export async function requireCapturableGeneration(
+  tx: DbExecutor,
+  input: { projectId: string; syncGenerationId: string },
+): Promise<typeof SyncGenerationTable.$inferSelect> {
+  const [generation] = await tx
+    .select()
+    .from(SyncGenerationTable)
+    .where(eq(SyncGenerationTable.syncGenerationId, input.syncGenerationId))
+    .limit(1);
+  if (!generation || generation.projectId !== input.projectId || generation.status !== 'active') {
+    throw new Error('Snapshot capture requires the active SyncGeneration bound to the requested project');
+  }
+  if (generation.protocolVersion !== 1 || generation.domainSchemaVersion !== 1) {
+    throw new Error('Snapshot capture supports only the current protocol and domain schema');
+  }
+  await assertCaptureIsSafe(tx, input.syncGenerationId);
+  await assertNormalizedAuthoredAuthorityV1(tx, {
+    projectId: input.projectId,
+    syncGenerationId: input.syncGenerationId,
+  });
+  return generation;
+}
+
+interface ReadCapture {
+  readonly projectId: string;
+  readonly projectSyncId: string;
+  readonly syncGenerationId: string;
+  readonly authoredTables: readonly SnapshotTableRowsV1[];
+  readonly reducerPages: readonly Uint8Array[];
+  readonly prose: readonly SnapshotPackageV1['proseDocuments'][number][];
+  readonly frontier: readonly CaptureFrontierEntry[];
+}
+
+async function readConsistentCapture(input: CaptureSnapshotInput): Promise<ReadCapture> {
+  return input.db.transaction(async (tx) => {
+    const generation = await requireCapturableGeneration(tx, input);
+    const authoredTables = await captureAuthoredTablesV1(tx, input.projectId);
+    const reducer = await captureCompactedReducerStateV2(tx, {
+      projectId: input.projectId,
+      projectSyncId: generation.projectSyncId,
+      syncGenerationId: generation.syncGenerationId,
+    });
+    return {
+      projectId: input.projectId,
+      projectSyncId: generation.projectSyncId,
+      syncGenerationId: generation.syncGenerationId,
+      authoredTables,
+      reducerPages: reducer.pages,
+      prose: await captureProseDocuments(tx, authoredTables),
+      frontier: await captureFrontier(tx, input.syncGenerationId),
+    };
+  });
+}
+
+export async function captureAssets(
+  read: { readonly projectId: string; readonly authoredTables: readonly SnapshotTableRowsV1[] },
   port: SnapshotAssetCapturePort | undefined,
 ): Promise<readonly CapturedAssetSourceV1[]> {
-  const assetsTable = read.authored.tables.find((entry) => entry.table === 'project_asset');
+  const assetsTable = read.authoredTables.find((entry) => entry.table === 'project_asset');
   const rows = assetsTable?.rows ?? [];
   if (rows.length > 0 && !port) {
     throw new Error('Snapshot asset capture port is required when project assets exist');
@@ -277,52 +290,54 @@ async function captureAssets(
   return captured.sort((left, right) => compareUtf8Bytewise(left.asset.assetId, right.asset.assetId));
 }
 
+async function pagesOf(pages: readonly Uint8Array[]): Promise<SnapshotPageV2[]> {
+  const result: SnapshotPageV2[] = [];
+  for (const bytes of pages) result.push({ bytes, sha256: await sha256Bytes(bytes) });
+  return result;
+}
+
 /**
- * Capture one immutable package from a single SQLite read transaction. Writes
- * queued after that transaction commit are deliberately outside its frontier
- * and remain ordinary journal records.
+ * Capture one immutable payload v2 package from a single SQLite read
+ * transaction. Writes queued after that transaction commit are deliberately
+ * outside its frontier and remain ordinary journal records.
  */
-export async function captureSnapshotV1(input: CaptureSnapshotInputV1): Promise<CapturedSnapshotV1> {
+export async function captureSnapshot(input: CaptureSnapshotInput): Promise<CapturedSnapshot> {
   const read = await readConsistentCapture(input);
   const assets = await captureAssets(read, input.assetPort);
-  const authoredBytes = encodeCanonicalCbor(read.authored as unknown as CanonicalCborValue);
-  const reducerBytes = encodeCanonicalCbor(read.reducer as unknown as CanonicalCborValue);
-  const packageValue = {
-    protocol: 'drifting.sync.snapshot' as const,
-    protocolVersion: 1 as const,
-    payloadVersion: 1 as const,
-    codec: 'cbor-rfc8949' as const,
-    compression: 'none' as const,
+  const packageValue: SnapshotPackageV2 = {
+    protocol: 'drifting.sync.snapshot',
+    protocolVersion: 1,
+    payloadVersion: 2,
+    codec: 'cbor-rfc8949',
+    compression: 'none',
     snapshotKind: input.snapshotKind,
     snapshotId: input.snapshotId,
     projectId: read.projectId,
     projectSyncId: read.projectSyncId,
     syncGenerationId: read.syncGenerationId,
     capturedAt: input.capturedAt,
-    domainManifestVersion: 1 as const,
+    domainManifestVersion: 1,
     sqliteSchemaVersion: input.sqliteSchemaVersion ?? 1,
     frontier: [...read.frontier],
     authoredState: {
-      section: 'drifting.sync.authored-state' as const,
-      payloadVersion: 1 as const,
-      codec: 'cbor-rfc8949' as const,
-      compression: 'none' as const,
-      bytes: authoredBytes,
-      sha256: await sha256Bytes(authoredBytes),
+      section: 'drifting.sync.authored-state',
+      payloadVersion: 2,
+      codec: 'cbor-rfc8949',
+      compression: 'none',
+      pages: await pagesOf(encodeAuthoredStatePagesV2(read.authoredTables)),
     },
     reducerState: {
-      section: 'drifting.sync.reducer-state' as const,
-      payloadVersion: 1 as const,
-      codec: 'cbor-rfc8949' as const,
-      compression: 'none' as const,
-      bytes: reducerBytes,
-      sha256: await sha256Bytes(reducerBytes),
+      section: 'drifting.sync.reducer-state',
+      payloadVersion: 2,
+      codec: 'cbor-rfc8949',
+      compression: 'none',
+      pages: await pagesOf(read.reducerPages),
     },
     proseDocuments: [...read.prose],
     assets: assets.map((entry) => entry.asset),
     requiredBlobIds: [...new Set(assets.map((entry) => entry.asset.blobId))].sort(compareUtf8Bytewise),
   };
-  const packageBytes = encodeSnapshotPackageV1(packageValue);
+  const packageBytes = encodeSnapshotPackageV2(packageValue);
   const packageSha256 = await sha256Bytes(packageBytes);
   const commitMarker = {
     protocol: 'drifting.sync.snapshot-commit' as const,

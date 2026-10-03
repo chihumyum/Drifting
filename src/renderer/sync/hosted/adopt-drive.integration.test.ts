@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import {
   ProjectTable, SyncGenerationTable, SyncRemoteObjectTable, SyncLocalObjectTable,
-  SyncQuarantinedObjectTable, SyncConflictTable, SyncFrontierGapTable,
+  SyncQuarantinedObjectTable, SyncConflictTable, SyncFrontierGapTable, SyncReducerBaseTable,
 } from '../../schema/drizzle';
 import { createSyncAppAuthorityRepository } from '../app-authority-repository';
 import { adoptDriveReplicaForHosted } from './adopt-drive';
@@ -64,6 +64,15 @@ it.each(['local-quarantine', 'conflict', 'gap'] as const)('still rolls back take
   if (kind === 'gap') await fixture.db.insert(SyncFrontierGapTable).values({ id: 'gap', syncGenerationId: 'drive-generation', writerId: 'writer', writerEpoch: 'epoch', lane: 'applied', firstSeq: 1, lastSeq: 1, state: 'open', observedAt: now });
   const before = await fixture.authority.read();
   await expect(fixture.adopt()).rejects.toThrow('Resolve local sync conflicts');
+  expect(await fixture.authority.read()).toEqual(before);
+  expect(await fixture.db.select().from(SyncGenerationTable)).toMatchObject([{ syncGenerationId: 'drive-generation', status: 'active' }]);
+});
+
+it('refuses to adopt a generation restored from a compacted checkpoint', async () => {
+  const fixture = await setup();
+  await fixture.db.insert(SyncReducerBaseTable).values({ syncGenerationId: 'drive-generation', profileKey: 'synthetic-profile', payloadVersion: 2, pagesCbor: new Uint8Array([0x80]), sourceCheckpointId: 'synthetic-checkpoint', createdAt: now });
+  const before = await fixture.authority.read();
+  await expect(fixture.adopt()).rejects.toThrow('restored from a compacted checkpoint');
   expect(await fixture.authority.read()).toEqual(before);
   expect(await fixture.db.select().from(SyncGenerationTable)).toMatchObject([{ syncGenerationId: 'drive-generation', status: 'active' }]);
 });

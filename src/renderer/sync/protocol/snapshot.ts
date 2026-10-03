@@ -144,6 +144,45 @@ export const SNAPSHOT_COMMIT_MARKER_V1_SCHEMA = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * Payload v2 splits the authored and reducer sections into canonical CBOR
+ * pages, so neither is bounded by the per-value node limit, and carries a
+ * compacted reducer state instead of the complete reducer journal.
+ */
+export const SNAPSHOT_PACKAGE_PAYLOAD_VERSION_V2 = 2 as const;
+
+export const SNAPSHOT_PAGE_V2_SCHEMA = Type.Object(
+  { bytes: Type.Uint8Array(), sha256: SHA256_SCHEMA },
+  { additionalProperties: false },
+);
+
+const SNAPSHOT_PAGED_SECTION_V2_BASE = {
+  payloadVersion: Type.Literal(SNAPSHOT_PACKAGE_PAYLOAD_VERSION_V2),
+  codec: Type.Literal(SYNC_CBOR_CODEC),
+  compression: Type.Literal(SYNC_COMPRESSION),
+  pages: Type.Array(SNAPSHOT_PAGE_V2_SCHEMA, { minItems: 1, maxItems: 100_000 }),
+};
+
+export const SNAPSHOT_AUTHORED_STATE_V2_SCHEMA = Type.Object(
+  { section: Type.Literal('drifting.sync.authored-state'), ...SNAPSHOT_PAGED_SECTION_V2_BASE },
+  { additionalProperties: false },
+);
+
+export const SNAPSHOT_REDUCER_STATE_V2_SCHEMA = Type.Object(
+  { section: Type.Literal('drifting.sync.reducer-state'), ...SNAPSHOT_PAGED_SECTION_V2_BASE },
+  { additionalProperties: false },
+);
+
+export const SNAPSHOT_PACKAGE_V2_SCHEMA = Type.Object(
+  {
+    ...SNAPSHOT_PACKAGE_V1_SCHEMA.properties,
+    payloadVersion: Type.Literal(SNAPSHOT_PACKAGE_PAYLOAD_VERSION_V2),
+    authoredState: SNAPSHOT_AUTHORED_STATE_V2_SCHEMA,
+    reducerState: SNAPSHOT_REDUCER_STATE_V2_SCHEMA,
+  },
+  { additionalProperties: false },
+);
+
 export type SnapshotKind = Static<typeof SNAPSHOT_KIND_SCHEMA>;
 export type SnapshotFrontierEntryV1 = Static<typeof SNAPSHOT_FRONTIER_ENTRY_V1_SCHEMA>;
 export type SnapshotAuthoredStateV1 = Static<typeof SNAPSHOT_AUTHORED_STATE_V1_SCHEMA>;
@@ -162,6 +201,22 @@ export type SnapshotPackageV1 = Omit<
   >;
 };
 export type SnapshotCommitMarkerV1 = Static<typeof SNAPSHOT_COMMIT_MARKER_V1_SCHEMA>;
+export type SnapshotPageV2 = Static<typeof SNAPSHOT_PAGE_V2_SCHEMA>;
+export type SnapshotPackageV2 = Omit<
+  SnapshotPackageV1,
+  'payloadVersion' | 'authoredState' | 'reducerState'
+> & {
+  payloadVersion: typeof SNAPSHOT_PACKAGE_PAYLOAD_VERSION_V2;
+  authoredState: Static<typeof SNAPSHOT_AUTHORED_STATE_V2_SCHEMA>;
+  reducerState: Static<typeof SNAPSHOT_REDUCER_STATE_V2_SCHEMA>;
+};
+
+interface SnapshotCollections {
+  readonly frontier: readonly SnapshotFrontierEntryV1[];
+  readonly proseDocuments: readonly { readonly documentId: string }[];
+  readonly assets: readonly SnapshotAssetV1[];
+  readonly requiredBlobIds: readonly string[];
+}
 
 function isSortedUnique<T>(
   values: readonly T[],
@@ -181,7 +236,7 @@ function isSortedUnique<T>(
 }
 
 function validateSortedSnapshotCollections(
-  value: Static<typeof SNAPSHOT_PACKAGE_V1_SCHEMA>,
+  value: SnapshotCollections,
 ): ProtocolValidationIssue[] {
   const issues: ProtocolValidationIssue[] = [];
   if (!isSortedUnique(value.frontier, (entry) => [entry.writerId, entry.writerEpoch])) {
@@ -251,25 +306,20 @@ export function validateSnapshotCommitMarkerV1Invariants(
       ];
 }
 
-const SNAPSHOT_DESCRIPTOR = {
-  protocol: SYNC_SNAPSHOT_PROTOCOL,
-  protocolVersion: SYNC_PROTOCOL_VERSION,
-  payloadVersion: SYNC_PAYLOAD_VERSION,
-  schema: SNAPSHOT_PACKAGE_V1_SCHEMA,
-  validateInvariants: validateSnapshotPackageV1Invariants,
-  findUnsupportedRequiredVersion: (value: Readonly<Record<string, unknown>>) => {
+function findUnsupportedSnapshotSectionVersion(sectionVersion: number) {
+  return (value: Readonly<Record<string, unknown>>) => {
     for (const key of ['authoredState', 'reducerState'] as const) {
       const section = value[key];
       if (
         section !== null &&
         typeof section === 'object' &&
         !Array.isArray(section) &&
-        (section as Record<string, unknown>).payloadVersion !== SYNC_PAYLOAD_VERSION
+        (section as Record<string, unknown>).payloadVersion !== sectionVersion
       ) {
         return {
           kind: 'payload' as const,
           path: `/${key}/payloadVersion`,
-          expected: SYNC_PAYLOAD_VERSION,
+          expected: sectionVersion,
           observed: (section as Record<string, unknown>).payloadVersion,
         };
       }
@@ -293,7 +343,25 @@ const SNAPSHOT_DESCRIPTOR = {
       }
     }
     return null;
-  },
+  };
+}
+
+const SNAPSHOT_DESCRIPTOR = {
+  protocol: SYNC_SNAPSHOT_PROTOCOL,
+  protocolVersion: SYNC_PROTOCOL_VERSION,
+  payloadVersion: SYNC_PAYLOAD_VERSION,
+  schema: SNAPSHOT_PACKAGE_V1_SCHEMA,
+  validateInvariants: validateSnapshotPackageV1Invariants,
+  findUnsupportedRequiredVersion: findUnsupportedSnapshotSectionVersion(SYNC_PAYLOAD_VERSION),
+} as const;
+
+const SNAPSHOT_V2_DESCRIPTOR = {
+  protocol: SYNC_SNAPSHOT_PROTOCOL,
+  protocolVersion: SYNC_PROTOCOL_VERSION,
+  payloadVersion: SNAPSHOT_PACKAGE_PAYLOAD_VERSION_V2,
+  schema: SNAPSHOT_PACKAGE_V2_SCHEMA,
+  validateInvariants: (value: Static<typeof SNAPSHOT_PACKAGE_V2_SCHEMA>) => validateSortedSnapshotCollections(value),
+  findUnsupportedRequiredVersion: findUnsupportedSnapshotSectionVersion(SNAPSHOT_PACKAGE_PAYLOAD_VERSION_V2),
 } as const;
 
 const SNAPSHOT_COMMIT_DESCRIPTOR = {
@@ -312,18 +380,27 @@ export function encodeSnapshotCommitMarkerV1(value: SnapshotCommitMarkerV1): Uin
   return encodeVersionedProtocol(value, SNAPSHOT_COMMIT_DESCRIPTOR);
 }
 
+async function verifySectionPage(
+  path: string,
+  page: { bytes: Uint8Array; sha256: string },
+): Promise<{ path: string; expected: string; observed: string } | null> {
+  const actualHash = await sha256Bytes(page.bytes);
+  if (actualHash !== page.sha256) return { path: `${path}/sha256`, expected: page.sha256, observed: actualHash };
+  const decoded = decodeCanonicalCbor(page.bytes);
+  return decoded.ok ? null : { path: `${path}/bytes`, expected: 'canonical CBOR', observed: decoded.reason };
+}
+
 async function verifySnapshotPackageIntegrity(
-  value: SnapshotPackageV1,
+  value: SnapshotPackageV1 | SnapshotPackageV2,
 ): Promise<{ path: string; expected: string; observed: string } | null> {
   for (const [path, section] of [
     ['/authoredState', value.authoredState],
     ['/reducerState', value.reducerState],
   ] as const) {
-    const actualHash = await sha256Bytes(section.bytes);
-    if (actualHash !== section.sha256) return { path: `${path}/sha256`, expected: section.sha256, observed: actualHash };
-    const decoded = decodeCanonicalCbor(section.bytes);
-    if (!decoded.ok) {
-      return { path: `${path}/bytes`, expected: 'canonical CBOR', observed: decoded.reason };
+    const pages = 'pages' in section ? section.pages : [section];
+    for (const [index, page] of pages.entries()) {
+      const mismatch = await verifySectionPage('pages' in section ? `${path}/pages/${index}` : path, page);
+      if (mismatch) return mismatch;
     }
   }
 
@@ -360,6 +437,42 @@ export async function decodeSnapshotPackageV1(
     });
   }
   return { ...decoded, value };
+}
+
+export function encodeSnapshotPackageV2(value: SnapshotPackageV2): Uint8Array {
+  return encodeVersionedProtocol(value as Static<typeof SNAPSHOT_PACKAGE_V2_SCHEMA>, SNAPSHOT_V2_DESCRIPTOR);
+}
+
+export type DecodedSnapshotPackage =
+  | { readonly payloadVersion: 1; readonly value: SnapshotPackageV1 }
+  | { readonly payloadVersion: 2; readonly value: SnapshotPackageV2 };
+
+/** Decodes any supported package payload version; others fail closed. */
+export async function decodeSnapshotPackage(
+  bytes: Uint8Array,
+): Promise<VersionedProtocolDecodeResult<DecodedSnapshotPackage>> {
+  const decoded = decodeVersionedProtocol(bytes, SNAPSHOT_V2_DESCRIPTOR);
+  if (!decoded.ok) {
+    if (
+      decoded.reason === 'unsupported-payload-version' &&
+      decoded.path === '/payloadVersion' &&
+      decoded.observed === SYNC_PAYLOAD_VERSION
+    ) {
+      const v1 = await decodeSnapshotPackageV1(bytes);
+      return v1.ok ? { ...v1, value: { payloadVersion: 1, value: v1.value } } : v1;
+    }
+    return decoded;
+  }
+  const value = decoded.value as SnapshotPackageV2;
+  const mismatch = await verifySnapshotPackageIntegrity(value);
+  if (mismatch) {
+    return quarantineProtocolBytes(bytes, 'integrity-mismatch', 'snapshot package integrity failed', {
+      path: mismatch.path,
+      expected: mismatch.expected,
+      observed: mismatch.observed,
+    });
+  }
+  return { ...decoded, value: { payloadVersion: 2, value } };
 }
 
 export function decodeSnapshotCommitMarkerV1(

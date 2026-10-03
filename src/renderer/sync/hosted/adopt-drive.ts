@@ -7,6 +7,7 @@ import {
   SyncConflictTable,
   SyncFrontierGapTable,
   SyncQuarantinedObjectTable,
+  SyncReducerBaseTable,
   SyncConnectAttemptTable,
   SyncConnectGenerationAttemptTable,
 } from '../../schema/drizzle';
@@ -171,7 +172,7 @@ export async function adoptDriveReplicaForHosted(input: {
           .where(eq(SyncGenerationTable.syncGenerationId, source.syncGenerationId));
         continue;
       }
-      const [conflicts, gaps, quarantine] = await Promise.all([
+      const [conflicts, gaps, quarantine, base] = await Promise.all([
         tx
           .select()
           .from(SyncConflictTable)
@@ -206,11 +207,20 @@ export async function adoptDriveReplicaForHosted(input: {
             ),
           )
           .limit(1),
+        tx
+          .select({ id: SyncReducerBaseTable.syncGenerationId })
+          .from(SyncReducerBaseTable)
+          .where(eq(SyncReducerBaseTable.syncGenerationId, source.syncGenerationId))
+          .limit(1),
       ]);
       if (conflicts.length || gaps.length || quarantine.length)
         throw new Error(
           'Resolve local sync conflicts or quarantined data before switching providers',
         );
+      // A compacted checkpoint restore carries only the history its registers
+      // and receipts name; rebasing needs the complete journal it replaced.
+      if (base.length)
+        throw new Error('A project restored from a compacted checkpoint cannot be adopted by Hosted');
       await assertNormalizedAuthoredAuthorityV1(tx, {
         projectId: source.projectId,
         syncGenerationId: source.syncGenerationId,
