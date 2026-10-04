@@ -229,9 +229,19 @@ try {
     const profiles = [];
     const checks = [];
     const check = (id, passed) => { if (!passed) throw new Error(`IME selection: ${id}`); checks.push({ id, passed: true }); };
-    for (const mode of ['plain-prose', 'pending-review', 'linked-prose']) {
-      const review = mode === 'pending-review';
-      await probe(`start(${review}, ${mode === 'linked-prose'})`);
+    // after-link modes place the caret right after the linked 合成 with plain 正文
+    // following: the configuration in which WebKit lost the composition.
+    const modes = [
+      { mode: 'plain-prose', options: {} },
+      { mode: 'pending-review', review: true, options: {} },
+      { mode: 'linked-prose', linked: true, options: {} },
+      { mode: 'after-link-cursor-wrapper', linked: true, commit: '想', options: { caret: 3 } },
+      { mode: 'after-link-compose-inside', linked: true, commit: '想', options: { caret: 3, composeInsideLinkEnd: true } },
+      // The auto-linker links a just-typed name right before the next composition.
+      { mode: 'fresh-link-compose-inside', commit: '想', options: { caret: 3, linkRange: [1, 3], composeInsideLinkEnd: true } },
+    ];
+    for (const { mode, review = false, linked = false, commit = '合成', options } of modes) {
+      await probe(`start(${review}, ${linked}, ${JSON.stringify(options)})`);
       await new Promise(resolve => setTimeout(resolve, 50));
       const initial = await probe('arm()');
       for (const text of ['A', 'AS', 'ASD', 'ASDF', 'ASDFF', 'ASDFFA']) {
@@ -239,17 +249,29 @@ try {
         await new Promise(resolve => setTimeout(resolve, 20));
       }
       const during = await probe('snapshot()');
-      await client.Input.insertText({ text: '合成' });
+      await client.Input.insertText({ text: commit });
       await new Promise(resolve => setTimeout(resolve, 50));
       const committed = await probe('snapshot()');
       const prefix = mode;
+      const expectedText = options.caret === 3 ? `合成${commit}正文` : `合成正文${commit}`;
       check(`${prefix}:trusted-composition`, during.trustedCompositionStarts === 1 && during.composing);
       check(`${prefix}:no-decoration-rebuild-during-composition`, during.decorationTransactions === 0);
       check(`${prefix}:caret-stays-collapsed`, during.domCollapsed && during.pmAnchor === during.pmHead && during.focused);
-      check(`${prefix}:commit-preserves-prose-and-yjs`, !committed.composing && committed.text === '合成正文合成' && committed.yjsMatches && committed.focused && committed.domCollapsed);
+      check(`${prefix}:commit-preserves-prose-and-yjs`, !committed.composing && committed.text === expectedText && committed.yjsMatches && committed.focused && committed.domCollapsed);
       if (review) check(`${prefix}:review-refreshes-after-commit`, committed.reviewTint && committed.decorationTransactions > 0);
+      if (options.caret === 3) {
+        check(`${prefix}:link-text-unchanged-after-commit`, committed.linkedText === '合成');
+        if (options.composeInsideLinkEnd) {
+          check(`${prefix}:composes-inside-link-without-cursor-wrapper`, committed.cursorWrapperInsertions === 0 && during.linkedText === '合成ASDFFA');
+          check(`${prefix}:no-node-rewrites-during-composition`, during.nodeRemovals === 0);
+        } else {
+          check(`${prefix}:cursor-wrapper-baseline`, committed.cursorWrapperInsertions > 0 && during.linkedText === '合成');
+          // ProseMirror rewrites the following text node on composition updates.
+          check(`${prefix}:text-node-rewrites-baseline`, during.textNodeRemovals > 0);
+        }
+      }
       await probe('stop()');
-      profiles.push({ initial, during, committed });
+      profiles.push({ mode, initial, during, committed });
     }
     result.result.value.imeSelection = { profiles, checks,
       scope: 'Chromium engine IME via CDP, trusted composition/input events and synthetic prose; not the macOS input method or WebKit.' };

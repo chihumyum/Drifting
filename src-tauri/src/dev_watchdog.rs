@@ -5,6 +5,9 @@
 //! interval and appends JSON lines to `<data root>/logs/renderer-stalls.log`.
 //! Detection lives on the native side because a blocked WebView main thread
 //! cannot report its own stall, and a hard freeze may never recover.
+//!
+//! The renderer's IME selection probe (`src/renderer/lib/dev-ime-probe.ts`)
+//! appends its reports beside it, to `<data root>/logs/ime-selection.log`.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -23,6 +26,8 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_millis(250);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const FIRST_ONGOING_REPORT: Duration = Duration::from_secs(5);
 const LOG_FILE: &str = "renderer-stalls.log";
+const IME_LOG_FILE: &str = "ime-selection.log";
+const MAX_IME_REPORT_BYTES: usize = 1024 * 1024;
 const ROTATE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_CONTEXT_BYTES: usize = 16 * 1024;
 const MAX_SESSION_ID_CHARS: usize = 64;
@@ -219,6 +224,34 @@ fn next_ongoing_report(current: Duration) -> Duration {
         6..=15 => Duration::from_secs(60),
         _ => current + Duration::from_secs(300),
     }
+}
+
+/// Stamps a renderer IME probe record and drops oversized event lists.
+fn ime_selection_record(report: Value, wall_ms: u64) -> Value {
+    let offset_minutes = report["utcOffsetMinutes"]
+        .as_i64()
+        .and_then(|minutes| i32::try_from(minutes).ok())
+        .unwrap_or(0);
+    let mut record = match report {
+        Value::Object(fields) => fields,
+        other => serde_json::Map::from_iter([("report".to_string(), other)]),
+    };
+    let size = serde_json::to_vec(&record).map_or(0, |bytes| bytes.len());
+    if size > MAX_IME_REPORT_BYTES {
+        let omitted = Value::String(format!("[omitted: record was {size} bytes]"));
+        if let Some(Value::Object(composition)) = record.get_mut("composition") {
+            composition.insert("entries".to_string(), omitted.clone());
+        }
+        if record.contains_key("compositions") {
+            record.insert("compositions".to_string(), omitted);
+        }
+    }
+    record.insert("event".to_string(), json!("ime-selection"));
+    record.insert(
+        "loggedAt".to_string(),
+        json!(format_timestamp(wall_ms, offset_minutes)),
+    );
+    Value::Object(record)
 }
 
 fn bounded_context(context: Value) -> Value {
@@ -427,6 +460,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 pub struct DevWatchdog {
     watchdog: Arc<Mutex<Watchdog>>,
     sink: Arc<LogSink>,
+    ime_sink: LogSink,
     sampler: Arc<Sampler>,
 }
 
@@ -438,6 +472,10 @@ impl DevWatchdog {
                 path: log_directory.join(LOG_FILE),
                 write_lock: Mutex::new(()),
             }),
+            ime_sink: LogSink {
+                path: log_directory.join(IME_LOG_FILE),
+                write_lock: Mutex::new(()),
+            },
             sampler: Arc::new(Sampler {
                 web_content_pid: Arc::new(AtomicI32::new(0)),
                 directory: log_directory.join(SAMPLE_DIRECTORY),
@@ -483,6 +521,24 @@ pub async fn dev_watchdog_heartbeat(
         refresh_web_content_pid(&window, state.sampler.web_content_pid.clone());
     }
     state.sink.append(&records);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn dev_ime_selection_report(
+    state: tauri::State<'_, DevWatchdog>,
+    report: Value,
+) -> Result<(), String> {
+    let record = ime_selection_record(report, wall_ms());
+    // Every composition writes a summary; only status and reports are announced.
+    let kind = record["kind"].as_str().unwrap_or("report");
+    if kind != "composition" {
+        eprintln!(
+            "[dev-ime-probe] {kind} logged to {}",
+            state.ime_sink.path.display()
+        );
+    }
+    state.ime_sink.append(&[record]);
     Ok(())
 }
 
@@ -727,5 +783,36 @@ mod tests {
             "{\"event\":\"stall\"}\n"
         );
         assert!(directory.path().join("logs/renderer-stalls.1.log").exists());
+    }
+
+    #[test]
+    fn ime_reports_are_stamped_and_oversized_entries_dropped() {
+        let record = ime_selection_record(
+            json!({
+                "kind": "selectionchange-expanded",
+                "utcOffsetMinutes": 480,
+                "composition": { "entries": [1] },
+            }),
+            T0_WALL,
+        );
+        assert_eq!(record["event"], "ime-selection");
+        assert_eq!(record["composition"]["entries"], json!([1]));
+        assert_eq!(record["loggedAt"], "2026-10-04T14:07:08.123+08:00");
+
+        let large = "x".repeat(MAX_IME_REPORT_BYTES);
+        let report = ime_selection_record(
+            json!({ "composition": { "editor": "editor-1", "entries": [large] } }),
+            T0_WALL,
+        );
+        assert_eq!(report["composition"]["editor"], "editor-1");
+        assert!(report["composition"]["entries"]
+            .as_str()
+            .unwrap()
+            .starts_with("[omitted: "));
+        let dump = ime_selection_record(json!({ "compositions": [large] }), T0_WALL);
+        assert!(dump["compositions"]
+            .as_str()
+            .unwrap()
+            .starts_with("[omitted: "));
     }
 }

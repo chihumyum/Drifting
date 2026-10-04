@@ -70,6 +70,19 @@ async function bootstrap() {
     void import('./lib/dev-watchdog').then(({ installDevWatchdog }) => {
       installDevWatchdog();
     });
+    // Development-only: logs IME compositions left selected in WebKit.
+    void import('./lib/dev-ime-probe').then(
+      ({ installDevImeProbe }) => {
+        installDevImeProbe();
+      },
+      (error: unknown) => {
+        void import('@tauri-apps/api/core').then(({ invoke }) =>
+          invoke('dev_ime_selection_report', {
+            report: { kind: 'probe-error', detail: { stage: 'import', error: String(error) } },
+          }),
+        );
+      },
+    );
   }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

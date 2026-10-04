@@ -10,22 +10,32 @@ import { attachAgentDecorationController } from '../features/editor/agent-decora
 import { useAgentEditStore } from '../store/agent-edit-store';
 import { EntityLink } from '../lib/extensions/entity-link';
 
+export interface ImeSelectionProbeOptions {
+  /** Caret position; defaults to the end of the paragraph. */
+  caret?: number;
+  composeInsideLinkEnd?: boolean;
+  /** Link this range just before composing, as the auto-linker does. */
+  linkRange?: [number, number];
+}
+
 /** Driven by CDP Input.imeSetComposition, not hand-dispatched DOM events. */
-export function createImeSelectionProbe(review: boolean, linked = false) {
+export function createImeSelectionProbe(review: boolean, linked = false, options: ImeSelectionProbeOptions = {}) {
   const previous = useAgentEditStore.getState();
   useAgentEditStore.getState().clearAll();
   const host = document.createElement('div'); document.body.append(host);
   const doc = new Y.Doc();
   const editor = new Editor({ element: host, extensions: [StarterKit.configure({ undoRedo: false }), BlockId,
-    AgentDiffDecoration, EntityLink.configure({ autoDetectEnabled: false }), Collaboration.configure({ document: doc })] });
+    AgentDiffDecoration, EntityLink.configure({ autoDetectEnabled: false, composeInsideLinkEnd: options.composeInsideLinkEnd ?? false }), Collaboration.configure({ document: doc })] });
   editor.commands.setContent({ type: 'doc', content: [{ type: 'paragraph', attrs: { id: 'synthetic-ime-block' },
     content: [{ type: 'text', text: '合成', ...(linked ? { marks: [{ type: 'entityLink', attrs: { targetKind: 'element', targetId: 'synthetic-target' } }] } : {}) },
       { type: 'text', text: '正文' }] }] });
+  if (options.linkRange) editor.view.dispatch(editor.state.tr.addMark(options.linkRange[0], options.linkRange[1],
+    editor.schema.marks.entityLink.create({ targetKind: 'element', targetId: 'synthetic-target' })).setMeta('addToHistory', false));
   if (review) useAgentEditStore.getState().record('node', 'synthetic-ime-selection', [{ blockId: 'synthetic-ime-block',
     op: 'changed', oldText: '旧合成正文', newText: '合成正文', afterPrevId: null }], 'approve');
   const controller = attachAgentDecorationController({ editor, entityType: 'node', entityId: 'synthetic-ime-selection',
     store: useAgentEditStore, presentationNeeded: true, onReady: () => {}, onError: error => { throw error; } });
-  editor.commands.setTextSelection(5); editor.view.focus();
+  editor.commands.setTextSelection(options.caret ?? 5); editor.view.focus();
   let widget = editor.view.dom.querySelector('.agent-diff-del');
   const transactions: { composing: boolean; docChanged: boolean; steps: string[]; review: boolean; sync: boolean }[] = [];
   let decorationTransactions = 0, trustedCompositionStarts = 0;
@@ -37,6 +47,26 @@ export function createImeSelectionProbe(review: boolean, linked = false) {
   editor.on('transaction', onTransaction);
   const onStart = (event: CompositionEvent) => { if (event.isTrusted) trustedCompositionStarts++; };
   editor.view.dom.addEventListener('compositionstart', onStart);
+  // ProseMirror's cursor wrapper is an img.ProseMirror-separator widget.
+  // Removed text nodes count view rewrites around the composition.
+  let cursorWrapperInsertions = 0, textNodeRemovals = 0, nodeRemovals = 0;
+  const separators = new MutationObserver(records => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (node instanceof HTMLElement && node.classList.contains('ProseMirror-separator')) cursorWrapperInsertions++;
+      }
+      for (const node of record.removedNodes) {
+        nodeRemovals++;
+        if (node.nodeType === Node.TEXT_NODE) textNodeRemovals++;
+      }
+    }
+  });
+  separators.observe(editor.view.dom, { childList: true, subtree: true });
+  const linkedText = () => {
+    let text = '';
+    editor.state.doc.descendants(node => { if (node.isText && node.marks.some(mark => mark.type.name === 'entityLink')) text += node.text; });
+    return text;
+  };
   const snapshot = () => {
     const selection = document.getSelection();
     return { review, linked, composing: editor.view.composing, trustedCompositionStarts, decorationTransactions, transactions: transactions.slice(),
@@ -44,10 +74,12 @@ export function createImeSelectionProbe(review: boolean, linked = false) {
       domCollapsed: selection?.isCollapsed, domSelectedText: selection?.toString(),
       pmAnchor: editor.state.selection.anchor, pmHead: editor.state.selection.head,
       text: editor.state.doc.textContent, reviewTint: Boolean(editor.view.dom.querySelector('.agent-diff-changed')),
+      linkedText: linkedText(), cursorWrapperInsertions, textNodeRemovals, nodeRemovals,
       yjsMatches: editor.schema.nodeFromJSON(yDocToProsemirrorJSON(doc, 'default')).eq(editor.state.doc) };
   };
   return { snapshot,
-    arm() { widget = editor.view.dom.querySelector('.agent-diff-del'); decorationTransactions = 0; transactions.length = 0; return snapshot(); }, dispose() {
+    arm() { widget = editor.view.dom.querySelector('.agent-diff-del'); decorationTransactions = 0; cursorWrapperInsertions = 0; textNodeRemovals = 0; nodeRemovals = 0; transactions.length = 0; return snapshot(); }, dispose() {
+    separators.disconnect();
     controller.dispose(); editor.off('transaction', onTransaction); editor.view.dom.removeEventListener('compositionstart', onStart);
     editor.destroy(); doc.destroy(); host.remove();
     useAgentEditStore.setState({ pending: previous.pending, additions: previous.additions, autoRevealGuards: previous.autoRevealGuards });
@@ -56,7 +88,9 @@ export function createImeSelectionProbe(review: boolean, linked = false) {
 
 let probe: ReturnType<typeof createImeSelectionProbe> | null = null;
 export const imeSelectionProbe = {
-  start(review: boolean, linked = false) { probe?.dispose(); probe = createImeSelectionProbe(review, linked); return probe.snapshot(); },
+  start(review: boolean, linked = false, options: ImeSelectionProbeOptions = {}) {
+    probe?.dispose(); probe = createImeSelectionProbe(review, linked, options); return probe.snapshot();
+  },
   snapshot() { if (!probe) throw new Error('IME probe is not active'); return probe.snapshot(); },
   arm() { if (!probe) throw new Error('IME probe is not active'); return probe.arm(); },
   stop() { probe?.dispose(); probe = null; },

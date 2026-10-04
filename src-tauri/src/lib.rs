@@ -311,6 +311,8 @@ pub fn run() {
             app_update::update_dismiss,
             #[cfg(all(debug_assertions, desktop))]
             dev_watchdog::dev_watchdog_heartbeat,
+            #[cfg(all(debug_assertions, desktop))]
+            dev_watchdog::dev_ime_selection_report,
         ])
         .setup(|app| {
             #[cfg(desktop)]

@@ -42,6 +42,9 @@ waits are distinguishable.
 A paused Web Inspector debugger also stops heartbeats and is logged as a stall.
 Reloads are excluded through the native page-load hook.
 
+The same native module appends the renderer's IME selection reports to
+`logs/ime-selection.log`; see [IME composition](editor-ime-copilot.md#development-probe).
+
 ## Verification
 
 Rust and Vitest unit tests cover detection, follow-up reports, recovery

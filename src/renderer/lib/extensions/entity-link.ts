@@ -10,6 +10,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 export type { EntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../domain/entity-kinds';
 import { isEntityKind } from '../../domain/entity-kinds';
+import { createEntityLinkCompositionPlugin, isAppleWebKit } from './entity-link-composition';
 
 export interface EntityLinkRef {
   targetKind: EntityKind;
@@ -45,6 +46,13 @@ export interface EntityLinkAutoDetectConfig {
 export interface EntityLinkOptions extends EntityLinkAutoDetectConfig {
   HTMLAttributes?: Record<string, string>;
   onClick?: (ref: EntityLinkRef) => void;
+  /**
+   * Compose input-method text at a link's end inside the link, then move it
+   * out on commit, instead of ProseMirror's cursor wrapper. On by default in
+   * Apple WebKit, where the wrapper can lose the composition; see
+   * entity-link-composition.ts.
+   */
+  composeInsideLinkEnd: boolean;
 }
 
 // Shared appearance/interaction preferences. Auto-detection is editor-owned:
@@ -357,6 +365,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
       autoDetectEnabled: true,
       HTMLAttributes: {},
       onClick: undefined,
+      composeInsideLinkEnd: isAppleWebKit(),
     };
   },
 
@@ -413,6 +422,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
     };
 
     return [
+      ...(this.options.composeInsideLinkEnd ? [createEntityLinkCompositionPlugin(markType)] : []),
       new Plugin({
         key: EntityLinkPluginKey,
 
