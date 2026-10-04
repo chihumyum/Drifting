@@ -41,7 +41,7 @@ const fingerprint = () => {
 function validate(report) {
   assert.equal(report.status, 'passed');
   assert.equal(report.fingerprint, fingerprint(), 'TODO editing evidence is stale.');
-  assert.equal(Object.keys(report.checks).length, 52);
+  assert.equal(Object.keys(report.checks).length, 148);
   assert(Object.values(report.checks).every(value => value === true));
   assert.deepEqual(report.uncaughtErrors, []);
 }
@@ -77,4 +77,4 @@ if (process.argv.includes('--check')) {
     rmSync(temporary, { recursive: true, force: true });
   }
 }
-console.log('Review and TODO cards: 52 synthetic browser checks passed.');
+console.log('Review and TODO cards: 148 synthetic browser checks passed.');

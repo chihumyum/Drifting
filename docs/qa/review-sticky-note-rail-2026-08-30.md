@@ -84,15 +84,17 @@ TODO data model.
   import order; it does not inherit the editor or surrounding panel font size.
 - Review rows do not introduce a border, shadow, large radius, or per-kind card
   wash. Type color belongs to the small semantic label. Secondary actions live
-  in the shared `menu-surface`; only the action-menu trigger and sticky status
-  remain in the row header.
-- A Review row with a valid text anchor shows one small, unboxed left arrow
-  immediately after its type label. Clicking the arrow opens the target editor
-  and jumps to the anchored text. Ordinary comment bodies also jump on click;
-  TODO bodies reserve double-click for editing, with the arrow available in
-  both Review and sticky presentations. Entity-level and
-  project-floating rows show no marker. This does not change filtering,
-  ordering, or relation behavior.
+  in the shared `menu-surface`; the source arrow, action-menu trigger, and sticky
+  status remain in the row header.
+- Comment and TODO card content enters the shared inline editor on double-click
+  in Review, sticky notes, and the TODO workbench. A single click on the content
+  does not navigate. Header, footer, and action controls do not enter editing.
+- Cards linked to an entity show one small, unboxed left arrow immediately after
+  the Comment/TODO type label, before the status. Only this arrow opens the source
+  editor and, when a block anchor exists, reveals the anchored text.
+  Chapter/entity-level links work without a
+  block anchor. Floating cards, missing target IDs, and unsupported patch targets
+  show no arrow. Filtering, ordering, and relation behavior are unchanged.
 - Sticky notes are a distinct editor overlay presentation, but still obey the
   global `1px / 2px / 3px` radius ladder. Expanded notes and the stacked deck use
   `--radius-sm`, a hairline border, and no elevation shadow. The deck's offset
@@ -124,11 +126,14 @@ radius ladder, and absence of large-radius or elevated Review/sticky cards.
 
 `pnpm exec node scripts/run-todo-edit-acceptance.mjs` generates
 `docs/qa/todo-edit.json` from real card/editor components in an isolated headless
-browser. Its 52 synthetic DOM checks cover edit entry in all three surfaces,
-focus, current content, cancel/Escape, empty and unchanged drafts, IME, duplicate
-submission, save failure/retry, action isolation, anchor navigation, status
-toggle/rendering, and footer alignment/border contrast at 180px and 280px in
-light and dark themes, including wrapped chips and an expanded picker.
+browser. Its 148 synthetic DOM checks cover comment and TODO content editing in
+Review and sticky cards, plus TODO workbench cards. Navigation checks cover
+single-click and header isolation, source arrows beside the type label, chapter/entity
+links without block anchors, and floating/missing/unsupported sources.
+Editor checks cover focus, current content, cancel/Escape, empty and unchanged
+drafts, IME, duplicate submission, save failure/retry, and action isolation.
+Status toggles and footer alignment/border contrast are checked at 180px and
+280px in light and dark themes, including wrapped chips and an expanded picker.
 They also exercise the actual Review sort menu, both time orders in open and
 resolved groups, default expansion/manual collapse, independent persisted
 preferences, older/invalid preference fallback, and immutable source ordering.

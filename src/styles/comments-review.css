@@ -1994,14 +1994,6 @@
   overflow-wrap: anywhere;
 }
 
-.review-card__body--link {
-  cursor: pointer;
-}
-
-.review-card__body--link:hover {
-  color: hsl(var(--ink-2));
-}
-
 .review-card__meta,
 .review-card__evidence,
 .review-card__quote {

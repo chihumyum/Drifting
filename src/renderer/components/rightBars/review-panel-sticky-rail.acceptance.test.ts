@@ -45,18 +45,18 @@ describe('unified Review surface acceptance', () => {
     expect(store).toContain("merged.activeRightPanel as string) === 'todo'");
   });
 
-  it('marks text-linked Review rows with a small clickable left arrow', () => {
+  it('keeps source navigation on the header arrow in both card presentations', () => {
     const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
     const css = source('src/styles/comments-review.css');
     const zh = source('src/renderer/locales/zh-CN.json');
     const en = source('src/renderer/locales/en.json');
 
     expect(card).toContain('ArrowLeft,');
-    expect(card).toContain("(presentation === 'panel' || isTodo) && canJump && (");
+    expect(card).toContain('{canJump && (');
     expect(card).toContain('className="review-card__text-link-button"');
     expect(card).toContain('onClick={jumpToAnchor}');
     expect(card).toContain('<ArrowLeft size={10} strokeWidth={1.8} aria-hidden />');
-    expect(card).toContain('className="review-card__body review-card__body--link" onClick={jumpToAnchor}');
+    expect(card).not.toContain('review-card__body--link');
     expect(css).toMatch(
       /\.review-card__text-link-button \{[\s\S]*?width: 14px;[\s\S]*?height: 14px;[\s\S]*?background: transparent;/,
     );

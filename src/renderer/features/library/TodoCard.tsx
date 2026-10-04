@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../domain/comment';
 import { extractTextFromCommentBody } from '../../domain/comment';
@@ -42,16 +43,15 @@ export function TodoCard({
     [relations],
   );
   const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
-  const isBlockAnchored = todo.targetKind === 'node' && !!todo.targetId && !!todo.targetBlockId;
+  const canJump = Boolean(todo.targetKind && todo.targetKind !== 'patch' && todo.targetId);
   const statusToggle = <TodoStatusToggle resolved={todo.status === 'resolved'} onToggle={onToggleResolved} />;
 
-  // Block-anchored TODOs jump to their source block: open the chapter tab, then
-  // scroll + flash the block once the editor has mounted it.
+  // Open the source entity, then reveal its block when an anchor is available.
   const jumpToAnchor = useCallback(() => {
-    if (!todo.targetId || !todo.targetBlockId) return;
-    open({ entityType: 'node', id: todo.targetId });
-    scrollToBlockWhenReady(todo.targetId, todo.targetBlockId);
-  }, [open, todo.targetId, todo.targetBlockId]);
+    if (!todo.targetKind || todo.targetKind === 'patch' || !todo.targetId) return;
+    open({ entityType: todo.targetKind, id: todo.targetId });
+    if (todo.targetBlockId) scrollToBlockWhenReady(todo.targetId, todo.targetBlockId);
+  }, [open, todo.targetKind, todo.targetId, todo.targetBlockId]);
 
   return (
     <div
@@ -60,13 +60,6 @@ export function TodoCard({
       onPointerDownCapture={sourceHover.onLeave}
       onKeyDownCapture={sourceHover.onLeave}
       onContextMenuCapture={sourceHover.onLeave}
-      onDoubleClick={(event) => {
-        const target = event.target as HTMLElement;
-        if (!event.currentTarget.contains(target)) return;
-        if (editing || target.closest('button, a, input, textarea, [role="button"], [contenteditable="true"]')) return;
-        sourceHover.onLeave();
-        setEditing(true);
-      }}
       onMouseEnter={(event) => { setHover(true); sourceHover.onEnter(event.currentTarget); }}
       onMouseLeave={() => { setHover(false); sourceHover.onLeave(); }}
       style={{
@@ -78,6 +71,7 @@ export function TodoCard({
       }}
     >
       <div
+        className="todo-card__header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -90,24 +84,15 @@ export function TodoCard({
         }}
       >
         <span style={{ color: 'hsl(var(--story-2))' }}>TODO</span>
-        {isBlockAnchored && (
+        {canJump && (
           <button
+            type="button"
+            className="review-card__text-link-button"
             onClick={jumpToAnchor}
-            title={t('memoMaterial.todo.jumpToBlock')}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              padding: 0,
-              font: 'inherit',
-              letterSpacing: 'inherit',
-              textTransform: 'inherit',
-              color: 'hsl(var(--ink-4))',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--story-2))')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--ink-4))')}
+            title={t('reviewPanel.jumpToText')}
+            aria-label={t('reviewPanel.jumpToText')}
           >
-            ⊕ block
+            <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
           </button>
         )}
         <span style={{ flex: 1 }} />
@@ -134,6 +119,12 @@ export function TodoCard({
         <CommentBodyEditor text={text} onSave={onSave} onClose={() => setEditing(false)} />
       ) : (
         <div
+          className="todo-card__body"
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            sourceHover.onLeave();
+            setEditing(true);
+          }}
           style={{
             fontFamily: 'var(--font-sans)',
             fontSize: 13,

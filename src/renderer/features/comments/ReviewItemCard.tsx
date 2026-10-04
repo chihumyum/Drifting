@@ -164,8 +164,7 @@ export function ReviewItemCard({
   const canJump = Boolean(
     comment.targetKind &&
       comment.targetKind !== 'patch' &&
-      comment.targetId &&
-      comment.targetBlockId,
+      comment.targetId,
   );
 
   const run = async (action: () => Promise<unknown>) => {
@@ -182,13 +181,12 @@ export function ReviewItemCard({
     if (
       !comment.targetKind ||
       comment.targetKind === 'patch' ||
-      !comment.targetId ||
-      !comment.targetBlockId
+      !comment.targetId
     ) {
       return;
     }
     navigator.open({ entityType: comment.targetKind, id: comment.targetId });
-    scrollToBlockWhenReady(comment.targetId, comment.targetBlockId);
+    if (comment.targetBlockId) scrollToBlockWhenReady(comment.targetId, comment.targetBlockId);
   };
 
   const handleTodoTask = async () => {
@@ -292,14 +290,6 @@ export function ReviewItemCard({
         onKeyDownCapture={sourceHover.onLeave}
         onContextMenuCapture={sourceHover.onLeave}
         onContextMenu={openContextMenu}
-        onDoubleClick={(event) => {
-          const target = event.target as HTMLElement;
-          if (!event.currentTarget.contains(target)) return;
-          if (!isTodo || editing || busy || target.closest('button, a, input, textarea, [role="button"], [contenteditable="true"]')) return;
-          sourceHover.onLeave();
-          setActionMenu(null);
-          setEditing(true);
-        }}
       >
       <header className="review-card__header">
         <span className="review-card__kind">
@@ -309,18 +299,18 @@ export function ReviewItemCard({
             : isTodo
               ? 'TODO'
               : t('reviewPanel.comment')}
-          {(presentation === 'panel' || isTodo) && canJump && (
-            <button
-              type="button"
-              className="review-card__text-link-button"
-              onClick={jumpToAnchor}
-              title={t('reviewPanel.jumpToText')}
-              aria-label={t('reviewPanel.jumpToText')}
-            >
-              <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
-            </button>
-          )}
         </span>
+        {canJump && (
+          <button
+            type="button"
+            className="review-card__text-link-button"
+            onClick={jumpToAnchor}
+            title={t('reviewPanel.jumpToText')}
+            aria-label={t('reviewPanel.jumpToText')}
+          >
+            <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
+          </button>
+        )}
         <span className="review-card__status">
           {isConverted
             ? t('reviewPanel.completed')
@@ -362,12 +352,19 @@ export function ReviewItemCard({
           onSave={(body) => run(() => commentUsecases.updateCommentBody(comment.id, createPlainCommentDoc(body)))}
           onClose={() => setEditing(false)}
         />
-      ) : canJump && !isTodo ? (
-        <button type="button" className="review-card__body review-card__body--link" onClick={jumpToAnchor}>
-          {text || t('commentRail.card.emptyComment')}
-        </button>
       ) : (
-        <div className="review-card__body">{text || t('commentRail.card.emptyComment')}</div>
+        <div
+          className="review-card__body"
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            if (busy) return;
+            sourceHover.onLeave();
+            setActionMenu(null);
+            setEditing(true);
+          }}
+        >
+          {text || t('commentRail.card.emptyComment')}
+        </div>
       )}
 
       {summary?.subtitle && <div className="review-card__meta">{summary.subtitle}</div>}

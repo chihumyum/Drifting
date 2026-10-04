@@ -7,6 +7,7 @@ import { ReviewPanel } from '../src/renderer/components/rightBars/ReviewPanel';
 import { useDataStore } from '../src/renderer/store/data-store';
 import { useUiStore } from '../src/renderer/store/ui-store';
 import { WorkspaceNavigationProvider } from '../src/renderer/features/workspace/navigation/WorkspaceNavigationContext';
+import type { WorkspaceTarget } from '../src/renderer/features/workspace/navigation/workspace-target';
 import { createPlainCommentDoc, type Comment } from '../src/renderer/domain/comment';
 import { setI18nLocale } from '../src/renderer/lib/i18n';
 import type { BookNode } from '../src/renderer/domain/book-node';
@@ -24,7 +25,17 @@ const initial = {
   targetKind: 'node', targetId: 'synthetic-node', targetBlockId: 'synthetic-block',
   anchorJson: JSON.stringify({ selectedText: 'At dawn, the visitor returned.', blockSnapshots: [{ blockId: 'synthetic-block', blockText: 'Full synthetic paragraph, beyond the selection.' }] }), metadataJson: null,
 } as Comment;
-const observations = { saves: [] as string[], fail: false, jumps: 0, escaped: 0 };
+const observations = { saves: [] as string[], fail: false, jumps: 0, targets: [] as WorkspaceTarget[], escaped: 0 };
+const sourceCases: { name: string; targetKind: Comment['targetKind']; targetId: string | null; targetBlockId: string | null }[] = [
+  { name: 'block', targetKind: 'node', targetId: 'synthetic-node', targetBlockId: 'synthetic-block' },
+  { name: 'chapter', targetKind: 'node', targetId: 'synthetic-node', targetBlockId: null },
+  { name: 'element', targetKind: 'element', targetId: 'synthetic-element', targetBlockId: 'synthetic-element-block' },
+  { name: 'storyline', targetKind: 'storyline', targetId: 'synthetic-storyline', targetBlockId: null },
+  { name: 'category', targetKind: 'category', targetId: 'synthetic-category', targetBlockId: null },
+  { name: 'floating', targetKind: null, targetId: null, targetBlockId: null },
+  { name: 'missing-target', targetKind: 'node', targetId: null, targetBlockId: 'synthetic-block' },
+  { name: 'patch', targetKind: 'patch', targetId: 'synthetic-patch', targetBlockId: null },
+];
 window.addEventListener('keydown', (event) => { if (event.key === 'Escape') observations.escaped++; });
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 const reviewComments = [
@@ -41,15 +52,18 @@ useDataStore.setState({
 
 export function Fixture() {
   const [todo, setTodo] = useState(initial);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const card = { ...todo, ...sourceCases[sourceIndex] };
   const [reviewKey, setReviewKey] = useState(0);
   const [hasFocusedEntity, setHasFocusedEntity] = useState(true);
   return <WorkspaceNavigationProvider navigator={{ projectId: initial.projectId,
-    open() { observations.jumps++; }, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} }}>
+    open(target) { observations.jumps++; observations.targets.push(target); }, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} }}>
     <main style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: 24 }}>
       <button hidden id="remount-review" onClick={() => setReviewKey((key) => key + 1)}>Remount Review fixture</button>
       <button hidden id="toggle-review-focus" onClick={() => setHasFocusedEntity((value) => !value)}>Toggle fixture focus</button>
+      <button hidden id="cycle-card-source" onClick={() => setSourceIndex((index) => (index + 1) % sourceCases.length)}>Cycle synthetic source</button>
       <section id="board" style={{ width: 280 }}>
-        <TodoCard todo={todo} relations={[]}
+        <TodoCard todo={card} relations={[]}
           onToggleResolved={() => setTodo((current) => ({ ...current, status: current.status === 'resolved' ? 'open' : 'resolved' }))}
           onDelete={() => {}}
           onAddRelation={() => {}} onRemoveRelation={() => {}}
@@ -61,12 +75,15 @@ export function Fixture() {
           }} />
       </section>
       {(['panel', 'sticky'] as const).map((presentation) => <section key={presentation} id={presentation} style={{ width: 280 }}>
-        <ReviewItemCard comment={todo} projectId={todo.projectId} presentation={presentation}
+        <ReviewItemCard comment={card} projectId={todo.projectId} presentation={presentation}
           relations={[{ id: 'first', toKind: 'category', toId: 'Synthetic relation A' }, { id: 'second', toKind: 'category', toId: 'Synthetic relation B' }]}
           onAddRelation={() => {}} onRemoveRelation={() => {}} />
       </section>)}
       <section id="note" style={{ width: 280 }}>
-        <ReviewItemCard comment={{ ...todo, id: 'synthetic-note', kind: 'note' }} projectId={todo.projectId} presentation="panel" />
+        <ReviewItemCard comment={{ ...card, id: 'synthetic-note', kind: 'note' }} projectId={todo.projectId} presentation="panel" />
+      </section>
+      <section id="note-sticky" style={{ width: 280 }}>
+        <ReviewItemCard comment={{ ...card, id: 'synthetic-note-sticky', kind: 'note' }} projectId={todo.projectId} presentation="sticky" />
       </section>
       <section id="review-sort" style={{ width: 280, height: 620, display: 'flex' }}>
         <ReviewPanel key={reviewKey} focused={hasFocusedEntity ? { kind: 'node', id: 'synthetic-node' } : { kind: null, id: null }} />
@@ -98,23 +115,24 @@ async function run() {
     await frame();
   };
   const board = () => get('#board .workspace-list-row');
-  await doubleClick(board());
+  const body = (surface: string) => get(`#${surface} .todo-card__body, #${surface} .review-card__body`);
+  await doubleClick(body('board'));
   check('boardDoubleClickFocusesCurrentText', document.activeElement === get('#board textarea') && (document.activeElement as HTMLTextAreaElement).value === 'Check the synthetic timeline');
   await change('Unsaved draft'); key('Escape'); await frame();
   check('escapeCancelsWithoutLeavingWorkbench', !document.querySelector('#board textarea') && observations.saves.length === 0 && observations.escaped === 0);
-  await doubleClick(board()); await change('   '); key('Enter', { ctrlKey: true }); await frame();
+  await doubleClick(body('board')); await change('   '); key('Enter', { ctrlKey: true }); await frame();
   check('emptyContentDoesNotSave', observations.saves.length === 0 && !!document.querySelector('#board textarea'));
   await change('更新合成待办\n第二行');
   key('Enter', { metaKey: true, isComposing: true }); key('Escape', { isComposing: true }); await frame();
   check('imeCompositionDoesNotSaveOrCancel', observations.saves.length === 0 && !!document.querySelector('#board textarea') && observations.escaped === 0);
   key('Enter', { metaKey: true }); key('Enter', { metaKey: true }); await frame(); await frame();
   check('shortcutSavesOnceAndUpdatesCard', observations.saves.length === 1 && !document.querySelector('#board textarea') && board().textContent!.includes('更新合成待办'));
-  await doubleClick(board());
+  await doubleClick(body('board'));
   check('reopenUsesSavedContent', (get('#board textarea') as HTMLTextAreaElement).value === '更新合成待办 第二行');
   const before = observations.saves.length;
   key('Enter', { ctrlKey: true }); await frame();
   check('unchangedContentDoesNotWrite', observations.saves.length === before && !document.querySelector('#board textarea'));
-  await doubleClick(board()); await change('Retry this synthetic draft'); observations.fail = true;
+  await doubleClick(body('board')); await change('Retry this synthetic draft'); observations.fail = true;
   key('Enter', { ctrlKey: true }); await frame();
   check('failedSavePreservesDraft', (get('#board textarea') as HTMLTextAreaElement).value === 'Retry this synthetic draft' && !!document.querySelector('#board [role="alert"]'));
   observations.fail = false;
@@ -122,19 +140,46 @@ async function run() {
   check('saveButtonRetriesSuccessfully', !document.querySelector('#board textarea') && board().textContent!.includes('Retry this synthetic draft'));
   await doubleClick(get('#board button[title="Delete"]'));
   check('boardActionDoesNotOpenEditor', !document.querySelector('#board textarea'));
-  for (const surface of ['panel', 'sticky']) {
+  const cardSurfaces = ['board', 'panel', 'sticky', 'note', 'note-sticky'];
+  for (const surface of cardSurfaces) {
     const jumps = observations.jumps;
-    await doubleClick(get(`#${surface} .review-card__body`));
+    body(surface).click(); await frame();
+    check(`${surface}SingleClickDoesNotJumpOrEdit`, observations.jumps === jumps && !document.querySelector(`#${surface} textarea`));
+    await doubleClick(get(`#${surface} .todo-card__header, #${surface} .review-card__header`));
+    check(`${surface}HeaderDoesNotEditOrJump`, observations.jumps === jumps && !document.querySelector(`#${surface} textarea`));
+    await doubleClick(body(surface));
     check(`${surface}DoubleClickEditsWithoutJumping`, document.activeElement === get(`#${surface} textarea`) && observations.jumps === jumps);
     check(`${surface}LoadsUpdatedBody`, (get(`#${surface} textarea`) as HTMLTextAreaElement).value === 'Retry this synthetic draft');
     get(`#${surface} .review-card__editor-actions button`).click(); await frame();
     check(`${surface}CancelClosesEditor`, !document.querySelector(`#${surface} textarea`));
     await doubleClick(get(`#${surface} .review-card__text-link-button`));
     check(`${surface}AnchorActionDoesNotEdit`, observations.jumps === jumps + 2 && !document.querySelector(`#${surface} textarea`));
+    const arrow = get(`#${surface} .review-card__text-link-button`).getBoundingClientRect();
+    const label = get(`#${surface} .todo-card__header > span:first-child, #${surface} .review-card__kind`).getBoundingClientRect();
+    check(`${surface}SourceArrowFollowsKindLabel`, arrow.left >= label.right && arrow.left - label.right <= 8
+      && Math.abs(arrow.top + arrow.height / 2 - label.top - label.height / 2) < 1);
   }
-  const jumps = observations.jumps;
-  get('#note .review-card__body').click(); await frame();
-  check('ordinaryCommentStillJumpsOnClick', observations.jumps === jumps + 1);
+  // Exercise source-only and unlinked cards with both comment kinds and all presentations.
+  for (const source of sourceCases.slice(1)) {
+    get('#cycle-card-source').click(); await frame();
+    for (const surface of cardSurfaces) {
+      const jumps = observations.jumps;
+      const arrow = document.querySelector<HTMLButtonElement>(`#${surface} .review-card__text-link-button`);
+      if (source.targetId && source.targetKind !== 'patch') {
+        arrow?.click(); await frame();
+        const target = observations.targets[observations.targets.length - 1];
+        check(`${surface}-${source.name}ArrowOpensSource`, observations.jumps === jumps + 1
+          && target.entityType === source.targetKind && target.id === source.targetId && !document.querySelector(`#${surface} textarea`));
+      } else {
+        check(`${surface}-${source.name}HasNoSourceArrow`, !arrow);
+      }
+      const afterNavigation = observations.jumps;
+      await doubleClick(body(surface));
+      check(`${surface}-${source.name}BodyEditsWithoutNavigation`, document.activeElement === get(`#${surface} textarea`) && observations.jumps === afterNavigation);
+      get(`#${surface} textarea`).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await frame();
+    }
+  }
+  get('#cycle-card-source').click(); await frame();
   const surfaces = ['board', 'panel', 'sticky'];
   get('#board .todo-status-toggle').click(); await frame();
   check('statusToggleResolvesAndShowsCheck', surfaces.every((surface) => get(`#${surface} .todo-status-toggle`).getAttribute('aria-pressed') === 'true'
@@ -268,7 +313,7 @@ async function run() {
   ring.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await frame();
   check('sourceHoverDismissesBeforeActions', !document.querySelector('.comment-source-hover'));
   leave(board()); enter(board()); await hoverWait(); await frame();
-  await doubleClick(board());
+  await doubleClick(body('board'));
   check('sourceHoverDismissesForEditing', !document.querySelector('.comment-source-hover') && document.activeElement === get('#board textarea'));
   key('Escape'); await frame(); leave(board());
   enter(get('#note article')); await hoverWait(); await frame();
