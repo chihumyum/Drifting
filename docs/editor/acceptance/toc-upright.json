@@ -1,0 +1,37 @@
+{
+  "kind": "editor_toc_upright",
+  "generatedAt": "2026-10-04T16:07:50.271Z",
+  "source": {
+    "src/styles/comments-review.css": "a4caf3d26169746f45c1adaf052e6781a9c54af2957aae2e1b8b869ee0681dee",
+    "src/renderer/components/editor/outline-rail-model.test.ts": "664c829013ebd8b0160434615a9a49d314a2adfbefba9685d36657e597b340e6",
+    "src/renderer/components/editor/semantic-outline-rail.acceptance.test.ts": "b69a1e0b4bf141d8108230293ef5337c32d0c1c94c615957d72d931e8aed72ca"
+  },
+  "fontStyleDeclarations": {
+    ".editor__toc-tag--l1": "normal",
+    ".editor__toc-tag--l4": "normal",
+    ".editor__toc-reveal-item--l1": "normal",
+    ".editor__toc-reveal-item--l4": "normal"
+  },
+  "regression": {
+    "command": "pnpm test",
+    "success": true,
+    "passed": 3576,
+    "failed": 0,
+    "pending": 5,
+    "outlineFiles": [
+      {
+        "path": "src/renderer/components/editor/outline-rail-model.test.ts",
+        "status": "passed",
+        "passed": 6
+      },
+      {
+        "path": "src/renderer/components/editor/semantic-outline-rail.acceptance.test.ts",
+        "status": "passed",
+        "passed": 6
+      }
+    ]
+  },
+  "limitations": [
+    "Source declarations and existing regression tests only; browser and native visual acceptance were not performed."
+  ]
+}

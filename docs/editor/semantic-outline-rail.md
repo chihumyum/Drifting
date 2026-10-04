@@ -33,6 +33,9 @@ chip, background wash, or decorative left spine.
 
 The five structural levels remain act / chapter / scene / beat / note. `h1`
 maps to scene, `h2` to beat, and `h3` to note in every editor.
+All TOC labels use upright text, including the tags revealed by omission handles.
+Hierarchy remains expressed through font size, weight, family, and colour;
+act and beat labels no longer use italics that can clip at the text boundary.
 
 The rail's `OutlineViewportController` now supplies both geometry and the
 single-entity scrollspy reading location. The views pass their existing reading
@@ -123,6 +126,10 @@ collision layout, active ancestry, and visible-range calculation. Native
 scrolling is intentionally not reimplemented in either file.
 
 ## Machine-checkable acceptance
+
+`acceptance/toc-upright.json` records the TOC font-style declarations, source
+SHA-256 hashes, and results from the existing outline regression tests. This
+source-level evidence does not claim native visual acceptance.
 
 Run:
 
