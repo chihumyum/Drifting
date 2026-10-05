@@ -16,7 +16,36 @@ and is synchronized with the rest of the user's preferences.
   colors are stored in `entityLinkKindColors`.
 - `hover`: match ordinary prose at rest and reveal the contextual owner-color
   wash only while hovering.
-- `prose`: match ordinary prose and retain only a neutral gray underline.
+- `prose`: match ordinary prose and always show the selected band style in the
+  prose color. There is no separate gray underline.
+
+For `contextual`, `kind`, and `hover`, the separate `entityLinkHighlightMode`
+preference offers three treatments in Settings > Editor:
+
+- `band` (色带): keep the prose text color and show the color band only.
+- `text` (变色): color the text without a background, including on hover.
+- `both` (两者都有): show colored text and the band, preserving the existing
+  default for new installations and settings saved before this preference.
+
+When the selected treatment includes a band, `entityLinkBandStyle` offers
+`wash` (连续色带, the existing default) or `dots` (细点, a single fine row below
+the text). Dots use the resolved entity color, or the prose color in `prose`
+mode, and remain a dot row on hover, including across wrapped lines. The
+band-style choice is saved independently. Text-only treatment hides its control
+outside prose mode without resetting it.
+
+Hover-only mode reveals the selected treatment only while hovering. Prose mode
+always shows the band-style control and hides the treatment control. Even a saved
+text-only treatment cannot suppress its band; switching back restores the saved
+treatment. Disabled and hard-deleted links remain plain prose.
+This is a presentation preference stored with the other local settings; it does
+not modify entity-link marks or Yjs content. The shared root attribute applies
+it immediately to live editors and static all-chapters prose.
+
+Entity Links add no padding or font weight, including Chapter and Idea links.
+They inherit the surrounding prose weight and preserve author-applied bold.
+Ordinary links retain their text positions and wrapping when highlighting is
+toggled or hovered. The existing deep-link arrow remains a separate indicator.
 
 The settings are exposed in Settings > Editor and applied to both the live
 TipTap editor and the static all-chapters renderer. `entityLinkInteractive`
@@ -99,6 +128,11 @@ not a registered name of their target are left alone. The rule lives in
 Machine-checkable coverage lives in:
 
 - `src/renderer/lib/entity-link-appearance.test.ts`
+- `src/renderer/store/settings-store-appearance.test.ts`
+- `scripts/run-entity-link-highlight-acceptance.mjs` (real Settings clicks,
+  both band styles at rest/hover, wrapping, prose/disabled/deleted precedence,
+  inherited bold, text geometry across enabled/disabled states, and reload;
+  generates `docs/editor/acceptance/entity-link-highlight.json`)
 - `src/renderer/lib/extensions/entity-link.test.ts`
 - `src/renderer/components/ui/entity-hover-card-model.test.ts`
 - `src/renderer/components/ui/entity-hover-card-position.test.ts`
@@ -109,11 +143,13 @@ Run the focused checks with:
 ```sh
 pnpm exec vitest run \
   src/renderer/lib/entity-link-appearance.test.ts \
+  src/renderer/store/settings-store-appearance.test.ts \
   src/renderer/lib/extensions/entity-link.test.ts \
   src/renderer/components/ui/entity-hover-card-model.test.ts \
   src/renderer/components/ui/entity-hover-card-position.test.ts \
   src/renderer/domain/node-storyline-state.test.ts
 pnpm typecheck
+pnpm exec node scripts/run-entity-link-highlight-acceptance.mjs
 ```
 
 These checks cover preference normalization, color resolution, markup

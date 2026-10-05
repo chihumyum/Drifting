@@ -498,26 +498,29 @@ button,
    data-target-kind: element / node / patch / category / storyline.
    ============================================================ */
 .entity-link {
+  --entity-link-band-color: var(--entity-link-color, hsl(var(--el-color, var(--accent))));
   color: var(--entity-link-color, hsl(var(--el-color, var(--accent))));
   text-decoration: none;
   background-image: linear-gradient(
     to top,
     color-mix(
         in srgb,
-        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 10%,
+        var(--entity-link-band-color) 10%,
         transparent
       )
       0,
     color-mix(
         in srgb,
-        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 10%,
+        var(--entity-link-band-color) 10%,
         transparent
       )
       28%,
     transparent 28%
   );
   border-radius: 1px;
-  padding: 0 1px;
+  /* Highlighting must preserve the surrounding prose's spacing and weight. */
+  padding: 0;
+  font-weight: inherit;
   cursor: pointer;
   transition:
     background-image 0.15s,
@@ -528,13 +531,13 @@ button,
     to top,
     color-mix(
         in srgb,
-        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        var(--entity-link-band-color) 22%,
         transparent
       )
       0,
     color-mix(
         in srgb,
-        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        var(--entity-link-band-color) 22%,
         transparent
       )
       100%,
@@ -595,7 +598,6 @@ button,
 }
 
 .entity-link--node {
-  font-weight: 600;
   text-underline-offset: 0.16em;
 }
 
@@ -613,13 +615,13 @@ html[data-entity-link-style='hover'] .entity-link:hover {
     to top,
     color-mix(
         in srgb,
-        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        var(--entity-link-band-color) 22%,
         transparent
       )
       0,
     color-mix(
         in srgb,
-        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        var(--entity-link-band-color) 22%,
         transparent
       )
       100%,
@@ -630,18 +632,39 @@ html[data-entity-link-style='hover'] .entity-link--deep::after {
   content: none;
 }
 
-/* Prose mode keeps references navigable while making them read like ordinary
-   manuscript text. The only persistent affordance is a neutral underline. */
+/* Dots remain a single fine row even on hover. Excluding hover-only links at
+   rest preserves their plain-prose state. Later text-only rules suppress the
+   image, and inert links retain their !important overrides. */
+html[data-entity-link-band-style='dots']:where(:not([data-entity-link-style='hover'])) .entity-link,
+html[data-entity-link-band-style='dots'] .entity-link:hover {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--entity-link-band-color) 65%, transparent) 0.75px,
+    transparent 1px
+  );
+  background-size: 4px 2px;
+  background-position: left bottom;
+  background-repeat: repeat-x;
+}
+
+/* Highlight treatment is independent of the color source and hover timing.
+   Both is the default; prose mode and inert links keep their own treatment. */
+html[data-entity-link-highlight='band'] .entity-link,
+html[data-entity-link-highlight='band'] .entity-link:hover {
+  color: inherit;
+}
+html[data-entity-link-highlight='text']:where(:not([data-entity-link-style='prose'])) .entity-link,
+html[data-entity-link-highlight='text']:where(:not([data-entity-link-style='prose'])) .entity-link:hover {
+  background-image: none;
+}
+
+/* Prose mode always shows the selected band style in the prose color, while
+   retaining the saved highlight treatment for other color modes. */
 html[data-entity-link-style='prose'] .entity-link,
 html[data-entity-link-style='prose'] .entity-link:hover {
+  --entity-link-band-color: currentColor;
   color: inherit;
-  background-image: none;
-  border-bottom: 1px solid hsl(var(--ink-4) / 0.72);
   font-weight: inherit;
-  padding: 0 1px;
-}
-html[data-entity-link-style='prose'] .entity-link:hover {
-  border-bottom-color: hsl(var(--ink-3) / 0.9);
 }
 html[data-entity-link-style='prose'] .entity-link--deep::after {
   content: none;

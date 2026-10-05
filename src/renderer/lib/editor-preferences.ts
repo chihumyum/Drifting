@@ -12,7 +12,7 @@ import type {
   LineHeight,
   ParagraphIndent,
 } from '../store/settings-store';
-import type { EntityLinkColorMode } from './entity-link-appearance';
+import type { EntityLinkBandStyle, EntityLinkColorMode, EntityLinkHighlightMode } from './entity-link-appearance';
 import { IMPORTED_PROSE_FONT_FAMILY } from './prose-fonts';
 
 export interface EditorPreferences {
@@ -30,6 +30,8 @@ export interface EditorPreferences {
   caretColor: string;
   entityLinkInteractive: boolean;
   entityLinkColorMode: EntityLinkColorMode;
+  entityLinkHighlightMode: EntityLinkHighlightMode;
+  entityLinkBandStyle: EntityLinkBandStyle;
 }
 
 const INDENT_EM: Record<ParagraphIndent, string> = {
@@ -86,4 +88,6 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-caret-color', prefs.caretColor);
   root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');
   root.setAttribute('data-entity-link-style', prefs.entityLinkColorMode);
+  root.setAttribute('data-entity-link-highlight', prefs.entityLinkHighlightMode);
+  root.setAttribute('data-entity-link-band-style', prefs.entityLinkBandStyle);
 }

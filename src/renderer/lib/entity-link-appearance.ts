@@ -5,6 +5,24 @@ import { findById } from './immutable-id-index';
 export const ENTITY_LINK_COLOR_MODES = ['contextual', 'kind', 'hover', 'prose'] as const;
 export type EntityLinkColorMode = (typeof ENTITY_LINK_COLOR_MODES)[number];
 
+export const ENTITY_LINK_HIGHLIGHT_MODES = ['band', 'text', 'both'] as const;
+export type EntityLinkHighlightMode = (typeof ENTITY_LINK_HIGHLIGHT_MODES)[number];
+
+export const ENTITY_LINK_BAND_STYLES = ['wash', 'dots'] as const;
+export type EntityLinkBandStyle = (typeof ENTITY_LINK_BAND_STYLES)[number];
+
+export function normalizeEntityLinkBandStyle(value: unknown): EntityLinkBandStyle {
+  return ENTITY_LINK_BAND_STYLES.includes(value as EntityLinkBandStyle)
+    ? (value as EntityLinkBandStyle)
+    : 'wash';
+}
+
+export function normalizeEntityLinkHighlightMode(value: unknown): EntityLinkHighlightMode {
+  return ENTITY_LINK_HIGHLIGHT_MODES.includes(value as EntityLinkHighlightMode)
+    ? (value as EntityLinkHighlightMode)
+    : 'both';
+}
+
 export const ENTITY_LINK_COLOR_KINDS = [
   'element',
   'chapter',

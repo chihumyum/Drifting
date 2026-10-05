@@ -18,11 +18,15 @@ import { normalizeAccentColor } from '../lib/theme';
 import { normalizeInterfaceTextSize, type InterfaceTextSize } from '../lib/interface-typography';
 import {
   DEFAULT_ENTITY_LINK_KIND_COLORS,
+  normalizeEntityLinkBandStyle,
   normalizeEntityLinkColorMode,
   normalizeEntityLinkHexColor,
+  normalizeEntityLinkHighlightMode,
   normalizeEntityLinkKindColors,
   type EntityLinkColorKind,
+  type EntityLinkBandStyle,
   type EntityLinkColorMode,
+  type EntityLinkHighlightMode,
   type EntityLinkKindColors,
 } from '../lib/entity-link-appearance';
 
@@ -323,6 +327,10 @@ interface SettingsState {
   setEntityLinkInteractive: (on: boolean) => void;
   entityLinkColorMode: EntityLinkColorMode;
   setEntityLinkColorMode: (mode: EntityLinkColorMode) => void;
+  entityLinkHighlightMode: EntityLinkHighlightMode;
+  setEntityLinkHighlightMode: (mode: EntityLinkHighlightMode) => void;
+  entityLinkBandStyle: EntityLinkBandStyle;
+  setEntityLinkBandStyle: (style: EntityLinkBandStyle) => void;
   entityLinkKindColors: EntityLinkKindColors;
   setEntityLinkKindColor: (kind: EntityLinkColorKind, color: string) => void;
   setEntityLinkKindColors: (colors: unknown) => void;
@@ -558,6 +566,12 @@ export const useSettingsStore = create<SettingsState>()(
       entityLinkColorMode: 'contextual',
       setEntityLinkColorMode: (mode) =>
         set({ entityLinkColorMode: normalizeEntityLinkColorMode(mode) }),
+      entityLinkHighlightMode: 'both',
+      setEntityLinkHighlightMode: (mode) =>
+        set({ entityLinkHighlightMode: normalizeEntityLinkHighlightMode(mode) }),
+      entityLinkBandStyle: 'wash',
+      setEntityLinkBandStyle: (style) =>
+        set({ entityLinkBandStyle: normalizeEntityLinkBandStyle(style) }),
       entityLinkKindColors: { ...DEFAULT_ENTITY_LINK_KIND_COLORS },
       setEntityLinkKindColor: (kind, color) =>
         set((state) => ({
@@ -1101,6 +1115,8 @@ export const useSettingsStore = create<SettingsState>()(
         delete (merged as unknown as Record<string, unknown>).outlineRailVisible;
         merged.outlineRailMode = normalizeOutlineRailMode(merged.outlineRailMode);
         merged.entityLinkColorMode = normalizeEntityLinkColorMode(merged.entityLinkColorMode);
+        merged.entityLinkHighlightMode = normalizeEntityLinkHighlightMode(merged.entityLinkHighlightMode);
+        merged.entityLinkBandStyle = normalizeEntityLinkBandStyle(merged.entityLinkBandStyle);
         merged.entityLinkKindColors = normalizeEntityLinkKindColors(merged.entityLinkKindColors);
         return merged;
       },

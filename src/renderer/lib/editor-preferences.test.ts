@@ -18,6 +18,8 @@ const BASE_PREFERENCES: EditorPreferences = {
   caretColor: '#6b7fa6',
   entityLinkInteractive: true,
   entityLinkColorMode: 'contextual',
+  entityLinkHighlightMode: 'both',
+  entityLinkBandStyle: 'wash',
 };
 
 describe('editor preferences', () => {

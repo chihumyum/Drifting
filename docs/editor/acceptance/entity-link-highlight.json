@@ -1,0 +1,21 @@
+{
+  "kind": "entity-link-highlight",
+  "generatedAt": "2026-10-05T17:50:39.894Z",
+  "fingerprint": "2df6430fac9600e27bd4de55f1bcd33a1c488205c582d5807ec869951dd11000",
+  "inputs": [
+    "src/styles/index.css",
+    "scripts/run-entity-link-highlight-acceptance.mjs"
+  ],
+  "checks": {
+    "settingsAndAppearance": true,
+    "zeroPadding": true,
+    "inheritedWeight": true,
+    "preservedBold": true,
+    "stableTextGeometry": true,
+    "disabledAndDeleted": true,
+    "reloadPersistence": true
+  },
+  "geometryChecks": 67,
+  "native": "not-run",
+  "boundary": "Real Settings controls and production CSS with synthetic inline links in Chromium. Includes wrapped CJK, Latin, and both bold nesting orders. Excludes deep-link arrows and native Tauri interaction."
+}

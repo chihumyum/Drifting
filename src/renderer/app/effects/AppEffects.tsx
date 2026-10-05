@@ -83,6 +83,8 @@ function EditorPreferenceEffects() {
   const caretColor = useSettingsStore((state) => state.caretColor);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const entityLinkColorMode = useSettingsStore((state) => state.entityLinkColorMode);
+  const entityLinkHighlightMode = useSettingsStore((state) => state.entityLinkHighlightMode);
+  const entityLinkBandStyle = useSettingsStore((state) => state.entityLinkBandStyle);
 
   useEffect(() => {
     applyEditorPreferences({
@@ -98,6 +100,8 @@ function EditorPreferenceEffects() {
       caretColor,
       entityLinkInteractive,
       entityLinkColorMode,
+      entityLinkHighlightMode,
+      entityLinkBandStyle,
     });
   }, [
     editorFontSource,
@@ -112,6 +116,8 @@ function EditorPreferenceEffects() {
     caretColor,
     entityLinkInteractive,
     entityLinkColorMode,
+    entityLinkHighlightMode,
+    entityLinkBandStyle,
   ]);
 
   useEffect(() => {

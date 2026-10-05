@@ -20,8 +20,10 @@ import {
 } from '../../../lib/prose-fonts';
 import {
   ENTITY_LINK_COLOR_KINDS,
+  type EntityLinkBandStyle,
   type EntityLinkColorKind,
   type EntityLinkColorMode,
+  type EntityLinkHighlightMode,
 } from '../../../lib/entity-link-appearance';
 import {
   SettingsPanelHeader,
@@ -387,6 +389,10 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
     setCaretColor,
     entityLinkColorMode,
     setEntityLinkColorMode,
+    entityLinkHighlightMode,
+    setEntityLinkHighlightMode,
+    entityLinkBandStyle,
+    setEntityLinkBandStyle,
     entityLinkKindColors,
     setEntityLinkKindColor,
     autosave,
@@ -654,6 +660,39 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
             </div>
           }
         />
+        {entityLinkColorMode !== 'prose' && (
+          <SettingsRow
+            label={t('settings.editor.entity_link_highlight')}
+            desc={t('settings.editor.entity_link_highlight_desc')}
+            control={
+              <SettingsSegment<EntityLinkHighlightMode>
+                value={entityLinkHighlightMode}
+                options={[
+                  { value: 'band', label: t('settings.editor.entity_link_highlight_band') },
+                  { value: 'text', label: t('settings.editor.entity_link_highlight_text') },
+                  { value: 'both', label: t('settings.editor.entity_link_highlight_both') },
+                ]}
+                onChange={setEntityLinkHighlightMode}
+              />
+            }
+          />
+        )}
+        {(entityLinkColorMode === 'prose' || entityLinkHighlightMode !== 'text') && (
+          <SettingsRow
+            label={t('settings.editor.entity_link_band_style')}
+            desc={t('settings.editor.entity_link_band_style_desc')}
+            control={
+              <SettingsSegment<EntityLinkBandStyle>
+                value={entityLinkBandStyle}
+                options={[
+                  { value: 'wash', label: t('settings.editor.entity_link_band_style_wash') },
+                  { value: 'dots', label: t('settings.editor.entity_link_band_style_dots') },
+                ]}
+                onChange={setEntityLinkBandStyle}
+              />
+            }
+          />
+        )}
         <SettingsRow
           label={t('settings.editor.auto_element_link')}
           desc={t('settings.editor.auto_element_link_desc')}
