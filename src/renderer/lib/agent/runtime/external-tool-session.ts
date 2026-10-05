@@ -11,6 +11,9 @@ import { hashAgentPermissionArguments } from './control-plane';
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import { throwIfAgentAborted } from './errors';
 
+/** `_meta` key carrying local presentation metadata (for example a write review). */
+export const MCP_PRESENTATION_META_KEY = 'cc.drifting/presentation';
+
 export interface ExternalToolSessionOptions {
   sessionId: string;
   grant: McpServerGrant;
@@ -98,11 +101,12 @@ export class ExternalToolSession {
           : result.error;
         return {
           content: [{ type: 'text', text }],
-          // Do not expose the internal data/modelData envelope: either can
-          // contain the same full manuscript already emitted in content.
-          structuredContent: result.ok
-            ? { ok: true, ...(result.presentation ? { presentation: result.presentation } : {}) }
-            : { ok: false },
+          // No structuredContent: clients such as Claude Code show it to the
+          // model instead of content, hiding the result. Presentation is
+          // client metadata that must stay out of model context.
+          ...(result.ok && result.presentation
+            ? { _meta: { [MCP_PRESENTATION_META_KEY]: result.presentation } }
+            : {}),
           isError: !result.ok,
         };
       } catch (error) {
@@ -170,7 +174,11 @@ export class ExternalToolSession {
       throw new Error('Tool arguments must be an object');
     const validation = definition.validateInput(args);
     if (!validation.ok) throw new Error(validation.error);
-    this.initialized ??= this.initialize();
+    // Do not cache a failed initialization: it would fail every later call.
+    this.initialized ??= this.initialize().catch((error: unknown) => {
+      this.initialized = null;
+      throw error;
+    });
     await this.initialized;
     throwIfAgentAborted(signal);
     const ordinal = ++this.ordinal;

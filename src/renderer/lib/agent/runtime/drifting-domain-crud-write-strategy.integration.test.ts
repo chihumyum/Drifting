@@ -1,6 +1,7 @@
 import { readLocalRelationalMarkdownSource } from '../../../services/export/relational-markdown.local-source';
 import { buildRelationalMarkdownEntries } from '../../../services/export/relational-markdown.service';
-import { ExternalToolSession } from './external-tool-session';
+import { ExternalToolSession, MCP_PRESENTATION_META_KEY } from './external-tool-session';
+import { publishMarkdownProjectionStatus } from '../../../services/markdown-projection-status';
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -54,6 +55,7 @@ import type {
   AgentModelDriver,
   AgentRuntimeContext,
   AgentToolExecutionRequest,
+  AgentToolExecutionPresentation,
   AgentToolExecutionResult,
 } from './types';
 
@@ -164,7 +166,8 @@ describe('workspace domain CRUD transactions', () => {
     return session.handle({ jsonrpc: '2.0', id: ++mcpCallId, method: 'tools/call',
       params: { name, arguments: args } }, new AbortController().signal) as Promise<{
         isError: boolean; content: { type: string; text: string }[];
-        structuredContent?: AgentToolExecutionResult;
+        structuredContent?: unknown;
+        _meta?: Record<string, AgentToolExecutionPresentation | undefined>;
       }>;
   }
 
@@ -177,11 +180,38 @@ describe('workspace domain CRUD transactions', () => {
     expect((await list(writer)).tools).toHaveLength(70);
     expect((await list(writer)).tools.map((t) => t.name)).not.toContain('ask_user');
     expect(await mcpCall(reader, 'get_project_overview', {})).toMatchObject({ isError: false });
+    // A cleared projection error must not leave an undefined field that the
+    // durable tool-call record rejects.
+    publishMarkdownProjectionStatus(PROJECT_ID, { state: 'error', error: 'Synthetic failure' });
+    publishMarkdownProjectionStatus(PROJECT_ID, { state: 'ready', error: undefined });
+    const overview = await mcpCall(reader, 'get_project_overview', {});
+    expect(overview, JSON.stringify(overview)).toMatchObject({ isError: false });
+    expect(JSON.parse(overview.content[0]!.text).markdownProjection).toMatchObject({ state: 'ready' });
+    expect(JSON.parse(overview.content[0]!.text).markdownProjection).not.toHaveProperty('error');
     expect(await mcpCall(reader, 'create_chapter', { title: 'Denied' })).toMatchObject({ isError: true });
     expect(await mcpCall(writer, 'create_chapter', {})).toMatchObject({ isError: true });
     expect(await mcpCall(writer, 'delete_chapter', { chapter: 'Chapter One' })).toMatchObject({ isError: true });
     expect(fixture.scalar("SELECT count(*) FROM book_node WHERE deleted_at IS NULL")).toBe(2);
     await reader.close(); await writer.close();
+  });
+
+  it('MCP retries a failed session initialization instead of replaying the failure', async () => {
+    let attempts = 0;
+    const session = new ExternalToolSession({ sessionId: 'mcp-test:init-retry',
+      grant: { id: 'init-retry', name: 'Synthetic external agent', projectId: PROJECT_ID, access: 'read', allowDangerous: false },
+      composition: fixture.composition,
+      ensureConversation: async (conversationId) => {
+        if (++attempts === 1) throw new Error('Synthetic initialization failure');
+        await fixture.database.insert(AgentConversationTable).values({ id: conversationId,
+          projectId: PROJECT_ID, title: 'Synthetic MCP', source: 'external_mcp', mode: 'byok', messagesJson: '[]',
+          createdAt: AT, updatedAt: AT });
+      },
+    });
+    expect(await mcpCall(session, 'list_chapters', {})).toMatchObject({ isError: true });
+    const retried = await mcpCall(session, 'list_chapters', {});
+    expect(retried, JSON.stringify(retried)).toMatchObject({ isError: false });
+    expect(retried.content[0]!.text).toContain('Chapter One');
+    await session.close();
   });
 
   it('MCP sends chapter prose once, with shared numbering, range reads and version guards', async () => {
@@ -190,8 +220,9 @@ describe('workspace domain CRUD transactions', () => {
     const result = await mcpCall(writer, 'read_chapter', { chapter: 'Numbered fixture' });
     expect(result, JSON.stringify(result)).toMatchObject({ isError: false });
     expect(JSON.stringify(result).match(/UniqueSyntheticBody/g)).toHaveLength(1);
-    expect(result.structuredContent).not.toHaveProperty('data');
-    expect(result.structuredContent).not.toHaveProperty('modelData');
+    // Clients such as Claude Code show structuredContent instead of content.
+    expect(result).not.toHaveProperty('structuredContent');
+    expect(result).not.toHaveProperty('_meta');
     expect(result.content[0]!.text).toContain('1\tUniqueSyntheticBody.');
     expect(result.content[0]!.text).toContain('3\tSecond paragraph.');
     const version = /sha256:[a-f0-9]{64}/u.exec(result.content[0]!.text)![0];
@@ -240,7 +271,8 @@ describe('workspace domain CRUD transactions', () => {
     const effects = await fixture.composition.repositories.writeEffects.listEffects('mcp-test:prose-writer');
     const changedEffect = effects.find((effect) => effect.toolName === 'replace_chapter_body');
     expect(changedEffect?.authorization?.kind).toBe('author_approved');
-    const review = changed.structuredContent?.ok ? changed.structuredContent.presentation?.review : undefined;
+    expect(changed).not.toHaveProperty('structuredContent');
+    const review = changed._meta?.[MCP_PRESENTATION_META_KEY]?.review;
     expect(review?.id).toBeTruthy();
     if (!review) throw new Error('Missing MCP write review');
     const conversations = createAgentConversationRepository();

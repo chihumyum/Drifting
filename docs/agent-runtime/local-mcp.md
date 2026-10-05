@@ -119,6 +119,11 @@ reader/writer scheduler with internal Agents. Read coverage stays session-scoped
 reconnecting cannot inherit another client's observations. Changing a document
 after it was read makes a stale full-body replacement fail. Runtime reviews are
 available through the normal editor review UI; MCP does not approve its own work.
+A native connection can outlive a renderer bridge remount (project switch,
+window reload). Each bridge attachment therefore scopes the durable session to
+`<native session>:<attachment>`, so a remount starts a fresh session with no
+read coverage instead of colliding with the closed one. A failed session
+initialization is retried on the next call, never replayed.
 
 External tool conversations have durable `source=external_mcp`; internal chats
 use `source=chat`. General Agent history, usage, restore, continuation, rename
@@ -143,9 +148,13 @@ fields instead of retaining `undefined` values. This keeps recovery from a
 projection error compatible with durable Agent payload serialization.
 
 These domain tools are shared with General Agent. MCP only adapts their wire
-response: `content` contains the model-facing result once; `structuredContent`
-contains success/review metadata, never another `data`/`modelData` prose copy.
-Internal receipts and freshness enforcement remain unchanged.
+response: `content` contains the model-facing result once. Responses never
+carry `structuredContent` (no tool declares an `outputSchema`): clients such as
+Claude Code show it to the model instead of `content`, so a metadata-only
+object hid every result. Review metadata travels in
+`_meta["cc.drifting/presentation"]`, outside model context, and never another
+`data`/`modelData` prose copy. Internal receipts and freshness enforcement
+remain unchanged.
 
 - `read_chapter` defaults to numbered body lines (`lineNumbers: false` disables
   the prefixes). `startLine`/`endLine` select an inclusive range; an end beyond

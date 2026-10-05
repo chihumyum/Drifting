@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-03T19:12:36.788Z",
-  "sourceSha256": "1fa03497a5374babaf80d6da697a59c887daa7ee5e209d0a3e3f54514eed085e",
+  "generatedAt": "2026-10-05T17:50:24.144Z",
+  "sourceSha256": "45afee705dc1584781c5f41df67bcda70dd3ac9c8d6dd023dbfd093134b0801f",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -210,6 +210,10 @@
       "status": "passed"
     },
     {
+      "name": "MCP server bridge gives a native session that outlives a bridge remount a fresh durable identity",
+      "status": "passed"
+    },
+    {
       "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
       "status": "passed"
     },
@@ -247,6 +251,10 @@
     },
     {
       "name": "workspace domain CRUD transactions MCP exposes canonical schemas and enforces read-only grants and validation before mutation",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP retries a failed session initialization instead of replaying the failure",
       "status": "passed"
     },
     {
@@ -514,11 +522,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
       "status": "passed"
     },
     {
@@ -530,7 +542,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
       "status": "passed"
     },
     {
@@ -538,15 +550,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
       "status": "passed"
     },
     {
@@ -554,15 +558,19 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
       "status": "passed"
     },
     {
@@ -582,11 +590,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
       "status": "passed"
     },
     {
@@ -594,19 +602,19 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {

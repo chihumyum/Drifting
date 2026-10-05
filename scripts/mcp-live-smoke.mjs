@@ -30,7 +30,12 @@ async function connect() {
 async function call(client, name, args = {}, success = true) {
   const result = await client.callTool({ name, arguments: args });
   assert.equal(Boolean(result.isError), !success, `${name}: ${JSON.stringify(result.content)}`);
-  return { ...result.structuredContent, text: result.content.filter(item => item.type === 'text').map(item => item.text).join('\n') };
+  // Clients such as Claude Code show structuredContent instead of content.
+  assert.equal(result.structuredContent, undefined, `${name} must not send structuredContent`);
+  return {
+    presentation: result._meta?.['cc.drifting/presentation'],
+    text: result.content.filter(item => item.type === 'text').map(item => item.text).join('\n'),
+  };
 }
 try {
   if (mode === 'revoked') {

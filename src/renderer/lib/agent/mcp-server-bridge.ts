@@ -40,8 +40,13 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
         throw new Error('Authorized project is not open');
       let session = sessions.get(event.sessionId);
       if (!session) {
+        // A native session outlives a remount of this bridge (project switch,
+        // renderer reload), and the previous mount already closed its durable
+        // session. Scope durable ids to this attachment so they never collide;
+        // the native attach told clients to read again before writing.
+        const sessionId = `${event.sessionId}:${event.epoch.slice(0, 16)}`;
         session = new ExternalToolSession({
-          sessionId: event.sessionId,
+          sessionId,
           grant: event.grant,
           composition: getDriftingAgentProductComposition(),
           ensureConversation: async (id, grant) => {
@@ -54,13 +59,16 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
                 title: `MCP · ${grant.name}`,
                 source: 'external_mcp',
                 sdkSessionId: null,
-                runtimeSessionId: event.sessionId,
+                runtimeSessionId: sessionId,
                 mode: 'byok',
                 messagesJson: '[]',
                 deletedAt: null,
                 createdAt: at,
                 updatedAt: at,
-              });
+              })
+              // Idempotent so an initialization retried after a later step
+              // failed does not collide with its own row.
+              .onConflictDoNothing();
           },
         });
         sessions.set(event.sessionId, session);

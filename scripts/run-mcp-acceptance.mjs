@@ -97,6 +97,7 @@ if (process.argv.includes('--record-live')) {
       'src/renderer/store/agent-chat-navigation.integration.test.ts',
       'src/renderer/store/agent-chat-removal.integration.test.ts',
       'src/renderer/components/agent/AgentMcpAccessState.test.ts',
+      'src/renderer/lib/agent/mcp-server-bridge.test.ts',
       'src/renderer/lib/agent/prose-read-view.test.ts',
       'src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.test.ts',
       'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.test.ts',
