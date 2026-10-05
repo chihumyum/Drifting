@@ -148,7 +148,7 @@ paragraph, with no following text to merge, did not churn and did not fail. The
 ### Fix: compose inside the link
 
 Since 2026-10-05, `EntityLink` composes input-method text that starts at a
-link's end inside the link
+link's edge inside the link
 ([entity-link-composition.ts](../../src/renderer/lib/extensions/entity-link-composition.ts)).
 At `compositionstart`, before ProseMirror's own handler, the link counts as
 inclusive for that composition only. ProseMirror then skips its cursor wrapper,
@@ -158,19 +158,29 @@ the next `compositionstart`, or when an end never reached the editor), the
 characters past the link's original text leave the link. The document is the
 same as before; while composing, the marked text shows in the link's color.
 
-The option `composeInsideLinkEnd` defaults to Apple WebKit, where the symptom
-occurs; other engines keep ProseMirror's path. Compositions after a link with
+The start edge was added on 2026-10-06: with no text before a link on its line
+(a paragraph start or after a hard break), WebKit has no position before the
+link's element and composed inside it, so text typed in front of a line-start
+name joined that name's link. The auto-linker then nested other names inside the
+joined link. Such a composition now also stays inside the link, and the
+characters in front of the link's original text leave it after commit. A
+composition inside a link that wraps another link (left by the earlier joining)
+still makes ProseMirror's composition protection rebuild the outer link's
+elements on every update; remove such links to repair the text.
+
+The option `composeInsideLink` defaults to Apple WebKit, where both symptoms
+occur; other engines keep ProseMirror's path. Compositions after a link with
 stored marks or another non-inclusive mark still use the cursor wrapper. A
 dangling-link decoration around the link may still split its DOM.
 
 The focused IME run drives both paths with trusted Chromium composition at the
-caret after a linked word with text following it, and after a link the
-auto-linker has just added. With the workaround off, ProseMirror inserts its
-cursor wrapper and removes a text node on each of the six composition updates;
-with it on, there is no wrapper, no node removal, the composition stays inside
-the link, and after commit the link text is unchanged, the new text is plain
-and Yjs matches. Unit tests cover the boundary detection, the inclusive window
-and the strip.
+caret after a linked word with text following it, after a link the auto-linker
+has just added, and before a link at a paragraph start (where Chromium, unlike
+WebKit, composes outside the link without the workaround). With the workaround
+on there is no cursor wrapper and no node removal, the composition stays inside
+the link, and after commit the link text is unchanged, the new text is plain and
+Yjs matches. Unit tests
+cover the boundary detection, the inclusive window and the strip.
 
 In the author's debug app the workaround composed a following-text case inside
 the link with no DOM writes (2026-10-05 02:32). One composition still failed
@@ -192,12 +202,23 @@ while the document merges it with the following text. On each update,
 `replaceNodes`/`TextViewDesc.slice` create a new node for the remainder, which
 `renderDescs` inserts while removing the old one. Chromium tolerates this;
 WebKit loses its composition. The upstream repository moved to
-code.haverbeke.berlin/prosemirror/prosemirror-view. A local patch reuses the
-composition desc and the remainder's desc (claiming the browser's node on the
-first update); in the focused Chromium run with Drifting's workaround off it
-removed all six text-node replacements and passed the other checks. It and a
-regression test in ProseMirror's composition suite are not yet submitted, and
-that suite was not run.
+code.haverbeke.berlin/prosemirror/prosemirror-view.
+
+Since 2026-10-05 Drifting applies a fix as
+[`patches/prosemirror-view@1.42.4.patch`](../../patches/prosemirror-view@1.42.4.patch)
+(`patchedDependencies` in `pnpm-workspace.yaml`, both bundles). A new
+`updateAroundComposition` strategy keeps the `CompositionViewDesc` and the
+existing desc for the rest of the text; on the first update it claims the
+browser's node only when text follows it. This also covers compositions after
+stored marks, such as turning bold off with ⌘B at the end of bold text before
+plain text, which the link workaround does not. In the focused run, an unpatched
+copy replaced a text node on each of the six updates in both the after-link and
+the bold-off cursor-wrapper modes; with the patch both keep the following text
+node, and only the wrapper widget is removed. The link workaround stays in place
+until the patch is confirmed in WebKit. The patch fails to apply on a
+prosemirror-view upgrade, which forces it to be ported or dropped. The upstream
+change and a regression test for ProseMirror's composition suite are on a local
+branch, not submitted; that suite was not run.
 
 ## What closing Copilot means
 
@@ -248,7 +269,7 @@ responses and current summary writes.
 
 Validation results and source fingerprints are retained in the generated reports.
 The earlier Markdown/MCP acceptance remains a separate gate from input selection.
-The focused IME report includes 34 engine-selection checks, including the
+The focused IME report includes 51 engine-selection checks, including the
 after-link composition modes, and 15 review-decoration checks. The separate focus report and the Markdown/MCP reports retain their own
 source fingerprints and acceptance scopes.
 

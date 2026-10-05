@@ -20,3 +20,4 @@ overrides:
 
 patchedDependencies:
   '@tiptap/y-tiptap@3.0.8': patches/@tiptap__y-tiptap@3.0.8.patch
+  prosemirror-view@1.42.4: patches/prosemirror-view@1.42.4.patch

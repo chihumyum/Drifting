@@ -1,0 +1,126 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index c6dc574fc427b11448e5ec6f800356d903ef2e51..c8b32163dce1ed4890ee5019842899c9f8cb202a 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1349,7 +1349,7 @@ var NodeViewDesc = function (_ViewDesc4) {
+       }, function (child, outerDeco, innerDeco, i) {
+         updater.syncToMarks(child.marks, inline, view, i);
+         var compIndex;
+-        if (updater.findNodeMatch(child, outerDeco, innerDeco, i)) ;else if (compositionInChild && view.state.selection.from > off && view.state.selection.to < off + child.nodeSize && (compIndex = updater.findIndexWithChild(composition.node)) > -1 && updater.updateNodeAt(child, outerDeco, innerDeco, compIndex, view)) ;else if (updater.updateNextNode(child, outerDeco, innerDeco, view, i, off)) ;else {
++        if (updater.findNodeMatch(child, outerDeco, innerDeco, i)) ;else if (compositionInChild && view.state.selection.from > off && view.state.selection.to < off + child.nodeSize && (compIndex = updater.findIndexWithChild(composition.node)) > -1 && updater.updateNodeAt(child, outerDeco, innerDeco, compIndex, view)) ;else if (localComposition && localComposition.pos == off - pos && updater.updateAroundComposition(child, outerDeco, innerDeco, localComposition, view)) ;else if (updater.updateNextNode(child, outerDeco, innerDeco, view, i, off)) ;else {
+           updater.addNode(child, outerDeco, innerDeco, view, off);
+         }
+         off += child.nodeSize;
+@@ -1887,6 +1887,46 @@ var ViewTreeUpdater = function () {
+         domNode = parent;
+       }
+     }
++  }, {
++    key: "updateAroundComposition",
++    value: function updateAroundComposition(node, outerDeco, innerDeco, comp, view) {
++      // Drifting patch: when the browser composes in its own text node at the
++      // start of a text node that the document merges with following text
++      // (after a cursor wrapper), keep that DOM node as a CompositionViewDesc
++      // next to the existing node for the rest of the text. Otherwise
++      // updateNextNode writes the whole text into the following DOM node and
++      // protectLocalComposition splits it off and replaces it again on every
++      // composition update, after which WebKit can lose the composition.
++      if (!node.isText || !node.text.startsWith(comp.text)) return false;
++      var start = this.index,
++        children = this.top.children,
++        compDesc = children[start];
++      var reuse = compDesc instanceof CompositionViewDesc && compDesc.textDOM == comp.node;
++      var restText = node.text.slice(comp.text.length),
++        restIndex = start;
++      if (reuse) {
++        restIndex++;
++      } else {
++        if (!restText || comp.node.parentNode != this.top.contentDOM || comp.node.pmViewDesc) return false;
++        while (restIndex < children.length && children[restIndex] instanceof WidgetViewDesc) restIndex++;
++      }
++      var rest = children[restIndex];
++      if (restText && (!(rest instanceof TextViewDesc) || rest.nodeDOM.nodeValue != restText || !reuse && comp.node.nextSibling != rest.dom || !rest.update(node.cut(comp.text.length), outerDeco, innerDeco, view))) return false;
++      var desc = compDesc;
++      if (!reuse || desc.text != comp.text) {
++        desc = new CompositionViewDesc(this.top, reuse ? desc.dom : comp.node, comp.node, comp.text);
++        view.input.compositionNodes.push(desc);
++      }
++      if (reuse) {
++        children[start] = desc;
++      } else {
++        this.destroyBetween(start, restIndex);
++        children.splice(start, 0, desc);
++        this.changed = true;
++      }
++      this.index = start + (restText ? 2 : 1);
++      return true;
++    }
+   }, {
+     key: "updateNextNode",
+     value: function updateNextNode(node, outerDeco, innerDeco, view, index, pos) {
+diff --git a/dist/index.js b/dist/index.js
+index 18d421a500137fe92f48d9f3895703257df6f7d0..2c1e1d117f06dc489067cc12eb1a30905d5dede8 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1402,6 +1402,8 @@ class NodeViewDesc extends ViewDesc {
+                 view.state.selection.to < off + child.nodeSize &&
+                 (compIndex = updater.findIndexWithChild(composition.node)) > -1 &&
+                 updater.updateNodeAt(child, outerDeco, innerDeco, compIndex, view)) ;
++            else if (localComposition && localComposition.pos == off - pos &&
++                updater.updateAroundComposition(child, outerDeco, innerDeco, localComposition, view)) ;
+             else if (updater.updateNextNode(child, outerDeco, innerDeco, view, i, off)) ;
+             else {
+                 // Add it as a new view
+@@ -1909,6 +1911,52 @@ class ViewTreeUpdater {
+     }
+     // Try to update the next node, if any, to the given data. Checks
+     // pre-matches to avoid overwriting nodes that could still be used.
++    // Drifting patch: when the browser composes in its own text node at the
++    // start of a text node that the document merges with following text
++    // (after a cursor wrapper), keep that DOM node as a CompositionViewDesc
++    // next to the existing node for the rest of the text. Otherwise
++    // updateNextNode writes the whole text into the following DOM node and
++    // protectLocalComposition splits it off and replaces it again on every
++    // composition update, after which WebKit can lose the composition.
++    updateAroundComposition(node, outerDeco, innerDeco, comp, view) {
++        if (!node.isText || !node.text.startsWith(comp.text))
++            return false;
++        let start = this.index, children = this.top.children, compDesc = children[start];
++        let reuse = compDesc instanceof CompositionViewDesc && compDesc.textDOM == comp.node;
++        let restText = node.text.slice(comp.text.length), restIndex = start;
++        if (reuse) {
++            restIndex++;
++        }
++        else {
++            // First update: the browser's text node is still unclaimed, and only
++            // widgets no longer in the decorations (the cursor wrapper) precede
++            // the rest of the text.
++            if (!restText || comp.node.parentNode != this.top.contentDOM || comp.node.pmViewDesc)
++                return false;
++            while (restIndex < children.length && children[restIndex] instanceof WidgetViewDesc)
++                restIndex++;
++        }
++        let rest = children[restIndex];
++        if (restText && (!(rest instanceof TextViewDesc) || rest.nodeDOM.nodeValue != restText ||
++            (!reuse && comp.node.nextSibling != rest.dom) ||
++            !rest.update(node.cut(comp.text.length), outerDeco, innerDeco, view)))
++            return false;
++        let desc = compDesc;
++        if (!reuse || desc.text != comp.text) {
++            desc = new CompositionViewDesc(this.top, reuse ? desc.dom : comp.node, comp.node, comp.text);
++            view.input.compositionNodes.push(desc);
++        }
++        if (reuse) {
++            children[start] = desc;
++        }
++        else {
++            this.destroyBetween(start, restIndex);
++            children.splice(start, 0, desc);
++            this.changed = true;
++        }
++        this.index = start + (restText ? 2 : 1);
++        return true;
++    }
+     updateNextNode(node, outerDeco, innerDeco, view, index, pos) {
+         for (let i = this.index; i < this.top.children.length; i++) {
+             let next = this.top.children[i];

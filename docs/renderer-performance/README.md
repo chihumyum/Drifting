@@ -14,8 +14,9 @@ derived work during composition, closes late Copilot write/key ownership gaps,
 and adds focused `--editor-ime` browser evidence. The follow-up covers trusted
 Chromium engine composition. The intermittently selected pinyin was traced to
 ProseMirror's cursor wrapper after an entity link; entity links now keep such a
-composition inside the link on Apple WebKit, and a debug-build probe logs
-compositions to `logs/ime-selection.log`.
+composition inside the link on Apple WebKit, prosemirror-view is patched to stop
+rewriting the following text node, and a debug-build probe logs compositions to
+`logs/ime-selection.log`.
 
 The 2026-10-02 [editor focus investigation](editor-focus-handoff.md) removes
 full-document projection work from synchronous blur and avoids rebuilding unused

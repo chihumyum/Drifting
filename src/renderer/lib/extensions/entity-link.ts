@@ -47,12 +47,12 @@ export interface EntityLinkOptions extends EntityLinkAutoDetectConfig {
   HTMLAttributes?: Record<string, string>;
   onClick?: (ref: EntityLinkRef) => void;
   /**
-   * Compose input-method text at a link's end inside the link, then move it
-   * out on commit, instead of ProseMirror's cursor wrapper. On by default in
-   * Apple WebKit, where the wrapper can lose the composition; see
+   * Compose input-method text at a link's edge inside the link, then move it
+   * out on commit. On by default in Apple WebKit, where ProseMirror's cursor
+   * wrapper can lose the composition and a line-start link absorbs it; see
    * entity-link-composition.ts.
    */
-  composeInsideLinkEnd: boolean;
+  composeInsideLink: boolean;
 }
 
 // Shared appearance/interaction preferences. Auto-detection is editor-owned:
@@ -365,7 +365,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
       autoDetectEnabled: true,
       HTMLAttributes: {},
       onClick: undefined,
-      composeInsideLinkEnd: isAppleWebKit(),
+      composeInsideLink: isAppleWebKit(),
     };
   },
 
@@ -422,7 +422,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
     };
 
     return [
-      ...(this.options.composeInsideLinkEnd ? [createEntityLinkCompositionPlugin(markType)] : []),
+      ...(this.options.composeInsideLink ? [createEntityLinkCompositionPlugin(markType)] : []),
       new Plugin({
         key: EntityLinkPluginKey,
 

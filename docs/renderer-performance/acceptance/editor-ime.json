@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "kind": "renderer_editor_ime_run",
-  "generatedAt": "2026-10-04T18:55:50.034Z",
+  "generatedAt": "2026-10-05T16:07:56.302Z",
   "status": "measured",
   "source": {
-    "commit": "8f6b76bdd582a79cb565eaf0dea8f1f5501d964f",
-    "rendererFingerprint": "284facfc96df6b7f95744432d3334fd3ce4a34377312153456891f07335bdf25",
+    "commit": "ecd53d37214a4e9c6b59f357088d427b384acbcb",
+    "rendererFingerprint": "e1f053179112a51e7c0b68df019f0845ad9c61f56e32250168983ae67030a833",
     "fingerprintVersion": 2,
     "dirty": true,
     "build": "vite-production-isolated-harness"
@@ -311,6 +311,7 @@
           "text": "合成正文",
           "reviewTint": false,
           "linkedText": "",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -387,6 +388,7 @@
           "text": "合成正文ASDFFA",
           "reviewTint": false,
           "linkedText": "",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -472,6 +474,7 @@
           "text": "合成正文合成",
           "reviewTint": false,
           "linkedText": "",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -496,6 +499,7 @@
           "text": "合成正文",
           "reviewTint": false,
           "linkedText": "",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -572,6 +576,7 @@
           "text": "合成正文ASDFFA",
           "reviewTint": false,
           "linkedText": "",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 6,
@@ -664,6 +669,7 @@
           "text": "合成正文合成",
           "reviewTint": true,
           "linkedText": "",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 1,
           "nodeRemovals": 9,
@@ -688,6 +694,7 @@
           "text": "合成正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -764,6 +771,7 @@
           "text": "合成正文ASDFFA",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -849,6 +857,7 @@
           "text": "合成正文合成",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -873,6 +882,7 @@
           "text": "合成正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -949,9 +959,10 @@
           "text": "合成ASDFFA正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 1,
-          "textNodeRemovals": 6,
-          "nodeRemovals": 7,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 1,
           "yjsMatches": true
         },
         "committed": {
@@ -1034,9 +1045,10 @@
           "text": "合成想正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 1,
-          "textNodeRemovals": 8,
-          "nodeRemovals": 9,
+          "textNodeRemovals": 1,
+          "nodeRemovals": 2,
           "yjsMatches": true
         }
       },
@@ -1058,6 +1070,7 @@
           "text": "合成正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -1134,6 +1147,7 @@
           "text": "合成ASDFFA正文",
           "reviewTint": false,
           "linkedText": "合成ASDFFA",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -1228,6 +1242,7 @@
           "text": "合成想正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 1,
@@ -1252,6 +1267,7 @@
           "text": "合成正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -1328,6 +1344,7 @@
           "text": "合成ASDFFA正文",
           "reviewTint": false,
           "linkedText": "合成ASDFFA",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 0,
@@ -1422,6 +1439,580 @@
           "text": "合成想正文",
           "reviewTint": false,
           "linkedText": "合成",
+          "boldText": "",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 1,
+          "yjsMatches": true
+        }
+      },
+      {
+        "mode": "bold-off-cursor-wrapper",
+        "initial": {
+          "review": false,
+          "linked": false,
+          "composing": false,
+          "trustedCompositionStarts": 0,
+          "decorationTransactions": 0,
+          "transactions": [],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 3,
+          "pmHead": 3,
+          "text": "合成正文",
+          "reviewTint": false,
+          "linkedText": "",
+          "boldText": "合成",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 0,
+          "yjsMatches": true
+        },
+        "during": {
+          "review": false,
+          "linked": false,
+          "composing": true,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "transactions": [
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            }
+          ],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 9,
+          "pmHead": 9,
+          "text": "合成ASDFFA正文",
+          "reviewTint": false,
+          "linkedText": "",
+          "boldText": "合成",
+          "cursorWrapperInsertions": 1,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 1,
+          "yjsMatches": true
+        },
+        "committed": {
+          "review": false,
+          "linked": false,
+          "composing": false,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "transactions": [
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            }
+          ],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 4,
+          "pmHead": 4,
+          "text": "合成想正文",
+          "reviewTint": false,
+          "linkedText": "",
+          "boldText": "合成",
+          "cursorWrapperInsertions": 1,
+          "textNodeRemovals": 1,
+          "nodeRemovals": 2,
+          "yjsMatches": true
+        }
+      },
+      {
+        "mode": "line-start-link-baseline",
+        "initial": {
+          "review": false,
+          "linked": true,
+          "composing": false,
+          "trustedCompositionStarts": 0,
+          "decorationTransactions": 0,
+          "transactions": [],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 1,
+          "pmHead": 1,
+          "text": "合成正文",
+          "reviewTint": false,
+          "linkedText": "合成",
+          "boldText": "",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 0,
+          "yjsMatches": true
+        },
+        "during": {
+          "review": false,
+          "linked": true,
+          "composing": true,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "transactions": [
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            }
+          ],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 7,
+          "pmHead": 7,
+          "text": "ASDFFA合成正文",
+          "reviewTint": false,
+          "linkedText": "合成",
+          "boldText": "",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 0,
+          "yjsMatches": true
+        },
+        "committed": {
+          "review": false,
+          "linked": true,
+          "composing": false,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "transactions": [
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            }
+          ],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 2,
+          "pmHead": 2,
+          "text": "想合成正文",
+          "reviewTint": false,
+          "linkedText": "合成",
+          "boldText": "",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 1,
+          "yjsMatches": true
+        }
+      },
+      {
+        "mode": "line-start-link-compose-inside",
+        "initial": {
+          "review": false,
+          "linked": true,
+          "composing": false,
+          "trustedCompositionStarts": 0,
+          "decorationTransactions": 0,
+          "transactions": [],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 1,
+          "pmHead": 1,
+          "text": "合成正文",
+          "reviewTint": false,
+          "linkedText": "合成",
+          "boldText": "",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 0,
+          "yjsMatches": true
+        },
+        "during": {
+          "review": false,
+          "linked": true,
+          "composing": true,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "transactions": [
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            }
+          ],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 7,
+          "pmHead": 7,
+          "text": "ASDFFA合成正文",
+          "reviewTint": false,
+          "linkedText": "ASDFFA合成",
+          "boldText": "",
+          "cursorWrapperInsertions": 0,
+          "textNodeRemovals": 0,
+          "nodeRemovals": 0,
+          "yjsMatches": true
+        },
+        "committed": {
+          "review": false,
+          "linked": true,
+          "composing": false,
+          "trustedCompositionStarts": 1,
+          "decorationTransactions": 0,
+          "transactions": [
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": true,
+              "docChanged": true,
+              "steps": [
+                "replace"
+              ],
+              "review": false,
+              "sync": false
+            },
+            {
+              "composing": false,
+              "docChanged": true,
+              "steps": [
+                "removeMark"
+              ],
+              "review": false,
+              "sync": false
+            }
+          ],
+          "originalWidgetConnected": null,
+          "focused": true,
+          "domCollapsed": true,
+          "domSelectedText": "",
+          "pmAnchor": 2,
+          "pmHead": 2,
+          "text": "想合成正文",
+          "reviewTint": false,
+          "linkedText": "合成",
+          "boldText": "",
           "cursorWrapperInsertions": 0,
           "textNodeRemovals": 0,
           "nodeRemovals": 1,
@@ -1507,7 +2098,7 @@
         "passed": true
       },
       {
-        "id": "after-link-cursor-wrapper:text-node-rewrites-baseline",
+        "id": "after-link-cursor-wrapper:cursor-wrapper-keeps-following-text",
         "passed": true
       },
       {
@@ -1564,6 +2155,74 @@
       },
       {
         "id": "fresh-link-compose-inside:no-node-rewrites-during-composition",
+        "passed": true
+      },
+      {
+        "id": "bold-off-cursor-wrapper:trusted-composition",
+        "passed": true
+      },
+      {
+        "id": "bold-off-cursor-wrapper:no-decoration-rebuild-during-composition",
+        "passed": true
+      },
+      {
+        "id": "bold-off-cursor-wrapper:caret-stays-collapsed",
+        "passed": true
+      },
+      {
+        "id": "bold-off-cursor-wrapper:commit-preserves-prose-and-yjs",
+        "passed": true
+      },
+      {
+        "id": "bold-off-cursor-wrapper:cursor-wrapper-keeps-following-text",
+        "passed": true
+      },
+      {
+        "id": "bold-off-cursor-wrapper:composed-text-not-bold",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-baseline:trusted-composition",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-baseline:no-decoration-rebuild-during-composition",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-baseline:caret-stays-collapsed",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-baseline:commit-preserves-prose-and-yjs",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-baseline:link-text-unchanged-after-commit",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-compose-inside:trusted-composition",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-compose-inside:no-decoration-rebuild-during-composition",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-compose-inside:caret-stays-collapsed",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-compose-inside:commit-preserves-prose-and-yjs",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-compose-inside:link-text-unchanged-after-commit",
+        "passed": true
+      },
+      {
+        "id": "line-start-link-compose-inside:composes-inside-link",
         "passed": true
       }
     ],

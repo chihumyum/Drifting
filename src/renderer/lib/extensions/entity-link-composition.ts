@@ -2,70 +2,83 @@ import type { Mark, MarkType } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 
-// Input-method composition at the end of an entity link.
+// Input-method composition at the edge of an entity link.
 //
-// `entityLink` is `inclusive: false`, so ProseMirror starts a composition right
-// after a link in its "mark cursor" path: a cursor-wrapper widget makes the
-// browser compose in a separate text node outside the link. When plain text
-// follows the link, ProseMirror's model merges the composed text with it, and
-// on every marked-text update its composition protection rewrites that sibling
-// node inside WebKit's `input` dispatch. WebKit then loses its composition and
-// leaves the marked text selected (see
+// At a link's end: `entityLink` is `inclusive: false`, so ProseMirror starts a
+// composition right after a link in its "mark cursor" path: a cursor-wrapper
+// widget makes the browser compose in a separate text node outside the link.
+// When plain text follows the link, ProseMirror's model merges the composed
+// text with it, and on every marked-text update its composition protection
+// rewrites that sibling node inside WebKit's `input` dispatch. WebKit then loses
+// its composition and leaves the marked text selected (see
 // docs/renderer-performance/editor-ime-copilot.md).
 //
-// Instead, for one composition the link counts as inclusive: ProseMirror takes
-// its ordinary path, WebKit composes inside the link's own text node, and the
-// view and model agree. Once the composition ends, the characters typed past the
-// link's original text leave the link again, so the document is the same as
-// before this workaround.
+// At a link's start with no text before it on the line (a textblock start or
+// after a hard break), WebKit has no position before the link's element and
+// composes inside it, and ProseMirror reads the composed text into the link.
+//
+// In both cases the link counts as inclusive for that one composition:
+// ProseMirror takes its ordinary path, WebKit composes inside the link's own
+// text node, and the view and model agree. Once the composition ends, the
+// characters typed beyond the link's original text leave the link again, so the
+// document is the same as typing outside it.
 
 export const EntityLinkCompositionPluginKey = new PluginKey('entityLinkComposition');
 
 /** Transaction meta for the post-composition strip. */
 export const ENTITY_LINK_COMPOSITION_META = 'entityLinkComposition';
 
-export interface LinkEndComposition {
-  /** The link mark ending at the caret. */
+export interface LinkComposition {
+  /** The link mark at the caret. */
   mark: Mark;
-  /** Text of the contiguous run carrying `mark` that ends at the caret. */
+  /** Which edge of the link the caret is at. */
+  side: 'start' | 'end';
+  /** Text of the contiguous run carrying `mark` that starts or ends at the caret. */
   linkText: string;
-  /** Whether the caret was at the link's end (not between two parts of it). */
+  /** False when the caret sits between two parts of one link. */
   strip: boolean;
 }
 
 /**
- * The link composition a collapsed caret would start, or null when ProseMirror
- * would not use its cursor wrapper for `markType` here.
+ * The link composition a collapsed caret would start, or null when the caret
+ * is not at an edge of a `markType` link where the browser or ProseMirror would
+ * compose outside the link's text node.
  */
-export function linkEndCompositionAt(state: EditorState, markType: MarkType): LinkEndComposition | null {
+export function linkCompositionAt(state: EditorState, markType: MarkType): LinkComposition | null {
   const { selection, storedMarks } = state;
   // Stored marks send ProseMirror down the cursor-wrapper path regardless.
   if (!(selection instanceof TextSelection) || !selection.empty || storedMarks) return null;
   const $pos = selection.$to;
-  if ($pos.textOffset !== 0 || $pos.parentOffset === 0) return null;
-  const before = $pos.nodeBefore;
-  if (!before?.isText) return null;
-  const mark = before.marks.find((candidate) => candidate.type === markType);
-  if (!mark) return null;
-  // Another non-inclusive mark would still require the cursor wrapper.
-  if (before.marks.some((candidate) => candidate.type !== markType && candidate.type.spec.inclusive === false)) {
-    return null;
+  if ($pos.textOffset !== 0) return null;
+  const { nodeBefore: before, nodeAfter: after, parent } = $pos;
+  const run = (mark: Mark, step: -1 | 1) => {
+    let text = '';
+    for (let index = $pos.index() + (step < 0 ? -1 : 0); index >= 0 && index < parent.childCount; index += step) {
+      const child = parent.child(index);
+      if (!child.isText || !mark.isInSet(child.marks)) break;
+      text = step < 0 ? child.text + text : text + child.text;
+    }
+    return text;
+  };
+  const endMark = before?.isText ? before.marks.find((candidate) => candidate.type === markType) : undefined;
+  if (endMark) {
+    // Another non-inclusive mark would still require the cursor wrapper.
+    if (before!.marks.some((candidate) => candidate.type !== markType && candidate.type.spec.inclusive === false)) {
+      return null;
+    }
+    return { mark: endMark, side: 'end', linkText: run(endMark, -1), strip: !(after && endMark.isInSet(after.marks)) };
   }
-  let linkText = '';
-  for (let index = $pos.index() - 1; index >= 0; index--) {
-    const child = $pos.parent.child(index);
-    if (!child.isText || !mark.isInSet(child.marks)) break;
-    linkText = child.text + linkText;
-  }
-  const after = $pos.nodeAfter;
-  return { mark, linkText, strip: !(after && mark.isInSet(after.marks)) };
+  // With text before the caret, WebKit composes at that text's end instead.
+  const startMark = !before?.isText && after?.isText ? after.marks.find((candidate) => candidate.type === markType) : undefined;
+  if (startMark) return { mark: startMark, side: 'start', linkText: run(startMark, 1), strip: true };
+  return null;
 }
 
 /**
- * Removes `composition.mark` from text composed past the link's original text,
- * found as the run around the caret. Null when there is nothing to move.
+ * Removes `composition.mark` from text composed beyond the link's original
+ * text, found as the run around the caret. Null when there is nothing to move.
  */
-export function stripLinkEndComposition(state: EditorState, composition: LinkEndComposition): Transaction | null {
+export function stripLinkComposition(state: EditorState, composition: LinkComposition): Transaction | null {
   if (!composition.strip) return null;
   const $head = state.selection.$head;
   const parent = $head.parent;
@@ -90,10 +103,14 @@ export function stripLinkEndComposition(state: EditorState, composition: LinkEnd
     if (runStart >= 0 && runEnds) {
       const runEnd = inRun ? offset : offset - child.nodeSize;
       if (runStart <= caret && caret <= runEnd) {
-        if (runText.length <= composition.linkText.length || !runText.startsWith(composition.linkText)) return null;
-        const from = parentStart + runStart + composition.linkText.length;
+        const { linkText, side } = composition;
+        const kept = side === 'end' ? runText.startsWith(linkText) : runText.endsWith(linkText);
+        if (runText.length <= linkText.length || !kept) return null;
+        const [from, to] = side === 'end'
+          ? [runStart + linkText.length, runEnd]
+          : [runStart, runEnd - linkText.length];
         return state.tr
-          .removeMark(from, parentStart + runEnd, composition.mark)
+          .removeMark(parentStart + from, parentStart + to, composition.mark)
           .setMeta(ENTITY_LINK_COMPOSITION_META, true);
       }
       runStart = -1;
@@ -121,7 +138,7 @@ export function isAppleWebKit(): boolean {
 }
 
 export function createEntityLinkCompositionPlugin(markType: MarkType): Plugin {
-  let active: LinkEndComposition | null = null;
+  let active: LinkComposition | null = null;
   let stripTimer: ReturnType<typeof setTimeout> | null = null;
   overrideMarkInclusive(markType, () => active !== null);
 
@@ -131,7 +148,7 @@ export function createEntityLinkCompositionPlugin(markType: MarkType): Plugin {
     const composition = active;
     active = null;
     if (!composition || view.isDestroyed) return;
-    const tr = stripLinkEndComposition(view.state, composition);
+    const tr = stripLinkComposition(view.state, composition);
     if (tr) view.dispatch(tr);
   };
 
@@ -168,11 +185,11 @@ export function createEntityLinkCompositionPlugin(markType: MarkType): Plugin {
           // A composition that begins before the previous strip ran (fast
           // typing) must not inherit the extended link.
           if (active) finish(view);
-          const composition = linkEndCompositionAt(view.state, markType);
+          const composition = linkCompositionAt(view.state, markType);
           if (!composition) return false;
           active = composition;
           // Compose in the link's own text node, where the model now places it.
-          const { node, offset } = view.domAtPos(view.state.selection.from, -1);
+          const { node, offset } = view.domAtPos(view.state.selection.from, composition.side === 'end' ? -1 : 1);
           const selection = view.dom.ownerDocument.getSelection();
           if (node.nodeType === Node.TEXT_NODE && selection &&
               (selection.focusNode !== node || selection.focusOffset !== offset || !selection.isCollapsed)) {

@@ -236,9 +236,15 @@ try {
       { mode: 'pending-review', review: true, options: {} },
       { mode: 'linked-prose', linked: true, options: {} },
       { mode: 'after-link-cursor-wrapper', linked: true, commit: '想', options: { caret: 3 } },
-      { mode: 'after-link-compose-inside', linked: true, commit: '想', options: { caret: 3, composeInsideLinkEnd: true } },
+      { mode: 'after-link-compose-inside', linked: true, commit: '想', options: { caret: 3, composeInsideLink: true } },
       // The auto-linker links a just-typed name right before the next composition.
-      { mode: 'fresh-link-compose-inside', commit: '想', options: { caret: 3, linkRange: [1, 3], composeInsideLinkEnd: true } },
+      { mode: 'fresh-link-compose-inside', commit: '想', options: { caret: 3, linkRange: [1, 3], composeInsideLink: true } },
+      // ⌘B off at the end of bold text: the same cursor wrapper and merge, without a link.
+      { mode: 'bold-off-cursor-wrapper', commit: '想', options: { caret: 3, boldOff: true } },
+      // A link at the start of a paragraph: WebKit has no position before its
+      // element; Chromium composes outside it.
+      { mode: 'line-start-link-baseline', linked: true, commit: '想', options: { caret: 1 } },
+      { mode: 'line-start-link-compose-inside', linked: true, commit: '想', options: { caret: 1, composeInsideLink: true } },
     ];
     for (const { mode, review = false, linked = false, commit = '合成', options } of modes) {
       await probe(`start(${review}, ${linked}, ${JSON.stringify(options)})`);
@@ -253,21 +259,29 @@ try {
       await new Promise(resolve => setTimeout(resolve, 50));
       const committed = await probe('snapshot()');
       const prefix = mode;
-      const expectedText = options.caret === 3 ? `合成${commit}正文` : `合成正文${commit}`;
+      const expectedText = options.caret === 1 ? `${commit}合成正文` : options.caret === 3 ? `合成${commit}正文` : `合成正文${commit}`;
       check(`${prefix}:trusted-composition`, during.trustedCompositionStarts === 1 && during.composing);
       check(`${prefix}:no-decoration-rebuild-during-composition`, during.decorationTransactions === 0);
       check(`${prefix}:caret-stays-collapsed`, during.domCollapsed && during.pmAnchor === during.pmHead && during.focused);
       check(`${prefix}:commit-preserves-prose-and-yjs`, !committed.composing && committed.text === expectedText && committed.yjsMatches && committed.focused && committed.domCollapsed);
       if (review) check(`${prefix}:review-refreshes-after-commit`, committed.reviewTint && committed.decorationTransactions > 0);
-      if (options.caret === 3) {
+      if (options.caret === 1) {
         check(`${prefix}:link-text-unchanged-after-commit`, committed.linkedText === '合成');
-        if (options.composeInsideLinkEnd) {
+        if (options.composeInsideLink) {
+          check(`${prefix}:composes-inside-link`, during.linkedText === 'ASDFFA合成' && during.nodeRemovals === 0);
+        }
+      } else if (options.boldOff) {
+        check(`${prefix}:cursor-wrapper-keeps-following-text`, committed.cursorWrapperInsertions > 0 && during.textNodeRemovals === 0);
+        check(`${prefix}:composed-text-not-bold`, committed.boldText === '合成');
+      } else if (options.caret === 3) {
+        check(`${prefix}:link-text-unchanged-after-commit`, committed.linkedText === '合成');
+        if (options.composeInsideLink) {
           check(`${prefix}:composes-inside-link-without-cursor-wrapper`, committed.cursorWrapperInsertions === 0 && during.linkedText === '合成ASDFFA');
           check(`${prefix}:no-node-rewrites-during-composition`, during.nodeRemovals === 0);
         } else {
           check(`${prefix}:cursor-wrapper-baseline`, committed.cursorWrapperInsertions > 0 && during.linkedText === '合成');
-          // ProseMirror rewrites the following text node on composition updates.
-          check(`${prefix}:text-node-rewrites-baseline`, during.textNodeRemovals > 0);
+          // patches/prosemirror-view@1.42.4.patch keeps the following text node.
+          check(`${prefix}:cursor-wrapper-keeps-following-text`, during.textNodeRemovals === 0);
         }
       }
       await probe('stop()');

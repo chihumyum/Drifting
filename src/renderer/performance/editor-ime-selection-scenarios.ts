@@ -13,9 +13,11 @@ import { EntityLink } from '../lib/extensions/entity-link';
 export interface ImeSelectionProbeOptions {
   /** Caret position; defaults to the end of the paragraph. */
   caret?: number;
-  composeInsideLinkEnd?: boolean;
+  composeInsideLink?: boolean;
   /** Link this range just before composing, as the auto-linker does. */
   linkRange?: [number, number];
+  /** Make the first word bold and turn bold off at the caret (⌘B), so stored marks apply. */
+  boldOff?: boolean;
 }
 
 /** Driven by CDP Input.imeSetComposition, not hand-dispatched DOM events. */
@@ -25,9 +27,10 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
   const host = document.createElement('div'); document.body.append(host);
   const doc = new Y.Doc();
   const editor = new Editor({ element: host, extensions: [StarterKit.configure({ undoRedo: false }), BlockId,
-    AgentDiffDecoration, EntityLink.configure({ autoDetectEnabled: false, composeInsideLinkEnd: options.composeInsideLinkEnd ?? false }), Collaboration.configure({ document: doc })] });
+    AgentDiffDecoration, EntityLink.configure({ autoDetectEnabled: false, composeInsideLink: options.composeInsideLink ?? false }), Collaboration.configure({ document: doc })] });
   editor.commands.setContent({ type: 'doc', content: [{ type: 'paragraph', attrs: { id: 'synthetic-ime-block' },
-    content: [{ type: 'text', text: '合成', ...(linked ? { marks: [{ type: 'entityLink', attrs: { targetKind: 'element', targetId: 'synthetic-target' } }] } : {}) },
+    content: [{ type: 'text', text: '合成', ...(linked ? { marks: [{ type: 'entityLink', attrs: { targetKind: 'element', targetId: 'synthetic-target' } }] }
+      : options.boldOff ? { marks: [{ type: 'bold' }] } : {}) },
       { type: 'text', text: '正文' }] }] });
   if (options.linkRange) editor.view.dispatch(editor.state.tr.addMark(options.linkRange[0], options.linkRange[1],
     editor.schema.marks.entityLink.create({ targetKind: 'element', targetId: 'synthetic-target' })).setMeta('addToHistory', false));
@@ -36,6 +39,7 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
   const controller = attachAgentDecorationController({ editor, entityType: 'node', entityId: 'synthetic-ime-selection',
     store: useAgentEditStore, presentationNeeded: true, onReady: () => {}, onError: error => { throw error; } });
   editor.commands.setTextSelection(options.caret ?? 5); editor.view.focus();
+  if (options.boldOff) editor.view.dispatch(editor.state.tr.setStoredMarks([]));
   let widget = editor.view.dom.querySelector('.agent-diff-del');
   const transactions: { composing: boolean; docChanged: boolean; steps: string[]; review: boolean; sync: boolean }[] = [];
   let decorationTransactions = 0, trustedCompositionStarts = 0;
@@ -62,6 +66,11 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
     }
   });
   separators.observe(editor.view.dom, { childList: true, subtree: true });
+  const markedText = (name: string) => {
+    let text = '';
+    editor.state.doc.descendants(node => { if (node.isText && node.marks.some(mark => mark.type.name === name)) text += node.text; });
+    return text;
+  };
   const linkedText = () => {
     let text = '';
     editor.state.doc.descendants(node => { if (node.isText && node.marks.some(mark => mark.type.name === 'entityLink')) text += node.text; });
@@ -74,7 +83,7 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
       domCollapsed: selection?.isCollapsed, domSelectedText: selection?.toString(),
       pmAnchor: editor.state.selection.anchor, pmHead: editor.state.selection.head,
       text: editor.state.doc.textContent, reviewTint: Boolean(editor.view.dom.querySelector('.agent-diff-changed')),
-      linkedText: linkedText(), cursorWrapperInsertions, textNodeRemovals, nodeRemovals,
+      linkedText: linkedText(), boldText: markedText('bold'), cursorWrapperInsertions, textNodeRemovals, nodeRemovals,
       yjsMatches: editor.schema.nodeFromJSON(yDocToProsemirrorJSON(doc, 'default')).eq(editor.state.doc) };
   };
   return { snapshot,
