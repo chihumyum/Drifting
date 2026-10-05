@@ -204,6 +204,12 @@ owns the lifetime of desktop editor views: inactive surfaces stay mounted with
 TipTap instances, Yjs sessions, scroll positions, selections, and field drafts
 therefore survive ordinary tab switches.
 
+Each split side keeps its own Preview/dedicated state. Only the focused
+Preview can be replaced by ordinary entity navigation; a dedicated side keeps
+the split intact and uses the ordinary top-level preview slot. Double-clicking
+a split label pins that side. See [split tab preview lifecycle](editor/split-tab-preview.md)
+for the transition contract and generated browser/store acceptance.
+
 Within each canonical Tiptap instance, `EntityEditorSession` owns the immutable
 project/kind/entity binding, 400 ms trailing projection-save task, selection
 initialization and outline snapshot. `useEntityEditorSession` attaches it in a

@@ -1,0 +1,215 @@
+{
+  "kind": "split-tab-preview",
+  "generatedAt": "2026-10-05T17:46:57.317Z",
+  "fingerprint": "6b54d17b9fb900f5de68d464233a2901f3ef82071056666d8822b16f7cda2007",
+  "tests": [
+    {
+      "name": "independent preview lifecycle in split tabs preserves an existing leaf preview=true when dragged into a split",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs preserves an existing leaf preview=false when dragged into a split",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs preserves existing states when opening an existing entity to one side",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs reuses only the focused left preview for successive entities",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs reuses only the focused right preview for successive entities",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs keeps a dedicated left side and the opposite preview when opening elsewhere",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs keeps a dedicated right side and the opposite preview when opening elsewhere",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs keeps two dedicated split sides intact",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs promotes only one side via focused",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs promotes only one side via entity-ref",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs promotes only one side via split-side",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs does not overwrite a preview on an explicit dedicated open",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs activates existing left without replacing or duplicating a split side",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs activates existing right without replacing or duplicating a split side",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs activates existing outside without replacing or duplicating a split side",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs reuses a side in an inactive split without taking another preview slot",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs opens All Chapters at top level even when a split preview has focus",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs preserves flags, focus, and ratio across persisted session restoration",
+      "status": "passed"
+    },
+    {
+      "name": "independent preview lifecycle in split tabs moves preview state with the entity when panes are swapped",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs removes local tabs whose restored workspace entity does not exist",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs does not alter another project tab collection",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs opens one create draft per project at the end and preserves its choices",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces an idle create preview in place when opening a new node preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces an idle create preview in place when opening a new element preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces an idle create preview in place when opening a new storyline preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces an idle create preview in place when opening a new category preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces an idle create preview in place when opening a new all-chapters preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs shares one preview slot when entering create from an entity preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces a background create preview after switching to Home or an existing tab",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs preserves the create choices after explicit promotion and later previews",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs preserves the create choices after active promotion and later previews",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs pins a submitting create draft before navigation and retains its success",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs pins a submitting create draft before navigation and retains its failure",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs keeps the create draft last when normal entity navigation adds a tab",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs returns an active create draft to the content tab that opened it",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs returns an active create draft to Project Home even when background tabs remain",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs plans the create return route without unmounting the active draft",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs refreshes the create return target when an existing draft is reopened",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs restores the exact split and focused leaf that opened the create draft",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs keeps an in-flight create draft safe from direct and bulk close actions",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs replaces an active create draft in place with a dedicated entity leaf",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs does not steal focus when a background create draft completes",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs preserves the live create draft while pruning stale workspace entities",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs filters create drafts and their active key from persisted ui state",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs never folds the transient draft into a split",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs keeps Project Home outside the tab collection while preserving background tabs",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs activates an existing split side without creating a duplicate preview",
+      "status": "passed"
+    },
+    {
+      "name": "project-local workspace tabs migrates legacy dashboard leaves and mixed splits into Project Home state",
+      "status": "passed"
+    }
+  ],
+  "browser": {
+    "both-previews-are-italic": true,
+    "left-double-click-pins-only-left": true,
+    "dedicated-focus-preserves-split": true,
+    "new-tab-route-follows-target": true,
+    "focused-right-preview-replaced": true,
+    "replacement-keeps-italic-and-route": true,
+    "right-double-click-pins-right": true,
+    "pinned-split-reuses-ordinary-preview": true,
+    "existing-left-activates-without-duplicate": true,
+    "focused-left-preview-replaced": true,
+    "current-tab-promotion-protects-left": true
+  },
+  "uncaughtErrors": [],
+  "native": "not-run",
+  "boundary": "Production React tab strip, desktop navigation, and UI store; synthetic entities and browser clicks in Chromium. Prose editor input and native Tauri acceptance are not covered."
+}

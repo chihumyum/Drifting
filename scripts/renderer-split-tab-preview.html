@@ -1,0 +1,7 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Synthetic split preview acceptance</title>
+<style>body{--font-sans:Arial,sans-serif;--surface:40 20% 97%;--rule:40 10% 80%;--ink-1:30 10% 15%;--ink-3:30 10% 45%;margin:0}</style>
+</head><body><script type="module">
+import { runSplitTabPreviewScenario } from '../src/renderer/performance/split-tab-preview-scenario.tsx';
+globalThis.__SPLIT_TAB_PREVIEW__ = { run: runSplitTabPreviewScenario };
+</script></body></html>

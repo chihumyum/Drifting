@@ -605,6 +605,9 @@ export function TopTimeline() {
               const leaf = side === 'left' ? tab.left : tab.right;
               activateLeafTab(leaf);
             }}
+            onPromoteSide={(side) => {
+              if (projectId) promoteTab(projectId, { splitId: tab.id, side });
+            }}
             onCloseSide={(side) => {
               if (!projectId) return;
               const { nextActive } = closeSplitSide(projectId, tab.id, side);
@@ -912,6 +915,7 @@ interface SplitSlotProps {
   onDropSlot: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragEndSlot: () => void;
   onSelectSide: (side: 'left' | 'right') => void;
+  onPromoteSide: (side: 'left' | 'right') => void;
   onCloseSide: (side: 'left' | 'right') => void;
   onContextMenu: (x: number, y: number, side: 'left' | 'right') => void;
 }
@@ -933,6 +937,7 @@ function SplitTabSlot({
   onDropSlot,
   onDragEndSlot,
   onSelectSide,
+  onPromoteSide,
   onCloseSide,
   onContextMenu,
 }: SplitSlotProps) {
@@ -990,6 +995,7 @@ function SplitTabSlot({
         isFocused={isActive && tab.focused === 'left'}
         isPreview={tab.left.isPreview}
         onClick={() => onSelectSide('left')}
+        onPromote={() => onPromoteSide('left')}
         onClose={() => onCloseSide('left')}
         onContextMenu={(x, y) => onContextMenu(x, y, 'left')}
       />
@@ -1011,6 +1017,7 @@ function SplitTabSlot({
         isFocused={isActive && tab.focused === 'right'}
         isPreview={tab.right.isPreview}
         onClick={() => onSelectSide('right')}
+        onPromote={() => onPromoteSide('right')}
         onClose={() => onCloseSide('right')}
         onContextMenu={(x, y) => onContextMenu(x, y, 'right')}
       />
@@ -1026,6 +1033,7 @@ function SplitSubLabel({
   isFocused,
   isPreview,
   onClick,
+  onPromote,
   onClose,
   onContextMenu,
 }: {
@@ -1036,6 +1044,7 @@ function SplitSubLabel({
   isFocused: boolean;
   isPreview: boolean;
   onClick: () => void;
+  onPromote: () => void;
   onClose: () => void;
   onContextMenu: (x: number, y: number) => void;
 }) {
@@ -1046,6 +1055,10 @@ function SplitSubLabel({
       onClick={(event) => {
         event.stopPropagation();
         onClick();
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        onPromote();
       }}
       onContextMenu={(event) => {
         event.preventDefault();

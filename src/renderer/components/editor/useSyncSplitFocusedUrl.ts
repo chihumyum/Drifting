@@ -265,8 +265,8 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
       // is a "focused side just changed; URL is stale" scenario — push
       // focused → URL instead of pulling URL → focused. Otherwise the URL
       // points at a third entity, which means the user actually navigated
-      // somewhere new (link / breadcrumb / back-forward) and we replace
-      // the focused side with that.
+      // somewhere new (link / breadcrumb / back-forward). Opening that
+      // target follows the same preview rules as sidebar navigation.
       if (active.kind === 'split') {
         const other = active.focused === 'left' ? active.right : active.left;
         if (sameEntity(urlEntity, other)) {
