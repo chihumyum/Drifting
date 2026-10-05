@@ -138,6 +138,10 @@ Mobile and remote HTTP/OAuth endpoints are outside this milestone.
 
 ## Shared reading, search and read-only Markdown projection
 
+Markdown projection status returned by `get_project_overview` omits cleared
+fields instead of retaining `undefined` values. This keeps recovery from a
+projection error compatible with durable Agent payload serialization.
+
 These domain tools are shared with General Agent. MCP only adapts their wire
 response: `content` contains the model-facing result once; `structuredContent`
 contains success/review metadata, never another `data`/`modelData` prose copy.

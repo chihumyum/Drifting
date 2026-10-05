@@ -120,7 +120,9 @@ describe('Markdown projection scheduling', () => {
       await expect(setMarkdownProjectionOutputRoot('synthetic', '/synthetic/custom')).rejects.toThrow('disk full');
       expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ ...nextInfo, state: 'error', error: 'disk full' });
       await refreshMarkdownProjection('synthetic');
-      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready', error: undefined });
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready' });
+      // Cleared fields are removed: the status reaches durable Agent payloads.
+      expect(getMarkdownProjectionStatus('synthetic')).not.toHaveProperty('error');
     } finally { dispose(); }
   });
   it('automatically captures the mounted project on local and remote changes and stops on database switch', async () => {

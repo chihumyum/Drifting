@@ -15,6 +15,10 @@ export function subscribeMarkdownProjectionStatus(listener: () => void): () => v
   return () => { listeners.delete(listener); };
 }
 export function publishMarkdownProjectionStatus(projectId: string, value: MarkdownProjectionStatus) {
-  statuses.set(projectId, { ...statuses.get(projectId), ...value });
+  // An undefined field clears it. Drop the key: the status is returned by
+  // get_project_overview, and durable Agent payloads reject undefined.
+  const next: Record<string, unknown> = { ...statuses.get(projectId), ...value };
+  for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+  statuses.set(projectId, next as MarkdownProjectionStatus);
   for (const listener of listeners) listener();
 }
