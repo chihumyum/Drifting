@@ -1,8 +1,8 @@
 {
   "kind": "editor-block-spacing",
   "status": "passed",
-  "generatedAt": "2026-10-05T17:41:30.193Z",
-  "sourceSha256": "cdeff11af76851360eba6a990b747548d5ae9ac825fbbdf92d839eed3010d34e",
+  "generatedAt": "2026-10-05T17:49:59.656Z",
+  "sourceSha256": "462ea61fe5b3f606a5651fd4e22a32e358f4d453602f4dea0af888ed8fabf424",
   "inputs": [
     "scripts/run-editor-block-spacing-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",

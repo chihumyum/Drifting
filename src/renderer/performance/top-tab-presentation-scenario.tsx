@@ -84,15 +84,17 @@ export async function runTopTabPresentationScenario() {
       // Full strip drag/drop uses the real handlers and UI-store ordering.
       let dragTrace: unknown; let reorderWorks: boolean | null = null; let dragWork: ReturnType<typeof measure> | null = null; reset();
       if (tabCount > 1) {
+        // Keep both drag endpoints inside the actual strip for either controller.
+        container.style.width = `${tabCount * 400}px`; await wait(); reset();
         const source = elementFor(tabKey(tabs[0])); const target = elementFor(tabKey(tabs[tabs.length - 1])); const transfer = new DataTransfer();
         flushSync(() => source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer, clientX: source.getBoundingClientRect().left + 10 })));
         await wait(0); const startOpacity = source.style.opacity; const rect = target.getBoundingClientRect();
         flushSync(() => target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.right - 2 })));
         await wait(0); const marker = container.querySelector<HTMLElement>('.tab-drop-indicator')?.style.cssText;
-        flushSync(() => target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer })));
+        flushSync(() => target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.right - 2, clientY: rect.top + 10 })));
         flushSync(() => source.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: transfer })));
         const ordered = useUiStore.getState().tabsByProject[projectId].openTabs;
-        reorderWorks = tabKey(ordered[ordered.length - 1]) === tabKey(tabs[0]) && container.querySelector<HTMLElement>('.tab-drop-indicator')?.style.opacity === '0';
+        reorderWorks = tabKey(ordered[ordered.length - 1]) === tabKey(tabs[0]) && !container.querySelector<HTMLElement>('.top-timeline-container')?.dataset.tabReordering;
         dragWork = measure(); dragTrace = { startOpacity, rect: {left:rect.left,right:rect.right}, marker, ordered: ordered.map(tabKey), expected:tabKey(tabs[0]) };
       }
       const split: AnyTab = { kind: 'split', id: 'synthetic-split', left: tabs[0], right: leaf('element', data.bookElements[0].id), focused: 'left', splitRatio: 0.5 };

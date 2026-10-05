@@ -19,8 +19,9 @@ try {
   const outDir = path.join(temporary, 'dist');
   await build({ root, configFile: false, envDir: false, logLevel: 'warn', plugins: [react(), { name: 'acceptance-tab-counters', enforce: 'pre', transform(code, id) {
       if (id.endsWith('/TopTimeline/TopTimeline.tsx')) {
-        assert(code.includes('function measureLabelWidth(text: string): number {'));
-        code = code.replace('function measureLabelWidth(text: string): number {', 'function measureLabelWidth(text: string): number { globalThis.__TOP_TAB_WORK__.measurements++;')
+        const measureSignature = /function measureLabelWidth\(text: string(?:, fontSize: number)?\): number \{/;
+        assert(measureSignature.test(code));
+        code = code.replace(measureSignature, '$& globalThis.__TOP_TAB_WORK__.measurements++;')
           .replace('export function TopTimeline() {', 'export function TopTimeline() { globalThis.__TOP_TAB_WORK__.renders++;')
           .replace('const cRect = container.getBoundingClientRect();', 'globalThis.__TOP_TAB_WORK__.scrollChecks++; const cRect = container.getBoundingClientRect();');
         return code.replace(/(bookNodes|storylines|bookElements|bookElementCategories)\.find\(\((\w+)\) => ([^)]*)\)/g,

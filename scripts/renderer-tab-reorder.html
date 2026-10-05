@@ -1,0 +1,8 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Synthetic tab reorder acceptance</title>
+<style>*{box-sizing:border-box}body{--font-sans:Arial,sans-serif;--surface:40 20% 97%;--rule:40 10% 80%;--ink-1:30 10% 15%;--ink-3:30 10% 45%;margin:0}.app-tab{position:relative;border-right:1px solid hsl(var(--rule))}</style>
+</head><body><script type="module">
+import { runTabReorderScenario } from '../src/renderer/performance/tab-reorder-scenario.tsx';
+globalThis.__TAB_REORDER__ = { run: runTabReorderScenario };
+if (new URLSearchParams(location.search).has('manual')) await runTabReorderScenario(true);
+</script></body></html>

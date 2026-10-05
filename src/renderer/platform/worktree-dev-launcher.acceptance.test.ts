@@ -33,6 +33,11 @@ afterEach(() => {
 });
 
 describe('isolated worktree development', () => {
+  it.each(['darwin', 'win32', 'linux'])('preserves HTML drag ownership in the %s window override', platform => {
+    const plan = createWorktreePlan({ root: fixture(), baseEnvironment: {}, platform });
+    expect(plan.tauriConfig.app.windows.find((window: { label: string }) => window.label === 'main').dragDropEnabled).toBe(false);
+  });
+
   it('opts into Hosted with service-scoped isolation and matching renderer, native and CSP configuration', () => {
     const root = fixture();
     writeFileSync(path.join(root, '.env.local'), 'DRIFTING_HOSTED_ORIGIN=https://service.example.test\nVITE_LOCAL_ONLY_MODE=true\n');

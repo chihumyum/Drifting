@@ -133,7 +133,9 @@ if (process.argv.includes('--check')) {
     await input('字号 (px)', 17);
     await input('段间距 (em)', 0.75, 'range');
     await measure(17, 0.75, 'slider');
+    const reloaded = client.Page.loadEventFired();
     await client.Page.reload();
+    await reloaded;
     await openSettings(); await settle();
     assert.equal(await evaluate('getComputedStyle(document.querySelector("#editor .set-preview h1")).marginBottom'), '12.75px');
     await evaluate('[...document.querySelectorAll("#editor button")].find(el => el.textContent === "还原推荐样式").click()');

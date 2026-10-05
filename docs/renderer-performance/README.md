@@ -3522,8 +3522,9 @@ renamed, narrow-container and split widths match the baseline exactly. Each
 profile checks colors, rename, project isolation/return, English/Chinese fallback,
 drift glyph, navigation, split/singleton labels, create-draft retention and close;
 drag reorder is exercised for multi-tab profiles and explicitly null for one tab.
-The drag events yield to React's continuous-event updates between start, hover
-and drop; the result records actual DOM marker position and UI-store order.
+The historical comparison records DOM insertion-marker position and UI-store
+order. Current drag preview, animation and cancellation evidence is documented
+in [Animated desktop tab reordering](tab-reorder.md).
 Unmounted publications produce no strip work. Baseline foreign-id title leakage
 is reproduced and rejected by the current selector.
 

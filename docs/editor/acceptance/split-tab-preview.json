@@ -1,7 +1,7 @@
 {
   "kind": "split-tab-preview",
-  "generatedAt": "2026-10-05T17:46:57.317Z",
-  "fingerprint": "6b54d17b9fb900f5de68d464233a2901f3ef82071056666d8822b16f7cda2007",
+  "generatedAt": "2026-10-05T17:47:48.486Z",
+  "fingerprint": "398edfecc59fddd4d6913ee32988480885187b40c20a4f4baf32429a070fafb3",
   "tests": [
     {
       "name": "independent preview lifecycle in split tabs preserves an existing leaf preview=true when dragged into a split",
