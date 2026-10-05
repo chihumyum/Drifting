@@ -2,6 +2,8 @@
 
 **A home for your stories. · 写作之心**
 
+![Drifting demo](docs/assets/drifting-demo.gif)
+
 [English](#english) | [简体中文](#简体中文)
 
 ## English
