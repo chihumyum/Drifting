@@ -1859,11 +1859,13 @@
   background: hsl(var(--rule-strong));
   border-radius: 4px;
 }
+.set-preview :is(p, h1, h2, h3) {
+  margin: 0 0 var(--editor-paragraph-spacing, calc(var(--editor-font-size, 17.5px) * 1.1));
+}
 .set-preview p {
-  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
   text-indent: var(--editor-indent, 0);
 }
-.set-preview p:last-child {
+.set-preview :is(p, h1, h2, h3):last-child {
   margin-bottom: 0;
 }
 .set-preview p[data-indent='1'] {

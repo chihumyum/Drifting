@@ -15,8 +15,8 @@
   line-height: var(--editor-line-height, 1.75);
   text-wrap: var(--editor-text-wrap, stable);
 }
-.elem-body .ProseMirror p {
-  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
+.elem-body .ProseMirror :is(p, h1, h2, h3) {
+  margin: 0 0 var(--editor-paragraph-spacing, calc(var(--editor-font-size, 17.5px) * 1.1));
 }
 .elem-body .ProseMirror em {
   font-style: italic;
@@ -830,10 +830,10 @@
   text-wrap: var(--editor-text-wrap, stable);
   color: hsl(var(--ink-1));
 }
-.patch-card__body .ProseMirror p {
-  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
+.patch-card__body .ProseMirror :is(p, h1, h2, h3) {
+  margin: 0 0 var(--editor-paragraph-spacing, calc(var(--editor-font-size, 17.5px) * 1.1));
 }
-.patch-card__body .ProseMirror p:last-child {
+.patch-card__body .ProseMirror :is(p, h1, h2, h3):last-child {
   margin-bottom: 0;
 }
 

@@ -1,0 +1,388 @@
+{
+  "kind": "editor-block-spacing",
+  "status": "passed",
+  "generatedAt": "2026-10-05T17:41:30.193Z",
+  "sourceSha256": "cdeff11af76851360eba6a990b747548d5ae9ac825fbbdf92d839eed3010d34e",
+  "inputs": [
+    "scripts/run-editor-block-spacing-acceptance.mjs",
+    "scripts/renderer-headless-browser.mjs",
+    "scripts/renderer-settings-ui.tsx",
+    "scripts/renderer-settings-ui.html",
+    "src/renderer/lib/editor-preferences.ts",
+    "src/renderer/app/effects/AppEffects.tsx",
+    "src/renderer/store/settings-store.ts",
+    "src/renderer/features/settings/SettingsSlider.tsx",
+    "src/renderer/features/settings/settings-slider-value.ts",
+    "src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx",
+    "src/renderer/locales/en.json",
+    "src/renderer/locales/zh-CN.json",
+    "src/styles/index.css",
+    "src/styles/entity-editors.css",
+    "src/styles/settings.css",
+    "src/styles/mobile-workspace.css",
+    "src/styles/mobile-settings.css"
+  ],
+  "samples": [
+    {
+      "layout": "desktop",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 0,
+      "gapPx": 0,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 0.125,
+      "gapPx": 1.5,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 1,
+      "gapPx": 12,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 2.5,
+      "gapPx": 30,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 0,
+      "gapPx": 0,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 0.125,
+      "gapPx": 2.125,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 1,
+      "gapPx": 17,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 2.5,
+      "gapPx": 42.5,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 0,
+      "gapPx": 0,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 0.125,
+      "gapPx": 3.5,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 1,
+      "gapPx": 28,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "desktop",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 2.5,
+      "gapPx": 70,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 0,
+      "gapPx": 0,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 0.125,
+      "gapPx": 1.5,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 1,
+      "gapPx": 12,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 12,
+      "paragraphSpacing": 2.5,
+      "gapPx": 30,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 0,
+      "gapPx": 0,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 0.125,
+      "gapPx": 2.125,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 1,
+      "gapPx": 17,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 2.5,
+      "gapPx": 42.5,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 0,
+      "gapPx": 0,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 0.125,
+      "gapPx": 3.5,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 1,
+      "gapPx": 28,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "narrow",
+      "bodyFontSize": 28,
+      "paragraphSpacing": 2.5,
+      "gapPx": 70,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    },
+    {
+      "layout": "slider",
+      "bodyFontSize": 17,
+      "paragraphSpacing": 0.75,
+      "gapPx": 12.75,
+      "surfaces": [
+        "settings-preview",
+        "page__body",
+        "elem-body",
+        "patch-card__body",
+        "all-chapters"
+      ],
+      "blockCount": 137
+    }
+  ],
+  "checks": {
+    "equalComputedMargins": true,
+    "equalMeasuredGaps": true,
+    "allBlockPairs": true,
+    "liveSettingsNumberAndSlider": true,
+    "fractionalAndZeroSpacing": true,
+    "settingsPreviewHeadings": true,
+    "reloadPersistence": true,
+    "recommendedStyleReset": true
+  },
+  "boundary": "Chromium, real Settings controls/store/preferences/styles and synthetic prose markup; desktop and narrow renderer geometry. No Tauri window, physical device, or prose editing interaction."
+}

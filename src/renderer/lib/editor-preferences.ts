@@ -25,7 +25,7 @@ export interface EditorPreferences {
   paragraphIndent: ParagraphIndent;
   /** Em per Tab indent level (drives --editor-indent-step). */
   editorIndentStep: number;
-  /** Vertical gap between paragraphs in em (drives --editor-paragraph-spacing). */
+  /** Gap after paragraphs/headings in body-font em (resolved to px for every block). */
   paragraphSpacing: number;
   caretColor: string;
   entityLinkInteractive: boolean;
@@ -81,7 +81,8 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-text-wrap', prefs.editorTextWrap);
   root.style.setProperty('--editor-indent', INDENT_EM[prefs.paragraphIndent]);
   root.style.setProperty('--editor-indent-step', `${prefs.editorIndentStep}em`);
-  root.style.setProperty('--editor-paragraph-spacing', `${prefs.paragraphSpacing}em`);
+  // Resolve against the body size once; heading-local em would enlarge the gap.
+  root.style.setProperty('--editor-paragraph-spacing', `${prefs.paragraphSpacing * prefs.bodyFontSize}px`);
   root.style.setProperty('--editor-caret-color', prefs.caretColor);
   root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');
   root.setAttribute('data-entity-link-style', prefs.entityLinkColorMode);

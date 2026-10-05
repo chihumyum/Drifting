@@ -1213,8 +1213,10 @@ textarea.page__title {
      the .page side padding). Paper width is the dial now (--editor-max-width on
      .page above). */
 }
+.page__body .ProseMirror :is(p, h1, h2, h3) {
+  margin: 0 0 var(--editor-paragraph-spacing, calc(var(--editor-font-size, 17.5px) * 1.1));
+}
 .page__body .ProseMirror p {
-  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
   text-indent: var(--editor-indent, 0);
 }
 
@@ -1237,24 +1239,24 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   font-style: italic;
   color: hsl(var(--ink-2));
 }
-.page__body .ProseMirror h1 {
+.page__body .ProseMirror h1,
+.set-preview h1 {
   font-family: var(--font-content);
   font-weight: 500;
   font-size: 28px;
   letter-spacing: -0.01em;
-  margin: 1.4em 0 0.5em;
 }
-.page__body .ProseMirror h2 {
+.page__body .ProseMirror h2,
+.set-preview h2 {
   font-family: var(--font-content);
   font-weight: 500;
   font-size: 22px;
-  margin: 1.3em 0 0.4em;
 }
-.page__body .ProseMirror h3 {
+.page__body .ProseMirror h3,
+.set-preview h3 {
   font-family: var(--font-content);
   font-weight: 500;
   font-size: 18px;
-  margin: 1.2em 0 0.3em;
 }
 
 /* 通览全书 read-through. Every chapter renders its real prose — statically

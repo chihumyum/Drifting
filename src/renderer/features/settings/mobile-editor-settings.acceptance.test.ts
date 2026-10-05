@@ -51,13 +51,13 @@ describe('mobile Editor Settings presentation', () => {
   ])('shares typography preferences on the actual editor: %s %s', (file, selector) => {
     const css = read(file);
     const body = cssBlock(css, selector);
-    const paragraph = cssBlock(css, `${selector} p`);
+    const paragraph = cssBlock(css, `${selector} :is(p, h1, h2, h3)`);
 
     expect(body).toContain('font-family: var(--font-content);');
     expect(body).toContain('font-size: var(--editor-font-size, 17.5px);');
     expect(body).toContain('line-height: var(--editor-line-height, 1.75);');
     expect(body).toContain('text-wrap: var(--editor-text-wrap, stable);');
-    expect(paragraph).toContain('margin: 0 0 var(--editor-paragraph-spacing, 1.1em);');
+    expect(paragraph).toContain('margin: 0 0 var(--editor-paragraph-spacing, calc(var(--editor-font-size, 17.5px) * 1.1));');
   });
 
   it('inherits the selected mobile body size and line height without extra minimums', () => {

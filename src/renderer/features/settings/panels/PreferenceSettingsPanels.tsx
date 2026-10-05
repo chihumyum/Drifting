@@ -427,10 +427,13 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
         {/* The box's own width tracks 纸张宽度 (--editor-max-width), capped to the
             settings column, so narrowing the page narrows the preview too. */}
         <div className="set-preview" style={previewStyle} aria-hidden="true">
+          <h1>{t('settings.editor.preview_h1')}</h1>
           <p>{t('settings.editor.preview_p1')}</p>
           <p>{t('settings.editor.preview_p2')}</p>
+          <h2>{t('settings.editor.preview_h2')}</h2>
           <p>{t('settings.editor.preview_p3')}</p>
           <p>{t('settings.editor.preview_p4')}</p>
+          <h3>{t('settings.editor.preview_h3')}</h3>
           <p data-indent="1">{t('settings.editor.preview_p5')}</p>
           <p>{t('settings.editor.preview_p6')}</p>
         </div>
