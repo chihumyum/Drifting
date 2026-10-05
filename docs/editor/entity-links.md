@@ -79,6 +79,21 @@ views share the same resolver: use the declared primary while it remains a membe
 then fall back to the first hydrated membership. Offline startup therefore does
 not mislabel an affiliated chapter as unaffiliated while network sync is pending.
 
+## Editing linked names
+
+Every way Drifting creates an Entity Link (auto-linking, retroactive linking,
+the @-picker and agent writes) links a name or alias of its target, but
+ProseMirror keeps a mark on whatever text remains of it. Since 2026-10-06 an
+author edit that turns a linked name or alias into text that is neither (for
+example deleting 格 from 约格) removes the link from that run in the same step,
+so one undo restores both; auto-linking may link the remaining text again if it
+is another name. Edits made during an input-method composition are repaired
+with the next edit outside one, or by the debounced auto-link pass after it
+ends. Remote Yjs changes and undo are not repaired, and links on text that was
+not a registered name of their target are left alone. The rule lives in
+`src/renderer/lib/extensions/entity-link-repair.ts`, covered by
+`entity-link-repair.test.ts`.
+
 ## Acceptance
 
 Machine-checkable coverage lives in:

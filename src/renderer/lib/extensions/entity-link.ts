@@ -10,7 +10,14 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 export type { EntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../domain/entity-kinds';
 import { isEntityKind } from '../../domain/entity-kinds';
-import { createEntityLinkCompositionPlugin, isAppleWebKit } from './entity-link-composition';
+import { createEntityLinkCompositionPlugin, ENTITY_LINK_COMPOSITION_META, isAppleWebKit } from './entity-link-composition';
+import {
+  createEntityLinkRepairPlugin,
+  ENTITY_LINK_REPAIR_META,
+  pendingEditedLinkRuns,
+  repairEditedLinks,
+  type IsLinkName,
+} from './entity-link-repair';
 
 export interface EntityLinkRef {
   targetKind: EntityKind;
@@ -227,8 +234,17 @@ function getMergedMatcher(map: ReadonlyMap<string, AutoDetectTarget>): RegExp | 
 function scheduleAutoDetect(view: EditorView, markType: MarkType, state: AutoDetectViewState): void {
   if (state.timer) clearTimeout(state.timer);
   state.timer = null;
-  if (!state.config.autoDetectEnabled || state.config.autoDetectTargets.size === 0) return;
+  const linking = state.config.autoDetectEnabled && state.config.autoDetectTargets.size > 0;
+  if (!linking && pendingEditedLinkRuns(view.state).length === 0) return;
   state.timer = setTimeout(() => runAutoDetect(view, markType), AUTO_DETECT_DEBOUNCE_MS);
+}
+
+/** Whether `text` is a registered name or alias of `mark`'s target in this editor. */
+function linkNameMatcher(state: AutoDetectViewState): IsLinkName {
+  return (text, mark) => {
+    const target = state.config.autoDetectTargets.get(text);
+    return Boolean(target && target.kind === mark.attrs.targetKind && target.id === mark.attrs.targetId);
+  };
 }
 
 /** Update one live view without recreating its extension, document or history. */
@@ -265,13 +281,16 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
     return;
   }
   const { autoDetectEnabled, autoDetectTargets } = st.config;
-  if (!autoDetectEnabled) return;
-  const matcher = getMergedMatcher(autoDetectTargets);
-  if (!matcher) return;
-
   const tr = view.state.tr;
+  // Links whose name an edit inside a composition broke are repaired first, so
+  // the scan below sees what remains of their text as ordinary prose.
+  const pending = pendingEditedLinkRuns(view.state);
+  if (pending.length) tr.setMeta(ENTITY_LINK_REPAIR_META, true);
+  const repaired = pending.length > 0 && repairEditedLinks(tr, pending, linkNameMatcher(st));
+  const matcher = autoDetectEnabled ? getMergedMatcher(autoDetectTargets) : null;
+
   let modified = false;
-  view.state.doc.descendants((node, pos) => {
+  if (matcher) tr.doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
     const text = node.text;
     matcher.lastIndex = 0;
@@ -298,8 +317,8 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
       modified = true;
     }
   });
-  if (!modified) return;
-  tr.setMeta(META_FLAG, true);
+  if (!modified && !repaired && !pending.length) return;
+  if (modified) tr.setMeta(META_FLAG, true);
   tr.setMeta('addToHistory', false);
   view.dispatch(tr);
 }
@@ -416,13 +435,18 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
   addProseMirrorPlugins() {
     const markType = this.type;
     const onClick = this.options.onClick;
-    const initialAutoDetectConfig = {
-      autoDetectTargets: this.options.autoDetectTargets,
-      autoDetectEnabled: this.options.autoDetectEnabled,
+    // Shared with the repair plugin, which needs the editor's current names.
+    const autoDetect: AutoDetectViewState = {
+      timer: null,
+      config: {
+        autoDetectTargets: this.options.autoDetectTargets,
+        autoDetectEnabled: this.options.autoDetectEnabled,
+      },
     };
 
     return [
       ...(this.options.composeInsideLink ? [createEntityLinkCompositionPlugin(markType)] : []),
+      createEntityLinkRepairPlugin(markType, linkNameMatcher(autoDetect), [META_FLAG, ENTITY_LINK_COMPOSITION_META]),
       new Plugin({
         key: EntityLinkPluginKey,
 
@@ -438,7 +462,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
           applyEntityLinkTargetColors(editorView.dom);
           const presentation = { needed: true, targetsDirty: false, appliedColorVersion: entityLinkConfig.targetColorVersion };
           presentationStates.set(editorView, presentation);
-          autoDetectStates.set(editorView, { timer: null, config: initialAutoDetectConfig });
+          autoDetectStates.set(editorView, autoDetect);
           return {
             update(view, prevState) {
               // New/replaced mark DOM is styled by renderHTML, including paste,
@@ -461,6 +485,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
             destroy() {
               const st = autoDetectStates.get(editorView);
               if (st?.timer) clearTimeout(st.timer);
+              if (st) st.timer = null;
               autoDetectStates.delete(editorView);
               presentationStates.delete(editorView);
             },
