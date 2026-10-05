@@ -4,6 +4,7 @@ import type { AICompletionRequest, AICompletionResponse } from '../../ai/types';
 import {
   createAgentContextSummaryCandidate,
   estimateAgentContextTextTokens,
+  estimateAgentContextSourceTokens,
   groupAgentContextRowsByToolTopology,
   hashAgentContextSourceRows,
   serializeAgentContextSummaryBudgetPayload,
@@ -166,9 +167,12 @@ export function createDriftingContextCompactor(
     for (const chunk of chunks) {
       throwIfAborted(request.signal);
       let content: string;
+      let outcome: 'provider' | 'timeout' | 'provider_error' | 'provider_budget' = 'provider';
       if (providerFailure) {
+        outcome = providerFailure instanceof CompactionChunkTimeoutError ? 'timeout' : 'provider_error';
         content = deterministicFallbackSummary(chunk.rows, providerFailure, chunk.projectionRows);
       } else if (providerChunkAttempts >= maxProviderChunksPerPass) {
+        outcome = 'provider_budget';
         content = deterministicFallbackSummary(
           chunk.rows,
           PROVIDER_CALL_BUDGET_EXHAUSTED,
@@ -214,6 +218,7 @@ export function createDriftingContextCompactor(
           // the planner's whole deadline and open the session circuit. Preserve
           // the first failure and finish the remaining chunks locally.
           providerFailure = error;
+          outcome = error instanceof CompactionChunkTimeoutError ? 'timeout' : 'provider_error';
           content = deterministicFallbackSummary(chunk.rows, error, chunk.projectionRows);
         }
       }
@@ -225,6 +230,7 @@ export function createDriftingContextCompactor(
         content,
       });
       summaries.push(candidate);
+      request.reportChunk?.(outcome);
       estimatedGain += Math.max(
         0,
         chunk.beforeTokens -
@@ -1174,7 +1180,7 @@ function estimateRows(rows: readonly AgentContextSourceRow[]): number {
 }
 
 function estimatePlannerSourceRows(rows: readonly AgentContextSourceRow[]): number {
-  return rows.reduce((total, row) => total + estimateAgentContextTextTokens(row.content) + 6, 0);
+  return rows.reduce((total, row) => total + estimateAgentContextSourceTokens(row), 0);
 }
 
 function requireNonBlank(value: string, label: string): string {

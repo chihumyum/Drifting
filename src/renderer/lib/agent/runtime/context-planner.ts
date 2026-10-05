@@ -22,12 +22,13 @@ const MAX_RECENT_EXACT_TOKENS = 64_000;
 // after semantic pins. Long tool turns also carry already-compacted summaries;
 // filling the entire remainder with fresh read results can leave no room for
 // those summaries and make the next compaction mathematically impossible.
-// Large (200k/1m) windows still retain the 64k cap, while smaller windows keep
-// at least half of the non-semantic budget available for compacted history.
+// Ordinary recent history retains a 64k cap and leaves at least half of the
+// non-semantic budget available for compacted history.
 const MAX_RECENT_EXACT_BUDGET_RATIO = 0.5;
 // Authored document reads are the Agent's active working set. If several
 // chapters were opened for one edit campaign, compressing half of them before
 // the next model iteration makes the model reopen the same prose forever.
+// Scale authored reads to the declared window instead of the ordinary 64k cap.
 // Prefer keeping those exact reads while they fit, then rely on the existing
 // soft-release path if accumulated summaries genuinely need the room.
 const MAX_AUTHORED_READ_EXACT_BUDGET_RATIO = 0.8;
@@ -176,6 +177,8 @@ export interface AgentContextFullCompactionRequest {
   turnId?: string;
   provider?: string;
   model?: string;
+  /** Content-free chunk outcome; never report provider text or source content. */
+  reportChunk?: (outcome: 'provider' | 'timeout' | 'provider_error' | 'provider_budget') => void;
   signal: AbortSignal;
 }
 
@@ -319,10 +322,23 @@ export type AgentContextPlannerResult =
       diagnostics: {
         usableInputBudgetTokens: number | null;
         estimatedInputTokens: number | null;
+        semanticPinnedTokens: number | null;
         fullCompactionCount: number;
         circuitState: AgentContextCompactionCircuitSnapshot;
+        /** Last eight passes only, containing counts rather than authored content. */
+        passes: AgentContextCompactionPassDiagnostics[];
       };
     };
+
+export interface AgentContextCompactionPassDiagnostics {
+  beforeTokens: number;
+  recentPinnedTokens: number;
+  topologyBlockedTokens: number;
+  eligibleTokens: number;
+  afterTokens: number | null;
+  candidateCount: number | null;
+  chunks: Record<'provider' | 'timeout' | 'provider_error' | 'provider_budget', number>;
+}
 
 export interface AgentContextCompactionCircuitSnapshot {
   state: 'closed' | 'open';
@@ -831,7 +847,7 @@ export function classifyAgentContextSource(
   row: AgentContextSourceRow,
   constraintSourceIds?: ReadonlySet<string>,
   durablyDiscardableToolSourceIds?: ReadonlySet<string>,
-  activeDurableWriteSourceIds?: ReadonlySet<string>,
+  retainedDurableWriteSourceIds?: ReadonlySet<string>,
 ): AgentContextClass {
   switch (row.kind) {
     case 'system_policy':
@@ -852,11 +868,10 @@ export function classifyAgentContextSource(
     case 'tool_call':
     case 'tool_result':
       if (durablyDiscardableToolSourceIds?.has(row.sourceId)) return 'discardable';
-      // A settled write from the active turn is safe to compact, but its exact
-      // domain delta is still useful working memory until the turn ends. Treat
-      // it like an ordinary recent row instead of erasing it immediately or
-      // pinning an arbitrarily large manuscript replacement forever.
-      if (activeDurableWriteSourceIds?.has(row.sourceId)) return 'compressible';
+      // Retain active deltas and settled writes whose overlapping replay batch
+      // cannot be dropped independently. Both are safe to compact as a whole;
+      // neither may hard-pin a manuscript or mixed read batch forever.
+      if (retainedDurableWriteSourceIds?.has(row.sourceId)) return 'compressible';
       if (row.toolAccess !== 'write') return 'compressible';
       return 'pinned';
     case 'assistant_narrative':
@@ -1086,9 +1101,9 @@ function validateCanonicalToolTopology(rows: readonly AgentContextSourceRow[]): 
   return pairs;
 }
 
-function estimateSourceTokens(
+export function estimateAgentContextSourceTokens(
   row: AgentContextSourceRow,
-  estimator: AgentContextTokenEstimator,
+  estimator: AgentContextTokenEstimator = estimateAgentContextTextTokens,
 ): number {
   const budgetText =
     row.kind === 'write_review' ||
@@ -1103,8 +1118,21 @@ function estimateSourceTokens(
           turnOrdinal: row.turnOrdinal,
           content: row.content,
         })
-      : row.content;
+      : sourceBudgetPayload(row);
   return validatedEstimate(estimator, budgetText) + SOURCE_SEGMENT_OVERHEAD_TOKENS;
+}
+
+const estimateSourceTokens = estimateAgentContextSourceTokens;
+
+function sourceBudgetPayload(row: AgentContextSourceRow): string {
+  if (row.kind !== 'tool_call') return row.content;
+  const payload = parsedToolPayload(row);
+  if (!payload || typeof payload.rawArguments !== 'string' ||
+      !payload.arguments || typeof payload.arguments !== 'object') return row.content;
+  // The canonical record keeps parsed and raw arguments for validation and
+  // audit; adapters send only one. Keep canonical bytes/hashes unchanged.
+  const { rawArguments, arguments: parsedArguments, ...framing } = payload;
+  return canonicalJson({ ...framing, arguments: rawArguments || JSON.stringify(parsedArguments) });
 }
 
 function estimateSummaryTokens(
@@ -1155,23 +1183,22 @@ function recentExactSourceIds(input: {
   );
   const units = groupAgentContextRowsByToolTopology(candidates);
   const hasAuthoredRead = units.some(isAuthoredReadUnit);
-  const cap = Math.min(
+  const ordinaryCap = Math.min(
     MAX_RECENT_EXACT_TOKENS,
-    Math.floor(
-      input.availableTokens *
-        (hasAuthoredRead
-          ? MAX_AUTHORED_READ_EXACT_BUDGET_RATIO
-          : MAX_RECENT_EXACT_BUDGET_RATIO),
-    ),
+    Math.floor(input.availableTokens * MAX_RECENT_EXACT_BUDGET_RATIO),
   );
+  const cap = hasAuthoredRead
+    ? Math.floor(input.availableTokens * MAX_AUTHORED_READ_EXACT_BUDGET_RATIO)
+    : ordinaryCap;
   const candidateTokens = candidates.reduce(
     (total, row) => total + estimateSourceTokens(row, input.estimator),
     0,
   );
-  if (candidateTokens <= cap) return new Set(candidates.map((row) => row.sourceId));
+  if (candidateTokens <= ordinaryCap) return new Set(candidates.map((row) => row.sourceId));
 
   const selected = new Set<string>();
   let selectedTokens = 0;
+  let ordinaryTokens = 0;
   const newestFirst = [...units].reverse();
   const prioritized = [
     ...newestFirst.filter(isAuthoredReadUnit),
@@ -1186,8 +1213,11 @@ function recentExactSourceIds(input: {
     // authored reads from being retained. Skip an oversized unit and keep
     // considering other topology-safe units.
     if (selectedTokens + unitTokens > cap) continue;
+    const authored = isAuthoredReadUnit(unit);
+    if (!authored && ordinaryTokens + unitTokens > ordinaryCap) continue;
     for (const row of unit) selected.add(row.sourceId);
     selectedTokens += unitTokens;
+    if (!authored) ordinaryTokens += unitTokens;
   }
   return selected;
 }
@@ -2196,7 +2226,9 @@ function failureResult(input: {
   error: PlannerFailure;
   budget: ContextBudget | null;
   estimatedInputTokens: number | null;
+  semanticPinnedTokens: number | null;
   fullCompactionCount: number;
+  passes: AgentContextCompactionPassDiagnostics[];
   circuit: AgentContextCompactionCircuitBreaker;
 }): AgentContextPlannerResult {
   return {
@@ -2208,8 +2240,10 @@ function failureResult(input: {
     diagnostics: {
       usableInputBudgetTokens: input.budget?.usableInputBudgetTokens ?? null,
       estimatedInputTokens: input.estimatedInputTokens,
+      semanticPinnedTokens: input.semanticPinnedTokens,
       fullCompactionCount: input.fullCompactionCount,
       circuitState: input.circuit.snapshot(),
+      passes: input.passes,
     },
   };
 }
@@ -2226,6 +2260,8 @@ export async function planAgentContext(
   let budget: ContextBudget | null = null;
   let estimatedInputTokens: number | null = null;
   let fullCompactionCount = 0;
+  let semanticPinnedTokens: number | null = null;
+  const passes: AgentContextCompactionPassDiagnostics[] = [];
   try {
     budget = computeAgentContextBudget(input);
     const estimator = input.estimateTokens ?? estimateAgentContextTextTokens;
@@ -2264,6 +2300,9 @@ export async function planAgentContext(
       rows,
       candidateSourceIds: candidateDiscardableToolSourceIds,
     });
+    const retainedDurableWriteSourceIds = new Set(
+      [...coveredWriteSourceIds].filter((sourceId) => !discardableToolSourceIds.has(sourceId)),
+    );
     const classifications = new Map(
       rows.map((row) => [
         row.sourceId,
@@ -2271,7 +2310,7 @@ export async function planAgentContext(
           row,
           constraintLedger.sourceIds,
           discardableToolSourceIds,
-          activeDurableWriteSourceIds,
+          retainedDurableWriteSourceIds,
         ),
       ]),
     );
@@ -2286,6 +2325,8 @@ export async function planAgentContext(
         ? total
         : total + estimateSourceTokens(row, estimator);
     }, 0);
+    semanticPinnedTokens = semanticTokens;
+    estimatedInputTokens = initialTokens;
     if (semanticTokens > budget.usableInputBudgetTokens) {
       throw new PlannerFailure(
         'PINNED_CONTEXT_EXCEEDS_BUDGET',
@@ -2361,6 +2402,25 @@ export async function planAgentContext(
         );
       }
       const compactionViews = eligibleCompactionViews(projection, toolPairs, sourceById);
+      const eligibleTokens = compactionViews.projectionRuns.flat().reduce(
+        (total, unit) => total + unit.estimatedTokens, 0,
+      );
+      const recentPinnedTokens = projection.segments.reduce((total, segment) =>
+        total + (segment.type === 'source' && segment.pinReason === 'recent_turn'
+          ? segment.estimatedTokens : 0), 0);
+      const pass: AgentContextCompactionPassDiagnostics = {
+        beforeTokens: estimatedInputTokens,
+        recentPinnedTokens,
+        topologyBlockedTokens: Math.max(
+          0, estimatedInputTokens - semanticTokens - recentPinnedTokens - eligibleTokens,
+        ),
+        eligibleTokens,
+        afterTokens: null,
+        candidateCount: null,
+        chunks: { provider: 0, timeout: 0, provider_error: 0, provider_budget: 0 },
+      };
+      passes.push(pass);
+      if (passes.length > 8) passes.shift();
       if (compactionViews.legacyRuns.length === 0 && compactionViews.projectionRuns.length === 0) {
         throw new PlannerFailure(
           'CONTEXT_BUDGET_EXCEEDED',
@@ -2377,6 +2437,7 @@ export async function planAgentContext(
             eligibleProjectionRuns: compactionViews.projectionRuns,
             currentEstimatedTokens: estimatedInputTokens,
             usableInputBudgetTokens: budget.usableInputBudgetTokens,
+            reportChunk: (outcome) => { pass.chunks[outcome] += 1; },
           },
           signal: input.signal,
           timeoutMs: input.compactionTimeoutMs ?? DEFAULT_COMPACTION_TIMEOUT_MS,
@@ -2395,6 +2456,7 @@ export async function planAgentContext(
         throw failure;
       }
       let compacted: SummaryBatchResult;
+      pass.candidateCount = candidates.length;
       try {
         compacted = await applySummaryBatch({
           candidates,
@@ -2418,6 +2480,7 @@ export async function planAgentContext(
         circuit.trip(`${failure.code}:${failure.message}`);
         throw failure;
       }
+      pass.afterTokens = projectionTokens(compacted.projection.segments);
       if (compacted.gainedTokens <= 0) {
         if (
           !softRecentReleaseAttempted &&
@@ -2539,7 +2602,9 @@ export async function planAgentContext(
       error: failure,
       budget,
       estimatedInputTokens,
+      semanticPinnedTokens,
       fullCompactionCount,
+      passes,
       circuit,
     });
   }

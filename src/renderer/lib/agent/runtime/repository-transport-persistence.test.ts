@@ -471,6 +471,7 @@ describe('repository Agent transport persistence adapter', () => {
     ).resolves.toEqual({
       sessionId: 'session-1',
       history,
+      historyTurnIds: history.map(() => 'turn-complete'),
       recovered: false,
     });
     expect(fake.accepted[0]?.turn.ordinal).toBe(1);
@@ -640,6 +641,7 @@ describe('repository Agent transport persistence adapter', () => {
     ).resolves.toEqual({
       sessionId: 'session-1',
       history: [],
+      historyTurnIds: [],
       recovered: true,
     });
 

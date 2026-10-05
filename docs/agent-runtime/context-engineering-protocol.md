@@ -25,6 +25,16 @@ context bridge and produce:
 `verifyAgentContextProviderEnvelope` must succeed before a checkpoint is
 accepted or recovered. There is no unplanned provider-history fallback.
 
+Canonical `turnOrdinal` is a source coordinate: an additional author message
+can advance it within one execution turn. Durable write receipts, reviews and
+task commands instead belong to a persisted execution `turnId`. The runtime
+carries a parallel message-owner list through transport and recovery; the
+bridge resolves coverage by `(turnId, callId, toolName)` to the exact canonical
+call/result pair. Missing, ambiguous or foreign ownership cannot certify a
+write. Existing source IDs, ordinals and hashes remain unchanged. Recovery
+derives checkpoint ownership only from matching validated normalized rows;
+explicit continuation rows belong to the new turn that accepted them.
+
 ### Interrupted continuation
 
 When the author explicitly continues or retries (`继续`, `重试`, `retry`) a
@@ -82,6 +92,11 @@ unchanged input. Physical context boundaries after progress remain resumable.
 The provider-neutral fallback estimator counts CJK code points directly rather
 than using UTF-8 bytes divided by four. Provider adapters may install a stricter
 tokenizer.
+
+Canonical tool calls retain both parsed and raw arguments for replay and audit.
+Input budgeting charges one argument serialization, matching provider adapters,
+rather than charging the same authored body twice. Compactor gain estimates
+use the same source-token accounting.
 
 ## 3. Protected author truth
 
@@ -192,15 +207,18 @@ duplicated in this projection.
 ## 5. Literary compaction
 
 Small histories keep the latest two turns byte-exact. That convenience is not
-an unbounded pin: recent compressible context is capped at 64,000 tokens. If a
-current turn is larger, the planner walks backward over the smallest
+an unbounded pin: ordinary recent compressible context is capped at 64,000
+tokens and half of the budget remaining after semantic pins. If a current
+turn is larger, the planner walks backward over the smallest
 tool-topology-safe units. The current author request stays independently
 semantic-pinned, so an oversized read batch can be compacted without losing the
 instruction that caused it.
 
 Within the active turn, the latest complete authored read for each target and
 the exact successful write delta remain a working set while they fit. Authored
-reads may use at most 80% of the exact-source budget; oversized units are
+reads may use at most 80% of the budget remaining after semantic pins, without
+the ordinary 64,000-token cap. This lets a complete multi-chapter working set
+stay exact when the declared model window allows it. Oversized units are
 skipped instead of evicting every smaller chapter, and a newer complete read
 supersedes an older complete read of the same target. A focused durable edit
 keeps one complete same-turn read and appends only its current changed passages;
@@ -261,9 +279,22 @@ changes the eligible projection. A second no-gain result opens the scoped
 compaction circuit. Invalid output, failure and timeout do not receive that
 recovery and are not retried repeatedly in the same session/provider epoch.
 
+A durably covered write that must remain with an overlapping read batch stays
+compressible even after its turn ends. The whole batch can be summarized
+atomically; replay safety must not turn a settled task update back into a
+semantic pin that strands all neighboring reads.
+
 The mounted product allows five minutes for the outer verified full-compaction
 pass. Individual provider chunks keep their independent shorter timeout and
 deterministic fallback, so one stalled summary cannot consume the whole pass.
+
+Planning failures include content-free budget diagnostics in the durable
+`turn_finished.contextPlanningDiagnostics` JSON field, separate from the user
+error message: usable input, estimated input, semantic pins, and the last
+eight compaction passes. Each pass records recent pins, tokens blocked by
+overlapping tool topology, eligible tokens, before/after tokens, candidate
+count, and chunk counts for provider summaries or timeout/error/call-budget
+fallbacks. These diagnostics contain no manuscript text or provider response.
 
 Verified summaries may be cached in memory or loaded from durable checkpoints.
 Every reuse is revalidated against the current canonical source IDs and hashes.

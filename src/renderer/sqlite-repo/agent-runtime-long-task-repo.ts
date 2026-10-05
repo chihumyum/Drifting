@@ -217,6 +217,7 @@ function parseStoredReviewResult(value: string | null): AgentRuntimeTaskStepRevi
 
 export interface AgentRuntimeLongTaskCommandEvidence {
   taskId: string;
+  turnId: string;
   turnOrdinal: number;
   callId: string;
   toolName: string;
@@ -1912,6 +1913,7 @@ export function createAgentRuntimeLongTaskRepository(
       return dbProvider()
         .select({
           taskId: AgentRuntimeTaskCommandTable.taskId,
+          turnId: AgentRuntimeTaskCommandTable.turnId,
           turnOrdinal: AgentRuntimeTurnTable.ordinal,
           callId: AgentRuntimeTaskCommandTable.callId,
           toolName: AgentRuntimeTaskCommandTable.toolName,

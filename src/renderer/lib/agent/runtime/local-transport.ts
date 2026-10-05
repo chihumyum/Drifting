@@ -72,6 +72,7 @@ interface LocalSessionState {
   id: string;
   routeKey: string;
   history: AgentModelMessage[];
+  historyTurnIds?: (string | null)[];
 }
 
 class AgentTransportCommitError extends Error {
@@ -310,6 +311,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
           id: prepared.sessionId,
           routeKey,
           history: prepared.history.map(clonePortableData),
+          historyTurnIds: prepared.historyTurnIds,
         };
         this.sessions.set(session.id, session);
       } catch (error) {
@@ -402,6 +404,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         toolSearch: input.toolSearch ?? 'off',
         toolAccess: input.toolAccess ?? 'read_write',
         history: session.history,
+        historyTurnIds: session.historyTurnIds,
         ...(turnLimits ? { limits: turnLimits } : {}),
         signal: controller.signal,
         control,
@@ -439,8 +442,10 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
             throw new AgentTransportCommitError(cause);
           }
           session.history = result.messages.map(clonePortableData);
+          session.historyTurnIds = result.messageTurnIds;
         } else if (result.state.modelIterations > 0) {
           session.history = result.messages.map(clonePortableData);
+          session.historyTurnIds = result.messageTurnIds;
         }
         publishTerminal();
       })

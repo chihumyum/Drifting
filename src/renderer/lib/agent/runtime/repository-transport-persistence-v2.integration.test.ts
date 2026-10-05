@@ -446,6 +446,65 @@ describe('file-backed Agent V2 context recovery', () => {
     directory = undefined;
   });
 
+  it('recovers execution ownership after same-turn steering without changing checkpoint source hashes', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-steering-restart-'));
+    const databasePath = join(directory, 'runtime.sqlite');
+    gateway = new FileSqliteGateway(databasePath, true);
+    const openPersistence = () => createRepositoryAgentTransportPersistence({
+      repository: createAgentRuntimePersistenceRepository(createDatabaseClient(gateway!)),
+      resolveToolAccess: () => 'write',
+    });
+    let persistence = openPersistence();
+    const prepare = (turnId: string) => persistence.prepareTurn({
+      candidateSessionId: 'session-steering', resumeSessionId: 'session-steering',
+      newConversation: false, route: ROUTE, provider: 'synthetic-provider', model: 'synthetic',
+      turnId, prompt: 'Edit the synthetic title.', acceptedAt: NOW,
+    });
+    await prepare('physical-turn');
+    const control = new AgentRuntimeControlChannel('session-steering', 'physical-turn');
+    const runtime = new AgentRuntime({
+      journal: { append: (entry) => persistence.appendJournal(entry) },
+      tools: { listDefinitions: () => [{ name: 'rename_node', description: 'Synthetic rename.',
+        access: 'write', inputSchema: { type: 'object' }, validateInput: (value) => ({ ok: true, value }) }],
+      execute: async () => ({ ok: true, data: { saved: true } }) },
+      driver: { id: 'synthetic-provider', async *stream(request) {
+        if (request.iteration === 1) await control.steer({ turnId: 'physical-turn', text: 'Keep the title in English.' });
+        if (request.iteration === 2) {
+          yield { type: 'tool_call_start', callId: 'rename-after-steer', name: 'rename_node' };
+          yield { type: 'tool_args_delta', callId: 'rename-after-steer', delta: '{"node":"synthetic","title":"Changed"}' };
+          yield { type: 'tool_call_end', callId: 'rename-after-steer' };
+        } else if (request.iteration === 3) yield { type: 'text_delta', text: 'Saved.' };
+        yield { type: 'usage', usage: USAGE };
+        yield { type: 'finish', reason: request.iteration === 2 ? 'tool_use' : 'end_turn' };
+      } },
+    });
+    const result = await runtime.runTurn({ sessionId: 'session-steering', turnId: 'physical-turn',
+      route: ROUTE, prompt: 'Edit the synthetic title.', control });
+    expect(result.state.status).toBe('completed');
+    expect(result.completedContextCheckpoint).toBeDefined();
+    await persistence.commitTurn({ sessionId: 'session-steering', turnId: 'physical-turn',
+      turnMessages: result.messages, contextCheckpointV2: result.completedContextCheckpoint,
+      outcome: 'completed', errorCode: null, errorMessage: null, endedAt: ENDED });
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    persistence = openPersistence();
+    const resumed = await prepare('next-physical-turn');
+    expect(resumed.history).toEqual(result.messages);
+    expect(resumed.historyTurnIds).toEqual(result.messages.map(() => 'physical-turn'));
+    const planned = await planAgentModelContext({ systemPrompt: 'Synthetic policy.',
+      messages: [...resumed.history, { role: 'user', content: 'Continue.' }],
+      messageTurnIds: [...resumed.historyTurnIds!, 'next-physical-turn'],
+      resolveToolAccess: () => 'write',
+      supplementalRows: [{ sourceId: 'durable-receipt', turnOrdinal: 0, kind: 'write_receipt', content: 'Synthetic title saved.',
+        durableWriteCoverage: [{ turnId: 'physical-turn', turnOrdinal: 0, callId: 'rename-after-steer', toolName: 'rename_node' }] }],
+      planner: { contextWindowTokens: 32_768, requestedOutputTokens: 4_096, fixedInputTokens: 0 },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(planned.plan.segments.some((segment) => segment.type === 'source' && segment.row.callId === 'rename-after-steer')).toBe(false);
+    expect(planned.plan.checkpoint.pinned.sourceIds).toContain('durable-receipt');
+  });
+
   it.each(['aborted', 'failed', 'interrupted'] as const)('reuses discovered schemas after a write and explicit retry across restart (%s)', async (outcome) => {
     directory = mkdtempSync(join(tmpdir(), 'drifting-discovery-retry-'));
     const databasePath = join(directory, 'runtime.sqlite');
@@ -996,6 +1055,7 @@ describe('file-backed Agent V2 context recovery', () => {
     ).resolves.toEqual({
       sessionId: 'session-v2',
       history: HISTORY,
+      historyTurnIds: HISTORY.map(() => 'turn-v2'),
       recovered: false,
     });
   });
@@ -1307,6 +1367,7 @@ describe('file-backed Agent V2 context recovery', () => {
     ).resolves.toEqual({
       sessionId: 'session-v2-denied',
       history: DENIED_HISTORY,
+      historyTurnIds: DENIED_HISTORY.map(() => 'turn-v2-denied'),
       recovered: false,
     });
   });
@@ -1436,6 +1497,7 @@ describe('file-backed Agent V2 context recovery', () => {
     ).resolves.toEqual({
       sessionId: 'session-v2-args',
       history: NON_LEXICAL_TOOL_HISTORY,
+      historyTurnIds: NON_LEXICAL_TOOL_HISTORY.map(() => 'turn-v2-args'),
       recovered: false,
     });
   });

@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "4027767408abab00fd5cda494939e27174de99b6",
-  "sourceSetSha256": "sha256:aef71c48046452fe0aa2bd8f9b7f6029174346b56975c002e558f5fe1d8fe988",
+  "gitHead": "10acda3b6e93b5c5c7cf8e4217c98f4584b20f1a",
+  "sourceSetSha256": "sha256:ba4f1cd958df8906507a74ced0e09a718d79a6f7c74ae5b5025c4ec5ec406509",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
@@ -23,9 +23,9 @@
       "slices": 3,
       "compactedSlices": 2,
       "compactorCalls": 28,
-      "medianTokenReduction": 0.6238508038886028,
-      "maxContextWindowRatio": 0.74582,
-      "finalEstimatedInputTokens": 128429
+      "medianTokenReduction": 0.6226000441317558,
+      "maxContextWindowRatio": 0.73675,
+      "finalEstimatedInputTokens": 127767
     },
     "retrieval": {
       "canon_fact": {
@@ -92,12 +92,12 @@
   },
   "vitest": {
     "files": {
-      "required": 20,
-      "discovered": 20
+      "required": 22,
+      "discovered": 22
     },
     "tests": {
-      "total": 251,
-      "passed": 251,
+      "total": 289,
+      "passed": 289,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -126,11 +126,11 @@
         "passed": true
       },
       "providerBudgetAndPlanning": {
-        "requiredFiles": 4,
-        "discoveredFiles": 4,
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
         "tests": {
-          "total": 77,
-          "passed": 77,
+          "total": 84,
+          "passed": 84,
           "failed": 0,
           "pending": 0
         },
@@ -148,11 +148,11 @@
         "passed": true
       },
       "durablePagingAndRestart": {
-        "requiredFiles": 4,
-        "discoveredFiles": 4,
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
         "tests": {
-          "total": 38,
-          "passed": 38,
+          "total": 69,
+          "passed": 69,
           "failed": 0,
           "pending": 0
         },
@@ -171,6 +171,56 @@
       }
     },
     "requiredAssertions": {
+      "steeringWholeBookWorkingSet": {
+        "requiredName": "compacts settled writes after steering and preserves a complete 15-chapter mixed read batch above 64k",
+        "matches": 1,
+        "passed": true
+      },
+      "steeringRestartOwnership": {
+        "requiredName": "recovers execution ownership after same-turn steering without changing checkpoint source hashes",
+        "matches": 1,
+        "passed": true
+      },
+      "settledMixedBatchCompaction": {
+        "requiredName": "compacts an older mixed read and settled task-write batch atomically after steering",
+        "matches": 1,
+        "passed": true
+      },
+      "steeringReceiptScope": {
+        "requiredName": "scopes reused call IDs to a verified execution turn after steering (verified)",
+        "matches": 1,
+        "passed": true
+      },
+      "steeringForeignReceipt": {
+        "requiredName": "scopes reused call IDs to a verified execution turn after steering (foreign-owner)",
+        "matches": 1,
+        "passed": true
+      },
+      "steeringMissingOwner": {
+        "requiredName": "scopes reused call IDs to a verified execution turn after steering (missing-ownership)",
+        "matches": 1,
+        "passed": true
+      },
+      "steeringWrongTool": {
+        "requiredName": "scopes reused call IDs to a verified execution turn after steering (wrong-tool)",
+        "matches": 1,
+        "passed": true
+      },
+      "singleToolArgumentBudget": {
+        "requiredName": "charges large tool arguments once while preserving canonical bytes and hashes",
+        "matches": 1,
+        "passed": true
+      },
+      "compactionNoGainDiagnostics": {
+        "requiredName": "opens the circuit when a compactor returns no token gain",
+        "matches": 1,
+        "passed": true
+      },
+      "compactionFallbackDiagnostics": {
+        "requiredName": "times out one stalled paid chunk and continues with the deterministic fallback",
+        "matches": 1,
+        "passed": true
+      },
       "discoveryCompositeDispatch": {
         "requiredName": "executes named and empty-query discovery locally through the composite runtime read scheduler",
         "matches": 1,

@@ -947,6 +947,8 @@ describe('AgentRuntime context planning integration', () => {
     ]).toEqual(['failed', 'failed', 'failed', 'failed']);
     for (const result of [first, sameEpoch, otherSession, otherProviderEpoch]) {
       expect(result.state.terminal?.failureCode).toBe('CONTEXT_PLANNING_FAILED');
+      expect(result.state.terminal?.contextPlanningDiagnostics).toContain('semanticPinnedTokens');
+      expect(result.state.terminal?.message).not.toContain('semanticPinnedTokens');
     }
     expect(compact).toHaveBeenCalledTimes(3);
     expect(driver.requests).toHaveLength(0);

@@ -1836,6 +1836,16 @@ describe('provider-neutral Agent context planner', () => {
       error: { code: 'COMPACTOR_NO_GAIN' },
       diagnostics: { circuitState: { state: 'open' } },
     });
+    if (result.ok) return;
+    expect(result.diagnostics.semanticPinnedTokens).toBeGreaterThan(0);
+    expect(result.diagnostics.passes.length).toBeGreaterThan(0);
+    for (const pass of result.diagnostics.passes) {
+      expect(pass.beforeTokens).toBe(pass.afterTokens);
+      expect(pass.beforeTokens).toBe(result.diagnostics.semanticPinnedTokens! +
+        pass.recentPinnedTokens + pass.topologyBlockedTokens + pass.eligibleTokens);
+      expect(pass.candidateCount).toBe(1);
+    }
+    expect(JSON.stringify(result.diagnostics.passes)).not.toContain('history');
   });
 
   it('keeps a no-gain short chunk exact while applying profitable full-compactor chunks', async () => {

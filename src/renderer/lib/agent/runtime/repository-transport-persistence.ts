@@ -42,6 +42,7 @@ export interface AgentRuntimeRecoveryCodec {
     snapshot: AgentRuntimeRecoverySnapshot,
   ): Promise<{
     providerHistory: AgentModelMessage[];
+    providerHistoryTurnIds?: (string | null)[];
     pendingControls?: AgentPendingControl[];
   }>;
 }
@@ -178,6 +179,7 @@ export function createRepositoryAgentTransportPersistence(
   ): Promise<{
     snapshot: AgentRuntimeRecoverySnapshot;
     providerHistory: AgentModelMessage[];
+    providerHistoryTurnIds: (string | null)[];
     pendingControls: AgentPendingControl[];
   } | null> => {
     const snapshot = await repository.loadRecoverySnapshot(sessionId);
@@ -193,6 +195,7 @@ export function createRepositoryAgentTransportPersistence(
       return {
         snapshot,
         providerHistory: result.providerHistory.map(clonePortableData),
+        providerHistoryTurnIds: result.providerHistoryTurnIds ?? result.providerHistory.map(() => null),
         pendingControls: (result.pendingControls ?? []).map(clonePortableData),
       };
     } catch (cause) {
@@ -367,6 +370,10 @@ export function createRepositoryAgentTransportPersistence(
       return {
         sessionId: durableSession.id,
         history: history.map(clonePortableData),
+        historyTurnIds: [
+          ...(recoveredSnapshot?.providerHistoryTurnIds ?? []),
+          ...continuation.map(() => input.turnId),
+        ],
         recovered,
       };
     },

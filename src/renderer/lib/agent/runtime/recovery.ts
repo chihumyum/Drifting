@@ -170,6 +170,7 @@ export interface RecoveredAgentRuntimeTurn {
 
 export interface AgentRuntimeRecoveryResult {
   providerHistory: AgentModelMessage[];
+  providerHistoryTurnIds: (string | null)[];
   transcript: AgentChatMessage[];
   turns: RecoveredAgentRuntimeTurn[];
   repairs: AgentRuntimeRecoveryRepair[];
@@ -1471,7 +1472,8 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         !Number.isFinite(value.durationMs) ||
         value.durationMs < 0 ||
         (value.failureCode !== undefined && typeof value.failureCode !== 'string') ||
-        (value.message !== undefined && typeof value.message !== 'string')
+        (value.message !== undefined && typeof value.message !== 'string') ||
+        (value.contextPlanningDiagnostics !== undefined && typeof value.contextPlanningDiagnostics !== 'string')
       ) {
         corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid terminal data.`);
       }
@@ -1487,6 +1489,7 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
             }
           : {}),
         ...(value.message ? { message: value.message } : {}),
+        ...(value.contextPlanningDiagnostics ? { contextPlanningDiagnostics: value.contextPlanningDiagnostics } : {}),
         usage: parseUsage(value.usage, `${path}.usage`),
         modelIterations: value.modelIterations,
         durationMs: value.durationMs,
@@ -2163,8 +2166,18 @@ export async function recoverAgentRuntimeSnapshot(
       })
     : completeRows;
   const delta = extractCompleteScopedMessages(deltaRows);
+  const checkpointRows = checkpoint.checkpoint
+    ? completeRows.filter((row) => row.turnId !== null &&
+        turnOrdinalById.get(row.turnId)! <= checkpoint.checkpoint!.throughTurnOrdinal)
+    : [];
+  const checkpointMessages = extractCompleteScopedMessages(checkpointRows).messages;
+  const checkpointOwnersVerified = canonicalRecoveryJson(checkpointMessages.map((item) => item.message))
+    === canonicalRecoveryJson(checkpoint.context);
   const checkpointScope = checkpoint.context.map(
-    (message): ScopedModelMessage => ({ turnId: null, message }),
+    (message, index): ScopedModelMessage => ({
+      turnId: checkpointOwnersVerified ? checkpointMessages[index]!.turnId : null,
+      message,
+    }),
   );
   const combined = repairToolPairs([...checkpointScope, ...delta.messages]);
   const transcript = buildTranscript(replayed.turns, messages);
@@ -2178,6 +2191,7 @@ export async function recoverAgentRuntimeSnapshot(
 
   return {
     providerHistory: combined.messages.map((item) => item.message),
+    providerHistoryTurnIds: combined.messages.map((item) => item.turnId),
     transcript: transcript.transcript,
     turns: replayed.turns,
     repairs: uniqueRepairs([...delta.repairs, ...combined.repairs, ...transcript.repairs]),

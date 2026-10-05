@@ -84,6 +84,8 @@ export interface AgentContextSupplementalPinnedRow {
    * provider projection and the planner accepts only exact write-pair matches.
    */
   durableWriteCoverage?: readonly {
+    /** Durable execution identity, distinct from the canonical user-message ordinal. */
+    turnId?: string;
     turnOrdinal: number;
     callId: string;
     toolName: string;
@@ -213,6 +215,8 @@ export class AgentContextMessageBridgeError extends Error {
 export interface AgentModelContextPlanningInput {
   systemPrompt: string;
   messages: readonly AgentModelMessage[];
+  /** Trusted runtime/persistence ownership; never supplied by a model or a summary. */
+  messageTurnIds?: readonly (string | null)[];
   resolveToolAccess: AgentContextToolAccessResolver;
   supplementalRows?: readonly AgentContextSupplementalPinnedRow[];
   planner: Omit<AgentContextPlannerInput, 'sourceRows'>;
@@ -1517,12 +1521,46 @@ export async function planAgentModelContext(
   input: AgentModelContextPlanningInput,
 ): Promise<AgentModelContextPlanningResult> {
   const bridge = agentModelMessagesToContextSources(input);
+  if (input.messageTurnIds && input.messageTurnIds.length !== input.messages.length) {
+    failure('INVALID_MODEL_CONTEXT', 'Message turn ownership length mismatch.');
+  }
+  // Preserve existing source ordinals/hashes for checkpoint compatibility.
+  // Translate durable execution identities at this boundary instead of
+  // confusing steering/continuation user messages with new runtime turns.
+  const executionPairs = new Map<string, { turnOrdinal: number; kinds: Set<string> }>();
+  const ambiguous = new Set<string>();
+  const sources = new Map(bridge.sourceRows.map((row) => [row.sourceId, row]));
+  for (const binding of bridge.bindings) {
+    if (binding.origin !== 'message') continue;
+    const row = sources.get(binding.sourceId)!;
+    if (row.kind !== 'tool_call' && row.kind !== 'tool_result') continue;
+    const turnId = input.messageTurnIds?.[binding.messageOrdinal];
+    if (!turnId) continue;
+    const key = JSON.stringify([turnId, row.callId, row.toolName]);
+    const pair = executionPairs.get(key);
+    if (pair && (pair.turnOrdinal !== row.turnOrdinal || pair.kinds.has(row.kind))) {
+      ambiguous.add(key);
+    } else if (pair) {
+      pair.kinds.add(row.kind);
+    } else {
+      executionPairs.set(key, { turnOrdinal: row.turnOrdinal!, kinds: new Set([row.kind]) });
+    }
+  }
   const durableWriteEvidence: AgentContextDurableWriteEvidence[] = [];
   for (const supplemental of input.supplementalRows ?? []) {
     for (const coverage of supplemental.durableWriteCoverage ?? []) {
+      let turnOrdinal = coverage.turnOrdinal;
+      if (coverage.turnId !== undefined) {
+        const key = JSON.stringify([coverage.turnId, coverage.callId, coverage.toolName]);
+        const pair = executionPairs.get(key);
+        // An unmatched explicit owner must never fall back to a positional
+        // ordinal or an unscoped call id from another turn.
+        if (!pair || pair.kinds.size !== 2 || ambiguous.has(key)) continue;
+        turnOrdinal = pair.turnOrdinal;
+      }
       durableWriteEvidence.push({
         evidenceSourceId: supplemental.sourceId,
-        turnOrdinal: coverage.turnOrdinal,
+        turnOrdinal,
         callId: coverage.callId,
         toolName: coverage.toolName,
       });

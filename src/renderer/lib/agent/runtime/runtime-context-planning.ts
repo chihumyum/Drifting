@@ -15,6 +15,7 @@ import {
   type AgentContextSourceRow,
   type AgentContextSummaryCandidate,
   type AgentContextTokenEstimator,
+  type AgentContextPlannerResult,
 } from './context-planner';
 import { createAgentContextUsageSnapshot } from './context-usage';
 import { AgentRuntimeError } from './errors';
@@ -133,6 +134,7 @@ export interface AgentRuntimeContextPlanningRequest {
   context: AgentRuntimeContext;
   systemPrompt?: string;
   messages: readonly AgentModelMessage[];
+  messageTurnIds?: readonly (string | null)[];
   /** Full policy-filtered executable catalog, including historical tools. */
   executableDefinitions: readonly AgentToolDefinition[];
   /** Exact provider-facing schemas selected after this iteration's search. */
@@ -209,9 +211,10 @@ function buildAccessResolver(
 }
 
 function planningFailure(
-  error: { code: string; message: string },
+  failure: Extract<AgentContextPlannerResult, { ok: false }>,
   request: AgentRuntimeContextPlanningRequest,
 ): AgentRuntimeError {
+  const { error, diagnostics } = failure;
   // Nothing changed before the first provider call: automatic continuation
   // would submit the same unplannable input again. Later physical context
   // boundaries can checkpoint actual progress for the next execution slice.
@@ -225,6 +228,13 @@ function planningFailure(
           ? 'INTERNAL_ERROR'
           : 'PROTOCOL_VIOLATION',
     `Context planning failed (${error.code}): ${error.message}`,
+    JSON.stringify({
+      usableInputBudgetTokens: diagnostics.usableInputBudgetTokens,
+      estimatedInputTokens: diagnostics.estimatedInputTokens,
+      semanticPinnedTokens: diagnostics.semanticPinnedTokens,
+      fullCompactionCount: diagnostics.fullCompactionCount,
+      passes: diagnostics.passes,
+    }),
   );
 }
 
@@ -574,6 +584,7 @@ export class AgentRuntimeContextPlanningCoordinator {
       planned = await planAgentModelContext({
         systemPrompt,
         messages: request.messages,
+        messageTurnIds: request.messageTurnIds,
         resolveToolAccess: accessResolver,
         ...(supplementalRows ? { supplementalRows } : {}),
         planner: {
@@ -611,7 +622,7 @@ export class AgentRuntimeContextPlanningCoordinator {
         }`,
       );
     }
-    if (!planned.ok) throw planningFailure(planned.error, request);
+    if (!planned.ok) throw planningFailure(planned, request);
 
     try {
       await verifyAgentContextProviderEnvelope({

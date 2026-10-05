@@ -2534,16 +2534,19 @@ describe('durable Agent long-task runtime', () => {
     expect(rows[0]?.content).not.toContain('internal:');
     expect(rows[0]?.durableWriteCoverage).toEqual([
       {
+        turnId: TURN_ID,
         turnOrdinal: 0,
         callId: provenance.callId,
         toolName: 'update_task_plan',
       },
       {
+        turnId: TURN_ID,
         turnOrdinal: 0,
         callId: repeatActiveProvenance.callId,
         toolName: 'update_task_plan',
       },
       {
+        turnId: TURN_ID,
         turnOrdinal: 0,
         callId: repeatObjectiveProvenance.callId,
         toolName: 'update_task_plan',
@@ -2617,6 +2620,7 @@ describe('durable Agent long-task runtime', () => {
     const coveredPlan = await planAgentModelContext({
       systemPrompt: hookInput.systemPrompt,
       messages: coveredMessages,
+      messageTurnIds: [TURN_ID, TURN_ID, TURN_ID, TURN_ID, 'next-turn', 'next-turn', 'latest-turn'],
       resolveToolAccess: (name) => (name === 'update_task_plan' ? 'write' : null),
       supplementalRows: rows,
       planner: {

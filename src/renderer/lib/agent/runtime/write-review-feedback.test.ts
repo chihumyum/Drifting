@@ -298,6 +298,7 @@ describe('Agent write review feedback', () => {
       kind: 'write_review',
       durableWriteCoverage: expect.arrayContaining([
         {
+          turnId: 'turn-effect',
           turnOrdinal: 0,
           callId: 'call-effect-settled-0',
           toolName: 'rename_node',
@@ -313,6 +314,7 @@ describe('Agent write review feedback', () => {
       rows.find((row) => row.sourceId === 'write-review:review-pending')?.durableWriteCoverage,
     ).toEqual([
       {
+        turnId: 'turn-effect',
         turnOrdinal: 0,
         callId: 'call-effect-pending',
         toolName: 'edit_block',
@@ -363,6 +365,7 @@ describe('Agent write review feedback', () => {
     expect(rows[0]?.durableWriteCoverage).toEqual([]);
     expect(rows[1]?.durableWriteCoverage).toEqual([
       {
+        turnId: 'turn-current',
         turnOrdinal: 4,
         callId: currentEffect.callId,
         toolName: currentEffect.toolName,
@@ -446,6 +449,7 @@ describe('Agent write review feedback', () => {
     const planned = await planAgentModelContext({
       systemPrompt: 'Follow durable review decisions.',
       messages,
+      messageTurnIds: ['turn-0', 'turn-0', 'turn-0', 'turn-0', 'turn-1', 'turn-1', 'turn-2'],
       resolveToolAccess: (name) =>
         name === 'rename_node' || name === 'edit_block' ? 'write' : null,
       supplementalRows: rows,
@@ -517,6 +521,7 @@ describe('Agent write review feedback', () => {
         kind: 'write_receipt',
         durableWriteCoverage: [
           {
+            turnId: 'turn-current',
             turnOrdinal: 3,
             callId: committed.callId,
             toolName: 'delete_file',
@@ -613,6 +618,7 @@ describe('Agent write review feedback', () => {
     const planned = await planAgentModelContext({
       systemPrompt: 'Continue from durable domain state.',
       messages,
+      messageTurnIds: ['turn-0', 'turn-0', 'turn-0', 'turn-1', 'turn-1', 'turn-2'],
       resolveToolAccess: (name) => (name === 'delete_file' ? 'write' : null),
       supplementalRows: rows,
       planner: {

@@ -4,6 +4,8 @@ export class AgentRuntimeError extends Error {
   constructor(
     public readonly code: AgentRuntimeFailureCode,
     message: string,
+    /** Content-free JSON for the durable journal, separate from the UI message. */
+    public readonly contextPlanningDiagnostics?: string,
   ) {
     super(message);
     this.name = 'AgentRuntimeError';

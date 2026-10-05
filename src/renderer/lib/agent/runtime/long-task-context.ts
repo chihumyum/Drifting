@@ -139,14 +139,16 @@ export function createAgentLongTaskSupplementalRowsHook(
         (evidence) =>
           evidence.toolName === 'update_task_plan' || evidence.toolName === 'update_task_step',
       )
-      .map(({ turnOrdinal, callId, toolName }) => ({
+      .map(({ turnId, turnOrdinal, callId, toolName }) => ({
+        turnId,
         turnOrdinal,
         callId,
         toolName,
       }));
     const constraintCoverage = commandEvidence
       .filter((evidence) => evidence.toolName === 'update_task_constraint')
-      .map(({ turnOrdinal, callId, toolName }) => ({
+      .map(({ turnId, turnOrdinal, callId, toolName }) => ({
+        turnId,
         turnOrdinal,
         callId,
         toolName,

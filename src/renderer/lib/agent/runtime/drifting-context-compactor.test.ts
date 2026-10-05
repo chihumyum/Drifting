@@ -978,6 +978,7 @@ describe('Drifting context compactor', () => {
   });
 
   it('times out one stalled paid chunk and continues with the deterministic fallback', async () => {
+    const reportChunk = vi.fn();
     let providerSignal: AbortSignal | undefined;
     const complete = vi.fn(async (request: AICompletionRequest): Promise<AICompletionResponse> => {
       providerSignal = request.signal;
@@ -1007,12 +1008,14 @@ describe('Drifting context compactor', () => {
       ],
       currentEstimatedTokens: 4_000,
       usableInputBudgetTokens: 1_000,
+      reportChunk,
       signal: new AbortController().signal,
     });
 
     expect(complete).toHaveBeenCalledOnce();
     expect(summaries.length).toBeGreaterThan(1);
     expect(providerSignal?.aborted).toBe(true);
+    expect(reportChunk.mock.calls).toEqual(summaries.map(() => ['timeout']));
     expect(parseDriftingLiteraryContextSummary(summaries[0]!.content)?.synopsis).toContain(
       '当前任务仍按作者最近的要求继续',
     );

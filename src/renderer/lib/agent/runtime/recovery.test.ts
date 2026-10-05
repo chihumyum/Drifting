@@ -976,6 +976,7 @@ describe('Agent runtime canonical recovery', () => {
   });
 
   it('does not place a failed turn in future provider context, while retaining its UI trace', async () => {
+    const diagnostics = JSON.stringify({ semanticPinnedTokens: 120, passes: [] });
     const snapshot = completeSnapshot();
     snapshot.session.status = 'idle';
     snapshot.turns[0] = {
@@ -989,6 +990,7 @@ describe('Agent runtime canonical recovery', () => {
       outcome: 'failed',
       failureCode: 'MODEL_ERROR',
       message: 'provider disconnected',
+      contextPlanningDiagnostics: diagnostics,
       usage: TOTAL_USAGE,
       modelIterations: 2,
       durationMs: 250,
@@ -996,6 +998,8 @@ describe('Agent runtime canonical recovery', () => {
 
     const result = await recoverAgentRuntimeSnapshot(snapshot);
     expect(result.providerHistory).toEqual([]);
+    expect(result.turns[0]!.journalState?.terminal?.contextPlanningDiagnostics).toBe(diagnostics);
+    expect(JSON.stringify(result.transcript)).not.toContain('semanticPinnedTokens');
     expect(result.transcript).toContainEqual({
       kind: 'error',
       text: 'provider disconnected',

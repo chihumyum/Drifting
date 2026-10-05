@@ -688,6 +688,8 @@ export type AgentRuntimeEvent =
       outcome: AgentRuntimeOutcome;
       failureCode?: AgentRuntimeFailureCode;
       message?: string;
+      /** Bounded content-free JSON for diagnostics; never provider context or UI prose. */
+      contextPlanningDiagnostics?: string;
       usage: AgentRuntimeUsage;
       modelIterations: number;
       durationMs: number;
@@ -798,6 +800,8 @@ export interface AgentRuntimeRunInput {
   /** Hard per-turn tool boundary selected by the author-facing surface. */
   toolAccess?: 'read_only' | 'read_write';
   history?: readonly AgentModelMessage[];
+  /** Trusted execution ownership, parallel to history; absent ownership cannot certify receipts. */
+  historyTurnIds?: readonly (string | null)[];
   limits?: Partial<AgentRuntimeLimits>;
   signal?: AbortSignal;
   control?: AgentRuntimeControlChannel;
@@ -816,6 +820,7 @@ export interface AgentRuntimeRunResult {
   state: AgentRuntimeState;
   entries: AgentRuntimeJournalEntry[];
   messages: AgentModelMessage[];
+  messageTurnIds: (string | null)[];
   completionTool?: {
     callId: string;
     name: string;

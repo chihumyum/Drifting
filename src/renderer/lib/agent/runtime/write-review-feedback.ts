@@ -48,6 +48,7 @@ function blockReviewDecisionCounts(note: unknown): { accepted: number; reverted:
 
 function writeCoverage(
   effect: {
+    turnId: string;
     callId?: string;
     toolName: string;
   },
@@ -57,6 +58,7 @@ function writeCoverage(
   return enabled && typeof effect.callId === 'string' && effect.callId.length > 0
     ? [
         {
+          turnId: effect.turnId,
           turnOrdinal,
           callId: effect.callId,
           toolName: effect.toolName,
@@ -222,11 +224,11 @@ export async function loadAgentWriteReviewContextRows(
 }
 
 function uniqueWriteCoverage(
-  values: readonly { turnOrdinal: number; callId: string; toolName: string }[],
-): Array<{ turnOrdinal: number; callId: string; toolName: string }> {
+  values: readonly { turnId: string; turnOrdinal: number; callId: string; toolName: string }[],
+): Array<{ turnId: string; turnOrdinal: number; callId: string; toolName: string }> {
   const seen = new Set<string>();
   return values.filter((value) => {
-    const key = `${value.turnOrdinal}:${value.callId}:${value.toolName}`;
+    const key = JSON.stringify([value.turnId, value.callId, value.toolName]);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -315,6 +317,7 @@ export async function loadAgentDurableWriteReceiptContextRows(
         toolPairIsCanonical
           ? [
               {
+                turnId: effect.turnId,
                 turnOrdinal,
                 callId: effect.callId,
                 toolName: effect.toolName,

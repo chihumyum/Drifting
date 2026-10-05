@@ -22,12 +22,14 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/drifting-agent-product-contract.test.ts',
     'src/renderer/lib/agent/runtime/context-planner.test.ts',
     'src/renderer/lib/agent/runtime/runtime-context-planning.test.ts',
+    'src/renderer/lib/agent/runtime/steering-context.integration.test.ts',
   ],
   literaryCompactionAndRetrieval: [
     'src/renderer/lib/agent/runtime/drifting-context-compactor.test.ts',
     'src/renderer/lib/agent/runtime/context-evidence-retrieval.test.ts',
   ],
   durablePagingAndRestart: [
+    'src/renderer/lib/agent/runtime/recovery.test.ts',
     'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts',
     'src/renderer/sqlite-repo/agent-runtime-persistence-repo.integration.test.ts',
     'src/renderer/lib/agent/runtime/repository-transport-persistence.test.ts',
@@ -72,6 +74,13 @@ const LINT_FILES = [
   'src/renderer/lib/agent/runtime/literary-context-summary.ts',
   'src/renderer/lib/agent/runtime/runtime-context-planning.ts',
   'src/renderer/lib/agent/runtime/runtime.ts',
+  'src/renderer/lib/agent/runtime/local-transport.ts',
+  'src/renderer/lib/agent/runtime/transport-persistence.ts',
+  'src/renderer/lib/agent/runtime/recovery.ts',
+  'src/renderer/lib/agent/runtime/errors.ts',
+  'src/renderer/lib/agent/runtime/write-review-feedback.ts',
+  'src/renderer/lib/agent/runtime/long-task-context.ts',
+  'src/renderer/sqlite-repo/agent-runtime-long-task-repo.ts',
   'src/renderer/lib/agent/runtime/types.ts',
   'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.ts',
   'src/renderer/sqlite-repo/agent-runtime-persistence-repo.ts',
@@ -86,6 +95,26 @@ const HASHED_SOURCE_FILES = [
 ];
 
 const REQUIRED_ASSERTIONS = {
+  steeringWholeBookWorkingSet:
+    'compacts settled writes after steering and preserves a complete 15-chapter mixed read batch above 64k',
+  steeringRestartOwnership:
+    'recovers execution ownership after same-turn steering without changing checkpoint source hashes',
+  settledMixedBatchCompaction:
+    'compacts an older mixed read and settled task-write batch atomically after steering',
+  steeringReceiptScope:
+    'scopes reused call IDs to a verified execution turn after steering (verified)',
+  steeringForeignReceipt:
+    'scopes reused call IDs to a verified execution turn after steering (foreign-owner)',
+  steeringMissingOwner:
+    'scopes reused call IDs to a verified execution turn after steering (missing-ownership)',
+  steeringWrongTool:
+    'scopes reused call IDs to a verified execution turn after steering (wrong-tool)',
+  singleToolArgumentBudget:
+    'charges large tool arguments once while preserving canonical bytes and hashes',
+  compactionNoGainDiagnostics:
+    'opens the circuit when a compactor returns no token gain',
+  compactionFallbackDiagnostics:
+    'times out one stalled paid chunk and continues with the deterministic fallback',
   discoveryCompositeDispatch: 'executes named and empty-query discovery locally through the composite runtime read scheduler',
   discoveryRetryAfterFailure: 'reuses discovered schemas after a write and explicit retry across restart (failed)',
   discoveryRetryAfterAbort: 'reuses discovered schemas after a write and explicit retry across restart (aborted)',

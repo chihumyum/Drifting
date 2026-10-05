@@ -638,6 +638,14 @@ export class AgentRuntime {
       ...(input.history ?? []).map(cloneMessage),
       { role: 'user', content: input.prompt },
     ];
+    if (input.historyTurnIds && input.historyTurnIds.length !== (input.history?.length ?? 0)) {
+      throw new AgentRuntimeError('PROTOCOL_VIOLATION', 'History turn ownership length mismatch');
+    }
+    const historyTurnIds = input.historyTurnIds ?? (input.history ?? []).map(() => null);
+    const messageTurnIds = (length = messages.length): (string | null)[] => [
+      ...historyTurnIds,
+      ...Array.from({ length: length - historyTurnIds.length }, () => input.turnId),
+    ];
     let state = createAgentRuntimeState(input.sessionId, input.turnId, route);
     const controller = new AbortController();
     const journalController = new AbortController();
@@ -1200,7 +1208,7 @@ export class AgentRuntime {
 
     const finish = async (
       outcome: 'completed' | 'failed' | 'aborted' | 'budget_exceeded',
-      failure?: { code?: import('./types').AgentRuntimeFailureCode; message?: string },
+      failure?: { code?: import('./types').AgentRuntimeFailureCode; message?: string; contextPlanningDiagnostics?: string },
     ): Promise<void> => {
       if (input.control && state.status !== 'committing') {
         await emit({ type: 'commit_started', outcome }, true);
@@ -1211,6 +1219,7 @@ export class AgentRuntime {
           outcome,
           ...(failure?.code ? { failureCode: failure.code } : {}),
           ...(failure?.message ? { message: failure.message } : {}),
+          ...(failure?.contextPlanningDiagnostics ? { contextPlanningDiagnostics: failure.contextPlanningDiagnostics } : {}),
           usage: state.usage,
           modelIterations: state.modelIterations,
           durationMs: durationMs(),
@@ -1239,6 +1248,7 @@ export class AgentRuntime {
         context,
         ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
         messages,
+        messageTurnIds: messageTurnIds(),
         providerWireOverheadTokens: discovery ? discoveryWireOverheadTokens(messages) : 0,
         executableDefinitions: planningDefinitions,
         selectedTools: lastPlanningSelection.tools,
@@ -1734,6 +1744,7 @@ export class AgentRuntime {
           context,
           ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
           messages: plannedIterationMessages,
+          messageTurnIds: messageTurnIds(plannedIterationMessages.length),
           providerWireOverheadTokens: discovery ? discoveryWireOverheadTokens(plannedIterationMessages) : 0,
           executableDefinitions: planningDefinitions,
           selectedTools: providerTools,
@@ -2365,9 +2376,9 @@ export class AgentRuntime {
       if (aborted) {
         await finish('aborted', { message });
       } else if (code === 'BUDGET_EXCEEDED' || code === 'MAX_MODEL_ITERATIONS') {
-        await finish('budget_exceeded', { code, message });
+        await finish('budget_exceeded', { code, message, contextPlanningDiagnostics: runtimeError?.contextPlanningDiagnostics });
       } else {
-        await finish('failed', { code, message });
+        await finish('failed', { code, message, contextPlanningDiagnostics: runtimeError?.contextPlanningDiagnostics });
       }
     } finally {
       acceptingControl = false;
@@ -2383,6 +2394,7 @@ export class AgentRuntime {
       state,
       entries,
       messages,
+      messageTurnIds: messageTurnIds(),
       ...(completedTool ? { completionTool: completedTool } : {}),
       ...(lastProviderCallContextEnvelope ? { lastProviderCallContextEnvelope } : {}),
       ...((state.status === 'completed' || state.status === 'budget_exceeded') &&

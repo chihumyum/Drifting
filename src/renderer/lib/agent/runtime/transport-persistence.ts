@@ -85,6 +85,7 @@ export interface AgentTransportPrepareTurnInput {
 export interface AgentTransportPreparedTurn {
   sessionId: string;
   history: AgentModelMessage[];
+  historyTurnIds?: (string | null)[];
   /** True when stale in-flight state was repaired before accepting this turn. */
   recovered: boolean;
 }
