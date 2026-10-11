@@ -29,6 +29,10 @@ root as its return destination; it never mounts the desktop-oriented
 action opens the Chapters structure overlay instead of sharing the Settings
 navigation path.
 
+Both platforms edit the project's `PROJECT_MEMORY.md` (desktop: Structure
+tab; mobile: end of the Home flow; see
+`agent-runtime/domain-crud-transaction-protocol.md` §9).
+
 UI-storage v4 removes legacy desktop Dashboard leaves and collapses mixed
 Dashboard splits. Mobile session v2 reads v1 once and filters
 `dashboard:self`. These are renderer-state migrations only; SQLite, Yjs,

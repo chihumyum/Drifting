@@ -1057,7 +1057,7 @@
       "unlimitedHint": "With Unlimited, the only brake is stopping the turn yourself."
     },
     "agentMemory": {
-      "title": "Agent rules",
+      "title": "Project memory",
       "desc": "Long-term rules controlled by you. Active preferences, directives, and vetoes are injected verbatim into future chats; you can add or delete them at any time. Rules proposed by Agent require your approval, and the product adds no hidden writing policy.",
       "kind": {
         "preference": "Preference",
@@ -1610,11 +1610,11 @@
       "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Deletions use the separate permission setting below.",
       "dangerousOperations": "Allow dangerous actions",
       "dangerousOperationsTitle": "When enabled, Agent can delete chapters, ideas, elements, relationships, notes, and other objects without asking each time. This affects only later calls; project isolation, argument validation, concurrency checks, and durable receipts remain enforced.",
-      "memory": "Rules",
-      "memoryTitle": "Long-term preferences / directives / vetoes controlled by you; only active entries are injected into later chats.",
-      "manageMemory": "Manage rules",
-      "noMemory": "No rules yet",
-      "approveMemory": "Approve (start using)"
+      "memory": "Memory",
+      "memoryTitle": "Project memory you and the Agent maintain together; every conversation reads it.",
+      "manageMemory": "Project memory",
+      "noMemory": "No project memory",
+      "approveMemory": "Enable"
     },
     "memoryKind": {
       "veto": "Veto",
@@ -3401,5 +3401,20 @@
       "deleteCategory": "Delete category",
       "deleteStoryline": "Delete storyline"
     }
+  },
+  "projectMemory": {
+    "title": "Project memory",
+    "short": "Memory",
+    "desc": "Your thoughts, intentions, habits and standing instructions for this work. You and the Agent can both edit it, and every conversation reads it. Story facts belong in elements, storylines and other objects.",
+    "placeholder": "Write something to remember… (⌘↩ to save)",
+    "add": "Add",
+    "empty": "No project memory yet.",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "inactive": "Inactive",
+    "enable": "Enable",
+    "deleteConfirm": "Delete this memory? Later conversations will no longer read it."
   }
 }

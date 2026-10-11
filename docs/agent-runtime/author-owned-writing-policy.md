@@ -12,11 +12,12 @@ Every General Agent turn receives only the writing guidance the author owns:
 
 - the current author request and conversation history;
 - editable project facts/rules from the project's `kvJson`;
-- active long-term Agent rules created by the author or explicitly approved by
-  the author;
+- the project's `PROJECT_MEMORY.md`: the author's thoughts, intentions, habits
+  and standing instructions, which the author and the Agent both edit;
 - the project's shared rolling `WORKING_MEMORY.md`, whose current revision is
   injected at turn start; updating it is optional and reserved for important
-  shared changes, with no memory tool call required on unchanged turns;
+  shared changes, with no memory tool call required on unchanged turns. Lasting
+  items move from it into Project Memory; stale items are removed;
 - durable task and runtime recovery state required to continue the requested
   work.
 
@@ -111,23 +112,28 @@ Removing content policy does not remove data integrity:
 These mechanisms protect data and authorship. They do not decide literary
 content or restrict which in-project entity the model may choose.
 
-## 4. Author rule lifecycle
+## 4. Project facts and Project Memory
 
 Project-level facts and rules are ordinary editable KV rows on the Project
 Dashboard. They are loaded verbatim on each new turn.
 
-Long-term Agent rules support `preference`, `directive` and `veto`:
+Project Memory (decided 2026-10-12) is one plain-text `PROJECT_MEMORY.md` per
+project, edited on Project Home (desktop and mobile), in Agent settings and by
+the Agent's `*_project_memory` tools:
 
-- an author-created rule is active immediately;
-- an Agent-proposed rule remains pending until the author approves it;
-- the author can delete any rule so it no longer enters later prompts;
-- approval, supersession and deletion persist through SQLite and the sync
-  outbox;
-- only active, non-deleted rules are injected.
+- the author and the Agent edit the same entries and nothing waits for
+  approval; the prompt does not distinguish who wrote an entry;
+- personal and author-level thoughts stay in the project where they were said;
+  nothing is promoted to a cross-project tier;
+- edits and deletions persist through SQLite and the sync outbox, one row per
+  entry; deletion is a soft delete with an exact inverse;
+- only active, non-deleted entries are injected, oldest first, within a
+  24,000-character prompt budget that names any omitted entries;
+- rows left `pending` by the earlier approval model stay inactive until the
+  author enables them.
 
-New projects currently start with no hidden writing rules. A future starter
-template may create ordinary visible rows, but every row must remain editable
-and deletable by the author.
+New projects currently start with an empty Project Memory and no hidden writing
+rules.
 
 ## 5. Multi-session consequence
 
@@ -151,7 +157,7 @@ The gate proves:
 - saved results and restored progress retain evidence without discouraging rereads;
 - mobile context stays out of model prompts and summaries carry no extra behavioral wrapper;
 - all five sample recovery cases append only error information and preserve inference settings;
-- author-owned project rules and approved long-term rules are injected;
+- author-owned project facts and Project Memory are injected;
 - the capability manifest declares no content scope or canon-patch gate;
 - one turn can edit arbitrary project prose entities;
 - the reported regression can append to a Drift without inheriting a stale

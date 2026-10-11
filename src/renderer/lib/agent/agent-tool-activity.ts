@@ -59,7 +59,8 @@ export function describeAgentToolActivity(
     list_relations: ['查看实体关系', 'Review relationships'],
     list_entity_relations: [`查看相关实体关系${quoted}`, `Review relationships for${quoted}`],
     list_comments: ['查看批注与待办', 'Review notes and TODOs'],
-    list_author_rules: ['查看长期写作规则', 'Review writing rules'],
+    list_project_memory: ['查看项目记忆', 'Review project memory'],
+    list_author_rules: ['查看项目记忆', 'Review project memory'],
     list_materials: ['查看参考素材', 'Review reference material'],
     read_material: [`阅读参考素材${quoted}`, `Read reference material${quoted}`],
     search_prose: [
@@ -107,9 +108,13 @@ export function describeAgentToolActivity(
     update_comment: [`更新批注或待办${quoted}`, `Update note or TODO${quoted}`],
     delete_comment: [`删除批注或待办${quoted}`, `Delete note or TODO${quoted}`],
     update_project_facts: ['更新项目设定', 'Update project facts'],
-    create_author_rule: ['添加长期写作规则', 'Add writing rule'],
-    update_author_rule: [`更新长期写作规则${quoted}`, `Update writing rule${quoted}`],
-    delete_author_rule: [`删除长期写作规则${quoted}`, `Delete writing rule${quoted}`],
+    create_project_memory: ['记入项目记忆', 'Add to project memory'],
+    update_project_memory: ['更新项目记忆', 'Update project memory'],
+    delete_project_memory: ['删除项目记忆', 'Remove project memory'],
+    // Pre-rename tool names still appear in older transcripts.
+    create_author_rule: ['记入项目记忆', 'Add to project memory'],
+    update_author_rule: ['更新项目记忆', 'Update project memory'],
+    delete_author_rule: ['删除项目记忆', 'Remove project memory'],
     create_element_patch: [`记录写作要素变化${quoted}`, `Record element evolution${quoted}`],
     update_element_patch: [`更新写作要素变化${quoted}`, `Update element evolution${quoted}`],
     delete_element_patch: [`删除写作要素变化${quoted}`, `Delete element evolution${quoted}`],
@@ -216,7 +221,6 @@ function describeDestructivePermission(
     delete_element_category: { field: 'category', zh: '删除写作要素分类', en: 'Delete element category' },
     delete_storyline: { field: 'storyline', zh: '删除故事线', en: 'Delete storyline' },
     delete_comment: { field: 'commentId', zh: '删除批注或待办', en: 'Delete note or TODO' },
-    delete_author_rule: { field: 'ruleId', zh: '删除长期写作规则', en: 'Delete writing rule' },
     delete_element_patch: { field: 'patchId', zh: '删除写作要素变化', en: 'Delete element evolution' },
   };
   const spec = specs[toolName];

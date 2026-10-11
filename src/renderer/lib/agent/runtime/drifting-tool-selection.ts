@@ -73,8 +73,8 @@ const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | unde
     delete_relation: Object.freeze(['list_relations']),
     update_comment: Object.freeze(['list_comments']),
     delete_comment: Object.freeze(['list_comments']),
-    update_author_rule: Object.freeze(['list_author_rules']),
-    delete_author_rule: Object.freeze(['list_author_rules']),
+    update_project_memory: Object.freeze(['list_project_memory']),
+    delete_project_memory: Object.freeze(['list_project_memory']),
   });
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<

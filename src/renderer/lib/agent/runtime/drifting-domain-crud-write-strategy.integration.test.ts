@@ -961,9 +961,8 @@ describe('workspace domain CRUD transactions', () => {
     expect(fixture.scalar('SELECT count(*) FROM agent_runtime_entity_write_receipt')).toBe(0);
   });
 
-  it('creates, addresses, updates, soft-deletes, and exactly reverts pending Agent memory', async () => {
-    const created = await fixture.write('memory-create', 'create_author_rule', {
-      kind: 'preference',
+  it('creates, addresses, updates, soft-deletes, and exactly reverts project memory', async () => {
+    const created = await fixture.write('memory-create', 'create_project_memory', {
       body: 'Keep dialogue terse.',
     });
     expect(created).toMatchObject({
@@ -980,11 +979,11 @@ describe('workspace domain CRUD transactions', () => {
     const memoryId = canonicalPath.slice('/memory/'.length, -'.json'.length);
     expect(await fixture.memory(memoryId)).toMatchObject({
       body: 'Keep dialogue terse.',
-      status: 'pending',
+      status: 'active',
       source: 'agent',
     });
 
-    const directory = await fixture.read('memory-list', 'list_author_rules', {});
+    const directory = await fixture.read('memory-list', 'list_project_memory', {});
     expect(directory).toMatchObject({
       ok: true,
       data: {
@@ -997,8 +996,8 @@ describe('workspace domain CRUD transactions', () => {
       },
     });
     await expect(
-      fixture.write('memory-update', 'update_author_rule', {
-        ruleId: memoryId,
+      fixture.write('memory-update', 'update_project_memory', {
+        memoryId,
         body: 'Keep dialogue terse and character-specific.',
       }),
     ).resolves.toMatchObject({ ok: true });
@@ -1010,7 +1009,7 @@ describe('workspace domain CRUD transactions', () => {
     expect((await fixture.memory(memoryId))?.body).toBe('Keep dialogue terse.');
 
     await expect(
-      fixture.write('memory-delete', 'delete_author_rule', { ruleId: memoryId }, 'author_approved'),
+      fixture.write('memory-delete', 'delete_project_memory', { memoryId }),
     ).resolves.toMatchObject({ ok: true });
     expect((await fixture.memory(memoryId))?.deletedAt).not.toBeNull();
 
@@ -1025,8 +1024,7 @@ describe('workspace domain CRUD transactions', () => {
     );
     expect(await fixture.memory(memoryId)).not.toBeNull();
 
-    const disposable = await fixture.write('memory-create-disposable', 'create_author_rule', {
-      kind: 'directive',
+    const disposable = await fixture.write('memory-create-disposable', 'create_project_memory', {
       body: 'Temporary guidance.',
     });
     const disposablePath = (disposable as { data: { result: { canonicalPath: string } } }).data
@@ -1077,17 +1075,16 @@ describe('workspace domain CRUD transactions', () => {
       'lost outer effect acknowledgement',
     );
     const arguments_ = {
-      kind: 'directive',
       body: 'Preserve the unresolved ending.',
     };
-    const interrupted = await fixture.write('memory-reconcile', 'create_author_rule', arguments_);
+    const interrupted = await fixture.write('memory-reconcile', 'create_project_memory', arguments_);
     expect(interrupted).toMatchObject({ ok: false });
     expect(fixture.scalar('SELECT count(*) FROM agent_memory')).toBe(1);
     expect(fixture.scalar('SELECT count(*) FROM agent_runtime_entity_write_receipt')).toBe(1);
 
     const recovered = await fixture.replayWrite(
       'memory-reconcile',
-      'create_author_rule',
+      'create_project_memory',
       arguments_,
     );
     expect(recovered).toMatchObject({
@@ -1115,52 +1112,42 @@ describe('workspace domain CRUD transactions', () => {
     });
   });
 
-  it('keeps approved guidance read-only and allows a separate pending proposal', async () => {
-    const created = await fixture.write('memory-approved-create', 'create_author_rule', {
-      kind: 'preference',
+  it('lets the Agent revise and delete any live project memory without approval', async () => {
+    const created = await fixture.write('memory-author-create', 'create_project_memory', {
       body: 'Use restrained imagery.',
     });
     const canonicalPath = (created as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
     const memoryId = canonicalPath.slice('/memory/'.length, -'.json'.length);
     await createAgentMemoryRepository(PROJECT_ID, fixture.database).update(memoryId, {
-      status: 'active',
+      source: 'author',
       updatedAt: '2026-08-02T00:10:00.000Z',
     });
 
-    const directory = await fixture.read('memory-approved-list', 'list_author_rules', {});
+    const directory = await fixture.read('memory-author-list', 'list_project_memory', {});
     expect(directory).toMatchObject({
       ok: true,
       data: {
-        files: [expect.objectContaining({ path: canonicalPath, writable: false })],
+        files: [expect.objectContaining({ path: canonicalPath, writable: true })],
       },
     });
     await expect(
-      fixture.write('memory-approved-overwrite', 'update_author_rule', {
-        ruleId: memoryId,
-        kind: 'preference',
-        body: 'Overwrite approved guidance.',
+      fixture.write('memory-author-revise', 'update_project_memory', {
+        memoryId,
+        body: 'Use restrained imagery except in dream sequences.',
       }),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: expect.stringContaining('Only a pending Agent proposal can be edited in place'),
+    ).resolves.toMatchObject({ ok: true });
+    expect(await fixture.memory(memoryId)).toMatchObject({
+      body: 'Use restrained imagery except in dream sequences.',
+      status: 'active',
+      source: 'author',
+      kind: 'preference',
     });
 
-    const proposal = await fixture.write('memory-supersede', 'create_author_rule', {
-      kind: 'preference',
-      body: 'Use restrained imagery except in dream sequences.',
-    });
-    const proposalPath = (proposal as { data: { result: { canonicalPath: string } } }).data.result
-      .canonicalPath;
-    const proposalId = proposalPath.slice('/memory/'.length, -'.json'.length);
-    expect(await fixture.memory(proposalId)).toMatchObject({
-      status: 'pending',
-      source: 'agent',
-    });
-    expect(await fixture.memory(memoryId)).toMatchObject({
-      status: 'active',
-      deletedAt: null,
-    });
+    await expect(
+      fixture.write('memory-author-delete', 'delete_project_memory', { memoryId }),
+    ).resolves.toMatchObject({ ok: true });
+    expect((await fixture.memory(memoryId))?.deletedAt).not.toBeNull();
   });
 
   it('creates and exactly removes every structural resource class', async () => {

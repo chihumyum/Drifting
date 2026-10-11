@@ -49,7 +49,7 @@ freshness, identity resolution, durable receipts and guarded inverse handling.
 
 ## Domain tool surface
 
-Provider tools: `get_project_overview`, `get_project_facts`, `list_chapters`, `read_chapter`, `list_inspirations`, `read_inspiration`, `list_element_categories`, `read_element_category`, `list_elements`, `read_element`, `get_element_patches`, `find_element_appearances`, `list_storylines`, `read_storyline`, `list_relations`, `list_relation_types`, `list_entity_relations`, `list_comments`, `list_author_rules`, `list_materials`, `read_material`, `search_prose`, `search_project`, `create_chapter`, `rename_chapter`, `set_chapter_summary`, `revise_chapter`, `replace_chapter_body`, `delete_chapter`, `create_inspiration`, `rename_inspiration`, `set_inspiration_summary`, `revise_inspiration`, `replace_inspiration_body`, `delete_inspiration`, `create_element`, `update_element`, `revise_element`, `replace_element_body`, `delete_element`, `create_element_category`, `update_element_category`, `replace_element_category_body`, `delete_element_category`, `create_storyline`, `update_storyline`, `revise_storyline`, `replace_storyline_body`, `delete_storyline`, `add_chapter_to_storyline`, `remove_chapter_from_storyline`, `set_chapter_primary_storyline`, `replace_storyline_chapters`, `create_relation`, `update_relation`, `delete_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_comment`, `update_comment`, `delete_comment`, `update_project_facts`, `create_author_rule`, `update_author_rule`, `delete_author_rule`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
+Provider tools: `get_project_overview`, `get_project_facts`, `list_chapters`, `read_chapter`, `list_inspirations`, `read_inspiration`, `list_element_categories`, `read_element_category`, `list_elements`, `read_element`, `get_element_patches`, `find_element_appearances`, `list_storylines`, `read_storyline`, `list_relations`, `list_relation_types`, `list_entity_relations`, `list_comments`, `list_project_memory`, `list_materials`, `read_material`, `search_prose`, `search_project`, `create_chapter`, `rename_chapter`, `set_chapter_summary`, `revise_chapter`, `replace_chapter_body`, `delete_chapter`, `create_inspiration`, `rename_inspiration`, `set_inspiration_summary`, `revise_inspiration`, `replace_inspiration_body`, `delete_inspiration`, `create_element`, `update_element`, `revise_element`, `replace_element_body`, `delete_element`, `create_element_category`, `update_element_category`, `replace_element_category_body`, `delete_element_category`, `create_storyline`, `update_storyline`, `revise_storyline`, `replace_storyline_body`, `delete_storyline`, `add_chapter_to_storyline`, `remove_chapter_from_storyline`, `set_chapter_primary_storyline`, `replace_storyline_chapters`, `create_relation`, `update_relation`, `delete_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_comment`, `update_comment`, `delete_comment`, `update_project_facts`, `create_project_memory`, `update_project_memory`, `delete_project_memory`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
 
 Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, `update_element`, `update_storyline`, `update_project_facts`, `create_node`, `delete_node`, `create_element`, `delete_element`, `create_storyline`, `delete_storyline`, `create_category`, `update_category`, `delete_category`, `create_comment`, `update_comment`, `delete_comment`, `add_relation`, `assign_relation_type`, `remove_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `set_storyline_membership`, `remember`, `update_memory`, `forget`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
 
@@ -77,7 +77,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `relation_type` | `关系类型「<名称>」` | closed | closed | closed | closed | closed |
 | `entity_relation` | `实体关系「<handle>」` | closed | closed | closed | closed | closed |
 | `storyline_membership` | `故事线「<名称>」章节关系` | closed | closed | closed | closed | closed |
-| `agent_memory` | `作者规则`, `作者规则「<handle>」` | closed | closed | closed | closed | closed |
+| `agent_memory` | `项目记忆`, `项目记忆「<memoryId>」` | closed | closed | closed | closed | closed |
 | `project_facts` | `项目事实` | not_applicable | closed | closed | not_applicable | closed |
 
 ## Installed built-in tools
@@ -87,23 +87,23 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `add_chapter_to_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `ask_user` | read | runtime-control | workspace-runtime | internal-certified |
 | `checkpoint_working_memory` | write | working-memory-runtime | working-memory-runtime | internal-certified |
-| `create_author_rule` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_comment` | write | domain-tools | drifting-runtime | write-certified |
 | `create_element` | write | domain-tools | drifting-runtime | write-certified |
 | `create_element_category` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_element_patch` | write | domain-tools | drifting-runtime | write-certified |
 | `create_inspiration` | write | domain-tools | drifting-runtime | internal-certified |
+| `create_project_memory` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_relation` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_relation_type` | write | domain-tools | drifting-runtime | write-certified |
 | `create_storyline` | write | domain-tools | drifting-runtime | write-certified |
-| `delete_author_rule` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_comment` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_element` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_element_category` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_element_patch` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_inspiration` | write | domain-tools | drifting-runtime | internal-certified |
+| `delete_project_memory` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_relation` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_relation_type` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_storyline` | write | domain-tools | drifting-runtime | internal-certified |
@@ -111,7 +111,6 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `get_element_patches` | read | domain-tools | workspace-runtime | read-certified |
 | `get_project_facts` | read | domain-tools | workspace-runtime | internal-certified |
 | `get_project_overview` | read | domain-tools | workspace-runtime | internal-certified |
-| `list_author_rules` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_chapters` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_comments` | read | domain-tools | workspace-runtime | read-certified |
 | `list_element_categories` | read | domain-tools | workspace-runtime | internal-certified |
@@ -119,6 +118,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `list_entity_relations` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_inspirations` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_materials` | read | domain-tools | workspace-runtime | read-certified |
+| `list_project_memory` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_relation_types` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_relations` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_storylines` | read | domain-tools | workspace-runtime | internal-certified |
@@ -149,12 +149,12 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `set_chapter_primary_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `set_chapter_summary` | write | domain-tools | drifting-runtime | internal-certified |
 | `set_inspiration_summary` | write | domain-tools | drifting-runtime | internal-certified |
-| `update_author_rule` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_comment` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_element` | write | domain-tools | drifting-runtime | write-certified |
 | `update_element_category` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_element_patch` | write | domain-tools | drifting-runtime | write-certified |
 | `update_project_facts` | write | domain-tools | drifting-runtime | write-certified |
+| `update_project_memory` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_relation` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_relation_type` | write | domain-tools | drifting-runtime | write-certified |
 | `update_storyline` | write | domain-tools | drifting-runtime | write-certified |
@@ -207,8 +207,8 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Content mutation scope guard: `disabled`
 - Canon patch gate: `disabled`
 - Project rules: `author-editable-project-facts`
-- Standing guidance: `author-created-or-author-approved-active-memory`
-- Guidance lifecycle: `author-editable-and-deletable`
+- Standing guidance: `project-memory-markdown-entries`
+- Guidance lifecycle: `author-and-agent-editable-and-deletable`
 - Execution safety: `data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter`
 
 ## Provider and extension platform

@@ -1,17 +1,18 @@
 /**
- * Agent memory usecases — the small, evolving store of author-level guidance
- * consumed by the General Agent (see
- * domain/agent-memory.ts + sqlite-repo/agent-memory-repo.ts).
+ * Project Memory usecases — PROJECT_MEMORY.md, the author's thoughts,
+ * intentions, habits and standing instructions for one project, consumed by
+ * every General Agent conversation (see domain/agent-memory.ts +
+ * sqlite-repo/agent-memory-repo.ts).
  *
  * Two surfaces:
- *  - Plain repo-backed helpers (createMemory / setMemoryStatus / …) used by the
+ *  - Plain repo-backed helpers (createMemory / updateMemoryBody / …) used by the
  *    agent tool handlers (which run outside React) and by the injection path.
- *  - A thin `useAgentMemory` hook for the author-facing management list.
+ *  - A thin `useAgentMemory` hook for the author-facing editor.
  *
  * Writes use the same local-row + durable-outbox transaction as other synced
- * entities. Agent-authored memories remain pending until the author approves
- * them. Approval activates the proposal and retires its superseded memory in
- * one transaction, so a crash or rejection cannot silently remove guidance.
+ * entities, one row per entry so edits on different devices merge per entry.
+ * The author and the Agent edit the same entries; nothing waits for approval.
+ * Rows still marked `pending` predate that and stay inactive until enabled.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { v7 as uuidv7 } from 'uuid';
@@ -24,6 +25,14 @@ import type {
 } from '../domain/agent-memory';
 import type { StructuralEntityKind } from '../domain/entity-kinds';
 import { withAtomicSyncTransaction } from './sync-helpers';
+
+export const AGENT_MEMORY_CHANGED_EVENT = 'drifting:agent-memory-changed';
+
+/** Tell mounted Project Memory views that this project's entries changed. */
+export function notifyAgentMemoryChanged(projectId: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(AGENT_MEMORY_CHANGED_EVENT, { detail: { projectId } }));
+}
 
 // The create payload pushed to the server (projectId is in the URL, not the body).
 function memorySyncPayload(m: AgentMemory): Record<string, unknown> {
@@ -62,8 +71,8 @@ export async function createMemory(
   input: CreateAgentMemoryInput,
 ): Promise<AgentMemory> {
   const now = new Date().toISOString();
-  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
-    const created = await createAgentMemoryRepository(projectId, tx).create({
+  const created = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const row = await createAgentMemoryRepository(projectId, tx).create({
       id: uuidv7(),
       projectId,
       kind: input.kind,
@@ -79,9 +88,11 @@ export async function createMemory(
       updatedAt: now,
       deletedAt: null,
     });
-    await sync('agentMemory', 'create', created.id, projectId, memorySyncPayload(created));
-    return created;
+    await sync('agentMemory', 'create', row.id, projectId, memorySyncPayload(row));
+    return row;
   });
+  notifyAgentMemoryChanged(projectId);
+  return created;
 }
 
 /** Flip a memory's status (e.g. approve a pending → 'active', or 'dismissed'). */
@@ -91,11 +102,13 @@ export async function setMemoryStatus(
   status: AgentMemoryStatus,
 ): Promise<AgentMemory | null> {
   const updatedAt = new Date().toISOString();
-  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
-    const row = await createAgentMemoryRepository(projectId, tx).update(id, { status, updatedAt });
-    if (row) await sync('agentMemory', 'update', id, projectId, { status, updatedAt });
-    return row;
+  const row = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const updated = await createAgentMemoryRepository(projectId, tx).update(id, { status, updatedAt });
+    if (updated) await sync('agentMemory', 'update', id, projectId, { status, updatedAt });
+    return updated;
   });
+  notifyAgentMemoryChanged(projectId);
+  return row;
 }
 
 /**
@@ -108,7 +121,7 @@ export async function approvePendingMemory(
   id: string,
 ): Promise<AgentMemory> {
   const updatedAt = new Date().toISOString();
-  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+  const approved = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
     const repo = createAgentMemoryRepository(projectId, tx);
     const candidate = await repo.findById(id);
     if (!candidate || candidate.deletedAt) {
@@ -152,6 +165,8 @@ export async function approvePendingMemory(
     }
     return active;
   });
+  notifyAgentMemoryChanged(projectId);
+  return approved;
 }
 
 /** Update a memory's body (and optionally retire the one it supersedes). */
@@ -161,11 +176,13 @@ export async function updateMemoryBody(
   body: string,
 ): Promise<AgentMemory | null> {
   const updatedAt = new Date().toISOString();
-  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
-    const row = await createAgentMemoryRepository(projectId, tx).update(id, { body, updatedAt });
-    if (row) await sync('agentMemory', 'update', id, projectId, { body, updatedAt });
-    return row;
+  const row = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const updated = await createAgentMemoryRepository(projectId, tx).update(id, { body, updatedAt });
+    if (updated) await sync('agentMemory', 'update', id, projectId, { body, updatedAt });
+    return updated;
   });
+  notifyAgentMemoryChanged(projectId);
+  return row;
 }
 
 /** Soft-delete a memory (kept for provenance; drops out of all reads). The
@@ -176,6 +193,7 @@ export async function softDeleteMemory(projectId: string, id: string): Promise<v
     await createAgentMemoryRepository(projectId, tx).softDelete(id, deletedAt);
     await sync('agentMemory', 'update', id, projectId, { deletedAt, updatedAt: deletedAt });
   });
+  notifyAgentMemoryChanged(projectId);
 }
 
 /** Live (not deleted) memories for the project, newest first. */
@@ -191,19 +209,23 @@ export async function loadActiveMemories(projectId: string): Promise<AgentMemory
   return createAgentMemoryRepository(projectId).listByStatus('active');
 }
 
-/** Compact {kind, body} form passed across IPC into the agent's system prompt. */
+/** Compact PROJECT_MEMORY.md entries for the Agent system prompt, oldest
+ *  first so unchanged memory keeps a stable prompt prefix. */
 export async function loadActiveMemoryHints(
   projectId: string,
-): Promise<{ kind: AgentMemoryKind; body: string }[]> {
+): Promise<{ id: string; kind: AgentMemoryKind; body: string }[]> {
   const rows = await loadActiveMemories(projectId);
-  return rows.map((m) => ({ kind: m.kind, body: m.body }));
+  return [...rows]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    .map((m) => ({ id: m.id, kind: m.kind, body: m.body }));
 }
 
 /**
- * Author-facing management hook for the memory list (view / approve / dismiss /
- * delete). Fetches on mount and exposes `refresh` for callers that just wrote.
- * Assumes the DB is already initialized (the agent panel only renders inside an
- * open project); a read before init simply yields an empty list.
+ * Author-facing Project Memory hook: the live entries oldest first (document
+ * order, matching the prompt), plus add / edit / enable / delete. It refreshes
+ * when any writer in this window reports a change and when the window regains
+ * focus, which also picks up entries that arrived through sync.
+ * Assumes the DB is already initialized; a read before init yields no entries.
  */
 export function useAgentMemory(projectId: string) {
   const [memories, setMemories] = useState<AgentMemory[]>([]);
@@ -211,53 +233,91 @@ export function useAgentMemory(projectId: string) {
   const refresh = useCallback(async () => {
     if (!projectId) return;
     try {
-      setMemories(await listLiveMemories(projectId));
+      setMemories(sortMemoriesForDocument(await listLiveMemories(projectId)));
     } catch {
       setMemories([]);
     }
   }, [projectId]);
 
-  // Mount fetch: setState only inside the resolve callback (external-state
-  // subscription shape) + cleanup guard — clear of react-hooks/set-state-in-effect.
+  // setState only inside resolve callbacks (external-state subscription shape)
+  // with a cleanup guard — clear of react-hooks/set-state-in-effect.
   useEffect(() => {
     if (!projectId) return;
     let alive = true;
-    listLiveMemories(projectId)
-      .then((rows) => {
-        if (alive) setMemories(rows);
-      })
-      .catch(() => undefined);
+    const load = () => {
+      listLiveMemories(projectId)
+        .then((rows) => {
+          if (alive) setMemories(sortMemoriesForDocument(rows));
+        })
+        .catch(() => undefined);
+    };
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      if (!detail?.projectId || detail.projectId === projectId) load();
+    };
+    load();
+    window.addEventListener(AGENT_MEMORY_CHANGED_EVENT, onChanged);
+    window.addEventListener('focus', load);
     return () => {
       alive = false;
+      window.removeEventListener(AGENT_MEMORY_CHANGED_EVENT, onChanged);
+      window.removeEventListener('focus', load);
     };
   }, [projectId]);
+
+  const add = useCallback(
+    async (body: string) => {
+      const trimmed = body.trim();
+      if (!trimmed) return;
+      await createMemory(projectId, {
+        kind: 'preference',
+        body: trimmed,
+        source: 'author',
+        status: 'active',
+      });
+    },
+    [projectId],
+  );
+
+  const edit = useCallback(
+    async (id: string, body: string) => {
+      const trimmed = body.trim();
+      if (!trimmed) return;
+      await updateMemoryBody(projectId, id, trimmed);
+    },
+    [projectId],
+  );
 
   const approve = useCallback(
     async (id: string) => {
       await approvePendingMemory(projectId, id);
-      await refresh();
     },
-    [projectId, refresh],
+    [projectId],
   );
 
   const dismiss = useCallback(
     async (id: string) => {
       await setMemoryStatus(projectId, id, 'dismissed');
-      await refresh();
     },
-    [projectId, refresh],
+    [projectId],
   );
 
   const remove = useCallback(
     async (id: string) => {
       await softDeleteMemory(projectId, id);
-      await refresh();
     },
-    [projectId, refresh],
+    [projectId],
   );
 
   return useMemo(
-    () => ({ memories, refresh, approve, dismiss, remove }),
-    [memories, refresh, approve, dismiss, remove],
+    () => ({ memories, refresh, add, edit, approve, dismiss, remove }),
+    [memories, refresh, add, edit, approve, dismiss, remove],
   );
+}
+
+/** Live, non-retired entries in PROJECT_MEMORY.md order (oldest first). */
+export function sortMemoriesForDocument(rows: readonly AgentMemory[]): AgentMemory[] {
+  return rows
+    .filter((m) => m.status !== 'dismissed' && !m.deletedAt)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }

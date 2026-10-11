@@ -1,10 +1,10 @@
 {
   "suite": "milestone-h-author-owned-writing-policy",
   "schemaVersion": 2,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": null,
-  "sourceSetSha256": "sha256:793cd186f0973e98371549206413fc2d1a97208c590be9d80c6b90b114163057",
+  "gitHead": "a91ec6e2c2d7fbcee52a9e0bb5f418a5a11eb4f9",
+  "sourceSetSha256": "sha256:4e7e71ebf1a6169cdb75a63dbbf46c27fd3012c63b62ec11ed23bfd6ca2631a8",
   "evidence": {
     "productWritingDefaults": "none",
     "editorContextInjected": false,
@@ -30,8 +30,8 @@
       "discovered": 16
     },
     "tests": {
-      "total": 229,
-      "passed": 229,
+      "total": 236,
+      "passed": 236,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -52,8 +52,8 @@
         "requiredFiles": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 63,
-          "passed": 63,
+          "total": 66,
+          "passed": 66,
           "failed": 0,
           "pending": 0
         },
@@ -85,8 +85,8 @@
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 18,
-          "passed": 18,
+          "total": 22,
+          "passed": 22,
           "failed": 0,
           "pending": 0
         },
@@ -111,7 +111,7 @@
         "passed": true
       },
       "authorOwnedPromptRules": {
-        "requiredName": "injects only author-owned project facts and approved standing guidance",
+        "requiredName": "injects only author-owned project facts and project memory",
         "matches": 1,
         "passed": true
       },

@@ -27,7 +27,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(56);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(57);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).toContain('A TODO is not a substitute for completing the requested work');
@@ -92,13 +92,14 @@ describe('Drifting General Agent system prompt', () => {
   it('leaves writing policy to the author and injects only author-owned rules', () => {
     const system = prompt({
       projectFacts: [{ key: '叙述规则', value: '允许自由切换视角' }],
-      memories: [{ kind: 'directive', body: '本项目可以主动重构时间线。' }],
+      memories: [{ id: 'mem-1', kind: 'directive', body: '本项目可以主动重构时间线。' }],
     });
 
     expect(system).toContain('Author-defined project facts and rules:');
     expect(system).toContain('- 叙述规则: 允许自由切换视角');
-    expect(system).toContain('Author-approved standing guidance:');
-    expect(system).toContain('- [directive] 本项目可以主动重构时间线。');
+    expect(system).toContain('PROJECT_MEMORY.md is the project memory shared by the author and every Agent conversation');
+    expect(system).toContain('## memoryId mem-1\n本项目可以主动重构时间线。');
+    expect(system).not.toContain('[directive]');
     expect(system).toContain('Do not invent project-wide style, plot, canon, POV, tense, voice');
     expect(system).toContain('Those choices belong to the author');
     expect(system).not.toContain('Authoring-intent contract');

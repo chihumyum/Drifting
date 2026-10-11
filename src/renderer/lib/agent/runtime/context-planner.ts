@@ -1504,6 +1504,7 @@ function authoredToolTargetFingerprint(row: AgentContextSourceRow): string | nul
     'relationId',
     'commentId',
     'ruleId',
+    'memoryId',
     'patchId',
     'memory',
     'id',

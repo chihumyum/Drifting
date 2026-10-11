@@ -614,7 +614,7 @@ describe('LocalGeneralAgentTransport', () => {
             expect(request.systemPrompt).toContain('only project "project-a"');
             expect(request.systemPrompt).not.toContain('Write manuscript-facing content in');
             expect(request.systemPrompt).toContain('POV: first person');
-            expect(request.systemPrompt).toContain('[ruling] keep the ending');
+            expect(request.systemPrompt).toContain('- keep the ending');
           },
           steps: finalSteps('answer-a1'),
         },

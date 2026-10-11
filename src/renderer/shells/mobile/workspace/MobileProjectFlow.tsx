@@ -8,6 +8,7 @@ import { useProjectStore } from '../../../store/project-store';
 import { useRecentEntitiesStore } from '../../../store/recent-entities-store';
 import { useWritingStatsStore } from '../../../store/writing-stats-store';
 import { canonicalWordCount, isChapter, isDrift, type BookNode } from '../../../domain/book-node';
+import { ProjectMemoryEditor } from '../../../features/agent/ProjectMemoryEditor';
 
 const STORY_TOKENS = [
   '--story-1',
@@ -314,6 +315,14 @@ export function MobileProjectFlow({ onOpenChapters, projectActions }: MobileProj
         </>
       )}
 
+      {currentProject && (
+        <>
+          <span className="m-flow__label">{t('projectMemory.title')}</span>
+          <div className="m-flow__section">
+            <ProjectMemoryEditor projectId={currentProject.id} compact />
+          </div>
+        </>
+      )}
     </div>
   );
 }

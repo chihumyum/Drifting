@@ -62,7 +62,7 @@ export function describeWorkspaceDomainTarget(path: string): string {
     case 'relations':
       return namedTarget('实体关系', stripExtension(segments[1]));
     case 'memory':
-      return namedTarget('作者规则', stripExtension(segments[1]));
+      return namedTarget('项目记忆', stripExtension(segments[1]));
     case 'materials':
       return namedTarget('素材', stripExtension(segments[1]));
     case 'project':

@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 56 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 57 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -10,8 +10,8 @@ export const AGENT_AUTHOR_CONTROL_CONTRACT = {
   contentMutationScopeGuard: 'disabled',
   canonPatchGate: 'disabled',
   projectRules: 'author-editable-project-facts',
-  standingGuidance: 'author-created-or-author-approved-active-memory',
-  guidanceLifecycle: 'author-editable-and-deletable',
+  standingGuidance: 'project-memory-markdown-entries',
+  guidanceLifecycle: 'author-and-agent-editable-and-deletable',
   executionSafety:
     'data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter',
 } as const;
@@ -19,6 +19,46 @@ export const AGENT_AUTHOR_CONTROL_CONTRACT = {
 function clean(value: string, maxLength: number): string {
   const normalized = value.split('\u0000').join('').trim();
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
+}
+
+const PROJECT_MEMORY_PROMPT_CHARACTERS = 24_000;
+const PROJECT_MEMORY_ENTRY_CHARACTERS = 4_000;
+
+/**
+ * PROJECT_MEMORY.md: the author's thoughts, intentions, habits and standing
+ * instructions for this project, shared by the author and every Agent. Book
+ * truth stays in project objects. Oldest entries render first so the prefix
+ * stays stable; entries beyond the budget are named, not silently dropped.
+ */
+function renderProjectMemory(
+  memories: NonNullable<AgentStartInput['memories']>,
+  readOnly: boolean,
+): string[] {
+  const header = readOnly
+    ? 'PROJECT_MEMORY.md is the project memory shared by the author and every Agent conversation: the author\'s thoughts, intentions, habits, and standing instructions for this project. Follow it as author guidance. It is read-only for this answer-only turn.'
+    : 'PROJECT_MEMORY.md is the project memory shared by the author and every Agent conversation: the author\'s thoughts, intentions, habits, and standing instructions for this project. Follow it as author guidance. Book facts belong in project objects, not here. Keep it current with the project memory tools: record lasting author context when you learn it, revise entries that changed, and delete stale or duplicate ones.';
+  const entries: string[] = [];
+  let used = 0;
+  let omitted = 0;
+  for (const memory of memories) {
+    const body = clean(memory.body, PROJECT_MEMORY_ENTRY_CHARACTERS);
+    if (!body) continue;
+    const entry = memory.id ? `## memoryId ${clean(memory.id, 100)}\n${body}` : `- ${body}`;
+    if (used + entry.length > PROJECT_MEMORY_PROMPT_CHARACTERS) {
+      omitted += 1;
+      continue;
+    }
+    entries.push(entry);
+    used += entry.length;
+  }
+  if (entries.length === 0) return [header, '(empty)'];
+  return [
+    header,
+    ...entries,
+    ...(omitted > 0
+      ? [`(${omitted} more entries are omitted here; read them with list_project_memory.)`]
+      : []),
+  ];
 }
 
 /** Deterministic, provider-neutral Drifting policy/context prompt. */
@@ -34,7 +74,7 @@ export function buildDriftingAgentSystemPrompt(
       ? `The canonical project name is ${JSON.stringify(projectName)}.`
       : 'No canonical project name was provided for this turn.',
     'The project id is an opaque identifier, not a title. Never derive, guess, or claim the project name from projectId.',
-    'Work with authored chapters, ideas, elements, storylines, notes, relations, and author rules. Reuse exact authored labels as tool targets. Call drift nodes ideas in English and 构想 in Chinese; they are not element categories.',
+    'Work with authored chapters, ideas, elements, storylines, notes, relations, and project memory. Reuse exact authored labels as tool targets. Call drift nodes ideas in English and 构想 in Chinese; they are not element categories.',
     'Match reading coverage to the request. When the author asks you to read or review a complete work or named set of chapters, read that full scope, continuing through body cursors as needed. Search excerpts and summaries can help locate evidence but do not substitute for requested full reading. Be accurate about what you have and have not read.',
     'Object reads may include summaries, semantic links, direct relations, and related excerpts. Links are relationships, not prose. An explicit empty-body result means the body is unfilled. In notes and TODOs, 内容 is the note and 引用正文 is only its anchored excerpt.',
     "Use project objects as needed to fulfill the request. The runtime enforces the author's destructive-operation approval preference.",
@@ -51,7 +91,7 @@ export function buildDriftingAgentSystemPrompt(
     'Use ask_user when a missing author decision blocks progress; use available project evidence for factual questions.',
     input.toolAccess === 'read_only'
       ? 'Working Memory is shared short-lived context, but it is read-only for this answer-only turn. Do not call checkpoint_working_memory or claim to update it.'
-      : 'Working Memory is shared recent context, already supplied at turn start. It is not canon or standing guidance. Update it when important shared context changes; keep unresolved work and useful recent results, without manuscript copies, secrets, or private reasoning.',
+      : 'Working Memory is shared recent context, already supplied at turn start. It is not canon or project memory. Update it when important shared context changes; keep unresolved work and useful recent results, without manuscript copies, secrets, or private reasoning.',
   ];
 
   if (input.toolAccess === 'read_only') {
@@ -75,17 +115,7 @@ export function buildDriftingAgentSystemPrompt(
     lines.push('Author-defined project facts and rules:', ...facts);
   }
 
-  const memories = (input.memories ?? [])
-    .slice(0, 64)
-    .map(({ kind, body }) => {
-      const cleanKind = clean(kind, 100) || 'guidance';
-      const cleanBody = clean(body, 2_000);
-      return cleanBody ? `- [${cleanKind}] ${cleanBody}` : '';
-    })
-    .filter(Boolean);
-  if (memories.length > 0) {
-    lines.push('Author-approved standing guidance:', ...memories);
-  }
+  lines.push(...renderProjectMemory(input.memories ?? [], input.toolAccess === 'read_only'));
 
   const workingMemory = input.workingMemory;
   if (workingMemory) {

@@ -1,0 +1,168 @@
+/* PROJECT_MEMORY.md editor — shared by Project Home, Agent settings and the
+   mobile project home. Entries read as one plain-text document. */
+
+.pmem {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pmem__desc {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: hsl(var(--ink-3));
+}
+
+.pmem__empty {
+  padding: 14px 16px;
+  border: 1px dashed hsl(var(--rule));
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: hsl(var(--ink-4));
+}
+
+.pmem__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 6px;
+  background: hsl(var(--surface));
+  overflow: hidden;
+}
+
+.pmem__entry {
+  position: relative;
+  padding: 11px 14px;
+  min-width: 0;
+}
+
+.pmem__entry + .pmem__entry {
+  border-top: 1px solid hsl(var(--rule));
+}
+
+.pmem__entry--inactive .pmem__body {
+  color: hsl(var(--ink-4));
+}
+
+.pmem__body {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: hsl(var(--ink-1));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pmem__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Row actions stay out of the reading flow until the entry is hovered or
+   focused; touch devices always show them. */
+.pmem__actions--hover {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.pmem__entry:hover .pmem__actions--hover,
+.pmem__entry:focus-within .pmem__actions--hover,
+.pmem__entry--inactive .pmem__actions--hover {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .pmem__actions--hover {
+    opacity: 1;
+  }
+}
+
+.pmem__tag {
+  margin-right: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-4));
+}
+
+.pmem__btn {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+}
+
+.pmem__btn:hover:not(:disabled) {
+  border-color: hsl(var(--ink-4));
+  color: hsl(var(--ink-1));
+}
+
+.pmem__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pmem__btn--primary {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+  color: hsl(var(--paper));
+}
+
+.pmem__btn--primary:hover:not(:disabled) {
+  background: hsl(var(--accent) / 0.88);
+  border-color: hsl(var(--accent) / 0.88);
+  color: hsl(var(--paper));
+}
+
+.pmem__btn--danger {
+  color: hsl(var(--accent));
+}
+
+.pmem__textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 52px;
+  padding: 9px 11px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 6px;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.pmem__textarea:focus {
+  outline: none;
+  border-color: hsl(var(--ink-4));
+}
+
+.pmem__textarea::placeholder {
+  color: hsl(var(--ink-4));
+}
+
+.pmem--compact .pmem__body,
+.pmem--compact .pmem__textarea {
+  font-size: 13px;
+}
+
+.pmem--compact .pmem__entry {
+  padding: 10px 12px;
+}

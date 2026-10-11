@@ -1057,7 +1057,7 @@
       "unlimitedHint": "选择「无限制」时，唯一的刹车是你手动停止。"
     },
     "agentMemory": {
-      "title": "Agent 规则",
+      "title": "项目记忆",
       "desc": "由你掌控的长期规则。这里生效的偏好、指令和否决会原样注入后续对话；你可以随时新增或删除。Agent 提议的规则必须先由你批准，产品不会额外添加隐藏的写作规范。",
       "kind": {
         "preference": "偏好",
@@ -1610,11 +1610,11 @@
       "reviewEditsTitle": "开启后，Agent 会直接把正文改动写入编辑器，并在原文位置展示彩色 diff 与接受/拒绝按钮；关闭后，改动会自动播放 reveal 动画并完成。删除类操作使用下方独立权限设置。",
       "dangerousOperations": "允许危险操作",
       "dangerousOperationsTitle": "开启后，Agent 删除章节、构想、元素、关系、批注或其他对象时不再逐次请求批准。只影响之后发起的操作；项目隔离、参数校验、并发检查与持久化回执仍然生效。",
-      "memory": "规则",
-      "memoryTitle": "由你管理的长期偏好 / 指令 / 否决；只有生效条目会注入后续对话。",
-      "manageMemory": "管理规则",
-      "noMemory": "暂无规则",
-      "approveMemory": "批准（开始生效）"
+      "memory": "记忆",
+      "memoryTitle": "你和 Agent 共同维护的项目记忆，每次对话都会读到。",
+      "manageMemory": "项目记忆",
+      "noMemory": "暂无项目记忆",
+      "approveMemory": "启用"
     },
     "memoryKind": {
       "veto": "否决",
@@ -3401,5 +3401,20 @@
       "deleteCategory": "删除类目",
       "deleteStoryline": "删除故事线"
     }
+  },
+  "projectMemory": {
+    "title": "项目记忆",
+    "short": "记忆",
+    "desc": "你对这部作品的想法、意图、习惯和长期指令。你和 Agent 都可以修改，每次对话都会读到；书中事实请写进要素、故事线等对象。",
+    "placeholder": "记下一条……（⌘↩ 保存）",
+    "add": "记下",
+    "empty": "还没有项目记忆。",
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "inactive": "未启用",
+    "enable": "启用",
+    "deleteConfirm": "删除这条项目记忆？之后的对话将不再读到它。"
   }
 }

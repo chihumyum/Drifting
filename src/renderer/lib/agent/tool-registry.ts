@@ -376,7 +376,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_memory',
-    description: '列出本项目仍有效或待确认的 Agent 记忆，包括偏好、否决和长期指令。',
+    description: '列出本项目 PROJECT_MEMORY.md 的全部条目。',
     parametersSchema: noArgs,
     aliases: ['memories', '记忆', '长期指令'],
   },
@@ -940,10 +940,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'remember',
-    description: '保存作者级长期偏好、否决或指令；故事事实应写入 canon 而不是记忆。',
+    description: '向项目记忆新增一条作者的想法、意图、习惯或长期指令；故事事实应写入 canon 而不是记忆。',
     parametersSchema: Type.Object(
       {
-        kind: str('preference | veto | directive'),
+        kind: optionalStr('preference | veto | directive'),
         body: str('自包含的记忆文本'),
         target: optionalStr('可选关联实体名称'),
         targetKind: optionalStr('node | element | storyline | category'),
@@ -961,15 +961,15 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'forget',
-    description: '按 memoryId 软删除一条 Agent 记忆。',
+    description: '按 memoryId 删除一条过时或重复的项目记忆。',
     parametersSchema: Type.Object(
       { memoryId: str('来自 list_memory 的 memoryId') },
       { additionalProperties: false },
     ),
-    risk: 'high',
+    risk: 'medium',
     effect: 'memory',
     concurrency: 'exclusive_project',
-    approval: 'confirm_before',
+    approval: 'automatic',
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['retire memory', '忘记'],
@@ -1331,7 +1331,7 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
     ),
     20_000,
   ),
-  domainRuntimeReadSpec('list_author_rules', '列出 Agent 保存的作者偏好、否决和长期指令。'),
+  domainRuntimeReadSpec('list_project_memory', '列出 PROJECT_MEMORY.md 的全部条目及 memoryId。'),
 ];
 
 const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
@@ -1543,35 +1543,34 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
     { effect: 'annotation', concurrency: 'exclusive_project' },
   ),
   domainRuntimeWriteSpec(
-    'create_author_rule',
-    '保存一条作者长期偏好、否决或指令。',
+    'create_project_memory',
+    '向 PROJECT_MEMORY.md 新增一条项目记忆：作者的想法、意图、习惯或长期指令。书中事实写入对应实体而不是记忆。',
+    Type.Object(
+      { body: str('自包含的 Markdown 文字') },
+      { additionalProperties: false },
+    ),
+    { effect: 'memory', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_project_memory',
+    '改写一条项目记忆。',
     Type.Object(
       {
-        kind: Type.Union([Type.Literal('preference'), Type.Literal('veto'), Type.Literal('directive')]),
-        body: str('自包含的规则文字'),
+        memoryId: str('来自 PROJECT_MEMORY.md 或 list_project_memory 的 memoryId'),
+        body: str('完整替换后的 Markdown 文字'),
       },
       { additionalProperties: false },
     ),
     { effect: 'memory', concurrency: 'exclusive_project' },
   ),
   domainRuntimeWriteSpec(
-    'update_author_rule',
-    '更新一条 Agent 创建的作者规则。',
+    'delete_project_memory',
+    '删除一条过时或重复的项目记忆。',
     Type.Object(
-      {
-        ruleId: str('来自 list_author_rules 的 memoryId'),
-        kind: Type.Optional(Type.Union([Type.Literal('preference'), Type.Literal('veto'), Type.Literal('directive')])),
-        body: optionalStr('新规则文字'),
-      },
+      { memoryId: str('来自 PROJECT_MEMORY.md 或 list_project_memory 的 memoryId') },
       { additionalProperties: false },
     ),
-    { effect: 'memory', concurrency: 'exclusive_project' },
-  ),
-  domainRuntimeWriteSpec(
-    'delete_author_rule',
-    '删除一条 Agent 创建的作者规则；默认请求作者确认。',
-    Type.Object({ ruleId: str('来自 list_author_rules 的 memoryId') }, { additionalProperties: false }),
-    { risk: 'high', effect: 'memory', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+    { effect: 'memory', concurrency: 'exclusive_project', retry: 'never' },
   ),
 ];
 

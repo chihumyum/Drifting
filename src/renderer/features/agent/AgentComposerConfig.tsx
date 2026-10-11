@@ -10,6 +10,7 @@ import {
 } from '../../store/settings-store';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
+import { requestConfirmation } from '../../store/confirmation-store';
 import { Switch } from '../../components/ui/Switch';
 import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider-contract';
@@ -248,13 +249,9 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                 {visibleMemories.map((m) => (
                   <div key={m.id} className="agt-mem">
                     <div className="agt-mem__main">
-                      <span className={'agt-mem__kind agt-mem__kind--' + m.kind}>
-                        {m.kind === 'veto'
-                          ? t('agentPanel.memoryKind.veto')
-                          : m.kind === 'directive'
-                            ? t('agentPanel.memoryKind.directive')
-                            : t('agentPanel.memoryKind.preference')}
-                      </span>
+                      {m.status === 'pending' && (
+                        <span className="agt-mem__kind">{t('projectMemory.inactive')}</span>
+                      )}
                       <span className="agt-mem__body" title={m.body}>
                         {m.body}
                       </span>
@@ -274,7 +271,11 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                         type="button"
                         className="agt-mem__btn agt-mem__btn--del"
                         title={t('common.delete')}
-                        onClick={() => void memory.remove(m.id)}
+                        onClick={() =>
+                          void requestConfirmation(t('projectMemory.deleteConfirm')).then(
+                            (confirmed) => (confirmed ? memory.remove(m.id) : undefined),
+                          )
+                        }
                       >
                         ✕
                       </button>

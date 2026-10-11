@@ -12,6 +12,7 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
+import { ProjectMemoryEditor } from '../features/agent/ProjectMemoryEditor';
 import {
   canonicalWordCount,
   deriveStatus,
@@ -25,6 +26,7 @@ import {
   GitBranch,
   LayoutDashboard,
   ListTree,
+  NotebookPen,
   Plus,
   Settings2,
 } from 'lucide-react';
@@ -1140,6 +1142,24 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               </div>
             </section>
           </div>
+        )}
+
+        {/* ════════ PROJECT MEMORY ════════
+            PROJECT_MEMORY.md: the author's thoughts and standing instructions,
+            shared with every Agent conversation. Book truth stays above. */}
+        {dashboardView === 'structure' && currentProject && (
+          <section className="dash-section">
+            <div className="dash-section__head">
+              <div className="dash-section__title">
+                <NotebookPen className="dash-section__title-mark" size={18} aria-hidden="true" />
+                <span className="dash-section__title-cn">{t('projectMemory.title')}</span>
+                <span className="dash-section__title-en">PROJECT_MEMORY.md</span>
+              </div>
+            </div>
+            <div style={{ padding: '0 4px' }}>
+              <ProjectMemoryEditor projectId={currentProject.id} />
+            </div>
+          </section>
         )}
 
         {/* ════════ FOOTER ════════ */}

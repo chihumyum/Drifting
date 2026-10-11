@@ -273,8 +273,8 @@ describe('Drifting Agent capability manifest', () => {
       contentMutationScopeGuard: 'disabled',
       canonPatchGate: 'disabled',
       projectRules: 'author-editable-project-facts',
-      standingGuidance: 'author-created-or-author-approved-active-memory',
-      guidanceLifecycle: 'author-editable-and-deletable',
+      standingGuidance: 'project-memory-markdown-entries',
+      guidanceLifecycle: 'author-and-agent-editable-and-deletable',
       executionSafety:
         'data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter',
     });

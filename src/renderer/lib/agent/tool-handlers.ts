@@ -2109,7 +2109,7 @@ async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>
     kind,
     body,
     source: 'agent',
-    status: 'pending',
+    status: 'active',
     targetKind,
     targetId,
     originRef,
@@ -2118,7 +2118,6 @@ async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>
 
   return {
     ok: true,
-    pendingReview: true,
     memoryId: created.id,
     originRef,
   };
@@ -2150,9 +2149,6 @@ async function listMemoryTool(ctx: AgentToolContext, _args: Record<string, unkno
 async function forgetTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.memoryId ?? '');
   if (!id) throw new Error('forget requires memoryId');
-  if (!(await requestAgentConfirm('Agent 想删除一条记忆。允许吗？', confirmOptions(ctx)))) {
-    return { ok: false, declined: true };
-  }
   await softDeleteMemory(ctx.projectId, id);
   return { ok: true, memoryId: id };
 }

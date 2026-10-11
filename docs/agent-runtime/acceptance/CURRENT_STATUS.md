@@ -116,7 +116,7 @@ pnpm agent:capabilities:check
   provider surface. Paths, JSON documents, Yjs, SQLite, revisions, and storage
   identifiers remain runtime implementation details.
 - Chapter, inspiration, element, category, storyline, membership, relation type, relation,
-  comment/TODO, project fact, author-rule, memory, and element-patch lifecycle
+  comment/TODO, project fact, Project Memory, and element-patch lifecycle
   support is generated and machine checked.
 - During an author-requested write task, General Agent may leave a concise,
   evidence-backed incidental finding as an existing Comment/TODO on the
@@ -183,14 +183,19 @@ pnpm agent:capabilities:check
 - Agent chats are independent flat sessions. Author-visible Agent checkpoint,
   conversation rewind, and conversation-fork hierarchy are not product
   concepts; manuscript recovery belongs to entity snapshot history.
+- Every project has one plain-text `PROJECT_MEMORY.md` (the synced
+  `agent_memory` rows, one per entry): the author's thoughts, intentions,
+  habits and standing instructions. The author and the Agent edit it through
+  Project Home, Agent settings and the `*_project_memory` tools without an
+  approval step; active entries are injected oldest first. Book truth stays in
+  domain objects. See `../domain-crud-transaction-protocol.md` §9.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
   start. Working Memory writes are optional: call `checkpoint_working_memory`
   with `update` only when important shared context changed; otherwise answer
   directly without a memory tool call. There is no `noop` operation or mandatory
   pre-final checkpoint. It is intentionally recent working context, not project
-  history, canon, manuscript prose, a transcript or the long-term author-rule
-  store. SQLite owns a revision-CAS singleton; local mutation and sync outbox are
+  history, canon, manuscript prose, a transcript or Project Memory. SQLite owns a revision-CAS singleton; local mutation and sync outbox are
   atomic; 6k/8k soft/hard token bounds retire the oldest completed `Recent`
   entries while preserving `Current` and the two newest exact entries.
 - The desktop General Agent panel can preview, edit, create and clear Working

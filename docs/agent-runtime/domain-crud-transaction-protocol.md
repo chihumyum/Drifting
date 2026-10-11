@@ -10,7 +10,7 @@ review, and crash-consistency invariants underneath the domain-tool boundary.
 
 The installed model surface is the complete generated set of explicit domain
 tools. Chapters, inspirations, elements, element categories, storylines,
-storyline memberships, relations, comments/TODOs, project facts, author rules,
+storyline memberships, relations, comments/TODOs, project facts, project memory,
 and element patches each have their own named operations. Examples include
 `read_chapter`, `revise_chapter`, `create_element`, `update_element`,
 `create_relation`, and `delete_relation`. There is no generic authored-object
@@ -26,7 +26,7 @@ Inputs use one direct domain noun such as `chapter`, `element`, `category`, or
 `relationId`, plus only the fields needed by that operation. They do not expose
 paths, extensions, SQLite row ids, Yjs updates, block handles, revision tokens,
 receipt ids, or sync mutations. Only comments, relations, element patches, and
-author rules keep opaque handles after creation, because those handles
+project memory entries keep opaque handles after creation, because those handles
 distinguish otherwise unnamed domain objects.
 
 Every provider schema is kept deliberately narrow as a design constraint that
@@ -45,7 +45,7 @@ generic authored-object shape must fail.
 | Storyline membership | `故事线「<名称>」章节关系`         |
 | Comments and TODOs   | `批注或待办「<handle>」`           |
 | Entity relations     | `实体关系「<handle>」`             |
-| Agent memory         | `作者规则「<handle>」`             |
+| Project memory       | `项目记忆「<memoryId>」`           |
 | Project facts        | `项目事实`                         |
 
 Creation returns a canonical semantic result containing the created handle when
@@ -67,7 +67,7 @@ capability inventory.
 | Comments and TODOs                                     | SQLite                                     | comment store/editor decorations         |
 | Entity relations                                       | SQLite                                     | relation store and semantic links        |
 | Storyline membership and primary assignment            | SQLite link graph                          | storyline/node mapping stores            |
-| Agent memory                                           | SQLite                                     | prompt memory and author-rule projection |
+| Project memory                                         | SQLite                                     | PROJECT_MEMORY.md prompt projection      |
 | Review decisions                                       | SQLite ordered review blocks               | editor review badges and animations      |
 | Cross-device delivery                                  | transactional local sync outbox            | SyncEngine provider object-log sync      |
 
@@ -161,7 +161,7 @@ Nodes, elements, storylines, and categories are complete authored objects. Each
 domain has separate create, metadata-update, passage-revision, whole-body
 replacement, and deletion tools where applicable. Deletion tools accept only a
 complete domain object; a summary update can never be interpreted as deleting
-its owner. Comments, relations, patches, and author rules use their stable
+its owner. Comments, relations, patches, and project memory use their stable
 handles as the deletion boundary.
 
 Structural create/update/delete executes through renderer use cases and the
@@ -206,31 +206,37 @@ Delete is confirm-before by default, or automatic only when the author has
 explicitly enabled dangerous operations. Endpoint ownership and target validity
 are still rechecked inside the mutation transaction.
 
-## 9. Agent memory trust model
+## 9. Project Memory
 
-Agent memory is cross-session writing guidance, not canon and not project
-facts.
+Project Memory (`PROJECT_MEMORY.md`) holds the author's thoughts, intentions,
+habits and standing instructions for one project. It is not canon and not
+project facts; book truth stays in the domain objects above. It is stored as
+one synced `agent_memory` row per entry, so edits on different devices merge
+per entry, and is rendered to the author and the model as one plain-text
+document in creation order.
 
-- An Agent-created memory always starts as `source=agent,status=pending`.
-- Pending memory is never injected into model context.
-- Only a pending Agent proposal is writable in place.
-- Active author-approved guidance is read-only to the Agent.
-- Evolving active guidance creates a new pending row with `supersedesId`; it
-  does not mutate or retire the active row before author approval.
-- Approval atomically activates the proposal and retires its predecessor.
-- `forget` is a confirm-before soft delete so provenance and sync convergence
-  survive; its inverse can restore the exact live row while lineage is current.
+- The author and the Agent edit the same entries. Nothing waits for approval:
+  `create_project_memory` writes `status=active` at once, and
+  `update_project_memory`/`delete_project_memory` accept any live entry.
+- `kind` is a sync-validated label (`preference|veto|directive`) kept for
+  compatibility; the public tools neither require nor display it.
+- Rows still `pending` from the earlier approval model stay inactive until the
+  author enables them.
+- Delete is an automatic soft delete so provenance and sync convergence survive;
+  every write has an exact inverse while lineage is current.
+- Migration `0007_project_memory_tool_names` extends the receipt provenance
+  trigger to the renamed tools and keeps the retired `*_author_rule` names.
 
-`作者规则` is the readable aggregate. Individual proposals use
-`作者规则「<handle>」`.
+`项目记忆` is the readable aggregate. Individual entries use
+`项目记忆「<memoryId>」`.
 
 ## 10. Approval policy
 
 | Mutation                                                 | Policy         | User surface                                                         |
 | -------------------------------------------------------- | -------------- | -------------------------------------------------------------------- |
 | Prose edit                                               | review after   | write immediately; inline editor badge accepts/rejects blocks or all |
-| Safe metadata, comment/TODO, pending memory proposal     | automatic      | semantic activity only                                               |
-| Delete structural resource, comment/TODO, or memory      | confirm before | chat permission request                                              |
+| Safe metadata, comment/TODO, project memory entry        | automatic      | semantic activity only                                               |
+| Delete structural resource or comment/TODO               | confirm before | chat permission request                                              |
 | Relation create or relation-kind update                  | automatic      | semantic activity only                                               |
 | Relation delete                                          | confirm before | chat permission request                                              |
 | Add storyline membership or set primary                  | automatic      | semantic activity only                                               |
@@ -256,7 +262,7 @@ prose-owning paths. It verifies:
 - structural create/update/delete and exact inverse;
 - comment/TODO and relation CRUD plus exact inverse;
 - full-graph storyline membership replacement and inverse;
-- memory trust, supersession, soft delete, sync outbox, and inverse;
+- project memory activation, soft delete, sync outbox, and inverse;
 - transaction rollback after an injected inner failure;
 - reconciliation after a lost outer acknowledgement;
 - close/reopen persistence and baseline-journal idempotency;

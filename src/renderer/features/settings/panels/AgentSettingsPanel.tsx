@@ -6,8 +6,7 @@ import { useAgentChatStore } from '../../../store/agent-chat-store';
 import { createAgentUsageHistoryController } from '../agent-usage-history';
 import { requestConfirmation } from '../../../store/confirmation-store';
 import { createAgentConversationRepository, type AgentConversationUsage } from '../../../sqlite-repo/agent-conversation-repo';
-import { approvePendingMemory, createMemory, listLiveMemories, softDeleteMemory } from '../../../usecase/useAgentMemory';
-import type { AgentMemory, AgentMemoryKind } from '../../../domain/agent-memory';
+import { ProjectMemoryEditor } from '../../agent/ProjectMemoryEditor';
 import { AgentExtensionsSettings } from '../../../components/agent/AgentExtensionsSettings';
 import { generalAgentTransport } from '../../../lib/agent/transport';
 import {
@@ -41,189 +40,15 @@ const fmtConvTime = (iso: string): string => {
   }
 };
 
-// Author-facing management of the agent's saved memories (preferences / vetoes /
-// directives — see domain/agent-memory). The fuller surface vs the agt-menu mini
-// list: view + approve a pending memory + delete. Open-gated load like the usage
-// section; all setState in async callbacks (clear of set-state-in-effect).
+// PROJECT_MEMORY.md for the open project — the same editor as Project Home.
 function AgentMemorySection({ open }: { open: boolean }) {
   const { t } = useTranslation();
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
-  const [memories, setMemories] = useState<AgentMemory[]>([]);
-  const [draftKind, setDraftKind] = useState<AgentMemoryKind>('preference');
-  const [draftBody, setDraftBody] = useState('');
-
-  useEffect(() => {
-    if (!open || !projectId) return;
-    let cancelled = false;
-    void listLiveMemories(projectId)
-      .then((rows) => {
-        if (!cancelled) setMemories(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setMemories([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectId]);
-
-  const reload = () => {
-    if (!projectId) return;
-    void listLiveMemories(projectId)
-      .then(setMemories)
-      .catch(() => setMemories([]));
-  };
-
-  // Hide dismissed (retired/superseded); show active + pending.
-  const visible = memories.filter((m) => m.status !== 'dismissed');
-
-  const kindLabel = (k: AgentMemory['kind']) =>
-    k === 'veto'
-      ? t('settings.agentMemory.kind.veto')
-      : k === 'directive'
-        ? t('settings.agentMemory.kind.directive')
-        : t('settings.agentMemory.kind.preference');
-
-  const approve = (id: string) => {
-    if (!projectId) return;
-    void approvePendingMemory(projectId, id).then(reload);
-  };
-  const remove = async (id: string) => {
-    if (!projectId) return;
-    const confirmed = await requestConfirmation(t('settings.agentMemory.deleteConfirm'));
-    if (!confirmed) return;
-    void softDeleteMemory(projectId, id).then(reload);
-  };
-  // Manual add — author-authored, active immediately (it's the author's own).
-  const add = () => {
-    const body = draftBody.trim();
-    if (!body || !projectId) return;
-    void createMemory(projectId, {
-      kind: draftKind,
-      body,
-      source: 'author',
-      status: 'active',
-    }).then(() => {
-      setDraftBody('');
-      reload();
-    });
-  };
-
+  if (!open || !projectId) return null;
   return (
     <div className="set-sec">
-      <SettingsSectionHeader title={t('settings.agentMemory.title')} hint="MEMORY" />
-      <p className="set-panel__sub" style={{ marginTop: -2, marginBottom: 12 }}>
-        {t('settings.agentMemory.desc')}
-      </p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <select
-          className="set-input"
-          style={{ flexShrink: 0, width: 84 }}
-          value={draftKind}
-          onChange={(e) => setDraftKind(e.target.value as AgentMemoryKind)}
-        >
-          <option value="preference">{t('settings.agentMemory.kind.preference')}</option>
-          <option value="directive">{t('settings.agentMemory.kind.directive')}</option>
-          <option value="veto">{t('settings.agentMemory.kind.veto')}</option>
-        </select>
-        <input
-          className="set-input"
-          style={{ flex: 1, minWidth: 0 }}
-          placeholder={t('settings.agentMemory.placeholder')}
-          value={draftBody}
-          onChange={(e) => setDraftBody(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') add();
-          }}
-        />
-        <button
-          className="set-btn set-btn--primary"
-          style={{ flexShrink: 0 }}
-          disabled={!draftBody.trim()}
-          onClick={add}
-        >
-          {t('settings.agentMemory.add')}
-        </button>
-      </div>
-      {visible.length === 0 ? (
-        <div
-          style={{
-            border: '1px dashed hsl(var(--rule))',
-            borderRadius: 5,
-            padding: '16px',
-            color: 'hsl(var(--ink-4))',
-            fontSize: 12.5,
-          }}
-        >
-          {t('settings.agentMemory.empty')}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {visible.map((m) => {
-            const pending = m.status === 'pending';
-            return (
-              <div
-                key={m.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 10,
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 5,
-                  background: 'hsl(var(--surface))',
-                  padding: '10px 12px',
-                }}
-              >
-                <span
-                  style={{
-                    flexShrink: 0,
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
-                    letterSpacing: '0.04em',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    marginTop: 1,
-                    color: m.kind === 'veto' ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
-                    background:
-                      m.kind === 'veto' ? 'hsl(var(--accent) / 0.1)' : 'hsl(var(--ink-1) / 0.07)',
-                  }}
-                >
-                  {kindLabel(m.kind)}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'hsl(var(--ink-1))', lineHeight: 1.5 }}>
-                    {m.body}
-                  </div>
-                  {pending && (
-                    <div
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 9.5,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        color: 'hsl(var(--accent))',
-                        marginTop: 4,
-                      }}
-                    >
-                      {t('settings.agentMemory.pending')}
-                    </div>
-                  )}
-                </div>
-                <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
-                  {pending && (
-                    <button className="set-btn" onClick={() => approve(m.id)}>
-                      {t('settings.agentMemory.approve')}
-                    </button>
-                  )}
-                  <button className="set-btn set-btn--danger" onClick={() => void remove(m.id)}>
-                    {t('settings.common.delete')}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <SettingsSectionHeader title={t('settings.agentMemory.title')} hint="PROJECT_MEMORY.md" />
+      <ProjectMemoryEditor projectId={projectId} compact />
     </div>
   );
 }

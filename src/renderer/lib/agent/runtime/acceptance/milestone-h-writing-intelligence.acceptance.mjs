@@ -71,7 +71,7 @@ const HASHED_SOURCE_FILES = [
 ];
 const REQUIRED_ASSERTIONS = {
   noProductWritingHarness: 'removes product-derived editor focus and default literary rules',
-  authorOwnedPromptRules: 'injects only author-owned project facts and approved standing guidance',
+  authorOwnedPromptRules: 'injects only author-owned project facts and project memory',
   editableProjectRules: 'keeps project rules as ordinary author-editable project data',
   capabilityContract: 'publishes no hidden writing defaults or content mutation guards',
   arbitraryEntityWrite: 'lets workspace writes target any project entity without a content-scope gate',

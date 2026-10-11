@@ -20,6 +20,7 @@ import {
   StorylineTable,
 } from '../../../schema/drizzle';
 import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
+import { notifyAgentMemoryChanged } from '../../../usecase/useAgentMemory';
 import {
   createAgentRuntimeEntityWriteReceiptRepository,
   type AgentRuntimeEntityWriteReceiptRepository,
@@ -138,7 +139,7 @@ export function createDriftingDomainCrudWriteStrategy(
             journal,
           ),
       });
-      projectMembershipSnapshot(committed.receipt.postimage);
+      projectCommittedSnapshot(committed.receipt.postimage);
       return handlerResult(payload, committed.receipt.postimage);
     },
 
@@ -157,7 +158,7 @@ export function createDriftingDomainCrudWriteStrategy(
       const receipt = await receipts.get(payload.commandId, 'forward');
       if (!receipt) return null;
       assertReceipt(receipt, payload, 'forward');
-      projectMembershipSnapshot(receipt.postimage);
+      projectCommittedSnapshot(receipt.postimage);
       return {
         handlerResult: handlerResult(payload, receipt.postimage),
         committedEffect: { ...committedEffect(payload, receipt), reconciled: true },
@@ -173,7 +174,7 @@ export function createDriftingDomainCrudWriteStrategy(
       const existing = await receipts.get(payload.commandId, 'inverse');
       if (existing) {
         assertReceipt(existing, payload, 'inverse');
-        projectMembershipSnapshot(existing.postimage);
+        projectCommittedSnapshot(existing.postimage);
         return inverseEffect(existing, true);
       }
       const committed = await options.db.transaction(
@@ -188,7 +189,7 @@ export function createDriftingDomainCrudWriteStrategy(
           ),
         { behavior: 'immediate' },
       );
-      projectMembershipSnapshot(committed.receipt.postimage);
+      projectCommittedSnapshot(committed.receipt.postimage);
       return inverseEffect(committed.receipt, false);
     },
   };
@@ -298,19 +299,19 @@ async function prepareDomainCrudPayload(
   assertExpectedRevision(expectation, before.updatedAt, 'list_memory');
   let after: AgentMemory;
   if (toolName === 'update_memory') {
-    if (before.source !== 'agent' || before.status !== 'pending') {
-      throw new Error(
-        'Only a pending Agent proposal can be edited in place. Create a new memory with supersedesId to evolve approved guidance.',
-      );
+    if (before.status === 'dismissed') {
+      throw new Error(`Memory "${memoryId}" was retired; create a new memory instead`);
     }
     after = await memoryFromArguments({
       id: before.id,
       projectId,
-      arguments_: request.arguments,
+      arguments_: { kind: before.kind, ...request.arguments },
       db,
       timestamp: now(),
       originRef: before.originRef,
       createdAt: before.createdAt,
+      source: before.source,
+      status: before.status,
     });
   } else {
     const timestamp = now();
@@ -723,6 +724,8 @@ async function memoryFromArguments(input: {
   timestamp: string;
   originRef: string | null;
   createdAt?: string;
+  source?: AgentMemory['source'];
+  status?: AgentMemory['status'];
 }): Promise<AgentMemory> {
   const kind = parseMemoryKind(input.arguments_.kind);
   const body = requiredString(input.arguments_.body, 'Memory body is required');
@@ -755,9 +758,10 @@ async function memoryFromArguments(input: {
     targetKind: target.kind,
     targetId: target.id,
     targetBlockId: optionalString(input.arguments_.targetBlockId),
-    source: 'agent',
+    source: input.source ?? 'agent',
     originRef: input.originRef,
-    status: 'pending',
+    // Project Memory has no approval gate: Agent entries take effect at once.
+    status: input.status ?? 'active',
     supersedesId,
     createdAt: input.createdAt ?? input.timestamp,
     updatedAt: input.timestamp,
@@ -902,7 +906,11 @@ function memoryPayload(memory: AgentMemory): Record<string, unknown> {
   };
 }
 
-function projectMembershipSnapshot(snapshot: AgentRuntimeEntityWriteSnapshot | null): void {
+function projectCommittedSnapshot(snapshot: AgentRuntimeEntityWriteSnapshot | null): void {
+  if (snapshot?.kind === 'memory') {
+    notifyAgentMemoryChanged(snapshot.value.projectId);
+    return;
+  }
   if (!snapshot || snapshot.kind !== 'storyline_membership') return;
   const storylineNodeMapping: Record<string, string[]> = {};
   const primaryStorylineByNode: Record<string, string | null> = {};
@@ -1075,6 +1083,7 @@ function inverseEffect(
 }
 
 function parseMemoryKind(value: unknown): AgentMemoryKind {
+  if (value === undefined || value === null || value === '') return 'preference';
   if (value === 'preference' || value === 'veto' || value === 'directive') {
     return value;
   }

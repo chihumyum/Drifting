@@ -29,7 +29,7 @@ function harness(script: AgentModelStreamEvent[][], definitions = catalog, denyW
 
 describe('Model-directed tool discovery', () => {
   it('executes named and empty-query discovery locally through the composite runtime read scheduler', async () => {
-    const names = ['get_project_overview', 'list_author_rules', 'list_elements', 'list_chapters', 'read_task_plan'];
+    const names = ['get_project_overview', 'list_project_memory', 'list_elements', 'list_chapters', 'read_task_plan'];
     const definitions = names.map((name) => definition(name));
     const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({ ok: true, data: 'Synthetic overview' }));
     const requests: AgentModelRequest[] = [];

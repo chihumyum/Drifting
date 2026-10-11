@@ -68,8 +68,8 @@ an arbitrary database as a production workspace.
 
 `workspace call <tool>` accepts every generated public domain read/write tool.
 Chapters, inspirations, elements, categories, storylines, memberships,
-relation types, relations, comments/TODOs, project facts, author rules
-(the durable memory domain, through the `*_author_rule` tool names), and
+relation types, relations, comments/TODOs, project facts, Project Memory
+(the durable memory domain, through the `*_project_memory` tool names), and
 element patches therefore use the same names and validation as General Agent. Complete-body replacements automatically perform the canonical
 paginated read preflight in the same runtime instance; they do not bypass the
 read-before-rewrite rule. Prose commits through live Yjs authority and updates

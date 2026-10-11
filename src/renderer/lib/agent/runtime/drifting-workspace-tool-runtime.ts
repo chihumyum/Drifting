@@ -422,7 +422,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           ).value;
           break;
         }
-        case 'list_author_rules':
+        case 'list_project_memory':
           data = await this.listFiles(projectId, '/memory', request);
           break;
         default:
@@ -895,38 +895,41 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         };
         break;
       }
-      case 'create_author_rule': {
+      case 'create_project_memory': {
         const read = await this.canonicalRead(request, 'list_memory', {}, 'create-author-rule');
         const expectedRevision = expectedRevisionFrom(read, 'memory_set', projectId);
         const path = `/memory/new-${pathSegment(request.idempotencyKey)}.json`;
         prepared = {
           path,
           expectedRevision,
-          command: { name: 'remember', arguments: { ...args, expectedRevision } },
+          command: {
+            name: 'remember',
+            arguments: { kind: 'preference', ...args, expectedRevision },
+          },
         };
         break;
       }
-      case 'update_author_rule':
-      case 'delete_author_rule': {
-        const ruleId = requiredDomainName(args.ruleId, 'ruleId');
+      case 'update_project_memory':
+      case 'delete_project_memory': {
+        const memoryId = requiredDomainName(args.memoryId, 'memoryId');
         const read = await this.canonicalRead(request, 'list_memory', {}, `${request.name}-read`);
-        const expectedRevision = expectedRevisionFrom(read, 'memory', ruleId);
+        const expectedRevision = expectedRevisionFrom(read, 'memory', memoryId);
         const currentRule = recordArray(read.value, 'memories').find(
-          (candidate) => String(candidate.memoryId ?? '') === ruleId,
+          (candidate) => String(candidate.memoryId ?? '') === memoryId,
         );
-        if (!currentRule) throw new Error(`No author rule "${ruleId}" exists in this project`);
-        const path = `/memory/${pathSegment(ruleId)}.json`;
+        if (!currentRule) throw new Error(`No project memory "${memoryId}" exists in this project`);
+        const path = `/memory/${pathSegment(memoryId)}.json`;
         prepared = {
           path,
           expectedRevision,
           command:
-            request.name === 'delete_author_rule'
-              ? { name: 'forget', arguments: { memoryId: ruleId, expectedRevision } }
+            request.name === 'delete_project_memory'
+              ? { name: 'forget', arguments: { memoryId, expectedRevision } }
               : {
                   name: 'update_memory',
                   arguments: {
-                    memoryId: ruleId,
-                    kind: args.kind ?? currentRule.kind,
+                    memoryId,
+                    kind: currentRule.kind,
                     body: args.body ?? currentRule.body,
                     ...(currentRule.targetKind !== undefined
                       ? { targetKind: currentRule.targetKind }
@@ -1223,8 +1226,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
             path: `/memory/${pathSegment(memoryId)}.json`,
             name: String(memory.body ?? '').slice(0, 80) || '写作指南',
             type: 'file' as const,
-            writable: memory.source === 'agent' && memory.status === 'pending',
-            description: `${String(memory.kind ?? 'preference')} · ${String(memory.status ?? 'pending')}`,
+            writable: true,
+            description: memory.status === 'pending' ? '项目记忆 · 未启用' : '项目记忆',
           };
         }),
         total: memories.length,
@@ -1789,8 +1792,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     if (!memory) return null;
     return {
       path: `/memory/${pathSegment(memoryId)}.json`,
-      writable: memory.source === 'agent' && memory.status === 'pending',
-      description: `${String(memory.kind ?? 'preference')} · ${String(memory.status ?? 'pending')}`,
+      writable: true,
+      description: memory.status === 'pending' ? '项目记忆 · 未启用' : '项目记忆',
       target: { kind: 'memory', memoryId },
     };
   }
@@ -3699,7 +3702,7 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     {
       path: '/memory.json',
       writable: false,
-      description: 'Standing guidance index; individual proposals live under /memory',
+      description: 'PROJECT_MEMORY.md index; individual entries live under /memory',
       target: { kind: 'memory_collection' },
     },
   );
@@ -3832,7 +3835,7 @@ function workspaceDirectoryDisplayName(
     '/project': '项目设定',
     '/comments': '编辑批注',
     '/relations': '实体关系',
-    '/memory': '长期写作指南',
+    '/memory': '项目记忆',
   };
   if (rootNames[path]) return rootNames[path];
 
@@ -3999,7 +4002,7 @@ function renderOverview(value: unknown): string {
     '- 故事线：故事线说明及其章节关系',
     '- 批注与待办：作者的编辑记录',
     '- 实体关系：要素之间由作者确认的关系',
-    '- 作者规则：本作品希望 Agent 遵循的可编辑规则',
+    '- 项目记忆：作者对本作品的想法、意图、习惯与长期指令，作者与 Agent 都可编辑',
     '- 素材：只读参考材料',
     '',
     '正文以作者在编辑器中看到的文本交给 Agent；人物连接、保存、并发保护、审阅和撤销均由 Drifting 自动处理。',
@@ -4046,14 +4049,14 @@ function renderComments(value: unknown): string {
 
 function renderMemories(value: unknown): string {
   const memories = recordArray(value, 'memories');
-  if (memories.length === 0) return '# 作者规则\n\n暂无。';
+  if (memories.length === 0) return '# PROJECT_MEMORY.md\n\n暂无。';
   return [
-    '# 作者规则',
+    '# PROJECT_MEMORY.md',
     '',
     ...memories.flatMap((memory) => {
-      const kind = String(memory.kind ?? 'guidance');
       const body = String(memory.body ?? '').trim();
-      return body ? [`## ${kind}`, '', body, ''] : [];
+      const inactive = memory.status === 'pending' ? ' · 未启用' : '';
+      return body ? [`## memoryId ${String(memory.memoryId ?? '')}${inactive}`, '', body, ''] : [];
     }),
   ]
     .join('\n')
@@ -4697,7 +4700,7 @@ function workspaceDomainListHeading(path: string): string {
     '/materials': '现有参考素材',
     '/comments': '现有批注或待办',
     '/relations': '现有实体关系',
-    '/memory': '现有作者规则',
+    '/memory': '项目记忆条目',
   };
   if (headings[path]) return headings[path]!;
   return `${describeWorkspaceDomainTarget(path)}中的内容`;
@@ -4737,7 +4740,7 @@ function workspaceDomainCreationHint(path: string): string | null {
   if (path === '/storylines') return '可直接用名称与说明新建故事线。';
   if (path === '/comments') return '可新建一条批注或待办，并说明内容及其对象。';
   if (path === '/relations') return '可用准确的实体名称和关系类型建立一条实体关系。';
-  if (path === '/memory') return '可新建、修改或删除作者规则。';
+  if (path === '/memory') return '可新建、改写或删除项目记忆。';
   return null;
 }
 
@@ -4893,7 +4896,6 @@ function domainFieldValue(key: string, value: unknown): string {
   if (key === 'kind') {
     if (value === 'todo') return '待办';
     if (value === 'note') return '批注';
-    if (value === 'directive') return '作者规则';
   }
   if (key === 'status') {
     if (value === 'open' || value === 'pending') return '未完成';
@@ -5229,7 +5231,7 @@ function resolveBareAuthoredSummaryAlias(
 }
 
 function resolveSemanticHandleAlias(value: string): string | null {
-  const match = /^\/?(批注或待办|批注|待办|实体关系|关系|作者规则|写作规则)[「“"](.+?)[」”"]$/u.exec(
+  const match = /^\/?(批注或待办|批注|待办|实体关系|关系|项目记忆|作者规则|写作规则)[「“"](.+?)[」”"]$/u.exec(
     value,
   );
   if (!match) return null;
@@ -5354,6 +5356,8 @@ function semanticCollectionPath(path: string): string | null {
     '/作者规则': '/memory',
     '/写作规则': '/memory',
     '/项目规则': '/memory',
+    '/项目记忆': '/memory',
+    '/记忆': '/memory',
   };
   return aliases[path] ?? null;
 }

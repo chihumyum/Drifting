@@ -295,12 +295,12 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
       '追踪角色关系网',
     ],
   },
-  list_author_rules: {
+  list_project_memory: {
     searchIntents: [
-      'inspect standing author rules',
-      'show remembered writing preferences',
-      '查看作者规则',
-      '列出写作偏好与否决',
+      'inspect project memory entries',
+      'show remembered author thoughts and rules',
+      '查看项目记忆',
+      '列出作者规则与偏好',
     ],
   },
   create_chapter: {
@@ -508,18 +508,18 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
       '修改作品基础设定',
     ],
   },
-  create_author_rule: {
+  create_project_memory: {
     searchIntents: [
-      'remember a standing writing rule',
-      '记住一条写作规则',
-      '新增作者偏好规则',
+      'remember an author thought or standing rule',
+      '记住作者的想法或规则',
+      '新增项目记忆',
     ],
   },
-  update_author_rule: {
-    searchIntents: ['edit a standing author rule', '更新作者规则', '修改写作偏好'],
+  update_project_memory: {
+    searchIntents: ['revise a project memory entry', '更新项目记忆', '修改作者规则'],
   },
-  delete_author_rule: {
-    searchIntents: ['forget an author rule', '删除作者规则', '移除写作偏好'],
+  delete_project_memory: {
+    searchIntents: ['forget an outdated memory', '删除项目记忆', '移除过时的规则'],
   },
   create_element_patch: {
     searchIntents: [

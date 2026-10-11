@@ -192,7 +192,8 @@ export interface AgentStartInput {
   /** Canonical author-visible project name, never inferred from `projectId`. */
   projectName?: string;
   projectFacts?: { key: string; value: string }[];
-  memories?: { kind: string; body: string }[];
+  /** Active PROJECT_MEMORY.md entries, oldest first. */
+  memories?: { id?: string; kind: string; body: string }[];
   /** Recent rolling context shared by every General Agent conversation. */
   workingMemory?: {
     contentMd: string;

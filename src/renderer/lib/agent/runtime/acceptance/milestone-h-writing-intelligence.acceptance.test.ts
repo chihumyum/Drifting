@@ -31,7 +31,7 @@ describe('Milestone H replacement: author-owned writing policy', () => {
     expect(system).not.toContain('Local voice witness');
   });
 
-  it('injects only author-owned project facts and approved standing guidance', () => {
+  it('injects only author-owned project facts and project memory', () => {
     const system = buildDriftingAgentSystemPrompt(
       {
         prompt: '继续工作。',
@@ -41,8 +41,8 @@ describe('Milestone H replacement: author-owned writing policy', () => {
           { key: 'Canon 规则', value: '正文优先于设定表' },
         ],
         memories: [
-          { kind: 'directive', body: '允许主动重构时间线。' },
-          { kind: 'veto', body: '不要使用全知旁白。' },
+          { id: 'memory-timeline', kind: 'directive', body: '允许主动重构时间线。' },
+          { id: 'memory-narrator', kind: 'veto', body: '不要使用全知旁白。' },
         ],
       },
       route,
@@ -51,9 +51,9 @@ describe('Milestone H replacement: author-owned writing policy', () => {
     expect(system).toContain('Author-defined project facts and rules:');
     expect(system).toContain('- 叙事规则: 可以自由改变 POV');
     expect(system).toContain('- Canon 规则: 正文优先于设定表');
-    expect(system).toContain('Author-approved standing guidance:');
-    expect(system).toContain('- [directive] 允许主动重构时间线。');
-    expect(system).toContain('- [veto] 不要使用全知旁白。');
+    expect(system).toContain('PROJECT_MEMORY.md is the project memory shared by the author and every Agent conversation');
+    expect(system).toContain('## memoryId memory-timeline\n允许主动重构时间线。');
+    expect(system).toContain('## memoryId memory-narrator\n不要使用全知旁白。');
   });
 
   it('keeps project rules as ordinary author-editable project data', () => {
@@ -82,8 +82,8 @@ describe('Milestone H replacement: author-owned writing policy', () => {
       contentMutationScopeGuard: 'disabled',
       canonPatchGate: 'disabled',
       projectRules: 'author-editable-project-facts',
-      standingGuidance: 'author-created-or-author-approved-active-memory',
-      guidanceLifecycle: 'author-editable-and-deletable',
+      standingGuidance: 'project-memory-markdown-entries',
+      guidanceLifecycle: 'author-and-agent-editable-and-deletable',
       executionSafety:
         'data-integrity-review-destructive-confirmation-and-per-turn-read-only-tool-filter',
     });

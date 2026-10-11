@@ -176,7 +176,7 @@ describe('canonical Agent tool catalog', () => {
         status: 'open',
         onlyTodos: true,
       },
-      create_author_rule: { kind: 'veto', body: '不要使用全知视角。' },
+      create_project_memory: { body: '不要使用全知视角。' },
     };
 
     for (const [name, args] of Object.entries(valid)) {
@@ -201,6 +201,9 @@ describe('canonical Agent tool catalog', () => {
       'add_chapter_to_storyline',
       'set_chapter_primary_storyline',
       'update_comment',
+      'create_project_memory',
+      'update_project_memory',
+      'delete_project_memory',
     ]) {
       expect(getRegisteredTool(name)?.approval, name).toBe('automatic');
     }
@@ -214,7 +217,6 @@ describe('canonical Agent tool catalog', () => {
       'replace_storyline_chapters',
       'delete_relation',
       'delete_comment',
-      'delete_author_rule',
       'delete_element_patch',
     ]) {
       expect(getRegisteredTool(name)?.approval, name).toBe('confirm_before');
