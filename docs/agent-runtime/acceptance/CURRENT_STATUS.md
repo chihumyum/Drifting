@@ -189,6 +189,12 @@ pnpm agent:capabilities:check
   Project Home, Agent settings and the `*_project_memory` tools without an
   approval step; active entries are injected oldest first. Book truth stays in
   domain objects. See `../domain-crud-transaction-protocol.md` §9.
+- Project Home (desktop and mobile) opens with a General Agent entry and
+  device-local check-in cards: on open or focus, at most every 90 minutes, a
+  single forced-tool request reads the prose changed since the last check-in
+  and returns up to four cards — each a question to ask or work to do — plus
+  memory upkeep. It never writes the manuscript; opening a card hands its task
+  to an ordinary General Agent session. See `../project-checkin.md`.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
   start. Writes are optional: call `edit_working_memory` only when important
@@ -200,7 +206,8 @@ pnpm agent:capabilities:check
   or Project Memory. There is no size ceiling and nothing is deleted
   automatically: the first writable turn past 20,000 and 40,000 tokens, and
   every writable turn past 80,000, asks the Agent to move lasting items
-  into Project Memory and delete stale detail. The announced tier is
+  into Project Memory and delete stale detail; the Project Home check-in does
+  the same for documents up to 20,000 tokens. The announced tier is
   device-local, like the document.
 - The desktop General Agent panel can preview, edit, create and clear Working
   Memory even before a provider credential is connected. Concurrent Agent/user

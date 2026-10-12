@@ -118,7 +118,7 @@ export interface DriftingAgentCapabilityManifest {
     scope: 'project-shared-general-agent-conversations';
     lifecycle: 'turn-start-injection-and-on-demand-passage-edits';
     compaction: 'no-automatic-deletion-and-no-size-ceiling';
-    consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000';
+    consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000-and-daily-checkin';
     concurrency: 'sqlite-revision-cas';
     sync: 'device-local-excluded-from-sync';
   };
@@ -338,7 +338,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       scope: 'project-shared-general-agent-conversations',
       lifecycle: 'turn-start-injection-and-on-demand-passage-edits',
       compaction: 'no-automatic-deletion-and-no-size-ceiling',
-      consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000',
+      consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000-and-daily-checkin',
       concurrency: 'sqlite-revision-cas',
       sync: 'device-local-excluded-from-sync',
     },

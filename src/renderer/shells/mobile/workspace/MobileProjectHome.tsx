@@ -12,6 +12,7 @@ interface MobileProjectHomeProps {
   onOpenSettings(): void;
   onOpenStructure(tab: MobileTabBarTab): void;
   onOpenVoice(): void;
+  onOpenAgent(): void;
   onOpenTrash(): void;
   onProjectDeleted(): void;
 }
@@ -28,6 +29,7 @@ export function MobileProjectHome({
   onOpenSettings,
   onOpenStructure,
   onOpenVoice,
+  onOpenAgent,
   onOpenTrash,
   onProjectDeleted,
 }: MobileProjectHomeProps) {
@@ -74,6 +76,7 @@ export function MobileProjectHome({
       </header>
       <MobileProjectFlow
         onOpenChapters={() => onOpenStructure('chapters')}
+        onOpenAgent={onOpenAgent}
         projectActions={<MobileProjectActions onOpenTrash={onOpenTrash} onProjectDeleted={onProjectDeleted} />}
       />
       <MobileTabBar onOpen={onOpenStructure} />

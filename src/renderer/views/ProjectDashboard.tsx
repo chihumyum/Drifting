@@ -13,6 +13,8 @@ import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
 import { ProjectMemoryEditor } from '../features/agent/ProjectMemoryEditor';
+import { ProjectAgentHome } from '../features/agent/ProjectAgentHome';
+import { revealDesktopAgentView } from '../store/desktop-agent-navigation';
 import {
   canonicalWordCount,
   deriveStatus,
@@ -26,6 +28,7 @@ import {
   GitBranch,
   LayoutDashboard,
   ListTree,
+  MessageSquareText,
   NotebookPen,
   Plus,
   Settings2,
@@ -581,6 +584,30 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
 
         {dashboardView === 'overview' && (
           <>
+            {/* ════════ AGENT ════════
+                A conversation entry about the whole project, plus the cards
+                the check-in prepared from recent changes. */}
+            {editableProjectId && (
+              <section className="dash-section dash-section--agent">
+                <div className="dash-section__head">
+                  <div className="dash-section__title">
+                    <MessageSquareText
+                      className="dash-section__title-mark"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    <span className="dash-section__title-cn">{t('projectAgent.title')}</span>
+                    <span className="dash-section__title-en">{t('projectAgent.titleShort')}</span>
+                  </div>
+                </div>
+                <ProjectAgentHome
+                  projectId={editableProjectId}
+                  projectName={currentProjectName}
+                  openAgent={revealDesktopAgentView}
+                />
+              </section>
+            )}
+
             {/* Chapter filters apply to the storyline chapter sequence below. */}
             <div className="dash-chips">
               {chips.map((c) => (

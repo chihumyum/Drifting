@@ -3415,5 +3415,26 @@
     "inactive": "未启用",
     "enable": "启用",
     "deleteConfirm": "删除这条项目记忆？之后的对话将不再读到它。"
+  },
+  "projectAgent": {
+    "title": "Agent",
+    "titleShort": "对话与签到",
+    "placeholder": "和 Agent 聊聊这部作品……（⌘↩ 发送）",
+    "send": "发送",
+    "checkinTitle": "签到",
+    "checkinRunning": "Agent 正在看你最近的改动……",
+    "checkinFailed": "签到没有完成：{{error}}",
+    "checkNow": "现在签到",
+    "checkinEmpty": "最近的改动里没有需要你处理的事。",
+    "checkinNever": "打开项目时，Agent 会看看你上次以来的改动，留下想问你的问题或想做的事。",
+    "lastCheckin": "上次签到 {{time}}",
+    "disabled": "签到已关闭",
+    "enable": "开启签到",
+    "disable": "关闭签到",
+    "openConversation": "查看对话",
+    "dismiss": "忽略",
+    "startFailed": "没能开始：{{error}}",
+    "start": "交给 Agent",
+    "started": "已交给 Agent · 点击查看对话"
   }
 }

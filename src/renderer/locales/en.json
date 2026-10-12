@@ -3415,5 +3415,26 @@
     "inactive": "Inactive",
     "enable": "Enable",
     "deleteConfirm": "Delete this memory? Later conversations will no longer read it."
+  },
+  "projectAgent": {
+    "title": "Agent",
+    "titleShort": "Chat & check-in",
+    "placeholder": "Talk with the Agent about this work… (⌘↩ to send)",
+    "send": "Send",
+    "checkinTitle": "Check-in",
+    "checkinRunning": "The Agent is reading your recent changes…",
+    "checkinFailed": "The check-in did not finish: {{error}}",
+    "checkNow": "Check in now",
+    "checkinEmpty": "Nothing in your recent changes needs your attention.",
+    "checkinNever": "When you open the project, the Agent reads what changed since last time and leaves the questions it wants to ask or the work it wants to do.",
+    "lastCheckin": "Last check-in {{time}}",
+    "disabled": "Check-ins are off",
+    "enable": "Turn on check-ins",
+    "disable": "Turn off check-ins",
+    "openConversation": "Open conversation",
+    "dismiss": "Dismiss",
+    "startFailed": "Could not start: {{error}}",
+    "start": "Hand to Agent",
+    "started": "Handed to Agent · open the conversation"
   }
 }

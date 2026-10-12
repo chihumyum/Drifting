@@ -269,6 +269,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             dispatchWorkspaceUi({ type: 'set-overlay', overlay: tab })
           }
           onOpenVoice={openVoice}
+          onOpenAgent={openVoice}
           onOpenTrash={() => dispatchWorkspaceUi({ type: 'open-project-trash' })}
           onProjectDeleted={() => {
             removeMobileWorkspaceSession(localStorage, projectId);

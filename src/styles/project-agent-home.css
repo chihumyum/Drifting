@@ -1,0 +1,233 @@
+/* Project Home Agent entry and check-in cards (desktop dashboard and mobile
+   project home). */
+
+.pagent {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.pagent__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid hsl(var(--rule-strong, var(--rule)));
+  border-radius: 10px;
+  background: hsl(var(--paper));
+}
+
+.pagent__composer:focus-within {
+  border-color: hsl(var(--ink-4));
+}
+
+.pagent__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.pagent__input::placeholder {
+  color: hsl(var(--ink-4));
+}
+
+.pagent__send {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: 1px solid hsl(var(--accent));
+  border-radius: 7px;
+  background: hsl(var(--accent));
+  color: hsl(var(--paper));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pagent__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagent__checkin-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.pagent__checkin-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-3));
+}
+
+.pagent__checkin-status {
+  font-size: 12px;
+  color: hsl(var(--ink-4));
+}
+
+.pagent__checkin-tools {
+  display: inline-flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.pagent__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--ink-3));
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pagent__link:hover {
+  color: hsl(var(--ink-1));
+  text-decoration: underline;
+}
+
+.pagent__notice {
+  padding: 12px 14px;
+  border: 1px dashed hsl(var(--rule));
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: hsl(var(--ink-4));
+}
+
+.pagent__notice--error {
+  border-style: solid;
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.05);
+}
+
+.pagent__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.pagent__card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 8px;
+  background: hsl(var(--surface));
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.pagent__card:hover,
+.pagent__card:focus-within {
+  border-color: hsl(var(--ink-4));
+  background: hsl(var(--paper));
+}
+
+.pagent__card-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 40px 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pagent__card-open:disabled {
+  cursor: progress;
+}
+
+.pagent__card-open:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.5);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.pagent__card-target {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: hsl(var(--ink-4));
+}
+
+.pagent__card-title {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: hsl(var(--ink-1));
+  overflow-wrap: anywhere;
+}
+
+.pagent__card-detail {
+  font-size: 13px;
+  line-height: 1.65;
+  color: hsl(var(--ink-3));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pagent__card-status {
+  font-size: 12px;
+  color: hsl(var(--ink-4));
+}
+
+.pagent__card--started .pagent__card-title {
+  color: hsl(var(--ink-3));
+}
+
+.pagent__card-error {
+  margin: 0;
+  padding: 0 16px 12px;
+  font-size: 12px;
+  color: hsl(var(--accent));
+}
+
+.pagent__card-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+}
+
+.pagent__card-dismiss:hover {
+  background: hsl(var(--ink-1) / 0.06);
+  color: hsl(var(--ink-1));
+}
+
+.pagent--compact .pagent__cards {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pagent--compact .pagent__composer {
+  border-radius: 12px;
+}

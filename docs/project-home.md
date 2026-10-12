@@ -29,9 +29,11 @@ root as its return destination; it never mounts the desktop-oriented
 action opens the Chapters structure overlay instead of sharing the Settings
 navigation path.
 
-Both platforms edit the project's `PROJECT_MEMORY.md` (desktop: Structure
-tab; mobile: end of the Home flow; see
-`agent-runtime/domain-crud-transaction-protocol.md` §9).
+Both platforms open with a General Agent entry and the check-in cards the
+Agent prepared from recent changes (`agent-runtime/project-checkin.md`), and
+both edit the project's `PROJECT_MEMORY.md` (desktop: Structure tab; mobile:
+end of the Home flow; see `agent-runtime/domain-crud-transaction-protocol.md`
+§9). The mobile entry opens the full-screen voice Agent surface.
 
 UI-storage v4 removes legacy desktop Dashboard leaves and collapses mixed
 Dashboard splits. Mobile session v2 reads v1 once and filters
@@ -42,6 +44,7 @@ Machine acceptance:
 
 ```bash
 pnpm exec vitest run src/renderer/app/project-home.acceptance.test.ts \
+  src/renderer/store/project-checkin-store.test.ts \
   src/renderer/components/editor/useSyncSplitFocusedUrl.test.ts \
   src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts \
   src/renderer/store/ui-store.workspace-tabs.test.ts \

@@ -79,4 +79,39 @@ describe('Project Home cross-platform acceptance', () => {
     expect(mobile).toContain('storage.getItem(mobileWorkspaceSessionStorageKey(projectId))');
     expect(mobile).toContain('storage.getItem(legacyMobileWorkspaceSessionStorageKey(projectId))');
   });
+
+  it('opens Project Home with the General Agent entry, check-in cards and Project Memory', () => {
+    const dashboard = read('src/renderer/views/ProjectDashboard.tsx');
+    const flow = read('src/renderer/shells/mobile/workspace/MobileProjectFlow.tsx');
+    const home = read('src/renderer/shells/mobile/workspace/MobileProjectHome.tsx');
+    const shell = read('src/renderer/shells/mobile/MobileAppShell.tsx');
+    const entry = read('src/renderer/features/agent/ProjectAgentHome.tsx');
+    const checkin = read('src/renderer/usecase/useProjectCheckin.ts');
+    const store = read('src/renderer/store/project-checkin-store.ts');
+    const runner = read('src/renderer/lib/agent/checkin/checkin-runner.ts');
+
+    // Desktop: the Agent entry leads Overview; Project Memory sits in Structure.
+    expect(dashboard).toContain('openAgent={revealDesktopAgentView}');
+    expect(dashboard.indexOf('<ProjectAgentHome')).toBeLessThan(dashboard.indexOf('className="dash-chips"'));
+    expect(dashboard).toContain('<ProjectMemoryEditor projectId={currentProject.id} />');
+    // Mobile: the entry opens the full-screen voice Agent surface.
+    expect(shell).toContain('onOpenAgent={openVoice}');
+    expect(home).toContain('onOpenAgent={onOpenAgent}');
+    expect(flow).toContain('<ProjectAgentHome');
+    expect(flow).toContain('<ProjectMemoryEditor projectId={currentProject.id} compact />');
+
+    // One card kind: opening any card hands its task to an ordinary
+    // read-write General Agent session that picks its own tools.
+    expect(entry).toContain('startCheckinCardSession(projectId, card, openAgent)');
+    expect(entry).not.toContain('card.kind');
+    expect(checkin).toContain("toolAccess: 'read_write'");
+    expect(checkin).toContain('background: { title }');
+    expect(checkin).not.toContain('createCommentWithSync');
+
+    // The check-in is one read-only forced-tool request with device-local state.
+    expect(runner).toContain("lifecycle: 'single_request'");
+    expect(runner).toContain('toolChoice: { force: CHECKIN_TOOL_NAME }');
+    expect(runner).not.toContain('writeChapterProse');
+    expect(store).toContain('createJSONStorage(() => localStorage)');
+  });
 });

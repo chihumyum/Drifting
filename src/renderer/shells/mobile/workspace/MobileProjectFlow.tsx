@@ -9,6 +9,8 @@ import { useRecentEntitiesStore } from '../../../store/recent-entities-store';
 import { useWritingStatsStore } from '../../../store/writing-stats-store';
 import { canonicalWordCount, isChapter, isDrift, type BookNode } from '../../../domain/book-node';
 import { ProjectMemoryEditor } from '../../../features/agent/ProjectMemoryEditor';
+import { ProjectAgentHome } from '../../../features/agent/ProjectAgentHome';
+import { useAgentChatStore } from '../../../store/agent-chat-store';
 
 const STORY_TOKENS = [
   '--story-1',
@@ -101,13 +103,19 @@ function EntityPill({
 
 interface MobileProjectFlowProps {
   onOpenChapters(): void;
+  /** Reveal the mobile Agent surface; enables the Project Home Agent entry. */
+  onOpenAgent?(): void;
   projectActions?: ReactNode;
 }
 
 /** The project home as one downward flow of the author's material: a dense
  * first screen with chapters, drifts, and elements together, storylines and
  * quiet entries below. Chrome stays in the corners; content fills the page. */
-export function MobileProjectFlow({ onOpenChapters, projectActions }: MobileProjectFlowProps) {
+export function MobileProjectFlow({
+  onOpenChapters,
+  onOpenAgent,
+  projectActions,
+}: MobileProjectFlowProps) {
   const { t } = useTranslation();
   const { projectId, openEntity } = useProjectNavigation();
   const currentProject = useProjectStore((s) => s.currentProject);
@@ -197,6 +205,23 @@ export function MobileProjectFlow({ onOpenChapters, projectActions }: MobileProj
           }}
         />
       </span>
+
+      {currentProject && onOpenAgent && (
+        <>
+          <span className="m-flow__label">{t('projectAgent.title')}</span>
+          <div className="m-flow__section">
+            <ProjectAgentHome
+              compact
+              projectId={currentProject.id}
+              projectName={currentProject.name}
+              openAgent={() => {
+                onOpenAgent();
+                return useAgentChatStore.getState().focusedViewId;
+              }}
+            />
+          </div>
+        </>
+      )}
 
       <span className="m-flow__label">
         {t('mobileWorkspace.flow.chapters', { defaultValue: '章节' })} · {chapters.length}

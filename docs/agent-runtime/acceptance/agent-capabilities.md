@@ -184,7 +184,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Scope: `project-shared-general-agent-conversations`
 - Lifecycle: `turn-start-injection-and-on-demand-passage-edits`
 - Compaction: `no-automatic-deletion-and-no-size-ceiling`
-- Consolidation: `prompt-once-past-20000-and-40000-tokens-every-turn-past-80000`
+- Consolidation: `prompt-once-past-20000-and-40000-tokens-every-turn-past-80000-and-daily-checkin`
 - Concurrency: `sqlite-revision-cas`
 - Sync: `device-local-excluded-from-sync`
 
