@@ -2061,48 +2061,77 @@
   cursor: default;
 }
 
-.review-card__agent-task {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 5px 9px;
-  margin-top: 7px;
-  font-size: var(--ui-font-secondary, 11px);
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-}
-
-.review-card__agent-task button {
+.review-card__status-actions {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0;
+  gap: 2px;
+}
+
+/* "Ask the Agent" appears beside the resolve ring only while the card is
+   hovered or focused, with a small tail pointing at the ring. Touch devices
+   have no hover, so it stays visible there. */
+.review-card__agent-hint {
+  position: relative;
+  margin-right: 7px;
+  padding: 2px 7px;
   border: 0;
-  background: transparent;
+  border-radius: 4px;
+  background: hsl(var(--ink-1) / 0.06);
   color: hsl(var(--ink-2));
   font: inherit;
+  font-size: var(--ui-font-secondary, 11px);
+  line-height: 1.5;
+  white-space: nowrap;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
-.review-card__agent-task button:hover:not(:disabled),
-.review-card__agent-task button:focus-visible {
+.review-card__agent-hint::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  margin-top: -4px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 4px solid hsl(var(--ink-1) / 0.06);
+}
+
+.review-card:hover .review-card__agent-hint,
+.review-card:focus-within .review-card__agent-hint,
+.review-card__agent-hint--busy {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.review-card__agent-hint:hover:not(:disabled),
+.review-card__agent-hint:focus-visible {
+  background: hsl(var(--ink-1) / 0.1);
   color: hsl(var(--ink-1));
-  text-decoration: underline;
 }
 
-.review-card__agent-task button:disabled {
-  opacity: 0.55;
+.review-card__agent-hint:hover:not(:disabled)::after,
+.review-card__agent-hint:focus-visible::after {
+  border-left-color: hsl(var(--ink-1) / 0.1);
+}
+
+.review-card__agent-hint:disabled {
   cursor: default;
 }
 
-.review-card__agent-task [role='alert'] {
-  color: hsl(var(--story-1));
+@media (hover: none) {
+  .review-card__agent-hint {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
-.review-card__agent-task-running {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: hsl(var(--story-3));
+.review-card__agent-task-error {
+  margin-top: 6px;
+  font-size: var(--ui-font-secondary, 11px);
+  color: hsl(var(--story-1));
 }
 
 .review-card__editor-actions {

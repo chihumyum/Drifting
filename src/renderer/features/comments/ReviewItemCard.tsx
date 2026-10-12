@@ -2,7 +2,6 @@ import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
-  Bot,
   Check,
   ListTodo,
   MessageSquare,
@@ -268,14 +267,36 @@ export function ReviewItemCard({
     action();
   };
 
-  const statusToggle = isTodo && !isConverted ? (
-    <TodoStatusToggle
-      resolved={isResolved}
+  // Hover-only text beside the resolve ring; clicking it hands the TODO to
+  // the Agent (or reopens that conversation). No icon, no persistent row.
+  const agentHint = isTodo && !isConverted && (!isResolved || taskChatId) ? (
+    <button
+      type="button"
+      className={`review-card__agent-hint${busy ? ' review-card__agent-hint--busy' : ''}`}
       disabled={busy}
-      onToggle={() => void run(() => isResolved
-        ? commentUsecases.reopenComment(comment.id)
-        : commentUsecases.resolveComment(comment.id))}
-    />
+      onClick={() => void handleTodoTask()}
+    >
+      {busy
+        ? t('reviewPanel.agentTaskStarting')
+        : taskChatId
+          ? taskRunning
+            ? t('reviewPanel.agentTaskRunning')
+            : t('reviewPanel.agentTaskOpen')
+          : t('reviewPanel.agentTaskStart')}
+    </button>
+  ) : null;
+
+  const statusToggle = isTodo && !isConverted ? (
+    <span className="review-card__status-actions">
+      {agentHint}
+      <TodoStatusToggle
+        resolved={isResolved}
+        disabled={busy}
+        onToggle={() => void run(() => isResolved
+          ? commentUsecases.reopenComment(comment.id)
+          : commentUsecases.resolveComment(comment.id))}
+      />
+    </span>
   ) : null;
 
   return (
@@ -370,18 +391,9 @@ export function ReviewItemCard({
       {summary?.subtitle && <div className="review-card__meta">{summary.subtitle}</div>}
       {summary?.evidence && <div className="review-card__evidence">{summary.evidence}</div>}
 
-      {isTodo && !isConverted && (
-        <div className="review-card__agent-task">
-          <button type="button" disabled={busy || (isResolved && !taskChatId)} onClick={() => void handleTodoTask()}>
-            <Bot size={13} aria-hidden />
-            {busy
-              ? t('reviewPanel.agentTaskStarting')
-              : taskChatId
-                ? t('reviewPanel.agentTaskOpen')
-                : t('reviewPanel.agentTaskStart')}
-            {taskRunning && <span className="review-card__agent-task-running" aria-label={t('reviewPanel.agentTaskRunning')} />}
-          </button>
-          {taskError && <span role="alert">{taskError}</span>}
+      {taskError && (
+        <div className="review-card__agent-task-error" role="alert">
+          {taskError}
         </div>
       )}
 

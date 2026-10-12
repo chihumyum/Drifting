@@ -58,7 +58,7 @@ Rules:
 | CHAT-09 | Core  | E2               | Refresh/reopen reconstructs transcript, tool activities, usage and terminal state without duplication.     |
 | CHAT-10 | Core  | E4               | Errors are actionable and do not expose stack traces, provider payloads, Yjs snapshots or internal paths.  |
 | CHAT-11 | Core  | E1               | Starting an open TODO creates a separate background conversation, keeps the displayed chat and unsent draft, survives same-project navigation, and fails closed on project switch or rejected startup. |
-| CHAT-12 | Core  | E4               | From Review/editor rail, “让 Agent 处理” starts once, shows progress, and “查看 Agent 对话” opens the linked chat on desktop and mobile. |
+| CHAT-12 | Core  | E4               | From Review/editor rail, the hover label “让 Agent 处理” beside the resolve ring starts once, then reads “Agent 正在处理”/“查看 Agent 对话” and opens the linked chat on desktop and mobile. |
 
 ## C. Tool-call protocol and selection
 

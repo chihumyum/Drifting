@@ -123,7 +123,9 @@ pnpm agent:capabilities:check
   relevant authored object. This is opportunistic, not an Ambient scan: it
   does not search for extra issues or turn the requested work into a TODO.
   `create_comment` still uses the normal anchored write and review boundary.
-- An open TODO in Review or the editor rail offers **让 Agent 处理**. It starts
+- Hovering an open TODO in Review or the editor rail shows a plain
+  **让 Agent 处理** label beside its resolve ring (always visible on touch
+  devices; no icon or persistent row). Clicking the label starts
   one separate same-project Agent conversation in the background, preserves
   the author's displayed chat and unsent draft, and stores the conversation
   link as a synced `comment_action`. The TODO stays open for author review.
