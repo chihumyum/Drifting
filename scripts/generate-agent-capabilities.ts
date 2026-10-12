@@ -187,6 +187,7 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     `- Scope: \`${manifest.workingMemory.scope}\``,
     `- Lifecycle: \`${manifest.workingMemory.lifecycle}\``,
     `- Compaction: \`${manifest.workingMemory.compaction}\``,
+    `- Consolidation: \`${manifest.workingMemory.consolidation}\``,
     `- Concurrency: \`${manifest.workingMemory.concurrency}\``,
     `- Sync: \`${manifest.workingMemory.sync}\``,
     '',

@@ -199,6 +199,8 @@ export interface AgentStartInput {
     contentMd: string;
     revision: number;
     approxTokens: number;
+    /** Set when this turn should ask the Agent to consolidate it. */
+    consolidate?: boolean;
   };
 }
 

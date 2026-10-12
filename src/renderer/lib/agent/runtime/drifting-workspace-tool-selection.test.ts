@@ -56,12 +56,12 @@ describe('Drifting domain tool selection', () => {
     const input = request();
     input.definitions = [
       definition('read_working_memory'),
-      definition('checkpoint_working_memory'),
+      definition('edit_working_memory'),
       ...input.definitions,
     ];
 
     expect(createDriftingWorkspaceToolSelectionStrategy().select(input).slice(0, 2)).toEqual([
-      'checkpoint_working_memory',
+      'edit_working_memory',
       'read_working_memory',
     ]);
   });

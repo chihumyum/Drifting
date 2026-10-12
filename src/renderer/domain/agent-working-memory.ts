@@ -41,12 +41,14 @@ export const EMPTY_AGENT_WORKING_MEMORY_MD = `# Working Memory
 ## Recent
 `;
 
-export const AGENT_WORKING_MEMORY_TARGET_TOKENS = 4_000 as const;
-export const AGENT_WORKING_MEMORY_SOFT_TOKENS = 6_000 as const;
-export const AGENT_WORKING_MEMORY_HARD_TOKENS = 8_000 as const;
-
-/** Hard transport/storage guard; token budgeting remains the primary limit. */
-export const AGENT_WORKING_MEMORY_MAX_CHARACTERS = 64_000 as const;
+/**
+ * Working Memory has no size ceiling and nothing is deleted automatically.
+ * Crossing each notice size prompts the Agent once to consolidate (lasting
+ * items move to PROJECT_MEMORY.md, stale detail goes); above the persistent
+ * size every turn carries that prompt.
+ */
+export const AGENT_WORKING_MEMORY_NOTICE_TOKENS = [20_000, 40_000] as const;
+export const AGENT_WORKING_MEMORY_PERSISTENT_NOTICE_TOKENS = 80_000 as const;
 
 export class AgentWorkingMemoryConflictError extends Error {
   readonly code = 'WORKING_MEMORY_REVISION_CONFLICT' as const;

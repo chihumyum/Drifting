@@ -20,7 +20,7 @@ const ports = vi.hoisted(() => ({
 vi.mock('../sqlite-repo/agent-conversation-repo', () => ({ createAgentConversationRepository: () => ports }));
 vi.mock('../sync/agent-chat/repository', () => ({ AgentConversationSyncRepository: class { forkForContinuation = ports.fork; } }));
 vi.mock('../usecase/useAgentMemory', () => ({ loadActiveMemoryHints: ports.memories }));
-vi.mock('../usecase/useAgentWorkingMemory', () => ({ prepareAgentWorkingMemoryForTurn: ports.working }));
+vi.mock('../usecase/useAgentWorkingMemory', () => ({ prepareAgentWorkingMemoryForTurn: ports.working, takeWorkingMemoryConsolidationNotice: () => false }));
 
 const initial = useAgentChatStore.getState(); const initialEdits = useAgentEditStore.getState();
 const initialSettings = useSettingsStore.getState();

@@ -6,7 +6,10 @@ import {
   type AgentWorkingMemorySnapshot,
   type AgentWorkingMemoryUpdatedBy,
 } from '../domain/agent-working-memory';
-import { compactAgentWorkingMemoryMarkdown } from '../lib/agent/runtime/working-memory-document';
+import {
+  decideAgentWorkingMemoryNotice,
+  measureAgentWorkingMemoryMarkdown,
+} from '../lib/agent/runtime/working-memory-document';
 import { createAgentWorkingMemoryRepository } from '../sqlite-repo/agent-working-memory-repo';
 import type { DbClient, DbExecutor } from '../lib/db';
 import { runDerivedTransaction } from '../sync/journal';
@@ -51,16 +54,14 @@ export interface SaveAgentWorkingMemoryInput {
 
 export interface SaveAgentWorkingMemoryResult {
   snapshot: AgentWorkingMemorySnapshot;
-  compacted: boolean;
-  retiredEntries: number;
 }
 
 async function persistAgentWorkingMemory(
   projectId: string,
   input: SaveAgentWorkingMemoryInput,
   tx: DbExecutor,
-): Promise<{ row: AgentWorkingMemory; compacted: boolean; retiredEntries: number }> {
-  const compacted = compactAgentWorkingMemoryMarkdown(input.contentMd);
+): Promise<{ row: AgentWorkingMemory }> {
+  const measured = measureAgentWorkingMemoryMarkdown(input.contentMd);
   const now = new Date().toISOString();
   const repo = createAgentWorkingMemoryRepository(projectId, tx);
   const current = await repo.find();
@@ -71,11 +72,11 @@ async function persistAgentWorkingMemory(
   const revision = currentRevision + 1;
   const next: AgentWorkingMemory = {
     projectId,
-    contentMd: compacted.contentMd,
+    contentMd: measured.contentMd,
     revision,
-    approxTokens: compacted.approxTokens,
+    approxTokens: measured.approxTokens,
     updatedBy: input.updatedBy,
-    lastCompactedAt: compacted.compacted ? now : (current?.lastCompactedAt ?? null),
+    lastCompactedAt: current?.lastCompactedAt ?? null,
     deletedAt: null,
     createdAt: current?.createdAt ?? now,
     updatedAt: now,
@@ -95,11 +96,7 @@ async function persistAgentWorkingMemory(
     const actual = (await repo.find())?.revision ?? 0;
     throw new AgentWorkingMemoryConflictError(input.expectedRevision, actual);
   }
-  return {
-    row: saved,
-    compacted: compacted.compacted,
-    retiredEntries: compacted.retiredEntries,
-  };
+  return { row: saved };
 }
 
 export async function saveAgentWorkingMemory(
@@ -110,11 +107,7 @@ export async function saveAgentWorkingMemory(
     persistAgentWorkingMemory(projectId, input, tx),
   );
   notifyWorkingMemoryChanged(projectId);
-  return {
-    snapshot: toSnapshot(projectId, result.row),
-    compacted: result.compacted,
-    retiredEntries: result.retiredEntries,
-  };
+  return { snapshot: toSnapshot(projectId, result.row) };
 }
 
 /** Isolated runtime/eval entrypoint bound to an explicitly injected product DB. */
@@ -126,11 +119,7 @@ export async function saveAgentWorkingMemoryInDatabase(
   const result = await database.transaction((tx) =>
     persistAgentWorkingMemory(projectId, input, tx),
   );
-  return {
-    snapshot: toSnapshot(projectId, result.row),
-    compacted: result.compacted,
-    retiredEntries: result.retiredEntries,
-  };
+  return { snapshot: toSnapshot(projectId, result.row) };
 }
 
 export async function clearAgentWorkingMemory(
@@ -166,28 +155,36 @@ export async function clearAgentWorkingMemory(
   return toSnapshot(projectId, row);
 }
 
-/** Compact stale oversized content before it enters a new Agent turn. */
+const NOTICE_TIER_KEY = (projectId: string) => `drifting:working-memory-notice-tier:${projectId}`;
+
+/**
+ * Whether this writable turn should ask the Agent to consolidate Working
+ * Memory. The tier already announced is device-local, like the document.
+ */
+export function takeWorkingMemoryConsolidationNotice(
+  projectId: string,
+  approxTokens: number,
+): boolean {
+  let notifiedTier = 0;
+  try {
+    notifiedTier = Number(localStorage.getItem(NOTICE_TIER_KEY(projectId)) ?? 0) || 0;
+  } catch {
+    notifiedTier = 0;
+  }
+  const decision = decideAgentWorkingMemoryNotice(approxTokens, notifiedTier);
+  try {
+    localStorage.setItem(NOTICE_TIER_KEY(projectId), String(decision.notifiedTier));
+  } catch {
+    // Without storage the notice simply repeats at the next turn.
+  }
+  return decision.notice;
+}
+
+/** The current document for a new Agent turn. Never rewritten here. */
 export async function prepareAgentWorkingMemoryForTurn(
   projectId: string,
 ): Promise<AgentWorkingMemorySnapshot> {
-  const snapshot = await loadAgentWorkingMemory(projectId);
-  if (!snapshot.exists) return snapshot;
-  const compacted = compactAgentWorkingMemoryMarkdown(snapshot.contentMd);
-  if (!compacted.compacted) return snapshot;
-  try {
-    return (
-      await saveAgentWorkingMemory(projectId, {
-        contentMd: snapshot.contentMd,
-        expectedRevision: snapshot.revision,
-        updatedBy: 'agent',
-      })
-    ).snapshot;
-  } catch (error) {
-    if (error instanceof AgentWorkingMemoryConflictError) {
-      return loadAgentWorkingMemory(projectId);
-    }
-    throw error;
-  }
+  return loadAgentWorkingMemory(projectId);
 }
 
 export function useAgentWorkingMemory(projectId: string) {

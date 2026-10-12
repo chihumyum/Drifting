@@ -2,8 +2,13 @@ import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import {
   AgentWorkingMemoryConflictError,
+  EMPTY_AGENT_WORKING_MEMORY_MD,
   type AgentWorkingMemorySnapshot,
 } from '../../../domain/agent-working-memory';
+import {
+  applyAgentWorkingMemoryEdits,
+  type AgentWorkingMemoryEdit,
+} from './working-memory-document';
 import {
   loadAgentWorkingMemory,
   saveAgentWorkingMemory,
@@ -20,35 +25,40 @@ import type {
   AgentToolRuntime,
 } from './types';
 import {
-  AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+  AGENT_WORKING_MEMORY_EDIT_TOOL,
   AGENT_WORKING_MEMORY_READ_TOOL,
 } from './working-memory-tool-contract';
 
 export {
-  AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+  AGENT_WORKING_MEMORY_EDIT_TOOL,
   AGENT_WORKING_MEMORY_READ_TOOL,
 } from './working-memory-tool-contract';
 
 const readSchema = Type.Object({}, { additionalProperties: false });
-const checkpointSchema = Type.Object(
+const editSchema = Type.Object(
   {
-    operation: Type.Literal('update', {
-      description: 'Replace Working Memory only when important shared context changed',
-    }),
     expectedRevision: Type.Integer({
       minimum: 0,
       description: 'Exact revision from the turn-start Working Memory header or a fresh read',
     }),
-    contentMd: Type.String({
-      minLength: 1,
-      maxLength: 64_000,
-      description: 'Complete replacement Markdown',
-    }),
+    edits: Type.Array(
+      Type.Object(
+        {
+          oldText: Type.String({
+            minLength: 1,
+            description: 'Exact passage to replace; it must occur exactly once',
+          }),
+          newText: Type.String({ description: 'Replacement text; empty deletes the passage' }),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, description: 'Applied in order, each against the result of the previous one' },
+    ),
   },
   { additionalProperties: false },
 );
 
-function validate(schema: typeof readSchema | typeof checkpointSchema, value: unknown) {
+function validate(schema: typeof readSchema | typeof editSchema, value: unknown) {
   return Value.Check(schema, value)
     ? { ok: true as const, value: value as Record<string, unknown> }
     : {
@@ -65,7 +75,10 @@ function projectId(context: AgentRuntimeContext): string | null {
 
 function modelData(snapshot: AgentWorkingMemorySnapshot): string {
   if (!snapshot.exists) {
-    return `WORKING_MEMORY.md is empty. Current revision: ${snapshot.revision}.`;
+    return [
+      `WORKING_MEMORY.md has no entries yet · revision ${snapshot.revision}. Edit this starting outline:`,
+      EMPTY_AGENT_WORKING_MEMORY_MD,
+    ].join('\n\n');
   }
   return [
     `WORKING_MEMORY.md · revision ${snapshot.revision} · about ${snapshot.approxTokens} tokens`,
@@ -108,20 +121,12 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
         validateInput: (input) => validate(readSchema, input),
       },
       {
-        name: AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+        name: AGENT_WORKING_MEMORY_EDIT_TOOL,
         description:
-          'Replace shared Working Memory when important context changes. Preserve unresolved Current items, put newest Recent results first, and remove stale detail. Supply expectedRevision from the turn-start header or a fresh read.',
-        inputSchema: checkpointSchema,
+          'Edit shared Working Memory in place with exact passage replacements, as you would edit a Markdown file. Use it only when important shared context changes: add or update unresolved Current items and newest Recent results, move lasting author or project context into PROJECT_MEMORY.md, and delete stale detail. Supply expectedRevision from the turn-start header or a fresh read.',
+        inputSchema: editSchema,
         access: 'write',
-        validateInput: (input) => {
-          const checked = validate(checkpointSchema, input);
-          if (!checked.ok) return checked;
-          const contentMd = checked.value.contentMd;
-          if (typeof contentMd !== 'string' || !contentMd.trim()) {
-            return { ok: false, error: 'update requires non-empty contentMd' };
-          }
-          return checked;
-        },
+        validateInput: (input) => validate(editSchema, input),
       },
     ];
   }
@@ -138,22 +143,28 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
         throwIfAgentAborted(request.signal);
         return { ok: true, data: snapshot, modelData: modelData(snapshot) };
       }
-      if (request.name !== AGENT_WORKING_MEMORY_CHECKPOINT_TOOL) {
+      if (request.name !== AGENT_WORKING_MEMORY_EDIT_TOOL) {
         return { ok: false, error: `Unknown Working Memory tool "${request.name}".` };
       }
       const expectedRevision = request.arguments.expectedRevision as number;
+      const current = await this.load(targetProjectId);
+      throwIfAgentAborted(request.signal);
+      if (current.revision !== expectedRevision) {
+        throw new AgentWorkingMemoryConflictError(expectedRevision, current.revision);
+      }
+      const contentMd = applyAgentWorkingMemoryEdits(
+        current.exists ? current.contentMd : EMPTY_AGENT_WORKING_MEMORY_MD,
+        request.arguments.edits as AgentWorkingMemoryEdit[],
+      );
       const result = await this.save(targetProjectId, {
-        contentMd: request.arguments.contentMd as string,
+        contentMd,
         expectedRevision,
         updatedBy: 'agent',
       });
       return {
         ok: true,
-        data: {
-          operation: 'update',
-          ...result,
-        },
-        modelData: `Working Memory saved at revision ${result.snapshot.revision} (${result.snapshot.approxTokens} tokens${result.compacted ? ', compacted' : ''}).`,
+        data: result,
+        modelData: `Working Memory saved at revision ${result.snapshot.revision} (${result.snapshot.approxTokens} tokens).`,
       };
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
@@ -170,7 +181,7 @@ export class AgentWorkingMemoryToolRuntime implements AgentToolRuntime {
 
 export function resolveAgentWorkingMemoryToolAccess(name: string): 'read' | 'write' | undefined {
   if (name === AGENT_WORKING_MEMORY_READ_TOOL) return 'read';
-  if (name === AGENT_WORKING_MEMORY_CHECKPOINT_TOOL) return 'write';
+  if (name === AGENT_WORKING_MEMORY_EDIT_TOOL) return 'write';
   return undefined;
 }
 

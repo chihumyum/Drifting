@@ -191,13 +191,17 @@ pnpm agent:capabilities:check
   domain objects. See `../domain-crud-transaction-protocol.md` §9.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
-  start. Working Memory writes are optional: call `checkpoint_working_memory`
-  with `update` only when important shared context changed; otherwise answer
-  directly without a memory tool call. There is no `noop` operation or mandatory
-  pre-final checkpoint. It is intentionally recent working context, not project
-  history, canon, manuscript prose, a transcript or Project Memory. SQLite owns a revision-CAS singleton; local mutation and sync outbox are
-  atomic; 6k/8k soft/hard token bounds retire the oldest completed `Recent`
-  entries while preserving `Current` and the two newest exact entries.
+  start. Writes are optional: call `edit_working_memory` only when important
+  shared context changed; otherwise answer directly without a memory tool
+  call. The Agent edits it like a Markdown file — exact passage replacements
+  applied in order under revision CAS — and cannot rewrite it whole; an empty
+  document starts from the `## Current` / `## Recent` outline. It is recent
+  working context, not project history, canon, manuscript prose, a transcript
+  or Project Memory. There is no size ceiling and nothing is deleted
+  automatically: the first writable turn past 20,000 and 40,000 tokens, and
+  every writable turn past 80,000, asks the Agent to move lasting items
+  into Project Memory and delete stale detail. The announced tier is
+  device-local, like the document.
 - The desktop General Agent panel can preview, edit, create and clear Working
   Memory even before a provider credential is connected. Concurrent Agent/user
   edits fail closed and preserve an unsaved author draft. The mobile Agent

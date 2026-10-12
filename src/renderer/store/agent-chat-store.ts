@@ -574,7 +574,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       const projectContext = buildGeneralAgentProjectContext(projectId, project);
       // Active agent memories (author-approved standing guidance) — injected into
       // the system prompt so past preferences/vetoes/directives keep steering.
-      const prepared = await prepareAgentChatMemories(projectId, isCurrentStart);
+      const prepared = await prepareAgentChatMemories(projectId, isCurrentStart, {
+        writable: toolAccess !== 'read_only',
+      });
       if (!prepared || !isCurrentStart() || !start.submit()) return;
 
       // Drain rejected edits only once all cancellable preflight reads are done.

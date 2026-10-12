@@ -32,7 +32,7 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       // Keep optional Working Memory updates and conflict-refresh reads
       // available regardless of the author's wording. Availability does not
       // require a call on turns without important shared context changes.
-      append(selected, available, 'checkpoint_working_memory', request.limit);
+      append(selected, available, 'edit_working_memory', request.limit);
       append(selected, available, 'read_working_memory', request.limit);
       for (const name of DRIFTING_DOMAIN_PROVIDER_TOOLS) {
         append(selected, available, name, request.limit);

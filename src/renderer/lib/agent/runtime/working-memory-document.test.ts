@@ -1,90 +1,55 @@
 import { describe, expect, it } from 'vitest';
-import {
-  AGENT_WORKING_MEMORY_SOFT_TOKENS,
-  AGENT_WORKING_MEMORY_TARGET_TOKENS,
-} from '../../../domain/agent-working-memory';
 import { estimateAgentContextTextTokens } from './context-planner';
-import { compactAgentWorkingMemoryMarkdown } from './working-memory-document';
-
-function entry(index: number, character: string): string {
-  return `### 2026-08-${String(12 - index).padStart(2, '0')}\n\n- ${character.repeat(1_350)}\n`;
-}
+import {
+  agentWorkingMemoryNoticeTier,
+  applyAgentWorkingMemoryEdits,
+  decideAgentWorkingMemoryNotice,
+  measureAgentWorkingMemoryMarkdown,
+} from './working-memory-document';
 
 describe('Working Memory rolling Markdown', () => {
-  it('leaves a bounded document byte-stable', () => {
+  it('leaves a document byte-stable and reports its size without any ceiling', () => {
     const content = '# Working Memory\n\n## Current\n\n- 继续验收。\n\n## Recent\n';
-    const result = compactAgentWorkingMemoryMarkdown(content);
-
-    expect(result).toEqual({
+    expect(measureAgentWorkingMemoryMarkdown(content)).toEqual({
       contentMd: content,
       approxTokens: estimateAgentContextTextTokens(content),
-      compacted: false,
-      retiredEntries: 0,
     });
+    const huge = `# Working Memory\n\n## Recent\n\n- ${'长'.repeat(200_000)}\n`;
+    expect(measureAgentWorkingMemoryMarkdown(huge).contentMd).toBe(huge);
   });
 
-  it('retires the oldest summary and oldest recent entries while keeping Current and newest exact work', () => {
-    const content = [
-      '# Working Memory',
-      '',
-      '## Current',
-      '',
-      '- 下一位 Agent 必须继续移动端验收。',
-      '',
-      '## Recent',
-      '',
-      entry(0, '甲'),
-      entry(1, '乙'),
-      entry(2, '丙'),
-      entry(3, '丁'),
-      entry(4, '戊'),
-      '',
-      '## Earlier summary',
-      '',
-      `- ${'旧'.repeat(1_200)}`,
-    ].join('\n');
-    expect(estimateAgentContextTextTokens(content)).toBeGreaterThan(
-      AGENT_WORKING_MEMORY_SOFT_TOKENS,
+  it('edits passages in order like a Markdown file', () => {
+    const content = '# Working Memory\n\n## Current\n\n- 修第三章\n\n## Recent\n';
+    const next = applyAgentWorkingMemoryEdits(content, [
+      { oldText: '- 修第三章\n', newText: '' },
+      { oldText: '## Recent\n', newText: '## Recent\n\n- 第三章已修完\n' },
+    ]);
+    expect(next).toBe('# Working Memory\n\n## Current\n\n\n## Recent\n\n- 第三章已修完\n');
+  });
+
+  it('rejects edits whose passage is missing or ambiguous', () => {
+    const content = '- 甲\n- 甲\n';
+    expect(() => applyAgentWorkingMemoryEdits(content, [{ oldText: '- 乙', newText: '' }])).toThrow(
+      'WORKING_MEMORY_EDIT_NOT_FOUND',
     );
-
-    const result = compactAgentWorkingMemoryMarkdown(content);
-
-    expect(result.compacted).toBe(true);
-    expect(result.retiredEntries).toBeGreaterThan(0);
-    expect(result.approxTokens).toBeLessThanOrEqual(AGENT_WORKING_MEMORY_TARGET_TOKENS);
-    expect(result.contentMd).toContain('下一位 Agent 必须继续移动端验收');
-    expect(result.contentMd).toContain('甲'.repeat(60));
-    expect(result.contentMd).toContain('乙'.repeat(60));
-    expect(result.contentMd).not.toContain('## Earlier summary');
-    expect(result.contentMd).not.toContain('戊'.repeat(60));
+    expect(() => applyAgentWorkingMemoryEdits(content, [{ oldText: '- 甲', newText: '' }])).toThrow(
+      'WORKING_MEMORY_EDIT_AMBIGUOUS',
+    );
   });
 
-  it('fails closed when protected current work plus the newest exact records exceed the hard limit', () => {
-    const content = `# Working Memory\n\n## Current\n\n- ${'未'.repeat(8_500)}\n\n## Recent\n`;
-
-    expect(() => compactAgentWorkingMemoryMarkdown(content)).toThrow('WORKING_MEMORY_TOO_LARGE');
-  });
-
-  it('also retires oldest bullet records from an ordinary Markdown Recent section', () => {
-    const memory = [
-      '# Working Memory',
-      '',
-      '## Current',
-      '',
-      '- 保留当前阻塞。',
-      '',
-      '## Recent',
-      '',
-      `- newest ${'新'.repeat(2_600)}`,
-      `- middle ${'中'.repeat(2_600)}`,
-      `- oldest ${'旧'.repeat(2_600)}`,
-    ].join('\n');
-
-    const result = compactAgentWorkingMemoryMarkdown(memory);
-
-    expect(result.compacted).toBe(true);
-    expect(result.contentMd).toContain('newest');
-    expect(result.contentMd).toContain('middle');
-    expect(result.contentMd).not.toContain('oldest');
+  it('prompts once at 20k and 40k tokens and on every turn above 80k', () => {
+    expect([0, 20_001, 40_001, 80_000, 80_001].map(agentWorkingMemoryNoticeTier)).toEqual([
+      0, 1, 2, 2, 3,
+    ]);
+    expect(decideAgentWorkingMemoryNotice(19_000, 0)).toEqual({ notice: false, notifiedTier: 0 });
+    expect(decideAgentWorkingMemoryNotice(25_000, 0)).toEqual({ notice: true, notifiedTier: 1 });
+    expect(decideAgentWorkingMemoryNotice(30_000, 1)).toEqual({ notice: false, notifiedTier: 1 });
+    expect(decideAgentWorkingMemoryNotice(60_000, 1)).toEqual({ notice: true, notifiedTier: 2 });
+    expect(decideAgentWorkingMemoryNotice(70_000, 2)).toEqual({ notice: false, notifiedTier: 2 });
+    expect(decideAgentWorkingMemoryNotice(90_000, 3)).toEqual({ notice: true, notifiedTier: 3 });
+    expect(decideAgentWorkingMemoryNotice(90_000, 3)).toEqual({ notice: true, notifiedTier: 3 });
+    // Shrinking re-arms the notice for the next crossing.
+    expect(decideAgentWorkingMemoryNotice(10_000, 3)).toEqual({ notice: false, notifiedTier: 0 });
+    expect(decideAgentWorkingMemoryNotice(21_000, 0)).toEqual({ notice: true, notifiedTier: 1 });
   });
 });

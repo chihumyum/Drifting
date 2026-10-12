@@ -607,7 +607,7 @@ describe.sequential('Drifting Agent product composition', () => {
       {
         name: 'answer directly while memory updates are available',
         expectRequest: (request) => {
-          expect(request.tools[0]?.description).toContain('checkpoint_working_memory');
+          expect(request.tools[0]?.description).toContain('edit_working_memory');
         },
         steps: finalSteps('Hello.'),
       },

@@ -1599,22 +1599,24 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     resultBudgetChars: 32_000,
   },
   {
-    name: 'checkpoint_working_memory',
-    description: '仅在有重要共享信息变化时更新 Working Memory；当前记忆已自动进入上下文，无需改动时不要调用。',
+    name: 'edit_working_memory',
+    description: '像编辑 Markdown 文件一样，用精确片段替换就地修改 Working Memory；仅在有重要共享信息变化时调用。长期有效的作者或项目信息移入 PROJECT_MEMORY.md，过时内容删除。',
     parametersSchema: Type.Object(
       {
-        operation: Type.Literal('update', {
-          description: '仅在有重要共享信息变化时替换 Working Memory',
-        }),
         expectedRevision: Type.Integer({
           minimum: 0,
           description: '回合开始时或重新读取后得到的精确 Working Memory revision',
         }),
-        contentMd: Type.String({
-          minLength: 1,
-          maxLength: 64_000,
-          description: '完整替换 Markdown',
-        }),
+        edits: Type.Array(
+          Type.Object(
+            {
+              oldText: Type.String({ minLength: 1, description: '要替换的原文片段，必须恰好出现一次' }),
+              newText: Type.String({ description: '替换后的文字；为空即删除该片段' }),
+            },
+            { additionalProperties: false },
+          ),
+          { minItems: 1, description: '按顺序依次应用' },
+        ),
       },
       { additionalProperties: false },
     ),
@@ -1627,7 +1629,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'unavailable',
     certificationNote:
-      'Runtime-certified project-scoped Markdown checkpoint with revision CAS and bounded compaction.',
+      'Runtime-certified project-scoped Markdown passage edits with revision CAS; no size ceiling.',
     resultBudgetChars: 12_000,
   },
   {

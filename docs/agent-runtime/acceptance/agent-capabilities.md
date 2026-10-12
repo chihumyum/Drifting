@@ -86,7 +86,6 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | --- | --- | --- | --- | --- |
 | `add_chapter_to_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `ask_user` | read | runtime-control | workspace-runtime | internal-certified |
-| `checkpoint_working_memory` | write | working-memory-runtime | working-memory-runtime | internal-certified |
 | `create_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_comment` | write | domain-tools | drifting-runtime | write-certified |
 | `create_element` | write | domain-tools | drifting-runtime | write-certified |
@@ -107,6 +106,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `delete_relation` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_relation_type` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_storyline` | write | domain-tools | drifting-runtime | internal-certified |
+| `edit_working_memory` | write | working-memory-runtime | working-memory-runtime | internal-certified |
 | `find_element_appearances` | read | domain-tools | workspace-runtime | internal-certified |
 | `get_element_patches` | read | domain-tools | workspace-runtime | read-certified |
 | `get_project_facts` | read | domain-tools | workspace-runtime | internal-certified |
@@ -182,8 +182,9 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Format: `single-rolling-markdown`
 - Visible document: `WORKING_MEMORY.md`
 - Scope: `project-shared-general-agent-conversations`
-- Lifecycle: `turn-start-injection-and-on-demand-important-updates`
-- Compaction: `soft-6000-hard-8000-oldest-first-retirement`
+- Lifecycle: `turn-start-injection-and-on-demand-passage-edits`
+- Compaction: `no-automatic-deletion-and-no-size-ceiling`
+- Consolidation: `prompt-once-past-20000-and-40000-tokens-every-turn-past-80000`
 - Concurrency: `sqlite-revision-cas`
 - Sync: `device-local-excluded-from-sync`
 

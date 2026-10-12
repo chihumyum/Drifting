@@ -31,7 +31,7 @@ import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 import { DRIFTING_AGENT_CONCURRENCY_CONTRACT } from './agent-concurrency-contract';
 import {
-  AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+  AGENT_WORKING_MEMORY_EDIT_TOOL,
   AGENT_WORKING_MEMORY_READ_TOOL,
 } from './working-memory-tool-contract';
 import { TOOL_SEARCH, CALL_TOOL } from './tool-discovery';
@@ -116,8 +116,9 @@ export interface DriftingAgentCapabilityManifest {
     format: 'single-rolling-markdown';
     filename: 'WORKING_MEMORY.md';
     scope: 'project-shared-general-agent-conversations';
-    lifecycle: 'turn-start-injection-and-on-demand-important-updates';
-    compaction: 'soft-6000-hard-8000-oldest-first-retirement';
+    lifecycle: 'turn-start-injection-and-on-demand-passage-edits';
+    compaction: 'no-automatic-deletion-and-no-size-ceiling';
+    consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000';
     concurrency: 'sqlite-revision-cas';
     sync: 'device-local-excluded-from-sync';
   };
@@ -243,7 +244,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     }));
   const workingMemoryEntries = [
     AGENT_WORKING_MEMORY_READ_TOOL,
-    AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+    AGENT_WORKING_MEMORY_EDIT_TOOL,
   ].map((name) =>
     catalogCapability(
       requiredCatalogTool(name),
@@ -335,8 +336,9 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       format: 'single-rolling-markdown',
       filename: 'WORKING_MEMORY.md',
       scope: 'project-shared-general-agent-conversations',
-      lifecycle: 'turn-start-injection-and-on-demand-important-updates',
-      compaction: 'soft-6000-hard-8000-oldest-first-retirement',
+      lifecycle: 'turn-start-injection-and-on-demand-passage-edits',
+      compaction: 'no-automatic-deletion-and-no-size-ceiling',
+      consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000',
       concurrency: 'sqlite-revision-cas',
       sync: 'device-local-excluded-from-sync',
     },

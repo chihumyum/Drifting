@@ -200,8 +200,9 @@ describe('Drifting Agent capability manifest', () => {
       format: 'single-rolling-markdown',
       filename: 'WORKING_MEMORY.md',
       scope: 'project-shared-general-agent-conversations',
-      lifecycle: 'turn-start-injection-and-on-demand-important-updates',
-      compaction: 'soft-6000-hard-8000-oldest-first-retirement',
+      lifecycle: 'turn-start-injection-and-on-demand-passage-edits',
+      compaction: 'no-automatic-deletion-and-no-size-ceiling',
+      consolidation: 'prompt-once-past-20000-and-40000-tokens-every-turn-past-80000',
       concurrency: 'sqlite-revision-cas',
       sync: 'device-local-excluded-from-sync',
     });

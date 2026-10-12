@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import {
-  AGENT_WORKING_MEMORY_SOFT_TOKENS,
+  AGENT_WORKING_MEMORY_PERSISTENT_NOTICE_TOKENS,
   EMPTY_AGENT_WORKING_MEMORY_MD,
   AgentWorkingMemoryConflictError,
 } from '../../domain/agent-working-memory';
@@ -43,7 +43,7 @@ export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
 
   const preview = useMemo(() => markdownHtml(draft), [draft]);
   const usage = snapshot?.approxTokens ?? 0;
-  const usagePercent = Math.min(100, Math.round((usage / AGENT_WORKING_MEMORY_SOFT_TOKENS) * 100));
+  const usagePercent = Math.min(100, Math.round((usage / AGENT_WORKING_MEMORY_PERSISTENT_NOTICE_TOKENS) * 100));
 
   const save = async () => {
     setSaving(true);
@@ -58,11 +58,7 @@ export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
       setDraftRevision(result.snapshot.revision);
       setDirty(false);
       setMode('preview');
-      setMessage(
-        result.compacted
-          ? t('agentPanel.workingMemory.savedCompacted')
-          : t('agentPanel.workingMemory.saved'),
-      );
+      setMessage(t('agentPanel.workingMemory.saved'));
     } catch (error) {
       if (error instanceof AgentWorkingMemoryConflictError) {
         await refresh();

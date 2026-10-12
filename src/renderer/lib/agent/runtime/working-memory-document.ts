@@ -1,105 +1,78 @@
 import {
-  AGENT_WORKING_MEMORY_HARD_TOKENS,
-  AGENT_WORKING_MEMORY_MAX_CHARACTERS,
-  AGENT_WORKING_MEMORY_SOFT_TOKENS,
-  AGENT_WORKING_MEMORY_TARGET_TOKENS,
+  AGENT_WORKING_MEMORY_NOTICE_TOKENS,
+  AGENT_WORKING_MEMORY_PERSISTENT_NOTICE_TOKENS,
 } from '../../../domain/agent-working-memory';
 import { estimateAgentContextTextTokens } from './context-planner';
 
-const RECENT_HEADING = /^##\s+Recent\s*$/imu;
-const SECOND_LEVEL_HEADING = /^##\s+/gmu;
-const ENTRY_HEADING = /^###\s+.+$/gmu;
-const BULLET_ENTRY = /^[-*+]\s+\S.*$/gmu;
-const EARLIER_SUMMARY_HEADING = /^##\s+Earlier summary\s*$/imu;
-const MIN_EXACT_RECENT_ENTRIES = 2;
-
-export interface AgentWorkingMemoryCompactionResult {
+export interface AgentWorkingMemoryMeasurement {
   contentMd: string;
   approxTokens: number;
-  compacted: boolean;
-  retiredEntries: number;
 }
 
 export function normalizeAgentWorkingMemoryMarkdown(value: string): string {
   const normalized = value.replaceAll('\u0000', '').replace(/\r\n?/gu, '\n').trim();
-  if (normalized.length > AGENT_WORKING_MEMORY_MAX_CHARACTERS) {
-    throw new Error(`Working Memory exceeds ${AGENT_WORKING_MEMORY_MAX_CHARACTERS} characters.`);
-  }
   return normalized ? `${normalized}\n` : '';
 }
 
-function sectionRange(content: string, heading: RegExp): { start: number; end: number } | null {
-  const match = heading.exec(content);
-  if (!match || match.index === undefined) return null;
-  const afterHeading = match.index + match[0].length;
-  SECOND_LEVEL_HEADING.lastIndex = afterHeading;
-  const next = SECOND_LEVEL_HEADING.exec(content);
-  SECOND_LEVEL_HEADING.lastIndex = 0;
-  return { start: match.index, end: next?.index ?? content.length };
+/** Normalize and measure a replacement document. There is no size ceiling. */
+export function measureAgentWorkingMemoryMarkdown(
+  rawContent: string,
+): AgentWorkingMemoryMeasurement {
+  const contentMd = normalizeAgentWorkingMemoryMarkdown(rawContent);
+  return { contentMd, approxTokens: estimateAgentContextTextTokens(contentMd) };
 }
 
-function removeRange(content: string, range: { start: number; end: number }): string {
-  return `${content.slice(0, range.start).trimEnd()}\n\n${content.slice(range.end).trimStart()}`.trim();
-}
-
-function recentEntryRanges(content: string): Array<{ start: number; end: number }> {
-  const section = sectionRange(content, RECENT_HEADING);
-  if (!section) return [];
-  const body = content.slice(section.start, section.end);
-  const headingStarts = [...body.matchAll(ENTRY_HEADING)].map(
-    (match) => section.start + match.index!,
-  );
-  const starts = headingStarts.length
-    ? headingStarts
-    : [...body.matchAll(BULLET_ENTRY)].map((match) => section.start + match.index!);
-  return starts.map((start, index) => ({
-    start,
-    end: starts[index + 1] ?? section.end,
-  }));
+export interface AgentWorkingMemoryEdit {
+  oldText: string;
+  newText: string;
 }
 
 /**
- * Bounded deterministic fallback for the rolling Markdown document.
- *
- * The Agent is asked to summarize old work while it still has semantic
- * context. If that checkpoint remains over the soft budget, this fallback
- * removes the oldest completed `## Recent` entries (the list is newest first) while
- * preserving `## Current` and at least the two newest exact entries. An older
- * lossy summary is retired first because it represents the earliest context.
+ * Apply exact passage replacements in order. Each `oldText` must occur
+ * exactly once in the document as it stands after the previous edits, so a
+ * large document can be consolidated without rewriting it whole.
  */
-export function compactAgentWorkingMemoryMarkdown(
-  rawContent: string,
-): AgentWorkingMemoryCompactionResult {
-  let contentMd = normalizeAgentWorkingMemoryMarkdown(rawContent);
-  let approxTokens = estimateAgentContextTextTokens(contentMd);
-  if (approxTokens <= AGENT_WORKING_MEMORY_SOFT_TOKENS) {
-    return { contentMd, approxTokens, compacted: false, retiredEntries: 0 };
-  }
+export function applyAgentWorkingMemoryEdits(
+  contentMd: string,
+  edits: readonly AgentWorkingMemoryEdit[],
+): string {
+  let next = contentMd;
+  edits.forEach(({ oldText, newText }, index) => {
+    const first = next.indexOf(oldText);
+    if (!oldText || first < 0) {
+      throw new Error(
+        `WORKING_MEMORY_EDIT_NOT_FOUND: edit ${index + 1} oldText does not occur in the current document; read it again.`,
+      );
+    }
+    if (next.indexOf(oldText, first + 1) >= 0) {
+      throw new Error(
+        `WORKING_MEMORY_EDIT_AMBIGUOUS: edit ${index + 1} oldText occurs more than once; include more surrounding text.`,
+      );
+    }
+    next = `${next.slice(0, first)}${newText}${next.slice(first + oldText.length)}`;
+  });
+  return next;
+}
 
-  let compacted = false;
-  let retiredEntries = 0;
-  const earlier = sectionRange(contentMd, EARLIER_SUMMARY_HEADING);
-  if (earlier) {
-    contentMd = removeRange(contentMd, earlier);
-    compacted = true;
-    approxTokens = estimateAgentContextTextTokens(contentMd);
+/** How many notice sizes the document exceeds (0 to 3; 3 is persistent). */
+export function agentWorkingMemoryNoticeTier(approxTokens: number): number {
+  if (approxTokens > AGENT_WORKING_MEMORY_PERSISTENT_NOTICE_TOKENS) {
+    return AGENT_WORKING_MEMORY_NOTICE_TOKENS.length + 1;
   }
+  return AGENT_WORKING_MEMORY_NOTICE_TOKENS.filter((size) => approxTokens > size).length;
+}
 
-  while (approxTokens > AGENT_WORKING_MEMORY_TARGET_TOKENS) {
-    const entries = recentEntryRanges(contentMd);
-    if (entries.length <= MIN_EXACT_RECENT_ENTRIES) break;
-    contentMd = removeRange(contentMd, entries[entries.length - 1]!);
-    compacted = true;
-    retiredEntries += 1;
-    approxTokens = estimateAgentContextTextTokens(contentMd);
-  }
-
-  contentMd = normalizeAgentWorkingMemoryMarkdown(contentMd);
-  approxTokens = estimateAgentContextTextTokens(contentMd);
-  if (approxTokens > AGENT_WORKING_MEMORY_HARD_TOKENS) {
-    throw new Error(
-      'WORKING_MEMORY_TOO_LARGE: shrink Current or the newest records before saving.',
-    );
-  }
-  return { contentMd, approxTokens, compacted, retiredEntries };
+/**
+ * Prompt once when the document crosses into a higher notice tier, and on
+ * every turn above the persistent size. Shrinking lowers the remembered tier
+ * so growing past the same size again prompts again.
+ */
+export function decideAgentWorkingMemoryNotice(
+  approxTokens: number,
+  notifiedTier: number,
+): { notice: boolean; notifiedTier: number } {
+  const tier = agentWorkingMemoryNoticeTier(approxTokens);
+  if (tier > AGENT_WORKING_MEMORY_NOTICE_TOKENS.length) return { notice: true, notifiedTier: tier };
+  if (tier > notifiedTier) return { notice: true, notifiedTier: tier };
+  return { notice: false, notifiedTier: Math.min(notifiedTier, tier) };
 }

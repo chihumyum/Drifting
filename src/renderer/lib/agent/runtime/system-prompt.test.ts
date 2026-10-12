@@ -20,8 +20,8 @@ describe('Drifting General Agent system prompt', () => {
     expect(value).toContain(
       'Working Memory is shared short-lived context, but it is read-only for this answer-only turn',
     );
-    expect(value).toContain('Do not call checkpoint_working_memory');
-    expect(value).not.toContain('call checkpoint_working_memory exactly once');
+    expect(value).toContain('Do not call edit_working_memory');
+    expect(value).not.toContain('call edit_working_memory exactly once');
   });
 
   it('injects the canonical project name without treating projectId as a title', () => {
@@ -89,6 +89,23 @@ describe('Drifting General Agent system prompt', () => {
     }
   });
 
+  it('asks the Agent to consolidate Working Memory only on a notice turn', () => {
+    const notice = prompt({
+      workingMemory: { contentMd: '# Working Memory\n', revision: 3, approxTokens: 41_000, consolidate: true },
+    });
+    expect(notice).toContain('Shared WORKING_MEMORY.md at revision 3 (about 41000 tokens):');
+    expect(notice).toContain('Working Memory has grown to about 41000 tokens.');
+    const quiet = prompt({
+      workingMemory: { contentMd: '# Working Memory\n', revision: 3, approxTokens: 41_000 },
+    });
+    expect(quiet).not.toContain('Working Memory has grown');
+    const readOnly = prompt({
+      toolAccess: 'read_only',
+      workingMemory: { contentMd: '# Working Memory\n', revision: 3, approxTokens: 41_000, consolidate: true },
+    });
+    expect(readOnly).not.toContain('Working Memory has grown');
+  });
+
   it('leaves writing policy to the author and injects only author-owned rules', () => {
     const system = prompt({
       projectFacts: [{ key: '叙述规则', value: '允许自由切换视角' }],
@@ -131,8 +148,8 @@ describe('Drifting General Agent system prompt', () => {
 
     expect(system).toContain('shared recent context');
     expect(system).toContain('already supplied at turn start');
-    expect(system).toContain('Update it when important shared context changes');
-    expect(system).not.toContain('call checkpoint_working_memory exactly once');
+    expect(system).toContain('Edit it in place when important shared context changes');
+    expect(system).not.toContain('call edit_working_memory exactly once');
     expect(system).not.toContain('noop');
     expect(system).toContain('WORKING_MEMORY.md at revision 7');
     expect(system).toContain('继续真机验收');
