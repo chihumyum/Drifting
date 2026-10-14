@@ -42,6 +42,6 @@ describe('ElementPanel without a category footer', () => {
         ),
       ),
     ).toBe(false);
-    expect(designSystem).toContain('元素 panel 不再设置 category footer');
+    expect(designSystem).toContain('要素 panel 不再设置 category footer');
   });
 });

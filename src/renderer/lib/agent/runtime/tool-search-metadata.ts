@@ -38,7 +38,7 @@ export const DRIFTING_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
       'browse characters settings and objects',
       'list story bible entities',
       '列出角色设定物件',
-      '查看元素目录',
+      '查看要素目录',
     ],
   },
   read_element: {
@@ -46,7 +46,7 @@ export const DRIFTING_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
       'inspect one character profile',
       'read story bible entity detail',
       '查看单个角色档案',
-      '读取元素详情',
+      '读取要素详情',
       '查看单个物件正文与事实',
     ],
   },
@@ -55,7 +55,7 @@ export const DRIFTING_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
       'trace character evolution across chapters',
       'accepted entity state changes',
       '追踪角色跨章演变',
-      '查看元素状态补丁',
+      '查看要素状态补丁',
     ],
   },
   read_node: {
@@ -236,7 +236,7 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
       'browse element category groups',
       'list story bible categories',
       '列出要素分类',
-      '查看元素分组目录',
+      '查看要素分组目录',
     ],
   },
   read_element_category: {
@@ -408,7 +408,7 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
     searchIntents: ['delete a character or element', '删除角色或要素', '移除设定条目'],
   },
   create_element_category: {
-    searchIntents: ['add an element category', '新建要素分类', '创建元素分组'],
+    searchIntents: ['add an element category', '新建要素分类', '创建要素分组'],
   },
   update_element_category: {
     searchIntents: ['rename category or template facts', '更新要素分类设置', '修改分类模板事实'],
@@ -417,7 +417,7 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
     searchIntents: ['replace category description body', '整篇替换分类正文', '重写分类说明'],
   },
   delete_element_category: {
-    searchIntents: ['delete an element category', '删除要素分类', '移除元素分组'],
+    searchIntents: ['delete an element category', '删除要素分类', '移除要素分组'],
   },
   create_storyline: {
     searchIntents: ['add a new plot thread', '新建故事线', '创建情节线'],

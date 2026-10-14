@@ -65,14 +65,14 @@ const TASKS: readonly EvalTask[] = [
   {
     id: 'elements-zh',
     category: 'chinese',
-    prompt: '列出项目元素，并告诉我代理舰长是谁。',
+    prompt: '列出项目要素，并告诉我代理舰长是谁。',
     expectedTools: ['list_elements'],
     answerPattern: /林舟/u,
   },
   {
     id: 'element-emoji',
     category: 'emoji',
-    prompt: '读取“阿澄🧭”的元素详情，她的职责是什么？',
+    prompt: '读取“阿澄🧭”的要素详情，她的职责是什么？',
     expectedTools: ['read_element'],
     answerPattern: /导航员/u,
   },
@@ -146,7 +146,7 @@ const TASKS: readonly EvalTask[] = [
   {
     id: 'project-search-emoji',
     category: 'emoji',
-    prompt: '在项目元数据里搜索“🧭”，返回匹配的完整元素名。',
+    prompt: '在项目元数据里搜索“🧭”，返回匹配的完整要素名。',
     expectedTools: ['search_project'],
     answerPattern: /阿澄🧭/u,
   },

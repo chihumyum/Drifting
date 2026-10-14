@@ -1863,7 +1863,7 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
   const label = el ? el.name : id;
   // Destructive — require explicit human confirmation (non-blocking, auto-declines
   // before the bridge timeout so a delete can't run after the agent is told it failed).
-  if (!(await requestAgentConfirm(`Agent 想删除元素「${label}」。允许吗？`, confirmOptions(ctx)))) {
+  if (!(await requestAgentConfirm(`Agent 想删除要素「${label}」。允许吗？`, confirmOptions(ctx)))) {
     return { ok: false, declined: true };
   }
   await ctx.write.removeElement(id);

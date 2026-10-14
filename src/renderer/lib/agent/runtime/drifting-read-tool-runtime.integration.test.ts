@@ -420,7 +420,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
           orientation: 'directed',
           systemKey: null,
           locked: false,
-          sourceRole: '元素',
+          sourceRole: '要素',
           targetRole: '章节',
           sourceKinds: ['element'],
           targetKinds: ['node'],

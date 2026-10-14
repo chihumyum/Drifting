@@ -176,10 +176,10 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
 
           const labelFor = (item: MentionPickerItem): { tag: string; text: string } => {
             if (item.variant === 'create-element') {
-              return { tag: '新建', text: `创建元素「${item.name}」` };
+              return { tag: '新建', text: `创建要素「${item.name}」` };
             }
             return {
-              tag: item.entity.kind === 'element' ? '元素' : '章节',
+              tag: item.entity.kind === 'element' ? '要素' : '章节',
               text: item.displayText,
             };
           };

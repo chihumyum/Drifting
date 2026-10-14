@@ -159,7 +159,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
             </div>
           </div>
           <div className="rounded-[1px] bg-yellow-50 p-2">
-            <div className="text-yellow-600 font-medium">元素</div>
+            <div className="text-yellow-600 font-medium">要素</div>
             <div className="text-yellow-900">
               {Array.isArray((data as LocalDebugData).elements)
                 ? (data as LocalDebugData).elements.length
@@ -216,7 +216,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
             { label: '项目', key: 'projects' as const },
             { label: '节点', key: 'nodes' as const },
             { label: '故事线', key: 'storylines' as const },
-            { label: '元素', key: 'elements' as const },
+            { label: '要素', key: 'elements' as const },
             { label: '分类', key: 'categories' as const },
           ].map(({ label, key }) => {
             const serverCount = (serverData?.[key] as unknown[])?.length || 0;

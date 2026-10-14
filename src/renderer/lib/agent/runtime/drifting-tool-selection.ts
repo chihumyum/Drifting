@@ -362,7 +362,7 @@ function explicitCatalogReads(query: string): readonly string[] {
     reads.push('list_nodes', 'list_inspirations');
   }
   if (
-    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:角色|人物|元素|设定|物件)|(?:角色|人物|元素|物件).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:characters?|elements?|settings?|objects?)\b/iu.test(
+    /(?:列出|罗列|显示|查看|有哪些|全部).{0,24}(?:角色|人物|要素|元素|设定|物件)|(?:角色|人物|要素|元素|物件).{0,12}(?:列表|目录|清单|有哪些)|\b(?:list|show|browse)\b.{0,40}\b(?:characters?|elements?|settings?|objects?)\b/iu.test(
       request,
     )
   ) {
@@ -377,7 +377,7 @@ function explicitCatalogReads(query: string): readonly string[] {
 function explicitNarrowReads(query: string): readonly string[] {
   const request = originalRequest(query).normalize('NFKC');
   if (
-    /(?:已经|已).{0,6}(?:接受|采纳|生效).{0,12}(?:角色|人物|元素)?(?:演变|变化|补丁)/iu.test(
+    /(?:已经|已).{0,6}(?:接受|采纳|生效).{0,12}(?:角色|人物|要素|元素)?(?:演变|变化|补丁)/iu.test(
       request,
     ) ||
     /\b(?:accepted|applied|in-effect)\b.{0,20}\b(?:character|element)? ?(?:evolution|changes?|patches?)\b/iu.test(

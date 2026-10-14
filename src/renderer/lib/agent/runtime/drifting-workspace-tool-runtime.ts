@@ -3828,9 +3828,9 @@ function workspaceDirectoryDisplayName(
   const rootNames: Record<string, string> = {
     '/chapters': '章节',
     '/drifts': '构想',
-    '/elements': '故事元素',
+    '/elements': '故事要素',
     '/storylines': '故事线',
-    '/categories': '元素分类',
+    '/categories': '要素分类',
     '/materials': '参考素材',
     '/project': '项目设定',
     '/comments': '编辑批注',

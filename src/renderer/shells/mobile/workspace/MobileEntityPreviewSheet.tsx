@@ -108,7 +108,7 @@ export function MobileEntityPreviewSheet({
         relationKind = 'category';
         updatedAt = category.updatedAt;
         fields.push({
-          label: '元素',
+          label: '要素',
           value: String(data.bookElements.filter((item) => item.categoryId === category.id).length),
         });
       }

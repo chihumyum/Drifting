@@ -81,6 +81,6 @@ describe('voice context pack', () => {
       bookNodes: [],
     });
     expect(pack).toContain('新项目');
-    expect(pack).not.toContain('项目元素');
+    expect(pack).not.toContain('项目要素');
   });
 });

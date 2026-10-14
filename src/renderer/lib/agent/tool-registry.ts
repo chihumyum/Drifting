@@ -196,7 +196,7 @@ function registerInternalTool(spec: InternalToolSpec): RegisteredTool {
 const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   {
     name: 'get_overview',
-    description: '一次返回项目设定纲要、故事线、章节或构想与元素目录。开始全书任务时优先调用。',
+    description: '一次返回项目设定纲要、故事线、章节或构想与要素目录。开始全书任务时优先调用。',
     parametersSchema: noArgs,
     aliases: ['overview', '项目概览', '全书概览'],
     resultBudgetChars: 24_000,
@@ -218,22 +218,22 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_elements',
-    description: '按名字列出项目的元素类目与元素（角色/设定/物件）：name · category · summary。',
+    description: '按名字列出项目的要素类目与要素（角色/设定/物件）：name · category · summary。',
     parametersSchema: noArgs,
-    aliases: ['elements', '角色列表', '元素列表'],
+    aliases: ['elements', '角色列表', '要素列表', '元素列表'],
     resultBudgetChars: 20_000,
   },
   {
     name: 'read_element',
-    description: '读一个元素（角色/设定/物件）：名称、简介、别名、分组、类目、KV 事实与正文。',
-    parametersSchema: Type.Object({ element: str('元素名称') }, { additionalProperties: false }),
-    aliases: ['element detail', '读取角色', '读取元素'],
+    description: '读一个要素（角色/设定/物件）：名称、简介、别名、分组、类目、KV 事实与正文。',
+    parametersSchema: Type.Object({ element: str('要素名称') }, { additionalProperties: false }),
+    aliases: ['element detail', '读取角色', '读取要素', '读取元素'],
   },
   {
     name: 'get_element_patches',
-    description: '读取一个元素跨章被接受的状态变更，每条带来源章节与正文。',
-    parametersSchema: Type.Object({ element: str('元素名称') }, { additionalProperties: false }),
-    aliases: ['element evolution', '角色演变', '元素补丁'],
+    description: '读取一个要素跨章被接受的状态变更，每条带来源章节与正文。',
+    parametersSchema: Type.Object({ element: str('要素名称') }, { additionalProperties: false }),
+    aliases: ['element evolution', '角色演变', '要素补丁', '元素补丁'],
   },
   {
     name: 'read_node',
@@ -406,16 +406,16 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
 const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   {
     name: 'update_element',
-    description: '更新元素名称、简介、别名、分组、类目或结构化事实；只修改提供的字段。',
+    description: '更新要素名称、简介、别名、分组、类目或结构化事实；只修改提供的字段。',
     parametersSchema: Type.Object(
       {
-        element: str('元素名称'),
+        element: str('要素名称'),
         name: optionalStr('新名称'),
         summary: optionalStr('新简介'),
         aliases: Type.Optional(Type.Array(Type.String())),
         groupName: optionalStr('新分组名'),
         category: optionalStr('新类目名称'),
-        facts: optionalFacts('替换元素结构化事实'),
+        facts: optionalFacts('替换要素结构化事实'),
       },
       { additionalProperties: false },
     ),
@@ -425,14 +425,14 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: ['update character', '更新元素'],
+    aliases: ['update character', '更新要素', '更新元素'],
     certification: 'write-certified',
     certificationNote:
       'P6 entity-write certification: hard pre-execution authorization, exact element freshness, atomic element/outbox receipt, crash reconciliation, and guarded exact inverse.',
   },
   {
     name: 'set_entity_body',
-    description: '整体替换元素、故事线或类目的长正文；章节或构想必须使用 block 工具。',
+    description: '整体替换要素、故事线或类目的长正文；章节或构想必须使用 block 工具。',
     parametersSchema: Type.Object(
       {
         kind: str('element | storyline | category'),
@@ -452,16 +452,16 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'create_element',
-    description: '在指定类目下创建一个角色、地点、物件或其他元素。',
+    description: '在指定类目下创建一个角色、地点、物件或其他要素。',
     parametersSchema: Type.Object(
       {
         category: str('类目名称'),
-        name: str('元素名称'),
+        name: str('要素名称'),
         summary: optionalStr('简介'),
         body: optionalStr('初始长正文'),
         aliases: Type.Optional(Type.Array(Type.String())),
         groupName: optionalStr('可选分组名'),
-        facts: optionalFacts('新元素的结构化事实'),
+        facts: optionalFacts('新要素的结构化事实'),
       },
       { additionalProperties: false },
     ),
@@ -471,7 +471,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
-    aliases: ['create character', '创建元素'],
+    aliases: ['create character', '创建要素', '创建元素'],
     certification: 'write-certified',
     certificationNote:
       'Domain create certification: runtime-owned project freshness, deterministic identity, atomic entity/prose/outbox receipt, review projection and guarded exact inverse.',
@@ -890,7 +890,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'create_category',
-    description: '创建一个元素类目。',
+    description: '创建一个要素类目。',
     parametersSchema: Type.Object({ name: optionalStr('类目名') }, { additionalProperties: false }),
     risk: 'medium',
     effect: 'canon',
@@ -902,7 +902,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'update_category',
-    description: '合并更新类目的新元素模板事实。',
+    description: '合并更新类目的新要素模板事实。',
     parametersSchema: Type.Object(
       {
         category: str('类目名'),
@@ -1014,10 +1014,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'create_element_patch',
-    description: '记录元素在故事时间线某一点的状态变更。',
+    description: '记录要素在故事时间线某一点的状态变更。',
     parametersSchema: Type.Object(
       {
-        element: str('元素名'),
+        element: str('要素名'),
         title: optionalStr('补丁标题'),
         body: optionalStr('补丁正文'),
         sourceChapter: optionalStr('变化发生的章节名'),
@@ -1030,14 +1030,14 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: ['record evolution', '创建元素补丁'],
+    aliases: ['record evolution', '创建要素补丁', '创建元素补丁'],
     certification: 'write-certified',
     certificationNote:
       'P5 element-patch certification: hard pre-execution authorization, exact patch-set freshness, deterministic id, atomic patch/outbox receipt, and guarded exact delete inverse.',
   },
   {
     name: 'update_element_patch',
-    description: '按 patchId 更新元素补丁标题或正文。',
+    description: '按 patchId 更新要素补丁标题或正文。',
     parametersSchema: Type.Object(
       {
         element: str('要素名'),
@@ -1053,14 +1053,14 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: ['edit evolution', '更新元素补丁'],
+    aliases: ['edit evolution', '更新要素补丁', '更新元素补丁'],
     certification: 'write-certified',
     certificationNote:
       'P5 element-patch certification: hard pre-execution authorization, exact patch freshness, atomic patch/outbox receipt, crash reconciliation, and guarded exact field inverse.',
   },
   {
     name: 'delete_element_patch',
-    description: '按 patchId 删除元素补丁；默认在执行前由作者确认。',
+    description: '按 patchId 删除要素补丁；默认在执行前由作者确认。',
     parametersSchema: Type.Object(
       {
         element: str('要素名'),
@@ -1074,7 +1074,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     approval: 'confirm_before',
     retry: 'never',
     revertStrategy: 'exact_inverse',
-    aliases: ['remove evolution', '删除元素补丁'],
+    aliases: ['remove evolution', '删除要素补丁', '删除元素补丁'],
     certification: 'write-certified',
     certificationNote:
       'P5 element-patch deletion certification: exact patch freshness, default pre-execution author confirmation with an explicit dangerous-operation override, atomic delete/outbox receipt, crash reconciliation, dependency guard, and exact restore inverse.',
@@ -1161,15 +1161,15 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'delete_element',
-    description: '删除一个元素；默认在执行前由作者明确确认。',
-    parametersSchema: Type.Object({ element: str('元素名') }, { additionalProperties: false }),
+    description: '删除一个要素；默认在执行前由作者明确确认。',
+    parametersSchema: Type.Object({ element: str('要素名') }, { additionalProperties: false }),
     risk: 'critical',
     effect: 'destructive',
     concurrency: 'exclusive_project',
     approval: 'confirm_before',
     retry: 'never',
     revertStrategy: 'exact_inverse',
-    aliases: ['delete character', '删除元素'],
+    aliases: ['delete character', '删除要素', '删除元素'],
     certification: 'write-certified',
     certificationNote:
       'Domain delete certification: runtime-owned element freshness, dependency guard, immutable preimage, atomic delete receipt and guarded exact restore inverse.',

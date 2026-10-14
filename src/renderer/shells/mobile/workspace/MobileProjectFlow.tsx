@@ -285,7 +285,7 @@ export function MobileProjectFlow({
       {(categoryGroups.groups.length > 0 || categoryGroups.loose.length > 0) && (
         <>
           <span className="m-flow__label">
-            {t('leftSidebar.tabs.elements', { defaultValue: '元素' })} · {bookElements.length}
+            {t('leftSidebar.tabs.elements', { defaultValue: '要素' })} · {bookElements.length}
           </span>
           <div className="m-flow__section m-flow__section--pills">
             {categoryGroups.groups.map(({ category, color, elements }) => (

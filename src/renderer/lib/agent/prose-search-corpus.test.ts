@@ -28,7 +28,7 @@ const elementFixture = {
   categoryId: 'category-1',
   name: '柳青',
   summary: '守灯人',
-  contentJson: proseDoc('元素正文:守灯人在雨夜擦拭灯罩。'),
+  contentJson: proseDoc('要素正文:守灯人在雨夜擦拭灯罩。'),
   kvJson: '[]',
   aliases: [],
   groupName: null,

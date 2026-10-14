@@ -483,7 +483,7 @@ export async function buildRelationalMarkdownEntries(
       const from = key('element', element.id);
       const to = key('category', element.categoryId);
       addRelation(relations, from, to, '所属分类');
-      addRelation(relations, to, from, '包含元素');
+      addRelation(relations, to, from, '包含要素');
     }
 
     const index = documents.get(key('project', book.project.id));

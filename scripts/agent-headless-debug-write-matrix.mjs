@@ -72,13 +72,13 @@ const SCENARIOS = [
     id: 'create-element-patch',
     write: 'create_element_patch',
     read: 'get_element_patches',
-    prompt: `${COMMON} 请读取人物「Grey Banker」现有的元素补丁，然后为它新增一个标题为「${MARKER} temporary patch」、正文为「temporary」、来源章节为「01」的元素补丁。`,
+    prompt: `${COMMON} 请读取人物「Grey Banker」现有的要素补丁，然后为它新增一个标题为「${MARKER} temporary patch」、正文为「temporary」、来源章节为「01」的要素补丁。`,
   },
   {
     id: 'update-element-patch',
     write: 'update_element_patch',
     read: 'get_element_patches',
-    prompt: `${COMMON} 请读取人物「Grey Banker」现有的元素补丁，选择第一条，把它的标题在保留原文的基础上追加「 ${MARKER}」。`,
+    prompt: `${COMMON} 请读取人物「Grey Banker」现有的要素补丁，选择第一条，把它的标题在保留原文的基础上追加「 ${MARKER}」。`,
   },
   {
     id: 'update-element',

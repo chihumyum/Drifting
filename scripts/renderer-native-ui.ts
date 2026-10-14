@@ -640,7 +640,7 @@ async function run() {
       await open(a.id, a.nodeIds[8]); await open(a.id, a.nodeIds[0]);
       checks.suggestionsUnrelatedOwnerCleanup = true;
       const creationMenu = await begin('mention', suggestionCreatedName);
-      const create = [...creationMenu.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('创建元素'));
+      const create = [...creationMenu.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('创建要素'));
       ensure(create, 'Real native create-element suggestion missing'); create.click(); create.click();
       const created = await waitFor(() => useDataStore.getState().bookElements.find(element => element.name === suggestionCreatedName), 'actual created suggestion element');
       await waitFor(() => first.getText().endsWith(`${suggestionCreatedName} `) && JSON.stringify(first.getJSON()).includes(created.id), 'asynchronous native marked insertion');

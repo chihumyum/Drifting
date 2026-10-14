@@ -155,7 +155,7 @@ OAuth staging 必须满足：
 - [ ] `P0-03` iPhone 保存测试 BYOK，杀进程后重开，登录和 BYOK 都仍可用。
 - [ ] `P0-04` Google OAuth 从系统浏览器返回 App，登录成功；URL、日志和截图中没有 bearer/verifier。
 - [ ] `P0-05` 素材库分别导入 JPEG、PNG、HEIC、AVIF 和 PDF，方向与缩略图正确。
-- [ ] `P0-06` 元素头像分别使用 HEIC 和 AVIF，失败时不能覆盖旧头像。
+- [ ] `P0-06` 要素头像分别使用 HEIC 和 AVIF，失败时不能覆盖旧头像。
 - [ ] `P0-07` 离线编辑正文，等待本地保存后强杀；离线重开仍有完整 canary。
 - [ ] `P0-08` 恢复联网后，同一项目在第二设备出现最新正文和已上传素材。
 - [ ] `P0-09` 大于 64 MiB 的文件被明确拒绝，App 不崩溃、不留下 ready 的半成品。
@@ -230,14 +230,14 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 ## 7. General Agent
 
 - [ ] `AG-01` `P0` 在“设置 → Agent”录入测试 DeepSeek BYOK；密钥写入 native secure storage，重启后连接状态恢复，日志和数据库中没有明文。
-- [ ] `AG-02` `P1` 发起只读任务并检查项目、章节、元素、关系与素材结果；不得跨项目读取，也不得在只读任务中产生写入。
+- [ ] `AG-02` `P1` 发起只读任务并检查项目、章节、要素、关系与素材结果；不得跨项目读取，也不得在只读任务中产生写入。
 - [ ] `AG-03` `P1` 执行一个已认证写工具；变更必须进入软审阅，接受后保留，拒绝后通过 guarded inverse 撤销，正文写入仍以 live Yjs 为准。
 - [ ] `AG-04` `P1` 运行中切后台、锁屏、恢复前台并重启 App；已落盘对话和结果仍可读。重启前正在等待的控制可以安全取消，但不得伪装成原 JavaScript 栈已原地恢复。
 - [ ] `AG-05` `P1` 在模型流式响应和工具调用阶段分别断网；界面不得 silent success，恢复后新 turn 可继续，已提交的写入不得重复执行。
 - [ ] `AG-06` `P0` 发起“逐章润色整本小说”任务；Agent 创建 `whole_book_chapters` 持久化计划，步骤数和冻结时的章节数完全一致、顺序一致，且不是由模型手工枚举。运行时仅允许一个 `in_progress` 步骤，并保留用户给出的文风、禁改项和人物语气约束。
 - [ ] `AG-07` `P0` 分别让任务正常结束一个 turn 和触发一次预算上限；只要同一 session 仍有 active plan，Panel 都显示“继续此任务”且不会自动循环。点击后从首个 `in_progress`、否则首个 `pending` 步骤继续，不重复已完成章节；即使发送文本只相当于“继续”，首轮仍能看到计划、`read_node` 和 `edit_blocks`。
 - [ ] `AG-08` `P1` 在长任务中退出并重启 App；文本、thinking、未完成工具参数、工具结果和 terminal 状态按 canonical journal 恢复，计划进度与 active constraints 仍在。
-- [ ] `AG-09` `P1` 分别执行正文、元素、故事线、项目事实和评论写入；工具卡始终显示 durable review 状态，接受或还原后状态同步，目标若已被并发修改则安全报冲突。
+- [ ] `AG-09` `P1` 分别执行正文、要素、故事线、项目事实和评论写入；工具卡始终显示 durable review 状态，接受或还原后状态同步，目标若已被并发修改则安全报冲突。
 - [ ] `AG-10` `P1` 用足够长的真实对话触发 compaction；续作仍记得原始目标、显式约束、已完成章节和待办章节，不重复写入。记录模型、token、耗时和任何语义遗漏。
 - [ ] `AG-11` `P1` 用至少 22 章的副本执行全书任务，让所有章节先停在 review-blocked，再批量接受；重新继续后最早和最晚的步骤都能读取 `acceptedTargetEvidence=true` 并完成，不受“最近 20 条审核上下文”限制。
 - [ ] `AG-12` `P1` 冻结全书计划后分别新增、改名和删除章节：新增章不进入旧 manifest；改名章沿用冻结 ID 并显示新名称；删除章显示 missing 且任务不能假装完整完成。
@@ -249,7 +249,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 以下用例原则上要在两个入口各执行一次：
 
 1. 素材库导入。
-2. 元素头像上传、替换和删除。
+2. 要素头像上传、替换和删除。
 
 ### 8.1 成功路径
 
@@ -260,7 +260,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 - [ ] `IMG-05` `P1` Android 8+ 的 HEIC/HEIF 按设备 runtime codec 能力成功；不支持时返回明确错误。
 - [ ] `IMG-06` `P0` Android 12+ 的 AVIF 按设备 runtime codec 能力成功；不支持时返回明确错误。
 - [ ] `IMG-07` `P0` PDF 原文件可打开，缩略图为第一页，不生成错误的 display variant。
-- [ ] `IMG-08` `P0` 素材卡片、预览、元素头像和重启后的 app-owned asset 加载均正确。
+- [ ] `IMG-08` `P0` 素材卡片、预览、要素头像和重启后的 app-owned asset 加载均正确。
 - [ ] `IMG-09` `P0` 导入期间断网与 `online` 事件均不触发 hosted asset API。
 - [ ] `IMG-10` `P1` 原 source hash 不变；source MIME/扩展保持 heic/heif/avif，派生图为 jpg。
 - [ ] `IMG-11` `P0` 替换头像时，新图 ready 后才切换；失败时旧头像仍在。
@@ -284,7 +284,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 
 ## 9. SQLite、Yjs、同步与生命周期
 
-- [ ] `DATA-01` `P0` 新安装后创建项目、章节、元素、关系、素材，重启后全部存在。
+- [ ] `DATA-01` `P0` 新安装后创建项目、章节、要素、关系、素材，重启后全部存在。
 - [ ] `DATA-02` `P0` 离线输入唯一正文 canary，等待本地落盘后强杀；离线重开内容逐字一致。
 - [ ] `DATA-03` `P0` 离线新增/修改多类实体和素材，重启本机后无重复记录且 app-owned source 仍可读。
 - [ ] `DATA-04` `P1` 编辑时切后台、锁屏、旋转、接电话，再回前台；正文与选择状态不损坏。

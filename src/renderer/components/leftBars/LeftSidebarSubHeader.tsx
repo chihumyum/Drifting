@@ -452,7 +452,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
         </span>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {/* "折叠全部" applies to panels with collapsible groups (元素 类目 and,
+        {/* "折叠全部" applies to panels with collapsible groups (要素 类目 and,
             now that drifts can be grouped into folders, 构想分组). The 章节 panel
             toggles its storyline lanes individually, so it's excluded. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (

@@ -228,8 +228,8 @@ export function CategoryEditorView({
   useReportEditorSurfaceReady(Boolean(curCategory && (editorReady || ydocError)));
 
   // TOC framework anchors in document order: 概述 → 札记 (with its body headings
-  // nested as sub-structure) → 元素模版 → 字段模版 → 元素清单. Sections carry no
-  // ordinal — order is the only ranking. 元素清单 is omitted when the category has
+  // nested as sub-structure) → 要素模版 → 字段模版 → 要素清单. Sections carry no
+  // ordinal — order is the only ranking. 要素清单 is omitted when the category has
   // no elements.
   const frameworkItems: OutlineEntry[] = [
     { id: 'cat-overview', level: 2, kind: 'section', text: t('categoryEditor.sections.overview') },
@@ -430,7 +430,7 @@ export function CategoryEditorView({
               {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
             </div>
 
-            {/* 元素模版 — TipTap doc seeded into newly-created elements under
+            {/* 要素模版 — TipTap doc seeded into newly-created elements under
                 this category. Editing here only affects future elements;
                 existing element bodies are untouched. */}
             <h2 id="cat-template" className="page__scene">
@@ -469,7 +469,7 @@ export function CategoryEditorView({
               />
             </div>
 
-            {/* 元素清单 — elements in this category (omitted when none). */}
+            {/* 要素清单 — elements in this category (omitted when none). */}
             {cEls.length > 0 && (
               <>
                 <h2 id="cat-elements" className="page__scene">

@@ -19,7 +19,7 @@ material whenever typing is inconvenient (in bed, walking, commuting);
 Drifting transcribes it with project-aware proper-noun biasing and hands it to
 the read-write Agent, which grounds the capture in the project's canon.
 
-> 你只管把故事说出来。Drifting 会带着你的元素表准确转写，交给 Agent 落进项目。
+> 你只管把故事说出来。Drifting 会带着你的要素表准确转写，交给 Agent 落进项目。
 
 ## Present in source (unaccepted)
 

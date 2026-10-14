@@ -82,7 +82,7 @@ export function buildVoiceContextPack(
   budget.remaining -= intro.length;
 
   const sections = [
-    joinClipped('\n项目元素：', elementEntries, budget),
+    joinClipped('\n项目要素：', elementEntries, budget),
     joinClipped('\n故事线：', storylineEntries, budget),
     joinClipped('\n章节：', chapterEntries, budget),
     joinClipped('\n构想：', driftEntries, budget),

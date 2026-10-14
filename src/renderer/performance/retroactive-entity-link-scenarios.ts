@@ -15,8 +15,8 @@ import { retroactiveLinkWork } from './agent-panel-counters';
 
 const pause = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 const paragraphs = 40;
-const prose: JSONContent = { type: 'doc', content: Array.from({ length: paragraphs }, (_, i) => ({ type: 'paragraph', content: [{ type: 'text', text: `合成元素的合成段落 ${i}` }] })) };
-const created = (projectId: string, id = 'synthetic-created'): BookElement => ({ ...createSyntheticWorkspaceProjection(projectId, 0, 1).bookElements[0], id, name: '合成元素', aliases: [] });
+const prose: JSONContent = { type: 'doc', content: Array.from({ length: paragraphs }, (_, i) => ({ type: 'paragraph', content: [{ type: 'text', text: `合成要素的合成段落 ${i}` }] })) };
+const created = (projectId: string, id = 'synthetic-created'): BookElement => ({ ...createSyntheticWorkspaceProjection(projectId, 0, 1).bookElements[0], id, name: '合成要素', aliases: [] });
 type Owner = EditorSessionSource & { editor: Editor; canonicalReady: boolean; parentElementId?: string };
 function Binding(owner: Owner) { useRetroactiveEntityLinks(owner.editor, owner); return null; }
 const reset = () => { retroactiveLinkWork.calls = 0; retroactiveLinkWork.textNodes = 0; };

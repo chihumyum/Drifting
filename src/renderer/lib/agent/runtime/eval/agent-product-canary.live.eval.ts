@@ -40,7 +40,7 @@ const CANARIES: readonly ProductCanary[] = [
   {
     id: 'introduce-current-novel',
     prompt:
-      '请介绍这个小说：准确说出书名、核心 premise、故事线和主要元素。先读取一次全书概览，只根据工具结果回答。',
+      '请介绍这个小说：准确说出书名、核心 premise、故事线和主要要素。先读取一次全书概览，只根据工具结果回答。',
     expectedTool: 'get_overview',
     answerPatterns: [/星海漂流/u, /寻找新家园|新家园/u, /林舟/u],
     maxIterations: 2,

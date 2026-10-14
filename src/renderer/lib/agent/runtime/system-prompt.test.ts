@@ -27,7 +27,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(57);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(58);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).toContain('A TODO is not a substitute for completing the requested work');
@@ -47,6 +47,7 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('authored chapters, ideas, elements, storylines, notes, relations');
     expect(system).toContain('Reuse exact authored labels as tool targets');
     expect(system).toContain('Call drift nodes ideas in English and 构想 in Chinese; they are not element categories');
+    expect(system).toContain('Call elements 要素 in Chinese');
     expect(system).toContain('引用正文 is only its anchored excerpt');
     expect(system).toContain('first N entries in displayed chapter order');
     expect(system).toContain('reading or planning alone does not establish an edit');

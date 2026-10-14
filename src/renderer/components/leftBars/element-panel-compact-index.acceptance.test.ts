@@ -259,7 +259,7 @@ describe('ElementPanel compact text index', () => {
     expect(menu).toContain('onCreateGroup(groupName);');
     expect(menu).toContain("'elementCategoryCreateMenu.groupCreatesFirstElement'");
     expect(source('src/styles/ui-controls.css')).toContain('.left-sb-group-add--expanded {');
-    expect(zh.elementCategoryCreateMenu.newElement).toBe('新建元素');
+    expect(zh.elementCategoryCreateMenu.newElement).toBe('新建要素');
     expect(zh.elementCategoryCreateMenu.newGroup).toBe('新建分组…');
     expect(en.elementCategoryCreateMenu.newElement).toBe('New element');
     expect(en.elementCategoryCreateMenu.newGroup).toBe('New group…');

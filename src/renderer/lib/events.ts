@@ -16,7 +16,7 @@ export type AiTaskEvent = {
   id: string;
   source: AiTaskSource;
   state: AiTaskState;
-  title: string; // short headline, e.g. "Copilot · 元素候选"
+  title: string; // short headline, e.g. "Copilot · 要素候选"
   detail?: string; // one-line detail, e.g. "第三章 · 发现 2 处问题"
   chapterId?: string; // for click-to-navigate, when applicable
   outcome?: AiTaskOutcome; // tints the completed banner

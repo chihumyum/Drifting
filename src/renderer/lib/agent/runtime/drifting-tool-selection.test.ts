@@ -458,9 +458,14 @@ describe('Drifting runtime tool selection', () => {
     expect(strategy.select(request('列出现在的全部章节和漂流节点', EXECUTABLE_NAMES))).toEqual([
       'list_nodes',
     ]);
-    expect(strategy.select(request('请介绍这个小说和它的主要元素', EXECUTABLE_NAMES))).toEqual([
+    expect(strategy.select(request('请介绍这个小说和它的主要要素', EXECUTABLE_NAMES))).toEqual([
       'get_overview',
     ]);
+    for (const label of ['要素', '元素']) {
+      expect(strategy.select(request(`列出项目${label}`, EXECUTABLE_NAMES))).toEqual([
+        'list_elements',
+      ]);
+    }
     expect(strategy.select(request('list chapters and characters', EXECUTABLE_NAMES))).toEqual([
       'list_nodes',
       'list_elements',
@@ -557,9 +562,9 @@ describe('Drifting runtime tool selection', () => {
     ).toEqual([]);
   });
 
-  it('uses the canonical patch ledger for an accepted element-evolution request', () => {
+  it.each(['角色', '要素', '元素'])('uses the canonical patch ledger for an accepted %s evolution request', (label) => {
     const strategy = createDriftingToolSelectionStrategy();
-    const query = '查一下林舟已经接受的角色演变，最后发生了什么？';
+    const query = `查一下林舟已经接受的${label}演变，最后发生了什么？`;
 
     expect(strategy.select(request(query, EXECUTABLE_NAMES))).toEqual(['get_element_patches']);
     expect(

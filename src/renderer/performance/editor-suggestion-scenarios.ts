@@ -11,7 +11,7 @@ const tick = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 const settle = async () => { await tick(); await tick(); };
 type Kind = 'slash' | 'mention';
 const popup = (kind: Kind) => document.body.querySelector<HTMLElement>(`[data-editor-suggestion="${kind}"]`);
-const firstAction = (kind: Kind) => [...popup(kind)?.querySelectorAll<HTMLButtonElement>('button') ?? []].find(item => kind === 'slash' ? item.textContent === '一级标题' : item.textContent === '元素Synthetic element');
+const firstAction = (kind: Kind) => [...popup(kind)?.querySelectorAll<HTMLButtonElement>('button') ?? []].find(item => kind === 'slash' ? item.textContent === '一级标题' : item.textContent === '要素Synthetic element');
 const initial = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Synthetic prose. ' }] }] };
 async function open(editor: Editor, kind: Kind, query = '') {
   editor.view.focus(); editor.commands.setContent(initial);
