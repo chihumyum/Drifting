@@ -262,8 +262,8 @@ pub fn opener_open_external(app: AppHandle, url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn deep_link_take_pending(queue: State<'_, DeepLinkQueue>) -> Vec<String> {
-    queue.drain()
+pub fn deep_link_take_pending(queue: State<'_, DeepLinkQueue>, prefix: String) -> Vec<String> {
+    queue.drain_matching(&prefix)
 }
 
 #[tauri::command]

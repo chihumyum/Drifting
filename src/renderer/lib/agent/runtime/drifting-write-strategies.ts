@@ -77,6 +77,8 @@ import {
   planWorkspaceProseFileEdit,
   planWorkspaceProseFileWrite,
 } from './workspace-prose-file';
+import { loadLocationResolver } from '../location-link-catalog';
+import type { LocationResolver } from '../../location-link';
 import {
   createDriftingDomainCrudWriteStrategy,
   DRIFTING_DOMAIN_CRUD_WRITE_TOOLS,
@@ -620,6 +622,10 @@ function proseWriteStrategy(
         toolName,
         request,
         baseBlocks,
+        await loadLocationResolver(entity.projectId, {
+          blocks: [baseBlocks],
+          markdown: proseOperationMarkdown(request),
+        }),
       );
       const command = await coordinator.prepare({
         docId,
@@ -1214,10 +1220,21 @@ function assertForwardReceiptMatches(
   }
 }
 
+/** Newly written Markdown whose location links the planner must resolve. */
+function proseOperationMarkdown(request: AgentToolExecutionRequest): string[] {
+  if (typeof request.arguments.content === 'string') return [request.arguments.content];
+  if (!Array.isArray(request.arguments.replacements)) return [];
+  return request.arguments.replacements.flatMap((replacement) => {
+    const newText = (replacement as { newText?: unknown } | null)?.newText;
+    return typeof newText === 'string' ? [newText] : [];
+  });
+}
+
 async function proseOperation(
   toolName: string,
   request: AgentToolExecutionRequest,
   blocks: readonly YjsProseBlock[],
+  locations?: LocationResolver,
 ): Promise<YjsProseOperation> {
   switch (toolName) {
     case 'edit_prose_file':
@@ -1226,6 +1243,7 @@ async function proseOperation(
             blocks,
             content: request.arguments.content,
             idempotencyKey: request.idempotencyKey,
+            ...(locations ? { locations } : {}),
           })
         : planWorkspaceProseFileEdit({
             blocks,
@@ -1233,6 +1251,7 @@ async function proseOperation(
               request.arguments.replacements,
             ),
             idempotencyKey: request.idempotencyKey,
+            ...(locations ? { locations } : {}),
           });
     case 'edit_block': {
       const block = resolveBlockTarget(blocks, request.arguments);

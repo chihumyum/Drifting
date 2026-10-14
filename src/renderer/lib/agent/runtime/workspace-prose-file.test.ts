@@ -4,6 +4,8 @@ import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 
 import { getStaticChapterSchema } from '../../../components/editor/chapter-static-html';
+import { createLocationResolver } from '../../location-link';
+import { docToBlocks } from '../serialize';
 import type { YjsProseBlock } from './yjs-prose-command';
 import { replaceYjsProseBlocks } from './yjs-prose-command';
 import {
@@ -704,3 +706,79 @@ function block(type: string, id: string, text: string): YjsProseBlock {
     content: text ? [{ kind: 'text', text }] : [],
   };
 }
+
+describe('workspace prose location links', () => {
+  const rain = { kind: 'node' as const, id: 'rain', group: 'chapters' as const, name: '雨夜' };
+  const resolverFor = (order: Record<string, string[]>) =>
+    createLocationResolver({ projectId: 'project', entities: [rain], blockIds: (_kind, id) => order[id] });
+  const note: YjsProseBlock[] = [{ id: 'note-1', type: 'paragraph', content: [{ kind: 'text', text: '旧笔记' }] }];
+  const cited = '旧笔记\n\n见[雨夜第3行](drifting:chapters/雨夜/prose.md#L3-L5)。';
+
+  it('stores a written citation as a stable paragraph anchor and re-renders its current lines', async () => {
+    const order = { rain: ['r1', 'r2', 'r3'] };
+    const locations = resolverFor(order);
+    const operation = await planWorkspaceProseFileWrite({ blocks: note, content: cited, idempotencyKey: 'cite', locations });
+    expect(operation.kind).toBe('append');
+    const appended = (operation as { blocks: readonly YjsProseBlock[] }).blocks;
+    const link = appended[0]!.content!.find((node) => node.kind === 'text' && node.text === '雨夜第3行');
+    const [[key, attrs]] = Object.entries(link?.kind === 'text' ? link.marks ?? {} : {});
+    expect(key).toMatch(/^entityLink--l[0-9a-z]{7}$/u);
+    expect(attrs).toEqual({ targetKind: 'node', targetId: 'rain', targetBlockId: 'r2', targetEndBlockId: 'r3' });
+
+    const after = [...note, ...appended];
+    expect(renderWorkspaceProseFile(after, locations)).toBe(cited);
+    // Without a resolver the anchor stays invisible like any mention.
+    expect(renderWorkspaceProseFile(after)).toBe('旧笔记\n\n见雨夜第3行。');
+    // Rewriting what was read is a no-op; editing around the link keeps the anchor.
+    await expect(planWorkspaceProseFileWrite({ blocks: after, content: cited, idempotencyKey: 'same', locations }))
+      .resolves.toEqual({ kind: 'append', blocks: [] });
+    const edited = await planWorkspaceProseFileEdit({
+      blocks: after,
+      replacements: [{ oldText: '见[', newText: '另见[', replaceAll: false }],
+      idempotencyKey: 'edit',
+      locations,
+    });
+    expect(edited).toMatchObject({ kind: 'edit_many', edits: [{ blockId: appended[0]!.id }] });
+    expect(JSON.stringify(edited)).toContain('"targetBlockId":"r2"');
+
+    order.rain = ['r0', 'r1', 'r2', 'r3'];
+    expect(renderWorkspaceProseFile(after, locations)).toBe(
+      '旧笔记\n\n见[雨夜第3行](drifting:chapters/雨夜/prose.md#L5-L7)。',
+    );
+    expect(projectAuthoredTextForModel(cited)).toEqual({
+      text: '旧笔记\n\n见雨夜第3行。',
+      linkedMentions: ['雨夜第3行（drifting:chapters/雨夜/prose.md#L3-L5）'],
+    });
+  });
+
+  it('materializes the anchor into the editor schema and the shared read view', async () => {
+    const locations = resolverFor({ rain: ['r1', 'r2', 'r3'] });
+    const contentJson = await createWorkspaceProseContentJson({ content: cited, idempotencyKey: 'seed', locations });
+    expect(JSON.parse(contentJson).content[1].content[1]).toEqual({
+      type: 'text',
+      text: '雨夜第3行',
+      marks: [{ type: 'entityLink', attrs: { targetKind: 'node', targetId: 'rain', targetBlockId: 'r2', targetEndBlockId: 'r3' } }],
+    });
+    expect(docToBlocks(contentJson, false, locations).map((block) => block.markdown)).toEqual([
+      '旧笔记',
+      '见[雨夜第3行](drifting:chapters/雨夜/prose.md#L3-L5)。',
+    ]);
+  });
+
+  it('refuses a dead drifting: link but keeps an unresolvable relative path as a link', async () => {
+    const locations = resolverFor({ rain: ['r1'] });
+    await expect(planWorkspaceProseFileWrite({
+      blocks: note, content: '[晴天](drifting:chapters/晴天/prose.md#L1)', idempotencyKey: 'dead', locations,
+    })).rejects.toThrow('No chapter named "晴天"');
+    await expect(planWorkspaceProseFileWrite({
+      blocks: note, content: '[雨夜](drifting:chapters/雨夜/prose.md#L9)', idempotencyKey: 'range', locations,
+    })).rejects.toThrow('line 9 does not exist');
+    await expect(planWorkspaceProseFileWrite({
+      blocks: note, content: '[雨夜](drifting:chapters/雨夜/prose.md#L1)', idempotencyKey: 'none',
+    })).rejects.toThrow('could not be resolved');
+    const relative = await planWorkspaceProseFileWrite({
+      blocks: note, content: '[晴天](chapters/晴天/prose.md)', idempotencyKey: 'relative', locations,
+    });
+    expect(JSON.stringify(relative)).toContain('"link":{"href":"chapters/晴天/prose.md"}');
+  });
+});

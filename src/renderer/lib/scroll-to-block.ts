@@ -26,6 +26,8 @@ export interface ScrollToBlockOptions {
   settleMs?: number;
   /** Briefly flash the block on arrival so the eye lands on it. Default true. */
   flash?: boolean;
+  /** Last block of a cited range: every block from `blockId` through it flashes. */
+  endBlockId?: string | null;
 }
 
 /**
@@ -82,6 +84,9 @@ export function scrollToBlockWhenReady(
   const find = (): HTMLElement | null =>
     document.querySelector<HTMLElement>(scopedSelector) ??
     document.querySelector<HTMLElement>(unscopedSelector);
+  const flashRange = (start: HTMLElement) => {
+    for (const block of blockRange(start, opts.endBlockId ?? null)) flashBlock(block);
+  };
 
   // 0 until the block is first seen; afterwards the timestamp to flash + stop at.
   let settleUntil = 0;
@@ -97,7 +102,7 @@ export function scrollToBlockWhenReady(
       el.scrollIntoView({ block: 'center' });
       if (settleUntil === 0) settleUntil = now + settleMs;
       if (now >= settleUntil) {
-        if (doFlash) flashBlock(el);
+        if (doFlash) flashRange(el);
         return;
       }
     } else if (now >= giveUpAt) {
@@ -106,6 +111,19 @@ export function scrollToBlockWhenReady(
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+}
+
+/** Sibling blocks from `start` through the block tagged `endBlockId`, inclusive.
+ *  A missing or foreign end (deleted paragraph, other editor) flashes only the start. */
+function blockRange(start: HTMLElement, endBlockId: string | null): HTMLElement[] {
+  if (!endBlockId || endBlockId === start.getAttribute('data-block-id')) return [start];
+  const range = [start];
+  for (let next = start.nextElementSibling; next && range.length < 500; next = next.nextElementSibling) {
+    if (!(next instanceof HTMLElement)) continue;
+    range.push(next);
+    if (next.getAttribute('data-block-id') === endBlockId) return range;
+  }
+  return [start];
 }
 
 function cssEscape(value: string): string {

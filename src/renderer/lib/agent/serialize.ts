@@ -9,6 +9,7 @@
 import type { JSONContent } from '@tiptap/core';
 import { v7 as uuidv7 } from 'uuid';
 import { parseTiptapDocJson } from '../../utils/tiptap-doc';
+import { entityLocationAttrs, type LocationResolver } from '../location-link';
 import {
   normalizeAgentMarkdownLink,
   renderAgentProseMarkdownBlock,
@@ -34,8 +35,19 @@ function collectText(node: JSONContent, preserveHardBreaks = false): string {
   return children.map(child => collectText(child, preserveHardBreaks)).join('');
 }
 
-/** Flatten a doc's top-level blocks into { blockId, type, text }. */
-export function docToBlocks(contentJson: string, preserveHardBreaks = false): DocBlock[] {
+/** Renders anchored entity links as location links in the Markdown view. */
+export type LocationFormatter = Pick<LocationResolver, 'format'>;
+
+/**
+ * Flatten a doc's top-level blocks into { blockId, type, text }. Without
+ * `locations`, location links render as their plain label like any mention;
+ * Agent reads and the disk projection pass one (docs/location-links.md).
+ */
+export function docToBlocks(
+  contentJson: string,
+  preserveHardBreaks = false,
+  locations?: LocationFormatter,
+): DocBlock[] {
   const doc = parseTiptapDocJson(contentJson);
   const blocks: DocBlock[] = [];
   for (const node of doc.content ?? []) {
@@ -44,18 +56,18 @@ export function docToBlocks(contentJson: string, preserveHardBreaks = false): Do
       blockId: id,
       type: node.type ?? 'unknown',
       text: collectText(node, preserveHardBreaks),
-      markdown: renderAgentProseMarkdownBlock(jsonBlockToAgentMarkdown(node)),
+      markdown: renderAgentProseMarkdownBlock(jsonBlockToAgentMarkdown(node, locations)),
     });
   }
   return blocks;
 }
 
-function jsonBlockToAgentMarkdown(node: JSONContent): AgentMarkdownBlock {
+function jsonBlockToAgentMarkdown(node: JSONContent, locations?: LocationFormatter): AgentMarkdownBlock {
   if (node.type === 'horizontalRule') return { type: 'horizontalRule', inline: [] };
   const inline =
     node.type === 'blockquote'
-      ? flattenJsonBlockquoteInline(node.content ?? [])
-      : jsonNodesToAgentInline(node.content ?? []);
+      ? flattenJsonBlockquoteInline(node.content ?? [], locations)
+      : jsonNodesToAgentInline(node.content ?? [], locations);
   if (node.type === 'heading') {
     const rawLevel = node.attrs?.level;
     const level = rawLevel == null ? 1 : rawLevel;
@@ -67,14 +79,20 @@ function jsonBlockToAgentMarkdown(node: JSONContent): AgentMarkdownBlock {
   return { type: 'paragraph', inline };
 }
 
-function flattenJsonBlockquoteInline(nodes: readonly JSONContent[]): AgentMarkdownInline[] {
+function flattenJsonBlockquoteInline(
+  nodes: readonly JSONContent[],
+  locations?: LocationFormatter,
+): AgentMarkdownInline[] {
   return nodes.flatMap((node, index) => [
     ...(index > 0 ? ([{ kind: 'hardBreak' }, { kind: 'hardBreak' }] as const) : []),
-    ...jsonNodesToAgentInline(node.content ?? [node]),
+    ...jsonNodesToAgentInline(node.content ?? [node], locations),
   ]);
 }
 
-function jsonNodesToAgentInline(nodes: readonly JSONContent[]): AgentMarkdownInline[] {
+function jsonNodesToAgentInline(
+  nodes: readonly JSONContent[],
+  locations?: LocationFormatter,
+): AgentMarkdownInline[] {
   const inline: AgentMarkdownInline[] = [];
   for (const node of nodes) {
     if (node.type === 'hardBreak') {
@@ -82,7 +100,7 @@ function jsonNodesToAgentInline(nodes: readonly JSONContent[]): AgentMarkdownInl
       continue;
     }
     if (node.type === 'text') {
-      const marks = jsonMarksToAgentMarkdown(node.marks);
+      const marks = jsonMarksToAgentMarkdown(node.marks, locations);
       if (node.text) {
         inline.push({
           kind: 'text',
@@ -92,12 +110,15 @@ function jsonNodesToAgentInline(nodes: readonly JSONContent[]): AgentMarkdownInl
       }
       continue;
     }
-    inline.push(...jsonNodesToAgentInline(node.content ?? []));
+    inline.push(...jsonNodesToAgentInline(node.content ?? [], locations));
   }
   return inline;
 }
 
-function jsonMarksToAgentMarkdown(marks: JSONContent['marks']): AgentMarkdownMarks {
+function jsonMarksToAgentMarkdown(
+  marks: JSONContent['marks'],
+  locations?: LocationFormatter,
+): AgentMarkdownMarks {
   const result: AgentMarkdownMarks = {};
   for (const mark of marks ?? []) {
     if (mark.type === 'bold') result.bold = true;
@@ -107,6 +128,10 @@ function jsonMarksToAgentMarkdown(marks: JSONContent['marks']): AgentMarkdownMar
     else if (mark.type === 'link') {
       const link = normalizeAgentMarkdownLink(mark.attrs?.href);
       if (link) result.link = link;
+    } else if (mark.type === 'entityLink' && locations && !result.location) {
+      const attrs = entityLocationAttrs(mark.attrs);
+      const location = attrs ? locations.format(attrs) : null;
+      if (location) result.location = location;
     }
   }
   return result;

@@ -90,6 +90,7 @@ import {
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import type { AgentToolExecutionRequest } from './types';
 import { createWorkspaceProseContentJson } from './workspace-prose-file';
+import { loadLocationResolver } from '../location-link-catalog';
 import { createYjsProseSeedState } from './yjs-prose-command';
 import { entityIdsByNumericPlacement } from '../../../sync/journal/order-authority';
 import { appendPlannedAuthoredOrderInTransaction } from '../../../sync/journal/order-authority-repository';
@@ -477,10 +478,10 @@ async function preparePayload(
     const timestamp = now();
     if (toolName === 'create_node') {
       const kind = request.arguments.kind === 'chapter' ? 'chapter' : 'drift';
-      const contentJson = await createWorkspaceProseContentJson({
+      const contentJson = await createWorkspaceProseContentJson(await withLocationLinks(projectId, {
         content: String(request.arguments.body ?? ''),
         idempotencyKey: request.idempotencyKey,
-      });
+      }));
       const proseMetric = await deriveProseMetricFromJson(contentJson);
       const nodes = await createBookNodeSqliteRepository(projectId, db).findAll();
       const title = requiredString(request.arguments.title, 'create_node requires title');
@@ -548,10 +549,10 @@ async function preparePayload(
       if (conflict) throw new Error(`Element name "${conflict.conflictingName}" already exists`);
       const name = requestedName;
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'element');
-      const contentJson = await createWorkspaceProseContentJson({
+      const contentJson = await createWorkspaceProseContentJson(await withLocationLinks(projectId, {
         content: String(request.arguments.body ?? ''),
         idempotencyKey: request.idempotencyKey,
-      });
+      }));
       const value: BookElement = {
         id,
         projectId,
@@ -587,10 +588,10 @@ async function preparePayload(
         throw new Error(`Storyline "${name}" already exists`);
       }
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'storyline');
-      const contentJson = await createWorkspaceProseContentJson({
+      const contentJson = await createWorkspaceProseContentJson(await withLocationLinks(projectId, {
         content: String(request.arguments.body ?? ''),
         idempotencyKey: request.idempotencyKey,
-      });
+      }));
       const value: Storyline = {
         id,
         projectId,
@@ -618,10 +619,10 @@ async function preparePayload(
         throw new Error(`Category "${name}" already exists`);
       }
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'category');
-      const contentJson = await createWorkspaceProseContentJson({
+      const contentJson = await createWorkspaceProseContentJson(await withLocationLinks(projectId, {
         content: String(request.arguments.body ?? ''),
         idempotencyKey: request.idempotencyKey,
-      });
+      }));
       const value: BookElementCategory = {
         id,
         projectId,
@@ -2482,4 +2483,13 @@ function sameName(left: string, right: string): boolean {
 
 function normalizedName(value: string): string {
   return value.trim().normalize('NFKC').toLocaleLowerCase();
+}
+
+/** A new body's location links resolve against the project's current prose. */
+async function withLocationLinks(
+  projectId: string,
+  input: { content: string; idempotencyKey: string },
+): Promise<Parameters<typeof createWorkspaceProseContentJson>[0]> {
+  const locations = await loadLocationResolver(projectId, { markdown: [input.content] });
+  return locations ? { ...input, locations } : input;
 }

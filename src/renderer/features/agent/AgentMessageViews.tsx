@@ -1,7 +1,11 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
+import loglevel from 'loglevel';
+import { parseLocationHref } from '../../lib/location-link';
+import { openLocationHref } from '../workspace/navigation/open-location-link';
+import { useOptionalWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { useDataStore } from '../../store/data-store';
 import type { ActivityEntityType, ToolEntityRef } from '../../lib/agent/tool-entity-ref';
 import type { AgentControlStatus, AgentPendingControl, AgentPermissionScope } from '../../lib/agent/protocol';
@@ -168,10 +172,21 @@ const AssistantBubble = memo(function AssistantBubble({
   streaming?: boolean;
 }) {
   const html = useMemo(() => mdToHtml(text), [text]);
+  const navigator = useOptionalWorkspaceNavigator();
+  // drifting: location links cited by the Agent open their passage in place.
+  const openLocation = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const href = (event.target as Element | null)?.closest('a[href]')?.getAttribute('href') ?? '';
+    if (!navigator || !parseLocationHref(href)) return;
+    event.preventDefault();
+    void openLocationHref(navigator, href).then((result) => {
+      if (!result.ok) loglevel.getLogger('AgentLocationLink').warn(result.error);
+    });
+  }, [navigator]);
   return (
     <div
       className="agent-md"
       style={assistantBubble}
+      onClick={openLocation}
       dangerouslySetInnerHTML={{
         __html: html + (streaming ? '<span class="agent-caret">▌</span>' : ''),
       }}

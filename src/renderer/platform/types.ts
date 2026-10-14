@@ -90,6 +90,11 @@ export interface AuthPlatformApi {
   onOAuthCallback(callback: (data: OAuthCallback) => void): Unsubscribe;
 }
 
+/** Operating-system `drifting://open/...` location links (docs/location-links.md). */
+export interface LocationLinkPlatformApi {
+  onOpen(callback: (url: string) => void): Unsubscribe;
+}
+
 export interface KeychainPlatformApi {
   /** Renderer-managed values only; native SyncEngine/provider namespaces reject. */
   get(key: string): Promise<string | null>;
@@ -354,6 +359,7 @@ export interface PlatformApi {
   readonly window: WindowPlatformApi;
   readonly lifecycle: LifecyclePlatformApi;
   readonly auth: AuthPlatformApi;
+  readonly locationLinks: LocationLinkPlatformApi;
   readonly keychain: KeychainPlatformApi;
   readonly hostedSync: {
     request(input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE';

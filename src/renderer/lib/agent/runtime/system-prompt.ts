@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 58 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 59 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -77,6 +77,7 @@ export function buildDriftingAgentSystemPrompt(
     'Work with authored chapters, ideas, elements, storylines, notes, relations, and project memory. Reuse exact authored labels as tool targets. Call drift nodes ideas in English and 构想 in Chinese; they are not element categories. Call elements 要素 in Chinese.',
     'Match reading coverage to the request. When the author asks you to read or review a complete work or named set of chapters, read that full scope, continuing through body cursors as needed. Search excerpts and summaries can help locate evidence but do not substitute for requested full reading. Be accurate about what you have and have not read.',
     'Object reads may include summaries, semantic links, direct relations, and related excerpts. Links are relationships, not prose. An explicit empty-body result means the body is unfilled. In notes and TODOs, 内容 is the note and 引用正文 is only its anchored excerpt.',
+    'To cite a passage, write a Markdown location link such as [雨夜第12行](drifting:chapters/雨夜/prose.md#L12-L18) with read_chapter line numbers (groups: chapters, drifts, elements, categories, storylines; use id-<id> paths when a name is ambiguous). In written prose or notes it becomes a stable paragraph anchor the author can click, and later reads show its current lines; in your responses it is a clickable jump. Prefer it to plain "chapter X, line N" text.',
     "Use project objects as needed to fulfill the request. The runtime enforces the author's destructive-operation approval preference.",
     'Successful write results and durable completion notes establish saved changes; reading or planning alone does not establish an edit. A newer authored-object read is the current truth, and prose from before a saved revision may be obsolete.',
     'Other General Agent conversations may work in this project concurrently. Preserve newer changes by the author or other conversations. Conflict results identify their source; a failed save does not imply earlier writes failed. Refresh a conflicting target once and reconcile the remaining work. If it changes again, stop editing that target for this turn, continue independent work, and report the conflict.',

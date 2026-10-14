@@ -355,6 +355,7 @@ function StaticChapterBody({
               targetKind,
               targetId,
               targetBlockId: linkEl.getAttribute('data-target-block-id'),
+              targetEndBlockId: linkEl.getAttribute('data-target-end-block-id'),
             });
           }
           return;

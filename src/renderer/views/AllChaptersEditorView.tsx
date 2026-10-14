@@ -34,6 +34,7 @@ import {
 import { deriveActSegments, type BookAct } from '../domain/book-act';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
+import { openEntityLinkTarget } from '../features/editor/open-entity-link';
 import type { OutlineItem } from '../lib/outline';
 import { parseOutline } from '../lib/outline';
 import { saveActiveEditor } from '../lib/active-editor';
@@ -107,8 +108,7 @@ export function AllChaptersEditorView() {
     () => new Set(),
   );
   const userId = useAuthStore((s) => s.user?.id);
-  const { projectId, navigateToHome, navigateToStoryline, navigateToElement, navigateToNode, navigateToCategory } =
-    useProjectNavigation();
+  const { projectId, navigateToHome, openEntity } = useProjectNavigation();
   if (!projectId) throw new Error('AllChaptersEditorView requires a projectId');
   if (!userId) throw new Error('AllChaptersEditorView requires a logged-in user');
 
@@ -706,13 +706,8 @@ export function AllChaptersEditorView() {
   );
 
   const handleEntityClick = useCallback(
-    (ref: EntityLinkRef) => {
-      if (ref.targetKind === 'element') navigateToElement(ref.targetId);
-      else if (ref.targetKind === 'node') navigateToNode(ref.targetId);
-      else if (ref.targetKind === 'storyline') navigateToStoryline(ref.targetId);
-      else if (ref.targetKind === 'category') navigateToCategory(ref.targetId);
-    },
-    [navigateToCategory, navigateToElement, navigateToNode, navigateToStoryline],
+    (ref: EntityLinkRef) => openEntityLinkTarget(openEntity, ref),
+    [openEntity],
   );
 
   // The top-bar three-dot menu acts on whichever chapter is at the reading line

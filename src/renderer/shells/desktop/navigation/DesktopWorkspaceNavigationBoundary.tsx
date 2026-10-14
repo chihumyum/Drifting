@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 
 import { useSyncSplitFocusedUrl } from '../../../components/editor/useSyncSplitFocusedUrl';
 import { WorkspaceNavigationProvider } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
+import { usePendingLocationLinkConsumer } from '../../../features/workspace/navigation/pending-location-link';
 import { useDesktopGlobalShortcuts } from '../useDesktopGlobalShortcuts';
 import { useDesktopWorkspaceNavigator } from './useDesktopWorkspaceNavigator';
 import { focusedLeafOf, tabKey, useUiStore } from '../../../store/ui-store';
@@ -59,6 +60,7 @@ export function DesktopWorkspaceNavigationBoundary({
   }, [location.state, navigate, projectId]);
 
   useSyncSplitFocusedUrl(navigator);
+  usePendingLocationLinkConsumer(navigator);
   useDesktopGlobalShortcuts({
     projectId,
     openFind,

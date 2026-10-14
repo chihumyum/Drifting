@@ -1,9 +1,10 @@
-import { docToBlocks } from './serialize';
+import { docToBlocks, type LocationFormatter } from './serialize';
 
 /** The same body-only Markdown in shared tools and the read-only disk projection.
- * One editor block occupies one line; blank lines separate blocks. */
-export function proseReadMarkdown(contentJson: string): string {
-  return docToBlocks(contentJson)
+ * One editor block occupies one line; blank lines separate blocks. Both pass
+ * the same location formatter so cited passages render identically. */
+export function proseReadMarkdown(contentJson: string, locations?: LocationFormatter): string {
+  return docToBlocks(contentJson, false, locations)
     .map(block => (block.markdown ?? block.text).replace(/\r?\n/gu, '<br>'))
     .join('\n\n');
 }

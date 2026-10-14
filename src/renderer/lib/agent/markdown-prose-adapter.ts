@@ -1,5 +1,7 @@
 import { marked, type Token, type Tokens } from 'marked';
 
+import { canonicalLocationHref, parseLocationHref } from '../location-link';
+
 export type AgentMarkdownHeadingLevel = 1 | 2 | 3;
 
 export interface AgentMarkdownMarks {
@@ -8,6 +10,12 @@ export interface AgentMarkdownMarks {
   strike?: true;
   underline?: true;
   link?: string;
+  /**
+   * A drifting: location link (docs/location-links.md). Parsing keeps the
+   * Agent's reference; resolving it to stable entity/block ids is the writer's
+   * job, and readers render the current name and line numbers.
+   */
+  location?: string;
 }
 
 export type AgentMarkdownInline =
@@ -86,6 +94,13 @@ export function normalizeAgentMarkdownLink(value: unknown): string | null {
   const scheme = /^([a-z][a-z0-9+.-]*):/iu.exec(href)?.[1]?.toLowerCase();
   if (scheme && !ALLOWED_LINK_PROTOCOLS.has(scheme)) return null;
   return href;
+}
+
+/** Canonical document form of a location link, or null for any other href. */
+export function normalizeAgentLocationLink(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const parsed = parseLocationHref(value);
+  return parsed ? canonicalLocationHref(parsed) : null;
 }
 
 function blockTokensToAgentBlocks(tokens: readonly Token[]): AgentMarkdownBlock[] {
@@ -240,10 +255,12 @@ function inlineTokensToAgentInline(
       case 'link': {
         const link = token as Tokens.Link;
         const href = normalizeAgentMarkdownLink(link.href);
+        const location = normalizeAgentLocationLink(link.href);
         inline.push(
           ...inlineTokensToAgentInline(link.tokens, {
             ...marks(),
             ...(href ? { link: href } : {}),
+            ...(location ? { location } : {}),
           }),
         );
         break;
@@ -350,7 +367,7 @@ function renderAgentMarkdownInline(inline: readonly AgentMarkdownInline[]): stri
       if (marks.italic) value = `*${value}*`;
       if (marks.strike) value = `~~${value}~~`;
       if (marks.underline) value = `<u>${value}</u>`;
-      const href = normalizeAgentMarkdownLink(marks.link);
+      const href = marks.location ?? normalizeAgentMarkdownLink(marks.link);
       if (href) value = `[${value}](${escapeLinkDestination(href)})`;
       return value;
     })
@@ -385,6 +402,7 @@ function marksKey(marks: AgentMarkdownMarks | undefined): string {
     marks.strike ? 's' : '',
     marks.underline ? 'u' : '',
     marks.link ? `l:${marks.link}` : '',
+    marks.location ? `p:${marks.location}` : '',
   ].join('|');
 }
 

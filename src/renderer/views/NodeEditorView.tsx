@@ -30,6 +30,7 @@ import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
 import { unbindActsForDrift } from '../usecase/useBookAct';
 import type { OutlineItem } from '../lib/outline';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
+import { openEntityLinkTarget } from '../features/editor/open-entity-link';
 import {
   CONVERT_DRIFT_TO_CHAPTER_ACTION,
   CONVERT_DRIFT_TO_ELEMENT_ACTION,
@@ -100,7 +101,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     leaveDeletedEntity,
     navigateToNode,
     navigateToStoryline,
-    navigateToCategory,
+    openEntity,
   } = useProjectNavigation();
   const params = useParams<{ nodeId: string; projectId: string }>();
   const nodeId = nodeIdOverride ?? params.nodeId;
@@ -433,19 +434,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   }, [isActiveNodeLoadError, reportReady]);
 
   const handleEntityClick = useCallback(
-    (ref: EntityLinkRef) => {
-      if (ref.targetKind === 'element') {
-        navigateToElement(ref.targetId);
-      } else if (ref.targetKind === 'node') {
-        navigateToNode(ref.targetId);
-      } else if (ref.targetKind === 'storyline') {
-        navigateToStoryline(ref.targetId);
-      } else if (ref.targetKind === 'category') {
-        navigateToCategory(ref.targetId);
-      }
-      // patch navigation isn't wired up here yet.
-    },
-    [navigateToCategory, navigateToElement, navigateToNode, navigateToStoryline],
+    (ref: EntityLinkRef) => openEntityLinkTarget(openEntity, ref),
+    [openEntity],
   );
 
   const setChapterStorylineEditorNodeId = useUiStore(

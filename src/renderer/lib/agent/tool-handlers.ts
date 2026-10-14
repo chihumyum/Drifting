@@ -73,6 +73,8 @@ import {
   makeParagraphBlock,
 } from './serialize';
 import { countWordsInPmJson } from '../word-count';
+import { loadLocationResolver } from './location-link-catalog';
+import { contentJsonLocationLinks } from '../location-link';
 import {
   getChapterContentJson,
   writeEntityProse,
@@ -564,7 +566,7 @@ async function readChapter(ctx: AgentToolContext, nodeId: string, includeProse =
   // cache, so the numbering the agent edits against matches the open editor.
   const content = await createBookContentRepository().findByNodeId(nodeId);
   const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
-  const blocks = docToBlocks(truthJson);
+  const blocks = docToBlocks(truthJson, false, await loadLocationResolver(ctx.projectId, { contentJson: [truthJson] }));
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   return `${head(countWordsInPmJson(truthJson))}\n\n${body}`;
 }
@@ -584,7 +586,7 @@ async function readEntityBlocks(ctx: AgentToolContext, args: Record<string, unkn
   // the label line (no graph context to surface like a chapter has).
   if (!includeProse) return `${entityType} "${label}"`;
   const truthJson = await getEntityContentJson(entityType, id);
-  const blocks = docToBlocks(truthJson);
+  const blocks = docToBlocks(truthJson, false, await loadLocationResolver(ctx.projectId, { contentJson: [truthJson] }));
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   return `${entityType} "${label}"\n\n${body}`;
 }
@@ -604,6 +606,9 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
   const patchCount = (await createElementPatchRepository().listByElement(elementId)).filter(
     (p) => !del.has(p.id) && !p.invalidatedAt,
   ).length;
+  // The plain body hides link syntax; list cited passages with their current lines.
+  const locations = await loadLocationResolver(ctx.projectId, { contentJson: [bodyJson] });
+  const locationLinks = locations ? contentJsonLocationLinks(bodyJson, locations) : [];
   return {
     name: el.name,
     summary: el.summary,
@@ -613,6 +618,7 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
     facts: parseKv(el.kvJson),
     patchCount,
     body: docToPlainText(bodyJson),
+    ...(locationLinks.length > 0 ? { locationLinks } : {}),
   };
 }
 

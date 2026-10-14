@@ -427,4 +427,20 @@ describe('automatic read-only Markdown projection', () => {
     expect(after.entries.find(entry => entry.path === body.path)).toEqual(body);
     expect(after.entries.find(entry => entry.path === `project/chapters/id-${SNAPSHOT_NODE_ID}/index.md`)!.text).toContain('Renamed without moving the body');
   });
+
+  it('renders location links with the current names and read_chapter lines of their targets', async () => {
+    const source = await sourceFixture();
+    const element = source.books[0]!.graph.elements[0]!;
+    element.contentJson = proseJson('See the update', [{
+      type: 'entityLink',
+      attrs: { targetKind: 'node', targetId: UPDATE_NODE_ID, targetBlockId: 'block-update-log-yjs-truth', targetEndBlockId: null },
+    }]);
+    const { entries } = await buildRelationalMarkdownEntries(source, true);
+    expect(entries.find(entry => entry.path === `project/elements/id-${ELEMENT_ID}/prose.md`)!.text).toBe(
+      '[See the update](drifting:chapters/Update%20chapter/prose.md#L1)',
+    );
+    const readme = entries.find(entry => entry.path === 'README.md')!.text;
+    expect(readme).toContain('[文字](drifting:chapters/<标题>/prose.md#L12-L18)');
+    expect(readme).toContain(`drifting://open/${PROJECT_ID}/chapters/id-<实体 ID>/prose.md#L12`);
+  });
 });

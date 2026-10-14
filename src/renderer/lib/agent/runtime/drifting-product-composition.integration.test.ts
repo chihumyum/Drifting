@@ -1666,6 +1666,66 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
+  it('stores a cited passage as a paragraph anchor whose lines follow later edits', async () => {
+    const toolText = (callId: string) =>
+      harness!.events.flatMap((event) =>
+        event.event.type === 'tool_result' && event.event.id === callId ? [event.event] : [],
+      )[0];
+    const cite = (callId: string, line: number, current: string, revised: string) =>
+      toolCallSteps(callId, 'revise_element', {
+        element: 'Fixture Element',
+        changes: [{
+          currentText: current,
+          revisedText: `${revised} See [the opening](drifting:chapters/Chapter%20One/prose.md#L${line}).`,
+        }],
+      });
+    harness = await ProductAgentHarness.create([
+      { name: 'read the cited chapter', steps: toolCallSteps('cite-read-chapter', 'read_chapter', { chapter: NODE_TITLE }) },
+      { name: 'cite its opening', steps: cite('cite-write', 1, 'Before element prose.', 'Before element prose.') },
+      { name: 'read the citation back', steps: toolCallSteps('cite-read-element', 'read_element', { element: 'Fixture Element' }) },
+      { name: 'finish citation', steps: finalSteps('Cited.') },
+      { name: 'read before inserting', steps: toolCallSteps('shift-read-chapter', 'read_chapter', { chapter: NODE_TITLE }) },
+      {
+        name: 'insert a paragraph above the cited one',
+        steps: toolCallSteps('shift-write', 'revise_chapter', {
+          chapter: NODE_TITLE,
+          changes: [{ currentText: 'Before the Agent.', revisedText: 'A new opening.\n\nBefore the Agent.' }],
+        }),
+      },
+      { name: 'cite with pre-edit line numbers', steps: cite('stale-cite', 1, 'Before element prose.', 'Earlier element prose.') },
+      { name: 'read the moved citation', steps: toolCallSteps('shift-read-element', 'read_element', { element: 'Fixture Element' }) },
+      { name: 'reread the changed chapter', steps: toolCallSteps('fresh-read-chapter', 'read_chapter', { chapter: NODE_TITLE }) },
+      { name: 'finish shift', steps: finalSteps('Moved.') },
+    ]);
+    await harness.runTurn('turn-cite', 'Cite the opening of Chapter One in Fixture Element.', 1, 'off');
+
+    const elementJson = () =>
+      String(harness!.rows(`SELECT content_json FROM element WHERE id = '${ELEMENT_ID}'`)[0]?.content_json ?? '');
+    expect(toolText('cite-write')).toMatchObject({ ok: true });
+    expect(JSON.parse(elementJson()).content[0].content).toContainEqual({
+      type: 'text',
+      text: 'the opening',
+      marks: [{
+        type: 'entityLink',
+        attrs: { targetKind: 'node', targetId: NODE_ID, targetBlockId: 'opening-block', targetEndBlockId: null },
+      }],
+    });
+    expect(toolText('cite-read-element')?.text).toContain(
+      '"locationLinks":[{"href":"drifting:chapters/Chapter One/prose.md#L1","text":"the opening"}]',
+    );
+
+    await harness.runTurn('turn-shift', 'Add an opening paragraph and refresh the citation.', 2, 'off');
+
+    expect(toolText('shift-write')?.ok).toBe(true);
+    // The Agent's own insertion made its earlier line numbers stale.
+    expect(toolText('stale-cite')).toMatchObject({ ok: false });
+    expect(toolText('stale-cite')?.text).toContain('"Chapter One" changed after you read it');
+    // The stored anchor follows its paragraph to the new line.
+    expect(toolText('shift-read-element')?.text).toContain('"href":"drifting:chapters/Chapter One/prose.md#L3"');
+    expect(toolText('fresh-read-chapter')?.text).toMatch(/3\tBefore the Agent\./u);
+    harness.driver.assertExhausted();
+  });
+
   it('appends to the requested drift without inheriting a stale chapter focus', async () => {
     const turnId = 'turn-unscoped-drift-append';
     const original = '（以上各片段为随抄群像，归线未定，暂存待用。）';

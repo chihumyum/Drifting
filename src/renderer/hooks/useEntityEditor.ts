@@ -50,6 +50,7 @@ import { useProjectNavigation } from './useProjectNavigation';
 import type { CommentTargetKind } from '../domain/comment';
 import { useTypewriterScrolling } from './useTypewriterScrolling';
 import { useEntityLinkConfiguration } from '../features/editor/useEntityLinkConfiguration';
+import { openEntityLinkTarget } from '../features/editor/open-entity-link';
 import { useAgentEditorDecorations } from '../features/editor/useAgentEditorDecorations';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { buildEntityAutoDetectTargets, selectEntityLinkNames } from '../lib/entity-link-names';
@@ -497,18 +498,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     [createElementRef],
   );
 
-  // Default click handler: navigate by target kind. Caller can override.
-  const navigation = useProjectNavigation();
-  const navigateToElement = navigation.navigateToElement;
-  const navigateToNode = navigation.navigateToNode;
-  const navigateToStoryline = navigation.navigateToStoryline;
-  const navigateToCategory = navigation.navigateToCategory;
-  const navigationRef = useLatestRef({
-    navigateToElement,
-    navigateToNode,
-    navigateToStoryline,
-    navigateToCategory,
-  });
+  // Default click handler: open the target (and its cited paragraphs). Caller can override.
+  const openEntityRef = useLatestRef(useProjectNavigation().openEntity);
   const handleEntityClick = useCallback(
     (ref: EntityLinkRef) => {
       const override = onEntityClickRef.current;
@@ -516,14 +507,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         override(ref);
         return;
       }
-      const nav = navigationRef.current;
-      if (ref.targetKind === 'element') nav.navigateToElement(ref.targetId);
-      else if (ref.targetKind === 'node') nav.navigateToNode(ref.targetId);
-      else if (ref.targetKind === 'storyline') nav.navigateToStoryline(ref.targetId);
-      else if (ref.targetKind === 'category') nav.navigateToCategory(ref.targetId);
-      // patch: no default destination yet.
+      openEntityLinkTarget(openEntityRef.current, ref);
     },
-    [navigationRef, onEntityClickRef],
+    [openEntityRef, onEntityClickRef],
   );
 
   const getSlashItems = useCallback((): SlashMenuExtraItem[] => {

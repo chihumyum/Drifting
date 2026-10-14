@@ -4,6 +4,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { APP_CONFIG, canUseExternalContent, canUseHostedService } from '../lib/config';
 import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
 import { consumePendingNativeOAuth, createPendingNativeOAuth } from './native-oauth-state';
+import { LOCATION_OPEN_PREFIX } from '../lib/location-link';
 import type {
   ContractAvailability,
   AppUpdateDownloadEvent,
@@ -29,6 +30,7 @@ import { recordActiveGoogleDriveNativeDiagnostics } from '../services/diagnostic
 import type { PlatformApi, Unsubscribe } from './types';
 
 const DEEP_LINK_EVENT = 'drifting:deep-link' as const;
+const OAUTH_DEEP_LINK_PREFIX = 'drifting://auth/';
 const LIFECYCLE_EVENT = 'drifting:lifecycle' as const;
 
 type TauriGlobal = typeof globalThis & {
@@ -632,7 +634,7 @@ export const tauriPlatform: PlatformApi = {
       };
       const drainPending = () => {
         drainChain = drainChain
-          .then(() => invokeContract('deep_link_take_pending', undefined))
+          .then(() => invokeContract('deep_link_take_pending', { prefix: OAUTH_DEEP_LINK_PREFIX }))
           .then(dispatch)
           .catch((error) => console.error(error));
       };
@@ -642,6 +644,26 @@ export const tauriPlatform: PlatformApi = {
       // consumed and cannot be replayed after logout/LoginPage remount. Waiting
       // until the listener is installed also closes the startup race: URLs that
       // arrive before registration remain queued and are handled by this drain.
+      const stop = listenContract(DEEP_LINK_EVENT, drainPending, drainPending);
+      return () => {
+        active = false;
+        stop();
+      };
+    },
+  },
+
+  locationLinks: {
+    onOpen(callback) {
+      let active = true;
+      let drainChain = Promise.resolve();
+      // Same queue discipline as OAuth callbacks: dispatch only what this
+      // consumer drains, so an early or replayed URL is handled exactly once.
+      const drainPending = () => {
+        drainChain = drainChain
+          .then(() => invokeContract('deep_link_take_pending', { prefix: LOCATION_OPEN_PREFIX }))
+          .then((urls) => { if (active) urls.forEach(callback); })
+          .catch((error) => console.error(error));
+      };
       const stop = listenContract(DEEP_LINK_EVENT, drainPending, drainPending);
       return () => {
         active = false;

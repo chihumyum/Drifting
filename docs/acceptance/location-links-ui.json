@@ -1,0 +1,18 @@
+{
+  "kind": "location-links-browser",
+  "generatedAt": "2026-10-14T17:15:33.223Z",
+  "sourceSha256": "02f8579ce81e262dd030607bd751002cbd3d758f6ec5cad1914760c9da26a342",
+  "status": "passed",
+  "synthetic": true,
+  "checks": [
+    "a stored location link renders its paragraph anchor, range end and deep-link style",
+    "clicking an editor location link opens the chapter, centers paragraph 11 and flashes paragraphs 11–13",
+    "clicking a drifting: link in an Agent message resolves lines 41–45 to paragraphs 21–23 without navigating the page",
+    "a chat link whose lines no longer exist still opens its chapter without jumping"
+  ],
+  "boundaries": {
+    "browser": "real Chrome mouse input on the real entityLink extension, scroll-to-block and Agent message view; synthetic navigator and chapter body",
+    "runtime": "Agent write/read and projection paths are covered by vitest and pnpm mcp:acceptance",
+    "desktopApp": "Tauri window input not exercised; operating-system drifting://open links need a bundled app"
+  }
+}

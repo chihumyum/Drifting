@@ -1266,7 +1266,7 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
   domainRuntimeReadSpec('list_chapters', '按阅读顺序列出全部章节。', noArgs, 20_000),
   domainRuntimeReadSpec(
     'read_chapter',
-    '读取一章的当前正文与摘要，默认附带正文行号；可按 startLine/endLine 读取。行号对应只读 Markdown 投影的 prose.md。较长正文用 cursor 和 version 继续；修改正文时不要包含行号。',
+    '读取一章的当前正文与摘要，默认附带正文行号；可按 startLine/endLine 读取。行号对应只读 Markdown 投影的 prose.md。较长正文用 cursor 和 version 继续；修改正文时不要包含行号。引用某段时写位置链接 [文字](drifting:chapters/<章节名>/prose.md#L12-L18)，保存后可点击跳转。',
     Type.Object(
       {
         chapter: str('章节名'), cursor: domainCursor, maxCharacters: domainReadLimit,

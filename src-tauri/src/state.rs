@@ -32,12 +32,36 @@ impl DeepLinkQueue {
             .extend(urls);
     }
 
-    pub fn drain(&self) -> Vec<String> {
-        self.0
-            .lock()
-            .expect("deep-link queue mutex poisoned")
-            .drain(..)
-            .collect()
+    /// Take the queued URLs that start with `prefix`, leaving every other URL
+    /// for its own consumer (OAuth callbacks vs. location links).
+    pub fn drain_matching(&self, prefix: &str) -> Vec<String> {
+        let mut queue = self.0.lock().expect("deep-link queue mutex poisoned");
+        let (taken, kept) = queue.drain(..).partition(|url| url.starts_with(prefix));
+        *queue = kept;
+        taken
+    }
+}
+
+#[cfg(test)]
+mod deep_link_queue_tests {
+    use super::DeepLinkQueue;
+
+    #[test]
+    fn each_consumer_drains_only_its_prefix() {
+        let queue = DeepLinkQueue::default();
+        queue.push_all([
+            "drifting://auth/callback?nativeState=a".to_string(),
+            "drifting://open/p/chapters/id-x/prose.md#L3".to_string(),
+        ]);
+        assert_eq!(
+            queue.drain_matching("drifting://open/"),
+            vec!["drifting://open/p/chapters/id-x/prose.md#L3".to_string()]
+        );
+        assert!(queue.drain_matching("drifting://open/").is_empty());
+        assert_eq!(
+            queue.drain_matching("drifting://auth/"),
+            vec!["drifting://auth/callback?nativeState=a".to_string()]
+        );
     }
 }
 

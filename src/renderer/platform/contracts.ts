@@ -480,7 +480,8 @@ export interface TauriCommandContract {
     result: void;
   };
   opener_open_external: { args: { url: string }; result: void };
-  deep_link_take_pending: { args: undefined; result: string[] };
+  /** Drains only queued URLs that start with `prefix` (one consumer per kind). */
+  deep_link_take_pending: { args: { prefix: string }; result: string[] };
   lifecycle_get_status: { args: undefined; result: LifecycleStatus };
   lifecycle_complete_flush: { args: { requestId: number }; result: boolean };
   typography_list_system_fonts: { args: undefined; result: SystemFontFamily[] };

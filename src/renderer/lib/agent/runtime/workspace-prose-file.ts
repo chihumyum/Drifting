@@ -9,6 +9,13 @@ import {
   type YjsProseTextNode,
 } from './yjs-prose-command';
 import {
+  entityLocationAttrs,
+  isEntityLinkMarkKey,
+  readableLocationHref,
+  type LocationResolver,
+} from '../../location-link';
+import {
+  normalizeAgentLocationLink,
   normalizeAgentMarkdownLink,
   parseAgentProseMarkdown,
   renderAgentProseMarkdownBlock,
@@ -273,6 +280,11 @@ function isInternalAuthoredLink(destination: string): boolean {
 }
 
 function authoredLinkDomainTarget(destination: string, fallbackLabel: string): string {
+  const location = normalizeAgentLocationLink(destination);
+  if (location) {
+    // Model-facing reads hide link syntax; say where a cited passage points.
+    return `${stripInlinePresentation(fallbackLabel)}（${readableLocationHref(location)}）`;
+  }
   const normalized = destination.trim();
   const fragment = normalized.includes('#')
     ? normalized.slice(normalized.lastIndexOf('#') + 1)
@@ -542,8 +554,16 @@ function isSemanticBoundaryIgnorable(value: string): boolean {
   return isQuoteGlyph(value) || /[\t \u00a0\u3000]/u.test(value);
 }
 
-export function renderWorkspaceProseFile(blocks: readonly YjsProseBlock[]): string {
-  return blocks.map(renderWorkspaceProseBlock).join('\n\n');
+/**
+ * Without `locations`, anchored entity links stay invisible like any mention.
+ * Writers that pass a resolver render them as drifting: location links and
+ * turn newly written ones into stable paragraph anchors (docs/location-links.md).
+ */
+export function renderWorkspaceProseFile(
+  blocks: readonly YjsProseBlock[],
+  locations?: LocationResolver,
+): string {
+  return blocks.map((block) => renderWorkspaceProseBlock(block, locations)).join('\n\n');
 }
 
 /**
@@ -556,13 +576,15 @@ export async function planWorkspaceProseFileEdit(input: {
   blocks: readonly YjsProseBlock[];
   replacements: readonly WorkspaceTextReplacement[];
   idempotencyKey: string;
+  locations?: LocationResolver;
 }): Promise<YjsProseOperation> {
-  const beforeText = renderWorkspaceProseFile(input.blocks);
+  const beforeText = renderWorkspaceProseFile(input.blocks, input.locations);
   const afterText = applyWorkspaceTextReplacements(beforeText, input.replacements);
   return planWorkspaceProseFileWrite({
     blocks: input.blocks,
     content: afterText,
     idempotencyKey: input.idempotencyKey,
+    ...(input.locations ? { locations: input.locations } : {}),
   });
 }
 
@@ -575,9 +597,11 @@ export async function planWorkspaceProseFileWrite(input: {
   blocks: readonly YjsProseBlock[];
   content: string;
   idempotencyKey: string;
+  locations?: LocationResolver;
 }): Promise<YjsProseOperation> {
+  const { locations } = input;
   const requestedBlocks = parseAgentProseMarkdown(input.content);
-  const beforeKeys = input.blocks.map(workspaceProseBlockMatchKey);
+  const beforeKeys = input.blocks.map((block) => workspaceProseBlockMatchKey(block, locations));
   const requestedKeys = requestedBlocks.map(agentMarkdownBlockMatchKey);
   const exactPairs = longestCommonSubsequencePairs(beforeKeys, requestedKeys);
   const desiredBlocks: YjsProseBlock[] = [];
@@ -593,13 +617,14 @@ export async function planWorkspaceProseFileWrite(input: {
     const newGap = requestedBlocks.slice(newCursor, newMatch);
     const paired = Math.min(oldGap.length, newGap.length);
     for (let index = 0; index < paired; index += 1) {
-      desiredBlocks.push(blockWithAgentMarkdown(oldGap[index]!, newGap[index]!));
+      desiredBlocks.push(blockWithAgentMarkdown(oldGap[index]!, newGap[index]!, locations));
     }
     for (let index = paired; index < newGap.length; index += 1) {
       desiredBlocks.push(
         await newBlockFromAgentMarkdown(
           newGap[index]!,
           await deterministicBlockId(input.idempotencyKey, inserted),
+          locations,
         ),
       );
       inserted += 1;
@@ -682,11 +707,13 @@ export async function planWorkspaceProseFileWrite(input: {
 export async function createWorkspaceProseContentJson(input: {
   content: string;
   idempotencyKey: string;
+  locations?: LocationResolver;
 }): Promise<string> {
   const operation = await planWorkspaceProseFileWrite({
     blocks: [],
     content: input.content,
     idempotencyKey: input.idempotencyKey,
+    ...(input.locations ? { locations: input.locations } : {}),
   });
   if (operation.kind !== 'insert' || operation.afterBlockId !== null) {
     throw new Error('New authored prose did not produce an initial block insertion');
@@ -700,12 +727,12 @@ export async function createWorkspaceProseContentJson(input: {
   }
 }
 
-function renderWorkspaceProseBlock(block: YjsProseBlock): string {
-  return renderAgentProseMarkdownBlock(workspaceBlockToAgentMarkdown(block));
+function renderWorkspaceProseBlock(block: YjsProseBlock, locations?: LocationResolver): string {
+  return renderAgentProseMarkdownBlock(workspaceBlockToAgentMarkdown(block, locations));
 }
 
-function workspaceProseBlockMatchKey(block: YjsProseBlock): string {
-  const rendered = renderWorkspaceProseBlock(block);
+function workspaceProseBlockMatchKey(block: YjsProseBlock, locations?: LocationResolver): string {
+  const rendered = renderWorkspaceProseBlock(block, locations);
   return isSchemaAllowedWorkspaceBlock(block)
     ? `allowed:${rendered}`
     : `legacy:${block.type}:${rendered}`;
@@ -722,12 +749,15 @@ function isSchemaAllowedWorkspaceBlock(block: YjsProseBlock): boolean {
   );
 }
 
-function workspaceBlockToAgentMarkdown(block: YjsProseBlock): AgentMarkdownBlock {
+function workspaceBlockToAgentMarkdown(
+  block: YjsProseBlock,
+  locations?: LocationResolver,
+): AgentMarkdownBlock {
   if (block.type === 'horizontalRule') return { type: 'horizontalRule', inline: [] };
   const inline =
     block.type === 'blockquote'
-      ? flattenYjsBlockquoteInline(block.content ?? [])
-      : yjsNodesToAgentInline(block.content ?? []);
+      ? flattenYjsBlockquoteInline(block.content ?? [], locations)
+      : yjsNodesToAgentInline(block.content ?? [], locations);
   if (block.type === 'heading') {
     const level = headingLevel(block);
     if (level) return { type: 'heading', level, inline };
@@ -742,24 +772,30 @@ function headingLevel(block: YjsProseBlock): 1 | 2 | 3 | null {
   return level === 1 || level === 2 || level === 3 ? level : null;
 }
 
-function flattenYjsBlockquoteInline(nodes: readonly YjsProseNode[]): AgentMarkdownInline[] {
+function flattenYjsBlockquoteInline(
+  nodes: readonly YjsProseNode[],
+  locations?: LocationResolver,
+): AgentMarkdownInline[] {
   return nodes.flatMap((node, index) => [
     ...(index > 0 ? ([{ kind: 'hardBreak' }, { kind: 'hardBreak' }] as const) : []),
     ...(node.kind === 'text'
-      ? yjsNodesToAgentInline([node])
-      : yjsNodesToAgentInline(node.content ?? [])),
+      ? yjsNodesToAgentInline([node], locations)
+      : yjsNodesToAgentInline(node.content ?? [], locations)),
   ]);
 }
 
-function yjsNodesToAgentInline(nodes: readonly YjsProseNode[]): AgentMarkdownInline[] {
+function yjsNodesToAgentInline(
+  nodes: readonly YjsProseNode[],
+  locations?: LocationResolver,
+): AgentMarkdownInline[] {
   const inline: AgentMarkdownInline[] = [];
   for (const node of nodes) {
     if (node.kind === 'element') {
       if (node.type === 'hardBreak') inline.push({ kind: 'hardBreak' });
-      else inline.push(...yjsNodesToAgentInline(node.content ?? []));
+      else inline.push(...yjsNodesToAgentInline(node.content ?? [], locations));
       continue;
     }
-    const marks = yjsMarksToAgentMarkdown(node.marks);
+    const marks = yjsMarksToAgentMarkdown(node.marks, locations);
     inline.push({
       kind: 'text',
       text: node.text,
@@ -769,25 +805,49 @@ function yjsNodesToAgentInline(nodes: readonly YjsProseNode[]): AgentMarkdownInl
   return inline;
 }
 
-function yjsMarksToAgentMarkdown(marks: YjsProseTextNode['marks']): AgentMarkdownMarks {
+function yjsMarksToAgentMarkdown(
+  marks: YjsProseTextNode['marks'],
+  locations?: LocationResolver,
+): AgentMarkdownMarks {
   if (!marks) return {};
   const linkRecord = marks.link;
   const link =
     linkRecord && typeof linkRecord === 'object' && !Array.isArray(linkRecord)
       ? normalizeAgentMarkdownLink(linkRecord.href)
       : null;
+  const location = renderedLocation(marks, locations);
   return {
     ...(marks.bold ? { bold: true } : {}),
     ...(marks.italic ? { italic: true } : {}),
     ...(marks.strike ? { strike: true } : {}),
     ...(marks.underline ? { underline: true } : {}),
     ...(link ? { link } : {}),
+    ...(location ? { location: location.href } : {}),
   };
 }
 
-function blockWithAgentMarkdown(block: YjsProseBlock, parsed: AgentMarkdownBlock): YjsProseBlock {
+/** The anchored entityLink a resolver renders visibly, with its mark key. */
+function renderedLocation(
+  marks: YjsProseTextNode['marks'],
+  locations: LocationResolver | undefined,
+): { key: string; href: string } | null {
+  if (!marks || !locations) return null;
+  for (const [key, value] of Object.entries(marks)) {
+    if (!isEntityLinkMarkKey(key)) continue;
+    const attrs = entityLocationAttrs(value);
+    const href = attrs ? locations.format(attrs) : null;
+    if (href) return { key, href };
+  }
+  return null;
+}
+
+function blockWithAgentMarkdown(
+  block: YjsProseBlock,
+  parsed: AgentMarkdownBlock,
+  locations?: LocationResolver,
+): YjsProseBlock {
   if (parsed.type !== block.type) {
-    return makeBlock(block.id, parsed, undefined);
+    return makeBlock(block.id, parsed, undefined, locations);
   }
   if (block.type === 'blockquote') {
     const paragraph = block.content?.find(
@@ -804,7 +864,11 @@ function blockWithAgentMarkdown(block: YjsProseBlock, parsed: AgentMarkdownBlock
           ...(parsed.inline.length > 0
             ? {
                 content: agentInlineHasFormatting(parsed.inline)
-                  ? preserveOpaqueInlineMarks(current, agentMarkdownInlineToYjs(parsed.inline))
+                  ? preserveOpaqueInlineMarks(
+                      current,
+                      agentMarkdownInlineToYjs(parsed.inline, locations),
+                      locations,
+                    )
                   : replaceMarkedText(current, agentInlinePlainText(parsed.inline)),
               }
             : {}),
@@ -824,13 +888,14 @@ function blockWithAgentMarkdown(block: YjsProseBlock, parsed: AgentMarkdownBlock
           : agentInlineHasFormatting(parsed.inline)
             ? preserveOpaqueInlineMarks(
                 block.content ?? [],
-                agentMarkdownInlineToYjs(parsed.inline),
+                agentMarkdownInlineToYjs(parsed.inline, locations),
+                locations,
               )
             : replaceMarkedText(block.content ?? [], agentInlinePlainText(parsed.inline)),
     };
   }
   if (block.type === 'horizontalRule') return { ...block, content: [] };
-  return makeBlock(block.id, parsed, undefined);
+  return makeBlock(block.id, parsed, undefined, locations);
 }
 
 function replaceMarkedText(
@@ -913,7 +978,10 @@ function agentInlinePlainText(inline: readonly AgentMarkdownInline[]): string {
   return inline.map((node) => (node.kind === 'hardBreak' ? '\n' : node.text)).join('');
 }
 
-function agentMarkdownInlineToYjs(inline: readonly AgentMarkdownInline[]): YjsProseNode[] {
+function agentMarkdownInlineToYjs(
+  inline: readonly AgentMarkdownInline[],
+  locations?: LocationResolver,
+): YjsProseNode[] {
   return inline.flatMap((node): YjsProseNode[] => {
     if (node.kind === 'hardBreak') return [{ kind: 'element', type: 'hardBreak' }];
     if (!node.text) return [];
@@ -923,7 +991,11 @@ function agentMarkdownInlineToYjs(inline: readonly AgentMarkdownInline[]): YjsPr
     if (node.marks?.strike) marks.strike = {};
     if (node.marks?.underline) marks.underline = {};
     const link = normalizeAgentMarkdownLink(node.marks?.link);
-    if (link) marks.link = { href: link };
+    const anchor = node.marks?.location
+      ? resolveWrittenLocation(node.marks.location, locations, link !== null)
+      : null;
+    if (anchor) marks[locationMarkKey(anchor)] = { ...anchor };
+    else if (link) marks.link = { href: link };
     return [
       {
         kind: 'text',
@@ -932,6 +1004,41 @@ function agentMarkdownInlineToYjs(inline: readonly AgentMarkdownInline[]): YjsPr
       },
     ];
   });
+}
+
+/**
+ * A location link becomes an anchored entityLink. A drifting: link that does not
+ * resolve fails the write with the reason instead of storing a dead jump; an
+ * unresolvable projection-relative path (also parsed as an ordinary link)
+ * stays that link.
+ */
+function resolveWrittenLocation(
+  href: string,
+  locations: LocationResolver | undefined,
+  ordinaryLinkFallback: boolean,
+): Record<string, string | null> | null {
+  const resolution = locations?.resolve(href) ?? {
+    ok: false as const,
+    error: 'location links are not available for this write',
+  };
+  if (resolution.ok) return { ...resolution.attrs };
+  if (ordinaryLinkFallback) return null;
+  throw new Error(`Location link ${href} could not be resolved: ${resolution.error}`);
+}
+
+/**
+ * entityLink marks overlap (a location link may contain an auto-detected
+ * mention), so y-prosemirror keys each one as `entityLink--<8 chars>`. A
+ * deterministic key keeps planned operations idempotent and never collides
+ * with a mention preserved on the same text.
+ */
+function locationMarkKey(anchor: Record<string, string | null>): string {
+  let hash = 0x811c9dc5;
+  for (const character of JSON.stringify(anchor)) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `entityLink--l${(hash >>> 0).toString(36).padStart(7, '0').slice(-7)}`;
 }
 
 const AGENT_MARK_NAMES = new Set(['bold', 'italic', 'strike', 'underline', 'link']);
@@ -945,6 +1052,7 @@ const AGENT_MARK_NAMES = new Set(['bold', 'italic', 'strike', 'underline', 'link
 function preserveOpaqueInlineMarks(
   previous: readonly YjsProseNode[],
   desired: readonly YjsProseNode[],
+  locations?: LocationResolver,
 ): YjsProseNode[] {
   if (!previous.every(isFlatInlineNode) || !desired.every(isFlatInlineNode)) return [...desired];
   const oldText = yjsInlinePlainText(previous);
@@ -972,7 +1080,7 @@ function preserveOpaqueInlineMarks(
       opaqueByOldOffset.push(undefined);
       continue;
     }
-    const opaque = opaqueMarks(node.marks);
+    const opaque = opaqueMarks(node.marks, locations);
     for (let index = 0; index < node.text.length; index += 1) opaqueByOldOffset.push(opaque);
   }
 
@@ -1012,10 +1120,15 @@ function yjsInlinePlainText(nodes: readonly YjsProseNode[]): string {
   return nodes.map((node) => (node.kind === 'text' ? node.text : '\n')).join('');
 }
 
-function opaqueMarks(marks: YjsProseTextNode['marks']): YjsProseTextNode['marks'] {
+function opaqueMarks(
+  marks: YjsProseTextNode['marks'],
+  locations?: LocationResolver,
+): YjsProseTextNode['marks'] {
   if (!marks) return undefined;
+  // A rendered location link is visible Markdown: the parsed file re-creates it.
+  const visibleLocation = renderedLocation(marks, locations)?.key;
   const opaque = Object.fromEntries(
-    Object.entries(marks).filter(([name]) => !AGENT_MARK_NAMES.has(name)),
+    Object.entries(marks).filter(([name]) => !AGENT_MARK_NAMES.has(name) && name !== visibleLocation),
   );
   return Object.keys(opaque).length > 0 ? opaque : undefined;
 }
@@ -1048,14 +1161,16 @@ function mergeYjsInlineNodes(nodes: readonly YjsProseNode[]): YjsProseNode[] {
 async function newBlockFromAgentMarkdown(
   block: AgentMarkdownBlock,
   id: string,
+  locations?: LocationResolver,
 ): Promise<YjsProseBlock> {
-  return makeBlock(id, block, undefined);
+  return makeBlock(id, block, undefined, locations);
 }
 
 function makeBlock(
   id: string,
   block: AgentMarkdownBlock,
   attrs: YjsProseBlock['attrs'],
+  locations?: LocationResolver,
 ): YjsProseBlock {
   if (block.type === 'blockquote') {
     return {
@@ -1066,7 +1181,9 @@ function makeBlock(
         {
           kind: 'element',
           type: 'paragraph',
-          ...(block.inline.length > 0 ? { content: agentMarkdownInlineToYjs(block.inline) } : {}),
+          ...(block.inline.length > 0
+            ? { content: agentMarkdownInlineToYjs(block.inline, locations) }
+            : {}),
         },
       ],
     };
@@ -1090,7 +1207,7 @@ function makeBlock(
           },
         }
       : {}),
-    content: agentMarkdownInlineToYjs(block.inline),
+    content: agentMarkdownInlineToYjs(block.inline, locations),
   };
 }
 

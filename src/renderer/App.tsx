@@ -5,6 +5,7 @@ import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboarding
 import { AuthDialogHost } from './features/auth/AuthDialog';
 import loglevel from 'loglevel';
 import { AppEffects } from './app/effects/AppEffects';
+import { LocationDeepLinkEffects } from './app/effects/LocationDeepLinkEffects';
 import { FullScreenStatus } from './app/components/FullScreenStatus';
 import { AppRoutes } from './app/AppRoutes';
 import { getPlatformRuntime } from './platform/runtime';
@@ -67,6 +68,7 @@ function AppContents() {
   return (
     <>
       <AppEffects />
+      <LocationDeepLinkEffects />
       <PreAlphaOnboardingDialog />
       <AppRoutes />
       <AuthDialogHost />

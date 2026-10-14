@@ -22,7 +22,10 @@ import {
 export interface EntityLinkRef {
   targetKind: EntityKind;
   targetId: string;
+  /** Paragraph anchor of a location link (docs/location-links.md). */
   targetBlockId: string | null;
+  /** Last paragraph of a cited range, when it spans several. */
+  targetEndBlockId?: string | null;
 }
 
 // Live state of a mention's target entity, driving both styling and clickability:
@@ -407,6 +410,12 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         renderHTML: (attrs) =>
           attrs.targetBlockId ? { 'data-target-block-id': attrs.targetBlockId } : {},
       },
+      targetEndBlockId: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-target-end-block-id'),
+        renderHTML: (attrs) =>
+          attrs.targetEndBlockId ? { 'data-target-end-block-id': attrs.targetEndBlockId } : {},
+      },
     };
   },
 
@@ -507,8 +516,9 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
             // handled so the click doesn't also place the caret mid-word.
             if (entityLinkConfig.resolveTargetState(targetKind, targetId) !== 'alive') return true;
             const targetBlockId = target.getAttribute('data-target-block-id');
+            const targetEndBlockId = target.getAttribute('data-target-end-block-id');
 
-            onClick({ targetKind, targetId, targetBlockId });
+            onClick({ targetKind, targetId, targetBlockId, targetEndBlockId });
             return true;
           },
         },

@@ -1,5 +1,12 @@
 import { getMarkdownProjectionStatus } from '../../../services/markdown-projection-status';
 import { proseReadVersion, proseReadWindow, numberProseLines } from '../prose-read-view';
+import {
+  createLocationResolver,
+  describeLocationHref,
+  markdownLocationHrefs,
+  parseLocationHref,
+} from '../../location-link';
+import { projectLocationEntities } from '../location-link-catalog';
 import { Value } from '@sinclair/typebox/value';
 
 import { allElementNames, type BookElement } from '../../../domain/book-element';
@@ -267,6 +274,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   private readonly persistence: AgentRuntimePersistenceRepository | undefined;
   private readonly now: () => string;
   private readonly readCoverage = new Map<string, WorkspaceReadCoverage>();
+  /** Coverage keys read in this session, kept after a write invalidates them. */
+  private readonly readPaths = new Set<string>();
 
   constructor(options: DriftingWorkspaceToolRuntimeOptions) {
     this.readRuntime = options.readRuntime;
@@ -278,6 +287,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   releaseExternalSession(sessionId: string): void {
     for (const key of this.readCoverage.keys()) {
       if (key.startsWith(`${sessionId}\u0000`)) this.readCoverage.delete(key);
+    }
+    for (const key of this.readPaths) {
+      if (key.startsWith(`${sessionId}\u0000`)) this.readPaths.delete(key);
     }
   }
 
@@ -2069,6 +2081,11 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       }
       const blocks = compactProseBlocks(read.value);
       const current = blocks.map((block) => block.displayText).join('\n\n');
+      await this.assertCitedLocationsCurrent(
+        request,
+        current,
+        replacements.map((replacement) => replacement.newText),
+      );
       const normalized = normalizeWorkspaceProseReplacements(
         current,
         replacements,
@@ -2457,6 +2474,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       const current = compactProseBlocks(read.value)
         .map((block) => block.displayText)
         .join('\n\n');
+      await this.assertCitedLocationsCurrent(request, current, [content]);
       const annotatedContent = restoreAuthoredTextAnnotations(current, content);
       const currentSummary = authoredObjectSummary(entry, this.requireProject(request.context)) ?? '';
       if (
@@ -2617,6 +2635,12 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     freshness?: ReadFreshness | null,
   ): Promise<void> {
     const key = this.readCoverageKey(request, path);
+    this.readPaths.add(key);
+    while (this.readPaths.size > MAX_TRACKED_READ_COVERAGE * 4) {
+      const oldest = this.readPaths.values().next().value as string | undefined;
+      if (!oldest) break;
+      this.readPaths.delete(oldest);
+    }
     const fingerprint = await workspaceContentFingerprint(content);
     const previous = this.readCoverage.get(key);
     const ranges =
@@ -2711,6 +2735,64 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
 
   private readCoverageKey(request: AgentToolExecutionRequest, path: string): string {
     return `${request.sessionId}\u0000${this.requireProject(request.context)}\u0000${path}`;
+  }
+
+  /**
+   * A new location link cites line numbers from what this session read. When
+   * the cited body changed since that read, the lines may now name other
+   * paragraphs: ask for a re-read instead of anchoring the wrong passage.
+   * Bodies never read through tools in this session (e.g. cited from the disk
+   * projection) are resolved against their current lines by the writer.
+   */
+  private async assertCitedLocationsCurrent(
+    request: AgentToolExecutionRequest,
+    current: string,
+    writtenTexts: readonly string[],
+  ): Promise<void> {
+    const hrefs = [...new Set(writtenTexts.flatMap((text) => markdownLocationHrefs(text)))]
+      .filter((href) => !current.includes(href) && parseLocationHref(href)?.startLine != null);
+    if (hrefs.length === 0) return;
+    const projectId = this.requireProject(request.context);
+    const locations = createLocationResolver({
+      projectId,
+      entities: projectLocationEntities(projectId),
+      blockIds: () => undefined,
+    });
+    const entries = buildWorkspaceEntries(projectId);
+    let checked = 0;
+    for (const href of hrefs) {
+      const entity = locations.entity(parseLocationHref(href)!);
+      if ('error' in entity) continue; // the writer reports unresolvable links
+      const entry = entries.find((candidate) => {
+        const target = workspaceProseTarget(candidate.target);
+        return target?.entityType === entity.kind && target.id === entity.id;
+      });
+      const proseTarget = entry ? workspaceProseTarget(entry.target) : null;
+      if (!entry || !proseTarget) continue;
+      const entityKind = `${proseTarget.entityType}_prose`;
+      const coverageKey = this.readCoverageKey(request, entry.path);
+      const coverage = this.readCoverage.get(coverageKey);
+      const cited = expectedRevisionFromFreshness(coverage?.freshness, entityKind, proseTarget.id);
+      const stale = () => new Error(
+        `"${entity.name}" changed after you read it, so ${describeLocationHref(href) ?? href} may cite other lines now. Read it again, then retry.`,
+      );
+      // A write by this session drops its coverage: the lines it read are gone.
+      if (!coverage && this.readPaths.has(coverageKey)) throw stale();
+      if (!cited) continue;
+      const read = await this.canonicalRead(
+        request,
+        'read_node',
+        {
+          node: proseTarget.id,
+          kind: proseTarget.entityType === 'node' ? proseTarget.nodeKind : proseTarget.entityType,
+          prose: true,
+        },
+        `cited-location-${checked++}`,
+      );
+      if (expectedRevisionFrom(read, entityKind, proseTarget.id).revision !== cited.revision) {
+        throw stale();
+      }
+    }
   }
 
   private async prepareEmptyScalarFileCommand(
@@ -2824,6 +2906,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     explicitSummary?: string,
   ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
     const projectId = this.requireProject(request.context);
+    await this.assertCitedLocationsCurrent(request, '', [content]);
     const segments = path.split('/').filter(Boolean).map(decodePathSegment);
     const file = segments[segments.length - 1] ?? '';
     if (segments[0] === 'memory' && file.endsWith('.json') && segments.length === 2) {

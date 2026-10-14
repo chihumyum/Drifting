@@ -51,7 +51,9 @@ files. Entity indexes contain names, summaries and relations; `prose.md` contain
 only the shared Agent Markdown body. Each editor block occupies a single line
 with `<br>` for embedded breaks, separated by a blank line; empty blocks remain.
 Thus block N begins on line `2N-1`, matching `read_chapter` and exact-search body
-coordinates. Number prefixes are never saved in these files.
+coordinates. Number prefixes are never saved in these files. Cited passages
+render as [location links](location-links.md) with their targets' current names
+and lines; the README states the format and this project's `drifting://open/` prefix.
 
 **This is a read-only, one-way projection. There is no reverse sync.** Editing
 files never updates Drifting; a refresh can overwrite edits. Use Drifting or its
