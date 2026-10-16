@@ -202,7 +202,9 @@ The URL remains the address/selection authority, but React Router no longer
 owns the lifetime of desktop editor views: inactive surfaces stay mounted with
 `visibility: hidden`, `inert`, and no pointer or command ownership. Their
 TipTap instances, Yjs sessions, scroll positions, selections, and field drafts
-therefore survive ordinary tab switches.
+therefore survive ordinary tab switches. Every surface ends with a
+`TextInputLookupStop`, so WebKit's input-method text lookup cannot walk into
+hidden surfaces; see [IME text lookup](renderer-performance/ime-text-lookup.md).
 
 Each split side keeps its own Preview/dedicated state. Only the focused
 Preview can be replaced by ordinary entity navigation; a dedicated side keeps

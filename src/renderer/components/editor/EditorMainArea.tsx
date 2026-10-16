@@ -38,6 +38,7 @@ import {
   EditorSurfaceLifecycleProvider,
   ImmediateEditorSurfaceReady,
 } from './EditorSurfaceLifecycle';
+import { TextInputLookupStop } from './TextInputLookupStop';
 
 const PROJECT_HOME_SURFACE_KEY = 'project-home';
 
@@ -350,6 +351,7 @@ function WorkspaceSurface({
       }}
     >
       {content}
+      <TextInputLookupStop />
     </div>
   );
 }

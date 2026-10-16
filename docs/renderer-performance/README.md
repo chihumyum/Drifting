@@ -1,5 +1,10 @@
 # Renderer performance work and evidence
 
+The 2026-10-17 [IME text lookup](ime-text-lookup.md) fix ends each desktop editor
+surface with a zero-width caret candidate. Before the fix, the macOS input
+method's text lookups near a chapter's end walked one character at a time through
+the prose of every hidden open tab.
+
 The 2026-10-04 [development stall watchdog](dev-stall-watchdog.md) logs debug
 desktop renderer stalls over one second to `logs/renderer-stalls.log`, including
 hard freezes that never recover.
