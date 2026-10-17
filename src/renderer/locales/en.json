@@ -3228,6 +3228,7 @@
     "sketch": "Sketch",
     "sketchWithCategory": "{{category}} · sketch",
     "portrait": {
+      "add": "Add image",
       "import": "Import",
       "replace": "Replace",
       "view": "View large image",

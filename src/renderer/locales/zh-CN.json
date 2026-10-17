@@ -3228,6 +3228,7 @@
     "sketch": "速写",
     "sketchWithCategory": "{{category}} · 速写",
     "portrait": {
+      "add": "添加图片",
       "import": "导入",
       "replace": "替换",
       "view": "查看大图",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
@@ -115,11 +115,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     : null;
   const portraitHasImageSlot = !!readyPortraitAssetId;
   const portraitBusy = portraitPickerBusy;
-  const portraitSurfaceLabel = portraitUrl
-    ? t('elementEditor.portrait.view')
-    : portraitHasImageSlot
-      ? t('elementEditor.portrait.loading')
-      : t('elementEditor.portrait.import');
   const portraitError =
     portraitErrorState?.elementId === (elementId ?? null) &&
     portraitErrorState.assetId === portraitAssetId
@@ -534,26 +529,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     t,
   ]);
 
-  const handlePortraitSurfaceClick = useCallback(() => {
-    if (portraitBusy) return;
-    if (portraitUrl) {
-      setPortraitPreviewOpen(true);
-      return;
-    }
-    if (readyPortraitAssetId) return;
-    void handleImportPortrait();
-  }, [handleImportPortrait, portraitBusy, portraitUrl, readyPortraitAssetId]);
-
-  const handlePortraitSurfaceKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return;
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      handlePortraitSurfaceClick();
-    },
-    [handlePortraitSurfaceClick],
-  );
-
   const handleContextAction = useCallback(
     async (action: string) => {
       if (!elementId || !curElement) return;
@@ -614,7 +589,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   }
 
   const currentCategory = bookElementCategories.find((cat) => cat.id === curElement.categoryId);
-  const categoryColor = currentCategory?.color || 'hsl(var(--accent))';
   // Element's summary buffer is local + only re-seeds on id change, so sync it
   // explicitly when a summary review resolves (accept → new, reject → old).
   const summaryReviewChange = fieldReview.summaryChange;
@@ -721,86 +695,66 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 )}
               </div>
 
-              <section id="el-overview">
-                <div className="elem-hero">
-                  <div className="elem-portrait-wrap">
-                    <div
-                      className={`elem-portrait${portraitHasImageSlot ? ' elem-portrait--image' : ''}${portraitBusy ? ' elem-portrait--busy' : ''}`}
-                      style={portraitHasImageSlot ? undefined : { background: `${categoryColor}` }}
-                      role="button"
-                      tabIndex={portraitBusy ? -1 : 0}
-                      title={portraitSurfaceLabel}
-                      aria-label={portraitSurfaceLabel}
-                      onClick={(event) => {
-                        if (portraitUrl) event.currentTarget.blur();
-                        handlePortraitSurfaceClick();
-                      }}
-                      onKeyDown={handlePortraitSurfaceKeyDown}
-                    >
-                      {portraitUrl ? (
-                        <img className="elem-portrait__img" src={portraitUrl} alt="" />
-                      ) : !portraitHasImageSlot ? (
-                        <span className="elem-portrait__hint">
-                          {currentCategory
-                            ? t('elementEditor.sketchWithCategory', {
-                                category: currentCategory.name,
-                              })
-                            : t('elementEditor.sketch')}
-                        </span>
-                      ) : null}
-                      <div className="elem-portrait__actions">
-                        <button
-                          type="button"
-                          className="elem-portrait__action"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleImportPortrait();
-                          }}
-                          disabled={portraitBusy}
-                          title={t(
-                            portraitAsset
-                              ? 'elementEditor.portrait.replace'
-                              : 'elementEditor.portrait.import',
-                          )}
-                        >
-                          {portraitBusy ? (
-                            <Loader2
-                              className="elem-portrait__icon elem-portrait__icon--spin"
-                              aria-hidden
-                            />
-                          ) : (
-                            <ImagePlus className="elem-portrait__icon" aria-hidden />
-                          )}
-                          <span>
-                            {portraitBusy
-                              ? t('elementEditor.portrait.importing')
-                              : portraitAsset
-                                ? t('elementEditor.portrait.replace')
-                                : t('elementEditor.portrait.import')}
-                          </span>
-                        </button>
-                        {portraitAsset && (
-                          <button
-                            type="button"
-                            className="elem-portrait__action elem-portrait__action--icon"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleRemovePortrait();
-                            }}
-                            disabled={portraitBusy}
-                            title={t('elementEditor.portrait.remove')}
-                          >
-                            <Trash2 className="elem-portrait__icon" aria-hidden />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {portraitError && (
-                      <div className="elem-portrait__error" role="alert">
-                        <span>{portraitError}</span>
-                      </div>
-                    )}
+              <section id="el-overview" className="elem-overview">
+                {portraitUrl && (
+                  <div className="elem-overview__art" aria-hidden="true">
+                    <img src={portraitUrl} alt="" />
                   </div>
+                )}
+                <div
+                  className={`elem-overview__portrait-tools${portraitUrl ? ' elem-overview__portrait-tools--has-image' : ''}`}
+                  aria-busy={portraitBusy}
+                >
+                  {portraitUrl && (
+                    <button
+                      type="button"
+                      className="elem-overview__portrait-action"
+                      onClick={(event) => {
+                        if (event.detail > 0) event.currentTarget.blur();
+                        setPortraitPreviewOpen(true);
+                      }}
+                    >
+                      {t('elementEditor.portrait.view')}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={`elem-overview__portrait-action${!portraitAsset ? ' elem-overview__portrait-action--add' : ''}`}
+                    onClick={(event) => {
+                      if (event.detail > 0) event.currentTarget.blur();
+                      void handleImportPortrait();
+                    }}
+                    disabled={portraitBusy}
+                    aria-label={t(portraitAsset ? 'elementEditor.portrait.replace' : 'elementEditor.portrait.add')}
+                    title={t(portraitAsset ? 'elementEditor.portrait.replace' : 'elementEditor.portrait.add')}
+                  >
+                    {portraitBusy ? (
+                      <Loader2 className="elem-portrait__icon elem-portrait__icon--spin" aria-hidden />
+                    ) : !portraitAsset ? (
+                      <ImagePlus className="elem-overview__add-icon" strokeWidth={1.4} aria-hidden />
+                    ) : null}
+                    {portraitAsset && t(portraitBusy ? 'elementEditor.portrait.importing' : 'elementEditor.portrait.replace')}
+                  </button>
+                  {portraitAsset && (
+                    <button
+                      type="button"
+                      className="elem-overview__portrait-action"
+                      onClick={(event) => {
+                        if (event.detail > 0) event.currentTarget.blur();
+                        void handleRemovePortrait();
+                      }}
+                      disabled={portraitBusy}
+                      title={t('elementEditor.portrait.remove')}
+                      aria-label={t('elementEditor.portrait.remove')}
+                    >
+                      <Trash2 className="elem-portrait__icon" aria-hidden />
+                    </button>
+                  )}
+                  {portraitHasImageSlot && !portraitUrl && !portraitError && (
+                    <span className="elem-overview__portrait-status">{t('elementEditor.portrait.loading')}</span>
+                  )}
+                </div>
+                <div className="elem-hero">
                   <div className="elem-hero__main">
                     <input
                       type="text"
@@ -835,7 +789,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                         flexWrap: 'wrap',
                         gap: 6,
                         marginTop: 4,
-                        marginBottom: 8,
+                        marginBottom: 0,
                         alignItems: 'center',
                       }}
                     >
@@ -909,43 +863,47 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                       />
                     </div>
 
-                    {summaryReviewChange ? (
-                      <FieldReview
-                        change={summaryReviewChange}
-                        onAccept={() => {
-                          setSummaryDirty(false);
-                          fieldReview.accept(summaryReviewChange);
-                          setSummaryValue(summaryReviewChange.newText);
-                        }}
-                      />
-                    ) : (
-                      <textarea
-                        ref={summaryRef}
-                        className="elem-hero__summary"
-                        value={summaryValue}
-                        onChange={(e) => {
-                          setSummaryDirty(true);
-                          setSummaryValue(e.target.value);
-                        }}
-                        onBlur={() => void commitSummary()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            setSummaryDirty(false);
-                            setSummaryValue(curElement.summary || '');
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        placeholder={t('elementEditor.summaryPlaceholder')}
-                        rows={1}
-                      />
-                    )}
-
                     {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)
                       Needs schema migration to add typed fields per category, plus
                       a category-level field definition surface (see CategoryEditor
                       § 字段定义 in design). Once implemented, render here. */}
                   </div>
                 </div>
+                <div data-agent-summary>
+                  {summaryReviewChange ? (
+                    <FieldReview
+                      change={summaryReviewChange}
+                      onAccept={() => {
+                        setSummaryDirty(false);
+                        fieldReview.accept(summaryReviewChange);
+                        setSummaryValue(summaryReviewChange.newText);
+                      }}
+                    />
+                  ) : (
+                    <textarea
+                      ref={summaryRef}
+                      className="page__sub"
+                      value={summaryValue}
+                      onChange={(e) => {
+                        setSummaryDirty(true);
+                        setSummaryValue(e.target.value);
+                      }}
+                      onBlur={() => void commitSummary()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setSummaryDirty(false);
+                          setSummaryValue(curElement.summary || '');
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder={t('elementEditor.summaryPlaceholder')}
+                      rows={1}
+                    />
+                  )}
+                </div>
+                {portraitError && (
+                  <div className="elem-portrait__error" role="alert">{portraitError}</div>
+                )}
               </section>
 
               {/* 记·传 — the element's free-form biography (TipTap body). Sits
