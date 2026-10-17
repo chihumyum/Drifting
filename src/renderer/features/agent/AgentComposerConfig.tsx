@@ -32,8 +32,6 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
   const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
   const agentEffort = useSettingsStore((s) => s.agentEffort);
   const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
-  const agentEditMode = useSettingsStore((s) => s.agentEditMode);
-  const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
   const agentAllowDangerousOperations = useSettingsStore(
     (s) => s.agentAllowDangerousOperations,
   );
@@ -153,13 +151,6 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
             </label>
             <div className="agt-menu__divider" />
             <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
-            <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>
-              <span>{t('agentPanel.config.reviewEdits')}</span>
-              <Switch
-                checked={agentEditMode === 'approve'}
-                onCheckedChange={(checked) => setAgentEditMode(checked ? 'approve' : 'auto')}
-              />
-            </div>
             <div
               className="agt-menu__row"
               title={t('agentPanel.config.dangerousOperationsTitle')}

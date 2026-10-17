@@ -363,22 +363,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     [elementId, curElement?.kvJson, updateElement, promoteCurrentTab],
   );
 
-  // Review of the agent's non-prose field edits (summary + kv). Reject writes the
-  // old value back through the same usecase as a manual edit.
-  const fieldReview = useFieldReview(
-    'element',
-    elementId,
-    projectId ?? '',
-    { kvJson: curElement?.kvJson },
-    {
-      summary: (v) => {
-        if (elementId) void updateElement(elementId, { summary: v });
-      },
-      kvJson: (v) => {
-        if (elementId) void updateElement(elementId, { kvJson: v });
-      },
-    },
-  );
+  // Unread presentation of committed Agent summary and kv edits.
+  const fieldReview = useFieldReview('element', elementId);
 
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim() || !elementId) return;
@@ -931,11 +917,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                           fieldReview.accept(summaryReviewChange);
                           setSummaryValue(summaryReviewChange.newText);
                         }}
-                        onReject={() => {
-                          setSummaryDirty(false);
-                          fieldReview.reject(summaryReviewChange);
-                          setSummaryValue(summaryReviewChange.oldText);
-                        }}
                       />
                     ) : (
                       <textarea
@@ -987,7 +968,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 <FieldReviewStrip
                   changes={fieldReview.kvChanges}
                   onAccept={fieldReview.accept}
-                  onReject={fieldReview.reject}
                 />
                 <KvEditor
                   key={`el-kv-${curElement.id}`}

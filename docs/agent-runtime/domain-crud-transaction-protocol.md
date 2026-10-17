@@ -234,7 +234,7 @@ document in creation order.
 
 | Mutation                                                 | Policy         | User surface                                                         |
 | -------------------------------------------------------- | -------------- | -------------------------------------------------------------------- |
-| Prose edit                                               | review after   | write immediately; inline editor badge accepts/rejects blocks or all |
+| Prose and structured-field edits                         | automatic      | commit immediately; unread markers/reveal show the committed changes |
 | Safe metadata, comment/TODO, project memory entry        | automatic      | semantic activity only                                               |
 | Delete structural resource or comment/TODO               | confirm before | chat permission request                                              |
 | Relation create or relation-kind update                  | automatic      | semantic activity only                                               |

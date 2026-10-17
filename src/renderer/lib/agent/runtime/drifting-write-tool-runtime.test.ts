@@ -206,7 +206,7 @@ describe('DriftingWriteToolRuntime', () => {
     expect(repository.api.createReview).not.toHaveBeenCalled();
   });
 
-  it('recovers a missing approve-mode review before rebuilding editor UI', async () => {
+  it('recovers and automatically settles a missing legacy approval review without replaying editor UI', async () => {
     const repository = memoryRepository();
     const createReview = repository.api.createReview.bind(repository.api);
     let failReviewCreation = true;
@@ -271,10 +271,10 @@ describe('DriftingWriteToolRuntime', () => {
       expect.objectContaining({
         id: reviewId,
         effectId,
-        status: 'pending',
+        status: 'accepted_effect',
       }),
     ]);
-    expect(projectReview).toHaveBeenCalledOnce();
+    expect(projectReview).not.toHaveBeenCalled();
   });
 
   it('reconciles an entered prose write from its durable receipt without replaying mutation', async () => {
@@ -354,7 +354,7 @@ describe('DriftingWriteToolRuntime', () => {
     expect(repository.reviews()).toEqual([]);
   });
 
-  it('settles prose review blocks durably and retries an entered block inverse during project hydration', async () => {
+  it.each(['project', 'session'] as const)('settles legacy blocks after an entered inverse during %s hydration', async (scope) => {
     const repository = memoryRepository();
     const applyReviewBlockInverse = vi.fn(
       async (_effect, blockId: string) => ({ restoredBlock: blockId }),
@@ -417,20 +417,19 @@ describe('DriftingWriteToolRuntime', () => {
       decisionNote: 'reject after restart',
       at: iso(20),
     });
-    await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({
-      projected: 1,
-      unresolved: 0,
-    });
+    if (scope === 'project') {
+      await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({ projected: 0, unresolved: 0 });
+    } else {
+      await expect(runtime.reconcileInterruptedWrites('session-1')).resolves.toEqual({ inspected: 0, reconciled: 0, unresolved: 0, issues: [] });
+    }
     expect(applyReviewBlockInverse).toHaveBeenCalledOnce();
     expect(repository.reviewBlocks(reviewId)).toMatchObject([
-      { blockId: 'paragraph-a', status: 'pending' },
+      { blockId: 'paragraph-a', status: 'accepted' },
       { blockId: 'paragraph-b', status: 'reverted' },
     ]);
-    expect(projectReview).toHaveBeenLastCalledWith(
-      expect.objectContaining({ id: effectId }),
-      expect.objectContaining({ projectId: 'project-1' }),
-      { 'paragraph-b': 'reverted' },
-    );
+    // Hydration completes the entered inverse and keeps the remaining committed
+    // block automatically; no author action or new projection is required.
+    expect(repository.reviews()[0].status).toBe('accepted_effect');
 
     const settled = await runtime.acceptReviewBlock(
       reviewId,

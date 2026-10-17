@@ -4,19 +4,35 @@ This document defines the Milestone C transaction boundary. It is normative:
 tests may add stronger guarantees, but product code must not introduce a second
 source of truth that contradicts these rules.
 
+## Current product behavior
+
+Since 2026-10-17, Agent changes always commit directly. The composer has no
+review-mode setting, no editor exposes accept/reject or review-all controls,
+and large prose deletions do not escalate to post-write author review.
+Pre-execution permissions for destructive operations remain independent.
+The tool registry and generated capability inventory classify ordinary prose,
+field and patch updates as automatic.
+
+SQLite review rows remain internal durable receipts and recovery evidence.
+Existing pending reviews automatically keep their committed changes on project
+hydration or interrupted-turn recovery. Previously entered block inverses finish
+through their original guarded recovery before remaining blocks settle.
+Historical `approve` snapshot values remain readable; no product setting or
+debug request can select that mode. A test-only override exercises old receipts.
+
 ## Authorities
 
 | Concern | Authority | Rebuildable projection |
 | --- | --- | --- |
 | Manuscript prose | live Yjs document plus its persisted updates | editor DOM, `contentJson`, reveal overlays |
 | Agent write execution | SQLite `agent_runtime_write_effect` state machine and certified receipt | tool result presentation |
-| Inline edit review | SQLite review plus ordered review-block rows | Zustand/localStorage pending badges and block diffs |
+| Write settlement and historical decisions | SQLite review plus ordered review-block rows | Zustand/localStorage unread badges and reveal masks |
 | Conversation adoption | committed SQLite turn checkpoint with the exact history hash | in-memory provider history and panel rendering |
 | Animation | none; deliberately ephemeral | React reveal/commit maps |
 
 LocalStorage is never permission, mutation or review authority. Losing it may
-lose only presentation timing; opening a project reconstructs every unresolved
-review from SQLite and immutable write evidence.
+lose only unread presentation; opening a project settles historical unresolved
+reviews from SQLite and immutable write evidence.
 
 For an auto-mode prose write targeting an editor whose live `Y.Doc` is open,
 the renderer installs an ephemeral block guard synchronously after the SQLite
@@ -43,7 +59,7 @@ claimed/confirmed ---------------------------------------> declined/failed
 - A review may be created only for a `result_committed` effect and carries the
   same effect/session/turn/tool-call provenance.
 
-## Review-block state machine
+## Historical review-block recovery state machine
 
 ```text
 pending -----------------------------> accepted
@@ -62,7 +78,7 @@ pending -----------------------------> accepted
   same transaction: all reverted becomes `reverted`; any accepted block becomes
   `accepted_effect`. The canonical decision note contains the ordered decisions.
 - Whole-effect review operations remain compatibility paths for effects that do
-  not expose block review. New prose reviews use only the block state machine.
+  not expose block review. Current automatic writes settle their effect-level receipt immediately.
 
 ## Turn adoption rule
 
@@ -98,7 +114,7 @@ history.
 | After `mutation_started`, before Yjs mutation | entered effect, no receipt | strategy inspection proves no commit or leaves `uncertain`; never blind replay |
 | After Yjs mutation, before `effect_committed` | entered effect plus product receipt/revision | reconcile receipt and commit the original canonical result |
 | After result, before review insert | `result_committed`, no review | deterministically recreate the provenance-bound review and ordered blocks |
-| After review insert, before local projection | pending SQLite review | project it from immutable effect on project hydration |
+| After review insert, before local projection | pending SQLite review | settle committed changes automatically on project hydration |
 | After block accept, before local projection | block `accepted` | hydration hides only that block and preserves the rest |
 | After `revert_started`, before Yjs inverse | block `revert_started`, agent postimage present | retry the guarded inverse |
 | After Yjs inverse, before `reverted` | block `revert_started`, preimage already present | idempotent inverse recognizes/restores the same preimage, then records `reverted` |
@@ -121,14 +137,9 @@ clears only after every initial textual block completes its first-open reveal
 or after empty-editor hydration proves there is no prose to reveal. Opening the
 entity alone does not clear it.
 
-Creation captures its review mode for the complete initial prose:
-
-- auto mode treats every textual top-level block as `new` and, when reveal
-  animation is enabled, masks the durable live block before paint until its reveal completes;
-- approve mode persists one ordinary SQLite review block per textual block and
-  uses the same accept/reject and guarded inverse protocol as later edits;
-- an existing durable approve-mode review always outranks rebuildable Added
-  projection state.
+Creation treats every textual top-level block as `new` and, when reveal
+animation is enabled, masks the durable live block before paint until its reveal
+completes. Historical approval-mode creates settle automatically during recovery.
 
 Stable block ids come from the schema-safe creation seed. Before those ids are
 materialized, a ProseMirror decoration masks initial textual blocks; after
@@ -142,17 +153,16 @@ guards and Added first-open masks) and skips prose/field typing and commit fades
 The gutter highlight, scrollbar ticks, and unread activity remain: auto prose
 changes clear only after their result stays sufficiently in view for 500 ms;
 scrolling away cancels that dwell, and offscreen changes remain unread. Missing
-anchors retain the existing grace cleanup. Approval diffs and accept/reject
-decisions are independent of this preference. Turning it off during a reveal
+anchors retain the existing grace cleanup. Automatic write settlement is independent of this preference. Turning it off during a reveal
 shows the live result and uses the same seen tracking without replaying motion.
 
 Machine coverage for this preference lives in `settings-store-appearance.test.ts`,
 `agent-decoration-controller.test.ts`, and `agent-edit-animation.test.ts`.
 
 Prose reveal speed follows the current editor's outstanding paragraph count,
-including offscreen pending changes and active auto/approval commit overlays.
-Review/block identity deduplicates a pending change and its overlay, including
-rejection inverses; field reviews and other editors do not inflate this count.
+including offscreen pending changes and active reveal overlays. Review/block
+identity deduplicates a pending change and its overlay; fields and other editors
+do not inflate this count.
 Each overlay samples the count when it starts. Relative to the original pace,
 1–3 paragraphs run at 0.8×, 4–8 at 1×, 9–16 at 1.5×, 17–24 at 2×, 25–48 at
 2.5×, and more than 48 at 3×. Both the original 500–2500 ms character-based

@@ -3,7 +3,7 @@ import type { AgentBlockChange } from '../../lib/agent/block-diff';
 import { createAgentDecorationSelector, type AgentDecorationSnapshot } from './agent-decoration-projection';
 
 const empty = (): AgentDecorationSnapshot => ({ pending: {}, additions: {}, autoRevealGuards: {} });
-const change = (blockId: string, mode: 'auto' | 'approve' = 'approve'): AgentBlockChange => ({
+const change = (blockId: string, mode: 'auto' | 'approve' = 'auto'): AgentBlockChange => ({
   blockId, mode, op: 'changed', oldText: '旧合成正文', newText: '新合成正文', afterPrevId: null,
 });
 
@@ -50,6 +50,6 @@ describe('Agent decoration semantic selection', () => {
     } } })).toEqual({ approveChanges: [], autoRevealBlockIds: ['block'] });
     expect(select({ ...empty(), pending: { 'node:target': {
       entityType: 'node', id: 'target', changes: [{ ...auto, mode: 'approve' }],
-    } } })).toEqual({ approveChanges: [{ ...auto, mode: 'approve' }], autoRevealBlockIds: undefined });
+    } } })).toEqual({ approveChanges: [], autoRevealBlockIds: ['block'] });
   });
 });

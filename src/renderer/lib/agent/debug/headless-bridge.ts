@@ -414,12 +414,8 @@ async function executeDebugTurn(
   });
   let journalSubscription: (() => void) | null = null;
   const previousSettings = useSettingsStore.getState();
-  const previousEditMode = previousSettings.agentEditMode;
   const previousThinking = previousSettings.agentThinking;
   const previousEffort = previousSettings.agentEffort;
-  if (request.editMode) {
-    useSettingsStore.getState().setAgentEditMode(request.editMode);
-  }
   if (request.thinking) {
     useSettingsStore.getState().setAgentThinking(request.thinking);
   }
@@ -634,9 +630,6 @@ async function executeDebugTurn(
     bridgeSignal.removeEventListener('abort', stopLeaseOnBridgeAbort);
     await leaseWatcher;
     journalSubscription?.();
-    if (request.editMode && useSettingsStore.getState().agentEditMode === request.editMode) {
-      useSettingsStore.getState().setAgentEditMode(previousEditMode);
-    }
     if (request.thinking && useSettingsStore.getState().agentThinking === request.thinking) {
       useSettingsStore.getState().setAgentThinking(previousThinking);
     }

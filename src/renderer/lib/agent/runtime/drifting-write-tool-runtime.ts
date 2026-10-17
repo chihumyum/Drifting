@@ -1,4 +1,5 @@
 import { Value } from '@sinclair/typebox/value';
+import { effectiveAgentEditMode } from '../agent-edit-mode';
 import type {
   PersistedAgentRuntimeWriteEffect,
   PersistedAgentRuntimeWriteReview,
@@ -354,9 +355,12 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         });
       }
     }
-    await this.reconcileCommittedEditorReviews(effects, active);
+    // Complete decisions already entered before retiring the old review UI.
+    // Only then keep the remaining committed blocks, so an interrupted inverse
+    // cannot leave this session paused on a now-hidden pending review.
     await this.reconcileInterruptedReviewBlocks(sessionId, signal);
     await this.reconcileInterruptedReviewStates(sessionId, signal);
+    await this.reconcileCommittedEditorReviews(effects, active);
     return result;
   }
 
@@ -426,6 +430,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         }
         const review = await this.requireReview(candidate.id);
         if (review.status !== 'pending') continue;
+        if (effectiveAgentEditMode() === 'auto') {
+          await this.acceptReview(candidate.id, 'Author review mode retired; keep committed changes');
+          continue;
+        }
         if (!strategy?.projectReview) continue;
         await this.projectCommittedReview(effect, strategy, context);
         result.projected += 1;
@@ -467,6 +475,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           context,
         );
         if (review.status !== 'pending') continue;
+        if (effectiveAgentEditMode() === 'auto') {
+          await this.acceptReview(review.id, 'Author review mode retired; keep committed changes');
+          continue;
+        }
         await this.projectCommittedReview(effect, strategy, context);
       } catch (error) {
         console.warn(
@@ -2737,7 +2749,7 @@ function activeEditorReview(
   effect: PersistedAgentRuntimeWriteEffect,
   tool: RegisteredTool,
 ): { id: string; mode: 'auto' | 'approve' } | null {
-  if (tool.approval !== 'review_after') return null;
+  if (tool.approval !== 'automatic' && tool.approval !== 'review_after') return null;
   if (!effect.forward || typeof effect.forward !== 'object' || Array.isArray(effect.forward)) {
     return null;
   }

@@ -44,12 +44,18 @@ export function createAgentDecorationSelector(entityType: ProseEntityType, id: s
   let projection: AgentDecorationProjection = { approveChanges: [], autoRevealBlockIds: undefined };
   let pending: AgentDecorationSnapshot['pending'][string] | undefined;
   let relevantChanges: AgentBlockChange[] = [];
+  const automatic = new WeakMap<AgentBlockChange, AgentBlockChange>();
   return (state: AgentDecorationSnapshot): AgentDecorationProjection => {
     if (pending !== state.pending[key]) {
       pending = state.pending[key];
-      relevantChanges = (pending?.changes ?? []).filter((change) =>
-        !change.field && ((change.mode ?? 'approve') === 'approve' || agentChangeUsesAutoRevealMask(change)),
-      );
+      relevantChanges = (pending?.changes ?? []).filter((change) => !change.field)
+        .map((change) => {
+          if (change.mode === 'auto') return change;
+          let normalized = automatic.get(change);
+          if (!normalized) { normalized = { ...change, mode: 'auto' }; automatic.set(change, normalized); }
+          return normalized;
+        })
+        .filter(agentChangeUsesAutoRevealMask);
     }
     const guards = selectGuards(state, key);
     const maskAll = state.additions[key]?.revealBlockIds === null;
@@ -58,7 +64,7 @@ export function createAgentDecorationSelector(entityType: ProseEntityType, id: s
     previousGuards = guards;
     previousMaskAll = maskAll;
     projection = {
-      approveChanges: relevantChanges.filter((change) => (change.mode ?? 'approve') === 'approve'),
+      approveChanges: [],
       autoRevealBlockIds: planAgentAutoRevealMask(relevantChanges, maskAll, guards.flatMap((guard) => guard.blockIds)),
     };
     return projection;

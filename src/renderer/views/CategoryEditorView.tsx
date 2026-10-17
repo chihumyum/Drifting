@@ -172,19 +172,8 @@ export function CategoryEditorView({
     [curCategory, categoryUsecases, promoteCurrentTab],
   );
 
-  // Review of the agent's template-kv edits (the only non-prose field the agent
-  // writes on a category). Reject writes the old value back via the usecase.
-  const fieldReview = useFieldReview(
-    'category',
-    categoryId,
-    projectId,
-    { templateKvJson: curCategory?.elementTemplateKvJson },
-    {
-      templateKvJson: (v) => {
-        if (curCategory) void categoryUsecases.updateCategory(curCategory.id, { elementTemplateKvJson: v });
-      },
-    },
-  );
+  // Unread presentation of committed Agent template-kv edits.
+  const fieldReview = useFieldReview('category', categoryId);
 
   const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'category',
@@ -457,7 +446,6 @@ export function CategoryEditorView({
               <FieldReviewStrip
                 changes={fieldReview.templateKvChanges}
                 onAccept={fieldReview.accept}
-                onReject={fieldReview.reject}
               />
               <KvEditor
                 key={`cat-tpl-kv-${curCategory.id}`}

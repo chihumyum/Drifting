@@ -294,7 +294,7 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('General Agent concurrent DeepSeek writing c
         await seedDatabase(database);
         await hydrateStores(database);
         useAgentEditStore.getState().clearAll();
-        useSettingsStore.getState().setAgentEditMode('auto');
+        setAgentEditModeOverride('auto');
         setAgentEditModeOverride(null);
 
         const productDriver = new DriftingAgentModelDriver({

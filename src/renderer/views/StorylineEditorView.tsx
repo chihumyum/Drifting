@@ -170,22 +170,9 @@ export function StorylineEditorView({
     [storylineId, currentStoryline?.kvJson, storylineUsecases, promoteCurrentTab],
   );
 
-  // Review of the agent's non-prose field edits (summary + kv). The summary
+  // Unread presentation of committed Agent summary and kv edits. The summary
   // textarea reads currentSummary live when unfocused, so no buffer sync needed.
-  const fieldReview = useFieldReview(
-    'storyline',
-    storylineId,
-    projectId,
-    { kvJson: currentStoryline?.kvJson },
-    {
-      summary: (v) => {
-        if (storylineId) void storylineUsecases.updateStoryline({ id: storylineId, summary: v });
-      },
-      kvJson: (v) => {
-        if (storylineId) void storylineUsecases.updateStoryline({ id: storylineId, kvJson: v });
-      },
-    },
-  );
+  const fieldReview = useFieldReview('storyline', storylineId);
 
   // Node-content template: TipTap doc seeded into new nodes under this
   // storyline. Persist on every editor update (same as ElementTemplateEditor's
@@ -423,7 +410,6 @@ export function StorylineEditorView({
                     <FieldReview
                       change={fieldReview.summaryChange}
                       onAccept={() => fieldReview.accept(fieldReview.summaryChange!)}
-                      onReject={() => fieldReview.reject(fieldReview.summaryChange!)}
                     />
                   ) : (
                     <textarea
@@ -490,7 +476,6 @@ export function StorylineEditorView({
               <FieldReviewStrip
                 changes={fieldReview.kvChanges}
                 onAccept={fieldReview.accept}
-                onReject={fieldReview.reject}
               />
               <KvEditor
                 key={`sl-kv-${currentStoryline.id}`}

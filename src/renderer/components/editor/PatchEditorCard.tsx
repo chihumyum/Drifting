@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useTranslation } from 'react-i18next';
-import { Check, X } from 'lucide-react';
 import loglevel from 'loglevel';
 import {
   type PatchWithSourceTitle,
@@ -14,15 +13,11 @@ import { useEntityEditor } from '../../hooks/useEntityEditor';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
-import { docToPlainText } from '../../lib/agent/serialize';
-import { FieldDiff } from './FieldReview';
 import {
   approveDurableAgentReviewsForEntity,
-  rejectDurableAgentReviewsForEntity,
 } from '../../lib/agent/durable-review-actions';
 import {
   acceptDriftingAgentWriteReview,
-  rejectDriftingAgentWriteReview,
 } from '../../lib/agent/useDriftingAgentRuntime';
 import {
   deleteElementPatchWithSync,
@@ -120,9 +115,8 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     }
   }, [patch.id, projectId, onDelete]);
 
-  // Agent-created patch awaiting review (keep / discard). The agent's create
-  // already landed (write-first inline review); this just surfaces it. Resolves out of the
-  // edit store on ✓/✗ (or auto-settle). See agent-edit-review.
+  // The Agent write already committed. Keep its unread presentation until the
+  // card comes into view, then settle any historical durable review receipt.
   const cardRef = useRef<HTMLDivElement>(null);
   const patchChange = useAgentEditStore((s) => {
     const entry = s.pending[entityKey('element', patch.elementId)];
@@ -132,20 +126,9 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   });
   const reviewBatches = useAgentEditStore((s) => s.reviewBatches);
   const reviewOrder = useAgentEditStore((s) => s.reviewOrder);
-  const reviewMode = patchChange ? patchChange.mode ?? 'approve' : null;
+  const reviewMode = patchChange ? 'auto' : null;
   const isDeleting = patchChange?.op === 'deleted';
   const isChanged = patchChange?.op === 'changed';
-  // For an UPDATE review, oldText stashes the pre-edit { title, contentJson }; the
-  // card diffs that against the current patch (title + body plain text).
-  const stash = useMemo((): { title: string | null; contentJson: string } | null => {
-    if (!isChanged || !patchChange) return null;
-    try {
-      return JSON.parse(patchChange.oldText);
-    } catch {
-      return null;
-    }
-  }, [isChanged, patchChange]);
-
   const acceptPatch = useCallback(() => {
     const c = patchChange;
     if (!c) return;
@@ -182,80 +165,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     reviewOrder,
     onChange,
     handleDelete,
-  ]);
-
-  const rejectPatch = useCallback(() => {
-    const c = patchChange;
-    if (!c) return;
-    if (c.reviewId) {
-      void rejectDurableAgentReviewsForEntity({
-        entityType: 'element',
-        id: patch.elementId,
-        batches: { reviewBatches, reviewOrder },
-        matchesBatch: (batch) =>
-          batch.changes.some(
-            (change) =>
-              change.field?.kind === 'patch' &&
-              change.field.key === patch.id,
-          ),
-        rejectReview: rejectDriftingAgentWriteReview,
-        decisionNote: 'Rejected from the element patch review card',
-        onAllReverted: (reviewIds, batches) => {
-          const store = useAgentEditStore.getState();
-          for (const batch of batches) {
-            for (const change of batch.changes) {
-              if (
-                change.field?.kind === 'patch' &&
-                change.field.key === patch.id
-              ) {
-                store.recordRevert(
-                  projectId,
-                  'element',
-                  patch.elementId,
-                  change,
-                );
-              }
-            }
-          }
-          store.resolveReviews([...reviewIds]);
-          onChange?.();
-        },
-      }).catch((error) => {
-        log.error('Failed to reject durable Agent patch review:', error);
-      });
-      return;
-    }
-    // Reject = undo the agent's action (and tell it next turn, since it ran
-    // bypassPermissions): undo a create by deleting; undo a (soft) delete by
-    // keeping the still-present row.
-    useAgentEditStore.getState().recordRevert(projectId, 'element', patch.elementId, c);
-    useAgentEditStore.getState().resolveBlocks('element', patch.elementId, [c.blockId]);
-    if (c.op === 'new') {
-      void handleDelete();
-    } else if (c.op === 'changed') {
-      // Restore the pre-edit title + body stashed in oldText.
-      void (async () => {
-        try {
-          const old = JSON.parse(c.oldText) as { title: string | null; contentJson: string };
-          await updateElementPatchWithSync(projectId, patch.id, {
-            title: old.title,
-            contentJson: old.contentJson,
-          });
-          onChange?.();
-        } catch (error) {
-          log.error('Failed to restore patch on reject:', error);
-        }
-      })();
-    }
-  }, [
-    patchChange,
-    projectId,
-    patch.elementId,
-    patch.id,
-    reviewBatches,
-    reviewOrder,
-    handleDelete,
-    onChange,
   ]);
 
   // Auto mode: once the card is on screen, settle (keep) after a brief beat.
@@ -455,38 +364,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                 ? t('patchEditorCard.review.agentChange')
                 : t('patchEditorCard.review.agentAdd')}
           </span>
-          {reviewMode === 'approve' && (
-            <span className="patch-card__review-actions">
-              <button
-                type="button"
-                className="field-review__btn field-review__btn--ok"
-                title={
-                  isDeleting
-                    ? t('patchEditorCard.review.confirmDelete')
-                    : isChanged
-                      ? t('patchEditorCard.review.acceptChange')
-                      : t('patchEditorCard.review.keepPatch')
-                }
-                onClick={acceptPatch}
-              >
-                <Check size={12} />
-              </button>
-              <button
-                type="button"
-                className="field-review__btn field-review__btn--no"
-                title={
-                  isDeleting
-                    ? t('patchEditorCard.review.restore')
-                    : isChanged
-                      ? t('patchEditorCard.review.rejectChange')
-                      : t('patchEditorCard.review.discardAndDelete')
-                }
-                onClick={rejectPatch}
-              >
-                <X size={12} />
-              </button>
-            </span>
-          )}
         </div>
       )}
       <div className="patch-card__head">
@@ -664,29 +541,11 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           <pre className="patch-card__snapshot-body">{snapshotText}</pre>
         </div>
       )}
-      {!collapsed &&
-        (isChanged ? (
-          // Show the title/body diff in place of the (otherwise stale) editor
-          // while the update is under review; the editor returns on ✓/✗.
-          <div className="patch-card__review-diff">
-            {(stash?.title ?? '') !== (patch.title ?? '') && (
-              <div>
-                <span className="patch-card__review-diff-title">
-                  {t('patchEditorCard.review.titleField')}
-                </span>{' '}
-                <FieldDiff oldText={stash?.title ?? ''} newText={patch.title ?? ''} />
-              </div>
-            )}
-            <FieldDiff
-              oldText={stash ? docToPlainText(stash.contentJson) : ''}
-              newText={docToPlainText(patch.contentJson)}
-            />
-          </div>
-        ) : (
-          <div className="patch-card__body">
-            <EditorContent editor={editor} />
-          </div>
-        ))}
+      {!collapsed && (
+        <div className="patch-card__body">
+          <EditorContent editor={editor} />
+        </div>
+      )}
     </div>
   );
 }

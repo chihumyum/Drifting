@@ -4,13 +4,9 @@
  * General Agent prose writes enter this store only after their Yjs mutation,
  * durable effect result, and canonical SQLite review have committed. The store
  * is therefore a rebuildable editor projection, never review authority or prose
- * truth. It remembers per entity which blocks changed and their before/after
- * text, so the editor can:
- *   - auto mode:    show colored scrollbar ticks (new/changed/deleted) and play a
- *                   per-block reveal animation when the block scrolls into view;
- *                   the tick + the panel "M" clear only once that animation runs.
- *   - approve mode: show inline accept/reject controls; approving plays the same
- *                   animation, rejecting undoes the block via Yjs.
+ * truth. It remembers which blocks changed and their before/after text for
+ * unread ticks and viewport reveals. Historical approval receipts and their
+ * guarded inverse metadata remain readable for canonical recovery.
  *
  * Keyed `${entityType}:${id}` like the activity store.
  *
@@ -29,9 +25,7 @@ export type AgentEditMode = 'auto' | 'approve';
 export interface PendingEntityEdits {
   entityType: ActivityEntityType;
   id: string;
-  /** Outstanding (not-yet-revealed / not-yet-approved) block changes, merged.
-   *  Each change carries its OWN `mode` (stamped at record time), so flipping the
-   *  global toggle only governs future edits — see {@link AgentBlockChange.mode}. */
+  /** Outstanding unread changes, including readable historical mode metadata. */
   changes: AgentBlockChange[];
 }
 /**
@@ -210,10 +204,8 @@ export const useAgentEditStore = create<AgentEditState>()(
       record: (entityType, id, changes, mode) => {
         if (changes.length === 0) return;
         const key = entityKey(entityType, id);
-        // Stamp EACH change with the mode in effect right now, so it keeps that
-        // mode for the rest of its life regardless of later toggle flips. Merging
-        // a re-edited block keeps the latest edit's mode (mergeBlockChanges spreads
-        // the incoming change).
+        // Current writes stamp auto; historical tests may stage old approval
+        // receipts to exercise recovery. Merging keeps the latest metadata.
         const stamped = changes.map((c) => ({ ...c, mode }));
         set((s) => {
           const prev = s.pending[key];

@@ -263,7 +263,7 @@
       "density": "Density",
       "animations": "Animations & transitions",
       "agent_edit_reveal": "Agent edit reveal animation",
-      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields character by character. Turn off to show results immediately; unread change markers and edit review remain available.",
+      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields character by character. Turn off to show results immediately; unread change markers remain available.",
       "animations_desc": "Interface transitions and activity feedback."
     },
     "editor": {
@@ -1606,8 +1606,6 @@
       "effortLabel": "Effort",
       "notSupported": "Not supported",
       "edits": "Edits",
-      "reviewEdits": "Review prose edits",
-      "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Deletions use the separate permission setting below.",
       "dangerousOperations": "Allow dangerous actions",
       "dangerousOperationsTitle": "When enabled, Agent can delete chapters, ideas, elements, relationships, notes, and other objects without asking each time. This affects only later calls; project isolation, argument validation, concurrency checks, and durable receipts remain enforced.",
       "memory": "Memory",

@@ -106,20 +106,20 @@ describe('Agent decoration composition ownership', () => {
 });
 
 describe('Agent reveal appearance preference', () => {
-  it('removes live prose masks immediately while preserving approval diffs and pending edits', () => {
+  it('treats old approval receipts as automatic and removes every mask when motion is off', () => {
     const changes = ['auto', 'approve'].map((mode) => ({
       blockId: mode, mode: mode as 'auto' | 'approve', op: 'new' as const,
       oldText: '', newText: `Synthetic ${mode}`, afterPrevId: null,
     }));
     const state = { pending: { 'node:target': { entityType: 'node' as const, id: 'target', changes } }, additions: {}, autoRevealGuards: {} };
     const f = fixture(state);
-    expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(1);
+    expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(2);
     f.binding.setRevealAnimationEnabled(false);
     expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(0);
-    expect(f.decorations()).toHaveLength(1); // the approve-mode green inline diff
+    expect(f.decorations()).toHaveLength(0); // no retired approval diff
     expect(state.pending['node:target'].changes).toEqual(changes);
     f.binding.setRevealAnimationEnabled(true);
-    expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(1);
+    expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(2);
     expect(f.onError).not.toHaveBeenCalled();
     f.binding.dispose();
     expect(f.unsubscribe).toHaveBeenCalledOnce();

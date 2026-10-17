@@ -35,7 +35,6 @@ import { invalidateSqliteReducerStateCache } from '../../../sync/reducer/sqlite-
 import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
-import { useSettingsStore } from '../../../store/settings-store';
 import { proseDocId } from '../../yjs-doc-id';
 import { setAgentEditModeOverride } from '../agent-edit-mode';
 import type { AgentToolContext } from '../tool-handlers';
@@ -121,7 +120,6 @@ const LATEST_MIGRATION_TIMESTAMP =
 
 const initialDataState = useDataStore.getState();
 const initialProjectState = useProjectStore.getState();
-const initialAgentEditMode = useSettingsStore.getState().agentEditMode;
 
 const unusedDriver: AgentModelDriver = {
   id: 'domain-crud-unused-driver',
@@ -136,14 +134,12 @@ describe('workspace domain CRUD transactions', () => {
   beforeEach(async () => {
     secureStorage.clear();
     setAgentEditModeOverride(null);
-    useSettingsStore.getState().setAgentEditMode(initialAgentEditMode);
     useAgentEditStore.getState().clearAll();
     fixture = await DomainCrudFixture.create();
   });
 
   afterEach(async () => {
     setAgentEditModeOverride(null);
-    useSettingsStore.getState().setAgentEditMode(initialAgentEditMode);
     useAgentEditStore.getState().clearAll();
     useDataStore.setState(initialDataState, true);
     useProjectStore.setState(initialProjectState, true);
@@ -258,7 +254,7 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   it('MCP writes use Yjs, durable receipts, read coverage and the existing inverse review', async () => {
-    useSettingsStore.getState().setAgentEditMode('approve');
+    setAgentEditModeOverride('approve');
     const writer = mcpSession('prose-writer', 'write', true);
     const created = await mcpCall(writer, 'create_chapter', { title: 'External chapter', body: 'Initial synthetic prose.' });
     expect(created, JSON.stringify(created)).toMatchObject({ isError: false });
@@ -458,7 +454,7 @@ describe('workspace domain CRUD transactions', () => {
     const effectId = `agent-write:${SESSION_ID}:turn:${callId}:${callId}`;
     const reviewId = `agent-review:${effectId}`;
     const body = '# 待审标题\n\n第一段。\n\n第二段。';
-    useSettingsStore.getState().setAgentEditMode('approve');
+    setAgentEditModeOverride('approve');
 
     const created = await fixture.write(callId, 'create_inspiration', {
       title: '待审潮痕',
@@ -561,7 +557,7 @@ describe('workspace domain CRUD transactions', () => {
 
   it('uses the schema-safe Markdown adapter for every newly created authored prose object', async () => {
     const body = '## 初始档案\n\n这是**粗体**与<u>下划线</u>。\n\n> 引用';
-    useSettingsStore.getState().setAgentEditMode('approve');
+    setAgentEditModeOverride('approve');
 
     const creations = [
       ['formatted-category-create', 'create_element_category', { name: '信件', body }],

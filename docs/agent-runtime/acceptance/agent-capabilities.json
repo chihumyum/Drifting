@@ -55,7 +55,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "canon",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -77,7 +77,7 @@
         "certification": "write-certified",
         "risk": "medium",
         "effect": "canon",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "compensating"
       },
       {
@@ -88,7 +88,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "canon",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -110,7 +110,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "canon",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -154,7 +154,7 @@
         "certification": "write-certified",
         "risk": "medium",
         "effect": "canon",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "compensating"
       },
       {
@@ -583,7 +583,7 @@
         "certification": "internal-certified",
         "risk": "high",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -594,7 +594,7 @@
         "certification": "internal-certified",
         "risk": "high",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -605,7 +605,7 @@
         "certification": "internal-certified",
         "risk": "high",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -616,7 +616,7 @@
         "certification": "internal-certified",
         "risk": "high",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -627,7 +627,7 @@
         "certification": "internal-certified",
         "risk": "high",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -649,7 +649,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -660,7 +660,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -671,7 +671,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -682,7 +682,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "prose",
-        "approval": "review_after",
+        "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
       {
@@ -1098,7 +1098,7 @@
               "rename_node",
               "set_node_summary"
             ],
-            "approval": "automatic_or_inline_review",
+            "approval": "automatic",
             "authority": "yjs_sqlite"
           },
           "delete": {
@@ -1170,7 +1170,7 @@
               "edit_prose_file",
               "update_element"
             ],
-            "approval": "automatic_or_inline_review",
+            "approval": "automatic",
             "authority": "yjs_sqlite"
           },
           "delete": {
@@ -1298,7 +1298,7 @@
               "edit_prose_file",
               "update_storyline"
             ],
-            "approval": "automatic_or_inline_review",
+            "approval": "automatic",
             "authority": "yjs_sqlite"
           },
           "delete": {
@@ -1364,7 +1364,7 @@
               "edit_prose_file",
               "update_category"
             ],
-            "approval": "automatic_or_inline_review",
+            "approval": "automatic",
             "authority": "yjs_sqlite"
           },
           "delete": {
@@ -1612,7 +1612,7 @@
             "hiddenCommands": [
               "set_storyline_membership"
             ],
-            "approval": "automatic_or_inline_review",
+            "approval": "automatic",
             "authority": "sqlite"
           },
           "delete": {

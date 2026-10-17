@@ -61,7 +61,7 @@ wants to ask or do: its title is the question itself or the intended work, an
 optional detail gives the evidence, and its instruction is a self-contained
 task. The card itself is the control: clicking it starts a background
 read-write General Agent session with that task; the Agent chooses its own tools — asking the author, updating
-records, adding notes or TODOs, or a mix — and prose edits use normal review.
+records, adding notes or TODOs, or a mix — and prose edits commit directly and retain ordinary unread indicators.
 The check-in never decides which tool runs.
 
 Clicking a started card reopens its conversation. A new check-in replaces

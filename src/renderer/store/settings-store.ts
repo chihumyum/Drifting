@@ -179,17 +179,6 @@ export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string 
   { value: 'on', label: 'On · force tool search' },
 ];
 /**
- * How committed General Agent prose edits surface in the editor:
- *  - 'auto':    play the colored reveal and settle the visual batch.
- *  - 'approve': keep the inline diff and accept/reject badge; rejection runs the
- *               canonical guarded inverse.
- * This does not grant structural authority. Destructive operations keep their
- * independent permission policy unless the author explicitly enables the
- * separate dangerous-operation override.
- */
-export type AgentEditMode = 'auto' | 'approve';
-
-/**
  * The model picker's catalog (shared by Settings and the input-bar switcher).
  * `short` is the compact label for the narrow in-panel picker. Tier aliases
  * track the latest of each family; pinned ids name an exact version.
@@ -382,12 +371,6 @@ interface SettingsState {
   // Tool-search mode (ENABLE_TOOL_SEARCH). See AgentToolSearch.
   agentToolSearch: AgentToolSearch;
   setAgentToolSearch: (t: AgentToolSearch) => void;
-  // How committed Agent prose edits surface in the editor: `auto` plays the
-  // colored reveal and settles, while `approve` keeps an inline diff/badge whose
-  // rejection calls the canonical guarded inverse. Destructive structural
-  // permissions are independent and handled by the setting below.
-  agentEditMode: AgentEditMode;
-  setAgentEditMode: (m: AgentEditMode) => void;
   /**
    * Explicit author override for pre-execution destructive confirmations.
    * Certification, project isolation, freshness checks, receipts and guarded
@@ -658,8 +641,6 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       agentToolSearch: AGENT_TOOL_SEARCH_DEFAULT,
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
-      agentEditMode: 'auto',
-      setAgentEditMode: (m) => set({ agentEditMode: m }),
       agentAllowDangerousOperations: false,
       setAgentAllowDangerousOperations: (on) => set({ agentAllowDangerousOperations: on }),
       agentTurnIterationLimit: AGENT_TURN_ITERATION_LIMIT_DEFAULT,
@@ -1062,6 +1043,7 @@ export const useSettingsStore = create<SettingsState>()(
         );
         // Retire the product context cap even for same-version persisted settings.
         delete (merged as unknown as Record<string, unknown>).agentMaxContext;
+        delete (merged as unknown as Record<string, unknown>).agentEditMode;
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
         merged.agentAllowDangerousOperations =
           persistedSettings?.agentAllowDangerousOperations === true;

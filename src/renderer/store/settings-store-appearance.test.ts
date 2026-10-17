@@ -59,14 +59,14 @@ describe('Agent reveal animation preference persistence', () => {
     expect((await settings({ themeMode: 'dark' })).store.getState().agentEditRevealAnimation).toBe(true);
   });
 
-  it('persists an explicit off choice and restores it without changing approval mode', async () => {
+  it('persists animation independently and drops the retired approval setting', async () => {
     const { store, values } = await settings({ agentEditMode: 'approve' });
     store.getState().setAgentEditRevealAnimation(false);
     const persisted = JSON.parse(values.get('settings-storage')!).state;
     expect(persisted.agentEditRevealAnimation).toBe(false);
     const restored = await settings(persisted);
     expect(restored.store.getState().agentEditRevealAnimation).toBe(false);
-    expect(restored.store.getState().agentEditMode).toBe('approve');
+    expect(restored.store.getState()).not.toHaveProperty('agentEditMode');
   });
 });
 

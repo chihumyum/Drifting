@@ -29,6 +29,13 @@ const RETIRED_GENERIC_TOOLS = [
   'delete_file',
 ] as const;
 
+it('classifies Agent prose and field writes as direct automatic changes', () => {
+  expect(AGENT_TOOL_CATALOG.some((tool) => tool.approval === 'review_after')).toBe(false);
+  for (const name of ['revise_chapter', 'replace_chapter_body', 'revise_inspiration', 'replace_inspiration_body', 'revise_element', 'update_element']) {
+    expect(getRegisteredTool(name)?.approval, name).toBe('automatic');
+  }
+});
+
 function dispatcherNamesFromSource(): string[] {
   const source = readFileSync(
     fileURLToPath(new URL('./tool-handlers.ts', import.meta.url)),

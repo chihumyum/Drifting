@@ -452,6 +452,28 @@ describe('Drifting write strategies', () => {
     harness.doc.destroy();
   });
 
+  it('commits a large prose deletion automatically without escalating to author review', async () => {
+    const harness = await proseHarness({ firstText: 'Synthetic long manuscript. '.repeat(150) });
+    const expectedRevision = {
+      receiptId: 'receipt-large-direct-edit', observationId: 'observation-large-direct-edit',
+      revision: `yjs:${harness.base.revision}`,
+    };
+    const request = executionRequest('edit_block', {
+      entity: 'Old title', blockId: 'block-a', text: 'Short result.', expectedRevision,
+    });
+    const strategy = getDriftingWriteStrategy('edit_block', {
+      proseCoordinator: harness.coordinator as unknown as YjsProsePersistenceCoordinator,
+      readNodeContent: async () => harness.contentJson,
+    })!;
+    try {
+      const prepared = await strategy.prepare(request, context(), proseExpectation(request, expectedRevision, harness.base));
+      expect(prepared.forward).toMatchObject({ reviewSnapshot: { mode: 'auto' } });
+      await strategy.applyForward!(request, context(), prepared);
+      expect(harness.committedCommands).toBe(1);
+      expect(harness.receipts).toBe(1);
+    } finally { harness.doc.destroy(); }
+  });
+
   it('commits a prose diff without post-write UI state and reconciles the exact durable receipt', async () => {
     const harness = await proseHarness();
     const expectedRevision = {

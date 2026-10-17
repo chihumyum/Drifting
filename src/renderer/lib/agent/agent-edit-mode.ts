@@ -1,17 +1,13 @@
-/**
- * Edit-mode override for Agent prose edits. The write path normally uses the
- * General Agent's `agentEditMode`; focused runtimes and tests may temporarily
- * override it. Process-global under the singleton-agent assumption.
- */
-import { useSettingsStore, type AgentEditMode } from '../../store/settings-store';
+/** General Agent writes always commit directly. The test-only override exercises
+ * historical SQLite review recovery without exposing a product mode switch. */
+import type { AgentEditMode } from '../../store/agent-edit-store';
 
-let override: AgentEditMode | null = null;
+let legacyTestMode: AgentEditMode | null = null;
 
 export function setAgentEditModeOverride(mode: AgentEditMode | null): void {
-  override = mode;
+  if (import.meta.env.MODE === 'test') legacyTestMode = mode;
 }
 
-/** The mode the write path should record an edit with right now. */
 export function effectiveAgentEditMode(): AgentEditMode {
-  return override ?? useSettingsStore.getState().agentEditMode;
+  return import.meta.env.MODE === 'test' ? legacyTestMode ?? 'auto' : 'auto';
 }

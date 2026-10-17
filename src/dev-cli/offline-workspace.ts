@@ -51,7 +51,6 @@ import {
 } from '../renderer/sync/journal';
 import { useDataStore, trashedKey, type EntityRelationLink } from '../renderer/store/data-store';
 import { useProjectStore } from '../renderer/store/project-store';
-import { useSettingsStore } from '../renderer/store/settings-store';
 import {
   persistBookNodeUpdateWithSync,
   type BookNodeAtomicTransactionRunner,
@@ -335,7 +334,6 @@ async function hydrateWorkspace(database: DbClient, projectId: string): Promise<
   state.setTrashedEntityIds(trashed);
   useProjectStore.getState().setCurrentProject(project);
   useProjectStore.getState().setProjects([project]);
-  useSettingsStore.getState().setAgentEditMode('auto');
   return { projectId, write: createHeadlessWriteApi(database, projectId) };
 }
 

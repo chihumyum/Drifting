@@ -182,8 +182,6 @@ export interface DriftingDomainCrudOperationContract {
   hiddenCommands: readonly DriftingWorkspaceCommandName[];
   approval:
     | 'automatic'
-    | 'inline_review'
-    | 'automatic_or_inline_review'
     | 'confirm_before'
     | 'not_applicable';
   authority: 'sqlite' | 'yjs_sqlite';
@@ -284,7 +282,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
           'replace_inspiration_body',
         ],
         ['edit_prose_file', 'rename_node', 'set_node_summary'],
-        'automatic_or_inline_review',
+        'automatic',
         'yjs_sqlite',
       ),
       delete: closedWrite(
@@ -311,7 +309,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(
         ['update_element', 'revise_element', 'replace_element_body'],
         ['edit_prose_file', 'update_element'],
-        'automatic_or_inline_review',
+        'automatic',
         'yjs_sqlite',
       ),
       delete: closedWrite(['delete_element'], ['delete_element'], 'confirm_before', 'yjs_sqlite'),
@@ -357,7 +355,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(
         ['update_storyline', 'revise_storyline', 'replace_storyline_body'],
         ['edit_prose_file', 'update_storyline'],
-        'automatic_or_inline_review',
+        'automatic',
         'yjs_sqlite',
       ),
       delete: closedWrite(['delete_storyline'], ['delete_storyline'], 'confirm_before', 'yjs_sqlite'),
@@ -376,7 +374,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(
         ['update_element_category', 'replace_element_category_body'],
         ['edit_prose_file', 'update_category'],
-        'automatic_or_inline_review',
+        'automatic',
         'yjs_sqlite',
       ),
       delete: closedWrite(['delete_element_category'], ['delete_category'], 'confirm_before', 'yjs_sqlite'),
@@ -440,7 +438,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(
         ['set_chapter_primary_storyline', 'replace_storyline_chapters'],
         ['set_storyline_membership'],
-        'automatic_or_inline_review',
+        'automatic',
       ),
       delete: closedWrite(
         ['remove_chapter_from_storyline', 'replace_storyline_chapters'],

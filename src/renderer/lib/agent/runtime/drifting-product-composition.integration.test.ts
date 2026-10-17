@@ -587,7 +587,7 @@ describe.sequential('Drifting Agent product composition', () => {
     useProjectStore.setState(initialProjectState, true);
     useSettingsStore.setState(initialSettingsState, true);
     useAgentEditStore.getState().clearAll();
-    useSettingsStore.getState().setAgentEditMode('auto');
+    setAgentEditModeOverride('auto');
     setAgentEditModeOverride(null);
   });
 
@@ -675,7 +675,6 @@ describe.sequential('Drifting Agent product composition', () => {
     const writeCallId = 'summary-approved';
     const summary = 'Approved summary.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
-    useSettingsStore.getState().setAgentEditMode('approve');
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
@@ -745,7 +744,6 @@ describe.sequential('Drifting Agent product composition', () => {
     const appendedText = 'A paragraph waiting for inline review.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    useSettingsStore.getState().setAgentEditMode('approve');
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
@@ -840,7 +838,6 @@ describe.sequential('Drifting Agent product composition', () => {
     const replacement = 'Accepted rewrite.\n\nRejected extra paragraph.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    useSettingsStore.getState().setAgentEditMode('approve');
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
@@ -953,7 +950,6 @@ describe.sequential('Drifting Agent product composition', () => {
     const appendedText = 'Paragraph removed across a settlement fault.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    useSettingsStore.getState().setAgentEditMode('approve');
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
@@ -1416,7 +1412,6 @@ describe.sequential('Drifting Agent product composition', () => {
     const replacement = 'Before the Agent, revised.\n\nA second reviewed paragraph.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    useSettingsStore.getState().setAgentEditMode('approve');
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
@@ -1469,7 +1464,6 @@ describe.sequential('Drifting Agent product composition', () => {
     const summary = '两段正文在同一场景内完成收束。';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    useSettingsStore.getState().setAgentEditMode('approve');
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {

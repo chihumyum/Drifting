@@ -285,15 +285,8 @@ export function ChapterEditor({
   const titleRef = useAutosizeTextArea(titleValue);
   const summaryRef = useAutosizeTextArea(summaryValue);
 
-  // Agent summary edits surface for review here (the prop re-syncs summaryValue on
-  // accept/reject, so the textarea always reflects the store).
-  const nodeFieldReview = useFieldReview(
-    'node',
-    nodeId,
-    projectId,
-    {},
-    { summary: (v) => onSummaryUpdate?.(nodeId, v) },
-  );
+  // Agent summary edits show their committed result until viewed.
+  const nodeFieldReview = useFieldReview('node', nodeId);
   const nodeSummaryChange = nodeFieldReview.summaryChange;
 
   if (!editor) {
@@ -384,7 +377,6 @@ export function ChapterEditor({
                 <FieldReview
                   change={nodeSummaryChange}
                   onAccept={() => nodeFieldReview.accept(nodeSummaryChange)}
-                  onReject={() => nodeFieldReview.reject(nodeSummaryChange)}
                 />
               ) : editableSummary ? (
                 <textarea
