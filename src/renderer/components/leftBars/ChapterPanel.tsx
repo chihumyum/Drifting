@@ -1,3 +1,5 @@
+import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
+import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
@@ -106,10 +108,9 @@ export function ChapterPanel({
   );
   // Agent activity: which nodes the agent is touching (pulse) / just changed (dot).
   const agentActive = useAgentActivityStore((s) => s.active);
-  const agentTouched = useAgentActivityStore((s) => s.touched);
+  const agentTouched = useAgentUnreadMarks();
   // Persisted pending agent edits (approve/auto review) — survives reload, so a
   // chapter with unreviewed edits still shows "M" after a refresh.
-  const agentPending = useAgentEditStore((s) => s.pending);
   const agentAdditions = useAgentEditStore((s) => s.additions);
 
   const activeProjectId = useMemo(() => {
@@ -305,7 +306,7 @@ export function ChapterPanel({
     const agentChanged =
       !agentBusy &&
       !agentAdded &&
-      (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
+      (`node:${node.id}` in agentTouched);
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;
@@ -366,8 +367,8 @@ export function ChapterPanel({
         }}
       >
         {agentAdded || agentChanged ? (
-          <span
-            aria-hidden
+          <AgentChangeIndicator
+            onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
             title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
             style={{
               width: 12,
@@ -381,7 +382,7 @@ export function ChapterPanel({
             }}
           >
             {agentAdded ? 'A' : 'M'}
-          </span>
+          </AgentChangeIndicator>
         ) : (
           <span
             aria-hidden
@@ -509,7 +510,7 @@ export function ChapterPanel({
               );
               const selfKey = entityKey('storyline', storyline.id);
               const agentSelfBusy = selfKey in agentActive;
-              const agentSelfChanged = selfKey in agentTouched || selfKey in agentPending;
+              const agentSelfChanged = selfKey in agentTouched;
               return (
                 <div key={storyline.id} className="left-sb-group" style={{ marginBottom: 10 }}>
                   <GroupHeaderCell
@@ -542,6 +543,8 @@ export function ChapterPanel({
                     agentDoneCount={activity.doneCount}
                     agentSelfChanged={agentSelfChanged}
                     agentSelfAdded={`storyline:${storyline.id}` in agentAdditions}
+                    onAgentSelfSeen={() => useAgentActivityStore.getState().markSeen([selfKey])}
+                    onAgentChildrenSeen={() => useAgentActivityStore.getState().markSeen(sNodes.map((node) => entityKey('node', node.id)))}
                   />
 
                   {!collapsed && sNodes.map((node) => renderNodeCard(node))}
@@ -564,6 +567,7 @@ export function ChapterPanel({
                 onAdd={() => void handleCreateNode(null)}
                 agentBusy={unaffiliatedActivity.busy}
                 agentDoneCount={unaffiliatedActivity.doneCount}
+                onAgentChildrenSeen={() => useAgentActivityStore.getState().markSeen(unaffiliatedChapters.map((node) => entityKey('node', node.id)))}
               />
 
               {!collapsedGroupIds.has(UNAFFILIATED_GROUP_ID) &&

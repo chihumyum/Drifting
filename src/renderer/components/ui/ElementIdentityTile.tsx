@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 
 import type { BookElement } from '../../domain/book-element';
+import { AgentChangeIndicator } from '../leftBars/AgentChangeIndicator';
 
 export type ElementIdentityAgentState = 'busy' | 'added' | 'changed' | null;
 
@@ -9,9 +10,10 @@ interface ElementIdentityTileProps {
   selected: boolean;
   agentState: ElementIdentityAgentState;
   agentStateLabel?: string;
+  onAgentSeen?: () => void;
   onActivate: () => void;
   onPromote: () => void;
-  onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  onContextMenu: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onPreviewEnter: (anchor: HTMLElement) => void;
   onPreviewLeave: () => void;
 }
@@ -39,6 +41,7 @@ export function ElementIdentityTile({
   selected,
   agentState,
   agentStateLabel,
+  onAgentSeen,
   onActivate,
   onPromote,
   onContextMenu,
@@ -52,12 +55,9 @@ export function ElementIdentityTile({
   } as CSSProperties;
 
   return (
-    <button
-      type="button"
+    <div
       className={`workspace-list-row element-identity-tile${selected ? ' is-selected' : ''}`}
       style={style}
-      aria-label={label}
-      aria-current={selected ? 'page' : undefined}
       onClick={onActivate}
       onDoubleClick={onPromote}
       onContextMenu={onContextMenu}
@@ -66,19 +66,29 @@ export function ElementIdentityTile({
       onFocus={(event) => onPreviewEnter(event.currentTarget)}
       onBlur={onPreviewLeave}
     >
-      <span className="element-panel-item-label element-identity-tile__label">{label}</span>
+      <button
+        type="button"
+        className="element-identity-tile__open"
+        aria-label={label}
+        aria-current={selected ? 'page' : undefined}
+        onClick={(event) => { event.stopPropagation(); onActivate(); }}
+        onDoubleClick={(event) => { event.stopPropagation(); onPromote(); }}
+      >
+        <span className="element-panel-item-label element-identity-tile__label">{label}</span>
+      </button>
 
       {agentState && (
-        <span
-          aria-hidden
+        <AgentChangeIndicator
+          disabled={agentState === 'busy'}
+          onClick={onAgentSeen}
           title={agentStateLabel}
           className={`element-identity-tile__agent element-identity-tile__agent--${agentState}${
             agentState === 'busy' ? ' agent-glyph-busy' : ''
           }`}
         >
           {statusMark}
-        </span>
+        </AgentChangeIndicator>
       )}
-    </button>
+    </div>
   );
 }

@@ -1215,6 +1215,7 @@
     "collapseTitle": "Collapse {{label}}"
   },
   "agentActivity": {
+    "markSeen": "Mark Agent changes as read",
     "unviewedChanges": "Unviewed Agent changes",
     "working": "Agent is working",
     "addedHere": "Agent added this; its full prose reveals on first open",

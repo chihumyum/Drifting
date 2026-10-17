@@ -45,11 +45,11 @@
 
 /* Count — replaces a layer's glyph (group dot / tab glyph) once a run has
    finished and left unviewed changes beneath it. The number is how many changed
-   children the user hasn't opened yet; clicking each cell decrements it back
-   toward the glyph. It's a plain, low-key number (no pill, no blink) — as quiet
+   children the user has not read yet; clicking the number acknowledges its
+   scope and restores the glyph. It's a plain, low-key number (no pill, no blink) — as quiet
    as the glyph it stands in for, matching the cell-level "M" marker. While a run
    is still working the parent shows its blinking glyph instead, never this. */
-.agent-count {
+.agent-change-indicator.agent-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -60,5 +60,70 @@
   color: hsl(var(--ink-2));
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+}
+
+.agent-change-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-change-indicator__label {
+  opacity: 1;
+  transition: opacity 140ms ease;
+}
+
+.agent-change-indicator__read {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1ch;
+  height: 1em;
+  transform: translate(-50%, -50%);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.agent-change-indicator__read > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.agent-change-indicator:hover > .agent-change-indicator__label {
+  opacity: 0;
+}
+
+.agent-change-indicator:hover > .agent-change-indicator__read {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-change-indicator__label,
+  .agent-change-indicator__read {
+    transition: none;
+  }
+}
+
+.agent-change-indicator:focus-visible {
+  outline: 1px solid hsl(var(--accent));
+  outline-offset: 2px;
+}
+
+.agent-panel-tab > .agent-count {
+  align-self: stretch;
+  min-width: 16px;
+  margin-right: 4px;
+}
+
+html[data-shell-mode='desktop'] .agent-panel-tab > .app-panel-tab {
+  padding-inline: 0;
 }

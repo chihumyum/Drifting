@@ -1,3 +1,5 @@
+import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
+import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
@@ -107,9 +109,8 @@ export function DriftPanel({
     [onPreviewTarget, openEntity],
   );
   const agentActive = useAgentActivityStore((s) => s.active);
-  const agentTouched = useAgentActivityStore((s) => s.touched);
+  const agentTouched = useAgentUnreadMarks();
   // Persisted pending agent edits — keeps "M" visible after a reload.
-  const agentPending = useAgentEditStore((s) => s.pending);
   const agentAdditions = useAgentEditStore((s) => s.additions);
 
   const { createNode } = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
@@ -267,7 +268,7 @@ export function DriftPanel({
     const agentChanged =
       !agentBusy &&
       !agentAdded &&
-      (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
+      (`node:${node.id}` in agentTouched);
     // Merged display: resting drifts aren't bucketed into a separate drawer
     // anymore — they sit inline, distinguished only by a muted cell style.
     const muted = node.writingStatus === 'resting';
@@ -323,8 +324,10 @@ export function DriftPanel({
         }}
       >
         {/* Drift mark — ❦ glyph, or Agent file status (A/M). */}
-        <span
-          aria-hidden
+        <AgentChangeIndicator
+          disabled={agentBusy || !(agentAdded || agentChanged)}
+          aria-hidden={agentBusy || !(agentAdded || agentChanged) ? true : undefined}
+          onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
           className={agentBusy ? 'agent-glyph-busy' : undefined}
           title={
             agentBusy
@@ -352,7 +355,7 @@ export function DriftPanel({
           }}
         >
           {agentAdded ? 'A' : agentChanged ? 'M' : '❦'}
-        </span>
+        </AgentChangeIndicator>
 
         <div
           style={{
@@ -461,6 +464,7 @@ export function DriftPanel({
             }
             agentBusy={activity.busy}
             agentDoneCount={activity.doneCount}
+            onAgentChildrenSeen={() => useAgentActivityStore.getState().markSeen(descIds.map((id) => entityKey('node', id)))}
           />
         </div>
       );

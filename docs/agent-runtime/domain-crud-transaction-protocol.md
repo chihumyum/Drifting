@@ -234,7 +234,7 @@ document in creation order.
 
 | Mutation                                                 | Policy         | User surface                                                         |
 | -------------------------------------------------------- | -------------- | -------------------------------------------------------------------- |
-| Prose and structured-field edits                         | automatic      | commit immediately; unread markers/reveal show the committed changes |
+| Prose and structured-field edits                         | automatic      | commit immediately; unread markers/reveal can be acknowledged in the sidebar |
 | Safe metadata, comment/TODO, project memory entry        | automatic      | semantic activity only                                               |
 | Delete structural resource or comment/TODO               | confirm before | chat permission request                                              |
 | Relation create or relation-kind update                  | automatic      | semantic activity only                                               |

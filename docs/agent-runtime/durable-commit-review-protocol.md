@@ -20,6 +20,24 @@ through their original guarded recovery before remaining blocks settle.
 Historical `approve` snapshot values remain readable; no product setting or
 debug request can select that mode. A test-only override exercises old receipts.
 
+Sidebar A/M markers and group/tab counts are unread presentation. Clicking an
+item marker marks only that entity read; a group count marks its descendants;
+a group A/M marks the group itself; a chapter/element/drift tab count marks its
+panel. These buttons do not open editors, collapse groups, or switch tabs. Hover
+replaces the label with a centered SVG check exactly one digit wide (`1ch`) and
+one font em tall, preserving width, ink, background, border and shadow. Both directions
+crossfade over 140 ms; reduced-motion preferences disable that transition.
+Acknowledgement clears cached prose/field/Added presentation and remembers its
+review ids, preventing replay after reload. A later Agent write is unread again.
+An open reveal stops immediately; opening an acknowledged editor skips reveal.
+Active tool pulses and pre-live guards belong to ongoing work and stay separate.
+
+Run `node scripts/run-agent-unread-acceptance.mjs` to regenerate
+`acceptance/unread-direct-edits.json`, or add `--check` to verify its source hash.
+This covers production sidebar/animator components in isolated Chromium plus
+synthetic store, SQLite/Yjs and legacy-recovery tests. Native interaction and
+hosted-service acceptance are not part of this report.
+
 ## Authorities
 
 | Concern | Authority | Rebuildable projection |
@@ -134,8 +152,8 @@ presentation marker but must not execute the mutation again.
 The sidebar `A` marker outranks `M` but remains below active tool execution. It
 clears only after every initial textual block completes its first-open reveal
 (or is seen with reveal animation disabled),
-or after empty-editor hydration proves there is no prose to reveal. Opening the
-entity alone does not clear it.
+or after empty-editor hydration proves there is no prose to reveal. Clicking its
+sidebar marker explicitly acknowledges it before opening.
 
 Creation treats every textual top-level block as `new` and, when reveal
 animation is enabled, masks the durable live block before paint until its reveal

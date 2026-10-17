@@ -9,6 +9,8 @@ import type { ActivityMark } from '../../store/agent-activity-store';
 import { type GroupActivity } from './agentActivityBubble';
 import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
+import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
+import { AgentCountBadge } from './AgentCountBadge';
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
 
@@ -39,7 +41,7 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
   // Aggregate unviewed activity into the persistent text labels. Busy labels
   // pulse; completed changes append their count until reviewed.
   const agentActive = useAgentActivityStore((s) => s.active);
-  const agentTouched = useAgentActivityStore((s) => s.touched);
+  const agentTouched = useAgentUnreadMarks();
   const bookNodes = useDataStore((s) => s.bookNodes);
   const tabActivity = useMemo(() => {
     const nodeKind = new Map(bookNodes.map((n) => [n.id, n.kind]));
@@ -58,6 +60,14 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
     }
     return res;
   }, [agentActive, agentTouched, bookNodes]);
+  const markPanelSeen = (panel: TabPanel) => {
+    const nodeKind = new Map(bookNodes.map((node) => [node.id, node.kind]));
+    useAgentActivityStore.getState().markSeen(
+      Object.entries(agentTouched)
+        .filter(([, mark]) => panelForMark(mark, nodeKind) === panel)
+        .map(([key]) => key),
+    );
+  };
 
   return (
     <div
@@ -78,18 +88,21 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
           label={t('leftSidebar.tabs.chapters')}
           isActive={activeTab === 'nodes'}
           activity={tabActivity.nodes}
+          onAgentSeen={() => markPanelSeen('nodes')}
           onClick={() => toggleTab(paneId, 'nodes')}
         />
         <PanelTab
           label={t('leftSidebar.tabs.elements')}
           isActive={activeTab === 'elements'}
           activity={tabActivity.elements}
+          onAgentSeen={() => markPanelSeen('elements')}
           onClick={() => toggleTab(paneId, 'elements')}
         />
         <PanelTab
           label={t('leftSidebar.tabs.drifts')}
           isActive={activeTab === 'drift'}
           activity={tabActivity.drift}
+          onAgentSeen={() => markPanelSeen('drift')}
           onClick={() => toggleTab(paneId, 'drift')}
         />
       </PanelTabTray>
@@ -103,11 +116,13 @@ function PanelTab({
   isActive,
   activity,
   onClick,
+  onAgentSeen,
 }: {
   label: string;
   isActive: boolean;
   activity?: GroupActivity;
   onClick: () => void;
+  onAgentSeen: () => void;
 }) {
   const { t } = useTranslation();
   const busy = activity?.busy ?? false;
@@ -118,20 +133,32 @@ function PanelTab({
       ? t('agentActivity.unviewedChanges')
       : undefined;
   return (
-    <SharedPanelTab
-      onClick={onClick}
-      title={statusTitle ?? label}
-      aria-label={statusTitle ? `${label}: ${statusTitle}` : label}
-      active={isActive}
-      typography="label"
+    <div
+      className={`app-panel-tab agent-panel-tab${isActive ? ' is-active' : ''}`}
+      style={{ padding: 0 }}
     >
-      <span
-        className={busy ? 'agent-glyph-busy' : undefined}
-        style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
+      <SharedPanelTab
+        onClick={onClick}
+        title={statusTitle ?? label}
+        aria-label={statusTitle ? `${label}: ${statusTitle}` : label}
+        active={isActive}
+        typography="label"
+        style={{ flex: 1, color: 'inherit' }}
       >
-        <span data-panel-tab-label>{label}</span>
-        {!busy && doneCount > 0 ? ` ${doneCount > 99 ? '99+' : doneCount}` : null}
-      </span>
-    </SharedPanelTab>
+        <span
+          className={busy ? 'agent-glyph-busy' : undefined}
+          style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
+        >
+          <span data-panel-tab-label>{label}</span>
+        </span>
+      </SharedPanelTab>
+      {!busy && doneCount > 0 && (
+        <AgentCountBadge
+          count={doneCount}
+          title={`${label}: ${t('agentActivity.unviewedChanges')}`}
+          onClick={onAgentSeen}
+        />
+      )}
+    </div>
   );
 }

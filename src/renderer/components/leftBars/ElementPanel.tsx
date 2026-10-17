@@ -1,3 +1,5 @@
+import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
+import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
@@ -92,8 +94,7 @@ export function ElementPanel({
     [onPreviewTarget, openEntity],
   );
   const agentActive = useAgentActivityStore((s) => s.active);
-  const agentTouched = useAgentActivityStore((s) => s.touched);
-  const agentPending = useAgentEditStore((s) => s.pending);
+  const agentTouched = useAgentUnreadMarks();
   const agentAdditions = useAgentEditStore((s) => s.additions);
 
   const activeProjectId = useMemo(() => {
@@ -362,7 +363,7 @@ export function ElementPanel({
     const agentChanged =
       !agentBusy &&
       !agentAdded &&
-      (`element:${element.id}` in agentTouched || `element:${element.id}` in agentPending);
+      (`element:${element.id}` in agentTouched);
     // The virtual "未分类" bucket isn't a real category — getCategoryColor
     // would log a not-found warning and return a flickering random color.
     const categoryColor =
@@ -419,8 +420,10 @@ export function ElementPanel({
         {/* Element mark — diamond in category color. Sized to occupy the
             same 12px-wide slot the chapter stripe uses, so titles line up
             across panels. */}
-        <span
-          aria-hidden
+        <AgentChangeIndicator
+          disabled={agentBusy || !(agentAdded || agentChanged)}
+          aria-hidden={agentBusy || !(agentAdded || agentChanged) ? true : undefined}
+          onClick={() => useAgentActivityStore.getState().markSeen([entityKey('element', element.id)])}
           className={agentBusy ? 'agent-glyph-busy' : undefined}
           title={
             agentBusy
@@ -450,7 +453,7 @@ export function ElementPanel({
           }}
         >
           {agentAdded ? 'A' : agentChanged ? 'M' : '◆'}
-        </span>
+        </AgentChangeIndicator>
 
         {/* Name */}
         <div
@@ -492,7 +495,7 @@ export function ElementPanel({
     const agentChanged =
       !agentBusy &&
       !agentAdded &&
-      (`element:${element.id}` in agentTouched || `element:${element.id}` in agentPending);
+      (`element:${element.id}` in agentTouched);
     const agentState = agentBusy
       ? ('busy' as const)
       : agentAdded
@@ -512,6 +515,7 @@ export function ElementPanel({
         selected={selected}
         agentState={agentState}
         agentStateLabel={agentStateLabel}
+        onAgentSeen={() => useAgentActivityStore.getState().markSeen([entityKey('element', element.id)])}
         onActivate={() => {
           if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
           activateTarget({ entityType: 'element', id: element.id });
@@ -575,7 +579,7 @@ export function ElementPanel({
             const selfKey = entityKey('category', categoryId);
             const agentSelfBusy = !isUncategorized && selfKey in agentActive;
             const agentSelfChanged =
-              !isUncategorized && (selfKey in agentTouched || selfKey in agentPending);
+              !isUncategorized && (selfKey in agentTouched);
             return (
               <div
                 key={categoryId}
@@ -595,6 +599,7 @@ export function ElementPanel({
                 <GroupHeaderCell
                   name={getCategoryLabel(categoryId)}
                   count={categoryElements.length}
+                  showTotalCount={!compactIndex}
                   color={categoryColor}
                   collapsed={categoryCollapsed}
                   onToggleCollapsed={() => {
@@ -609,6 +614,7 @@ export function ElementPanel({
                     isUncategorized
                       ? undefined
                       : () => {
+                          hoverLeave();
                           if (agentSelfChanged) {
                             useAgentActivityStore.getState().clearTouched('category', categoryId);
                           }
@@ -642,6 +648,8 @@ export function ElementPanel({
                   addButtonTitle={
                     isUncategorized ? undefined : t('elementCategoryCreateMenu.openCreateMenu')
                   }
+                  onPreviewEnter={isUncategorized ? undefined : (anchor) => hoverEnter({ kind: 'category', id: categoryId }, anchor)}
+                  onPreviewLeave={hoverLeave}
                   // "未分类" has no real category, so it cannot own a creation
                   // menu. A real category's single + branches to element/group
                   // creation without adding a second permanent icon.
@@ -664,6 +672,8 @@ export function ElementPanel({
                   agentDoneCount={activity.doneCount}
                   agentSelfChanged={agentSelfChanged}
                   agentSelfAdded={!isUncategorized && `category:${categoryId}` in agentAdditions}
+                  onAgentSelfSeen={() => useAgentActivityStore.getState().markSeen([selfKey])}
+                  onAgentChildrenSeen={() => useAgentActivityStore.getState().markSeen(categoryElements.map((element) => entityKey('element', element.id)))}
                 />
 
                 {!categoryCollapsed &&

@@ -1,3 +1,5 @@
+import { AgentChangeIndicator } from './AgentChangeIndicator';
+
 /**
  * The count shown in a group's activity slot once a run has
  * finished and left unviewed changes beneath it — see agentActivityBubble.ts for
@@ -8,13 +10,15 @@
 export function AgentCountBadge({
   count,
   title,
+  onClick,
 }: {
   count: number;
   title?: string;
+  onClick?: () => void;
 }) {
   return (
-    <span aria-hidden className="agent-count" title={title}>
+    <AgentChangeIndicator className="agent-count" title={title} onClick={onClick}>
       {count > 99 ? '99+' : count}
-    </span>
+    </AgentChangeIndicator>
   );
 }

@@ -1,0 +1,628 @@
+{
+  "kind": "agent_unread_direct_edits_acceptance",
+  "status": "passed",
+  "generatedAt": "2026-10-17T09:19:46.839Z",
+  "sourceSha256": "2d7852fae56a4e0a88563d1335a7363d19bddb012320c635178322211f6371ae",
+  "suites": [
+    "src/renderer/store/agent-unread-acknowledgement.test.ts",
+    "src/renderer/components/ui/entity-hover-card-model.test.ts",
+    "src/renderer/lib/agent/tool-registry.test.ts",
+    "src/renderer/lib/agent/runtime/drifting-write-strategies.test.ts",
+    "src/renderer/store/agent-edit-store.test.ts",
+    "src/renderer/store/agent-activity-store.test.ts",
+    "src/renderer/store/settings-store-appearance.test.ts",
+    "src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts",
+    "src/renderer/features/editor/agent-decoration-projection.test.ts",
+    "src/renderer/features/editor/agent-decoration-controller.test.ts",
+    "src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts",
+    "src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts",
+    "src/renderer/lib/agent/runtime/drifting-write-tool-runtime.test.ts"
+  ],
+  "tests": [
+    {
+      "name": "General Agent Added activity persists Added presentation after the workspace create result commits",
+      "status": "passed"
+    },
+    {
+      "name": "General Agent Added activity keeps a sibling session pulse when another turn with the same call id finishes",
+      "status": "passed"
+    },
+    {
+      "name": "General Agent Added activity flashes and leaves M on an anchored comment host without recording A",
+      "status": "passed"
+    },
+    {
+      "name": "General Agent Added activity retains both relation endpoints through deletion so each receives M",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions keeps the effect batch but removes only the decided block from the editor projection",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions rebuilds no visual block after every block has a decision, until canonical settlement clears the batch",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions replaces stale local decisions with the exact SQLite-backed projection",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions persists an Added marker and seeds first-open prose as auto reveal blocks",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions does not overwrite a later durable review when first-open Added reveal is seeded",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions purges only the deleted project's persisted edit presentation and reverts",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions leaves a fully reviewed new file in approve mode instead of seeding auto reveal",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions atomically replaces a pre-live auto guard with its canonical review projection",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions clears a pre-live guard when canonical projection proves there is no review",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit review block decisions delivers rejected edit feedback only to the Agent session that authored it",
+      "status": "passed"
+    },
+    {
+      "name": "Agent unread acknowledgement clears prose, fields and Added presentation only for the clicked entity kind and id",
+      "status": "passed"
+    },
+    {
+      "name": "Agent unread acknowledgement persists acknowledgement and prevents receipt replay from resurrecting a reveal",
+      "status": "passed"
+    },
+    {
+      "name": "Agent unread acknowledgement acknowledges a group scope without clearing another group or an incoming write guard",
+      "status": "passed"
+    },
+    {
+      "name": "Agent unread acknowledgement defaults to direct writes and cannot activate author review in a production renderer",
+      "status": "passed"
+    },
+    {
+      "name": "entity link highlight preference preserves the existing combined treatment for fresh, old and malformed settings",
+      "status": "passed"
+    },
+    {
+      "name": "entity link highlight preference persists band independently of color source and interaction",
+      "status": "passed"
+    },
+    {
+      "name": "entity link highlight preference persists text independently of color source and interaction",
+      "status": "passed"
+    },
+    {
+      "name": "entity link highlight preference persists both independently of color source and interaction",
+      "status": "passed"
+    },
+    {
+      "name": "entity link band style preference keeps the continuous band for fresh, old and malformed settings",
+      "status": "passed"
+    },
+    {
+      "name": "entity link band style preference restores wash after temporarily hiding the band",
+      "status": "passed"
+    },
+    {
+      "name": "entity link band style preference restores dots after temporarily hiding the band",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal animation preference persistence keeps animation enabled for a fresh or pre-preference installation",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal animation preference persistence persists animation independently and drops the retired approval setting",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference uses a readable default for old settings and rejects unknown sizes",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference restores small UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference restores large UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
+      "name": "editor line wrapping preference uses stable wrapping for fresh, old and malformed preferences",
+      "status": "passed"
+    },
+    {
+      "name": "editor line wrapping preference persists and restores stable without changing other typography",
+      "status": "passed"
+    },
+    {
+      "name": "editor line wrapping preference persists and restores pretty without changing other typography",
+      "status": "passed"
+    },
+    {
+      "name": "editor line wrapping preference restores stable wrapping with the recommended editor style",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index persists compact/list and toggles it from the header summary instead of the sort menu",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index renders complete names in a content-shaped wrapping flex flow with no portrait path",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index uses one minus/square disclosure while the category label opens its editor",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index reuses the borderless material-card surface and keeps selection as highlight only",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index keeps only the final-group/ungrouped gap and scopes group-add hover to its label",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index places category, chapter, and drift creation actions directly after their labels",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index uses the category plus as one anchored element/group creation menu",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index keeps the shared hover/focus preview as secondary element context",
+      "status": "passed"
+    },
+    {
+      "name": "category Agent activity count slot replaces the element count without a leading activity marker in frame mode",
+      "status": "passed"
+    },
+    {
+      "name": "category Agent activity count slot replaces the element count without a leading activity marker in chevron mode",
+      "status": "passed"
+    },
+    {
+      "name": "category Agent activity count slot keeps other group markers ahead of their name and retains their normal count",
+      "status": "passed"
+    },
+    {
+      "name": "buildEntityHoverCardContent shows the primary storyline followed by dimmed secondary storyline chips",
+      "status": "passed"
+    },
+    {
+      "name": "buildEntityHoverCardContent uses hydrated membership while the primary lookup is unavailable",
+      "status": "passed"
+    },
+    {
+      "name": "buildEntityHoverCardContent builds element metadata without reading its prose body",
+      "status": "passed"
+    },
+    {
+      "name": "buildEntityHoverCardContent derives storyline totals from the hydrated node mapping",
+      "status": "passed"
+    },
+    {
+      "name": "buildEntityHoverCardContent shows a drift group path without fetching folder data",
+      "status": "passed"
+    },
+    {
+      "name": "buildEntityHoverCardContent does not query non-hydrated patch data",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership still installs required new review masks during composition",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference treats old approval receipts as automatic and removes every mask when motion is off",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
+      "status": "passed"
+    },
+    {
+      "name": "classifies Agent prose and field writes as direct automatic changes",
+      "status": "passed"
+    },
+    {
+      "name": "canonical Agent tool catalog installs only explicit domain tools and removes every generic object/filesystem verb",
+      "status": "passed"
+    },
+    {
+      "name": "canonical Agent tool catalog keeps every public domain schema free of storage and freshness plumbing",
+      "status": "passed"
+    },
+    {
+      "name": "canonical Agent tool catalog accepts narrow domain arguments and rejects the retired generic shapes",
+      "status": "passed"
+    },
+    {
+      "name": "canonical Agent tool catalog requires confirmation only for destructive domain operations",
+      "status": "passed"
+    },
+    {
+      "name": "canonical Agent tool catalog covers every hidden runAgentTool handler exactly once",
+      "status": "passed"
+    },
+    {
+      "name": "canonical Agent tool catalog classifies every catalog entry and keeps canonical names unique",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP exposes canonical schemas and enforces read-only grants and validation before mutation",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP retries a failed session initialization instead of replaying the failure",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP sends chapter prose once, with shared numbering, range reads and version guards",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and the existing inverse review",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP updates tool discovery and destructive permissions on an existing session",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP rejects a write already waiting for the shared scheduler when permission changes",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions MCP stops stale concurrent prose writes and cancelled calls without crossing project scope",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions materializes the prose word count when a new chapter or drift is created",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions rejects a second Agent create with an existing node title instead of suffixing it",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions rejects a relation whose two endpoints are the same authored object",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions keeps every textual block of a newly created object pending in approve mode",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions uses the schema-safe Markdown adapter for every newly created authored prose object",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions keeps entity receipts owned by the public domain tool",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions clones template authority with fresh IDs for Agent element and storyline creates",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions places a newly created numbered chapter at the midpoint of an available reading-order gap",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions normalizes a unique contained category and seeds a separate summary from initial body",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions atomically replaces the complete storyline graph and restores the exact preimage",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions rolls back every graph row and journal mutation when a transaction write fails",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions creates, addresses, updates, soft-deletes, and exactly reverts project memory",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions reconciles a lost outer acknowledgement once and survives a file reopen",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions lets the Agent revise and delete any live project memory without approval",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions creates and exactly removes every structural resource class",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions updates, guards field deletion, and restores structural resource deletes",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions provides natural JSON CRUD and guarded inverses for TODOs and relations",
+      "status": "passed"
+    },
+    {
+      "name": "workspace domain CRUD transactions names every blocking workspace resource when an entity delete is unsafe",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition finishes an unchanged turn in one model round without a Working Memory call",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition plans and persists the declared 64000-token window without a product override",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition plans and persists the declared 400000-token window without a product override",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition plans and persists the declared 1050000-token window without a product override",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition plans and persists the declared 2000000-token window without a product override",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition resolves author-facing checklist labels to canonical targets",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition keeps safe metadata writes automatic when inline prose review is enabled",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition writes prose immediately in approve mode and creates an inline editor review",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition recovers when Yjs reverted but the durable block-settlement acknowledgement failed",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition runs revise_chapter through Yjs and queues an automatic reveal",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition tells the Agent that a stale Yjs write lost to the author",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition tells the Agent that a stale Yjs write lost to another Agent conversation",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition edits authored prose with semantic model output and an automatic reveal",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition routes whole-file prose replacement through the inline editor review",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition commits whole-chapter prose and summary together and restores the summary when one block is rejected",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition rolls back prose, summary, Yjs receipt, and sync journal when their shared transaction fails",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition lets workspace writes target any project entity without a content-scope gate",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition stores a cited passage as a paragraph anchor whose lines follow later edits",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition appends to the requested drift without inheriting a stale chapter focus",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition resolves material and element-patch relation endpoints through the canonical entity vocabulary",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition resolves an element relation endpoint through an authored alias",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition persists a whole-book plan, resolves named targets, and pins it into the next turn",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies captures and exactly reverts a node title through the renderer usecase",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies refuses an exact inverse after a newer manual field edit",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies reconciles an inverse that committed before review settlement",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies rejects foreign-project node references before mutation preparation",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies maps all six certified prose tools to deterministic Yjs commands guarded by the read vector/hash",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies fails prose preparation before mutation when the cited Yjs hash is stale",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies certifies a review baseline when y-prosemirror normalizes mark instance keys",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies strips read_node display markers before replacing heading or quote text",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies commits a large prose deletion automatically without escalating to author review",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies commits a prose diff without post-write UI state and reconciles the exact durable receipt",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies guards an open existing-file auto edit before live merge and atomically hands it to the durable review",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies reconciles a crash after the Yjs commit without rebuilding removed review UI",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting write strategies keeps the removed review store empty when two effects touch one block and replay",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime persists one authorized effect and replays duplicates without mutation or post-write review",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime persists provenance for an author-approved write",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime rejects missing or argument-mismatched authorization before claiming an effect",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime marks an entered write uncertain and never dispatches it again",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime does not touch the legacy review repository for newly authorized writes",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime recovers and automatically settles a missing legacy approval review without replaying editor UI",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime reconciles an entered prose write from its durable receipt without replaying mutation",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime settles legacy blocks after an entered inverse during project hydration",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime settles legacy blocks after an entered inverse during session hydration",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime fails closed on an unavailable write before claiming an effect",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime records and reprojects Added from the canonical committed create result",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime keeps a committed create successful when the rebuildable Added projection is full",
+      "status": "passed"
+    },
+    {
+      "name": "DriftingWriteToolRuntime settles a workspace no-op as success without claiming a durable effect",
+      "status": "passed"
+    }
+  ],
+  "browserChecks": {
+    "chapterAdded": true,
+    "compactElementAdded": true,
+    "listElementModified": true,
+    "driftModified": true,
+    "groupSelfAndChildren": true,
+    "categoryCount": true,
+    "allThreeTabCounts": true,
+    "clickIsolation": true,
+    "noNestedButtons": true,
+    "acknowledgedEditorSkipsReveal": true,
+    "activeRevealCancelled": true,
+    "laterWriteUnread": true,
+    "reviewControlsAbsent": true,
+    "quietHoverA": true,
+    "crossfadeA": true,
+    "quietHoverM": true,
+    "crossfadeM": true,
+    "quietHovercount": true,
+    "crossfadecount": true,
+    "reducedMotion": true,
+    "categoryFrameAndHover": true,
+    "categoryAgentCountsOnly": true,
+    "categoryKeyboardPreview": true,
+    "categoryClickIsolation": true,
+    "categoryListPreview": true
+  },
+  "boundary": {
+    "data": "synthetic",
+    "browser": "isolated Chromium with production sidebar/store/animator components",
+    "nativeInteraction": "not_run",
+    "hostedService": "not_run"
+  }
+}

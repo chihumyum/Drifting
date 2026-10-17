@@ -171,6 +171,7 @@ export function buildEntityHoverCardContent(
     if (!category) return null;
     const count = state.bookElements.filter((element) => element.categoryId === category.id).length;
     return {
+      title: category.name,
       summary: null,
       meta: [{ text: t('categoryEditor.meta.elements', { count }), color: category.color }],
     };

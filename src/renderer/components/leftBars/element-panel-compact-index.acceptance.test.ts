@@ -111,7 +111,7 @@ describe('ElementPanel compact text index', () => {
     const frameLabel = block(
       header,
       'className="left-sb-group-header__frame-label"',
-      '</button>\n        ) : (',
+      '</button>',
     );
 
     expect(categoryBody).toContain('background: transparent;');

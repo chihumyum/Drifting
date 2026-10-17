@@ -63,6 +63,8 @@ interface AgentActivityState {
   markSpotSeen: (entityType: ActivityMark['entityType'], id: string, spot: SeenSpot) => void;
   /** The user opened/looked at an entity — clear its breathing dot outright. */
   clearTouched: (entityType: ActivityMark['entityType'], id: string) => void;
+  /** Explicit sidebar acknowledgement, including cached editor presentation. */
+  markSeen: (keys: readonly string[]) => void;
   /** New prompt / fresh conversation — clear all markers. */
   clearAll: () => void;
 }
@@ -240,6 +242,15 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       const next = { ...s.touched };
       delete next[key];
       return { touched: next };
+    });
+  },
+
+  markSeen: (keys) => {
+    useAgentEditStore.getState().markSeen(keys);
+    set((state) => {
+      const touched = { ...state.touched };
+      for (const key of keys) delete touched[key];
+      return { touched };
     });
   },
 

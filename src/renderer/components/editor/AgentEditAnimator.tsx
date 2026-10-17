@@ -25,7 +25,7 @@ import {
   createAgentEditSeenTracker,
 } from './agent-edit-animation';
 
-/** Displays committed Agent edits until viewed.
+/** Displays committed Agent edits until viewed or acknowledged in the sidebar.
  * This layer owns presentation only; it never accepts, rejects or changes prose. */
 interface AgentEditAnimatorProps {
   scrollEl: HTMLElement | null;
@@ -403,6 +403,12 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
       setHeights(new Map());
     }
   }), []);
+  useLayoutEffect(() => useAgentEditStore.subscribe((state, previous) => {
+    if (editKey && previous.pending[editKey] && !state.pending[editKey]) {
+      setRevealing(new Map());
+      setHeights(new Map());
+    }
+  }), [editKey]);
   const reportHeight = useCallback((k: string, h: number) => {
     setHeights((prev) => (prev.get(k) === h ? prev : new Map(prev).set(k, h)));
   }, []);
@@ -608,7 +614,9 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
               viewport. Rendered off `revealing` alone — that map is only ever
               populated by the auto effect, so a reveal still finishes if its change
               resolves out from under it. */}
-          {revealAnimationEnabled && [...revealing.values()].map((c) => {
+          {revealAnimationEnabled && [...revealing.values()].filter((change) =>
+            autoChanges.some((current) => keyOf(current) === keyOf(change)),
+          ).map((c) => {
             const maskedAutoReveal = agentChangeUsesAutoRevealMask(c);
             return (
               <RevealOverlay

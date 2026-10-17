@@ -5,7 +5,8 @@
  * durable effect result, and canonical SQLite review have committed. The store
  * is therefore a rebuildable editor projection, never review authority or prose
  * truth. It remembers which blocks changed and their before/after text for
- * unread ticks and viewport reveals. Historical approval receipts and their
+ * unread ticks and viewport reveals. Sidebar acknowledgement consumes this
+ * presentation without mutating prose. Historical approval receipts and their
  * guarded inverse metadata remain readable for canonical recovery.
  *
  * Keyed `${entityType}:${id}` like the activity store.
@@ -184,6 +185,8 @@ interface AgentEditState {
   drainReverts: (projectId: string, sessionId?: string | null) => RevertRecord[];
   /** Drop an entity's whole pending set (e.g. the user dismissed it). */
   clear: (entityType: ActivityEntityType, id: string) => void;
+  /** Acknowledge current presentation; SQLite/Yjs writes are already committed. */
+  markSeen: (keys: readonly string[]) => void;
   /** Remove every persisted presentation/revert receipt owned by a deleted project. */
   clearProject: (projectId: string, proseDocIds: string[], reviewIds: string[]) => void;
   /** New prompt / project switch — forget everything. */
@@ -510,6 +513,30 @@ export const useAgentEditStore = create<AgentEditState>()(
             delete autoRevealGuards[reviewId];
           }
           return { pending, additions, autoRevealGuards };
+        });
+      },
+
+      markSeen: (keys) => {
+        const acknowledged = new Set(keys);
+        if (acknowledged.size === 0) return;
+        set((state) => {
+          const pending = { ...state.pending };
+          const additions = { ...state.additions };
+          const reviewBatches = { ...state.reviewBatches };
+          const settledReviewIds = { ...state.settledReviewIds };
+          for (const key of acknowledged) {
+            delete pending[key];
+            delete additions[key];
+          }
+          for (const [reviewId, batch] of Object.entries(reviewBatches)) {
+            if (!acknowledged.has(entityKey(batch.entityType, batch.id))) continue;
+            delete reviewBatches[reviewId];
+            settledReviewIds[reviewId] = true;
+          }
+          return {
+            pending, additions, reviewBatches, settledReviewIds,
+            reviewOrder: state.reviewOrder.filter((reviewId) => reviewId in reviewBatches),
+          };
         });
       },
 

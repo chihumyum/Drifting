@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AgentCountBadge } from './AgentCountBadge';
+import { AgentChangeIndicator } from './AgentChangeIndicator';
 
 // Single source for the left-sidebar group-header cell. Storyline groups keep
 // the ordinary [chevron] [color dot] row; compact Element categories opt into
@@ -16,6 +17,8 @@ import { AgentCountBadge } from './AgentCountBadge';
 export interface GroupHeaderCellProps {
   name: string;
   count: number;
+  /** Hide the ordinary total while retaining Agent activity in the count slot. */
+  showTotalCount?: boolean;
   color: string;
   // Optional leading glyph rendered IN PLACE OF the color dot (e.g. a folder
   // icon for drift groups, to set them apart from the category color dot).
@@ -33,6 +36,8 @@ export interface GroupHeaderCellProps {
   onClick?: () => void;
   onDoubleClick?: () => void;
   onContextMenu?: (event: React.MouseEvent) => void;
+  onPreviewEnter?: (anchor: HTMLElement) => void;
+  onPreviewLeave?: () => void;
   // Title shown as the + button tooltip. When omitted, the + button is
   // skipped entirely (useful for read-only group headers).
   addButtonTitle?: string;
@@ -63,10 +68,13 @@ export interface GroupHeaderCellProps {
   // A newly created group body uses the IDE-style Added marker until its first
   // prose reveal completes. Added takes priority over Modified.
   agentSelfAdded?: boolean;
+  onAgentSelfSeen?: () => void;
+  onAgentChildrenSeen?: () => void;
 }
 export function GroupHeaderCell({
   name,
   count,
+  showTotalCount = true,
   color,
   glyph,
   collapsed,
@@ -76,6 +84,8 @@ export function GroupHeaderCell({
   onClick,
   onDoubleClick,
   onContextMenu,
+  onPreviewEnter,
+  onPreviewLeave,
   addButtonTitle,
   onAdd,
   addButtonHasPopup,
@@ -89,6 +99,8 @@ export function GroupHeaderCell({
   agentDoneCount = 0,
   agentSelfChanged = false,
   agentSelfAdded = false,
+  onAgentSelfSeen,
+  onAgentChildrenSeen,
 }: GroupHeaderCellProps) {
   const { t } = useTranslation();
   const showRestingColorMarker = collapseChrome === 'chevron';
@@ -103,7 +115,8 @@ export function GroupHeaderCell({
       style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 2, background: 'hsl(var(--accent))' }}
     />
   ) : agentSelfAdded || agentSelfChanged ? (
-    <span
+    <AgentChangeIndicator
+      onClick={onAgentSelfSeen}
       title={t(
         agentSelfAdded ? 'agentActivity.groupBodyAdded' : 'agentActivity.groupBodyChanged',
       )}
@@ -119,13 +132,13 @@ export function GroupHeaderCell({
       }}
     >
       {agentSelfAdded ? 'A' : 'M'}
-    </span>
+    </AgentChangeIndicator>
   ) : agentDoneCount > 0 ? (
-    <AgentCountBadge count={agentDoneCount} title={t('agentActivity.childChanges')} />
+    <AgentCountBadge count={agentDoneCount} title={t('agentActivity.childChanges')} onClick={onAgentChildrenSeen} />
   ) : null;
   const countContent = agentIndicatorPlacement === 'count' && agentIndicator
     ? agentIndicator
-    : <>· {count}</>;
+    : showTotalCount ? <>· {count}</> : null;
   return (
     <div
       className={`left-sb-group-header${
@@ -260,110 +273,113 @@ export function GroupHeaderCell({
             }}
           />
         ) : null}
-        {collapseChrome === 'frame' ? (
-          <button
-            type="button"
-            className="left-sb-group-header__frame-label"
-            aria-disabled={!onClick}
-            onClick={(event) => {
-              event.stopPropagation();
-              onClick?.();
-            }}
+        <div
+          className="left-sb-group-header__legend"
+          style={collapseChrome === 'frame' ? {
+            marginLeft: collapsed ? 0 : -6,
+            padding: collapsed ? 0 : '0 6px',
+            background: frameControlBackground,
+          } : undefined}
+        >
+          {collapseChrome === 'frame' ? (
+            <button
+              type="button"
+              className="left-sb-group-header__frame-label"
+              aria-disabled={!onClick}
+              onMouseEnter={(event) => onPreviewEnter?.(event.currentTarget)}
+              onMouseLeave={onPreviewLeave}
+              onFocus={(event) => onPreviewEnter?.(event.currentTarget)}
+              onBlur={onPreviewLeave}
+              onClick={(event) => {
+                event.stopPropagation();
+                onClick?.();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                minWidth: 0,
+                border: 0,
+                padding: 0,
+                background: 'transparent',
+                cursor: onClick ? 'pointer' : 'default',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--ui-font-caption, 9.5px)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
+                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {name}
+              </span>
+            </button>
+          ) : (
+            <>
+              <span
+                onMouseEnter={(event) => onPreviewEnter?.(event.currentTarget)}
+                onMouseLeave={onPreviewLeave}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--ui-font-caption, 9.5px)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
+                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {name}
+              </span>
+            </>
+          )}
+          {countContent && <span
+            className="left-sb-group-header__count"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              minWidth: 0,
-              border: 0,
-              marginLeft: collapsed ? 0 : -6,
-              padding: collapsed ? 0 : '0 6px',
-              background: frameControlBackground,
-              cursor: onClick ? 'pointer' : 'default',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 'var(--ui-font-caption, 9.5px)',
+              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
+              flexShrink: 0,
             }}
           >
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--ui-font-caption, 9.5px)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {name}
-            </span>
-            <span
-              className="left-sb-group-header__count"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--ui-font-caption, 9.5px)',
-                color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
-                flexShrink: 0,
-              }}
-            >
-              {countContent}
-            </span>
-          </button>
-        ) : (
-          <>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--ui-font-caption, 9.5px)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {name}
-            </span>
-            <span
-              className="left-sb-group-header__count"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--ui-font-caption, 9.5px)',
-                color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
-                flexShrink: 0,
-              }}
-            >
-              {countContent}
-            </span>
-          </>
-        )}
+            {countContent}
+          </span>}
 
-        {(rightExtra || (addButtonTitle && onAdd)) && (
-          <span className="left-sb-inline-actions">
-            {rightExtra}
-            {addButtonTitle && onAdd && (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onAdd(event);
-                }}
-                title={addButtonTitle}
-                aria-haspopup={addButtonHasPopup}
-                aria-expanded={addButtonHasPopup ? addButtonExpanded : undefined}
-                className={`left-sb-group-add left-sb-inline-add-button${
-                  addButtonVisibility === 'always' ? ' left-sb-group-add--always' : ''
-                }${addButtonExpanded ? ' left-sb-group-add--expanded' : ''}${
-                  collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''
-                }`}
-                style={{ width: 18, height: 18 }}
-              >
-                <Plus size={12} strokeWidth={1.6} />
-              </button>
-            )}
-          </span>
-        )}
+          {(rightExtra || (addButtonTitle && onAdd)) && (
+            <span className="left-sb-inline-actions">
+              {rightExtra}
+              {addButtonTitle && onAdd && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAdd(event);
+                  }}
+                  title={addButtonTitle}
+                  aria-haspopup={addButtonHasPopup}
+                  aria-expanded={addButtonHasPopup ? addButtonExpanded : undefined}
+                  className={`left-sb-group-add left-sb-inline-add-button${
+                    addButtonVisibility === 'always' ? ' left-sb-group-add--always' : ''
+                  }${addButtonExpanded ? ' left-sb-group-add--expanded' : ''}${
+                    collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''
+                  }`}
+                  style={{ width: 18, height: 18 }}
+                >
+                  <Plus size={12} strokeWidth={1.6} />
+                </button>
+              )}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

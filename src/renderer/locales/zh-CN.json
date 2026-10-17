@@ -263,7 +263,7 @@
       "density": "界面密度",
       "animations": "动效与过渡",
       "agent_edit_reveal": "Agent 编辑 reveal 动画",
-      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改。关闭后直接显示结果，未读改动标记保留到看过后。",
+      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改。关闭后直接显示结果，未读改动标记保留到看过或点击标记后。",
       "animations_desc": "界面过渡与任务活动反馈。"
     },
     "editor": {
@@ -1215,6 +1215,7 @@
     "collapseTitle": "收起{{label}}"
   },
   "agentActivity": {
+    "markSeen": "将 Agent 改动标为已读",
     "unviewedChanges": "未查看的 Agent 改动",
     "working": "Agent 正在处理",
     "addedHere": "Agent 新建了这里；首次打开会播放全文 reveal",

@@ -1279,6 +1279,17 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   box-sizing: border-box;
 }
 
+.left-sb-group-header__legend {
+  display: contents;
+}
+
+.left-sb-group-header--frame .left-sb-group-header__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .left-sb-group-header__frame-disclosure {
   display: flex;
   align-items: center;
@@ -1415,6 +1426,25 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.element-identity-tile__open {
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.element-identity-tile__open:focus-visible {
+  outline: 2px solid hsl(var(--ink-1) / 0.72);
+  outline-offset: 1px;
 }
 
 .element-identity-tile__agent {
