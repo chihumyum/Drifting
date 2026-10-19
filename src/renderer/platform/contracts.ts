@@ -9,6 +9,24 @@ import type { McpClient, McpServerConnection, McpServerCreateInput, McpServerPer
  * storage or a legacy bridge.
  */
 
+/** Native copies only project-owned assets, never a renderer-supplied source path. */
+export interface MarkdownProjectionAsset {
+  path: string;
+  assetId: string;
+  variant: 'source' | 'display';
+  ext: string;
+  sourceSha256: string | null;
+  sourceSizeBytes: number | null;
+}
+
+export interface MarkdownProjectionDocument {
+  key: string;
+  path: string;
+  title: string;
+  anchor: string | null;
+  sourceVersion: string | null;
+}
+
 export interface MarkdownProjectionInfo {
   directory: string;
   customRoot: string | null;
@@ -751,7 +769,7 @@ export interface TauriCommandContract {
     result: MarkdownProjectionInfo;
   };
   markdown_projection_write: {
-    args: { projectId: string; generatedAt: string; entries: { path: string; text: string }[] };
+    args: { projectId: string; generatedAt: string; entries: { path: string; text: string }[]; assets: MarkdownProjectionAsset[]; documents: MarkdownProjectionDocument[] };
     result: MarkdownProjectionInfo;
   };
   mcp_server_list: { args: undefined; result: McpServerConnection[] };

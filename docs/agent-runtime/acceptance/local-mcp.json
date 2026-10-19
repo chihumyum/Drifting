@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-14T17:15:43.955Z",
-  "sourceSha256": "9bee325713ed5953e2b257ed0118940ad641363e2093e909435513f9a0e302d3",
+  "generatedAt": "2026-10-19T17:55:21.732Z",
+  "sourceSha256": "366e40ed38c9cc41932b4c956fb5344c684bb0a933c7ae7991b305ab663eeef7",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -246,11 +246,27 @@
       "status": "passed"
     },
     {
-      "name": "automatic read-only Markdown projection uses authoritative Yjs, body-only stable files and explicit one-way instructions",
+      "name": "automatic read-only Markdown projection merges readable documents and keeps canonical source versions in the manifest mapping",
       "status": "passed"
     },
     {
-      "name": "automatic read-only Markdown projection renders location links with the current names and read_chapter lines of their targets",
+      "name": "automatic read-only Markdown projection renders passage citations directly to the readable entity files",
+      "status": "passed"
+    },
+    {
+      "name": "Obsidian projection interoperability resolves every relative link and stable block reference independently of the vault nesting",
+      "status": "passed"
+    },
+    {
+      "name": "Obsidian projection interoperability plans JPEG previews for unsupported images and rejects missing referenced asset metadata",
+      "status": "passed"
+    },
+    {
+      "name": "reader-facing Markdown tree preserves act boundaries, drift folders and scene/beat/note levels in complete named documents",
+      "status": "passed"
+    },
+    {
+      "name": "reader-facing Markdown tree handles duplicate names, Unicode normalization, reserved names and file-directory collisions without leaking full IDs",
       "status": "passed"
     },
     {
@@ -550,7 +566,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
@@ -562,15 +578,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
@@ -594,11 +610,15 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
       "status": "passed"
     },
     {
@@ -606,7 +626,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
       "status": "passed"
     },
     {
@@ -614,7 +634,23 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
       "status": "passed"
     },
     {
@@ -622,11 +658,19 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
       "status": "passed"
     }
   ],

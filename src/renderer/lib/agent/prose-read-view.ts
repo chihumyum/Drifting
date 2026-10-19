@@ -1,8 +1,7 @@
 import { docToBlocks, type LocationFormatter } from './serialize';
 
-/** The same body-only Markdown in shared tools and the read-only disk projection.
- * One editor block occupies one line; blank lines separate blocks. Both pass
- * the same location formatter so cited passages render identically. */
+/** Canonical body-only Markdown shared by Agent tools and projection source versions.
+ * One editor block occupies one line; blank lines separate blocks. The Obsidian disk projection adapts links and adds block anchors separately. */
 export function proseReadMarkdown(contentJson: string, locations?: LocationFormatter): string {
   return docToBlocks(contentJson, false, locations)
     .map(block => (block.markdown ?? block.text).replace(/\r?\n/gu, '<br>'))

@@ -1,7 +1,8 @@
 // Drifting location links: a file-system-style address for a passage of
 // authored prose, modeled on the read-only Markdown projection. Every prose
-// entity owns one `prose.md` whose block N occupies line 2N-1 (the numbering
-// read_chapter, exact search and the projection share).
+// entity has a canonical `prose.md` view whose block N occupies line 2N-1.
+// read_chapter and exact search share this numbering; the Obsidian disk format
+// adapts links and adds metadata/block anchors, so its physical lines differ.
 //
 //   drifting:chapters/<title | id-<id>>/prose.md#L12-L18      document / Agent form
 //   drifting://open/<projectId>/chapters/id-<id>/prose.md#L12  operating-system form

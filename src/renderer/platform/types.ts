@@ -2,6 +2,8 @@ import type { McpServerPlatformApi } from './mcp-server-contract';
 import type {
   AILogWriteResult,
   MarkdownProjectionInfo,
+  MarkdownProjectionAsset,
+  MarkdownProjectionDocument,
   AppUpdateDownloadEvent,
   AppUpdateMetadata,
   AppInfo,
@@ -383,7 +385,7 @@ export interface PlatformApi {
     info(projectId: string): Promise<MarkdownProjectionInfo>;
     pickOutputRoot(title: string): Promise<string | null>;
     setOutputRoot(projectId: string, customRoot: string | null): Promise<MarkdownProjectionInfo>;
-    write(projectId: string, generatedAt: string, entries: { path: string; text: string }[]): Promise<MarkdownProjectionInfo>;
+    write(projectId: string, generatedAt: string, entries: { path: string; text: string }[], assets: MarkdownProjectionAsset[], documents: MarkdownProjectionDocument[]): Promise<MarkdownProjectionInfo>;
   };
   readonly mcpServer: McpServerPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;

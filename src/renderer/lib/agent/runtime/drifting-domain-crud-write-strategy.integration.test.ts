@@ -231,9 +231,11 @@ describe('workspace domain CRUD transactions', () => {
     const captured = await readLocalRelationalMarkdownSource(PROJECT_ID);
     expect(captured.books.map(book => book.project.id)).toEqual([PROJECT_ID]);
     const mirror = await buildRelationalMarkdownEntries(captured, true);
-    const bodyFile = mirror.entries.find(entry => entry.path.endsWith('/prose.md') && entry.text.includes('UniqueSyntheticBody'))!;
-    expect(bodyFile.text).toBe('UniqueSyntheticBody.\n\nSecond paragraph.');
-    expect(`sha256:${createHash('sha256').update(bodyFile.text).digest('hex')}`).toBe(version);
+    const bodyFile = mirror.entries.find(entry => entry.path.startsWith('正文/') && entry.text.includes('UniqueSyntheticBody'))!;
+    expect(bodyFile.text).toContain('UniqueSyntheticBody. ^drift-');
+    expect(bodyFile.text).toContain('Second paragraph. ^drift-');
+    expect(mirror.documents.find(document => document.path === bodyFile.path)!.sourceVersion).toBe(version);
+    expect(`sha256:${createHash('sha256').update(bodyFile.text).digest('hex')}`).not.toBe(version);
     const range = await mcpCall(writer, 'read_chapter', { chapter: 'Numbered fixture', startLine: 3, endLine: 3, version });
     expect(range.content[0]!.text).toContain('3\tSecond paragraph.');
     expect(range.content[0]!.text).not.toContain('UniqueSyntheticBody');

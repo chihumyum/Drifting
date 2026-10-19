@@ -1,16 +1,17 @@
 # Location links
 
-A location link addresses a passage of authored prose the way the read-only
-[Markdown projection](local-data-export.md) addresses files: an entity body is a
-`prose.md` whose editor block N occupies line `2N-1`, the numbering shared by
-`read_chapter`, exact search and the projection.
+A location link addresses a passage of authored prose through a canonical
+`prose.md` view whose editor block N occupies line `2N-1`, the numbering shared
+by `read_chapter` and exact search. The read-only [Obsidian disk projection](local-data-export.md)
+adapts this view to relative links and stable block anchors; its physical file
+lines are not these canonical coordinates.
 
 ## Addresses
 
 ```
 drifting:chapters/<title | id-<id>>/prose.md#L12-L18      document and Agent form
 drifting://open/<projectId>/chapters/id-<id>/prose.md#L12  operating-system form
-../../chapters/id-<id>/prose.md#L12                        projection-relative path
+../../chapters/id-<id>/prose.md#L12                        accepted relative tool-input path
 ```
 
 Groups are `chapters`, `drifts`, `elements`, `categories` and `storylines`;
@@ -31,10 +32,11 @@ A deleted cited paragraph renders as the entity-only link; a deleted entity
 renders the plain label. Mentions without a paragraph anchor stay invisible in
 Agent Markdown as before.
 
-Agent prose reads (`read_node`/`read_chapter` numbered view) and projected
-`prose.md` render through one formatter, so they stay byte-identical. Because a
-link shows its target's current lines, a body's read `version` and projection
-hash also change when a cited paragraph moves or its target is renamed.
+Agent prose reads (`read_node`/`read_chapter` numbered view) use the canonical
+formatter. The Obsidian projection records this version in the hidden manifest's `documents[].sourceVersion`,
+then renders human-named documents and file-relative links with `#^drift-…` block anchors. Its file hash and
+line numbers differ from tool output. Canonical versions change when a citation's
+rendered target name or lines change; Obsidian anchors keep the same block identity.
 `read_element` returns a plain body plus `locationLinks: [{ text, href }]`;
 model-facing projected text lists them as `正文中的实体连接：label（href）`.
 

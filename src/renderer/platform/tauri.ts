@@ -949,7 +949,7 @@ export const tauriPlatform: PlatformApi = {
     setOutputRoot: (projectId, customRoot) => invokeContract('markdown_projection_set_output_root', { projectId, customRoot }),
     remove: (projectId) => invokeContract('markdown_projection_remove', { projectId }),
     info: (projectId) => invokeContract('markdown_projection_info', { projectId }),
-    write: (projectId, generatedAt, entries) => invokeContract('markdown_projection_write', { projectId, generatedAt, entries }),
+    write: (projectId, generatedAt, entries, assets, documents) => invokeContract('markdown_projection_write', { projectId, generatedAt, entries, assets, documents }),
   },
 
   mcpServer: {

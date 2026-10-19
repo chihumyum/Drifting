@@ -184,6 +184,13 @@ remain unchanged.
   is retained on relocation. The MCP panel only links to these settings in one
   explanatory sentence. New connections use the saved custom location.
   `get_project_overview` reports the same projection status to both Agents.
+  The disk format supports Obsidian via relative links, stable block references,
+  YAML alias lists and local image/PDF attachments. Disk lines/hashes differ from
+  `read_chapter`; `.drifting/manifest.json` maps full entity identities to readable
+  filenames and records canonical `sourceVersion` values. Start at `开始阅读.md`;
+  chapters use reading-order numbers and existing act folders, elements use
+  existing categories, and comments/TODOs are aggregated. Rename/reorder refreshes
+  rebuild internal links; external hand-written file links may become stale.
 
 See [local Markdown projection](../local-data-export.md#automatic-read-only-project-projection)
 for layout, freshness, cleanup and the one-way boundary. Reading a disk file

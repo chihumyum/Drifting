@@ -31,73 +31,137 @@ Automatic captures wait while the active editor is composing IME text and check
 again between asynchronous stages. Manual refresh and lifecycle flush still run;
 the authoritative incremental Yjs save path is independent of this deferral.
 
-```
-README.md
-index.md
-manifest.json
-project/
-  index.md
-  chapters/id-<entity ID>/{index.md,prose.md}
-  drifts/id-<entity ID>/{index.md,prose.md}
-  elements/id-<entity ID>/{index.md,prose.md}
-  categories/id-<entity ID>/{index.md,prose.md}
-  storylines/id-<entity ID>/{index.md,prose.md}
-  comments/id-<entity ID>/index.md
-  library/id-<entity ID>/index.md
+```text
+开始阅读.md
+正文/
+  目录.md
+  001 序章.md                    # chapters before the first act stay outside acts
+  01 第一幕/
+    本幕.md
+    002 雨夜.md
+构想/
+  片段/窗边的片段.md
+要素/
+  人物/
+    分类说明.md
+    林岚.md
+故事线/主线.md
+资料/
+  建筑参考.md
+  附件/建筑参考.pdf
+注释与待办.md
+导出说明.md
+.drifting/manifest.json
 ```
 
-Entity IDs are percent-encoded. Renaming/reordering entities does not move their
-files. Entity indexes contain names, summaries and relations; `prose.md` contains
-only the shared Agent Markdown body. Each editor block occupies a single line
-with `<br>` for embedded breaks, separated by a blank line; empty blocks remain.
-Thus block N begins on line `2N-1`, matching `read_chapter` and exact-search body
-coordinates. Number prefixes are never saved in these files. Cited passages
-render as [location links](location-links.md) with their targets' current names
-and lines; the README states the format and this project's `drifting://open/` prefix.
+The directory is designed for readers. Every chapter, drift, element and
+storyline is one complete named document containing its summary, prose and
+related links. There are no per-entity ID folders or `index.md`/`prose.md` pairs.
+The home page shows the project title, capture time, read-only notice and entry
+links. The chapter directory follows reading order, with summaries and writing
+status; chapters are numbered and grouped using the existing act boundaries.
+Pre-act chapters remain unassigned, and empty acts have their own guide. Drift
+folders use existing drift groups, and element folders use existing categories.
+Scene/beat/note headings retain their hierarchy below the chapter heading.
+Comments and TODOs are collected by target in `注释与待办.md`, with links from
+related documents and optional links to the cited source paragraph.
+
+Names are normalized, bounded by UTF-8 byte length and cleaned for filesystem and
+Markdown safety, including Windows reserved names. Case-insensitive collisions
+receive a deterministic short suffix; full IDs do not appear in readable names.
+Titles and aliases remain intact inside the document. Chapter filenames express
+order rather than the authored floating-point timeline coordinate. Rename,
+reorder or grouping changes can change paths: every capture rebuilds all internal
+links, while external hand-written links are not guaranteed to survive.
+
+Reader-facing YAML contains alias lists and writing status only. The hidden
+`.drifting/manifest.json` stores generation time, content hashes and a `documents`
+identity map (`key`, `path`, `title`, optional `anchor`, canonical `sourceVersion`).
+Multiple comments can map to different anchors in the same aggregate document.
+Resolve identities through this map rather than guessing filenames. The existing
+project output location is retained for in-place upgrades; the project's title is
+shown in the reading home page. All internal navigation, relations, mentions and
+citations use file-relative Markdown destinations, so the whole directory can be
+opened as a vault or moved beneath any folder in an existing vault. Obsidian's
+own settings are unmanaged. No plugin or generated `.obsidian` configuration is
+required. See [Obsidian links](https://obsidian.md/help/links) and
+[aliases](https://obsidian.md/help/aliases) for target syntax.
+
+Block identifiers encode stable editor block IDs as UTF-8 hex, so punctuation or
+Unicode cannot collide and paragraph insertion does not retarget a citation.
+Never-initialized seed blocks without IDs receive positional fallback anchors.
+Paragraph/heading/quote/empty blocks remain readable; quotes and other structured
+blocks have a separate anchor paragraph. Range citations link both the first and
+last block, since Obsidian does not highlight an arbitrary block range. Deleted
+paragraphs fall back to the entity body; deleted entities render as plain labels.
+The Agent's `drifting:` citation protocol and tool `read_chapter` numbering stay
+unchanged. Disk prose adds metadata and anchors and adapts links, so its physical
+line numbers and file hashes **are not** tool line numbers or versions.
+`documents[].sourceVersion` in the manifest holds the source tool version at capture time. Reread
+through authorized tools for current coordinates before a write.
+
+Referenced live element portraits and library image/PDF sources are copied from
+the current project's app-owned asset store into
+`资料/附件/<readable owner title>.<ext>`. Notes contain relative embeds and an
+original-file link. Unsupported source image formats (for example HEIC and TIFF)
+include the existing JPEG display derivative for preview. Copying is local-only;
+no remote download or hosted API is triggered. Missing metadata, missing local
+bytes, source size/hash mismatch or unavailable preview rejects the refresh before
+managed files change, and settings report the error. Attachments share the
+20,000-file/256-MiB generation limit with Markdown. Manual ZIP export below retains
+its existing text-only scope.
 
 **This is a read-only, one-way projection. There is no reverse sync.** Editing
 files never updates Drifting; a refresh can overwrite edits. Use Drifting or its
 authorized domain tools to change content. No file watcher or Markdown import
 feeds these files back into SQLite/Yjs. On Unix, generated files are mode 0400
 and created directories are mode 0700. This is not a boundary against the same
-OS user deliberately changing permissions. Images/PDF bytes and runtime records
-are excluded; this is not a lossless backup.
+OS user deliberately changing permissions. The projection omits CRDT history,
+runtime records and full database metadata; it is not a lossless backup.
 
 The same local durability barrier and authoritative Yjs hydration as ZIP export
-precede generation. A failed/corrupt capture does not publish fabricated prose.
+precede generation; in-flight local asset writes are also drained. A failed/corrupt
+capture does not publish fabricated prose. Every source attachment is verified
+against its captured immutable size and SHA-256 before any managed output changes.
 Writes use same-directory atomic replacement per file; the manifest is published
-last with generation time and SHA-256 hashes. A private pending manifest records
-file ownership before writing, so interrupted generation can be retried without
-overwriting unrelated files. It is removed after successful publication and is
-not a freshness indicator. A body file's hash with `sha256:`
-prefix equals its shared tool `version`. Multi-file reads are not a transaction:
-verify hashes against an unchanged manifest, or retry while refresh is pending.
-A write interrupted partway may leave a hash mismatch until the next refresh.
-Settings and the project overview expose errors; derived-output failure never
-blocks saving the authoritative manuscript.
+last with generation time and SHA-256 hashes of Markdown and binary attachments.
+A private `.drifting/pending-manifest.json` records file ownership before writing, so interrupted
+generation can be retried without overwriting unrelated files. It is removed after
+successful publication and is not a freshness indicator. Multi-file reads are not
+a transaction: verify hashes against an unchanged manifest, or retry while refresh
+is pending. A write interrupted partway may leave a hash mismatch until the next
+refresh. Settings and the project overview expose errors; derived-output failure
+never blocks saving the authoritative manuscript.
 
 Closed projects retain their last snapshot; consult the manifest time and reopen
-to refresh. Soft-deleted entities disappear on refresh. Deleting a project
-removes its manifest-owned files at the current location and the location
-preference after stopping/draining its writer. Previously retained locations
-remain. Unmanaged files are preserved, including collisions with newly generated
-paths: those reject the write before managed prose changes. Path traversal,
-duplicate paths, symlinks and hard-linked files are rejected; only manifest-owned
-files (including interrupted-write claims) may be removed.
+to refresh. Soft-deleted entities and their unreferenced attachments disappear on
+refresh. Deleting a project removes its manifest-owned files at the current
+location and the location preference after stopping/draining its writer. Previously
+retained locations remain. Unmanaged files (including `.obsidian`) are preserved;
+collisions with newly generated paths reject the write before managed prose
+changes. Path traversal, duplicate paths, symlinks and hard-linked files are
+rejected; only manifest-owned files (including interrupted-write claims) may be
+removed. Manifest schema 3 identifies the readable format and entity map. Schema 1/2 root
+`manifest.json` and interrupted `.pending-manifest.json` ownership are still read.
+A successful refresh publishes the new hidden manifest, removes old owned paths
+and legacy manifests, and prunes only empty managed folders. Unmanaged files and
+Obsidian configuration remain. Existing projections upgrade on the next successful refresh
+without changing the output path or deleting user files.
 
 MCP settings retain one line pointing external Agents to the read-only projection
 and its settings location. MCP initialization, projection settings, the directory
-README and the shared project overview state the read-only/no-reverse-sync restriction. The path
-is local to the computer running Drifting. External file reads do not satisfy
-the MCP session's read-before-write requirement. New MCP connections resolve the
-saved output preference; existing connections can query `get_project_overview`
-for the updated directory and generation status.
+README and the shared project overview state the read-only/no-reverse-sync
+restriction. The path is local to the computer running Drifting. External file
+reads do not satisfy the MCP session's read-before-write requirement. New MCP
+connections resolve the saved output preference; existing connections can query
+`get_project_overview` for the updated directory and generation status.
 
 Machine evidence for this projection and shared prose access is generated by
 `pnpm mcp:acceptance` in
 [`agent-runtime/acceptance/local-mcp.json`](agent-runtime/acceptance/local-mcp.json).
-It includes production SQLite/Yjs tool-to-file version/line agreement, literal
-search, scheduler behavior, stable export paths and native filesystem writes.
+It includes production SQLite/Yjs source-version agreement, portable relative links and stable
+Obsidian anchors, alias lists, attachment plans, literal
+search, scheduler behavior, readable naming, rename/reorder link regeneration and native filesystem writes.
 `node scripts/run-markdown-projection-settings.mjs` generates
 [`projection-settings-ui.json`](agent-runtime/acceptance/projection-settings-ui.json)
 from browser clicks on the real React settings components in English and Chinese.
@@ -105,6 +169,13 @@ It covers cancellation, choose/reset/refresh, failure feedback and narrow deskto
 layout, with synthetic picker/service actions. Pass `--check` to verify its source
 fingerprint. The native OS folder-picker dialog is not exercised by this browser
 report; filesystem and scheduling behavior are tested separately above.
+
+`node scripts/run-obsidian-projection-acceptance.mjs` generates
+[`obsidian-projection.json`](agent-runtime/acceptance/obsidian-projection.json)
+using an isolated installed Obsidian profile and synthetic vaults. It checks actual
+metadata-cache link resolution, block anchors, alias lists and image/PDF rendering
+for a projection embedded inside another vault. No personal vault or manuscript is
+used. Pass `--check` to verify the report's source fingerprint.
 
 ## Manual ZIP export
 

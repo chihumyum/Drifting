@@ -4,6 +4,8 @@ import { getDb } from '../../lib/db';
 import { proseDocId } from '../../lib/yjs-doc-id';
 import {
   BookElementTable,
+  BookActTable,
+  DriftGroupTable,
   BookNodeTable,
   CommentTable,
   ElementCategoryTable,
@@ -13,6 +15,7 @@ import {
   NodeContentTable,
   NodeStorylineLinkTable,
   ProjectTable,
+  ProjectAssetTable,
   StorylineTable,
   yjsSnapshots,
   yjsUpdates,
@@ -30,7 +33,12 @@ export type LocalExportRelation = typeof EntityRelationTable.$inferSelect;
 export type LocalExportRelationType = typeof EntityRelationTypeTable.$inferSelect;
 export type LocalExportStorylineLink = typeof NodeStorylineLinkTable.$inferSelect;
 
+export type LocalExportAsset = typeof ProjectAssetTable.$inferSelect;
+
 export interface LocalExportGraph {
+  assets: LocalExportAsset[];
+  acts: (typeof BookActTable.$inferSelect)[];
+  driftGroups: (typeof DriftGroupTable.$inferSelect)[];
   nodes: LocalExportNode[];
   nodeContents: LocalExportNodeContent[];
   elements: LocalExportElement[];
@@ -101,6 +109,9 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
       .from(ProjectTable)
       .where(projectId ? eq(ProjectTable.id, projectId) : undefined)
       .orderBy(asc(ProjectTable.name), asc(ProjectTable.id));
+    const acts = await tx.select().from(BookActTable).where(projectId ? eq(BookActTable.projectId, projectId) : undefined).orderBy(asc(BookActTable.id));
+    const driftGroups = await tx.select().from(DriftGroupTable).where(projectId ? eq(DriftGroupTable.projectId, projectId) : undefined).orderBy(asc(DriftGroupTable.id));
+    const assets = await tx.select().from(ProjectAssetTable).where(projectId ? eq(ProjectAssetTable.projectId, projectId) : undefined).orderBy(asc(ProjectAssetTable.id));
     const nodes = await tx.select().from(BookNodeTable).where(projectId ? eq(BookNodeTable.projectId, projectId) : undefined).orderBy(asc(BookNodeTable.id));
     const nodeIds = nodes.map(node => node.id);
     const nodeScope = (column: typeof NodeContentTable.nodeId | typeof NodeStorylineLinkTable.nodeId) =>
@@ -152,6 +163,7 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
       .where(projectId ? (docIds.length ? inArray(yjsUpdates.docId, docIds) : sql`0`) : undefined)
       .orderBy(asc(yjsUpdates.id));
 
+    const assetsByProject = groupByProject(assets);
     const nodesByProject = groupByProject(nodes);
     const elementsByProject = groupByProject(elements);
     const categoriesByProject = groupByProject(categories);
@@ -181,6 +193,9 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
     const books: LocalExportBook[] = projects.map((project) => ({
       project,
       graph: {
+        assets: assetsByProject.get(project.id) ?? [],
+        acts: acts.filter(act => act.projectId === project.id),
+        driftGroups: driftGroups.filter(group => group.projectId === project.id),
         nodes: nodesByProject.get(project.id) ?? [],
         nodeContents: nodeContentsByProject.get(project.id) ?? [],
         elements: elementsByProject.get(project.id) ?? [],

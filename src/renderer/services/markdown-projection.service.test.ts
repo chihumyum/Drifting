@@ -26,7 +26,7 @@ beforeEach(() => {
   fixture.info.mockResolvedValue({ directory: '/synthetic/projection', generatedAt: null, readOnly: true, reverseSync: false });
   fixture.write.mockResolvedValue({ directory: '/synthetic/projection', generatedAt: '2026-10-02T00:00:00Z', readOnly: true, reverseSync: false });
   fixture.read.mockResolvedValue({ books: [{ project: { id: 'synthetic' } }], proseByDocId: new Map() });
-  fixture.build.mockResolvedValue({ entries: [{ path: 'README.md', text: 'Read-only' }], documentCount: 1 });
+  fixture.build.mockResolvedValue({ entries: [{ path: 'README.md', text: 'Read-only' }], documentCount: 1, assets: [], documents: [] });
   fixture.flush.mockResolvedValue(undefined);
 });
 

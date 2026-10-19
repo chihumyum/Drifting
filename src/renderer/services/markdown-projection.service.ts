@@ -6,6 +6,7 @@ import { getActiveEditor } from '../lib/active-editor';
 import { beginDevActivity } from '../lib/dev-activity';
 import { events } from '../lib/events';
 import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction';
+import { flushPendingAssetPersistence } from './asset-store.service';
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
 import { buildRelationalMarkdownEntries } from './export/relational-markdown.service';
@@ -75,14 +76,18 @@ export function installMarkdownProjection(projectId: string): () => void {
     await flushAllOpenYjsDocuments();
     if (!active()) return;
     if (yieldToComposition()) return;
+    await flushPendingAssetPersistence();
+    if (!active()) return;
+    if (yieldToComposition()) return;
     const source = await readLocalRelationalMarkdownSource(projectId);
     if (!active()) return;
     if (yieldToComposition()) return;
     if (source.books.length !== 1) throw new Error('Projection project no longer exists');
-    const { entries } = await buildRelationalMarkdownEntries(source, true);
+    const capturedAt = new Date();
+    const { entries, assets, documents } = await buildRelationalMarkdownEntries(source, true, capturedAt);
     if (!active()) return;
     if (yieldToComposition()) return;
-    const result = await platform.markdownProjection.write(projectId, new Date().toISOString(), entries);
+    const result = await platform.markdownProjection.write(projectId, capturedAt.toISOString(), entries, assets, documents);
     if (active()) publish(projectId, { ...result, state: 'ready', error: undefined });
   }, error => {
     if (active()) publish(projectId, { state: 'error', error: error instanceof Error ? error.message : String(error) });

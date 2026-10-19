@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { posix } from 'node:path';
+import { marked } from 'marked';
 import { readFileSync } from 'node:fs';
 
 import JSZip from 'jszip';
@@ -51,6 +55,9 @@ async function sourceFixture(): Promise<LocalRelationalMarkdownSource> {
           updatedAt: NOW,
         },
         graph: {
+          assets: [],
+          acts: [],
+          driftGroups: [],
           nodes: [
             {
               id: SNAPSHOT_NODE_ID,
@@ -411,36 +418,198 @@ describe('local relational Markdown export acceptance', () => {
 });
 
 
+function projectedDocument(result: Awaited<ReturnType<typeof buildRelationalMarkdownEntries>>, kind: string, id: string) {
+  const document = result.documents.find(item => item.key === `${kind}:${id}`)!;
+  return { ...document, text: result.entries.find(entry => entry.path === document.path)!.text };
+}
+
 describe('automatic read-only Markdown projection', () => {
-  it('uses authoritative Yjs, body-only stable files and explicit one-way instructions', async () => {
+  it('merges readable documents and keeps canonical source versions in the manifest mapping', async () => {
     const source = await sourceFixture();
     const before = await buildRelationalMarkdownEntries(source, true);
-    const body = before.entries.find(entry => entry.path === `project/chapters/id-${SNAPSHOT_NODE_ID}/prose.md`)!;
-    expect(body.text).toBe('Snapshot Yjs truth');
-    expect(before.entries.find(entry => entry.path === 'README.md')!.text).toContain('NO reverse sync');
-    expect(before.entries.some(entry => entry.path.includes('node-deleted-0004'))).toBe(false);
-    expect(before.entries.find(entry => entry.path === `project/chapters/id-${UPDATE_NODE_ID}/prose.md`)!.text).toBe('Update-log Yjs truth');
+    const body = projectedDocument(before, 'node', SNAPSHOT_NODE_ID);
+    expect(body.path).toBe('正文/001 -Snapshot -Chapter-.md');
+    expect(body.text).toContain('Snapshot Yjs truth ^drift-');
+    expect(body.text).not.toContain('drifting_source_version:');
+    expect(body.sourceVersion).toBe(`sha256:${createHash('sha256').update('Snapshot Yjs truth').digest('hex')}`);
+    expect(before.entries.find(entry => entry.path === '导出说明.md')!.text).toContain('NO reverse sync');
+    expect(before.documents.some(item => item.key.includes('node-deleted-0004'))).toBe(false);
+    expect(projectedDocument(before, 'node', UPDATE_NODE_ID).text).toContain('Update-log Yjs truth ^drift-');
     const node = source.books[0]!.graph.nodes.find(node => node.id === SNAPSHOT_NODE_ID)!;
-    node.title = 'Renamed without moving the body';
+    node.title = 'Renamed readable chapter';
     node.bookOrder = 100;
     const after = await buildRelationalMarkdownEntries(source, true);
-    expect(after.entries.find(entry => entry.path === body.path)).toEqual(body);
-    expect(after.entries.find(entry => entry.path === `project/chapters/id-${SNAPSHOT_NODE_ID}/index.md`)!.text).toContain('Renamed without moving the body');
+    const renamed = projectedDocument(after, 'node', SNAPSHOT_NODE_ID);
+    expect(renamed.path).toBe('正文/003 Renamed readable chapter.md');
+    expect(renamed.sourceVersion).toBe(body.sourceVersion);
+    expect(after.entries.some(entry => entry.path === body.path)).toBe(false);
+    expect(renamed.text).toContain('Snapshot Yjs truth ^drift-');
   });
 
-  it('renders location links with the current names and read_chapter lines of their targets', async () => {
+  it('renders passage citations directly to the readable entity files', async () => {
     const source = await sourceFixture();
-    const element = source.books[0]!.graph.elements[0]!;
-    element.contentJson = proseJson('See the update', [{
-      type: 'entityLink',
-      attrs: { targetKind: 'node', targetId: UPDATE_NODE_ID, targetBlockId: 'block-update-log-yjs-truth', targetEndBlockId: null },
-    }]);
-    const { entries } = await buildRelationalMarkdownEntries(source, true);
-    expect(entries.find(entry => entry.path === `project/elements/id-${ELEMENT_ID}/prose.md`)!.text).toBe(
-      '[See the update](drifting:chapters/Update%20chapter/prose.md#L1)',
-    );
-    const readme = entries.find(entry => entry.path === 'README.md')!.text;
-    expect(readme).toContain('[文字](drifting:chapters/<标题>/prose.md#L12-L18)');
-    expect(readme).toContain(`drifting://open/${PROJECT_ID}/chapters/id-<实体 ID>/prose.md#L12`);
+    source.books[0]!.graph.elements[0]!.contentJson = proseJson('See the update', [{ type: 'entityLink', attrs: {
+      targetKind: 'node', targetId: UPDATE_NODE_ID, targetBlockId: 'block-update-log-yjs-truth', targetEndBlockId: null,
+    } }]);
+    const result = await buildRelationalMarkdownEntries(source, true);
+    const body = projectedDocument(result, 'element', ELEMENT_ID);
+    expect(body.path).toBe('要素/People/Hero.md');
+    expect(body.text).toContain('[See the update](../../%E6%AD%A3%E6%96%87/002%20Update%20chapter.md#^drift-');
+    expect(result.entries.some(entry => /(?:index|prose)\.md$/u.test(entry.path))).toBe(false);
+  });
+});
+
+describe('Obsidian projection interoperability', () => {
+  it('resolves every relative link and stable block reference independently of the vault nesting', async () => {
+    const source = await sourceFixture();
+    const graph = source.books[0]!.graph;
+    const target = graph.nodes.find(node => node.id === UPDATE_NODE_ID)!;
+    target.title = 'Target [quoted]';
+    source.proseByDocId.delete(proseDocId('node', UPDATE_NODE_ID));
+    graph.nodeContents.find(content => content.nodeId === UPDATE_NODE_ID)!.contentJson = JSON.stringify({ type: 'doc', content: [
+      { type: 'paragraph', attrs: { id: 'opening-段' }, content: [{ type: 'text', text: 'Opening paragraph.' }] },
+      { type: 'blockquote', attrs: { id: 'quote-block' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Quoted paragraph.' }] }] },
+      { type: 'heading', attrs: { id: 'closing-block', level: 2 }, content: [{ type: 'text', text: 'Closing heading' }] },
+      { type: 'paragraph', attrs: { id: 'empty-block' }, content: [] },
+    ] });
+    const element = graph.elements[0]!;
+    element.aliasesJson = JSON.stringify(['Hero, the first', '别名[甲]', 'a: b']);
+    element.contentJson = proseJson('Read the range', [{ type: 'entityLink', attrs: {
+      targetKind: 'node', targetId: target.id, targetBlockId: 'opening-段', targetEndBlockId: 'closing-block',
+    } }]);
+    // A synthetic one-pixel image and a small PDF, both generated for this test.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jG2kAAAAASUVORK5CYII=', 'base64');
+    const pdfParts = ['%PDF-1.4\n'];
+    const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Resources << >> >>'];
+    const offsets = [0];
+    objects.forEach((object, index) => { offsets.push(Buffer.byteLength(pdfParts.join(''))); pdfParts.push(`${index + 1} 0 obj\n${object}\nendobj\n`); });
+    const xref = Buffer.byteLength(pdfParts.join(''));
+    pdfParts.push(`xref\n0 4\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+    const pdf = Buffer.from(pdfParts.join(''));
+    for (const [id, kind, mime, bytes] of [['image-asset', 'image', 'image/png', png], ['pdf-asset', 'pdf', 'application/pdf', pdf]] as const) {
+      graph.assets.push({ id, projectId: PROJECT_ID, kind, sourceMime: mime, sourceSizeBytes: bytes.length,
+        sourceSha256: createHash('sha256').update(bytes).digest('hex'), width: kind === 'image' ? 1 : null,
+        height: kind === 'image' ? 1 : null, createdAt: NOW });
+    }
+    element.portraitAssetId = 'image-asset';
+    graph.libraryItems.push({ ...graph.libraryItems[0]!, id: 'pdf-note', kind: 'pdf', title: 'Synthetic PDF', assetId: 'pdf-asset' });
+    const projection = await buildRelationalMarkdownEntries(source, true);
+    const paths = new Set([...projection.entries, ...projection.assets].map(entry => entry.path));
+    const byPath = new Map(projection.entries.map(entry => [entry.path, entry.text]));
+    for (const prefix of ['', 'Other Vault/Nested Project/']) {
+      for (const entry of projection.entries) {
+        marked.walkTokens(marked.lexer(entry.text), token => {
+          if (token.type !== 'link' && token.type !== 'image') return;
+          if (/^[a-z]+:/iu.test(token.href)) return;
+          const [destination, fragment] = token.href.split('#');
+          const resolved = posix.normalize(posix.join(posix.dirname(prefix + entry.path), decodeURIComponent(destination!)));
+          expect(resolved.startsWith(prefix)).toBe(true);
+          const targetPath = resolved.slice(prefix.length);
+          expect(paths.has(targetPath), `${entry.path} -> ${token.href}`).toBe(true);
+          if (fragment?.startsWith('^')) expect(byPath.get(targetPath)).toContain(fragment);
+        });
+      }
+    }
+    const bodyPath = projectedDocument(projection, 'element', ELEMENT_ID).path;
+    const body = byPath.get(bodyPath)!;
+    expect(body).toContain('（至[末段](');
+    expect(body).not.toContain('drifting:');
+    expect(byPath.get(bodyPath)).toContain('aliases: ["Hero","Hero, the first","别名[甲]","a: b"]');
+    expect(projectedDocument(projection, 'node', UPDATE_NODE_ID).path).toMatch(/^正文\/002 /u);
+    const firstAnchor = /#\^(drift-[a-f0-9]+)/u.exec(body)![1]!;
+    const json = JSON.parse(graph.nodeContents.find(content => content.nodeId === target.id)!.contentJson!);
+    json.content.unshift({ type: 'paragraph', attrs: { id: 'inserted' }, content: [{ type: 'text', text: 'Inserted before citation.' }] });
+    graph.nodeContents.find(content => content.nodeId === target.id)!.contentJson = JSON.stringify(json);
+    const updated = await buildRelationalMarkdownEntries(source, true);
+    expect(updated.entries.find(entry => entry.path === bodyPath)!.text).toContain(`#^${firstAnchor}`);
+    expect(projection.assets).toHaveLength(2);
+    if (process.env.DRIFTING_OBSIDIAN_FIXTURE === '1') {
+      const directory = '.local-data/obsidian-projection/generated';
+      for (const entry of projection.entries) {
+        mkdirSync(posix.dirname(`${directory}/${entry.path}`), { recursive: true });
+        writeFileSync(`${directory}/${entry.path}`, entry.text);
+      }
+      const binaries = new Map([['image-asset', png], ['pdf-asset', pdf]]);
+      for (const asset of projection.assets) {
+        mkdirSync(posix.dirname(`${directory}/${asset.path}`), { recursive: true });
+        writeFileSync(`${directory}/${asset.path}`, binaries.get(asset.assetId)!);
+      }
+      mkdirSync(`${directory}/.drifting`, { recursive: true });
+      writeFileSync(`${directory}/.drifting/manifest.json`, JSON.stringify({ schemaVersion: 3, projectId: PROJECT_ID,
+        documents: projection.documents,
+        generatedAt: NOW, readOnly: true, reverseSync: false,
+        files: Object.fromEntries([...projection.entries.map(entry => [entry.path, createHash('sha256').update(entry.text).digest('hex')]),
+          ...projection.assets.map(asset => [asset.path, asset.sourceSha256])]) }));
+    }
+  });
+
+  it('plans JPEG previews for unsupported images and rejects missing referenced asset metadata', async () => {
+    const source = await sourceFixture();
+    const graph = source.books[0]!.graph;
+    graph.elements[0]!.portraitAssetId = 'missing';
+    await expect(buildRelationalMarkdownEntries(source, true)).rejects.toThrow('Missing project asset metadata');
+    graph.assets.push({ id: 'missing', projectId: PROJECT_ID, kind: 'image', sourceMime: 'image/heic',
+      sourceSizeBytes: 1, sourceSha256: 'a'.repeat(64), width: 1, height: 1, createdAt: NOW });
+    const result = await buildRelationalMarkdownEntries(source, true);
+    expect(result.assets.map(asset => asset.path)).toEqual(['资料/附件/Hero.heic', '资料/附件/Hero(预览).jpg']);
+    expect(projectedDocument(result, 'element', ELEMENT_ID).text).toContain('%28%E9%A2%84%E8%A7%88%29.jpg)');
+    // Manual ZIP remains a readable migration archive, without binary copies.
+    expect((await buildRelationalMarkdownEntries(source)).assets).toEqual([]);
+  });
+});
+
+describe('reader-facing Markdown tree', () => {
+  it('preserves act boundaries, drift folders and scene/beat/note levels in complete named documents', async () => {
+    const source = await sourceFixture();
+    const graph = source.books[0]!.graph;
+    graph.acts.push({ id: 'act-a', projectId: PROJECT_ID, name: '第一幕', startOrder: 2, color: null, driftNodeId: null, createdAt: NOW, updatedAt: NOW });
+    graph.driftGroups.push({ id: 'g1', projectId: PROJECT_ID, name: '片段', parentGroupId: null, color: null, sortOrder: null, createdAt: NOW, updatedAt: NOW },
+      { id: 'g2', projectId: PROJECT_ID, name: '未采用', parentGroupId: 'g1', color: null, sortOrder: null, createdAt: NOW, updatedAt: NOW });
+    graph.nodes.push({ ...graph.nodes[0]!, id: 'drift-a', kind: 'drift', title: '窗边的片段', writingStatus: 'drifting', bookOrder: null, driftGroupId: 'g2' });
+    graph.nodeContents.push({ ...graph.nodeContents[0]!, nodeId: 'drift-a', contentJson: JSON.stringify({ type: 'doc', content: [1, 2, 3].map(level => ({
+      type: 'heading', attrs: { id: `level-${level}`, level }, content: [{ type: 'text', text: ['场景', '节拍', '笔记'][level - 1] }],
+    })) }) });
+    const result = await buildRelationalMarkdownEntries(source, true);
+    expect(projectedDocument(result, 'node', SNAPSHOT_NODE_ID).path).toMatch(/^正文\/001 /u);
+    expect(projectedDocument(result, 'node', UPDATE_NODE_ID).path).toBe('正文/01 第一幕/002 Update chapter.md');
+    const drift = projectedDocument(result, 'node', 'drift-a');
+    expect(drift.path).toBe('构想/片段/未采用/窗边的片段.md');
+    expect(drift.text).toContain('## 场景');
+    expect(drift.text).toContain('### 节拍');
+    expect(drift.text).toContain('#### 笔记');
+    const contents = result.entries.find(entry => entry.path === '正文/目录.md')!.text;
+    expect(contents.indexOf('Snapshot')).toBeLessThan(contents.indexOf('第一幕'));
+    expect(contents.indexOf('第一幕')).toBeLessThan(contents.indexOf('Update chapter'));
+    expect(contents).toContain('草稿');
+    const comments = result.entries.find(entry => entry.path === '注释与待办.md')!;
+    expect(comments.text).toContain('Local comment');
+    expect(projectedDocument(result, 'node', SNAPSHOT_NODE_ID).text).toContain('注释');
+    expect(result.documents.find(document => document.key === 'comment:comment-0001')!.path).toBe(comments.path);
+    expect(result.entries.filter(entry => entry.path.startsWith('注释'))).toHaveLength(1);
+  });
+
+  it('handles duplicate names, Unicode normalization, reserved names and file-directory collisions without leaking full IDs', async () => {
+    const source = await sourceFixture();
+    const graph = source.books[0]!.graph;
+    graph.elements.push({ ...graph.elements[0]!, id: 'element-0002', name: 'hero' },
+      { ...graph.elements[0]!, id: 'element-0003', name: 'CON' },
+      { ...graph.elements[0]!, id: 'element-0004', name: '😀'.repeat(120) });
+    // Category notes reserve their own filename before user-named elements are allocated.
+    graph.elements.push({ ...graph.elements[0]!, id: 'element-0005', name: '分类说明' });
+    const result = await buildRelationalMarkdownEntries(source, true);
+    const normalized = result.entries.map(entry => entry.path.normalize('NFKC').toLowerCase());
+    expect(new Set(normalized).size).toBe(normalized.length);
+    expect(projectedDocument(result, 'element', 'element-0002').path).toMatch(/hero \([0-9a-f]{8}\)\.md$/u);
+    expect(projectedDocument(result, 'element', 'element-0003').path).toContain('/_CON.md');
+    expect(projectedDocument(result, 'element', 'element-0005').path).toMatch(/分类说明 \([0-9a-f]{8}\)\.md$/u);
+    for (const entry of result.entries) {
+      expect(entry.path).not.toContain('id-element-');
+      expect(Buffer.byteLength(entry.path.split('/').slice(-1)[0]!)).toBeLessThanOrEqual(240);
+      expect(entry.path).not.toMatch(/[\\:*?"<>|#^\x5b\x5d]/u);
+    }
+    const cyclic = await sourceFixture();
+    cyclic.books[0]!.graph.driftGroups.push({ id: 'cycle', projectId: PROJECT_ID, name: 'Cycle', parentGroupId: 'cycle', color: null, sortOrder: null, createdAt: NOW, updatedAt: NOW });
+    await expect(buildRelationalMarkdownEntries(cyclic, true)).rejects.toThrow('Cyclic drift group hierarchy');
   });
 });

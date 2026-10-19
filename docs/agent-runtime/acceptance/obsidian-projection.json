@@ -1,0 +1,97 @@
+{
+  "kind": "obsidian-projection-real-application",
+  "generatedAt": "2026-10-19T17:55:17.298Z",
+  "sourceSha256": "b84671725381fbc35cddfd7b23b9eb120d2ed00e514dad324a4a166fea71f502",
+  "status": "passed",
+  "synthetic": true,
+  "obsidianVersion": "1.10.6",
+  "runs": [
+    {
+      "mode": "standalone",
+      "checks": [
+        {
+          "name": "relative links and embeds resolve inside the projection",
+          "status": "passed",
+          "links": 25,
+          "blockReferences": 3
+        },
+        {
+          "name": "paragraph quote heading and empty-block anchors are recognized",
+          "status": "passed"
+        },
+        {
+          "name": "aliases preserve commas Unicode brackets and colons as separate values",
+          "status": "passed"
+        },
+        {
+          "name": "canonical MCP versions and identity maps stay in hidden manifest metadata",
+          "status": "passed"
+        },
+        {
+          "name": "one named document per entity without technical property clutter",
+          "status": "passed"
+        },
+        {
+          "name": "native passage navigation opens the cited note",
+          "status": "passed"
+        },
+        {
+          "name": "read-only PNG attachment renders from a relative embed",
+          "status": "passed"
+        },
+        {
+          "name": "read-only PDF attachment renders a page in the native PDF viewer",
+          "status": "passed"
+        }
+      ],
+      "markdownFiles": 12
+    },
+    {
+      "mode": "nested",
+      "checks": [
+        {
+          "name": "relative links and embeds resolve inside the projection",
+          "status": "passed",
+          "links": 25,
+          "blockReferences": 3
+        },
+        {
+          "name": "paragraph quote heading and empty-block anchors are recognized",
+          "status": "passed"
+        },
+        {
+          "name": "aliases preserve commas Unicode brackets and colons as separate values",
+          "status": "passed"
+        },
+        {
+          "name": "canonical MCP versions and identity maps stay in hidden manifest metadata",
+          "status": "passed"
+        },
+        {
+          "name": "one named document per entity without technical property clutter",
+          "status": "passed"
+        },
+        {
+          "name": "native passage navigation opens the cited note",
+          "status": "passed"
+        },
+        {
+          "name": "read-only PNG attachment renders from a relative embed",
+          "status": "passed"
+        },
+        {
+          "name": "read-only PDF attachment renders a page in the native PDF viewer",
+          "status": "passed"
+        }
+      ],
+      "markdownFiles": 12
+    }
+  ],
+  "boundaries": {
+    "application": "isolated installed Obsidian with real metadata cache, navigation and PNG/PDF rendering",
+    "filesystem": "read-only fixture; native copy integrity ownership and recovery covered by local-mcp.json",
+    "personalVault": "not opened",
+    "reverseSync": "not supported",
+    "otherObsidianVersions": "not tested"
+  }
+}

@@ -1,12 +1,12 @@
-import { proseReadMarkdown } from '../../lib/agent/prose-read-view';
-import { contentJsonBlockIds, createLocationResolver, type LocationEntity } from '../../lib/location-link';
+import { buildReadableMarkdownProjection } from './readable-markdown-projection';
+import { readLocalProseJson } from './relational-markdown.prose';
+import type { MarkdownProjectionAsset, MarkdownProjectionDocument } from '../../platform/contracts';
 import { createMarkdownZip, type MarkdownZipEntry } from './markdown-zip';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../domain/entity-kinds';
 import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
-import { proseDocId, type ProseEntityType } from '../../lib/yjs-doc-id';
+import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import { platform } from '../../platform';
-import { hydrateProseJson } from '../../lib/agent/prose-hydrate-client';
 import { flushAllOpenYjsDocuments } from '../yjs-local-durability.service';
 import {
   readLocalRelationalMarkdownSource,
@@ -23,7 +23,7 @@ interface ExportDocument {
   id: string;
   title: string;
   path: string;
-  metadata: Record<string, string | number | null | undefined>;
+  metadata: Record<string, string | string[] | number | null | undefined>;
   body: string;
 }
 
@@ -151,25 +151,6 @@ function decodeAliases(value: string | null | undefined): string[] {
     : [];
 }
 
-async function readLocalProseJson(
-  entityType: ProseEntityType,
-  entityId: string,
-  fallbackContentJson: string,
-  source: LocalRelationalMarkdownSource,
-): Promise<string> {
-  const docId = proseDocId(entityType, entityId);
-  const state = source.proseByDocId.get(docId);
-  if (!state || (!state.snapshot && state.updates.length === 0)) {
-    // A document that has never been opened has no Yjs state yet. Its
-    // contentJson projection is still the editor's canonical seed.
-    return fallbackContentJson || '{}';
-  }
-  // Once any Yjs state exists, it is authoritative even when it represents an
-  // intentionally empty document. Corruption rejects the export instead of
-  // silently falling back to a stale contentJson projection.
-  return hydrateProseJson(state.snapshot, state.updates);
-}
-
 async function mapWithConcurrency<T>(
   items: T[],
   concurrency: number,
@@ -210,7 +191,7 @@ function renderDocument(
     ...document.metadata,
   })
     .filter(([, value]) => value !== undefined)
-    .map(([name, value]) => `${name}: ${yamlString(value)}`)
+    .map(([name, value]) => `${name}: ${typeof value === 'string' ? yamlString(value) : JSON.stringify(value)}`)
     .join('\n');
 
   const backlinks = (relations.get(document.key) ?? [])
@@ -263,17 +244,19 @@ const defaultExportDependencies: RelationalMarkdownExportDependencies = {
   now: () => new Date(),
 };
 
-/** Build the portable Markdown ZIP from an already-consistent local capture. */
+/** Render a consistent capture as library ZIP entries or a readable project projection. */
 export async function buildRelationalMarkdownEntries(
   source: LocalRelationalMarkdownSource,
   projection = false,
-): Promise<{ entries: MarkdownZipEntry[]; documentCount: number }> {
+  now = new Date(),
+): Promise<{ entries: MarkdownZipEntry[]; assets: MarkdownProjectionAsset[]; documents: MarkdownProjectionDocument[]; documentCount: number }> {
+  if (projection) return buildReadableMarkdownProjection(source, now);
   const books: ExportBook[] = source.books
     .map((book) => ({
       ...book,
       // Keep the full stable ID in archive paths. Human titles are not unique,
       // and truncating IDs can make JSZip silently replace an earlier entry.
-      prefix: projection ? 'project' : `books/${safeSegment(book.project.name)}-${safeSegment(book.project.id)}`,
+      prefix: `books/${safeSegment(book.project.name)}-${safeSegment(book.project.id)}`,
     }))
     .sort(
       (left, right) =>
@@ -286,14 +269,6 @@ export async function buildRelationalMarkdownEntries(
   const idSuffix = (id: string) => safeSegment(id);
   const proseFallbacks = new Map<string, string>();
   const libraryItems = new Map<string, LocalExportLibraryItem>();
-  const proseEntries: MarkdownZipEntry[] = [];
-  // Location links in projected prose render with the same names and line
-  // numbers as read_chapter (docs/location-links.md).
-  const locationEntities: LocationEntity[] = [];
-  if (projection && source.books.length !== 1) throw new Error('A projection must contain exactly one project');
-  const stablePath = (prefix: string, group: string, id: string) =>
-    `${prefix}/${group}/id-${encodeURIComponent(id)}/index.md`;
-
   for (const book of books) {
     const { project, graph, prefix } = book;
     const nodes = graph.nodes.filter((item) => !item.deletedAt);
@@ -322,17 +297,15 @@ export async function buildRelationalMarkdownEntries(
         kind: 'node',
         id: node.id,
         title: node.title,
-        path: projection ? stablePath(prefix, node.kind === 'chapter' ? 'chapters' : 'drifts', node.id) : `${prefix}/book/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${safeSegment(node.title)}-${idSuffix(node.id)}.md`,
+        path: `${prefix}/book/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${safeSegment(node.title)}-${idSuffix(node.id)}.md`,
         metadata: {
           node_kind: node.kind,
-          ...(projection ? { book_order: node.bookOrder, narrative_order: node.narrativeOrder } : {}),
           writing_status: node.writingStatus,
           updated_at: node.updatedAt,
         },
         body: node.summary || '',
       });
       proseFallbacks.set(key('node', node.id), nodeContentById.get(node.id) ?? '{}');
-      locationEntities.push({ kind: 'node', id: node.id, group: node.kind === 'chapter' ? 'chapters' : 'drifts', name: node.title });
     }
     for (const element of elements) {
       add({
@@ -340,16 +313,15 @@ export async function buildRelationalMarkdownEntries(
         kind: 'element',
         id: element.id,
         title: element.name,
-        path: projection ? stablePath(prefix, 'elements', element.id) : `${prefix}/elements/${safeSegment(element.name)}-${idSuffix(element.id)}.md`,
+        path: `${prefix}/elements/${safeSegment(element.name)}-${idSuffix(element.id)}.md`,
         metadata: {
-          aliases: decodeAliases(element.aliasesJson).join(', '),
+          aliases: decodeAliases(element.aliasesJson),
           group: element.groupName,
           updated_at: element.updatedAt,
         },
         body: element.summary || '',
       });
       proseFallbacks.set(key('element', element.id), element.contentJson || '{}');
-      locationEntities.push({ kind: 'element', id: element.id, group: 'elements', name: element.name });
     }
     for (const category of categories) {
       add({
@@ -357,12 +329,11 @@ export async function buildRelationalMarkdownEntries(
         kind: 'category',
         id: category.id,
         title: category.name,
-        path: projection ? stablePath(prefix, 'categories', category.id) : `${prefix}/elements/categories/${safeSegment(category.name)}-${idSuffix(category.id)}.md`,
+        path: `${prefix}/elements/categories/${safeSegment(category.name)}-${idSuffix(category.id)}.md`,
         metadata: { updated_at: category.updatedAt },
         body: '',
       });
       proseFallbacks.set(key('category', category.id), category.contentJson || '{}');
-      locationEntities.push({ kind: 'category', id: category.id, group: 'categories', name: category.name });
     }
     for (const storyline of storylines) {
       add({
@@ -370,12 +341,11 @@ export async function buildRelationalMarkdownEntries(
         kind: 'storyline',
         id: storyline.id,
         title: storyline.name,
-        path: projection ? stablePath(prefix, 'storylines', storyline.id) : `${prefix}/storylines/${safeSegment(storyline.name)}-${idSuffix(storyline.id)}.md`,
+        path: `${prefix}/storylines/${safeSegment(storyline.name)}-${idSuffix(storyline.id)}.md`,
         metadata: { updated_at: storyline.updatedAt },
         body: storyline.summary || '',
       });
       proseFallbacks.set(key('storyline', storyline.id), storyline.contentJson || '{}');
-      locationEntities.push({ kind: 'storyline', id: storyline.id, group: 'storylines', name: storyline.name });
     }
     for (const comment of comments) {
       add({
@@ -383,7 +353,7 @@ export async function buildRelationalMarkdownEntries(
         kind: 'comment',
         id: comment.id,
         title: `Note ${idSuffix(comment.id)}`,
-        path: projection ? stablePath(prefix, 'comments', comment.id) : `${prefix}/notes/comments/note-${idSuffix(comment.id)}.md`,
+        path: `${prefix}/notes/comments/note-${idSuffix(comment.id)}.md`,
         metadata: {
           note_kind: comment.kind,
           status: comment.status,
@@ -399,7 +369,7 @@ export async function buildRelationalMarkdownEntries(
         kind: 'library_item',
         id: item.id,
         title: item.title,
-        path: projection ? stablePath(prefix, 'library', item.id) : `${prefix}/notes/library/${safeSegment(item.title)}-${idSuffix(item.id)}.md`,
+        path: `${prefix}/notes/library/${safeSegment(item.title)}-${idSuffix(item.id)}.md`,
         metadata: {
           item_kind: item.kind,
           asset_id:
@@ -427,43 +397,17 @@ export async function buildRelationalMarkdownEntries(
       source,
     ));
   });
-  const blockIds = new Map<string, Array<string | null>>();
-  const locations = projection
-    ? createLocationResolver({
-        projectId: books[0]!.project.id,
-        entities: locationEntities,
-        blockIds: (kind, id) => {
-          const documentKey = key(kind, id);
-          const json = proseJson.get(documentKey);
-          if (json === undefined) return undefined;
-          if (!blockIds.has(documentKey)) blockIds.set(documentKey, contentJsonBlockIds(json));
-          return blockIds.get(documentKey);
-        },
-      })
-    : undefined;
   for (const document of proseDocuments) {
-    const contentJson = proseJson.get(document.key) ?? '{}';
-    if (projection) {
-      const bodyPath = document.path.replace(/index\.md$/u, 'prose.md');
-      proseEntries.push({ path: bodyPath, text: proseReadMarkdown(contentJson, locations) });
-      document.body = [document.body ? `## 摘要\n\n${document.body}` : '',
-        `## 正文\n\n[[${bodyPath.replace(/\.md$/u, '')}|只读正文]]`].filter(Boolean).join('\n\n');
-    } else {
-      const markdown = proseToMarkdown(contentJson, documents);
-      document.body = [document.body, markdown].filter(Boolean).join('\n\n');
-    }
+    const markdown = proseToMarkdown(proseJson.get(document.key) ?? '{}', documents);
+    document.body = [document.body, markdown].filter(Boolean).join('\n\n');
   }
 
   for (const document of documents.values()) {
     if (document.kind !== 'library_item') continue;
     const item = libraryItems.get(document.key);
     if (!item) continue;
-    document.body = [
-      noteToMarkdown(item.bodyJson, documents),
-      noteToMarkdown(item.notesJson, documents),
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    document.body = [noteToMarkdown(item.bodyJson, documents), noteToMarkdown(item.notesJson, documents)]
+      .filter(Boolean).join('\n\n');
   }
 
   const relations = new Map<string, Relation[]>();
@@ -520,13 +464,12 @@ export async function buildRelationalMarkdownEntries(
     }
   }
 
-  const entries: MarkdownZipEntry[] = [...proseEntries];
+  const entries: MarkdownZipEntry[] = [];
   for (const document of documents.values()) {
     entries.push({ path: document.path, text: renderDocument(document, documents, relations) });
   }
   entries.push({
-    path: 'README.md', text: projection ?
-    projectionReadme(books[0]?.project.id ?? null) :
+    path: 'README.md', text:
     '# Drifting Markdown 导出\n\n这是本机书库所有项目的关系型 Markdown 导出，面向阅读与迁移。图片和 PDF 二进制文件不包含在内，也不能重新导入 Drifting。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
   });
   entries.push({
@@ -541,7 +484,7 @@ export async function buildRelationalMarkdownEntries(
     ].join('\n'),
   });
 
-  return { entries: entries.sort((a, b) => a.path.localeCompare(b.path, 'en')), documentCount: documents.size };
+  return { assets: [], documents: [], entries: entries.sort((a, b) => a.path.localeCompare(b.path, 'en')), documentCount: documents.size };
 }
 
 export async function buildRelationalMarkdownArchive(
@@ -575,13 +518,4 @@ export async function exportAllProjectsAsRelationalMarkdown(
     documentCount: archive.documentCount,
     canceled: !saved.ok,
   };
-}
-
-/** README of the read-only projection, including the location-link contract. */
-function projectionReadme(projectId: string | null): string {
-  const open = projectId ? `drifting://open/${encodeURIComponent(projectId)}/` : 'drifting://open/<项目 ID>/';
-  return '# Drifting 只读 Markdown 投影 / Read-only projection\n\n此目录由 Drifting 自动生成，仅用于阅读、grep、diff 和审稿。投影是只读的，不能反向同步；编辑文件不会写回 Drifting，并可能在下次更新时被覆盖。正文真相保存在 Drifting 的 Yjs 中。需要修改时请使用 Drifting 或获授权的 MCP 写入工具。\n\nThis directory is a READ-ONLY, one-way projection. There is NO reverse sync or import from these files. Do not edit them. Use authorized Drifting tools for changes. Disk reads do not grant tool write coverage: read the current target through MCP before writing.\n\nindex.md 是项目入口；project 下按 chapters、drifts、elements、categories、storylines、comments、library 分类。每个实体使用稳定 ID 目录，index.md 包含名称、摘要和关系，prose.md 只包含正文。章节正文行号与 read_chapter 相同；第 n 个编辑器段落位于正文第 2n-1 行，段内换行表示为 <br>。空段落保留。\n\nmanifest.json 最后发布，记录生成时间、文件列表和 SHA-256；每个 prose.md 的 sha256 加上 sha256: 前缀即 read_chapter 的 version。读取多个文件时请核对清单哈希与版本，更新中的不同文件不保证来自同一时刻。项目打开时自动刷新；关闭后保留最后一份快照，不能假定它仍然最新。图片和 PDF 二进制不包含在投影中。\n\n' +
-    '## 位置链接 / Location links\n\n' +
-    '正文中的 `[文字](drifting:chapters/<标题>/prose.md#L12-L18)` 是位置链接，指向该实体正文的第 12–18 行，行号与 read_chapter 相同，并按当前正文重新渲染。分组为 chapters、drifts、elements、categories、storylines；标题重名、为空或以 id- 开头时使用本投影的 `id-<实体 ID>` 目录名。通过授权的写入工具在正文里写入这种链接，Drifting 会把它存为稳定的段落锚点，点击即可跳转。在 Drifting 之外（终端、其他编辑器）可用 `' + open + 'chapters/id-<实体 ID>/prose.md#L12` 打开对应位置。\n\n' +
-    'A `drifting:` link such as `[text](drifting:chapters/<title>/prose.md#L12-L18)` cites lines of an entity body using read_chapter numbering; Drifting stores it as a stable paragraph anchor. Use the `id-<entity ID>` directory name when a title is duplicated, empty or starts with id-. Outside Drifting, `' + open + '<group>/<directory>/prose.md#L12` opens the location.\n';
 }

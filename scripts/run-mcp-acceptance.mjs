@@ -21,8 +21,12 @@ function fingerprint() {
           file.startsWith('src/renderer/components/agent/AgentMcp') ||
           file.startsWith('src-tauri/src/mcp_server') ||
           file === 'src-tauri/src/markdown_projection.rs' ||
+          file === 'src/renderer/lib/location-link.ts' ||
           file.startsWith('src/renderer/services/markdown-projection') ||
           (file.startsWith('src/renderer/services/export/relational-markdown.') ||
+            file.startsWith('src/renderer/services/export/obsidian-markdown') ||
+            file.startsWith('src/renderer/services/export/readable-markdown-projection') ||
+            file === 'src/renderer/domain/book-act.ts' ||
             file.startsWith('src/renderer/services/export/markdown-zip.')) ||
           file.startsWith('src/renderer/lib/persistence-lifecycle.') ||
           file.startsWith('src/renderer/sync/agent-chat/') ||
