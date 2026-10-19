@@ -1,0 +1,122 @@
+{
+  "kind": "all-chapters-navigation",
+  "status": "passed",
+  "generatedAt": "2026-10-19T17:38:29.423Z",
+  "sourceSha256": "25dbe611327024ad19f7e88fb01253323410488408ea20b485444c8ecb7a4c78",
+  "inputs": [
+    "scripts/run-all-chapters-navigation-acceptance.mjs",
+    "scripts/renderer-headless-browser.mjs",
+    "scripts/renderer-all-chapters-navigation.tsx",
+    "scripts/renderer-all-chapters-navigation.html",
+    "src/renderer/views/AllChaptersEditorView.tsx",
+    "src/renderer/components/editor/all-chapters-navigation.ts",
+    "src/renderer/components/editor/all-chapters-navigation.test.ts",
+    "src/renderer/components/editor/VirtualChapterRow.tsx",
+    "src/renderer/components/editor/chapter-static-html.ts",
+    "src/renderer/components/editor/EditorOutlineRail.tsx",
+    "src/renderer/components/editor/outline-viewport.ts",
+    "src/renderer/components/editor/outline-rail-model.ts",
+    "src/styles/index.css",
+    "src/styles/comments-review.css"
+  ],
+  "browser": "Chrome/155.0.8059.84",
+  "syntheticChaptersPerPane": 60,
+  "samples": [
+    {
+      "id": "chapter-45-h2",
+      "pane": "left",
+      "scrollTop": 531995,
+      "relativeTop": 0,
+      "height": 29.328125,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": "visible",
+      "contentReady": "true"
+    },
+    {
+      "id": "chapter-4",
+      "pane": "left",
+      "scrollTop": 32172,
+      "relativeTop": -0.484375,
+      "height": 3313.875,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": "visible",
+      "contentReady": "true"
+    },
+    {
+      "id": "chapter-55-h3",
+      "pane": "left",
+      "scrollTop": 640363,
+      "relativeTop": -0.53125,
+      "height": 28.796875,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": "visible",
+      "contentReady": "true"
+    },
+    {
+      "id": "act:act-20",
+      "pane": "left",
+      "scrollTop": 207571,
+      "relativeTop": 23.53125,
+      "height": 316.5,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": null,
+      "contentReady": null
+    },
+    {
+      "id": "chapter-0-h1",
+      "pane": "left",
+      "scrollTop": 582,
+      "relativeTop": -0.359375,
+      "height": 31.109375,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": "visible",
+      "contentReady": "true"
+    },
+    {
+      "id": "chapter-59-h1",
+      "pane": "right",
+      "scrollTop": 698740,
+      "relativeTop": -0.34375,
+      "height": 31.109375,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": "visible",
+      "contentReady": "true"
+    },
+    {
+      "id": "chapter-45-h2",
+      "pane": "left",
+      "scrollTop": 479791,
+      "relativeTop": -0.09375,
+      "height": 29.328125,
+      "visible": true,
+      "inViewport": true,
+      "hitTarget": true,
+      "contentVisibility": "visible",
+      "contentReady": "true"
+    }
+  ],
+  "checks": {
+    "legacyColdHeadingNoOpReproduced": true,
+    "coldHeadingLoadsBeforeJump": true,
+    "actualRailButton": true,
+    "chapterAndActTargets": true,
+    "splitPaneIsolation": true,
+    "latestClickWins": true,
+    "visibleAndHitTestableWithoutUserScroll": true,
+    "noLiveEditorPromotion": true,
+    "noUncaughtExceptions": true
+  },
+  "boundary": "Chromium renderer with real VirtualChapterRow, serializer, EditorOutlineRail, bounded loader, navigation coordinator and styles; synthetic delayed reads in two panes. No Tauri/WKWebView compositing, account, database or prose editing acceptance."
+}

@@ -15,7 +15,10 @@ import { useUiStore } from '../store/ui-store';
 import { EditorCrumb, EditorTopBar, SET_STATUS_ACTION_PREFIX } from '../components/editor/EditorTopBar';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
-import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
+import {
+  createAllChaptersNavigator,
+  type AllChaptersDestination,
+} from '../components/editor/all-chapters-navigation';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import {
   useEditorSurfaceLifecycle,
@@ -103,7 +106,7 @@ const readPositionByProject = new Map<string, MobileAllChaptersReadPosition>();
 // place. This view watches that selection and scrolls to the matching row.
 export function AllChaptersEditorView() {
   const { t } = useTranslation();
-  const { isCommandActive } = useEditorSurfaceLifecycle();
+  const { isCommandActive, isPreparing } = useEditorSurfaceLifecycle();
   const [readyContentNodeIds, setReadyContentNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -380,6 +383,47 @@ export function AllChaptersEditorView() {
   }, [boundedOutlineLoad, orderedNodes]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [navigationChapterId, setNavigationChapterId] = useState<string | null>(null);
+  const navigatorRef = useRef<ReturnType<typeof createAllChaptersNavigator> | null>(null);
+  useEffect(() => {
+    const navigator = createAllChaptersNavigator({
+      getRoot: () => scrollRef.current,
+      prepareChapter: (nodeId) => {
+        setNavigationChapterId(nodeId);
+        return fetchContent(nodeId);
+      },
+    });
+    navigatorRef.current = navigator;
+    return () => {
+      navigator.cancel();
+      navigatorRef.current = null;
+    };
+  }, [fetchContent]);
+  useEffect(() => {
+    if (!isCommandActive && !isPreparing) navigatorRef.current?.cancel();
+  }, [isCommandActive, isPreparing]);
+
+  // Persisted headings can be in the TOC before their chapter's prose exists
+  // in the DOM. Resolve their owner without relying on a rendered block.
+  const outlineDestinations = useMemo(() => {
+    const destinations = new Map<string, AllChaptersDestination>();
+    for (const node of orderedNodes) {
+      destinations.set(node.id, { chapterId: node.id });
+      for (const heading of outlineByNodeId[node.id] ?? []) {
+        destinations.set(heading.id, { chapterId: node.id, blockId: heading.id });
+      }
+    }
+    readRows.forEach((row, index) => {
+      if (row.kind !== 'act') return;
+      const neighbour = readRows.slice(index + 1).find((item) => item.kind === 'chapter') ??
+        readRows.slice(0, index).reverse().find((item) => item.kind === 'chapter');
+      destinations.set(actTocId(row.act.id), {
+        actId: row.act.id,
+        chapterId: neighbour?.kind === 'chapter' ? neighbour.node.id : null,
+      });
+    });
+    return destinations;
+  }, [orderedNodes, outlineByNodeId, readRows]);
 
   // Whole-book Cmd+F. The single-editor find (App.tsx → EditorFindPanel) only
   // searches the one live editor; in 通览全书 that's at most the focused chapter
@@ -442,44 +486,6 @@ export function AllChaptersEditorView() {
   }
   const didRestoreRef = useRef(false);
 
-  // Programmatic-scroll guard for the outline. A TOC click triggers a smooth
-  // scrollIntoView that emits a stream of scroll events as it animates; if the
-  // scroll-spy reacted to each frame, the active row would race down the whole
-  // outline before landing on the target. So a TOC click suppresses the spy for
-  // the duration of the jump — re-armed on every scroll event, released once the
-  // scroll goes idle, then re-synced. The click also lights the target up front
-  // (and, for headings, pins it via pinnedOutlineRef until it scrolls away).
-  const spySuppressedRef = useRef(false);
-  const spyIdleTimerRef = useRef<number | null>(null);
-  const armSpySuppression = useCallback(() => {
-    spySuppressedRef.current = true;
-    if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
-    // Safety ceiling: a jump whose target is already in place emits no scroll
-    // events, so the scroll-driven idle release (in the spy effect) would never
-    // fire. Release on a hard timeout too — the up-front setActiveOutline has
-    // already lit the target, and the heading pin engages on the next scroll.
-    spyIdleTimerRef.current = window.setTimeout(() => {
-      spyIdleTimerRef.current = null;
-      spySuppressedRef.current = false;
-    }, 900);
-  }, []);
-
-  const scrollToNodeId = useCallback((nodeId: string) => {
-    const root = scrollRef.current;
-    if (!root) return;
-    const target = root.querySelector(`[data-chapter-id="${CSS.escape(nodeId)}"]`);
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
-  const scrollToActId = useCallback((actId: string) => {
-    const root = scrollRef.current;
-    if (!root) return;
-    const target = root.querySelector(`[data-act-id="${CSS.escape(actId)}"]`);
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
   // Note: we deliberately do NOT subscribe to nodeUi.selectedId here to
   // scroll on sidebar clicks. The all-chapters view used to be a magnet
   // for outside selections (sidebar / timeline clicks while reading) but
@@ -523,6 +529,20 @@ export function AllChaptersEditorView() {
   }, [outlineByNodeId]);
   // A clicked heading we hold selected until it scrolls out of the viewport.
   const pinnedOutlineRef = useRef<string | null>(null);
+  const jumpToOutline = useCallback((id: string) => {
+    const destination = outlineDestinations.get(id);
+    if (!destination) return false;
+    pinnedOutlineRef.current = destination.blockId ?? null;
+    setActiveOutline(id);
+    if (destination.chapterId) setActiveChapter(destination.chapterId);
+    void navigatorRef.current?.navigate(destination);
+    return true;
+  }, [outlineDestinations, setActiveChapter, setActiveOutline]);
+  const handleOutlineClick = useCallback((id: string) => {
+    // A deliberate click supersedes a still-pending saved-heading restore.
+    didRestoreRef.current = true;
+    jumpToOutline(id);
+  }, [jumpToOutline]);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -531,9 +551,8 @@ export function AllChaptersEditorView() {
     let raf = 0;
     const recompute = () => {
       raf = 0;
-      // A TOC click is driving a smooth scroll right now: ignore the transient
-      // frames (see armSpySuppression) so the highlight doesn't race.
-      if (spySuppressedRef.current) return;
+      // Loading/layout of a TOC destination can emit intermediate scrolls.
+      if (navigatorRef.current?.isNavigating()) return;
       const rootRect = root.getBoundingClientRect();
       // A pinned (just-clicked) heading wins while it is still on-screen — this
       // is what lets a click on a heading already fully in view take the
@@ -586,19 +605,7 @@ export function AllChaptersEditorView() {
       setActiveOutline(headingId ?? chapterId);
     };
     const onScroll = () => {
-      // While a programmatic jump is in flight every scroll frame just bumps the
-      // idle timer; once the animation stops emitting events the spy is released
-      // and re-synced (which also engages the heading pin set by the click).
-      // This is what keeps the destination from flickering open/shut.
-      if (spySuppressedRef.current) {
-        if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
-        spyIdleTimerRef.current = window.setTimeout(() => {
-          spyIdleTimerRef.current = null;
-          spySuppressedRef.current = false;
-          recompute();
-        }, 140);
-        return;
-      }
+      if (navigatorRef.current?.isNavigating()) return;
       if (raf) return;
       raf = requestAnimationFrame(recompute);
     };
@@ -618,37 +625,22 @@ export function AllChaptersEditorView() {
   // whereas scrolling a known chapter/heading element into view is exact.
   useEffect(() => {
     if (didRestoreRef.current) return;
+    if (!isCommandActive && !isPreparing) return;
     if (orderedNodes.length === 0) return; // wait for chapters to load
-    didRestoreRef.current = true;
     const saved = savedPositionRef.current;
-    if (!saved) return;
+    if (!saved) {
+      didRestoreRef.current = true;
+      return;
+    }
     // Re-open the chapter that was being edited (no caret coords → no jump; the
     // row's autoFocus is off, so mounting its editor won't steal scroll).
     if (saved.focusNodeId && orderedNodes.some((n) => n.id === saved.focusNodeId)) {
       setFocus({ nodeId: saved.focusNodeId, caret: null });
     }
-    const anchor = saved.outlineId;
-    if (!anchor) return;
-    // A heading anchor only exists once its chapter's prose has rendered, which
-    // is async; chapter rows render immediately. Retry over a bounded window
-    // until the element appears, then jump instantly (no smooth animation).
-    let frame = 0;
-    const restore = () => {
-      const root = scrollRef.current;
-      if (!root) return;
-      const el =
-        root.querySelector<HTMLElement>(`[data-chapter-id="${CSS.escape(anchor)}"]`) ??
-        root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(anchor)}"]`);
-      if (el) {
-        armSpySuppression();
-        setActiveOutline(anchor);
-        el.scrollIntoView({ block: 'start' });
-        return;
-      }
-      if (frame++ < 180) requestAnimationFrame(restore); // ~3s ceiling
-    };
-    requestAnimationFrame(restore);
-  }, [orderedNodes, armSpySuppression, setActiveOutline]);
+    // A saved heading needs the persisted outline to identify its chapter.
+    // Leave restoration pending until that metadata is available.
+    if (!saved.outlineId || jumpToOutline(saved.outlineId)) didRestoreRef.current = true;
+  }, [isCommandActive, isPreparing, orderedNodes, jumpToOutline]);
 
   // Persist the read-position whenever it changes, so tab close/reopen and the
   // mobile paper lifecycle restore it. The reading anchor comes from the spy;
@@ -802,36 +794,6 @@ export function AllChaptersEditorView() {
     return rows;
   }, [orderedNodes, outlineByNodeId, bookActs]);
 
-  // TOC click dispatcher: top-level entries scroll to the chapter section;
-  // nested entries are TipTap heading anchors — scope to this view's scroll
-  // container so a parallel split pane isn't accidentally scrolled.
-  const orderedNodeIds = useMemo(() => new Set(orderedNodes.map((n) => n.id)), [orderedNodes]);
-  const handleOutlineClick = useCallback(
-    (id: string) => {
-      if (id.startsWith(ACT_TOC_PREFIX)) {
-        pinnedOutlineRef.current = null;
-        armSpySuppression(); // act jump: let the spy re-sync once it settles
-        scrollToActId(id.slice(ACT_TOC_PREFIX.length));
-      } else if (orderedNodeIds.has(id)) {
-        // Chapter jump: light it up front so it lands directly instead of racing
-        // down the outline; don't pin — heading tracking takes over as the
-        // reader scrolls into the chapter.
-        pinnedOutlineRef.current = null;
-        armSpySuppression();
-        setActiveOutline(id);
-        scrollToNodeId(id);
-      } else {
-        // Heading jump: pin it so the clicked row stays selected until it
-        // scrolls out of view, even if its section was already fully on-screen.
-        pinnedOutlineRef.current = id;
-        armSpySuppression();
-        setActiveOutline(id);
-        scrollToOutlineAnchor(id, scrollRef.current);
-      }
-    },
-    [orderedNodeIds, scrollToNodeId, scrollToActId, armSpySuppression, setActiveOutline],
-  );
-
   if (orderedNodes.length === 0) {
     return (
       <div className="editor-shell" style={{ position: 'relative' }}>
@@ -969,6 +931,7 @@ export function AllChaptersEditorView() {
                   index={idx}
                   fetchContent={fetchContent}
                   onContentReady={handleContentReady}
+                  isNavigationTarget={navigationChapterId === node.id}
                   isFocused={focus?.nodeId === node.id}
                   onActivate={handleActivate}
                   activateCaret={focus?.nodeId === node.id ? focus.caret : null}

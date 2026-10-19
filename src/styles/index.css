@@ -1272,6 +1272,13 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   contain-intrinsic-size: auto var(--all-chap-row-h, 600px);
 }
 
+/* A TOC destination must have real layout/paint before its final scroll offset
+   is measured. Keep that one row visible until the next jump; offscreen rows
+   retain content-visibility's normal savings. The live editor uses this too. */
+.all-chap-row[data-navigation-target="true"] {
+  content-visibility: visible;
+}
+
 .page__ornament {
   text-align: center;
   font-family: var(--font-sans);

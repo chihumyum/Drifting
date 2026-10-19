@@ -46,6 +46,9 @@ interface VirtualChapterRowProps {
   // Lets the desktop surface stage wait for canonical prose instead of
   // revealing a row-height placeholder on first activation.
   onContentReady?: (nodeId: string) => void;
+  // TOC navigation explicitly loads and lays out its destination even when it
+  // is far outside the IntersectionObserver margin.
+  isNavigationTarget?: boolean;
 
   // True for the one chapter the user is actively editing. Only that row mounts
   // the heavy ChapterEditor (TipTap + per-chapter Yjs sync + Copilot); everyone
@@ -92,6 +95,7 @@ function VirtualChapterRowImpl({
   index,
   fetchContent,
   onContentReady,
+  isNavigationTarget = false,
   isFocused,
   onActivate,
   activateCaret,
@@ -140,7 +144,7 @@ function VirtualChapterRowImpl({
   // editor owns the document, so we don't touch it; when focus leaves we re-read
   // the cache so the static prose reflects edits made while it was the editor.
   useEffect(() => {
-    if (!nearViewport || (isFocused && content !== undefined)) return;
+    if ((!nearViewport && !isNavigationTarget) || (isFocused && content !== undefined)) return;
     let cancelled = false;
     void fetchContent(node.id)
       .then((c) => {
@@ -161,7 +165,7 @@ function VirtualChapterRowImpl({
     return () => {
       cancelled = true;
     };
-  }, [content, isFocused, fetchContent, nearViewport, node.id, onContentReady]);
+  }, [content, isFocused, fetchContent, nearViewport, isNavigationTarget, node.id, onContentReady]);
 
   const staticHtml = useMemo(
     () =>
@@ -195,6 +199,8 @@ function VirtualChapterRowImpl({
       ref={rowRef}
       data-chapter-id={node.id}
       data-chapter-index={index}
+      data-content-ready={content !== undefined}
+      data-navigation-target={isNavigationTarget || isFocused}
       className="all-chap-row"
       style={{ '--all-chap-row-h': `${Math.round(intrinsicHeight)}px` } as React.CSSProperties}
     >
