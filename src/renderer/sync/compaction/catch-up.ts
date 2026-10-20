@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { DbClient, DbTransaction } from '../../lib/db';
 import {
   SyncApplyReceiptTable,
+  SyncBlobStateTable,
   SyncChangeSetTable,
   SyncConflictTable,
   SyncFrontierTable,
@@ -28,6 +29,7 @@ import {
 } from '../journal/writer-state';
 import {
   decodeSyncChangeSetV1,
+  sha256Bytes,
   type Sha256,
   type SnapshotAssetV1,
   type SnapshotFrontierEntryV1,
@@ -264,6 +266,26 @@ export async function installSnapshotCatchUp(input: {
       identity: input.writerIdentity,
       clock,
     });
+    // Assets introduced in pruned history: their blobs are never pruned, so
+    // ordinary blob ingest installs them; until then they stay recorded.
+    for (const asset of validated.package.assets) {
+      await tx
+        .insert(SyncBlobStateTable)
+        .values({
+          syncGenerationId: input.syncGenerationId,
+          blobId: asset.blobId,
+          assetId: asset.assetId,
+          logicalKeyId: await sha256Bytes(new TextEncoder().encode(`blob/${input.syncGenerationId}/${asset.blobId}`)),
+          contentSha256: asset.sourceSha256.slice('sha256:'.length),
+          sizeBytes: asset.sizeBytes,
+          mime: asset.mimeType,
+          localObjectId: null,
+          localState: 'missing',
+          remoteState: 'available',
+          updatedAt: clock.nowIso,
+        })
+        .onConflictDoNothing();
+    }
     const proseDocIds: string[] = [];
     for (const document of validated.package.proseDocuments) {
       if (document.mode !== 'full-state') continue;

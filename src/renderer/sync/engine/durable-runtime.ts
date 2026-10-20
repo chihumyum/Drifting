@@ -295,6 +295,8 @@ function validatedTransferredBytes(
   return progress.transferredBytes;
 }
 
+const BACKLOG_OBJECT_KINDS = ['segment', 'genesis', 'checkpoint', 'snapshot-commit'] as const;
+
 function isRemoteObjectMissing(error: unknown): boolean {
   return Boolean(
     error && typeof error === 'object' && 'code' in error &&
@@ -1277,7 +1279,12 @@ export class SqliteSyncGenerationRuntime {
       .where(
         and(
           eq(SyncRemoteObjectTable.syncGenerationId, this.syncGenerationId),
-          eq(SyncRemoteObjectTable.objectKind, 'segment'),
+          // On a pruning provider snapshot objects too: compaction reads every
+          // committed snapshot, and a restore records them without downloading.
+          inArray(
+            SyncRemoteObjectTable.objectKind,
+            typeof this.provider.pruneObjects === 'function' ? [...BACKLOG_OBJECT_KINDS] : ['segment'],
+          ),
           isNull(SyncRemoteObjectTable.removedAt),
           isNull(SyncTransferTable.transferId),
         ),
@@ -1286,7 +1293,7 @@ export class SqliteSyncGenerationRuntime {
     let staged = 0;
     for (const row of rows) {
       assertNotAborted(signal);
-      if (row.completedTransferId !== null || row.objectKind !== 'segment') continue;
+      if (row.completedTransferId !== null) continue;
       let transferComplete = false;
       let stagedObject: StagedRemoteObject;
       try {
@@ -1294,7 +1301,7 @@ export class SqliteSyncGenerationRuntime {
           generation,
           {
             objectId: row.objectId as ProviderObjectId,
-            objectKind: 'segment',
+            objectKind: row.objectKind as SyncObjectKind,
             logicalKeyId: row.logicalKeyId,
             storedSha256: protocolSha256(row.storedSha256),
             sizeBytes: row.sizeBytes,
@@ -1306,10 +1313,9 @@ export class SqliteSyncGenerationRuntime {
           },
         );
       } catch (error) {
-        if (!isRemoteObjectMissing(error) || !isPrunedRemovalKind(this.provider, 'segment')) {
+        if (!isRemoteObjectMissing(error) || !isPrunedRemovalKind(this.provider, row.objectKind)) {
           throw error;
         }
-        await this.recordRemoteRemoval(row.objectId as ProviderObjectId);
         this.completeTransferProgressObject(progress, row.sizeBytes, false);
         continue;
       }
@@ -1360,16 +1366,17 @@ export class SqliteSyncGenerationRuntime {
             : undefined,
         );
       } catch (error) {
-        // Listed, then pruned before its bytes arrived: the removal change
-        // follows in the feed, so record it now instead of failing the page.
+        // Listed, then missing: possibly pruned in between, but a 404 alone
+        // proves nothing. The observation and its retry-wait transfer are
+        // durable; the backlog retries the download until the provider's
+        // removal change settles it.
         if (
           !isRemoteObjectMissing(error) ||
           !isPrunedRemovalKind(this.provider, change.object.objectKind)
         ) {
           throw error;
         }
-        await this.recordRemoteRemoval(change.object.objectId);
-        receipt.removedRecorded += 1;
+        receipt.durableInbox += 1;
         continue;
       }
       transferComplete = true;
@@ -1410,7 +1417,19 @@ export class SqliteSyncGenerationRuntime {
       // provider truncates history it has proven covered by retained
       // snapshots; everywhere else losing an observed object blocks
       // convergence until an explicit repair proves the bytes are back.
-      if (isPrunedRemovalKind(this.provider, known.objectKind)) return 'pruned';
+      if (isPrunedRemovalKind(this.provider, known.objectKind)) {
+        // A download that never completed can no longer complete.
+        await tx
+          .update(SyncTransferTable)
+          .set({ state: 'cancelled', updatedAt: nowIso, nextAttemptAt: null })
+          .where(
+            and(
+              eq(SyncTransferTable.remoteObjectId, known.id),
+              inArray(SyncTransferTable.state, ['pending', 'running', 'retry-wait']),
+            ),
+          );
+        return 'pruned';
+      }
       await tx
         .update(SyncProviderBindingTable)
         .set({ state: 'blocked-corrupt', updatedAt: nowIso })
@@ -1725,6 +1744,10 @@ export class SqliteSyncGenerationRuntime {
         assertNotAborted(signal);
         const decoded = await this.decodeDownloadedSegment(row);
         if (decoded) declarations.push(...this.assetDeclarations(decoded.segment.changeSets));
+      }
+      const declared = new Set(declarations.map((declaration) => `${declaration.blobId}\u0000${declaration.assetId}`));
+      for (const pending of await this.pendingAssetDeclarations()) {
+        if (!declared.has(`${pending.blobId}\u0000${pending.assetId}`)) declarations.push(pending);
       }
       await this.ingestDownloadedBlobs(
         await this.identity(),
@@ -2226,19 +2249,29 @@ export class SqliteSyncGenerationRuntime {
     const key = await this.catchUpCheckKey();
     if (key === this.settledCatchUpKey) return;
     const input = { db: this.db, syncGenerationId: this.syncGenerationId, objectCodec: this.objectCodec };
-    const plan = await planSnapshotCatchUp(input);
-    if (!plan) {
+    let outcome: Awaited<ReturnType<typeof installSnapshotCatchUp>>;
+    try {
+      const plan = await planSnapshotCatchUp(input);
+      if (!plan) {
+        this.settledCatchUpKey = key;
+        return;
+      }
+      assertNotAborted(signal);
+      outcome = await installSnapshotCatchUp({
+        ...input,
+        kernel: this.domainKernel,
+        writerIdentity: this.writerIdentity,
+        clock: () => ({ nowMs: this.clock.nowMs(), nowIso: this.clock.nowIso() }),
+        plan,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      // A snapshot this replica cannot install (newer format, corrupt
+      // package, rejected replay) leaves it waiting on the gap, exactly as
+      // before truncation existed. It must not stop local edits uploading.
       this.settledCatchUpKey = key;
       return;
     }
-    assertNotAborted(signal);
-    const outcome = await installSnapshotCatchUp({
-      ...input,
-      kernel: this.domainKernel,
-      writerIdentity: this.writerIdentity,
-      clock: () => ({ nowMs: this.clock.nowMs(), nowIso: this.clock.nowIso() }),
-      plan,
-    });
     if (outcome.status === 'forked') {
       for (const localObjectId of outcome.forkedLocalObjectIds) {
         const download = await this.downloadRowForLocalObject(localObjectId);
@@ -2252,28 +2285,53 @@ export class SqliteSyncGenerationRuntime {
       }
       return;
     }
-    if (outcome.status !== 'installed') return;
+    if (outcome.status !== 'installed') {
+      // Retried only once the snapshot set or local frontier changes; an
+      // open conflict or quarantine is re-checked on every cycle.
+      if (outcome.reason !== 'blocked') this.settledCatchUpKey = key;
+      return;
+    }
     invalidateSqliteReducerStateCache(this.syncGenerationId);
     this.settledCatchUpKey = null;
-    await this.ingestDownloadedBlobs(
-      identity,
-      outcome.assets.map((asset) => ({
-        assetId: asset.assetId,
-        blobId: asset.blobId as Sha256,
-        sourceSha256: asset.sourceSha256,
-        sourceSizeBytes: asset.sizeBytes,
-        sourceMime: asset.mimeType,
-      })),
-      signal,
-    );
-    await this.reconcileOpenYjsDocuments?.({ projectId: outcome.projectId });
+    // Durable before any await: a failed display refresh retries next cycle.
+    // Assets from pruned history were recorded as missing blob state in the
+    // install transaction; ingest keeps installing them until verified.
     this.pendingProjectNotification = {
       projectId: outcome.projectId,
       changeSetId: `checkpoint:${outcome.snapshotId}`,
       projectionImpact: 'workspace',
     };
+    await this.ingestDownloadedBlobs(identity, await this.pendingAssetDeclarations(), signal);
+    await this.reconcileOpenYjsDocuments?.({ projectId: outcome.projectId });
     this.onRemoteChangeCommitted?.(this.pendingProjectNotification);
     this.pendingProjectNotification = null;
+  }
+
+  /** Assets a snapshot introduced whose blobs this replica has not installed yet. */
+  private async pendingAssetDeclarations(): Promise<SyncAssetBlobDeclaration[]> {
+    const rows = await this.db
+      .select({
+        assetId: SyncBlobStateTable.assetId,
+        blobId: SyncBlobStateTable.blobId,
+        contentSha256: SyncBlobStateTable.contentSha256,
+        sizeBytes: SyncBlobStateTable.sizeBytes,
+        mime: SyncBlobStateTable.mime,
+      })
+      .from(SyncBlobStateTable)
+      .where(
+        and(
+          eq(SyncBlobStateTable.syncGenerationId, this.syncGenerationId),
+          eq(SyncBlobStateTable.localState, 'missing'),
+          isNotNull(SyncBlobStateTable.assetId),
+        ),
+      );
+    return rows.map((row) => ({
+      assetId: row.assetId!,
+      blobId: row.blobId as Sha256,
+      sourceSha256: protocolSha256(row.contentSha256),
+      sourceSizeBytes: row.sizeBytes,
+      sourceMime: row.mime,
+    }));
   }
 
   private async catchUpCheckKey(): Promise<string> {

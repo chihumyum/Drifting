@@ -7,35 +7,35 @@
     "productionPruning": "disabled-until-hosted-deploy",
     "localTruncation": "pruned-applied-segment-objects-only",
     "sourceSha256": {
-      "docs/sync-engine/phase7-log-compaction.md": "da8173d609c1e844f5c84eb7b0342eb5d26ba23ddd2903e0a78b47135833e131",
+      "docs/sync-engine/phase7-log-compaction.md": "5ffa66a71066587bad2381987ad7d687d1663b42cc546d6cc7d7fdce79226baf",
       "scripts/generate-sync-log-compaction.ts": "41e3d0d3833d68eff474e10531baf56c0deab6de679d1bdc2b6d1c0bd2e34026",
       "src-tauri/src/hosted_sync.rs": "4a3cf222365005dbb177e1553f520a9bbac8b38f2397d8157aa63de55b2e672f",
       "src/renderer/sync/checkpoint/provider-publisher.ts": "0b9c2fe953543abfb0047d5a547fc3f7aaf9782e49787473c82e3ce1c1c3cd6d",
       "src/renderer/sync/checkpoint/reducer-state.ts": "acaf0189a28cb2ee0e1e48beecfb4e52cb793e4774eae5ae167e610badd0a938",
-      "src/renderer/sync/compaction/catch-up.ts": "b9ed7e1efe246c54d2f44fa1015242fbc4d22a45b12a9d00c3035eef7deab3bc",
-      "src/renderer/sync/compaction/compaction.integration.test.ts": "2612ae0e888b81102084276f15c7a7559cd3f28779d9eba4acc77ea7f1907867",
+      "src/renderer/sync/compaction/catch-up.ts": "4cd163573674ea365428d11a68bb308bc0b67d1333654b856c72aec492d78c59",
+      "src/renderer/sync/compaction/compaction.integration.test.ts": "7b1c7887344911f3939a0670a49ca75ed630b3cb525484972a6731abf1b61c96",
       "src/renderer/sync/compaction/frontier.test.ts": "13f442d1d6adacb4ed1e6af95c7b6e9dda33f3831e74b2b86b85d04a4d27b4a6",
       "src/renderer/sync/compaction/frontier.ts": "bb881bf2f1fe5741d1d2d58c3313c6d2b8587beb8d7908301b802f445ba7cfa2",
       "src/renderer/sync/compaction/local-truncation.ts": "d7cb99ed1ad2a20570b6177bea296791625c9c03bcf38019ea667147d1873f13",
-      "src/renderer/sync/compaction/policy.ts": "e7a513f894cc29f12e78b37fd3271ecb9faa5855a7b2a849185171f2b9240ebd",
+      "src/renderer/sync/compaction/policy.ts": "5b0774b284e170f69cbe2edd49a46b826a08f359e531927103e2153017d33649",
       "src/renderer/sync/compaction/snapshot-catalog.ts": "ad044510f90ba7ab458b2b01622bcafe0f04acd16ce5c88ce2bc4707b8ac22c0",
-      "src/renderer/sync/engine/durable-runtime.ts": "d53e44a2e87be7b2dd3d66027dea6be99381fef735ce12d8379f21a79727bd2a",
+      "src/renderer/sync/engine/durable-runtime.ts": "a65548e38e440dd51c730609abd1eec645fb2d1df2775ecab60a66336b849064",
       "src/renderer/sync/engine/sqlite-repository.ts": "f1d443d5e13444e312b8e4a96df73b96987a1e7e976c07daf5dd438c9f6d10b0",
       "src/renderer/sync/production-runtime.ts": "1e35f4eed1cc006e6ad3771132fdb97649a263456ecf421c15036adb6a7ae814",
       "src/renderer/sync/protocol/provider.ts": "9d424c11e99c76cc19759d6f5a5d928795a2a7af0c27c646a2a288d2e3446863",
       "src/renderer/sync/providers/hosted/provider.ts": "47bc31084fb90ab174fc5fd3b7b93df16d849ace0afe0d62dc6dba66e0898746",
       "src/renderer/sync/providers/memory-provider.prune.test.ts": "1d9ee852c9ff3aaf632ca8949224cec556ba757a626f4e71a72dc39b182f6e0c",
       "src/renderer/sync/providers/memory-provider.ts": "908c35be2a94000cf52e85e43bd5395a44581c2a58ee3cd836d23d29ad73c7b8",
-      "src/renderer/sync/reducer/production-domain-kernel.ts": "d6ce9547129c644bbfb605e3ca64f3e05e26c7bf00bf38e87041c17ae83605f9",
+      "src/renderer/sync/reducer/production-domain-kernel.ts": "82c32aeedbd45493675e7f827e112599bac3b79f590034ebe30445c3d8986b4a",
       "src/renderer/sync/reducer/reducer.ts": "caad8b59617d95963914683e880a0c5428bfe83e27471a1bc8a091a3984ba5f1",
-      "src/renderer/sync/reducer/sqlite-materializer.ts": "e9bff36f0fc694dbcc558f2cc74bfb6eea019753232166ae6736b56f23bc4b74",
-      "src/renderer/sync/restore/cloud-restore.ts": "4173ba33300da9bf3ebbd5ce782baa97c268d0f369c9756c15b2d7034ba985a7"
+      "src/renderer/sync/reducer/sqlite-materializer.ts": "984a773a7f35026e1a162735a3c9db2f9904f1f5b91f99529fd64bbce062a160",
+      "src/renderer/sync/restore/cloud-restore.ts": "6ee8b8f77f60ff1ce02ccd6febad49637a559d723cfbef90cc2bd1e25a572620"
     }
   },
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/sync/compaction src/renderer/sync/providers/memory-provider.prune.test.ts src/renderer/sync/providers/hosted/provider.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/checkpoint src/renderer/sync/restore",
-    "passed": 87,
+    "passed": 90,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -352,11 +352,19 @@
         "status": "passed"
       },
       {
+        "name": "sync log compaction does not merge prose into an owner this replica purged",
+        "status": "passed"
+      },
+      {
         "name": "sync log compaction fast-forwards a replica that connects after truncation onto the newest snapshot",
         "status": "passed"
       },
       {
         "name": "sync log compaction keeps an up-to-date replica converging after its applied history is pruned",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction keeps uploading local edits when a snapshot cannot be installed",
         "status": "passed"
       },
       {
@@ -376,7 +384,11 @@
         "status": "passed"
       },
       {
-        "name": "sync log compaction records a listed object pruned before its download as a removal",
+        "name": "sync log compaction retries a download that 404s instead of assuming the object was pruned",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction settles a download that the provider pruned before its bytes arrived",
         "status": "passed"
       },
       {

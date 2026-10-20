@@ -18,7 +18,9 @@ import {
   SyncProviderBindingTable,
   SyncReducerBaseTable,
   SyncRemoteObjectTable,
+  SyncLocalObjectTable,
   SyncSegmentTable,
+  SyncTransferTable,
 } from '../../schema/drizzle';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { ProviderSnapshotPublisher } from '../checkpoint/provider-publisher';
@@ -40,6 +42,7 @@ import { MemoryObjectLogProvider, MemoryProviderLocalObjectStore } from '../prov
 import { ObjectLogProviderError } from '../providers/provider-error';
 import {
   invalidateSqliteReducerStateCache,
+  mergeCheckpointProseInTransaction,
   observeLocalAuthoredReducerInTransaction,
   type SyncDomainMaterializationKernel,
 } from '../reducer';
@@ -219,7 +222,11 @@ async function createDatabase(deviceId: string): Promise<{ db: DbClient; gateway
   return { db, gateway };
 }
 
-async function createDevice(world: World, id: string): Promise<Device> {
+async function createDevice(
+  world: World,
+  id: string,
+  kernel: SyncDomainMaterializationKernel = titleKernel,
+): Promise<Device> {
   const { db, gateway } = await createDatabase(id);
   const identity: SyncWriterIdentitySource = {
     installationId: `installation-${id}`,
@@ -249,7 +256,7 @@ async function createDevice(world: World, id: string): Promise<Device> {
     providerBinding: binding,
     objectCodec,
     writerIdentity: identity,
-    domainKernel: titleKernel,
+    domainKernel: kernel,
     clock,
   });
   const generation = await world.provider.openGeneration(binding);
@@ -575,18 +582,84 @@ describe('sync log compaction', () => {
     });
   });
 
-  it('records a listed object pruned before its download as a removal', async () => {
+  it('retries a download that 404s instead of assuming the object was pruned', async () => {
     const world = createWorld(0);
     const a = await createDevice(world, 'a');
     const b = await createDevice(world, 'b');
     await authorTitle(world, a, 'One');
     await cycle(a);
-    const download = vi.spyOn(world.provider, 'downloadImmutable');
-    download.mockRejectedValueOnce(new ObjectLogProviderError('REMOTE_OBJECT_MISSING', 'pruned'));
+    vi.spyOn(world.provider, 'downloadImmutable')
+      .mockRejectedValueOnce(new ObjectLogProviderError('REMOTE_OBJECT_MISSING', 'transient'))
+      .mockRejectedValueOnce(new ObjectLogProviderError('REMOTE_OBJECT_MISSING', 'transient'));
 
-    await expect(cycle(b)).resolves.toBeDefined();
+    await expect(cycle(b)).resolves.toMatchObject({ converged: false });
+    expect(await removedKinds(b)).toEqual([]);
     expect(await bindingState(b)).toBe('ready');
+    await expect(cycle(b)).resolves.toMatchObject({ converged: true });
+    expect(await title(b)).toBe('One');
+  });
+
+  it('settles a download that the provider pruned before its bytes arrived', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a');
+    const b = await createDevice(world, 'b');
+    await authorTitle(world, a, 'One');
+    await cycle(a);
+    const [segment] = await a.db.select().from(SyncSegmentTable);
+    const [local] = await a.db.select().from(SyncLocalObjectTable).where(eq(SyncLocalObjectTable.id, segment!.localObjectId));
+    const download = world.provider.downloadImmutable.bind(world.provider);
+    vi.spyOn(world.provider, 'downloadImmutable').mockImplementation(async (input) => {
+      world.provider.removeRemoteObject(a.generation, local!.logicalKeyId);
+      return download(input);
+    });
+
+    // The cycle's repull sees the removal and cancels the dead download.
+    await expect(cycle(b)).resolves.toMatchObject({ converged: true });
     expect(await removedKinds(b)).toEqual(['segment']);
+    expect(await bindingState(b)).toBe('ready');
+    const transfers = await b.db.select({ state: SyncTransferTable.state }).from(SyncTransferTable);
+    expect(transfers.map((transfer) => transfer.state)).toContain('cancelled');
+  });
+
+  it('keeps uploading local edits when a snapshot cannot be installed', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a');
+    const failing: SyncDomainMaterializationKernel = {
+      ...titleKernel,
+      async validate() {
+        throw new Error('this replica cannot validate the snapshot');
+      },
+    };
+    const b = await createDevice(world, 'b', failing);
+    await historyWithThreeSnapshots(world, a);
+    await a.compactor.pruneIfDue(new AbortController().signal);
+    await authorTitle(world, b, 'Offline edit on B');
+
+    await expect(cycle(b)).resolves.toMatchObject({ publishedSegments: 1, converged: false });
+    expect(await installedBase(b)).toBeUndefined();
+    expect(await bindingState(b)).toBe('ready');
+    await cycle(a);
+    expect(await title(a)).toBe('Offline edit on B');
+  });
+
+  it('does not merge prose into an owner this replica purged', async () => {
+    const world = createWorld(0);
+    const b = await createDevice(world, 'b');
+    await b.db.delete(NodeContentTable);
+    await b.db.delete(BookNodeTable);
+    const source = new Y.Doc();
+    source.getXmlFragment('default').insert(0, [new Y.XmlElement('paragraph')]);
+    const merged = await b.db.transaction((tx) =>
+      mergeCheckpointProseInTransaction(tx, {
+        projectId: PROJECT_ID,
+        documentId: PROSE_DOC_ID,
+        state: Y.encodeStateAsUpdate(source),
+        nowIso: NOW,
+      }),
+    );
+    expect(merged).toBe(false);
+    expect(await createYjsRepository(b.db).listUpdates(PROSE_DOC_ID)).toEqual([]);
+    expect(await b.db.select().from(NodeContentTable)).toEqual([]);
   });
 
   it('still treats a lost blob as corruption on a pruning provider', async () => {

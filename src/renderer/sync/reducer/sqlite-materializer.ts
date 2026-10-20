@@ -696,7 +696,12 @@ export async function fastForwardSqliteReducerOntoCheckpointInTransaction(
   const syncGenerationId = input.identity.syncGenerationId;
   const profile = profileFor(DEFAULT_SQLITE_REDUCER_PROFILE, input.kernel);
   const replayProfile = sqliteReplayReducerProfile(DEFAULT_SQLITE_REDUCER_PROFILE, input.kernel);
-  const before = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
+  // A purge this replica already materialized has its register row.
+  const [purged] = await tx
+    .select({ syncGenerationId: SyncGenerationPurgeTable.syncGenerationId })
+    .from(SyncGenerationPurgeTable)
+    .where(eq(SyncGenerationPurgeTable.syncGenerationId, syncGenerationId))
+    .limit(1);
   await tx.delete(SyncReducerBaseTable).where(eq(SyncReducerBaseTable.syncGenerationId, syncGenerationId));
   await installSqliteReducerBaseInTransaction(tx, {
     syncGenerationId,
@@ -711,7 +716,7 @@ export async function fastForwardSqliteReducerOntoCheckpointInTransaction(
   invalidateReducerCache(syncGenerationId);
   const loaded = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
   const projected = projectCanonicalReducerState(loaded.state, profile, {
-    materializePurge: loaded.state.generationPurge !== null && before.state.generationPurge === null,
+    materializePurge: loaded.state.generationPurge !== null && !purged,
   });
   const context: SyncDomainMaterializationContext = {
     tx,

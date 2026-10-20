@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-20T18:40:18.547Z",
-  "sourceSha256": "23045849a8c5676fe30a897931d4b6c03e31fc87b7b2296eb167fd8e567b44ab",
+  "generatedAt": "2026-10-20T18:58:17.436Z",
+  "sourceSha256": "23bb1061277e2fd7345f2b553dc14136d1b0f9ebfdb9180c2997e97c43237b64",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -235,62 +235,6 @@
       "status": "passed"
     },
     {
-      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
-      "status": "passed"
-    },
-    {
-      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
-      "status": "passed"
-    },
-    {
-      "name": "keeps local writing independent of an unavailable Keychain",
-      "status": "passed"
-    },
-    {
-      "name": "does not silently replace an invalid native marker and allows a repaired read",
-      "status": "passed"
-    },
-    {
-      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
-      "status": "passed"
-    },
-    {
-      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
-      "status": "passed"
-    },
-    {
       "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
       "status": "passed"
     },
@@ -416,6 +360,62 @@
     },
     {
       "name": "leaving sign-in cancels before the library is connected",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
+      "status": "passed"
+    },
+    {
+      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
+      "status": "passed"
+    },
+    {
+      "name": "keeps local writing independent of an unavailable Keychain",
+      "status": "passed"
+    },
+    {
+      "name": "does not silently replace an invalid native marker and allows a repaired read",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
       "status": "passed"
     },
     {

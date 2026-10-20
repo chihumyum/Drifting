@@ -1373,6 +1373,21 @@ async function writeProseProjection(
   }
 }
 
+async function proseOwnerExists(
+  tx: DbTransaction,
+  projectId: string,
+  parsed: NonNullable<ReturnType<typeof parseDocId>>,
+): Promise<boolean> {
+  const exists = async (table: typeof BookNodeTable | typeof BookElementTable | typeof StorylineTable | typeof ElementCategoryTable) =>
+    (await tx.select({ id: table.id }).from(table).where(and(eq(table.id, parsed.entityId), eq(table.projectId, projectId))).limit(1)).length === 1;
+  switch (parsed.kind) {
+    case 'node-content': return exists(BookNodeTable);
+    case 'element': return exists(BookElementTable);
+    case 'storyline': return exists(StorylineTable);
+    case 'category': return exists(ElementCategoryTable);
+  }
+}
+
 /**
  * Merges a checkpoint's full Yjs state into the local document. Only the
  * difference from the local state vector is appended, as an ordinary update
@@ -1384,6 +1399,10 @@ export async function mergeCheckpointProseInTransaction(
   tx: DbTransaction,
   input: { readonly projectId: string; readonly documentId: string; readonly state: Uint8Array; readonly nowIso: string },
 ): Promise<boolean> {
+  // The fast-forward may have purged the owner (for example a chapter this
+  // replica emptied from trash); its prose must not come back as an orphan.
+  const parsed = parseDocId(input.documentId);
+  if (!parsed || !(await proseOwnerExists(tx, input.projectId, parsed))) return false;
   const repository = createYjsRepository(tx);
   const document = new Y.Doc();
   try {
@@ -1400,11 +1419,8 @@ export async function mergeCheckpointProseInTransaction(
       return false;
     }
     await repository.appendUpdate(input.documentId, Y.diffUpdate(input.state, stateVector), { kind: 'remote' });
-    const parsed = parseDocId(input.documentId);
-    if (parsed) {
-      const contentJson = JSON.stringify(yDocToProsemirrorJSON(document, 'default'));
-      await writeProseProjection(tx, input.projectId, parsed, contentJson, input.nowIso);
-    }
+    const contentJson = JSON.stringify(yDocToProsemirrorJSON(document, 'default'));
+    await writeProseProjection(tx, input.projectId, parsed, contentJson, input.nowIso);
     return true;
   } finally {
     document.destroy();

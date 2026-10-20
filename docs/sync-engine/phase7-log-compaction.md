@@ -38,6 +38,8 @@ replica therefore **rebases** onto the snapshot instead of reinstalling.
   the per-lane minimum of the retained frontiers. Each retained snapshot covers
   everything removed, so either one plus the remaining segments reconstructs
   the full history. The older one stays a complete fallback.
+- **Retained format.** Both retained snapshots must be payload v2, the only
+  format catch-up installs.
 - **Provider guards.** The provider cannot decode objects; coverage is the
   pruning client's proof. The provider enforces the rest: at least two
   retained markers, packages only together with a marker, no blobs, segments
@@ -57,11 +59,14 @@ replica therefore **rebases** onto the snapshot instead of reinstalling.
 
 On a provider with `pruneObjects`, a removed segment or snapshot object is
 expected truncation: it is recorded (`removed_at`) and never blocks the
-binding. Downloaded segment bytes stay authoritative after removal. A listed
-object pruned before its download, and objects missing from a full inventory,
-are recorded the same way. A removed blob is still corruption, as is any
-removal on providers that never prune. Restore discovery drops objects pruned
-while it lists them.
+binding. Downloaded segment bytes stay authoritative after removal, and a
+download that can no longer complete is cancelled. A failed download (HTTP 404)
+alone is not proof of pruning. The object stays in the inbox and the backlog
+retries it until the provider's removal change settles it. On these providers
+the backlog also downloads snapshot objects, so a restored replica can read
+every committed snapshot. A removed blob is still corruption, as is any removal
+on providers that never prune. Restore discovery drops objects pruned while it
+lists them.
 
 ## Catch-up (InstallSnapshot as rebase)
 
@@ -86,7 +91,13 @@ gap. In one SQLite transaction it:
 
 It runs only when the snapshot covers the replica's existing reducer base, and
 never with open conflicts or quarantine. Writer identity, device-local tables
-and unsent change-sets are untouched; nothing needs to be uploaded first.
+and unsent change-sets are untouched; nothing needs to be uploaded first. Prose
+whose owner this replica purged is not merged back. Assets the snapshot
+introduced are recorded as missing blob state in the same transaction, and
+ordinary blob ingest installs them on later cycles. If a snapshot cannot be
+installed (newer format, corrupt package, rejected replay), the replica keeps
+waiting on its gap and keeps uploading its own edits. It retries only once the
+snapshot set or its frontier changes.
 
 ## Local truncation
 

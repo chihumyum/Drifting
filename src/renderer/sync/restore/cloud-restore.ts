@@ -44,6 +44,7 @@ import { NativePlaintextSyncEngineObjectCodec } from '../engine/native-plaintext
 import { type SyncWriterIdentitySource } from '../journal';
 import { nativeSyncObjectCodec, type NativeSyncObjectCodec } from '../native-object-codec';
 import {
+  compareHlc,
   compareUtf8Bytewise,
   decodeSnapshotCommitMarkerV1,
   sha256Bytes,
@@ -480,6 +481,16 @@ function compareSnapshotCandidate(
   left: RemoteSnapshotCandidate,
   right: RemoteSnapshotCandidate,
 ): number {
+  // Frontier sequences only compare within one SyncGeneration; across
+  // generations of a project the later commit still decides.
+  if (left.syncGenerationId !== right.syncGenerationId) {
+    return (
+      compareHlc(left.marker.committedAt, right.marker.committedAt) ||
+      compareUtf8Bytewise(left.marker.snapshotId, right.marker.snapshotId) ||
+      compareUtf8Bytewise(left.syncGenerationId, right.syncGenerationId) ||
+      compareUtf8Bytewise(left.markerObject.objectId, right.markerObject.objectId)
+    );
+  }
   return (
     compareSnapshotOrder(snapshotOrderOf(left), snapshotOrderOf(right)) ||
     compareUtf8Bytewise(left.syncGenerationId, right.syncGenerationId) ||

@@ -204,7 +204,10 @@ export class SyncLogCompactor {
         return { status: 'skipped', reason: 'behind-newest-snapshot' };
       }
       for (const entry of catalog.entries.slice(0, RETAINED_SNAPSHOTS)) {
-        await validateCatalogSnapshot({ syncGenerationId, objectCodec, entry });
+        const validated = await validateCatalogSnapshot({ syncGenerationId, objectCodec, entry });
+        // Catch-up installs only payload v2; history covered solely by an
+        // older snapshot format must stay reachable as segments.
+        if (validated.payloadVersion !== 2) return { status: 'skipped', reason: 'retained-payload-v1' };
       }
       const selected = planPrune(catalog.entries);
       if (!selected) return { status: 'skipped', reason: 'too-few-snapshots' };
