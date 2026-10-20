@@ -9,6 +9,7 @@ import {
   SyncChangeSetTable,
   SyncConflictTable,
   SyncFrontierGapTable,
+  SyncFrontierTable,
   SyncLocalObjectTable,
   SyncMutationTable,
   SyncProviderBindingTable,
@@ -20,8 +21,11 @@ import {
   SyncGenerationWriterStateTable,
 } from '../../schema/drizzle';
 import type { SyncWriterIdentitySource } from '../journal';
+import { installSnapshotCatchUp, planSnapshotCatchUp } from '../compaction/catch-up';
+import { truncatePrunedLocalSegments } from '../compaction/local-truncation';
 import {
   applyVerifiedRemoteChangeSetInTransaction,
+  invalidateSqliteReducerStateCache,
   type ReducerEffect,
   type SyncDomainMaterializationKernel,
   SyncReducerRejectedError,
@@ -291,6 +295,23 @@ function validatedTransferredBytes(
   return progress.transferredBytes;
 }
 
+function isRemoteObjectMissing(error: unknown): boolean {
+  return Boolean(
+    error && typeof error === 'object' && 'code' in error &&
+    (error as { code: unknown }).code === 'REMOTE_OBJECT_MISSING',
+  );
+}
+
+/**
+ * On a pruning provider, removing any non-blob object is announced log
+ * truncation: segment bytes already downloaded stay authoritative and
+ * snapshots are superseded. Blobs are never pruned, so losing one remains
+ * corruption, as does any removal on providers that never prune.
+ */
+export function isPrunedRemovalKind(provider: ObjectLogProvider, objectKind: string): boolean {
+  return typeof provider.pruneObjects === 'function' && objectKind !== 'blob';
+}
+
 function isInvalidProviderToken(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('code' in error)) return false;
   const code = String((error as { code: unknown }).code)
@@ -360,6 +381,8 @@ export class SqliteSyncGenerationRuntime {
   private readonly onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
   private pendingProjectNotification: Parameters<NonNullable<SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted']>>[0] | null = null;
   private referenceCoverageNotified = false;
+  /** Snapshot set and applied frontier of the last catch-up check that found nothing. */
+  private settledCatchUpKey: string | null = null;
   private readonly onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
   private readonly onStatus?: (runtime: SqliteSyncGenerationRuntime) => void;
   private readonly statusListeners = new Set<(runtime: SqliteSyncGenerationRuntime) => void>();
@@ -673,16 +696,22 @@ export class SqliteSyncGenerationRuntime {
             and(
               eq(SyncRemoteObjectTable.syncGenerationId, this.syncGenerationId),
               isNotNull(SyncRemoteObjectTable.removedAt),
+              // Pruned history is expected; only a lost blob is outstanding.
+              ...(typeof this.provider.pruneObjects === 'function'
+                ? [eq(SyncRemoteObjectTable.objectKind, 'blob')]
+                : []),
             ),
           ),
       ]);
+    // A writer seals contiguously, so everything up to its newest segment is
+    // sealed even after pruned predecessors were dropped locally.
+    const sealedThrough = new Map<string, number>();
+    for (const segment of segments) {
+      const lane = `${segment.writerId}\u0000${segment.writerEpoch}`;
+      sealedThrough.set(lane, Math.max(sealedThrough.get(lane) ?? 0, segment.lastSeq));
+    }
     const pendingChangeSets = localChanges.filter((changeSet) =>
-      !segments.some((segment) =>
-        segment.writerId === changeSet.writerId &&
-        segment.writerEpoch === changeSet.writerEpoch &&
-        segment.firstSeq <= changeSet.deviceSeq &&
-        segment.lastSeq >= changeSet.deviceSeq,
-      ),
+      changeSet.deviceSeq > (sealedThrough.get(`${changeSet.writerId}\u0000${changeSet.writerEpoch}`) ?? 0),
     ).length;
     const frontierByWriter = new Map<string, Awaited<ReturnType<SqliteSyncEngineStateRepository['loadWriterFrontier']>>>();
     for (const segment of segments) {
@@ -1159,6 +1188,7 @@ export class SqliteSyncGenerationRuntime {
               this.syncGenerationId,
               state,
               this.clock.nowIso(),
+              { prunesHistory: typeof this.provider.pruneObjects === 'function' },
             );
             if (persisted.missingObjectCount > 0) {
               throw new Error(
@@ -1258,21 +1288,31 @@ export class SqliteSyncGenerationRuntime {
       assertNotAborted(signal);
       if (row.completedTransferId !== null || row.objectKind !== 'segment') continue;
       let transferComplete = false;
-      const stagedObject = await this.stageRemoteObject(
-        generation,
-        {
-          objectId: row.objectId as ProviderObjectId,
-          objectKind: 'segment',
-          logicalKeyId: row.logicalKeyId,
-          storedSha256: protocolSha256(row.storedSha256),
-          sizeBytes: row.sizeBytes,
-        },
-        signal,
-        undefined,
-        (currentBytes) => {
-          if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
-        },
-      );
+      let stagedObject: StagedRemoteObject;
+      try {
+        stagedObject = await this.stageRemoteObject(
+          generation,
+          {
+            objectId: row.objectId as ProviderObjectId,
+            objectKind: 'segment',
+            logicalKeyId: row.logicalKeyId,
+            storedSha256: protocolSha256(row.storedSha256),
+            sizeBytes: row.sizeBytes,
+          },
+          signal,
+          undefined,
+          (currentBytes) => {
+            if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
+          },
+        );
+      } catch (error) {
+        if (!isRemoteObjectMissing(error) || !isPrunedRemovalKind(this.provider, 'segment')) {
+          throw error;
+        }
+        await this.recordRemoteRemoval(row.objectId as ProviderObjectId);
+        this.completeTransferProgressObject(progress, row.sizeBytes, false);
+        continue;
+      }
       transferComplete = true;
       staged += 1;
       this.completeTransferProgressObject(progress, row.sizeBytes, stagedObject.transferred);
@@ -1296,9 +1336,9 @@ export class SqliteSyncGenerationRuntime {
     for (const change of changes) {
       assertNotAborted(signal);
       if (change.kind === 'removed') {
-        const knownObjectRemoved = await this.recordRemoteRemoval(change);
+        const removal = await this.recordRemoteRemoval(change.objectId);
         receipt.removedRecorded += 1;
-        if (knownObjectRemoved) {
+        if (removal === 'corrupt') {
           throw new Error(
             'provider removed a previously observed immutable object; sync is blocked-corrupt',
           );
@@ -1306,17 +1346,32 @@ export class SqliteSyncGenerationRuntime {
         continue;
       }
       let transferComplete = false;
-      const stagedObject = await this.stageRemoteObject(
-        generation,
-        change.object,
-        signal,
-        observedCursor,
-        progress
-          ? (currentBytes) => {
-              if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
-            }
-          : undefined,
-      );
+      let stagedObject: StagedRemoteObject;
+      try {
+        stagedObject = await this.stageRemoteObject(
+          generation,
+          change.object,
+          signal,
+          observedCursor,
+          progress
+            ? (currentBytes) => {
+                if (!transferComplete) this.publishTransferProgress(progress, currentBytes);
+              }
+            : undefined,
+        );
+      } catch (error) {
+        // Listed, then pruned before its bytes arrived: the removal change
+        // follows in the feed, so record it now instead of failing the page.
+        if (
+          !isRemoteObjectMissing(error) ||
+          !isPrunedRemovalKind(this.provider, change.object.objectKind)
+        ) {
+          throw error;
+        }
+        await this.recordRemoteRemoval(change.object.objectId);
+        receipt.removedRecorded += 1;
+        continue;
+      }
       transferComplete = true;
       if (stagedObject.disposition === 'quarantined') receipt.quarantinedWithRawBytes += 1;
       else receipt.durableInbox += 1;
@@ -1332,34 +1387,35 @@ export class SqliteSyncGenerationRuntime {
   }
 
   private async recordRemoteRemoval(
-    change: Extract<RemoteObjectChange, { kind: 'removed' }>,
-  ): Promise<boolean> {
+    objectId: ProviderObjectId,
+  ): Promise<'unknown' | 'pruned' | 'corrupt'> {
     const nowIso = this.clock.nowIso();
     return this.db.transaction(async (tx) => {
       const [known] = await tx
-        .select({ id: SyncRemoteObjectTable.id })
+        .select({ id: SyncRemoteObjectTable.id, objectKind: SyncRemoteObjectTable.objectKind })
         .from(SyncRemoteObjectTable)
         .where(
           and(
             eq(SyncRemoteObjectTable.syncGenerationId, this.syncGenerationId),
-            eq(SyncRemoteObjectTable.providerObjectId, change.objectId),
+            eq(SyncRemoteObjectTable.providerObjectId, objectId),
           ),
         )
         .limit(1);
-      if (!known) return false;
+      if (!known) return 'unknown';
       await tx
         .update(SyncRemoteObjectTable)
         .set({ removedAt: nowIso, lastObservedAt: nowIso })
         .where(eq(SyncRemoteObjectTable.id, known.id));
-      // Provider removal is transport degradation, never a domain tombstone.
-      // v1 retains every immutable object, so losing any previously observed
-      // object blocks convergence until an explicit repair proves the exact
-      // bytes are available again.
+      // Provider removal is transport, never a domain tombstone. A pruning
+      // provider truncates history it has proven covered by retained
+      // snapshots; everywhere else losing an observed object blocks
+      // convergence until an explicit repair proves the bytes are back.
+      if (isPrunedRemovalKind(this.provider, known.objectKind)) return 'pruned';
       await tx
         .update(SyncProviderBindingTable)
         .set({ state: 'blocked-corrupt', updatedAt: nowIso })
         .where(eq(SyncProviderBindingTable.syncGenerationId, this.syncGenerationId));
-      return true;
+      return 'corrupt';
     });
   }
 
@@ -1648,7 +1704,8 @@ export class SqliteSyncGenerationRuntime {
           eq(SyncTransferTable.direction, 'download'),
           eq(SyncTransferTable.state, 'completed'),
           eq(SyncRemoteObjectTable.objectKind, 'segment'),
-          isNull(SyncRemoteObjectTable.removedAt),
+          // A completed download stays authoritative after the provider
+          // prunes the object; removal only ever blocks via binding state.
           inArray(SyncLocalObjectTable.state, ['staged', 'verified']),
         ),
       );
@@ -2047,6 +2104,7 @@ export class SqliteSyncGenerationRuntime {
       this.onRemoteChangeCommitted?.(this.pendingProjectNotification);
       this.pendingProjectNotification = null;
     }
+    await this.catchUpFromSnapshotIfNeeded(identity, signal);
     const segments = await this.db
       .select({
         segmentId: SyncSegmentTable.segmentId,
@@ -2149,7 +2207,105 @@ export class SqliteSyncGenerationRuntime {
         current = next;
       }
     }
+    if (typeof this.provider.pruneObjects === 'function') {
+      await truncatePrunedLocalSegments(this.db, this.syncGenerationId);
+    }
     await this.retireBindingForPurgedSyncGeneration();
+  }
+
+  /**
+   * A pruning provider may have truncated history this replica never
+   * received. When the newest snapshot covers a lane no local segment chain
+   * can reach, fast-forward onto that snapshot before applying segments.
+   */
+  private async catchUpFromSnapshotIfNeeded(
+    identity: SyncGenerationIdentity,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (typeof this.provider.pruneObjects !== 'function') return;
+    const key = await this.catchUpCheckKey();
+    if (key === this.settledCatchUpKey) return;
+    const input = { db: this.db, syncGenerationId: this.syncGenerationId, objectCodec: this.objectCodec };
+    const plan = await planSnapshotCatchUp(input);
+    if (!plan) {
+      this.settledCatchUpKey = key;
+      return;
+    }
+    assertNotAborted(signal);
+    const outcome = await installSnapshotCatchUp({
+      ...input,
+      kernel: this.domainKernel,
+      writerIdentity: this.writerIdentity,
+      clock: () => ({ nowMs: this.clock.nowMs(), nowIso: this.clock.nowIso() }),
+      plan,
+    });
+    if (outcome.status === 'forked') {
+      for (const localObjectId of outcome.forkedLocalObjectIds) {
+        const download = await this.downloadRowForLocalObject(localObjectId);
+        if (download) {
+          await this.quarantineDownloaded(
+            download,
+            'segment previous hash does not match the applied checkpoint frontier',
+            'blocked-corrupt',
+          );
+        }
+      }
+      return;
+    }
+    if (outcome.status !== 'installed') return;
+    invalidateSqliteReducerStateCache(this.syncGenerationId);
+    this.settledCatchUpKey = null;
+    await this.ingestDownloadedBlobs(
+      identity,
+      outcome.assets.map((asset) => ({
+        assetId: asset.assetId,
+        blobId: asset.blobId as Sha256,
+        sourceSha256: asset.sourceSha256,
+        sourceSizeBytes: asset.sizeBytes,
+        sourceMime: asset.mimeType,
+      })),
+      signal,
+    );
+    await this.reconcileOpenYjsDocuments?.({ projectId: outcome.projectId });
+    this.pendingProjectNotification = {
+      projectId: outcome.projectId,
+      changeSetId: `checkpoint:${outcome.snapshotId}`,
+      projectionImpact: 'workspace',
+    };
+    this.onRemoteChangeCommitted?.(this.pendingProjectNotification);
+    this.pendingProjectNotification = null;
+  }
+
+  private async catchUpCheckKey(): Promise<string> {
+    const [markers, frontier] = await Promise.all([
+      this.db
+        .select({ objectId: SyncRemoteObjectTable.providerObjectId })
+        .from(SyncRemoteObjectTable)
+        .where(
+          and(
+            eq(SyncRemoteObjectTable.syncGenerationId, this.syncGenerationId),
+            eq(SyncRemoteObjectTable.objectKind, 'snapshot-commit'),
+            isNull(SyncRemoteObjectTable.removedAt),
+          ),
+        ),
+      this.db
+        .select({
+          writerId: SyncFrontierTable.writerId,
+          writerEpoch: SyncFrontierTable.writerEpoch,
+          appliedSeq: SyncFrontierTable.appliedSeq,
+        })
+        .from(SyncFrontierTable)
+        .where(eq(SyncFrontierTable.syncGenerationId, this.syncGenerationId)),
+    ]);
+    const segments = await this.db
+      .select({ value: count() })
+      .from(SyncSegmentTable)
+      .where(eq(SyncSegmentTable.syncGenerationId, this.syncGenerationId));
+    return JSON.stringify([
+      markers.map((row) => row.objectId).sort(),
+      frontier.map((row) => [row.writerId, row.writerEpoch, row.appliedSeq]).sort(),
+      segments[0]?.value ?? 0,
+    ]);
   }
 
   private async retireBindingForPurgedSyncGeneration(): Promise<void> {

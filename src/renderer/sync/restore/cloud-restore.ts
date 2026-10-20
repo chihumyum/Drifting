@@ -33,13 +33,17 @@ import {
   resolveSyncGenerationAuthorityProjectId,
   type SyncProviderTransitionAttempt,
 } from '../app-authority-repository';
-import { syncProviderEpoch, syncRemoteObjectId } from '../engine/durable-runtime';
+import {
+  compareSnapshotOrder,
+  laneFrontierFromSnapshot,
+  type OrderedSnapshot,
+} from '../compaction/frontier';
+import { isPrunedRemovalKind, syncProviderEpoch, syncRemoteObjectId } from '../engine/durable-runtime';
 import type { SyncEngineObjectCodec } from '../engine/object-codec';
 import { NativePlaintextSyncEngineObjectCodec } from '../engine/native-plaintext-object-codec';
 import { type SyncWriterIdentitySource } from '../journal';
 import { nativeSyncObjectCodec, type NativeSyncObjectCodec } from '../native-object-codec';
 import {
-  compareHlc,
   compareUtf8Bytewise,
   decodeSnapshotCommitMarkerV1,
   sha256Bytes,
@@ -338,11 +342,20 @@ export async function discoverCurrentSyncGenerationObjects(input: {
     for (const change of result.changes) {
       if (change.kind === 'present') {
         observe(change.object);
-      } else if (byId.has(change.objectId)) {
+        continue;
+      }
+      const removed = byId.get(change.objectId);
+      if (!removed) continue;
+      if (!isPrunedRemovalKind(input.provider, removed.objectKind)) {
         throw new CloudRestoreError(
           'blocked-corrupt',
           'Provider removed an immutable object during restore inventory',
         );
+      }
+      // Truncated history is simply absent from the restored generation.
+      byId.delete(change.objectId);
+      if (logicalIdentity.get(removed.logicalKeyId)?.objectId === removed.objectId) {
+        logicalIdentity.delete(removed.logicalKeyId);
       }
     }
     if (result.nextPageToken) {
@@ -468,11 +481,18 @@ function compareSnapshotCandidate(
   right: RemoteSnapshotCandidate,
 ): number {
   return (
-    compareHlc(left.marker.committedAt, right.marker.committedAt) ||
-    compareUtf8Bytewise(left.marker.snapshotId, right.marker.snapshotId) ||
+    compareSnapshotOrder(snapshotOrderOf(left), snapshotOrderOf(right)) ||
     compareUtf8Bytewise(left.syncGenerationId, right.syncGenerationId) ||
     compareUtf8Bytewise(left.markerObject.objectId, right.markerObject.objectId)
   );
+}
+
+function snapshotOrderOf(candidate: RemoteSnapshotCandidate): OrderedSnapshot {
+  return {
+    frontier: laneFrontierFromSnapshot(candidate.package.frontier),
+    committedAt: candidate.marker.committedAt,
+    snapshotId: candidate.marker.snapshotId,
+  };
 }
 
 function singleLogicalObject(

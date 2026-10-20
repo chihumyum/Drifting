@@ -49,6 +49,8 @@ resumption, not current product availability.
   SyncGeneration provisioning.
 - [`phase6-product-controls.md`](phase6-product-controls.md): user-facing sync
   controls and release gates.
+- [`phase7-log-compaction.md`](phase7-log-compaction.md): Raft-style truncation
+  of covered history and lagging-replica catch-up from a snapshot.
 
 ## Evidence boundary
 

@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-02T12:26:34.365Z",
-  "sourceSha256": "289a9cd2eaf65ac04008eb68a056cc3c1b72956073d3bc063883cb03ad32c158",
+  "generatedAt": "2026-10-20T18:40:18.547Z",
+  "sourceSha256": "23045849a8c5676fe30a897931d4b6c03e31fc87b7b2296eb167fd8e567b44ab",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -275,6 +275,22 @@
       "status": "passed"
     },
     {
+      "name": "keeps local writing independent of an unavailable Keychain",
+      "status": "passed"
+    },
+    {
+      "name": "does not silently replace an invalid native marker and allows a repaired read",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
+      "status": "passed"
+    },
+    {
+      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
+      "status": "passed"
+    },
+    {
       "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
       "status": "passed"
     },
@@ -288,6 +304,10 @@
     },
     {
       "name": "still rolls back takeover for unresolved local integrity: gap",
+      "status": "passed"
+    },
+    {
+      "name": "refuses to adopt a generation restored from a compacted checkpoint",
       "status": "passed"
     },
     {
@@ -399,22 +419,6 @@
       "status": "passed"
     },
     {
-      "name": "keeps local writing independent of an unavailable Keychain",
-      "status": "passed"
-    },
-    {
-      "name": "does not silently replace an invalid native marker and allows a repaired read",
-      "status": "passed"
-    },
-    {
-      "name": "SyncEngine journal repository commits an atomic authored change set and rolls sequence/HLC back with its transaction",
-      "status": "passed"
-    },
-    {
-      "name": "SyncEngine journal repository rotates writer identity on installation mismatch without reusing sequence or HLC",
-      "status": "passed"
-    },
-    {
       "name": "SyncGenerationProvisionSupervisor drains cancelled work and prevents foreground wakeups until the deletion hold is released",
       "status": "passed"
     },
@@ -448,6 +452,14 @@
     },
     {
       "name": "Hosted provider response boundary bounds discovery pagination and checks ownership after each page",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary requests removal changes and accepts the strict removal shape",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted provider response boundary posts a prune request and validates the receipt against the request",
       "status": "passed"
     },
     {

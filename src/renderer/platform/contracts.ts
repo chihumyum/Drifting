@@ -509,8 +509,9 @@ export interface TauriCommandContract {
   keychain_set: { args: { key: string; value: string }; result: boolean };
   keychain_delete: { args: { key: string }; result: boolean };
   hosted_sync_request: {
-    args: { input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE'; transferId: string;
-      sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number } };
+    args: { input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE' | 'POST'; transferId: string;
+      sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number;
+      jsonBody?: unknown } };
     result: unknown;
   };
   hosted_sync_cancel: { args: { transferId: string }; result: void };

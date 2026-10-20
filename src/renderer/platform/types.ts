@@ -364,9 +364,9 @@ export interface PlatformApi {
   readonly locationLinks: LocationLinkPlatformApi;
   readonly keychain: KeychainPlatformApi;
   readonly hostedSync: {
-    request(input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE';
+    request(input: { origin: string; token: string; path: string; method: 'GET' | 'PUT' | 'DELETE' | 'POST';
       sourceRef?: string; destinationRef?: string; objectKind?: string; storedSha256?: string; sizeBytes?: number;
-      signal?: AbortSignal }): Promise<unknown>;
+      jsonBody?: unknown; signal?: AbortSignal }): Promise<unknown>;
   };
   readonly syncObjectStore: SyncObjectStorePlatformApi;
   readonly syncAssetStore: SyncAssetStorePlatformApi;

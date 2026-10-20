@@ -8,6 +8,7 @@ import {
   SyncOrderRegisterTable,
   SyncSetTagTable,
   SyncGenerationPurgeTable,
+  SyncReducerBaseTable,
 } from '../../schema/drizzle';
 import {
   completeRemoteApplyInTransaction,
@@ -24,7 +25,12 @@ import {
   type SyncMutationAction,
   type SyncTotalOrderV1,
 } from '../protocol';
-import { materializationEffects, reduceSyncChangeSet, reducerLifecycleKey } from './reducer';
+import {
+  materializationEffects,
+  projectCanonicalReducerState,
+  reduceSyncChangeSet,
+  reducerLifecycleKey,
+} from './reducer';
 import type {
   CanonicalReducerState,
   OrSetMemberState,
@@ -88,7 +94,9 @@ export const LOCAL_SQLITE_REDUCER_PROFILE: ReducerProfile = Object.freeze({
 
 import type { ReducerStateProfileV2 } from './state-pages';
 import {
+  deleteSqliteReducerSnapshotsInTransaction as deleteReducerSnapshots,
   installSqliteReducerBaseInTransaction,
+  invalidateSqliteReducerStateCache as invalidateReducerCache,
   loadSqliteReducerStateInTransaction,
   persistSqliteReducerSnapshotIfDue,
   rememberSqliteReducerState,
@@ -662,6 +670,69 @@ export async function applyVerifiedRemoteChangeSetInTransaction(
     ...reduced,
     journal,
   };
+}
+
+/**
+ * Fast-forwards an existing replica onto a verified payload v2 checkpoint
+ * base. The base replaces any older one; every applied change-set the base
+ * does not cover is replayed on top, so this replica's own and other
+ * uncovered history survives. The caller must already have imported the
+ * checkpoint's journal rows and must only pass a base that covers the old one.
+ * Domain rows converge to the full projection, exactly as after a rebuild.
+ */
+export async function fastForwardSqliteReducerOntoCheckpointInTransaction(
+  tx: DbTransaction,
+  input: {
+    readonly identity: { projectId: string; projectSyncId: string; syncGenerationId: string };
+    readonly baseProfile: ReducerStateProfileV2;
+    readonly pages: readonly Uint8Array[];
+    readonly sourceCheckpointId: string;
+    readonly kernel: SyncDomainMaterializationKernel;
+    /** Any applied change-set of this SyncGeneration; supplies project scope only. */
+    readonly scopeChangeSet: SyncChangeSetV1;
+    readonly nowIso: string;
+  },
+): Promise<{ readonly state: CanonicalReducerState; readonly effects: readonly ReducerEffect[] }> {
+  const syncGenerationId = input.identity.syncGenerationId;
+  const profile = profileFor(DEFAULT_SQLITE_REDUCER_PROFILE, input.kernel);
+  const replayProfile = sqliteReplayReducerProfile(DEFAULT_SQLITE_REDUCER_PROFILE, input.kernel);
+  const before = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
+  await tx.delete(SyncReducerBaseTable).where(eq(SyncReducerBaseTable.syncGenerationId, syncGenerationId));
+  await installSqliteReducerBaseInTransaction(tx, {
+    syncGenerationId,
+    profile: input.baseProfile,
+    pages: input.pages,
+    sourceCheckpointId: input.sourceCheckpointId,
+    nowIso: input.nowIso,
+  });
+  // A derived snapshot still accounts for its own rows and would otherwise
+  // be preferred over the new base, silently dropping the checkpoint.
+  await deleteReducerSnapshots(tx, syncGenerationId);
+  invalidateReducerCache(syncGenerationId);
+  const loaded = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
+  const projected = projectCanonicalReducerState(loaded.state, profile, {
+    materializePurge: loaded.state.generationPurge !== null && before.state.generationPurge === null,
+  });
+  const context: SyncDomainMaterializationContext = {
+    tx,
+    origin: 'remote',
+    changeSet: input.scopeChangeSet,
+    effects: projected.effects,
+  };
+  const drafts = await input.kernel.validate(context);
+  const validated = mergeValidation(projected.effects, projected.conflicts, drafts);
+  await input.kernel.materialize({ ...context, effects: validated.effects, changedEffectIds: null });
+  await persistReducerMetadata(tx, {
+    state: projected.state,
+    previous: null,
+    effects: projected.effects,
+    conflicts: validated.ownedConflicts,
+    domainValidationRan: true,
+    nowIso: input.nowIso,
+  });
+  // The cache is rebuilt from SQLite after commit.
+  invalidateReducerCache(syncGenerationId);
+  return { state: projected.state, effects: validated.effects };
 }
 
 /**

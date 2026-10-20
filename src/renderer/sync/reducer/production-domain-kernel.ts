@@ -2,6 +2,7 @@ import { insertYjsMaterializationReceiptInTransaction } from '../../sqlite-repo/
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
+import type { DbTransaction } from '../../lib/db';
 
 import {
   isEntityKind,
@@ -1326,38 +1327,85 @@ async function materializeYjsUpdate(
       binding,
       createdAt: winningIso(effect),
     });
-    const updatedAt = winningIso(effect);
-    switch (parsed.kind) {
-      case 'node-content':
-        await context.tx.insert(NodeContentTable).values({
-          nodeId: parsed.entityId,
-          contentJson,
-          createdAt: updatedAt,
-          updatedAt,
-        }).onConflictDoUpdate({
-          target: NodeContentTable.nodeId,
-          set: { contentJson, updatedAt },
-        });
-        return;
-      case 'element':
-        await context.tx.update(BookElementTable).set({ contentJson, updatedAt }).where(and(
-          eq(BookElementTable.id, parsed.entityId),
-          eq(BookElementTable.projectId, context.changeSet.projectId),
-        ));
-        return;
-      case 'storyline':
-        await context.tx.update(StorylineTable).set({ contentJson, updatedAt }).where(and(
-          eq(StorylineTable.id, parsed.entityId),
-          eq(StorylineTable.projectId, context.changeSet.projectId),
-        ));
-        return;
-      case 'category':
-        await context.tx.update(ElementCategoryTable).set({ contentJson, updatedAt }).where(and(
-          eq(ElementCategoryTable.id, parsed.entityId),
-          eq(ElementCategoryTable.projectId, context.changeSet.projectId),
-        ));
-        return;
+    await writeProseProjection(context.tx, context.changeSet.projectId, parsed, contentJson, winningIso(effect));
+  } finally {
+    document.destroy();
+  }
+}
+
+async function writeProseProjection(
+  tx: DbTransaction,
+  projectId: string,
+  parsed: NonNullable<ReturnType<typeof parseDocId>>,
+  contentJson: string,
+  updatedAt: string,
+): Promise<void> {
+  switch (parsed.kind) {
+    case 'node-content':
+      await tx.insert(NodeContentTable).values({
+        nodeId: parsed.entityId,
+        contentJson,
+        createdAt: updatedAt,
+        updatedAt,
+      }).onConflictDoUpdate({
+        target: NodeContentTable.nodeId,
+        set: { contentJson, updatedAt },
+      });
+      return;
+    case 'element':
+      await tx.update(BookElementTable).set({ contentJson, updatedAt }).where(and(
+        eq(BookElementTable.id, parsed.entityId),
+        eq(BookElementTable.projectId, projectId),
+      ));
+      return;
+    case 'storyline':
+      await tx.update(StorylineTable).set({ contentJson, updatedAt }).where(and(
+        eq(StorylineTable.id, parsed.entityId),
+        eq(StorylineTable.projectId, projectId),
+      ));
+      return;
+    case 'category':
+      await tx.update(ElementCategoryTable).set({ contentJson, updatedAt }).where(and(
+        eq(ElementCategoryTable.id, parsed.entityId),
+        eq(ElementCategoryTable.projectId, projectId),
+      ));
+      return;
+  }
+}
+
+/**
+ * Merges a checkpoint's full Yjs state into the local document. Only the
+ * difference from the local state vector is appended, as an ordinary update
+ * row, so open editors reconcile from the update tail. Deleted text that the
+ * checkpoint garbage-collected merges as a deletion, never a resurrection.
+ * Returns whether the document changed.
+ */
+export async function mergeCheckpointProseInTransaction(
+  tx: DbTransaction,
+  input: { readonly projectId: string; readonly documentId: string; readonly state: Uint8Array; readonly nowIso: string },
+): Promise<boolean> {
+  const repository = createYjsRepository(tx);
+  const document = new Y.Doc();
+  try {
+    const snapshot = await repository.getSnapshot(input.documentId);
+    if (snapshot) Y.applyUpdate(document, snapshot.stateBlob, 'remote-sync');
+    for (const existing of await repository.listUpdates(input.documentId)) {
+      Y.applyUpdate(document, existing.updateBlob, 'remote-sync');
     }
+    const before = Y.encodeStateAsUpdate(document);
+    const stateVector = Y.encodeStateVector(document);
+    Y.applyUpdate(document, input.state, 'remote-sync');
+    const after = Y.encodeStateAsUpdate(document);
+    if (before.byteLength === after.byteLength && before.every((byte, index) => byte === after[index])) {
+      return false;
+    }
+    await repository.appendUpdate(input.documentId, Y.diffUpdate(input.state, stateVector), { kind: 'remote' });
+    const parsed = parseDocId(input.documentId);
+    if (parsed) {
+      const contentJson = JSON.stringify(yDocToProsemirrorJSON(document, 'default'));
+      await writeProseProjection(tx, input.projectId, parsed, contentJson, input.nowIso);
+    }
+    return true;
   } finally {
     document.destroy();
   }

@@ -8,7 +8,8 @@ export type ObjectLogProviderErrorCode =
   | 'IMMUTABLE_OBJECT_CONFLICT'
   | 'SIZE_MISMATCH'
   | 'HASH_MISMATCH'
-  | 'REMOTE_STORE_CORRUPT';
+  | 'REMOTE_STORE_CORRUPT'
+  | 'PRUNE_REJECTED';
 
 export class ObjectLogProviderError extends Error {
   readonly code: ObjectLogProviderErrorCode;

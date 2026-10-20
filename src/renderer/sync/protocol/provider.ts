@@ -223,8 +223,36 @@ export interface TransferProgress {
   readonly totalBytes: number;
 }
 
+/**
+ * Log truncation request. `basisCursor` is a fully drained change cursor: the
+ * provider rejects the request when a snapshot object arrived after it and
+ * never removes an object observed after it. Coverage of `remove` by every
+ * `retain` snapshot is the caller's proof; providers cannot decode objects.
+ */
+export interface PruneObjectsInput {
+  generation: ProviderGeneration;
+  basisCursor: ProviderCursor;
+  retain: readonly ProviderObjectId[];
+  remove: readonly ProviderObjectId[];
+  signal: AbortSignal;
+}
+
+export interface PruneObjectsResult {
+  /** Removed now or already absent from an earlier prune. */
+  readonly removed: readonly ProviderObjectId[];
+  /** Still inside the provider's grace window or above the basis. */
+  readonly deferred: readonly ProviderObjectId[];
+}
+
 export interface ObjectLogProvider {
   readonly kind: ProviderKind;
+
+  /**
+   * Present only on providers whose removals are deliberate log truncation.
+   * Such providers announce every removal in `listChanges`; removal of a
+   * non-blob object is then expected history loss, not corruption.
+   */
+  pruneObjects?(input: PruneObjectsInput): Promise<PruneObjectsResult>;
 
   openGeneration(binding: ProviderBinding): Promise<ProviderGeneration>;
   captureStartCursor(generation: ProviderGeneration): Promise<ProviderCursor>;

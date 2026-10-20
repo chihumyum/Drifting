@@ -1,6 +1,6 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 
-import type { DbClient, DbTransaction } from '../../lib/db';
+import type { DbClient, DbExecutor, DbTransaction } from '../../lib/db';
 import {
   SyncCursorTable,
   SyncFrontierGapTable,
@@ -121,6 +121,55 @@ export function decodeCursorStorage(row: CursorStorageRow): DurableCursorState {
   });
 }
 
+/** Loads one writer's frontier lanes, inside the caller's transaction if any. */
+export async function loadWriterFrontierInTransaction(
+  executor: DbExecutor,
+  input: { syncGenerationId: string; writerId: string; writerEpoch: string },
+): Promise<WriterFrontierState> {
+  const [frontierRows, gapRows] = await Promise.all([
+    executor
+      .select()
+      .from(SyncFrontierTable)
+      .where(
+        and(
+          eq(SyncFrontierTable.syncGenerationId, input.syncGenerationId),
+          eq(SyncFrontierTable.writerId, input.writerId),
+          eq(SyncFrontierTable.writerEpoch, input.writerEpoch),
+        ),
+      )
+      .limit(1),
+    executor
+      .select()
+      .from(SyncFrontierGapTable)
+      .where(
+        and(
+          eq(SyncFrontierGapTable.syncGenerationId, input.syncGenerationId),
+          eq(SyncFrontierGapTable.writerId, input.writerId),
+          eq(SyncFrontierGapTable.writerEpoch, input.writerEpoch),
+          eq(SyncFrontierGapTable.state, 'open'),
+        ),
+      )
+      .orderBy(asc(SyncFrontierGapTable.lane), asc(SyncFrontierGapTable.firstSeq)),
+  ]);
+  const row = frontierRows[0];
+  if (!row) return createWriterFrontier(input);
+  const ranges = (lane: FrontierLane) =>
+    gapRows
+      .filter((gap) => gap.lane === lane)
+      .map((gap) => Object.freeze({ firstSeq: gap.firstSeq, lastSeq: gap.lastSeq }));
+  const state: WriterFrontierState = Object.freeze({
+    ...input,
+    received: Object.freeze({ maxSeq: row.receivedSeq, gaps: Object.freeze(ranges('received')) }),
+    applied: Object.freeze({ maxSeq: row.appliedSeq, gaps: Object.freeze(ranges('applied')) }),
+    published: Object.freeze({ maxSeq: row.publishedSeq, gaps: Object.freeze(ranges('published')) }),
+    segmentHeadSha256: row.segmentHeadSha256
+      ? protocolSha256(row.segmentHeadSha256)
+      : null,
+  });
+  assertWriterFrontierInvariants(state);
+  return state;
+}
+
 /** SQLite adapter for the pure frontier/cursor state machines; it owns no network API. */
 export class SqliteSyncEngineStateRepository {
   constructor(private readonly db: DbClient) {}
@@ -130,48 +179,7 @@ export class SqliteSyncEngineStateRepository {
     writerId: string;
     writerEpoch: string;
   }): Promise<WriterFrontierState> {
-    const [frontierRows, gapRows] = await Promise.all([
-      this.db
-        .select()
-        .from(SyncFrontierTable)
-        .where(
-          and(
-            eq(SyncFrontierTable.syncGenerationId, input.syncGenerationId),
-            eq(SyncFrontierTable.writerId, input.writerId),
-            eq(SyncFrontierTable.writerEpoch, input.writerEpoch),
-          ),
-        )
-        .limit(1),
-      this.db
-        .select()
-        .from(SyncFrontierGapTable)
-        .where(
-          and(
-            eq(SyncFrontierGapTable.syncGenerationId, input.syncGenerationId),
-            eq(SyncFrontierGapTable.writerId, input.writerId),
-            eq(SyncFrontierGapTable.writerEpoch, input.writerEpoch),
-            eq(SyncFrontierGapTable.state, 'open'),
-          ),
-        )
-        .orderBy(asc(SyncFrontierGapTable.lane), asc(SyncFrontierGapTable.firstSeq)),
-    ]);
-    const row = frontierRows[0];
-    if (!row) return createWriterFrontier(input);
-    const ranges = (lane: FrontierLane) =>
-      gapRows
-        .filter((gap) => gap.lane === lane)
-        .map((gap) => Object.freeze({ firstSeq: gap.firstSeq, lastSeq: gap.lastSeq }));
-    const state: WriterFrontierState = Object.freeze({
-      ...input,
-      received: Object.freeze({ maxSeq: row.receivedSeq, gaps: Object.freeze(ranges('received')) }),
-      applied: Object.freeze({ maxSeq: row.appliedSeq, gaps: Object.freeze(ranges('applied')) }),
-      published: Object.freeze({ maxSeq: row.publishedSeq, gaps: Object.freeze(ranges('published')) }),
-      segmentHeadSha256: row.segmentHeadSha256
-        ? protocolSha256(row.segmentHeadSha256)
-        : null,
-    });
-    assertWriterFrontierInvariants(state);
-    return state;
+    return loadWriterFrontierInTransaction(this.db, input);
   }
 
   async persistWriterFrontier(state: WriterFrontierState, nowIso: string): Promise<void> {
@@ -310,12 +318,13 @@ export class SqliteSyncEngineStateRepository {
     syncGenerationId: string,
     state: DurableCursorState,
     nowIso: string,
+    options: { readonly prunesHistory?: boolean } = {},
   ): Promise<{ readonly missingObjectCount: number }> {
     const row = encodeCursorStorage(state);
     return this.db.transaction(async (tx) => {
       if (state.inventoryComplete) {
         const missing = await tx
-          .select({ id: SyncRemoteObjectTable.id })
+          .select({ id: SyncRemoteObjectTable.id, objectKind: SyncRemoteObjectTable.objectKind })
           .from(SyncRemoteObjectTable)
           .where(
             and(
@@ -335,11 +344,18 @@ export class SqliteSyncEngineStateRepository {
                 isNull(SyncRemoteObjectTable.removedAt),
               ),
             );
+        }
+        // A pruning provider omits truncated history from inventory too; only
+        // a lost blob (never pruned) remains corruption there.
+        const corrupt = options.prunesHistory
+          ? missing.filter((object) => object.objectKind === 'blob')
+          : missing;
+        if (corrupt.length > 0) {
           await tx
             .update(SyncProviderBindingTable)
             .set({ state: 'blocked-corrupt', updatedAt: nowIso })
             .where(eq(SyncProviderBindingTable.syncGenerationId, syncGenerationId));
-          return { missingObjectCount: missing.length };
+          return { missingObjectCount: corrupt.length };
         }
       }
       await tx

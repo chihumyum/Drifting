@@ -376,6 +376,25 @@ export async function captureCompactedReducerStateV2(
 }
 
 /**
+ * Adds the journal rows a checkpoint base names to an existing replica.
+ * Rows this replica already holds are kept: a change-set identity always
+ * names the same verified bytes. Frontier rows are the caller's to join.
+ */
+export async function importCheckpointJournalInTransaction(
+  tx: DbTransaction,
+  journal: ReducerStateJournalV2,
+): Promise<void> {
+  const changeSets = (
+    inflateRows(SyncChangeSetTable, journal.changeSets) as (typeof SyncChangeSetTable.$inferInsert)[]
+  ).map((row) => ({ ...row, origin: 'remote' as const }));
+  const mutations = inflateRows(SyncMutationTable, journal.mutations) as (typeof SyncMutationTable.$inferInsert)[];
+  const receipts = inflateRows(SyncApplyReceiptTable, journal.applyReceipts) as (typeof SyncApplyReceiptTable.$inferInsert)[];
+  for (const batch of batches(changeSets)) await tx.insert(SyncChangeSetTable).values(batch).onConflictDoNothing();
+  for (const batch of batches(mutations)) await tx.insert(SyncMutationTable).values(batch).onConflictDoNothing();
+  for (const batch of batches(receipts)) await tx.insert(SyncApplyReceiptTable).values(batch).onConflictDoNothing();
+}
+
+/**
  * Restores a verified payload v2 reducer section: the carried journal rows as
  * remote ancestry, the frontier, every implied metadata row and the base.
  */

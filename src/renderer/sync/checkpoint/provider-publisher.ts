@@ -2,6 +2,7 @@ import { and, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { DbClient, DbTransaction } from '../../lib/db';
+import type { SyncLogCompactor } from '../compaction/policy';
 import {
   SyncBlobStateTable,
   SyncChangeSetTable,
@@ -628,6 +629,10 @@ export interface ProviderCheckpointHookOptions {
   readonly changeSetThreshold?: number;
   readonly segmentByteThreshold?: number;
   readonly maxAgeMs?: number;
+  /** The provider announces deliberate truncation (`pruneObjects`). */
+  readonly prunesHistory?: boolean;
+  /** Publish guard plus optional pruning, run when the binding is healthy. */
+  readonly compaction?: Pick<SyncLogCompactor, 'allowsCheckpoint' | 'pruneIfDue'>;
 }
 
 /** Reusable `SqliteSyncGenerationRuntime.checkpoint` hook with the frozen v1 policy. */
@@ -658,6 +663,9 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
             and(
               eq(SyncRemoteObjectTable.syncGenerationId, syncGenerationId),
               isNotNull(SyncRemoteObjectTable.removedAt),
+              // On a pruning provider, pruned segments and superseded
+              // snapshots are expected truncation; only a lost blob is not.
+              ...(options.prunesHistory ? [eq(SyncRemoteObjectTable.objectKind, 'blob')] : []),
             ),
           )
           .limit(1),
@@ -714,7 +722,10 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
         .where(eq(SyncChangeSetTable.syncGenerationId, syncGenerationId));
       const currentCount = Number(changeSets?.value ?? 0);
       const previousCount = latest?.changeSetCount ?? 0;
-      if (currentCount <= previousCount) return false;
+      if (currentCount <= previousCount) {
+        await options.compaction?.pruneIfDue(signal);
+        return false;
+      }
       const segments = await options.db
         .select({ createdAt: SyncSegmentTable.createdAt, sizeBytes: SyncLocalObjectTable.sizeBytes })
         .from(SyncSegmentTable)
@@ -732,13 +743,18 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
           (options.changeSetThreshold ?? DEFAULT_CHANGE_SET_THRESHOLD) ||
         bytesSince >= (options.segmentByteThreshold ?? DEFAULT_SEGMENT_BYTE_THRESHOLD) ||
         ageMs >= (options.maxAgeMs ?? DEFAULT_MAX_AGE_MS);
-      if (!due) return false;
-      await options.publisher.publishSnapshot({
-        snapshotId: createSnapshotId(),
-        snapshotKind: 'checkpoint',
-        signal,
-      });
-      return true;
+      if (due && (!options.compaction || (await options.compaction.allowsCheckpoint()))) {
+        await options.publisher.publishSnapshot({
+          snapshotId: createSnapshotId(),
+          snapshotKind: 'checkpoint',
+          signal,
+        });
+        return true;
+      }
+      // Never in the cycle that just published: a new snapshot lies beyond
+      // this cycle's prune basis, so the provider would reject the request.
+      await options.compaction?.pruneIfDue(signal);
+      return false;
     },
   };
 }

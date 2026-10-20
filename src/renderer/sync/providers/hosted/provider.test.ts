@@ -130,4 +130,50 @@ describe('Hosted provider response boundary', () => {
     });
     await expect(provider.discover(input)).rejects.toMatchObject({ code: 'INVALID_GENERATION' });
   });
+  it('requests removal changes and accepts the strict removal shape', async () => {
+    const { provider, request } = setup();
+    const generation = await provider.openGeneration(binding);
+    request.mockResolvedValueOnce({
+      changes: [{ kind: 'removed', objectId: 'object-a', logicalKeyId: object.logicalKeyId }],
+      newCursor: 'cursor-b',
+    });
+    const page = await provider.listChanges({ generation, cursor: createProviderCursor('cursor-a') });
+    expect(page.changes).toEqual([
+      { kind: 'removed', objectId: 'object-a', logicalKeyId: object.logicalKeyId },
+    ]);
+    expect(request.mock.lastCall?.[0].path).toBe(
+      '/api/sync/v1/project-v1/generations/generation-a/changes?cursor=cursor-a&includeRemovals=1',
+    );
+  });
+  it('posts a prune request and validates the receipt against the request', async () => {
+    const { provider, request } = setup();
+    const generation = await provider.openGeneration(binding);
+    const input = {
+      generation,
+      basisCursor: createProviderCursor('cursor-a'),
+      retain: [createProviderObjectId('marker-1'), createProviderObjectId('marker-2')],
+      remove: [createProviderObjectId('segment-1'), createProviderObjectId('segment-2')],
+      signal: new AbortController().signal,
+    };
+    request.mockResolvedValueOnce({
+      status: 'pruned',
+      removed: ['segment-1'],
+      deferred: ['segment-2'],
+      cursor: 'cursor-c',
+    });
+    await expect(provider.pruneObjects(input)).resolves.toEqual({
+      removed: ['segment-1'],
+      deferred: ['segment-2'],
+    });
+    expect(request.mock.lastCall?.[0]).toEqual({
+      path: '/api/sync/v1/project-v1/generations/generation-a/prune',
+      method: 'POST',
+      signal: input.signal,
+      jsonBody: { basisCursor: 'cursor-a', retain: ['marker-1', 'marker-2'], remove: ['segment-1', 'segment-2'] },
+    });
+    request.mockResolvedValueOnce({ status: 'pruned', removed: ['marker-1'], deferred: [] });
+    await expect(provider.pruneObjects(input)).rejects.toMatchObject({ code: 'REMOTE_STORE_CORRUPT' });
+    const chat = new HostedObjectLogProvider({ accountSubject: () => 'account-a', request }, 'agent-chat-v1');
+    await expect(chat.pruneObjects(input)).rejects.toMatchObject({ code: 'PRUNE_REJECTED' });
+  });
 });

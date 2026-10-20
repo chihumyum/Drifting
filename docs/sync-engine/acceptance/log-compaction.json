@@ -1,0 +1,397 @@
+{
+  "contract": {
+    "milestone": "sync-engine-phase7-log-compaction",
+    "retainedSnapshots": 2,
+    "hostedGraceDays": 30,
+    "capability": "removals-v1",
+    "productionPruning": "disabled-until-hosted-deploy",
+    "localTruncation": "pruned-applied-segment-objects-only",
+    "sourceSha256": {
+      "docs/sync-engine/phase7-log-compaction.md": "da8173d609c1e844f5c84eb7b0342eb5d26ba23ddd2903e0a78b47135833e131",
+      "scripts/generate-sync-log-compaction.ts": "41e3d0d3833d68eff474e10531baf56c0deab6de679d1bdc2b6d1c0bd2e34026",
+      "src-tauri/src/hosted_sync.rs": "4a3cf222365005dbb177e1553f520a9bbac8b38f2397d8157aa63de55b2e672f",
+      "src/renderer/sync/checkpoint/provider-publisher.ts": "0b9c2fe953543abfb0047d5a547fc3f7aaf9782e49787473c82e3ce1c1c3cd6d",
+      "src/renderer/sync/checkpoint/reducer-state.ts": "acaf0189a28cb2ee0e1e48beecfb4e52cb793e4774eae5ae167e610badd0a938",
+      "src/renderer/sync/compaction/catch-up.ts": "b9ed7e1efe246c54d2f44fa1015242fbc4d22a45b12a9d00c3035eef7deab3bc",
+      "src/renderer/sync/compaction/compaction.integration.test.ts": "2612ae0e888b81102084276f15c7a7559cd3f28779d9eba4acc77ea7f1907867",
+      "src/renderer/sync/compaction/frontier.test.ts": "13f442d1d6adacb4ed1e6af95c7b6e9dda33f3831e74b2b86b85d04a4d27b4a6",
+      "src/renderer/sync/compaction/frontier.ts": "bb881bf2f1fe5741d1d2d58c3313c6d2b8587beb8d7908301b802f445ba7cfa2",
+      "src/renderer/sync/compaction/local-truncation.ts": "d7cb99ed1ad2a20570b6177bea296791625c9c03bcf38019ea667147d1873f13",
+      "src/renderer/sync/compaction/policy.ts": "e7a513f894cc29f12e78b37fd3271ecb9faa5855a7b2a849185171f2b9240ebd",
+      "src/renderer/sync/compaction/snapshot-catalog.ts": "ad044510f90ba7ab458b2b01622bcafe0f04acd16ce5c88ce2bc4707b8ac22c0",
+      "src/renderer/sync/engine/durable-runtime.ts": "d53e44a2e87be7b2dd3d66027dea6be99381fef735ce12d8379f21a79727bd2a",
+      "src/renderer/sync/engine/sqlite-repository.ts": "f1d443d5e13444e312b8e4a96df73b96987a1e7e976c07daf5dd438c9f6d10b0",
+      "src/renderer/sync/production-runtime.ts": "1e35f4eed1cc006e6ad3771132fdb97649a263456ecf421c15036adb6a7ae814",
+      "src/renderer/sync/protocol/provider.ts": "9d424c11e99c76cc19759d6f5a5d928795a2a7af0c27c646a2a288d2e3446863",
+      "src/renderer/sync/providers/hosted/provider.ts": "47bc31084fb90ab174fc5fd3b7b93df16d849ace0afe0d62dc6dba66e0898746",
+      "src/renderer/sync/providers/memory-provider.prune.test.ts": "1d9ee852c9ff3aaf632ca8949224cec556ba757a626f4e71a72dc39b182f6e0c",
+      "src/renderer/sync/providers/memory-provider.ts": "908c35be2a94000cf52e85e43bd5395a44581c2a58ee3cd836d23d29ad73c7b8",
+      "src/renderer/sync/reducer/production-domain-kernel.ts": "d6ce9547129c644bbfb605e3ca64f3e05e26c7bf00bf38e87041c17ae83605f9",
+      "src/renderer/sync/reducer/reducer.ts": "caad8b59617d95963914683e880a0c5428bfe83e27471a1bc8a091a3984ba5f1",
+      "src/renderer/sync/reducer/sqlite-materializer.ts": "e9bff36f0fc694dbcc558f2cc74bfb6eea019753232166ae6736b56f23bc4b74",
+      "src/renderer/sync/restore/cloud-restore.ts": "4173ba33300da9bf3ebbd5ce782baa97c268d0f369c9756c15b2d7034ba985a7"
+    }
+  },
+  "automated": {
+    "status": "passed",
+    "command": "pnpm exec vitest run src/renderer/sync/compaction src/renderer/sync/providers/memory-provider.prune.test.ts src/renderer/sync/providers/hosted/provider.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/checkpoint src/renderer/sync/restore",
+    "passed": 87,
+    "failed": 0,
+    "skipped": 0,
+    "cases": [
+      {
+        "name": "durable provider snapshot publisher blocks periodic checkpoints while any gap, semantic conflict or quarantine is open",
+        "status": "passed"
+      },
+      {
+        "name": "durable provider snapshot publisher does not checkpoint a purged or detached SyncGeneration",
+        "status": "passed"
+      },
+      {
+        "name": "durable provider snapshot publisher rebuilds the marker with the actual package identity and publishes marker last",
+        "status": "passed"
+      },
+      {
+        "name": "durable provider snapshot publisher reconciles a lost upload response without creating another remote marker",
+        "status": "passed"
+      },
+      {
+        "name": "durable provider snapshot publisher rejects conflicting metadata returned by a provider upload",
+        "status": "passed"
+      },
+      {
+        "name": "durable provider snapshot publisher reuses a restored verified asset and its known remote object for the next checkpoint",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive trusted-cloud connect orchestration activates the drained cursor with its complete inventory, applies an observed tail, and blocks a pre-cycle removal",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive trusted-cloud connect orchestration fails closed when an inventoried immutable object is removed before cursor drain",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive trusted-cloud connect orchestration rebinds an exact generation after disconnect with 'an offline project purge'",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive trusted-cloud connect orchestration rebinds an exact generation after disconnect with 'offline local edits'",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive trusted-cloud connect orchestration restores a resolved staged remote SyncGeneration after 'cancelling and starting a fresh conne…'",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive trusted-cloud connect orchestration restores a resolved staged remote SyncGeneration after 'resuming the same durable attempt'",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary bounds discovery pagination and checks ownership after each page",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary deletes without reopening and validates the exact durable remote receipt",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary posts a prune request and validates the receipt against the request",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary rejects a download returned under a different destination",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary rejects an account change while a response is in flight",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary rejects oversized pages and missing continuation cursors",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary rejects upload acknowledgements for different bytes",
+        "status": "passed"
+      },
+      {
+        "name": "Hosted provider response boundary requests removal changes and accepts the strict removal shape",
+        "status": "passed"
+      },
+      {
+        "name": "lane frontiers compares by dominance on every lane",
+        "status": "passed"
+      },
+      {
+        "name": "lane frontiers keeps only history every frontier covers",
+        "status": "passed"
+      },
+      {
+        "name": "lane frontiers orders a dominating snapshot after a later but lagging one",
+        "status": "passed"
+      },
+      {
+        "name": "lane frontiers reads snapshot entries and treats absent lanes as zero",
+        "status": "passed"
+      },
+      {
+        "name": "memory provider pruning defers young segments, removes old ones and announces each removal",
+        "status": "passed"
+      },
+      {
+        "name": "memory provider pruning enforces retained snapshots, marker pairing, blob safety and a fresh basis",
+        "status": "passed"
+      },
+      {
+        "name": "memory provider pruning is absent unless enabled",
+        "status": "passed"
+      },
+      {
+        "name": "paged authored checkpoint state rejects a table split around another table",
+        "status": "passed"
+      },
+      {
+        "name": "paged authored checkpoint state splits a large table into canonical pages under the node limit and rejoins it",
+        "status": "passed"
+      },
+      {
+        "name": "product Google Drive unified connect reauthorizes the same durable identity only when required",
+        "status": "passed"
+      },
+      {
+        "name": "product Google Drive unified connect reuses the durable credential after an offline failure without new OAuth",
+        "status": "passed"
+      },
+      {
+        "name": "product Google Drive unified connect uses one OAuth action for account discovery, remote restore, and local publication",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore captures and restores snapshot-only, update-only, combined, and seed-only prose",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore captures normalized authority and rebuilds a deliberately stale JSON projection",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore compacts covered history to register sources and restores it as the reducer base",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore fails capture before publishing a checkpoint with missing fractional list authority",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore fails closed on missing/corrupt blobs and wrong projectSync without exposing a project",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore materializes no project when any member of an atomic multi-SyncGeneration restore fails",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore publishes every blob and the package before the only visible commit marker",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects a resealed compacted reducer state with a carried change-set without its explicit receipt",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects a resealed compacted reducer state with a different reducer profile",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects a resealed compacted reducer state with a foreign reducer identity",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects a resealed compacted reducer state with a register source missing from the journal",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects a resealed compacted reducer state with coverage behind the applied frontier",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row action without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row duplicate index without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row extra row with out-of-range index without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row forged payload with matching row hash without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row incarnation without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row missing row without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row negative index without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload bytes without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload hash without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row payload version without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target family without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target id without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects rehashed checkpoint mutation-row target kind without changing target domain state",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore rejects unknown package versions and invalid Yjs before materialization",
+        "status": "passed"
+      },
+      {
+        "name": "provider-neutral checkpoint capture and isolated restore still restores a frozen payload v1 package with its complete journal",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime blocks a degraded provider history without turning remote removal into a domain delete",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime blocks before publish when an invalid cursor rescan omits a known immutable object",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime classifies pure remote Yjs as non-blocking and structural effects as workspace-impacting",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime converges three LocalFolder replicas and replays a page after a cursor-commit crash",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime converges two Memory replicas through durable segment, inbox, reducer, cursor and frontier receipts",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime durably quarantines malformed protocol bytes and advances discovery without domain writes",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime keeps a later writer segment dependency-pending until its contiguous predecessor arrives",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime keeps authored writes pending without provider I/O while a binding is paused",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime publishes a detached project purge before retiring the SyncGeneration binding",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime publishes blobs before dependent segments and installs a verified source before owner materialization",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime publishes real object and byte progress for outbound and inbound transfers",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime receipts a later writer after remote purge and retires the current binding",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime reconciles an upload response loss by immutable stat without duplicating the object",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime recovers an expired committed LocalFolder cursor through a durable full inventory",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime recovers an expired lowercase Drive-style pending inventory page token",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime retries a failed post-commit notification without reapplying or losing its prose scope",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime retries open Yjs tail reconciliation on the next cycle after a post-commit callback failure",
+        "status": "passed"
+      },
+      {
+        "name": "SQLite durable SyncEngine runtime uses a restored applied segment-head anchor to accept the next segment and quarantine a fork",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction defers segments inside the grace window and never removes the retained snapshots",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction fast-forwards a replica that connects after truncation onto the newest snapshot",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction keeps an up-to-date replica converging after its applied history is pruned",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction lets restore discovery drop history pruned while it was listing",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction merges pruned prose into the lagging replica and its cached projection",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction orders snapshots by frontier and prunes only history both retained snapshots cover",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction rebases a lagging replica with unsent edits onto the snapshot without losing them",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction records a listed object pruned before its download as a removal",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction still treats a lost blob as corruption on a pruning provider",
+        "status": "passed"
+      },
+      {
+        "name": "sync log compaction stops a lagging replica from publishing a checkpoint below the newest snapshot",
+        "status": "passed"
+      }
+    ]
+  },
+  "openGates": [
+    "Hosted removal feed, prune endpoint and capability gate deployed",
+    "production pruning enabled after deployment",
+    "journal-row truncation (change-sets, mutations, receipts)"
+  ]
+}

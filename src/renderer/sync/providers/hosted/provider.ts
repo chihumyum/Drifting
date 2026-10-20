@@ -10,6 +10,8 @@ import {
   type ObjectLogProvider,
   type ProviderBinding,
   type ProviderGeneration,
+  type ProviderObjectId,
+  type PruneObjectsResult,
   type RemoteObject,
   type RemoteObjectChange,
   type UploadResult,
@@ -22,8 +24,10 @@ export interface HostedObjectTransport {
   readonly accountSubject: () => string | null;
   request(input: {
     path: string;
-    method: 'GET' | 'PUT' | 'DELETE';
+    method: 'GET' | 'PUT' | 'DELETE' | 'POST';
     signal?: AbortSignal;
+    /** JSON request body; only with POST. */
+    jsonBody?: unknown;
     sourceRef?: string;
     destinationRef?: string;
     objectKind?: string;
@@ -167,6 +171,7 @@ export class HostedObjectLogProvider implements ObjectLogProvider, ProjectSnapsh
     const query = new URLSearchParams({
       cursor: input.cursor,
       ...(input.pageToken ? { pageToken: input.pageToken } : {}),
+      includeRemovals: '1',
     });
     const result = record(
       await this.requestFor(input.generation, {
@@ -254,6 +259,31 @@ export class HostedObjectLogProvider implements ObjectLogProvider, ProjectSnapsh
       totalBytes: downloaded.sizeBytes,
     });
     return downloaded;
+  }
+  async pruneObjects(
+    input: Parameters<NonNullable<ObjectLogProvider['pruneObjects']>>[0],
+  ): Promise<PruneObjectsResult> {
+    if (this.namespace !== 'project-v1')
+      throw new ObjectLogProviderError('PRUNE_REJECTED', 'Only project streams are pruned');
+    throwIfProviderAborted(input.signal);
+    const result = record(
+      await this.requestFor(input.generation, {
+        path: this.path(input.generation, '/prune'),
+        method: 'POST',
+        signal: input.signal,
+        jsonBody: { basisCursor: input.basisCursor, retain: input.retain, remove: input.remove },
+      }),
+    );
+    throwIfProviderAborted(input.signal);
+    const requested = new Set<string>(input.remove);
+    const ids = (value: unknown): ProviderObjectId[] => {
+      if (!Array.isArray(value) || value.some((id) => typeof id !== 'string' || !requested.has(id)))
+        throw new ObjectLogProviderError('REMOTE_STORE_CORRUPT', 'Invalid Hosted prune receipt');
+      return value as ProviderObjectId[];
+    };
+    if (result.status !== 'pruned')
+      throw new ObjectLogProviderError('REMOTE_STORE_CORRUPT', 'Invalid Hosted prune receipt');
+    return { removed: ids(result.removed), deferred: ids(result.deferred) };
   }
   async discover(
     input: Parameters<ProjectSnapshotDiscoveryPort['discover']>[0],

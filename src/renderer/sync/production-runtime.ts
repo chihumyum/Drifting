@@ -30,6 +30,7 @@ import {
   type SyncEngineCheckpointHook,
   type RegisteredSyncGenerationRuntime,
 } from './engine';
+import { SyncLogCompactor } from './compaction/policy';
 import { reconcileNativeSyncObjects } from './local-object-gc';
 import { getSyncInstallationIdentity, type SyncWriterIdentitySource } from './journal';
 import { nativeSyncObjectCodec } from './native-object-codec';
@@ -69,6 +70,13 @@ export interface ProductionSyncRuntimeDependencies {
   readonly exposeCoordinator: (coordinator: SyncEngineCoordinator) => () => void;
   readonly onError: (error: unknown) => void;
 }
+
+/**
+ * Hosted log truncation. Off until lagging-device catch-up from a snapshot
+ * ships; until then a device offline past the grace window would wait on
+ * pruned history instead of fast-forwarding.
+ */
+export const SYNC_LOG_PRUNING_ENABLED = false;
 
 const defaultDependencies: ProductionSyncRuntimeDependencies = {
   database: getDb,
@@ -127,10 +135,24 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
             assetCapturePort: nativeSnapshotAssetCapturePort,
             flushLocalDurability: flushLocalApplicationPersistence,
           });
+          const prunesHistory = typeof provider.pruneObjects === 'function';
           return createProviderCheckpointHook({
             db: database,
             syncGenerationId: binding.binding.syncGenerationId,
             publisher,
+            prunesHistory,
+            ...(prunesHistory
+              ? {
+                  compaction: new SyncLogCompactor({
+                    db: database,
+                    syncGenerationId: binding.binding.syncGenerationId,
+                    provider,
+                    providerGeneration,
+                    objectCodec,
+                    pruneEnabled: SYNC_LOG_PRUNING_ENABLED,
+                  }),
+                }
+              : {}),
           });
         })();
         return (await delegate).captureIfDue(input);

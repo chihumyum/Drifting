@@ -16,6 +16,10 @@ use tokio::{
     sync::watch,
 };
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_JSON_BODY_BYTES: usize = 256 * 1024;
+/// Announced on every sync request. A pruned Hosted stream rejects clients
+/// that cannot interpret removal changes instead of letting them miss history.
+const SYNC_CAPABILITIES: &str = "removals-v1";
 static TRANSFERS: OnceLock<Mutex<HashMap<String, watch::Sender<bool>>>> = OnceLock::new();
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +34,7 @@ pub(crate) struct HostedRequest {
     object_kind: Option<String>,
     stored_sha256: Option<String>,
     size_bytes: Option<u64>,
+    json_body: Option<Value>,
 }
 fn request_url(origin: &str, path: &str) -> Result<Url, String> {
     let base = Url::parse(origin).map_err(|_| "HOSTED_INVALID_ORIGIN")?;
@@ -107,10 +112,17 @@ async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, Strin
     if input.token.is_empty() || input.token.len() > 8192 {
         return Err("needs-reauth".into());
     }
-    if !matches!(input.method.as_str(), "GET" | "PUT" | "DELETE") {
+    if !matches!(input.method.as_str(), "GET" | "PUT" | "DELETE" | "POST") {
         return Err("HOSTED_INVALID_METHOD".into());
     }
     if input.method == "DELETE" && (input.source_ref.is_some() || input.destination_ref.is_some()) {
+        return Err("HOSTED_INVALID_METHOD".into());
+    }
+    if (input.method == "POST")
+        != input.json_body.is_some()
+        || (input.method == "POST"
+            && (input.source_ref.is_some() || input.destination_ref.is_some()))
+    {
         return Err("HOSTED_INVALID_METHOD".into());
     }
     let client = Client::builder()
@@ -121,7 +133,19 @@ async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, Strin
         .map_err(|_| "HOSTED_TRANSPORT_UNAVAILABLE")?;
     let method = reqwest::Method::from_bytes(input.method.as_bytes())
         .map_err(|_| "HOSTED_INVALID_METHOD")?;
-    let mut request = client.request(method, url).bearer_auth(&input.token);
+    let mut request = client
+        .request(method, url)
+        .bearer_auth(&input.token)
+        .header("X-Drifting-Sync-Capabilities", SYNC_CAPABILITIES);
+    if let Some(body) = &input.json_body {
+        let bytes = serde_json::to_vec(body).map_err(|_| "HOSTED_INVALID_BODY")?;
+        if bytes.len() > MAX_JSON_BODY_BYTES {
+            return Err("HOSTED_INVALID_BODY".into());
+        }
+        request = request
+            .header("Content-Type", "application/json")
+            .body(bytes);
+    }
     if let Some(source) = &input.source_ref {
         if input.method != "PUT" || input.destination_ref.is_some() {
             return Err("HOSTED_INVALID_TRANSFER".into());

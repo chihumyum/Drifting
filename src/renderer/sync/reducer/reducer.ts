@@ -1195,6 +1195,29 @@ function finishReduction(
   };
 }
 
+/**
+ * The complete projection of a state that no single change-set produced,
+ * such as one fast-forwarded onto a checkpoint base. A generation purge is
+ * materialized only when it is new to the caller; otherwise the purge already
+ * ran and replaying it would delete the project again.
+ */
+export function projectCanonicalReducerState(
+  state: CanonicalReducerState,
+  profile: ReducerProfile,
+  options: { readonly materializePurge: boolean },
+): { readonly state: CanonicalReducerState; readonly effects: readonly ReducerEffect[]; readonly conflicts: readonly ReducerConflict[] } {
+  const candidateEffects = [...materializationEffects(state)]
+    .sort((left, right) => utf8Sort(left.effectId, right.effectId))
+    .map((effect): ReducerEffect =>
+      effect.type === 'sync-generation.purge' ? { ...effect, materialize: options.materializePurge } : effect,
+    );
+  const { conflicts, blockedEffectIds } = deriveConflicts(state, profile, candidateEffects);
+  const effects = candidateEffects.map((effect): ReducerEffect =>
+    blockedEffectIds.has(effect.effectId) ? { ...effect, materialize: false } : effect,
+  );
+  return { state: { ...state, conflicts }, effects, conflicts: sortedConflicts(conflicts) };
+}
+
 function cloneRegister<T extends LwwValue<CanonicalCborValue>>(register: T): T {
   return { ...register, value: cloneCbor(register.value) };
 }

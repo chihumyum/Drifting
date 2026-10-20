@@ -39,7 +39,8 @@ provider epoch. After draining new changes, the runtime stages any observed segm
 that still lacks a completed download transfer. This preserves post-checkpoint tail
 segments without replaying the cursor, while a removal between activation and the
 first cycle is recognized from its durable provider object ID and blocks before the
-backlog download or apply lane.
+backlog download or apply lane. On a pruning provider such a removal is expected
+truncation instead; see [phase 7](phase7-log-compaction.md).
 
 ## Provider-neutral object codec
 
@@ -157,7 +158,8 @@ The file-backed SQLite integration suite proves:
   `blocked-corrupt`;
 - removal of a previously observed immutable provider object marks the binding
   `blocked-corrupt`, contributes to pending diagnostics, and never becomes a
-  domain delete;
+  domain delete; a pruning provider's removal of a segment or snapshot object is
+  recorded without blocking ([phase 7](phase7-log-compaction.md));
 - restore activation atomically persists complete inventory plus its drained cursor;
   an observed post-checkpoint segment applies on the first normal cycle, while
   deleting it before that cycle records removal, blocks the binding and applies

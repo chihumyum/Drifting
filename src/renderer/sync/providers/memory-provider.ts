@@ -17,6 +17,8 @@ import {
   type ProviderCursor,
   type ProviderObjectId,
   type ProviderGeneration,
+  type PruneObjectsInput,
+  type PruneObjectsResult,
   type RemoteObject,
   type RemoteObjectChange,
   type Sha256,
@@ -30,6 +32,7 @@ interface MemoryObjectRecord {
   object: RemoteObject;
   bytes: Uint8Array;
   createdRevision: number;
+  createdAtMs: number;
   removedRevision: number | null;
 }
 
@@ -52,6 +55,8 @@ interface MemorySyncGenerationState {
   currentByLogicalKey: Map<string, MemoryObjectRecord>;
   byObjectId: Map<ProviderObjectId, MemoryObjectRecord>;
   immutableIdentities: Map<string, ImmutableIdentityRecord>;
+  /** Logical keys removed by pruning; they can never be re-created. */
+  prunedLogicalKeys: Set<string>;
   changes: MemoryChangeRecord[];
 }
 
@@ -62,9 +67,24 @@ interface OpenGenerationRecord {
   state: MemorySyncGenerationState;
 }
 
+/** Opt-in Hosted-equivalent log truncation (`pruneObjects`). */
+export interface MemoryObjectLogProviderPruningOptions {
+  /** Segments younger than this are deferred, never removed. */
+  readonly graceMs: number;
+  readonly minRetainedSnapshots?: number;
+  readonly nowMs?: () => number;
+}
+
 export interface MemoryObjectLogProviderOptions {
   pageSize?: number;
+  pruning?: MemoryObjectLogProviderPruningOptions;
 }
+
+const SNAPSHOT_OBJECT_KINDS: ReadonlySet<SyncObjectKind> = new Set([
+  'genesis',
+  'checkpoint',
+  'snapshot-commit',
+]);
 
 function cloneBytes(bytes: Uint8Array): Uint8Array {
   return new Uint8Array(bytes);
@@ -105,6 +125,9 @@ export class MemoryObjectLogProvider implements ObjectLogProvider {
 
   private readonly pageSize: number;
   private readonly localObjects: ProviderLocalObjectStore;
+  private readonly pruning: MemoryObjectLogProviderPruningOptions | null;
+  private readonly nowMs: () => number;
+  readonly pruneObjects?: (input: PruneObjectsInput) => Promise<PruneObjectsResult>;
   private readonly generationStates = new Map<string, MemorySyncGenerationState>();
   private readonly openGenerations = new Map<string, OpenGenerationRecord>();
   private nextGenerationRef = 1;
@@ -119,6 +142,9 @@ export class MemoryObjectLogProvider implements ObjectLogProvider {
     }
     this.pageSize = pageSize;
     this.localObjects = localObjects;
+    this.pruning = options.pruning ?? null;
+    this.nowMs = options.pruning?.nowMs ?? Date.now;
+    if (this.pruning) this.pruneObjects = (input) => this.prune(input);
   }
 
   async openGeneration(binding: ProviderBinding): Promise<ProviderGeneration> {
@@ -163,6 +189,7 @@ export class MemoryObjectLogProvider implements ObjectLogProvider {
         currentByLogicalKey: new Map(),
         byObjectId: new Map(),
         immutableIdentities: new Map(),
+        prunedLogicalKeys: new Set(),
         changes: [],
       };
       this.generationStates.set(binding.syncGenerationId, state);
@@ -327,6 +354,12 @@ export class MemoryObjectLogProvider implements ObjectLogProvider {
       );
     }
 
+    if (state.prunedLogicalKeys.has(input.logicalKeyId)) {
+      throw new ObjectLogProviderError(
+        'IMMUTABLE_OBJECT_CONFLICT',
+        `Logical key ${input.logicalKeyId} was pruned and cannot be re-created`,
+      );
+    }
     const identity = state.immutableIdentities.get(input.logicalKeyId);
     if (
       identity &&
@@ -355,6 +388,7 @@ export class MemoryObjectLogProvider implements ObjectLogProvider {
       object,
       bytes: cloneBytes(bytes),
       createdRevision: revision,
+      createdAtMs: this.nowMs(),
       removedRevision: null,
     };
     state.records.push(record);
@@ -428,6 +462,81 @@ export class MemoryObjectLogProvider implements ObjectLogProvider {
     };
     state.changes.push({ revision, change });
     return cloneChange(change);
+  }
+
+  private async prune(input: PruneObjectsInput): Promise<PruneObjectsResult> {
+    const pruning = this.pruning;
+    if (!pruning) throw new ObjectLogProviderError('PRUNE_REJECTED', 'Pruning is disabled');
+    const state = this.requireSyncGeneration(input.generation);
+    throwIfProviderAborted(input.signal);
+    const [basis] = parseIntegerToken(input.basisCursor, /^memory-cursor:(\d+)$/u, 'INVALID_CURSOR');
+    if (basis > state.revision) {
+      throw new ObjectLogProviderError('INVALID_CURSOR', 'Prune basis is from the future');
+    }
+    const retain = new Set(input.retain);
+    if (input.remove.some((objectId) => retain.has(objectId))) {
+      throw new ObjectLogProviderError('PRUNE_REJECTED', 'An object cannot be retained and removed');
+    }
+    let retainedSnapshots = 0;
+    for (const objectId of retain) {
+      const record = state.byObjectId.get(objectId);
+      if (!record || record.removedRevision !== null) {
+        throw new ObjectLogProviderError('REMOTE_OBJECT_MISSING', `Retained object ${objectId} is unavailable`);
+      }
+      if (record.object.objectKind === 'snapshot-commit') retainedSnapshots += 1;
+    }
+    if (retainedSnapshots < (pruning.minRetainedSnapshots ?? 2)) {
+      throw new ObjectLogProviderError('PRUNE_REJECTED', 'Too few snapshots would remain');
+    }
+    if (
+      state.records.some(
+        (record) => SNAPSHOT_OBJECT_KINDS.has(record.object.objectKind) && record.createdRevision > basis,
+      )
+    ) {
+      throw new ObjectLogProviderError('PRUNE_REJECTED', 'A snapshot arrived after the prune basis');
+    }
+    const records = input.remove.map((objectId) => {
+      const record = state.byObjectId.get(objectId);
+      if (!record) {
+        throw new ObjectLogProviderError('REMOTE_OBJECT_MISSING', `Object ${objectId} is unknown`);
+      }
+      if (record.object.objectKind === 'blob') {
+        throw new ObjectLogProviderError('PRUNE_REJECTED', 'Blobs cannot be pruned');
+      }
+      return record;
+    });
+    const removesMarker = records.some((record) => record.object.objectKind === 'snapshot-commit');
+    if (
+      !removesMarker &&
+      records.some((record) => ['genesis', 'checkpoint'].includes(record.object.objectKind))
+    ) {
+      throw new ObjectLogProviderError('PRUNE_REJECTED', 'A package is removed only with a marker');
+    }
+    const removed: ProviderObjectId[] = [];
+    const deferred: ProviderObjectId[] = [];
+    const nowMs = this.nowMs();
+    for (const record of records) {
+      const objectId = record.object.objectId;
+      if (record.removedRevision !== null) {
+        removed.push(objectId);
+      } else if (
+        record.createdRevision > basis ||
+        (record.object.objectKind === 'segment' && nowMs - record.createdAtMs < pruning.graceMs)
+      ) {
+        deferred.push(objectId);
+      } else {
+        const revision = ++state.revision;
+        record.removedRevision = revision;
+        state.currentByLogicalKey.delete(record.object.logicalKeyId);
+        state.prunedLogicalKeys.add(record.object.logicalKeyId);
+        state.changes.push({
+          revision,
+          change: { kind: 'removed', objectId, logicalKeyId: record.object.logicalKeyId },
+        });
+        removed.push(objectId);
+      }
+    }
+    return { removed, deferred };
   }
 
   /** Test seam for proving that downloaded hashes are verified before destination writes. */

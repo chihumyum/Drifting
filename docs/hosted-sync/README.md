@@ -158,6 +158,20 @@ cursors, uploads immutable objects with SHA-256, and downloads them into native
 staging references. Account-wide snapshot discovery never activates unvalidated
 bytes. The current service ceiling is 64 MiB per object.
 
+### Log truncation
+
+Every native request sends `X-Drifting-Sync-Capabilities: removals-v1`, and
+`changes` asks for `includeRemovals=1`. Once the service has pruned a stream,
+it rejects requests without that capability (HTTP 426).
+`POST …/generations/{id}/prune` takes `{basisCursor, retain, remove}` and
+returns `{status: "pruned", removed, deferred, cursor}`. The service keeps at
+least two snapshot markers and defers segments inside its 30-day grace window.
+It removes packages only together with a marker, never removes blobs, and
+rejects a basis that a later snapshot outdates. The client keeps pruning off
+(`SYNC_LOG_PRUNING_ENABLED`) until that service version is deployed. Retention,
+removal handling and lagging-replica catch-up are specified in
+[phase 7](../sync-engine/phase7-log-compaction.md).
+
 Native requests enforce the configured origin, deny redirects, cap responses,
 verify uploaded files and downloaded hashes, stream binary data outside JS, and
 publish downloaded files only after fsync and rename. A cancelled or corrupted
