@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { canonicalWordCount, isChapter, sumCanonicalChapterWordCounts } from '../domain/book-node';
+import { sumCanonicalChapterWordCounts } from '../domain/book-node';
+import { useWholeBookEditingStore } from '../features/editor/whole-book-editing';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEditorSelectionWordCount } from '../hooks/useEditorSelectionWordCount';
 import { formatAccelerator } from '../lib/shortcuts';
@@ -8,16 +9,8 @@ import { useDataStore } from '../store/data-store';
 import { useShortcutsStore } from '../store/shortcuts-store';
 import { focusedLeafOf, tabKey, useUiStore } from '../store/ui-store';
 import { deriveWritingStats, useWritingStatsStore } from '../store/writing-stats-store';
+import { deriveStatusWordMetric } from './status-word-metric';
 import '../../styles/bottom-status-bar.css';
-
-type WordMetric = {
-  labelKey:
-    | 'bottomStatusBar.selectedWords'
-    | 'bottomStatusBar.currentWords'
-    | 'bottomStatusBar.storylineWords'
-    | 'bottomStatusBar.projectWords';
-  count: number | null;
-};
 
 // BottomStatusBar is a status-first line spanning the full application width.
 // Its one structural control is the Bottom Timeline visibility toggle;
@@ -38,38 +31,31 @@ export function BottomStatusBar() {
   const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
   const selectedWordCount = useEditorSelectionWordCount();
+  const wholeBookEditingChapterId = useWholeBookEditingStore(
+    (state) => state.chapterByProject[projectId] ?? null,
+  );
 
   const projectWordCount = useMemo(() => sumCanonicalChapterWordCounts(bookNodes), [bookNodes]);
 
-  const wordMetric = useMemo<WordMetric>(() => {
-    if (selectedWordCount !== null) {
-      return { labelKey: 'bottomStatusBar.selectedWords', count: selectedWordCount };
-    }
-
-    if (activeLeaf?.entityType === 'node') {
-      const node = bookNodes.find((candidate) => candidate.id === activeLeaf.id);
-      if (node) {
-        return { labelKey: 'bottomStatusBar.currentWords', count: canonicalWordCount(node) };
-      }
-    }
-
-    if (activeLeaf?.entityType === 'storyline') {
-      const nodeIds = new Set(storylineNodeMapping[activeLeaf.id] ?? []);
-      const nodes = bookNodes.filter((node) => isChapter(node) && nodeIds.has(node.id));
-      const counts = nodes.map(canonicalWordCount);
-      return {
-        labelKey: 'bottomStatusBar.storylineWords',
-        count: counts.every((count) => count != null)
-          ? counts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
-          : null,
-      };
-    }
-
-    return {
-      labelKey: 'bottomStatusBar.projectWords',
-      count: projectWordCount.ready ? projectWordCount.count : null,
-    };
-  }, [activeLeaf, bookNodes, projectWordCount, selectedWordCount, storylineNodeMapping]);
+  const wordMetric = useMemo(
+    () =>
+      deriveStatusWordMetric({
+        selectedWordCount,
+        activeLeaf,
+        wholeBookEditingChapterId,
+        bookNodes,
+        storylineNodeMapping,
+        projectWordCount,
+      }),
+    [
+      activeLeaf,
+      bookNodes,
+      projectWordCount,
+      selectedWordCount,
+      storylineNodeMapping,
+      wholeBookEditingChapterId,
+    ],
+  );
 
   const todayWords = useMemo(
     () =>

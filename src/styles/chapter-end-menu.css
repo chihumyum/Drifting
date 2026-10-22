@@ -1,0 +1,152 @@
+/* ⁂ chapter-end menu. The asterism stays the page's quiet ending; hovering it
+   (after a brief intent delay), clicking it or focusing it with the keyboard
+   morphs it into three plain monospace actions on the same line — no pressed
+   wash, no button chrome. ⁂ and the row share one grid cell, so the page never
+   shifts; leaving the row's line morphs ⁂ straight back.
+
+   The morph is one simultaneous cross-zoom: ⁂ shrinks, blurs and fades while
+   the actions unblur and unfold slightly outward from it, so neither state
+   ever reads as an empty gap. Rules on the resting state time the return
+   (110 ms); rules under [data-open] time the opening (150 ms). */
+
+/* Doubled class: index.css's .page__ornament spaces the bare glyph and may
+   load after this sheet. */
+.page__ornament.page__ornament--menu {
+  display: grid;
+  place-items: center;
+  letter-spacing: 0;
+  text-indent: 0;
+}
+.page__ornament--menu > * {
+  grid-area: 1 / 1;
+}
+
+.page__ornament-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.page__ornament-trigger[data-finished="true"] {
+  color: hsl(var(--accent));
+}
+.page__ornament-trigger:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.55);
+  outline-offset: 2px;
+}
+.page__ornament--menu[data-open="true"] .page__ornament-trigger {
+  pointer-events: none;
+}
+.page__ornament-glyph {
+  display: inline-block;
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease,
+    filter 110ms ease;
+}
+.page__ornament--menu[data-open="true"] .page__ornament-glyph {
+  opacity: 0;
+  transform: scale(0.6);
+  filter: blur(2px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease;
+}
+
+/* Three columns centre the primary action exactly where ⁂ stood. */
+.chapter-end-menu {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: 32px;
+  align-items: center;
+  width: max-content;
+  padding: 4px 0;
+  font-family: var(--font-prose-mono, ui-monospace, monospace);
+  font-size: var(--ui-font-body, 12.5px);
+  line-height: var(--ui-line-body, 18px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s linear 110ms;
+}
+.page__ornament--menu[data-open="true"] .chapter-end-menu {
+  visibility: visible;
+  pointer-events: auto;
+  transition: visibility 0s;
+}
+
+.chapter-end-menu__item {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  filter: blur(2px);
+  /* Folded toward ⁂, slightly low, until the row opens. */
+  transform: translate(var(--fold-x, 0), 0.15em);
+  transition:
+    color 60ms ease-out,
+    opacity 110ms ease,
+    transform 110ms ease,
+    filter 110ms ease;
+}
+.page__ornament--menu[data-open="true"] .chapter-end-menu__item {
+  opacity: 1;
+  filter: blur(0);
+  transform: none;
+  transition:
+    color 60ms ease-out,
+    opacity 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease;
+}
+.chapter-end-menu__item:first-child {
+  justify-self: end;
+  --fold-x: 12px;
+}
+.chapter-end-menu__item:last-child {
+  justify-self: start;
+  --fold-x: -12px;
+}
+.chapter-end-menu__item[data-primary="true"] {
+  color: hsl(var(--ink-2));
+}
+.chapter-end-menu__item:hover:not(:disabled),
+.chapter-end-menu__item:focus-visible {
+  color: hsl(var(--ink-1));
+}
+.chapter-end-menu__item:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.chapter-end-menu__item:disabled {
+  color: hsl(var(--ink-4));
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page__ornament-glyph,
+  .page__ornament--menu[data-open="true"] .page__ornament-glyph,
+  .chapter-end-menu,
+  .page__ornament--menu[data-open="true"] .chapter-end-menu,
+  .chapter-end-menu__item,
+  .page__ornament--menu[data-open="true"] .chapter-end-menu__item {
+    transition: none;
+  }
+  .chapter-end-menu__item {
+    transform: none;
+    filter: none;
+  }
+}

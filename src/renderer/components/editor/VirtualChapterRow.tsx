@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -16,6 +16,7 @@ import { isMobileAllChaptersTap } from '../../shells/mobile/workspace/mobile-all
 import { ChapterEditor } from './ChapterEditor';
 import { chapterJsonToHtml } from './chapter-static-html';
 import { EditorDocumentLoadError } from './EditorDocumentLoadError';
+import { ChapterEndOrnament } from './ChapterEndOrnament';
 
 const log = loglevel.getLogger('VirtualChapterRow');
 log.setLevel(loglevel.levels.WARN);
@@ -68,6 +69,9 @@ interface VirtualChapterRowProps {
   // all-chapters view can show its TOC. Static rows publish nothing — their TOC
   // comes from the parent's prefetched outlines.
   onOutlineChange?: (nodeId: string, outline: OutlineItem[]) => void;
+  // What ends the page: the host's ⁂ chapter-end menu, or (omitted, e.g. on
+  // the touch shell) the decorative ⁂.
+  renderEnd?: (node: BookNode) => ReactNode;
 
   // Color / name of the chapter's main storyline (for the page chapter mark).
   storylineColor?: string;
@@ -104,6 +108,7 @@ function VirtualChapterRowImpl({
   onSummaryUpdate,
   onEntityClick,
   onOutlineChange,
+  renderEnd,
   storylineColor,
   storylineName,
   chapterRoman,
@@ -296,7 +301,7 @@ function VirtualChapterRowImpl({
             />
           )}
 
-          <div className="page__ornament" aria-hidden="true">⁂</div>
+          {renderEnd ? renderEnd(node) : <ChapterEndOrnament />}
         </article>
       </div>
     </div>

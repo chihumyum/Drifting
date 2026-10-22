@@ -9,6 +9,8 @@ import {
   MIN_DESKTOP_CONTENT_WIDTH,
   parsePersistedDimension,
   sidebarWidthBounds,
+  sidebarFitsBeside,
+  MIN_REVEALED_SIDEBAR_WIDTH,
   verticalDockBounds,
 } from './layout-geometry';
 
@@ -70,5 +72,20 @@ describe('layout geometry', () => {
   it('reserves the requested content height for vertical docks', () => {
     expect(verticalDockBounds(640, 180, 240)).toEqual({ min: 180, max: 400 });
     expect(verticalDockBounds(300, 180, 240)).toEqual({ min: 180, max: 180 });
+  });
+});
+
+describe('sidebarFitsBeside', () => {
+  it('opens only when the page keeps its minimum width beside a usable sidebar', () => {
+    const exact = MIN_DESKTOP_CONTENT_WIDTH + MIN_REVEALED_SIDEBAR_WIDTH;
+    expect(sidebarFitsBeside(exact, 0, 0)).toBe(true);
+    expect(sidebarFitsBeside(exact - 1, 0, 0)).toBe(false);
+    expect(sidebarFitsBeside(exact + 280, 280, 0)).toBe(true);
+    expect(sidebarFitsBeside(exact + 279, 280, 0)).toBe(false);
+  });
+
+  it('respects a measured minimum wider than the reveal floor', () => {
+    expect(sidebarFitsBeside(MIN_DESKTOP_CONTENT_WIDTH + 320, 0, 360)).toBe(false);
+    expect(sidebarFitsBeside(MIN_DESKTOP_CONTENT_WIDTH + 360, 0, 360)).toBe(true);
   });
 });

@@ -1277,6 +1277,20 @@
   "chapterEditor": {
     "untitledChapter": "Untitled chapter"
   },
+  "chapterEnd": {
+    "trigger": "Chapter end actions",
+    "triggerFinished": "Chapter end actions (finished)",
+    "insertAfter": "New chapter after",
+    "markFinished": "Mark finished",
+    "markDraft": "Back to draft",
+    "review": {
+      "idle": "Agent review",
+      "starting": "Starting…",
+      "running": "Reviewing · open"
+    },
+    "defaultTitle": "New chapter",
+    "firstChapter": "Write the first chapter"
+  },
   "storylineAllChapter": {
     "empty": "No chapters in this storyline"
   },

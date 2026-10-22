@@ -1277,6 +1277,20 @@
   "chapterEditor": {
     "untitledChapter": "无标题章节"
   },
+  "chapterEnd": {
+    "trigger": "章末操作",
+    "triggerFinished": "章末操作（已完成）",
+    "insertAfter": "新建下一章",
+    "markFinished": "标为完成",
+    "markDraft": "改回草稿",
+    "review": {
+      "idle": "Agent 审阅",
+      "starting": "正在派发…",
+      "running": "审阅中 · 查看"
+    },
+    "defaultTitle": "新章节",
+    "firstChapter": "新建第一章"
+  },
   "storylineAllChapter": {
     "empty": "这条故事线还没有章节"
   },

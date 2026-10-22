@@ -1,7 +1,8 @@
 import { createAgentChatDisplayProjection } from '../features/agent/chat-display-projection';
 import { AGENT_RUNTIME_SCHEMA_VERSION, type AgentRuntimeEvent, type AgentRuntimeJournalEntry } from '../lib/agent/runtime/types';
-import { revealDesktopAgentView } from './desktop-agent-navigation';
+import { revealDesktopAgentView, showAgentTaskInRightSidebar } from './desktop-agent-navigation';
 import { useUiStore } from './ui-store';
+import type { RightSidebarTab, SidebarPaneId } from '../lib/sidebar-tabs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { useAgentChatStore } from './agent-chat-store';
@@ -256,5 +257,63 @@ describe('independent Agent pane acceptance', () => {
     expect(viewId).toBe('sidebar:secondary');
     expect(createAgentChatViewSource('default').getState()).toMatchObject({ activeConvId: conversationId, prompt: 'Synthetic author prompt' });
     expect(createAgentChatViewSource(viewId).getState().activeConvId).toBe('target');
+  });
+});
+
+describe('showAgentTaskInRightSidebar', () => {
+  const rightTabs = (panes: Array<[SidebarPaneId, RightSidebarTab]>, focusedPane: SidebarPaneId) =>
+    useUiStore.setState((state) => ({
+      sidebars: { ...state.sidebars, right: { ...state.sidebars.right, isOpen: true } },
+      desktopSidebarTabs: {
+        ...state.desktopSidebarTabs,
+        right: { panes: panes.map(([id, tab]) => ({ id, tab })), focusedPane, canSplit: panes.length > 1 },
+      },
+    }));
+  const shown = (viewId: string | null) => viewId && createAgentChatViewSource(viewId).getState().activeConvId;
+  // The first pane bound takes over the default view; compare by pane.
+  const viewOf = (paneId: SidebarPaneId) => useAgentChatStore.getState().viewBindings[`sidebar:${paneId}`];
+
+  it('opens a closed right sidebar that fits, on the Agent tab with the new session', async () => {
+    expect(useUiStore.getState().sidebars.right.isOpen).toBe(false);
+    const viewId = await showAgentTaskInRightSidebar('target', { viewportWidth: 1600 });
+    const ui = useUiStore.getState();
+    expect(ui.sidebars.right.isOpen).toBe(true);
+    expect(ui.desktopSidebarTabs.right.panes).toEqual([{ id: 'primary', tab: 'companion' }]);
+    expect(viewId).toBe(viewOf('primary'));
+    expect(shown(viewId)).toBe('target');
+  });
+
+  it('leaves a closed right sidebar closed when it would squeeze the page', async () => {
+    useUiStore.getState().setSidebarOpen('left', true);
+    expect(await showAgentTaskInRightSidebar('target', { viewportWidth: 900 })).toBeNull();
+    expect(useUiStore.getState().sidebars.right.isOpen).toBe(false);
+    expect(useUiStore.getState().desktopSidebarTabs.right.panes[0].tab).toBe('library');
+    // Asking to see the task opens it regardless.
+    expect(shown(await showAgentTaskInRightSidebar('target', { viewportWidth: 900, force: true }))).toBe('target');
+    expect(useUiStore.getState().sidebars.right.isOpen).toBe(true);
+  });
+
+  it('switches the first Agent tab of an open sidebar, single or split', async () => {
+    rightTabs([['primary', 'stats'], ['secondary', 'companion']], 'primary');
+    let viewId = await showAgentTaskInRightSidebar('target', { viewportWidth: 1600 });
+    expect(viewId).toBe(viewOf('secondary'));
+    expect(shown(viewId)).toBe('target');
+    expect(useUiStore.getState().desktopSidebarTabs.right.panes[0].tab).toBe('stats');
+
+    rightTabs([['primary', 'companion'], ['secondary', 'companion']], 'secondary');
+    viewId = await showAgentTaskInRightSidebar('target', { viewportWidth: 1600 });
+    expect(viewId).toBe(viewOf('primary'));
+    expect(shown(viewId)).toBe('target');
+  });
+
+  it('turns an open pane into the Agent tab when none is showing', async () => {
+    rightTabs([['primary', 'review'], ['secondary', 'stats']], 'secondary');
+    const viewId = await showAgentTaskInRightSidebar('target', { viewportWidth: 1600 });
+    expect(useUiStore.getState().desktopSidebarTabs.right.panes).toEqual([
+      { id: 'primary', tab: 'review' },
+      { id: 'secondary', tab: 'companion' },
+    ]);
+    expect(viewId).toBe(viewOf('secondary'));
+    expect(shown(viewId)).toBe('target');
   });
 });

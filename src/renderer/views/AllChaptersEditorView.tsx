@@ -31,13 +31,19 @@ import {
   canonicalWordCount,
   isChapter,
   CHAPTER_WRITING_STATUSES,
+  type BookNode,
   type ChapterNode,
+  type ChapterWritingStatus,
   type WritingStatus,
 } from '../domain/book-node';
 import { deriveActSegments, type BookAct } from '../domain/book-act';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import { openEntityLinkTarget } from '../features/editor/open-entity-link';
+import { useChapterInsert } from '../features/editor/useChapterInsert';
+import { ChapterEndActions } from '../features/editor/ChapterEndActions';
+import { useWholeBookEditingChapter } from '../features/editor/whole-book-editing';
+import { getPlatformRuntime } from '../platform/runtime';
 import type { OutlineItem } from '../lib/outline';
 import { parseOutline } from '../lib/outline';
 import { saveActiveEditor } from '../lib/active-editor';
@@ -194,6 +200,7 @@ export function AllChaptersEditorView() {
       projectId,
     });
   const { renameNode, updateNodeSummary, updateNode, deleteNode } = useBookNode({ projectId, userId });
+  const insertChapter = useChapterInsert({ projectId, userId });
   const setChapterStorylineEditorNodeId = useUiStore((s) => s.setChapterStorylineEditorNodeId);
 
   // Stable per-node content cache so repeat fetches (after unmount/remount)
@@ -383,6 +390,9 @@ export function AllChaptersEditorView() {
   }, [boundedOutlineLoad, orderedNodes]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // The chapter holding the caret drives the footer's word count.
+  const getScrollRoot = useCallback(() => scrollRef.current, []);
+  useWholeBookEditingChapter(projectId, getScrollRoot);
   const [navigationChapterId, setNavigationChapterId] = useState<string | null>(null);
   const navigatorRef = useRef<ReturnType<typeof createAllChaptersNavigator> | null>(null);
   useEffect(() => {
@@ -702,6 +712,53 @@ export function AllChaptersEditorView() {
     [openEntity],
   );
 
+  // The ⁂ menu's "new chapter after" (and the empty-book prompt) inserts a
+  // chapter without leaving 通览全书: the new row becomes the live editor —
+  // through the same save-then-promote queue as a click — with its title
+  // selected, and the TOC navigator brings it to the reading line. The touch
+  // shell keeps the decorative ⁂ and its own creation flows.
+  const handleInsertAfter = useCallback(
+    async (afterNodeId: string | null) => {
+      const id = await insertChapter(afterNodeId);
+      if (!id) return;
+      didRestoreRef.current = true;
+      const request = ++promotionRequestRef.current;
+      promotionRef.current = promotionRef.current.then(async () => {
+        if (focusRef.current) await saveActiveEditor();
+        if (request !== promotionRequestRef.current) return;
+        const next = { nodeId: id, caret: null };
+        focusRef.current = next;
+        setFocus(next);
+      });
+      pinnedOutlineRef.current = null;
+      setActiveOutline(id);
+      setActiveChapter(id);
+      void navigatorRef.current?.navigate({ chapterId: id });
+    },
+    [insertChapter, setActiveChapter, setActiveOutline],
+  );
+  const handleSetStatus = useCallback(
+    (nodeId: string, writingStatus: ChapterWritingStatus) => {
+      void updateNode(nodeId, { writingStatus }).catch((error: unknown) => {
+        log.error('[AllChapters] Failed to set writing status', nodeId, error);
+      });
+    },
+    [updateNode],
+  );
+  const canInsertChapters = !getPlatformRuntime().isMobileShell;
+  const renderChapterEnd = useCallback(
+    (node: BookNode) =>
+      isChapter(node) ? (
+        <ChapterEndActions
+          projectId={projectId}
+          node={node}
+          onInsertAfter={handleInsertAfter}
+          onSetStatus={handleSetStatus}
+        />
+      ) : null,
+    [handleInsertAfter, handleSetStatus, projectId],
+  );
+
   // The top-bar three-dot menu acts on whichever chapter is at the reading line
   // (falling back to the first chapter before the spy has resolved one). Drift
   // nodes never appear in 通览全书 — orderedNodes is chapters only — so this is
@@ -816,6 +873,23 @@ export function AllChaptersEditorView() {
           }}
         >
           {t('allChapters.empty.noChapters')}
+          {canInsertChapters && (
+            <button
+              type="button"
+              onClick={() => void handleInsertAfter(null)}
+              style={{
+                marginLeft: 12,
+                background: 'transparent',
+                border: '1px solid hsl(var(--rule))',
+                borderRadius: 4,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                color: 'hsl(var(--ink-2))',
+              }}
+            >
+              {t('chapterEnd.firstChapter')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navigateToHome()}
@@ -940,6 +1014,7 @@ export function AllChaptersEditorView() {
                   onSummaryUpdate={handleSummaryUpdate}
                   onEntityClick={handleEntityClick}
                   onOutlineChange={handleOutlineChange}
+                  renderEnd={canInsertChapters ? renderChapterEnd : undefined}
                   storylineColor={storyline?.color || undefined}
                   storylineName={storyline?.name || undefined}
                   chapterRoman={toRoman(idx + 1)}

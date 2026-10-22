@@ -3,6 +3,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useRef,
   useState,
   type Ref,
 } from 'react';
@@ -33,6 +34,7 @@ import {
 import { CopilotEditorMount } from '../copilot/CopilotEditorMount';
 import { CopilotInlinePopover } from '../copilot/CopilotInlinePopover';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
+import { consumeChapterTitleFocus } from '../../features/editor/chapter-title-focus';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -284,6 +286,34 @@ export function ChapterEditor({
   // Titles and summaries grow with their content and available width.
   const titleRef = useAutosizeTextArea(titleValue);
   const summaryRef = useAutosizeTextArea(summaryValue);
+  const titleElementRef = useRef<HTMLTextAreaElement | null>(null);
+  const setTitleElement = useCallback(
+    (element: HTMLTextAreaElement | null) => {
+      titleElementRef.current = element;
+      titleRef(element);
+    },
+    [titleRef],
+  );
+
+  // A chapter just created from the ⁂ insert opens with its placeholder title
+  // selected (the textarea selects on focus) so the author names it first.
+  // Same two-frame wait as the caret: a promoted 通览全书 row reveals the live
+  // editor only after it reports ready. The intent is consumed inside the
+  // frame so an effect replay cannot drop it.
+  useEffect(() => {
+    if (!ready || !editableTitle) return;
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (consumeChapterTitleFocus(nodeId)) titleElementRef.current?.focus({ preventScroll: true });
+      });
+    });
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [ready, editableTitle, nodeId]);
 
   // Agent summary edits show their committed result until viewed.
   const nodeFieldReview = useFieldReview('node', nodeId);
@@ -315,7 +345,7 @@ export function ChapterEditor({
             <div style={{ flex: literary ? undefined : 1, minWidth: 0 }}>
               {editableTitle ? (
                 <textarea
-                  ref={titleRef}
+                  ref={setTitleElement}
                   rows={1}
                   value={titleValue}
                   placeholder={t('chapterEditor.untitledChapter')}

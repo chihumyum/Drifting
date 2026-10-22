@@ -50,6 +50,10 @@ import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { useChapterInsert } from '../features/editor/useChapterInsert';
+import { ChapterEndOrnament } from '../components/editor/ChapterEndOrnament';
+import { ChapterEndActions } from '../features/editor/ChapterEndActions';
+import { getPlatformRuntime } from '../platform/runtime';
 import { Button } from '../components/ui/Button';
 import {
   ModalActions,
@@ -436,6 +440,19 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const handleEntityClick = useCallback(
     (ref: EntityLinkRef) => openEntityLinkTarget(openEntity, ref),
     [openEntity],
+  );
+
+  // The ⁂ menu's "new chapter after" creates the next chapter in reading
+  // order and opens it as a kept tab, like the sidebar's 新章节; its title
+  // opens selected. The touch shell keeps the decorative ⁂.
+  const insertChapter = useChapterInsert({ projectId: activeProjectId, userId: activeUserId });
+  const handleInsertAfter = useCallback(
+    (afterNodeId: string) => {
+      void insertChapter(afterNodeId).then((id) => {
+        if (id) openEntity({ entityType: 'node', id }, { preview: false });
+      });
+    },
+    [insertChapter, openEntity],
   );
 
   const setChapterStorylineEditorNodeId = useUiStore(
@@ -858,7 +875,18 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                     </div>
                   )}
 
-                  <div className="page__ornament" aria-hidden="true">⁂</div>
+                  {curNode && isChapter(curNode) && !getPlatformRuntime().isMobileShell ? (
+                    <ChapterEndActions
+                      projectId={activeProjectId}
+                      node={curNode}
+                      onInsertAfter={handleInsertAfter}
+                      onSetStatus={(_, status) =>
+                        void handleContextAction(`${SET_STATUS_ACTION_PREFIX}${status}`)
+                      }
+                    />
+                  ) : (
+                    <ChapterEndOrnament />
+                  )}
                 </article>
               </div>
             </div>

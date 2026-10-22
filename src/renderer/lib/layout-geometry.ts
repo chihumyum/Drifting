@@ -55,6 +55,21 @@ export function sidebarWidthBounds(
   return { min, max: Math.max(min, Math.min(ratioMax, contentPreservingMax)) };
 }
 
+// The narrowest sidebar worth opening on the author's behalf (the default
+// sidebar width); below it an automatic reveal would only squeeze the page.
+export const MIN_REVEALED_SIDEBAR_WIDTH = 280;
+
+/** Whether a closed sidebar can open beside the content without squeezing it. */
+export function sidebarFitsBeside(
+  viewportWidth: number,
+  oppositeOpenWidth: number,
+  minimumWidth: number,
+): boolean {
+  if (!Number.isFinite(viewportWidth)) return true;
+  const room = viewportWidth - Math.max(0, oppositeOpenWidth) - MIN_DESKTOP_CONTENT_WIDTH;
+  return room >= Math.max(minimumWidth, MIN_REVEALED_SIDEBAR_WIDTH);
+}
+
 export function clampSidebarWidth(
   width: number,
   side: SidebarSide,

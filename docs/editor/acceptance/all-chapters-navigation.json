@@ -1,8 +1,8 @@
 {
   "kind": "all-chapters-navigation",
   "status": "passed",
-  "generatedAt": "2026-10-19T17:38:29.423Z",
-  "sourceSha256": "25dbe611327024ad19f7e88fb01253323410488408ea20b485444c8ecb7a4c78",
+  "generatedAt": "2026-10-22T17:37:19.289Z",
+  "sourceSha256": "293791915cc667343b58ef41cfc344314045f0819bbfff4b0781598c24cba521",
   "inputs": [
     "scripts/run-all-chapters-navigation-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -19,7 +19,7 @@
     "src/styles/index.css",
     "src/styles/comments-review.css"
   ],
-  "browser": "Chrome/155.0.8059.84",
+  "browser": "Chrome/155.0.8059.85",
   "syntheticChaptersPerPane": 60,
   "samples": [
     {

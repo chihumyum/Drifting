@@ -1,0 +1,191 @@
+{
+  "kind": "chapter-end-menu",
+  "status": "passed",
+  "generatedAt": "2026-10-22T18:00:55.314Z",
+  "sourceSha256": "3fb0a1dd61e24d981224a71e55e4fc58fdc0f61d7d584665222ce91c2b779460",
+  "inputs": [
+    "scripts/run-chapter-end-menu-acceptance.mjs",
+    "scripts/renderer-headless-browser.mjs",
+    "scripts/renderer-chapter-end-menu.tsx",
+    "scripts/renderer-chapter-end-menu.html",
+    "src/renderer/components/editor/ChapterEndOrnament.tsx",
+    "src/renderer/components/editor/VirtualChapterRow.tsx",
+    "src/renderer/features/editor/ChapterEndActions.tsx",
+    "src/renderer/features/editor/chapter-agent-review.ts",
+    "src/renderer/features/editor/chapter-agent-review.test.ts",
+    "src/renderer/features/editor/useChapterInsert.ts",
+    "src/renderer/features/editor/chapter-title-focus.ts",
+    "src/renderer/domain/chapter-insert.ts",
+    "src/renderer/domain/chapter-insert.test.ts",
+    "src/renderer/components/editor/ChapterEditor.tsx",
+    "src/renderer/views/AllChaptersEditorView.tsx",
+    "src/renderer/views/NodeEditorView.tsx",
+    "src/styles/chapter-end-menu.css",
+    "src/styles/index.css"
+  ],
+  "browser": "Chrome/155.0.8059.85",
+  "samples": {
+    "resting": {
+      "x": 600,
+      "y": 449.890625,
+      "label": "Chapter end actions",
+      "popup": "menu",
+      "expanded": "false",
+      "finished": "false",
+      "color": "rgb(166, 163, 160)",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": 1,
+      "transform": "none",
+      "filter": "none"
+    },
+    "opening": {
+      "flipped": 81.59999990463257,
+      "markBackground": "rgba(0, 0, 0, 0)",
+      "mid": {
+        "mark": 0.424233,
+        "action": 0.575767,
+        "actionFilter": "blur(0.848466px)"
+      },
+      "end": {
+        "mark": 0,
+        "action": 1,
+        "actionFilter": "blur(0px)"
+      }
+    },
+    "faded": {
+      "x": 600,
+      "y": 449.890625,
+      "label": "Chapter end actions",
+      "popup": "menu",
+      "expanded": "true",
+      "finished": "false",
+      "color": "rgb(166, 163, 160)",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": 0,
+      "transform": "matrix(0.6, 0, 0, 0.6, 0, 0)",
+      "filter": "blur(2px)"
+    },
+    "row": {
+      "chapterId": "chapter-b",
+      "top": 434.890625,
+      "bottom": 464.890625,
+      "left": 401.859375,
+      "right": 798.140625,
+      "items": [
+        {
+          "action": "finish",
+          "label": "Mark finished",
+          "x": 452.0859375,
+          "y": 449.890625,
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "inViewport": true,
+          "hitTarget": true
+        },
+        {
+          "action": "insert",
+          "label": "New chapter after",
+          "x": 600,
+          "y": 449.890625,
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "inViewport": true,
+          "hitTarget": true
+        },
+        {
+          "action": "review",
+          "label": "Agent review",
+          "x": 744.0546875,
+          "y": 449.890625,
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "inViewport": true,
+          "hitTarget": true
+        }
+      ]
+    },
+    "exits": {
+      "above": true,
+      "below": true,
+      "left": true,
+      "right": true
+    },
+    "closed": {
+      "flipped": 0,
+      "markBackground": "rgba(0, 0, 0, 0)",
+      "mid": {
+        "mark": 0.518985,
+        "action": 0.481015,
+        "actionFilter": "blur(1.03797px)"
+      },
+      "end": {
+        "mark": 1,
+        "action": 0,
+        "actionFilter": "blur(2px)"
+      }
+    },
+    "inserts": [
+      {
+        "after": "chapter-b",
+        "id": "inserted-1",
+        "bookOrder": 11,
+        "act": "act-1"
+      }
+    ],
+    "finishedTrigger": {
+      "x": 600,
+      "y": 449.890625,
+      "label": "Chapter end actions (finished)",
+      "popup": "menu",
+      "expanded": "false",
+      "finished": "true",
+      "color": "rgb(106, 125, 160)",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": 1,
+      "transform": "none",
+      "filter": "none"
+    },
+    "monoFont": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+    "labels": {
+      "finishLabel": "Mark finished",
+      "draftLabel": "Back to draft",
+      "reviewIdle": "Agent review",
+      "reviewStarting": "Starting…",
+      "reviewRunning": "Reviewing · open"
+    }
+  },
+  "checks": {
+    "hoverIntentDelay": true,
+    "noPressedWash": true,
+    "markCrossFadesIntoActions": true,
+    "actionsOnTheMarkLine": true,
+    "primaryCentredOnMark": true,
+    "monospacePlainText": true,
+    "opensPromptly": true,
+    "simultaneousCrossZoomMorph": true,
+    "roamingAlongLineKeepsOpen": true,
+    "leavingLineClosesAtOnce": true,
+    "markReturnsSmoothly": true,
+    "scrollUnderStillPointerDoesNotOpen": true,
+    "earlyClickGuard": true,
+    "insertsDirectlyAfterChapter": true,
+    "staysInsideAct": true,
+    "finishedToggleAndAccent": true,
+    "reviewDispatchStates": true,
+    "keyboardMenu": true,
+    "outsideClickDismisses": true,
+    "scrollClosesRow": true,
+    "decorativeVariantHasNoControl": true,
+    "noUncaughtExceptions": true
+  },
+  "boundary": "Chromium renderer with the real VirtualChapterRow, ChapterEndMenu, chapterOrderAfter and styles; insert, status and review handlers act on synthetic in-memory chapters with two acts. Database writes, the Agent runtime session, the live-editor title focus, tab opening and WKWebView pointer behaviour are outside this harness."
+}
