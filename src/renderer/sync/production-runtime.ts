@@ -78,6 +78,13 @@ export interface ProductionSyncRuntimeDependencies {
  */
 export const SYNC_LOG_PRUNING_ENABLED = false;
 
+/**
+ * Local journal truncation on a pruning provider (Hosted): once a published
+ * snapshot covers applied history, its change-set rows leave this database.
+ * Independent of Hosted pruning; it needs only snapshots already published.
+ */
+export const SYNC_JOURNAL_TRUNCATION_ENABLED = true;
+
 const defaultDependencies: ProductionSyncRuntimeDependencies = {
   database: getDb,
   listBindings: async (database) => {
@@ -171,6 +178,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       writerIdentity,
       domainKernel: productionSyncDomainMaterializationKernel,
       flushLocalDurability: flushLocalApplicationPersistence,
+      truncateJournal: SYNC_JOURNAL_TRUNCATION_ENABLED,
       async onRemoteProjectDeleted({ projectId, receipt }) {
         const { cleanupDeletedProject } = await import('../services/project-deletion-cleanup');
         await cleanupDeletedProject(projectId, receipt);

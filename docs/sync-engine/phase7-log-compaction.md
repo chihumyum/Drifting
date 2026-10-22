@@ -21,7 +21,7 @@ downloaded all history.
 | --- | --- |
 | State-machine snapshot | Checkpoint package: authored rows, compacted reducer state, Yjs full state per document |
 | `lastIncludedIndex` | Per-lane applied frontier plus that lane's segment-head hash |
-| Log truncation | Hosted prune of covered segments and superseded snapshots |
+| Log truncation | Hosted prune of covered segments and superseded snapshots; local journal rows below the reducer base |
 | `InstallSnapshot` | Lagging-replica fast-forward onto a snapshot |
 
 The difference is the follower. A Raft follower has no writes of its own and
@@ -101,16 +101,95 @@ snapshot set or its frontier changes.
 
 ## Local truncation
 
-Once a pruned segment is applied, its local `sync_segment`, transfer and
-local-object rows are deleted. The startup orphan sweep removes the file. The
-newest segment of every lane stays, because sealing chains a writer's next
-segment to it. Journal rows (change-sets, mutations, receipts) stay, because
-reducer metadata references them through restrict foreign keys. Truncating
-them is separate future work.
+**Segment objects.** Once a pruned segment is applied, its local
+`sync_segment`, transfer and local-object rows are deleted. The startup orphan
+sweep removes the file. The newest segment of every lane stays, because sealing
+chains a writer's next segment to it.
+
+**Journal rows** (`compaction/journal-truncation.ts`, migration
+`0008_sync_journal_truncation`). This is the replica's own log truncation, with
+the Raft rule that a node drops only the log its snapshot covers. It runs after
+apply on a pruning provider (`SYNC_JOURNAL_TRUNCATION_ENABLED`), independent of
+Hosted pruning, and re-checks only when the snapshot set, the frontier or the
+published segments move.
+
+1. **Base.** The base is the newest published snapshot (payload v2, this
+   project, same reducer profile) that meets four conditions:
+   - the newest snapshot dominates it, so concurrent or older-build snapshots
+     outside a dominance chain are never chosen;
+   - this replica's applied frontier dominates it;
+   - it covers more than the current base and dominates it;
+   - every one of its explicit receipts is applied here.
+
+   Own published checkpoints qualify like any other. Later snapshots cover the
+   newest one, so they keep covering the base, and catch-up, which refuses a
+   snapshot below the base, stays possible.
+2. **Install, in one transaction.** The base is installed and derived reducer
+   snapshots are deleted. The reducer state rebuilt on the new base must equal
+   the current state byte for byte in canonical page form. Otherwise the
+   transaction rolls back and that snapshot is not tried again this session.
+   Domain rows and reducer metadata are not rewritten. The same transaction
+   raises the per-lane floor in `sync_journal_truncation` to the base coverage
+   and deletes the first batch.
+3. **Delete.** Change-set, mutation and apply-receipt rows at or below the
+   floor are deleted together, 250 change-sets per transaction so editing is
+   never held up for long (about 0.3 ms per change-set on a 140,000-row
+   journal). Kept:
+   - rows the current state names as register sources;
+   - rows reducer metadata references through its restrict foreign keys, which
+     stay in place as the fail-closed net;
+   - the base's explicit receipts;
+   - own change-sets above the lane's `published_seq` or inside an open
+     published gap (a segment still waiting on its blobs).
+
+   The protected set is read once per run. Every restrict foreign key's child
+   columns are indexed, so each delete checks them by index instead of scanning
+   reducer metadata. When a run deletes anything, derived reducer snapshots
+   are dropped at its end, so the next one is written on the smaller journal.
+4. **Database guards.** The baseline no-delete triggers now admit only an
+   applied row at or below its lane's floor, while a reducer base exists, and,
+   for `origin='local'`, once published: at or below `published_seq` and
+   outside any open published gap. The floor needs a base and never decreases
+   or disappears.
+5. **Yjs materialization receipts** stay. Their mutation key is a watermark,
+   no longer a foreign key, like `yjs_prose_command_receipt.update_id`; the
+   insert guard still requires the mutation.
+6. **Redelivery.** A change-set below the floor whose row is gone is already
+   applied:
+   - TypeScript staging (`isJournalTruncationCoveredInTransaction`) treats it
+     that way;
+   - so does the native receiver (`remote_workspace.rs`), which used to
+     de-duplicate by row existence alone.
+7. **Monotonic checkpoint policy.** The due check compares the applied journal
+   position (sum of the applied frontier, `appliedJournalPosition`) with the
+   latest checkpoint's `change_set_count`. It never compares row counts.
+   - Captures and restores record that position.
+   - An installed reducer base counts as a checkpoint already held.
+
+Deleted rows free pages for reuse; the database file shrinks only after a
+`VACUUM`, which truncation does not run.
+
+After truncation, a reducer rebuild starts from the base and replays only rows
+above the floor. Restart, remote apply, checkpoint capture and snapshot
+catch-up work unchanged on top of it. The tests in
+`compaction.integration.test.ts` and
+`schema/sync-journal-truncation-migration.integration.test.ts` cover these
+paths against file-backed SQLite.
 
 ## Boundaries
 
 - Only payload v2 snapshots are installed; v1 packages wait for a v2 checkpoint.
+- Journal truncation runs only on pruning providers. A Drive generation keeps
+  its complete journal, which Drive-to-Hosted adoption needs; adoption still
+  rejects any generation with a reducer base.
+- Below the floor a redelivered envelope is accepted as already applied
+  without comparing bytes, because the stored row is gone. A different
+  envelope reusing a covered writer sequence (for example a writer epoch
+  reused after a device-backup restore) is therefore ignored, not reported as
+  a collision.
+- Truncated history is gone locally. Native materialization-admission
+  verification of a truncated original fails closed, and journal diagnostics
+  count only the remaining rows.
 - Assets introduced in pruned history are fetched by the ordinary blob path
   from the snapshot's asset list; blobs themselves are never pruned.
 - Real Hosted deployment, multi-day grace behavior and physical devices are

@@ -81,9 +81,13 @@ domain + journal transaction back.
   persisted. Bump `REDUCER_STATE_SNAPSHOT_FORMAT` whenever reducer semantics,
   change-set signatures or state shape change.
 - `sync_reducer_base` is the authoritative compacted state a payload v2
-  checkpoint restore installed (canonical reducer-state pages, as verified).
-  The history it covers does not exist locally. A base that does not match its
-  SyncGeneration or the current profile fails closed instead of being dropped.
+  checkpoint restore, a snapshot catch-up or journal truncation installed
+  (canonical reducer-state pages, as verified). The history it covers need not
+  exist locally; journal truncation deletes it below a recorded floor
+  ([phase 7](phase7-log-compaction.md#local-truncation)). A base that does not
+  match its SyncGeneration or the current profile fails closed instead of being
+  dropped. Deleting receipts lowers the receipt count that keys the cache, so
+  truncation invalidates the cache in each deleting transaction.
 - A rebuild starts from the first usable source: a snapshot whose explicit
   receipts are applied and whose coverage above the base floor matches SQLite's
   applied lane counts; else the base; else an empty state. It then replays the

@@ -438,3 +438,57 @@ fn remote_prose_observes_hlc_without_consuming_local_sequence() {
     );
     assert_eq!(utc_iso(9_007_199_254_740_991), "1970-01-01T00:00:00.000Z");
 }
+
+#[test]
+fn remote_prose_treats_redelivery_below_the_truncation_floor_as_applied() {
+    let (_dir, db) = database();
+    let receiver = RemoteProseJournal::new(&db, CLIENT);
+    let (first, first_bytes) = envelope(&[(DOC, 0, "yjs.update")], 1, 100, 0);
+    let (second, second_bytes) = envelope(&[(DOC, 0, "yjs.update")], 2, 200, 0);
+    for (expected, bytes) in [(&first, &first_bytes), (&second, &second_bytes)] {
+        assert!(!receiver
+            .receive(&context("receiver"), expected, bytes, None, project)
+            .unwrap()
+            .already_applied);
+    }
+    // Without a reducer base and floor the journal stays append-only.
+    let delete = "DELETE FROM sync_apply_receipt WHERE change_set_id='sender:epoch:1'";
+    assert!(db.execute(delete.into(), vec![], None, CLIENT.into()).is_err());
+    for sql in [
+        "INSERT INTO sync_reducer_base(sync_generation_id,profile_key,payload_version,pages_cbor,source_checkpoint_id,created_at) VALUES ('remote-generation','[]',2,X'80','checkpoint-1','now')",
+        "INSERT INTO sync_journal_truncation(sync_generation_id,writer_id,writer_epoch,truncated_through_seq,source_checkpoint_id,updated_at) VALUES ('remote-generation','sender','epoch',1,'checkpoint-1','now')",
+        delete,
+        "DELETE FROM sync_mutation WHERE change_set_id='sender:epoch:1'",
+        "DELETE FROM sync_change_set WHERE change_set_id='sender:epoch:1'",
+    ] {
+        execute(&db, sql, None);
+    }
+    // Above the floor, and the floor itself, stay guarded.
+    for sql in [
+        "DELETE FROM sync_apply_receipt WHERE change_set_id='sender:epoch:2'",
+        "UPDATE sync_journal_truncation SET truncated_through_seq=0",
+        "DELETE FROM sync_journal_truncation",
+        "DELETE FROM sync_yjs_materialization_receipt",
+    ] {
+        assert!(db.execute(sql.into(), vec![], None, CLIENT.into()).is_err(), "{sql}");
+    }
+    // The receipt outlives its mutation as a watermark; the database reopens clean.
+    assert_eq!(
+        rows(&db, "SELECT count(*) FROM sync_yjs_materialization_receipt"),
+        vec![vec![integer(2)]]
+    );
+    assert!(rows(&db, "PRAGMA foreign_key_check").is_empty());
+    let before = tables(&db);
+    let redelivered = receiver
+        .receive(
+            &context("receiver"),
+            &first,
+            &first_bytes,
+            None,
+            |_, _, _, _| panic!("truncated redelivery projector"),
+        )
+        .unwrap();
+    assert!(redelivered.already_applied);
+    assert_eq!(redelivered.affected_documents, vec![DOC]);
+    assert_eq!(tables(&db), before);
+}

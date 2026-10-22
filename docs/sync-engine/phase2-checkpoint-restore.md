@@ -112,8 +112,10 @@ statement, so capture failed. Payload v2 removes both bounds:
 - A base-restored SyncGeneration lacks the covered history, so Drive-to-Hosted
   adoption, which rebases the complete journal, rejects it.
 
-`changeSetCount` of a checkpoint counts the journal rows present locally: all
-of them for v1, the carried ones after a v2 restore.
+`changeSetCount` of a checkpoint is the journal position it covers: the sum
+of its frontier's applied sequences, for a local capture and a restore alike.
+Unlike a row count it survives journal truncation
+([phase 7](phase7-log-compaction.md#local-truncation)).
 
 ## Deliberate exclusions
 

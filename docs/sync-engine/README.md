@@ -50,7 +50,8 @@ resumption, not current product availability.
 - [`phase6-product-controls.md`](phase6-product-controls.md): user-facing sync
   controls and release gates.
 - [`phase7-log-compaction.md`](phase7-log-compaction.md): Raft-style truncation
-  of covered history and lagging-replica catch-up from a snapshot.
+  of covered history on the provider and in the local journal, and
+  lagging-replica catch-up from a snapshot.
 
 ## Evidence boundary
 

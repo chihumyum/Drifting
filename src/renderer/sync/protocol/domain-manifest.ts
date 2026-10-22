@@ -1415,6 +1415,17 @@ const syncTransportTables: Readonly<
       'created_at',
     ],
   },
+  sync_journal_truncation: {
+    scope: 'project-via-reference',
+    fields: [
+      'sync_generation_id',
+      'writer_id',
+      'writer_epoch',
+      'truncated_through_seq',
+      'source_checkpoint_id',
+      'updated_at',
+    ],
+  },
   sync_reducer_snapshot: {
     scope: 'project-via-reference',
     fields: [

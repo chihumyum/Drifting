@@ -1,17 +1,18 @@
-import { and, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 
-import type { DbClient, DbTransaction } from '../../lib/db';
+import type { DbClient, DbExecutor, DbTransaction } from '../../lib/db';
 import type { SyncLogCompactor } from '../compaction/policy';
 import {
   SyncBlobStateTable,
-  SyncChangeSetTable,
   SyncCheckpointTable,
   SyncConflictTable,
   SyncFrontierGapTable,
+  SyncFrontierTable,
   SyncLocalObjectTable,
   SyncProviderBindingTable,
   SyncQuarantinedObjectTable,
+  SyncReducerBaseTable,
   SyncRemoteObjectTable,
   SyncSegmentTable,
   SyncTransferTable,
@@ -31,12 +32,54 @@ import {
   type SnapshotKind,
   type SyncObjectKind,
 } from '../protocol';
+import { readSqliteReducerBaseInTransaction } from '../reducer';
 import { captureSnapshot } from './capture';
 import type { SnapshotAssetCapturePort } from './types';
 
 const DEFAULT_CHANGE_SET_THRESHOLD = 10_000;
 const DEFAULT_SEGMENT_BYTE_THRESHOLD = 64 * 1024 * 1024;
 const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000;
+
+/**
+ * How far this replica's history reaches: the change-sets it has applied in
+ * contiguous order, summed over writer lanes. Unlike a journal row count it
+ * never decreases, so journal truncation cannot postpone a checkpoint. A
+ * checkpoint records the position it covers in `change_set_count`.
+ */
+export async function appliedJournalPosition(db: DbExecutor, syncGenerationId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: sql<number>`coalesce(sum(${SyncFrontierTable.appliedSeq}), 0)` })
+    .from(SyncFrontierTable)
+    .where(eq(SyncFrontierTable.syncGenerationId, syncGenerationId));
+  return Number(row?.value ?? 0);
+}
+
+/** Positions of installed reducer bases; a base row is replaced, never edited. */
+const reducerBasePositions = new Map<string, number>();
+
+/**
+ * The position of the snapshot installed as reducer base. A fast-forwarded
+ * replica holds that snapshot already, so it counts as its latest checkpoint.
+ */
+async function reducerBasePosition(
+  db: DbClient,
+  identity: { projectId: string; projectSyncId: string; syncGenerationId: string },
+): Promise<number> {
+  const [row] = await db
+    .select({ source: SyncReducerBaseTable.sourceCheckpointId, createdAt: SyncReducerBaseTable.createdAt })
+    .from(SyncReducerBaseTable)
+    .where(eq(SyncReducerBaseTable.syncGenerationId, identity.syncGenerationId))
+    .limit(1);
+  if (!row) return 0;
+  const key = JSON.stringify([identity.syncGenerationId, row.source, row.createdAt]);
+  const known = reducerBasePositions.get(key);
+  if (known !== undefined) return known;
+  const base = await readSqliteReducerBaseInTransaction(db, identity);
+  const position = base ? [...base.state.coverage.values()].reduce((total, seq) => total + seq, 0) : 0;
+  if (reducerBasePositions.size >= 16) reducerBasePositions.delete(reducerBasePositions.keys().next().value!);
+  reducerBasePositions.set(key, position);
+  return position;
+}
 
 function sha256Hex(value: Sha256): string {
   return value.slice('sha256:'.length);
@@ -513,10 +556,7 @@ export class ProviderSnapshotPublisher {
       });
     }
 
-    const [changeSetRows] = await this.options.db
-      .select({ value: count() })
-      .from(SyncChangeSetTable)
-      .where(eq(SyncChangeSetTable.syncGenerationId, this.options.syncGenerationId));
+    const position = await appliedJournalPosition(this.options.db, this.options.syncGenerationId);
     const nowIso = this.nowIso();
     await this.options.db.transaction(async (tx) => {
       const [collision] = await tx
@@ -611,7 +651,7 @@ export class ProviderSnapshotPublisher {
         logicalKeyId: packagePrepared.logicalKeyId,
         contentSha256: sha256Hex(captured.packageSha256),
         state: 'captured',
-        changeSetCount: Number(changeSetRows?.value ?? 0),
+        changeSetCount: position,
         sizeBytes: captured.packageBytes.byteLength,
         createdAt: nowIso,
         verifiedAt: nowIso,
@@ -645,7 +685,11 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
     async captureIfDue({ syncGenerationId, signal }) {
       if (syncGenerationId !== options.syncGenerationId) throw new Error('Checkpoint hook SyncGeneration identity mismatch');
       const [generation] = await options.db
-        .select({ status: SyncGenerationTable.status, projectId: SyncGenerationTable.projectId })
+        .select({
+          status: SyncGenerationTable.status,
+          projectId: SyncGenerationTable.projectId,
+          projectSyncId: SyncGenerationTable.projectSyncId,
+        })
         .from(SyncGenerationTable)
         .where(eq(SyncGenerationTable.syncGenerationId, syncGenerationId))
         .limit(1);
@@ -716,12 +760,15 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
         .where(eq(SyncCheckpointTable.syncGenerationId, syncGenerationId))
         .orderBy(desc(SyncCheckpointTable.createdAt))
         .limit(1);
-      const [changeSets] = await options.db
-        .select({ value: count() })
-        .from(SyncChangeSetTable)
-        .where(eq(SyncChangeSetTable.syncGenerationId, syncGenerationId));
-      const currentCount = Number(changeSets?.value ?? 0);
-      const previousCount = latest?.changeSetCount ?? 0;
+      const currentCount = await appliedJournalPosition(options.db, syncGenerationId);
+      const previousCount = Math.max(
+        latest?.changeSetCount ?? 0,
+        await reducerBasePosition(options.db, {
+          projectId: generation.projectId,
+          projectSyncId: generation.projectSyncId,
+          syncGenerationId,
+        }),
+      );
       if (currentCount <= previousCount) {
         await options.compaction?.pruneIfDue(signal);
         return false;

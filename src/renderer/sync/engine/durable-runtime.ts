@@ -22,6 +22,7 @@ import {
 } from '../../schema/drizzle';
 import type { SyncWriterIdentitySource } from '../journal';
 import { installSnapshotCatchUp, planSnapshotCatchUp } from '../compaction/catch-up';
+import { truncateCoveredJournal, type JournalTruncationOutcome } from '../compaction/journal-truncation';
 import { truncatePrunedLocalSegments } from '../compaction/local-truncation';
 import {
   applyVerifiedRemoteChangeSetInTransaction,
@@ -141,6 +142,11 @@ export interface SqliteSyncGenerationRuntimeOptions {
   readonly clock?: SyncEngineRuntimeClock;
   readonly flushLocalDurability?: () => Promise<void>;
   readonly checkpoint?: SyncEngineCheckpointHook;
+  /**
+   * On a pruning provider, delete local journal rows a published snapshot
+   * covers once this replica has applied them (default on).
+   */
+  readonly truncateJournal?: boolean;
   /**
    * Renderer-only post-commit bridge for already-open Yjs sessions. Omitting
    * docIds reconciles every open document in the project, which makes a prior
@@ -385,6 +391,10 @@ export class SqliteSyncGenerationRuntime {
   private referenceCoverageNotified = false;
   /** Snapshot set and applied frontier of the last catch-up check that found nothing. */
   private settledCatchUpKey: string | null = null;
+  private readonly truncateJournal: boolean;
+  /** Snapshot set and frontier of the last finished journal truncation check. */
+  private settledJournalTruncationKey: string | null = null;
+  private lastJournalTruncation: JournalTruncationOutcome | null = null;
   private readonly onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
   private readonly onStatus?: (runtime: SqliteSyncGenerationRuntime) => void;
   private readonly statusListeners = new Set<(runtime: SqliteSyncGenerationRuntime) => void>();
@@ -412,6 +422,7 @@ export class SqliteSyncGenerationRuntime {
     this.clock = options.clock ?? systemClock;
     this.flushLocalDurability = options.flushLocalDurability ?? (async () => {});
     this.checkpoint = options.checkpoint;
+    this.truncateJournal = options.truncateJournal ?? true;
     this.reconcileOpenYjsDocuments = options.reconcileOpenYjsDocuments;
     this.onRemoteChangeCommitted = options.onRemoteChangeCommitted;
     this.onReferenceCoverageInvalidated = options.onReferenceCoverageInvalidated;
@@ -2232,8 +2243,51 @@ export class SqliteSyncGenerationRuntime {
     }
     if (typeof this.provider.pruneObjects === 'function') {
       await truncatePrunedLocalSegments(this.db, this.syncGenerationId);
+      await this.truncateCoveredJournalIfNeeded(signal);
     }
     await this.retireBindingForPurgedSyncGeneration();
+  }
+
+  /** Outcome of the latest journal truncation attempt; null before the first. */
+  get journalTruncation(): JournalTruncationOutcome | null {
+    return this.lastJournalTruncation;
+  }
+
+  /**
+   * Journal truncation is an optimization. Each of its transactions commits a
+   * consistent step or rolls back; a failure is retried once the snapshot set,
+   * the frontier or the published segments move.
+   */
+  private async truncateCoveredJournalIfNeeded(signal: AbortSignal): Promise<void> {
+    if (!this.truncateJournal) return;
+    const published = await this.db
+      .select({ publishedSeq: SyncFrontierTable.publishedSeq })
+      .from(SyncFrontierTable)
+      .where(eq(SyncFrontierTable.syncGenerationId, this.syncGenerationId));
+    const key = JSON.stringify([
+      await this.catchUpCheckKey(),
+      published.reduce((total, row) => total + row.publishedSeq, 0),
+    ]);
+    if (key === this.settledJournalTruncationKey) return;
+    try {
+      this.lastJournalTruncation = await truncateCoveredJournal({
+        db: this.db,
+        syncGenerationId: this.syncGenerationId,
+        objectCodec: this.objectCodec,
+        kernel: this.domainKernel,
+        nowIso: () => this.clock.nowIso(),
+        signal,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      console.warn('[SyncEngine] Journal truncation stopped; it resumes once the log moves', error);
+      this.lastJournalTruncation = { status: 'skipped', reason: 'failed' };
+    }
+    // A conflict, quarantine or gap can clear without moving the log, so a
+    // blocked run is retried on the next cycle instead of settling.
+    const outcome = this.lastJournalTruncation;
+    if (outcome.status === 'skipped' && outcome.reason === 'blocked') return;
+    this.settledJournalTruncationKey = key;
   }
 
   /**

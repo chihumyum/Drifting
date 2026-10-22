@@ -219,8 +219,10 @@ export async function adoptDriveReplicaForHosted(input: {
         );
       // A compacted checkpoint restore carries only the history its registers
       // and receipts name; rebasing needs the complete journal it replaced.
+      // Journal truncation installs such a base before deleting any row, and
+      // runs only on pruning providers, never on a Drive generation.
       if (base.length)
-        throw new Error('A project restored from a compacted checkpoint cannot be adopted by Hosted');
+        throw new Error('A project restored from a compacted checkpoint or with a truncated journal cannot be adopted by Hosted');
       await assertNormalizedAuthoredAuthorityV1(tx, {
         projectId: source.projectId,
         syncGenerationId: source.syncGenerationId,

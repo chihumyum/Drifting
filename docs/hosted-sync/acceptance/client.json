@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-20T18:58:17.436Z",
-  "sourceSha256": "23bb1061277e2fd7345f2b553dc14136d1b0f9ebfdb9180c2997e97c43237b64",
+  "generatedAt": "2026-10-22T15:56:06.477Z",
+  "sourceSha256": "290a98b3360c6946fe6d5953e170e93c126e0f0090704792cc1f27045d18df5e",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",

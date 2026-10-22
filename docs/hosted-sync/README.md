@@ -168,8 +168,11 @@ returns `{status: "pruned", removed, deferred, cursor}`. The service keeps at
 least two snapshot markers and defers segments inside its 30-day grace window.
 It removes packages only together with a marker, never removes blobs, and
 rejects a basis that a later snapshot outdates. The client keeps pruning off
-(`SYNC_LOG_PRUNING_ENABLED`) until that service version is deployed. Retention,
-removal handling and lagging-replica catch-up are specified in
+(`SYNC_LOG_PRUNING_ENABLED`) until that service version is deployed. Local
+journal truncation needs no service change and is on
+(`SYNC_JOURNAL_TRUNCATION_ENABLED`): once a published snapshot covers applied
+history, the replica deletes those journal rows. Retention, removal handling,
+lagging-replica catch-up and journal truncation are specified in
 [phase 7](../sync-engine/phase7-log-compaction.md).
 
 Native requests enforce the configured origin, deny redirects, cap responses,

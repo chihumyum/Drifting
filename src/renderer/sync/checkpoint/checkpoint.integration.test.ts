@@ -1203,7 +1203,8 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     expect(await target.select().from(SyncReducerBaseTable)).toMatchObject([
       { syncGenerationId: SYNC_GENERATION_ID, payloadVersion: 2, sourceCheckpointId: 'checkpoint-1' },
     ]);
-    expect(await target.select().from(SyncCheckpointTable)).toMatchObject([{ changeSetCount: 2 }]);
+    // The journal position the checkpoint covers, not the two rows it carries.
+    expect(await target.select().from(SyncCheckpointTable)).toMatchObject([{ changeSetCount: 5 }]);
     expect(
       await target.select({ title: BookNodeTable.title }).from(BookNodeTable).where(eq(BookNodeTable.id, 'node-snapshot')),
     ).toEqual([{ title: 'Draft 6' }]);

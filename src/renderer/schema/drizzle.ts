@@ -2632,6 +2632,8 @@ export const SyncGenerationPurgeTable = sqliteTable(
       foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
       name: 'fk_sync_generation_purge_mutation',
     }).onDelete('restrict'),
+    // Child keys of journal foreign keys: journal truncation deletes parents.
+    index('idx_sync_generation_purge_mutation').on(t.changeSetId, t.mutationIndex),
     check(
       'sync_generation_purge_clock_check',
       sql`${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
@@ -2667,6 +2669,7 @@ export const SyncFieldClockTable = sqliteTable(
       foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
       name: 'fk_sync_field_clock_mutation',
     }).onDelete('restrict'),
+    index('idx_sync_field_clock_mutation').on(t.changeSetId, t.mutationIndex),
     check(
       'sync_field_clock_value_check',
       sql`${t.incarnation} >= 0 and ${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
@@ -2718,11 +2721,13 @@ export const SyncSetTagTable = sqliteTable(
       foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
       name: 'fk_sync_set_tag_add_mutation',
     }).onDelete('restrict'),
+    index('idx_sync_set_tag_add_mutation').on(t.addChangeSetId, t.addMutationIndex),
     foreignKey({
       columns: [t.removedByChangeSetId, t.removedByMutationIndex],
       foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
       name: 'fk_sync_set_tag_remove_mutation',
     }).onDelete('restrict'),
+    index('idx_sync_set_tag_remove_mutation').on(t.removedByChangeSetId, t.removedByMutationIndex),
     check('sync_set_tag_incarnation_check', sql`${t.incarnation} >= 0`),
     check(
       'sync_set_tag_remove_pair_check',
@@ -2767,6 +2772,7 @@ export const SyncOrderRegisterTable = sqliteTable(
       foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
       name: 'fk_sync_order_register_mutation',
     }).onDelete('restrict'),
+    index('idx_sync_order_register_mutation').on(t.changeSetId, t.mutationIndex),
     check(
       'sync_order_register_clock_check',
       sql`${t.incarnation} >= 0 and ${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
@@ -2801,6 +2807,7 @@ export const SyncEntityLifecycleTable = sqliteTable(
       foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
       name: 'fk_sync_entity_lifecycle_mutation',
     }).onDelete('restrict'),
+    index('idx_sync_entity_lifecycle_mutation').on(t.changeSetId, t.mutationIndex),
     check('sync_entity_lifecycle_state_check', sql`${t.state} in ('live', 'trashed', 'purged')`),
     check(
       'sync_entity_lifecycle_clock_check',
@@ -2857,6 +2864,30 @@ export const SyncReducerBaseTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [check('sync_reducer_base_version_check', sql`${t.payloadVersion} >= 2`)],
+);
+
+/**
+ * Per writer lane, the device sequence up to which this replica may have
+ * deleted journal rows because its reducer base covers them. Written with the
+ * base in one transaction; it never decreases. The journal delete guards and
+ * redelivery de-duplication read it.
+ */
+export const SyncJournalTruncationTable = sqliteTable(
+  'sync_journal_truncation',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    truncatedThroughSeq: integer('truncated_through_seq').notNull(),
+    sourceCheckpointId: text('source_checkpoint_id').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.syncGenerationId, t.writerId, t.writerEpoch] }),
+    check('sync_journal_truncation_seq_check', sql`${t.truncatedThroughSeq} >= 1`),
+  ],
 );
 
 export const SyncFrontierTable = sqliteTable(
@@ -3404,6 +3435,7 @@ export const SyncConflictTable = sqliteTable(
   },
   (t) => [
     index('idx_sync_conflict_open').on(t.syncGenerationId, t.state, t.createdAt),
+    index('idx_sync_conflict_change_set').on(t.changeSetId),
     check(
       'sync_conflict_kind_check',
       sql`${t.kind} in ('semantic', 'invariant', 'object-collision', 'writer-fork')`,
@@ -3459,7 +3491,12 @@ export const SyncQuarantinedObjectTable = sqliteTable(
   ],
 );
 
-/** Local-only immutable positive evidence of this database's Yjs append. */
+/**
+ * Local-only immutable positive evidence of this database's Yjs append. Journal
+ * truncation may delete the source mutation, so (changeSetId, mutationIndex)
+ * is a watermark rather than a foreign key, like `yjs_prose_command_receipt`.
+ * The insert guard still requires the mutation when the receipt is written.
+ */
 export const SyncYjsMaterializationReceiptTable = sqliteTable('sync_yjs_materialization_receipt', {
   changeSetId: text('change_set_id').notNull(),
   mutationIndex: integer('mutation_index').notNull(),
@@ -3474,7 +3511,6 @@ export const SyncYjsMaterializationReceiptTable = sqliteTable('sync_yjs_material
 }, (t) => [
   primaryKey({ columns: [t.changeSetId, t.mutationIndex] }),
   uniqueIndex('uniq_sync_yjs_materialization_update').on(t.updateRowId),
-  foreignKey({ columns: [t.changeSetId, t.mutationIndex], foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex] }).onDelete('restrict'),
   check('sync_yjs_materialization_change_set_check', sql`typeof(${t.changeSetId}) = 'text' and length(${t.changeSetId}) > 0`),
   check('sync_yjs_materialization_index_check', sql`typeof(${t.mutationIndex}) = 'integer' and ${t.mutationIndex} between 0 and 9007199254740991`),
   check('sync_yjs_materialization_version_check', sql`typeof(${t.admissionVersion}) = 'integer' and ${t.admissionVersion} = 1`),

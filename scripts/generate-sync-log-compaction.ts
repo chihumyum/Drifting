@@ -13,10 +13,17 @@ const suites = [
   'src/renderer/sync/engine/durable-runtime.integration.test.ts',
   'src/renderer/sync/checkpoint',
   'src/renderer/sync/restore',
+  'src/renderer/schema/sync-journal-truncation-migration.integration.test.ts',
 ];
 const sourceFiles = [
   'scripts/generate-sync-log-compaction.ts',
   'docs/sync-engine/phase7-log-compaction.md',
+  'drizzle/0008_sync_journal_truncation.sql',
+  'crates/drifting-core/src/remote_workspace.rs',
+  'src/renderer/schema/sync-journal-truncation-migration.integration.test.ts',
+  'src/renderer/sync/checkpoint/restore.ts',
+  'src/renderer/sync/compaction/journal-truncation.ts',
+  'src/renderer/sync/journal/repository.ts',
   'src/renderer/sync/compaction/catch-up.ts',
   'src/renderer/sync/compaction/compaction.integration.test.ts',
   'src/renderer/sync/compaction/frontier.ts',
@@ -45,7 +52,8 @@ const contract = {
   hostedGraceDays: 30,
   capability: 'removals-v1',
   productionPruning: 'disabled-until-hosted-deploy',
-  localTruncation: 'pruned-applied-segment-objects-only',
+  localTruncation: 'pruned-applied-segment-objects-and-snapshot-covered-journal-rows',
+  journalTruncationMigration: '0008_sync_journal_truncation',
   sourceSha256: Object.fromEntries(sourceFiles.map((file) => [file, sha(file)])),
 };
 
@@ -67,7 +75,11 @@ if (process.argv.includes('--check')) {
     if (tests.status !== 0) throw new Error(`Compaction tests failed\n${tests.stdout}\n${tests.stderr}`);
     const result = JSON.parse(readFileSync(jsonPath, 'utf8'));
     const compactionCases = result.testResults
-      .filter((suite: { name: string }) => /compaction|prune|hosted\/provider\.test/u.test(suite.name))
+      // Suite names are absolute; match the repository path so the checkout
+      // directory's own name never selects a suite.
+      .filter((suite: { name: string }) =>
+        /compaction|prune|truncation|hosted\/provider\.test/u.test(path.relative(process.cwd(), suite.name)),
+      )
       .flatMap((suite: { assertionResults: Array<{ fullName: string; status: string }> }) =>
         suite.assertionResults.map((test) => ({ name: test.fullName, status: test.status })),
       )
@@ -85,7 +97,6 @@ if (process.argv.includes('--check')) {
       openGates: [
         'Hosted removal feed, prune endpoint and capability gate deployed',
         'production pruning enabled after deployment',
-        'journal-row truncation (change-sets, mutations, receipts)',
       ],
     };
     writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);

@@ -26,6 +26,8 @@ import {
   type SyncTotalOrderV1,
 } from '../protocol';
 import {
+  canonicalReducerSnapshot,
+  compactReducerReceipts,
   materializationEffects,
   projectCanonicalReducerState,
   reduceSyncChangeSet,
@@ -92,7 +94,11 @@ export const LOCAL_SQLITE_REDUCER_PROFILE: ReducerProfile = Object.freeze({
   externallyMaterializedActions: LOCAL_EXTERNAL_ACTIONS,
 });
 
-import type { ReducerStateProfileV2 } from './state-pages';
+import {
+  EMPTY_REDUCER_STATE_JOURNAL,
+  encodeReducerStatePagesV2,
+  type ReducerStateProfileV2,
+} from './state-pages';
 import {
   deleteSqliteReducerSnapshotsInTransaction as deleteReducerSnapshots,
   installSqliteReducerBaseInTransaction,
@@ -672,6 +678,90 @@ export async function applyVerifiedRemoteChangeSetInTransaction(
   };
 }
 
+async function replaceSqliteReducerBaseInTransaction(
+  tx: DbTransaction,
+  input: {
+    readonly identity: { readonly syncGenerationId: string };
+    readonly baseProfile: ReducerStateProfileV2;
+    readonly pages: readonly Uint8Array[];
+    readonly sourceCheckpointId: string;
+    readonly nowIso: string;
+  },
+): Promise<void> {
+  const syncGenerationId = input.identity.syncGenerationId;
+  await tx.delete(SyncReducerBaseTable).where(eq(SyncReducerBaseTable.syncGenerationId, syncGenerationId));
+  await installSqliteReducerBaseInTransaction(tx, {
+    syncGenerationId,
+    profile: input.baseProfile,
+    pages: input.pages,
+    sourceCheckpointId: input.sourceCheckpointId,
+    nowIso: input.nowIso,
+  });
+  // A derived snapshot still accounts for its own rows and would otherwise
+  // be preferred over the new base, silently dropping the checkpoint.
+  await deleteReducerSnapshots(tx, syncGenerationId);
+  invalidateReducerCache(syncGenerationId);
+}
+
+/** Canonical bytes of a state, independent of replay order and receipt compaction. */
+function canonicalReducerStateBytes(state: CanonicalReducerState): Uint8Array[] {
+  return encodeReducerStatePagesV2({
+    header: {
+      identity: state.identity,
+      profile: { knownTargetKinds: [], externallyMaterializedActions: [] },
+      maxChangeSetHlc: { wallMs: 0, counter: 0 },
+    },
+    snapshot: canonicalReducerSnapshot(compactReducerReceipts(state)),
+    journal: EMPTY_REDUCER_STATE_JOURNAL,
+  });
+}
+
+function sameCanonicalReducerState(left: CanonicalReducerState, right: CanonicalReducerState): boolean {
+  const leftPages = canonicalReducerStateBytes(left);
+  const rightPages = canonicalReducerStateBytes(right);
+  return leftPages.length === rightPages.length && leftPages.every((page, index) => {
+    const other = rightPages[index]!;
+    return page.length === other.length && page.every((byte, offset) => byte === other[offset]);
+  });
+}
+
+export class SqliteReducerRebaseMismatchError extends Error {
+  constructor(readonly sourceCheckpointId: string) {
+    super(`reducer state rebuilt on checkpoint ${sourceCheckpointId} differs from the current state`);
+    this.name = 'SqliteReducerRebaseMismatchError';
+  }
+}
+
+/**
+ * Replaces the reducer base with a verified payload v2 checkpoint whose whole
+ * history this replica has already applied. Domain rows and reducer metadata
+ * stay as they are: the state rebuilt on the new base must equal the current
+ * state exactly, or this throws and the caller's transaction rolls back. Only
+ * then may journal rows the new base covers be truncated.
+ */
+export async function rebaseSqliteReducerOntoAppliedCheckpointInTransaction(
+  tx: DbTransaction,
+  input: {
+    readonly identity: { projectId: string; projectSyncId: string; syncGenerationId: string };
+    readonly baseProfile: ReducerStateProfileV2;
+    readonly pages: readonly Uint8Array[];
+    readonly sourceCheckpointId: string;
+    readonly kernel?: SyncDomainMaterializationKernel;
+    readonly nowIso: string;
+  },
+): Promise<CanonicalReducerState> {
+  const replayProfile = sqliteReplayReducerProfile(DEFAULT_SQLITE_REDUCER_PROFILE, input.kernel);
+  const before = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
+  await replaceSqliteReducerBaseInTransaction(tx, input);
+  const rebuilt = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
+  // The cache is rebuilt from SQLite after commit.
+  invalidateReducerCache(input.identity.syncGenerationId);
+  if (!sameCanonicalReducerState(before.state, rebuilt.state)) {
+    throw new SqliteReducerRebaseMismatchError(input.sourceCheckpointId);
+  }
+  return rebuilt.state;
+}
+
 /**
  * Fast-forwards an existing replica onto a verified payload v2 checkpoint
  * base. The base replaces any older one; every applied change-set the base
@@ -702,18 +792,7 @@ export async function fastForwardSqliteReducerOntoCheckpointInTransaction(
     .from(SyncGenerationPurgeTable)
     .where(eq(SyncGenerationPurgeTable.syncGenerationId, syncGenerationId))
     .limit(1);
-  await tx.delete(SyncReducerBaseTable).where(eq(SyncReducerBaseTable.syncGenerationId, syncGenerationId));
-  await installSqliteReducerBaseInTransaction(tx, {
-    syncGenerationId,
-    profile: input.baseProfile,
-    pages: input.pages,
-    sourceCheckpointId: input.sourceCheckpointId,
-    nowIso: input.nowIso,
-  });
-  // A derived snapshot still accounts for its own rows and would otherwise
-  // be preferred over the new base, silently dropping the checkpoint.
-  await deleteReducerSnapshots(tx, syncGenerationId);
-  invalidateReducerCache(syncGenerationId);
+  await replaceSqliteReducerBaseInTransaction(tx, input);
   const loaded = await loadSqliteReducerStateInTransaction(tx, input.identity, replayProfile, '');
   const projected = projectCanonicalReducerState(loaded.state, profile, {
     materializePurge: loaded.state.generationPurge !== null && !purged,

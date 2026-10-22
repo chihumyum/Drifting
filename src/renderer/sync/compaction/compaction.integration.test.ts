@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { and, eq, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, count, eq, isNotNull, ne } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 
@@ -13,27 +13,41 @@ import {
   BookNodeTable,
   NodeContentTable,
   ProjectTable,
+  SyncApplyReceiptTable,
+  SyncChangeSetTable,
   SyncFrontierGapTable,
   SyncGenerationTable,
+  SyncJournalTruncationTable,
+  SyncMutationTable,
   SyncProviderBindingTable,
   SyncReducerBaseTable,
   SyncRemoteObjectTable,
   SyncLocalObjectTable,
   SyncSegmentTable,
   SyncTransferTable,
+  SyncYjsMaterializationReceiptTable,
 } from '../../schema/drizzle';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
-import { ProviderSnapshotPublisher } from '../checkpoint/provider-publisher';
+import {
+  appliedJournalPosition,
+  createProviderCheckpointHook,
+  ProviderSnapshotPublisher,
+} from '../checkpoint/provider-publisher';
+import { captureCompactedReducerStateV2 } from '../checkpoint/reducer-state';
 import type { SyncEngineBlobPort } from '../engine/blob-port';
 import { SqliteSyncGenerationRuntime, type SyncEngineRuntimeClock } from '../engine/durable-runtime';
 import { PlaintextSyncEngineObjectCodec } from '../engine/plaintext-object-codec';
 import {
+  appendYjsUpdateMutation,
   recordAuthoredChangeSetInTransaction,
   SyncChangeBuilder,
   type SyncWriterIdentitySource,
 } from '../journal';
+import { registerAuthoredYjsMaterialization } from '../journal/yjs-materialization';
 import {
+  decodeSyncChangeSetV1,
   sha256Bytes,
+  type SyncChangeSetV1,
   type ProviderBinding,
   type ProviderGeneration,
   type RemoteObject,
@@ -41,12 +55,23 @@ import {
 import { MemoryObjectLogProvider, MemoryProviderLocalObjectStore } from '../providers';
 import { ObjectLogProviderError } from '../providers/provider-error';
 import {
+  applyVerifiedRemoteChangeSetInTransaction,
+  canonicalReducerSnapshot,
+  compactReducerReceipts,
+  decodeReducerStatePagesV2,
+  DEFAULT_SQLITE_REDUCER_PROFILE,
+  getSqliteReducerLoadDiagnostics,
   invalidateSqliteReducerStateCache,
+  loadSqliteReducerStateInTransaction,
   mergeCheckpointProseInTransaction,
   observeLocalAuthoredReducerInTransaction,
+  rebaseSqliteReducerOntoAppliedCheckpointInTransaction,
+  sqliteReplayReducerProfile,
+  SqliteReducerRebaseMismatchError,
   type SyncDomainMaterializationKernel,
 } from '../reducer';
 import { discoverCurrentSyncGenerationObjects } from '../restore/cloud-restore';
+import { truncateCoveredJournal } from './journal-truncation';
 import { SyncLogCompactor } from './policy';
 import { loadRemoteSnapshotCatalog } from './snapshot-catalog';
 
@@ -61,6 +86,8 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 
 const directories: string[] = [];
 const gateways: ProductFileBackedSqliteGateway[] = [];
+/** Local object refs stay unique even when a device reopens its database. */
+let nextRef = 1;
 
 const titleKernel: SyncDomainMaterializationKernel = {
   async validate() {
@@ -102,6 +129,7 @@ interface Device {
   readonly db: DbClient;
   readonly gateway: ProductFileBackedSqliteGateway;
   readonly identity: SyncWriterIdentitySource;
+  readonly kernel: SyncDomainMaterializationKernel;
   readonly runtime: SqliteSyncGenerationRuntime;
   readonly objectCodec: PlaintextSyncEngineObjectCodec;
   readonly generation: ProviderGeneration;
@@ -225,9 +253,13 @@ async function createDatabase(deviceId: string): Promise<{ db: DbClient; gateway
 async function createDevice(
   world: World,
   id: string,
-  kernel: SyncDomainMaterializationKernel = titleKernel,
+  options: {
+    readonly opened?: { db: DbClient; gateway: ProductFileBackedSqliteGateway };
+    readonly kernel?: SyncDomainMaterializationKernel;
+  } = {},
 ): Promise<Device> {
-  const { db, gateway } = await createDatabase(id);
+  const { db, gateway } = options.opened ?? (await createDatabase(id));
+  const kernel = options.kernel ?? titleKernel;
   const identity: SyncWriterIdentitySource = {
     installationId: `installation-${id}`,
     createWriterIdentity: () => ({ writerId: `writer-${id}`, writerEpoch: `epoch-${id}` }),
@@ -239,7 +271,6 @@ async function createDevice(
     secretRef: null,
     authorityGeneration: 2,
   };
-  let nextRef = 1;
   const objectCodec = new PlaintextSyncEngineObjectCodec({
     allocate: (input) => world.objects.ref(`${id}.${input.purpose}.${nextRef++}`),
     read: (ref, signal) => world.objects.read(ref, signal),
@@ -286,7 +317,7 @@ async function createDevice(
     pruneIntervalMs: 0,
     nowMs: () => world.clock.value,
   });
-  return { id, db, gateway, identity, runtime, objectCodec, generation, publisher, compactor };
+  return { id, db, gateway, identity, kernel, runtime, objectCodec, generation, publisher, compactor };
 }
 
 async function authorTitle(world: World, device: Device, title: string): Promise<void> {
@@ -630,7 +661,7 @@ describe('sync log compaction', () => {
         throw new Error('this replica cannot validate the snapshot');
       },
     };
-    const b = await createDevice(world, 'b', failing);
+    const b = await createDevice(world, 'b', { kernel: failing });
     await historyWithThreeSnapshots(world, a);
     await a.compactor.pruneIfDue(new AbortController().signal);
     await authorTitle(world, b, 'Offline edit on B');
@@ -709,5 +740,349 @@ describe('sync log compaction', () => {
     expect(discovery.objects.map((object) => object.objectKind).sort()).toEqual([
       'checkpoint', 'checkpoint', 'segment', 'snapshot-commit', 'snapshot-commit',
     ]);
+  });
+});
+
+/** The title kernel plus remote prose, appended the way the production kernel does. */
+const proseKernel: SyncDomainMaterializationKernel = {
+  externallyMaterializedActions: new Set(['yjs.update']),
+  validate: titleKernel.validate,
+  async materialize(context) {
+    await titleKernel.materialize(context);
+    for (const effect of context.effects) {
+      if (effect.type !== 'yjs.update' || !effect.materialize) continue;
+      if (effect.source.changeSetId !== context.changeSet.changeSetId) continue;
+      const { update } = effect.payload as { update: Uint8Array };
+      await createYjsRepository(context.tx).appendUpdate(effect.target.id, update, { kind: 'remote' });
+    }
+  },
+};
+
+const REDUCER_IDENTITY = {
+  projectId: PROJECT_ID,
+  projectSyncId: PROJECT_SYNC_ID,
+  syncGenerationId: SYNC_GENERATION_ID,
+};
+
+/** An authored prose edit with the Yjs materialization receipt production writes. */
+async function authorMaterializedProse(world: World, device: Device, textValue: string): Promise<void> {
+  invalidateSqliteReducerStateCache();
+  world.clock.value += 1_000;
+  const clock = { nowMs: world.clock.value, nowIso: new Date(world.clock.value).toISOString() };
+  const source = new Y.Doc();
+  const paragraph = new Y.XmlElement('paragraph');
+  const text = new Y.XmlText();
+  text.insert(0, textValue);
+  paragraph.insert(0, [text]);
+  source.getXmlFragment('default').insert(0, [paragraph]);
+  const update = Y.encodeStateAsUpdate(source);
+  source.destroy();
+  const changes = new SyncChangeBuilder();
+  const mutationIndex = appendYjsUpdateMutation(changes, PROSE_DOC_ID, update);
+  await device.db.transaction(async (tx) => {
+    const appended = await createYjsRepository(tx).appendMaterializedUpdate(
+      PROSE_DOC_ID,
+      update,
+      { kind: 'authored', builder: changes, mutationIndex },
+      { kind: 'user' },
+    );
+    registerAuthoredYjsMaterialization(tx, changes, mutationIndex, appended.token);
+    const recorded = await recordAuthoredChangeSetInTransaction(tx, { ...REDUCER_IDENTITY, identity: device.identity, clock }, changes);
+    await observeLocalAuthoredReducerInTransaction(tx, { changeSet: recorded.changeSet, clock });
+  });
+}
+
+/** Canonical reducer state rebuilt from SQLite, and where the rebuild started. */
+async function rebuiltState(device: Device) {
+  invalidateSqliteReducerStateCache();
+  const profile = sqliteReplayReducerProfile(DEFAULT_SQLITE_REDUCER_PROFILE, titleKernel);
+  const loaded = await device.db.transaction((tx) =>
+    loadSqliteReducerStateInTransaction(tx, REDUCER_IDENTITY, profile, ''),
+  );
+  return {
+    snapshot: canonicalReducerSnapshot(compactReducerReceipts(loaded.state)),
+    source: getSqliteReducerLoadDiagnostics()?.source,
+  };
+}
+
+async function journalIds(device: Device): Promise<string[]> {
+  return (
+    await device.db
+      .select({ id: SyncChangeSetTable.changeSetId })
+      .from(SyncChangeSetTable)
+      .orderBy(asc(SyncChangeSetTable.changeSetId))
+  ).map((row) => row.id);
+}
+
+async function journalCounts(device: Device) {
+  const [[changeSets], [mutations], [receipts]] = await Promise.all([
+    device.db.select({ value: count() }).from(SyncChangeSetTable),
+    device.db.select({ value: count() }).from(SyncMutationTable),
+    device.db.select({ value: count() }).from(SyncApplyReceiptTable),
+  ]);
+  return { changeSets: changeSets?.value, mutations: mutations?.value, receipts: receipts?.value };
+}
+
+async function storedChangeSet(device: Device, changeSetId: string): Promise<SyncChangeSetV1> {
+  const [row] = await device.db
+    .select({ bytes: SyncChangeSetTable.encodedBytes })
+    .from(SyncChangeSetTable)
+    .where(eq(SyncChangeSetTable.changeSetId, changeSetId));
+  const decoded = await decodeSyncChangeSetV1(row!.bytes as Uint8Array);
+  if (!decoded.ok) throw new Error(decoded.reason);
+  return decoded.value;
+}
+
+async function truncationFloors(device: Device): Promise<[string, number][]> {
+  return (await device.db.select().from(SyncJournalTruncationTable))
+    .map((row): [string, number] => [row.writerId, row.truncatedThroughSeq])
+    .sort();
+}
+
+function foreignKeyViolations(device: Device): unknown[] {
+  return device.gateway.database.prepare('PRAGMA foreign_key_check').all();
+}
+
+/** Closes the device's database file and opens it again, like an app restart. */
+async function restart(world: World, device: Device): Promise<Device> {
+  await device.gateway.close();
+  gateways.splice(gateways.indexOf(device.gateway), 1);
+  invalidateSqliteReducerStateCache();
+  const gateway = new ProductFileBackedSqliteGateway(device.gateway.databasePath);
+  gateways.push(gateway);
+  return createDevice(world, device.id, { opened: { db: gateway.client(), gateway }, kernel: device.kernel });
+}
+
+describe('local journal truncation', () => {
+  it('truncates history a published checkpoint covers and stays correct across restart, apply and capture', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a', { kernel: proseKernel });
+    const b = await createDevice(world, 'b', { kernel: proseKernel });
+    await publish(world, a, 'genesis-1', 'genesis');
+    await authorTitle(world, b, 'One');
+    await cycle(b);
+    await cycle(a);
+    await authorMaterializedProse(world, a, 'Kept paragraph');
+    await authorTitle(world, a, 'Two');
+    await cycle(a);
+    await publish(world, a, 'checkpoint-2');
+    const expected = await rebuiltState(a);
+    const redelivered = await storedChangeSet(a, 'writer-b:epoch-b:1');
+    const materialized = await a.db.select().from(SyncYjsMaterializationReceiptTable);
+    expect(materialized).toHaveLength(1);
+    const position = await appliedJournalPosition(a.db, SYNC_GENERATION_ID);
+
+    await expect(cycle(a)).resolves.toMatchObject({ converged: true });
+    expect(a.runtime.journalTruncation).toEqual({
+      status: 'truncated',
+      sourceCheckpointId: 'checkpoint-2',
+      installedBase: true,
+      deletedChangeSets: 2,
+      retainedChangeSets: 1,
+    });
+    expect(await installedBase(a)).toBe('checkpoint-2');
+    // B's overwritten title and A's prose update leave; the winning title,
+    // which reducer metadata names, stays.
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:2']);
+    expect(await journalCounts(a)).toEqual({ changeSets: 1, mutations: 1, receipts: 1 });
+    expect(await truncationFloors(a)).toEqual([['writer-a', 2], ['writer-b', 1]]);
+    // The Yjs receipt outlives its mutation as a watermark.
+    expect(await a.db.select().from(SyncYjsMaterializationReceiptTable)).toEqual(materialized);
+    expect(foreignKeyViolations(a)).toEqual([]);
+    expect(await appliedJournalPosition(a.db, SYNC_GENERATION_ID)).toBe(position);
+    const truncated = await rebuiltState(a);
+    expect(truncated.source).toBe('base');
+    expect(truncated.snapshot).toEqual(expected.snapshot);
+
+    // Redelivery of a deleted change-set is a duplicate, not a second apply.
+    const duplicate = await a.db.transaction((tx) =>
+      applyVerifiedRemoteChangeSetInTransaction(tx, {
+        changeSet: redelivered,
+        identity: a.identity,
+        clock: { nowMs: world.clock.value, nowIso: new Date(world.clock.value).toISOString() },
+        kernel: proseKernel,
+      }),
+    );
+    expect(duplicate.status).toBe('duplicate');
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:2']);
+    expect(await title(a)).toBe('Two');
+
+    const restarted = await restart(world, a);
+    const reopened = await rebuiltState(restarted);
+    expect(reopened.source).toBe('base');
+    expect(reopened.snapshot).toEqual(expected.snapshot);
+    expect(await proseText(restarted)).toContain('Kept paragraph');
+
+    // Remote changes keep applying on top of the truncated journal.
+    await cycle(b);
+    await authorTitle(world, b, 'Three');
+    await cycle(b);
+    await expect(cycle(restarted)).resolves.toMatchObject({ converged: true });
+    expect(await title(restarted)).toBe('Three');
+    expect((await rebuiltState(restarted)).snapshot).toEqual((await rebuiltState(b)).snapshot);
+
+    // A checkpoint captured from the truncated journal restores a new device.
+    await publish(world, restarted, 'checkpoint-3');
+    await cycle(restarted);
+    expect(await installedBase(restarted)).toBe('checkpoint-3');
+    await expect(restarted.compactor.pruneIfDue(new AbortController().signal)).resolves.toMatchObject({
+      status: 'pruned',
+    });
+    const c = await createDevice(world, 'c', { kernel: proseKernel });
+    await expect(cycle(c)).resolves.toMatchObject({ converged: true });
+    expect(await installedBase(c)).toBe('checkpoint-3');
+    expect(await title(c)).toBe('Three');
+    expect(await proseText(c)).toBe(await proseText(restarted));
+    expect((await rebuiltState(c)).snapshot).toEqual((await rebuiltState(restarted)).snapshot);
+  });
+
+  it('fast-forwards a truncated replica with unsent edits onto a newer snapshot', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a', { kernel: proseKernel });
+    const b = await createDevice(world, 'b', { kernel: proseKernel });
+    await publish(world, a, 'genesis-1', 'genesis');
+    await authorTitle(world, a, 'One');
+    await authorTitle(world, a, 'Two');
+    await cycle(a);
+    await publish(world, a, 'checkpoint-1');
+    await cycle(a);
+    await cycle(b);
+    expect(await installedBase(b)).toBe('checkpoint-1');
+    expect(await journalIds(b)).toEqual(['writer-a:epoch-a:2']);
+
+    // B writes offline while A moves on and prunes history B never received.
+    await authorMaterializedProse(world, b, 'Offline paragraph on B');
+    await authorTitle(world, a, 'Three');
+    await cycle(a);
+    await publish(world, a, 'checkpoint-2');
+    await authorTitle(world, a, 'Four');
+    await cycle(a);
+    await publish(world, a, 'checkpoint-3');
+    await cycle(a);
+    await expect(a.compactor.pruneIfDue(new AbortController().signal)).resolves.toMatchObject({ status: 'pruned' });
+
+    await expect(cycle(b)).resolves.toMatchObject({ converged: true, publishedSegments: 1 });
+    expect(await installedBase(b)).toBe('checkpoint-3');
+    expect(await bindingState(b)).toBe('ready');
+    expect(await title(b)).toBe('Four');
+    expect(await truncationFloors(b)).toEqual([['writer-a', 4]]);
+    expect(foreignKeyViolations(b)).toEqual([]);
+    await cycle(a);
+    expect(await proseText(a)).toContain('Offline paragraph on B');
+    expect(await proseText(b)).toBe(await proseText(a));
+    expect((await rebuiltState(b)).snapshot).toEqual((await rebuiltState(a)).snapshot);
+  });
+
+  it('keeps rows without a covering snapshot, while blocked, above the floor and until published', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a', { kernel: proseKernel });
+    const truncate = () =>
+      truncateCoveredJournal({
+        db: a.db,
+        syncGenerationId: SYNC_GENERATION_ID,
+        objectCodec: a.objectCodec,
+        kernel: proseKernel,
+        nowIso: () => new Date(world.clock.value).toISOString(),
+        // One change-set per transaction exercises the batch loop.
+        batchSize: 1,
+      });
+    const run = (sql: string, ...values: string[]) => () => a.gateway.database.prepare(sql).run(...values);
+    await authorTitle(world, a, 'One');
+    await authorTitle(world, a, 'Two');
+    await cycle(a);
+    await expect(truncate()).resolves.toEqual({ status: 'skipped', reason: 'no-covering-snapshot' });
+    expect(run(`DELETE FROM sync_apply_receipt WHERE change_set_id = 'writer-a:epoch-a:1'`)).toThrow(/cannot be deleted/);
+
+    await publish(world, a, 'checkpoint-1');
+    run(
+      `INSERT INTO sync_conflict (conflict_id, sync_generation_id, kind, details_cbor, state, created_at)
+       VALUES ('open-conflict', ?, 'semantic', X'a0', 'open', ?)`,
+      SYNC_GENERATION_ID,
+      NOW,
+    )();
+    await expect(truncate()).resolves.toEqual({ status: 'skipped', reason: 'blocked' });
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:1', 'writer-a:epoch-a:2']);
+    run(`UPDATE sync_conflict SET state = 'resolved', resolved_at = ? WHERE conflict_id = 'open-conflict'`, NOW)();
+
+    // An edit not yet sealed lies above the floor. It supersedes the base's
+    // title, so the base's own register source may leave too.
+    await authorTitle(world, a, 'Three');
+    await expect(truncate()).resolves.toMatchObject({ status: 'truncated', deletedChangeSets: 2 });
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:3']);
+    expect((await rebuiltState(a)).source).toBe('base');
+    expect(await title(a)).toBe('Three');
+    await expect(truncate()).resolves.toEqual({ status: 'skipped', reason: 'nothing-covered' });
+
+    // Above the floor the journal stays append-only, an own change-set stays
+    // until its segment is published, and the floor never moves back.
+    expect(run(`DELETE FROM sync_apply_receipt WHERE change_set_id = 'writer-a:epoch-a:3'`)).toThrow(/cannot be deleted/);
+    run(`UPDATE sync_journal_truncation SET truncated_through_seq = 3`)();
+    expect(run(`DELETE FROM sync_apply_receipt WHERE change_set_id = 'writer-a:epoch-a:3'`)).toThrow(/cannot be deleted/);
+    expect(run(`UPDATE sync_journal_truncation SET truncated_through_seq = 1`)).toThrow(/backwards/);
+    expect(run(`DELETE FROM sync_journal_truncation`)).toThrow(/cannot be deleted/);
+  });
+
+  it('refuses a base that would not reproduce the current state and changes nothing', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a', { kernel: proseKernel });
+    const b = await createDevice(world, 'b', { kernel: proseKernel });
+    await authorTitle(world, a, 'Only on A');
+    await authorTitle(world, b, 'Only on B');
+    await cycle(b);
+    // B's compacted state covers a change-set A never applied.
+    const { pages } = await b.db.transaction((tx) => captureCompactedReducerStateV2(tx, REDUCER_IDENTITY));
+    const before = await rebuiltState(a);
+
+    await expect(
+      a.db.transaction((tx) =>
+        rebaseSqliteReducerOntoAppliedCheckpointInTransaction(tx, {
+          identity: REDUCER_IDENTITY,
+          baseProfile: decodeReducerStatePagesV2(pages).header.profile,
+          pages,
+          sourceCheckpointId: 'foreign-checkpoint',
+          kernel: proseKernel,
+          nowIso: new Date(world.clock.value).toISOString(),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(SqliteReducerRebaseMismatchError);
+    expect(await installedBase(a)).toBeUndefined();
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:1']);
+    const after = await rebuiltState(a);
+    expect(after.source).toBe('journal');
+    expect(after.snapshot).toEqual(before.snapshot);
+  });
+
+  it('keeps the checkpoint due position monotonic after truncation', async () => {
+    const world = createWorld(0);
+    const a = await createDevice(world, 'a', { kernel: proseKernel });
+    let next = 1;
+    const hook = createProviderCheckpointHook({
+      db: a.db,
+      syncGenerationId: SYNC_GENERATION_ID,
+      publisher: a.publisher,
+      createSnapshotId: () => `due-${next++}`,
+      nowMs: () => world.clock.value,
+      changeSetThreshold: 2,
+      segmentByteThreshold: Number.MAX_SAFE_INTEGER,
+      maxAgeMs: Number.MAX_SAFE_INTEGER,
+      prunesHistory: true,
+    });
+    const due = () => hook.captureIfDue({ syncGenerationId: SYNC_GENERATION_ID, signal: new AbortController().signal });
+    for (const value of ['One', 'Two', 'Three']) await authorTitle(world, a, value);
+    await cycle(a);
+    await expect(due()).resolves.toBe(true);
+    await cycle(a);
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:3']);
+    expect(await appliedJournalPosition(a.db, SYNC_GENERATION_ID)).toBe(3);
+
+    await authorTitle(world, a, 'Four');
+    await cycle(a);
+    await expect(due()).resolves.toBe(false);
+    await authorTitle(world, a, 'Five');
+    await cycle(a);
+    // Two journal rows remain, fewer than the three the checkpoint recorded;
+    // a row count would never call this checkpoint due.
+    expect(await journalIds(a)).toEqual(['writer-a:epoch-a:4', 'writer-a:epoch-a:5']);
+    await expect(due()).resolves.toBe(true);
   });
 });

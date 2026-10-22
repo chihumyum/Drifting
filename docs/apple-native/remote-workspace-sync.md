@@ -13,6 +13,9 @@ metadata application, Yrs projection, revision/provenance, materialization and
 apply receipts, and remote HLC observation. `RemoteProseJournal` is a narrow
 entry point into that same transaction and still rejects metadata originals.
 It preserves the distinction between prose-only delivery and workspace refresh.
+An original whose row journal truncation deleted (at or below its lane's
+`sync_journal_truncation` floor) is reported as already applied, not received
+again; see [sync phase 7](../sync-engine/phase7-log-compaction.md#local-truncation).
 
 The supported chapter original contains all three authored mutations: node
 creation, its prose seed and the null primary-storyline register. Title and

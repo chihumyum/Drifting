@@ -145,6 +145,16 @@ impl<'a> RemoteWorkspaceJournal<'a> {
                 affected_documents: self.prose_documents(tx, original)?,
             });
         }
+        if self.truncated(tx, source, original)? {
+            // Journal truncation deleted this original after a reducer base
+            // covered it. Its rows are gone, so there is nothing to compare;
+            // applying it again would duplicate prose and metadata.
+            return Ok(RemoteWorkspaceCommit {
+                already_applied: true,
+                change_set_id: source.change_set_id.clone(),
+                affected_documents: self.prose_documents(tx, original)?,
+            });
+        }
         self.execute(tx, "INSERT INTO sync_change_set (change_set_id,sync_generation_id,project_id,project_sync_id,writer_id,writer_epoch,device_seq,hlc_wall_ms,hlc_counter,protocol_version,payload_version,mutation_count,encoded_bytes,payload_sha256,origin,apply_state,created_at) VALUES (?,?,?,?,?,?,?,?,?,1,1,?,?,?,'remote','applying',?)", vec![
             text(&source.change_set_id), text(&source.sync_generation_id), text(&source.project_id), text(&source.project_sync_id),
             text(original.writer_id()), text(original.writer_epoch()), integer(original.device_seq()),
@@ -206,6 +216,30 @@ impl<'a> RemoteWorkspaceJournal<'a> {
             change_set_id: source.change_set_id.clone(),
             affected_documents: documents,
         })
+    }
+
+    /// The writer lane's truncation floor covers this change-set.
+    fn truncated(
+        &self,
+        tx: u64,
+        source: &ChangeSetRef,
+        original: &VerifiedChangeSet,
+    ) -> Result<bool, String> {
+        Ok(!self
+            .gateway
+            .query(
+                "SELECT 1 FROM sync_journal_truncation WHERE sync_generation_id=? AND writer_id=? AND writer_epoch=? AND truncated_through_seq>=?".into(),
+                vec![
+                    text(&source.sync_generation_id),
+                    text(original.writer_id()),
+                    text(original.writer_epoch()),
+                    integer(original.device_seq()),
+                ],
+                Some(tx),
+                self.client.into(),
+            )?
+            .rows
+            .is_empty())
     }
 
     fn guard_project(&self, tx: u64, source: &ChangeSetRef) -> Result<(), String> {

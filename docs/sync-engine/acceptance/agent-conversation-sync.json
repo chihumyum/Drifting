@@ -30,7 +30,7 @@
       "src/renderer/features/agent/chat-display-projection.ts": "3ed2ecce0b1333bf697cfc90805540138a071758be7422498e1e2c17eb4ad9b5",
       "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "8c10be0f12df5a25f2d7bac5e12445bf74e8281480daca8fa26736d2bf6dd1f5",
       "src/renderer/features/agent/useAgentChatMessages.ts": "f03884f1c35ecbb1677d91c9cb3d924c962c2c9121ba39ce6bdfb0d9c05b701b",
-      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "c530f2f3f362824d4088b6273f403092606b2ca00e550fcfd0511d3bbcd866a8",
+      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "24c5ec6d94d4cb7d305526cca3992e6ff648ac016928b8a3e2285bc8c9abcfae",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts": "51d399cf3dffefd538e86f3b173d4b3bffb10e092d088be4adb92bfbdfb7fd6c",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.ts": "152db7e49f552b39e1dd5bba8d61d23a73dc000d28ed229137e87b5f4777e24f",
       "src/renderer/lib/agent/runtime/chat-message-publication.ts": "23992bb0ea3be5f8885deac0ebcc9ac18cbb37601ca93689bc1497fc82a679f1",
@@ -39,7 +39,7 @@
       "src/renderer/lib/events.ts": "b4175fca1021adf24dcdf9c99c24ef92bd3ac8af1c1e18e3c5a6dff3f701a27c",
       "src/renderer/platform/contracts.ts": "51babb9fd3a71e54178954a0edb155d93648033e9e5a3cc5bc610855baa722a3",
       "src/renderer/platform/types.ts": "27e280e0a88d8a7ed944a99af5de215f38500f801f3d81d49f258f6785defa98",
-      "src/renderer/schema/drizzle.ts": "5b3058ddef1b913eb8a5bf566c51606d5d13d45def94e67e1a3c5128d9a11ea5",
+      "src/renderer/schema/drizzle.ts": "c32a881c963589e75726ab1788bca760af148eca9a6264a35d43f62ca5790ea0",
       "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "aed2e0929eef1031c7a6bc029c5d9541003c436d49fca41633168f343b90aec0",
       "src/renderer/sqlite-repo/agent-conversation-repo.ts": "9a6ee360bfcbf3d1613b1151107a1d76f5061c095e23e6718b28c685756a2b37",
       "src/renderer/sqlite-repo/agent-conversation-source.integration.test.ts": "622351e2eab065379de1f431edbc85ac884208719c4f17d01c955c809414c6ce",
@@ -56,8 +56,8 @@
       "src/renderer/sync/agent-chat/runtime.ts": "a3954b82fc0bc7be63a3aa2dfd8e71fc31744924c4fef9fe911e2f2dacee0217",
       "src/renderer/sync/agent-chat/seed.ts": "8efc900a0c3c44135d3600c0c7e5e72bfa31ae86d028802ed1bf5e1514d9af45",
       "src/renderer/sync/production-runtime.test.ts": "f995e2f1b6652ac10976c6374b248ae71c2e6bdf0a14c81b877177f807f7024c",
-      "src/renderer/sync/production-runtime.ts": "1e35f4eed1cc006e6ad3771132fdb97649a263456ecf421c15036adb6a7ae814",
-      "src/renderer/sync/protocol/domain-manifest.ts": "ad5ccd515afdd55617702d65425ee10fd5d346b4e7edbfd868181929bf9fb61d",
+      "src/renderer/sync/production-runtime.ts": "852e2c3083b407356a86277459c4cc6817d44d05debca362618f49d52d633d49",
+      "src/renderer/sync/protocol/domain-manifest.ts": "971ca94f8bed165bfddee60fb113b983286b19e0c322d092709077ca1f0c71ac",
       "src/renderer/sync/providers/google-drive/tauri-transport.test.ts": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1",
       "src/renderer/sync/providers/google-drive/tauri-transport.ts": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
     }
@@ -340,7 +340,7 @@
       ]
     },
     "sharedDatabase": {
-      "passed": 120,
+      "passed": 121,
       "failed": 0,
       "ignored": 0,
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"

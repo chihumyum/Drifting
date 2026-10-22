@@ -1,10 +1,11 @@
 import { persistAuthoredYjsMaterializations } from './yjs-materialization';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, gte } from 'drizzle-orm';
 
 import { assertActiveDatabaseTransaction, type DbExecutor, type DbTransaction } from '../../lib/db';
 import {
   SyncApplyReceiptTable,
   SyncChangeSetTable,
+  SyncJournalTruncationTable,
   SyncMutationTable,
   SyncGenerationTable,
 } from '../../schema/drizzle';
@@ -79,7 +80,10 @@ export interface StageRemoteChangeSetInput {
 }
 
 export interface StagedRemoteChangeSet extends RecordedSyncChangeSet {
-  /** null means this transaction inserted the immutable remote journal row. */
+  /**
+   * null means this transaction inserted the immutable remote journal row, or,
+   * when already applied, that journal truncation removed it.
+   */
   readonly storedOrigin: 'local' | 'remote' | null;
 }
 
@@ -344,6 +348,29 @@ async function assertStoredChangeSetMatches(
 }
 
 /**
+ * True when journal truncation may have removed this change-set: its lane's
+ * floor covers it, so the reducer base already accounts for it.
+ */
+export async function isJournalTruncationCoveredInTransaction(
+  tx: DbExecutor,
+  changeSet: Pick<SyncChangeSetV1, 'syncGenerationId' | 'writerId' | 'writerEpoch' | 'deviceSeq'>,
+): Promise<boolean> {
+  const rows = await tx
+    .select({ seq: SyncJournalTruncationTable.truncatedThroughSeq })
+    .from(SyncJournalTruncationTable)
+    .where(
+      and(
+        eq(SyncJournalTruncationTable.syncGenerationId, changeSet.syncGenerationId),
+        eq(SyncJournalTruncationTable.writerId, changeSet.writerId),
+        eq(SyncJournalTruncationTable.writerEpoch, changeSet.writerEpoch),
+        gte(SyncJournalTruncationTable.truncatedThroughSeq, changeSet.deviceSeq),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Durably stages and verifies immutable remote journal rows without declaring
  * them applied. A reducer/domain kernel must finish in the same outer SQLite
  * transaction before `completeRemoteApplyInTransaction` writes the receipt.
@@ -373,6 +400,11 @@ export async function stageRemoteChangeSetInTransaction(
     encodedSha256,
   });
 
+  // A truncated change-set has no row left to compare; its applied state is
+  // the reducer base's. Redelivery must not apply it a second time.
+  if (!storedOrigin && (await isJournalTruncationCoveredInTransaction(tx, input.changeSet))) {
+    return { changeSet: input.changeSet, encodedBytes, encodedSha256, alreadyApplied: true, storedOrigin };
+  }
   if (!storedOrigin) {
     await insertChangeSetAndMutations(tx, {
       changeSet: input.changeSet,

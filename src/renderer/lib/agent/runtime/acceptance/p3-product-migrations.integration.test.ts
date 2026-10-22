@@ -88,6 +88,7 @@ const APPLICATION_TABLES = [
   'sync_generation',
   'sync_generation_purge',
   'sync_generation_writer_state',
+  'sync_journal_truncation',
   'sync_local_object',
   'sync_mutation',
   'sync_order_register',
@@ -166,6 +167,9 @@ const APPLICATION_TRIGGERS = [
   'trg_sync_connect_generation_attempt_no_delete',
   'trg_sync_generation_no_delete',
   'trg_sync_generation_project_identity_guard',
+  'trg_sync_journal_truncation_insert_guard',
+  'trg_sync_journal_truncation_monotonic',
+  'trg_sync_journal_truncation_no_delete',
   'trg_sync_mutation_immutable_update',
   'trg_sync_mutation_index_bounds',
   'trg_sync_mutation_no_delete',
@@ -216,7 +220,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(8);
+    expect(journal.entries).toHaveLength(9);
+    expect(journal.entries[8]?.tag).toBe('0008_sync_journal_truncation');
     expect(journal.entries[7]?.tag).toBe('0007_project_memory_tool_names');
     expect(journal.entries[6]?.tag).toBe('0006_sync_reducer_state');
     expect(journal.entries[5]?.tag).toBe('0005_agent_conversation_source');
@@ -259,7 +264,7 @@ describe('product file-backed migration acceptance', () => {
           "SELECT count(*) AS count FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_%'",
         )
         .get(),
-    ).toEqual({ count: 197 });
+    ).toEqual({ count: 204 });
     expect(first.database.prepare('PRAGMA integrity_check').all()).toEqual([
       { integrity_check: 'ok' },
     ]);

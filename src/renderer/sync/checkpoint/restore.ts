@@ -218,9 +218,8 @@ async function materializePreparedRestore(
     logicalKeyId: validated.marker.packageLogicalKeyId,
     contentSha256: rawSha256(validated.marker.packageSha256),
     state: 'published',
-    changeSetCount: validated.payloadVersion === 1
-      ? validated.reducer.changeSets.length
-      : validated.reducer.journal.changeSets.length,
+    // The journal position the checkpoint covers, as a local capture records it.
+    changeSetCount: validated.package.frontier.reduce((total, entry) => total + entry.appliedSeq, 0),
     sizeBytes: input.packageBytes.byteLength,
     createdAt: activationTime,
     publishedAt: activationTime,

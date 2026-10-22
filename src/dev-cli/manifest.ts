@@ -423,6 +423,7 @@ export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   sync_provider_account: 'sync_engine_state',
   sync_provider_binding: 'sync_engine_state',
   sync_quarantined_object: 'sync_engine_state',
+  sync_journal_truncation: 'sync_engine_state',
   sync_reducer_base: 'sync_engine_state',
   sync_reducer_snapshot: 'sync_engine_state',
   sync_remote_object: 'sync_engine_state',

@@ -216,7 +216,7 @@ async function mutationsOf(tx: DbExecutor, changeSetIds: readonly string[]) {
 }
 
 /** Change-sets whose mutations the state's registers name as their source. */
-function sourceChangeSetIds(snapshot: ReducerSnapshot): Set<string> {
+export function reducerSourceChangeSetIds(snapshot: ReducerSnapshot): Set<string> {
   const ids = new Set<string>();
   const add = (value: { source: { changeSetId: string } } | null) => {
     if (value) ids.add(value.source.changeSetId);
@@ -318,7 +318,7 @@ export async function captureCompactedReducerStateV2(
     )));
 
   const snapshot = canonicalReducerSnapshot(state);
-  const shippedIds = [...new Set([...sourceChangeSetIds(snapshot), ...explicitIds])].sort(compareUtf8Bytewise);
+  const shippedIds = [...new Set([...reducerSourceChangeSetIds(snapshot), ...explicitIds])].sort(compareUtf8Bytewise);
   const changeSetRows: (typeof SyncChangeSetTable.$inferSelect)[] = [];
   const receiptRows: (typeof SyncApplyReceiptTable.$inferSelect)[] = [];
   for (let offset = 0; offset < shippedIds.length; offset += ID_BATCH) {
