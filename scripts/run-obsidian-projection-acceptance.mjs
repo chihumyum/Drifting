@@ -98,7 +98,7 @@ async function runObsidian(binary, fixture, mode) {
       const target = prefix + mapped['node:node-update-0002'].path;
       const body = prefix + mapped['element:element-0001'].path;
       const index = body;
-      let links = 0, references = 0;
+      let links = 0;
       const files = a.vault.getMarkdownFiles().filter(file => file.path.startsWith(prefix));
       for (const file of files) {
         const metadata = cache(file.path);
@@ -109,16 +109,13 @@ async function runObsidian(binary, fixture, mode) {
           const found = a.metadataCache.getFirstLinkpathDest(destination, file.path);
           assert(found && found.path.startsWith(prefix), 'Unresolved or misdirected link from ' + file.path + ': ' + link.link);
           links++;
-          if (fragment?.startsWith('^')) {
-            assert(cache(found.path)?.blocks?.[fragment.slice(1)], 'Missing native block anchor ' + link.link);
-            references++;
-          }
+          assert(fragment === undefined, 'Link carries a fragment ' + link.link);
         }
+        assert(!Object.keys(metadata.blocks ?? {}).length, 'Block anchor leaked into ' + file.path);
       }
-      assert(links > 15 && references >= 2, 'Synthetic fixture did not exercise enough links');
-      pass('relative links and embeds resolve inside the projection', { links, blockReferences: references });
-      assert(Object.keys(cache(target).blocks ?? {}).length === 4, 'Paragraph, quote, heading and empty-block anchors must all be recognized');
-      pass('paragraph quote heading and empty-block anchors are recognized');
+      assert(links > 15, 'Synthetic fixture did not exercise enough links');
+      pass('relative links and embeds resolve inside the projection', { links });
+      pass('prose carries no block anchors or link fragments');
       const aliases = cache(index).frontmatter.aliases;
       assert(Array.isArray(aliases) && aliases.includes('Hero, the first') && aliases.includes('别名[甲]'), 'Aliases are not a native YAML list');
       pass('aliases preserve commas Unicode brackets and colons as separate values');

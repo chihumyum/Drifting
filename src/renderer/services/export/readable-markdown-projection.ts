@@ -7,7 +7,7 @@ import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import type { MarkdownProjectionAsset, MarkdownProjectionDocument } from '../../platform/contracts';
 import { extForMime } from '../asset-store.service';
 import { markdownShareSummary } from './markdown-share';
-import { markdownLabel, obsidianBlockId, obsidianProse, relativeMarkdownHref } from './obsidian-markdown';
+import { markdownLabel, obsidianProse, relativeMarkdownHref } from './obsidian-markdown';
 import { readLocalProseJson } from './relational-markdown.prose';
 import type { LocalRelationalMarkdownSource } from './relational-markdown.local-source';
 import type { MarkdownZipEntry } from './markdown-zip';
@@ -143,7 +143,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
   const home = add('project', project.id, project.name, HOME, { summary: project.summary });
   for (const comment of [...graph.comments].sort(compare)) {
     const text = extractTextFromCommentBody(comment.bodyJson).split('\n')[0] || (comment.kind === 'todo' ? '待办' : '注释');
-    add('comment', comment.id, Array.from(text).slice(0, 40).join(''), COMMENTS, { anchor: `comment-${obsidianBlockId(comment.id, 0)}`, status: STATUS[comment.status] ?? comment.status });
+    add('comment', comment.id, Array.from(text).slice(0, 40).join(''), COMMENTS, { status: STATUS[comment.status] ?? comment.status });
   }
   // Hydrate all prose before creating links; persisted Yjs remains the only initialized prose authority.
   const proseDocuments = [...documents.values()].filter(document => document.fallback !== undefined);
@@ -152,10 +152,10 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
       document.json = await readLocalProseJson(document.kind as ProseEntityType, document.id, document.fallback!, source);
     }));
   }
-  const blocks = (documentKey: string) => contentJsonBlockIds(documents.get(documentKey)?.json ?? '{}');
-  const resolver = createLocationResolver({ projectId: project.id, entities: locations, blockIds: (kind, id) => blocks(key(kind, id)) });
+  const resolver = createLocationResolver({ projectId: project.id, entities: locations,
+    blockIds: (kind, id) => contentJsonBlockIds(documents.get(key(kind, id))?.json ?? '{}') });
   const link = (from: string, target: Document, title = target.title) =>
-    `[${markdownLabel(title)}](${relativeMarkdownHref(from, target.path, target.anchor ? `#^${target.anchor}` : '')})`;
+    `[${markdownLabel(title)}](${relativeMarkdownHref(from, target.path)})`;
   const links = (from: Document, targets: Document[]) => targets.map(target => `- ${link(from.path, target)}`).join('\n');
   const relation = (from: Document | undefined, to: Document | undefined, label: string) => {
     if (!from || !to) return;
@@ -211,7 +211,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     let parsed: unknown;
     try { parsed = JSON.parse(value); } catch { return value; }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return value;
-    return obsidianProse(value, from, documents, blocks, resolver, false, headingOffset);
+    return obsidianProse(value, from, documents, resolver, headingOffset);
   };
   const header = (document: Document) => ['---', `aliases: ${JSON.stringify(document.aliases)}`,
     ...(document.status ? [`写作状态: ${JSON.stringify(document.status)}`] : []), '---', '', `# ${markdownLabel(document.title)}`].join('\n');
@@ -222,7 +222,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     if (document.summary) parts.push(document.kind === 'act' ? document.summary : markdownShareSummary(document.summary));
     if (document.json !== undefined) {
       document.sourceVersion = await proseReadVersion(proseReadMarkdown(document.json, resolver));
-      parts.push(obsidianProse(document.json, document.path, documents, blocks, resolver, true, 1));
+      parts.push(obsidianProse(document.json, document.path, documents, resolver, 1));
     }
     if (document.kind === 'category') {
       const members = graph.elements.filter(item => !item.deletedAt && item.categoryId === document.id).map(item => documents.get(key('element', item.id))!);
@@ -251,9 +251,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
       parts.push(`## ${target ? link(COMMENTS, target) : '未关联的注释与待办'}`);
       for (const comment of comments) {
         const document = documents.get(key('comment', comment.id))!;
-        const at = comment.targetBlockId && target ? blocks(target.key).indexOf(comment.targetBlockId) : -1;
-        if (target && typeof at === 'number' && at >= 0) parts.push(`[原文位置](${relativeMarkdownHref(COMMENTS, target.path, `#^${obsidianBlockId(comment.targetBlockId, at)}`)})`);
-        parts.push(`### ${comment.kind === 'todo' ? '待办' : '注释'}：${markdownLabel(document.title)}\n\n^${document.anchor}`,
+        parts.push(`### ${comment.kind === 'todo' ? '待办' : '注释'}：${markdownLabel(document.title)}`,
           `状态：${document.status}`, richText(comment.bodyJson, COMMENTS, 3));
       }
     }
@@ -284,7 +282,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
   ];
   entries.push({ path: HOME, text: [`# ${markdownLabel(home.title)}`, markdownShareSummary(project.summary),
     `生成时间：${now.toISOString()}\n\n此目录是 Drifting 自动生成的只读副本。修改文件不会写回 Drifting，刷新可能覆盖修改。`, ...navigation].filter(Boolean).join('\n\n') + '\n' });
-  entries.push({ path: '导出说明.md', text: '# 关于这份书稿\n\n从“开始阅读.md”进入，或按“正文”目录中的编号阅读章节。章节、构想、要素和故事线各是一份完整文件，摘要在开头，正文在中间，相关内容在末尾。\n\n正文沿用原有的场景、节拍、笔记标题层级；要素按已有分类组织，构想沿用已有分组。注释与待办按所属对象汇总。图片和 PDF 位于“资料/附件”，可在 Obsidian 中预览。\n\n此目录兼容 Obsidian，既可独立作为 Vault，也可整体放入已有 Vault 的子目录。重命名或调序后，Drifting 会更新内部链接；外部笔记中的旧文件链接可能失效。\n\n这是 READ-ONLY 单向投影，NO reverse sync。SQLite 与 Yjs 中的原稿不会被外部文件修改。需要修改请使用 Drifting 或获授权的工具；磁盘阅读不能替代工具的写前读取。\n\n.drifting/manifest.json 保存生成时间、文件 SHA-256、实体与路径映射和 sourceVersion。文件物理行号与哈希不同于 MCP read_chapter 的行号和版本；修改前请通过工具重新读取。块锚点用于定位原始段落，范围引用可分别打开起始段和末段。\n\n投影不包含完整数据库和 CRDT 历史，不能替代可恢复备份。项目关闭后保留最后快照，重新打开或手动刷新后更新。\n' });
+  entries.push({ path: '导出说明.md', text: '# 关于这份书稿\n\n从“开始阅读.md”进入，或按“正文”目录中的编号阅读章节。章节、构想、要素和故事线各是一份完整文件，摘要在开头，正文在中间，相关内容在末尾。\n\n正文沿用原有的场景、节拍、笔记标题层级；要素按已有分类组织，构想沿用已有分组。注释与待办按所属对象汇总。图片和 PDF 位于“资料/附件”，可在 Obsidian 中预览。\n\n此目录兼容 Obsidian，既可独立作为 Vault，也可整体放入已有 Vault 的子目录。重命名或调序后，Drifting 会更新内部链接；外部笔记中的旧文件链接可能失效。\n\n这是 READ-ONLY 单向投影，NO reverse sync。SQLite 与 Yjs 中的原稿不会被外部文件修改。需要修改请使用 Drifting 或获授权的工具；磁盘阅读不能替代工具的写前读取。\n\n.drifting/manifest.json 保存生成时间、文件 SHA-256、实体与路径映射和 sourceVersion。文件物理行号与哈希不同于 MCP read_chapter 的行号和版本；修改前请通过工具重新读取。正文不带段落锚点，引用和关联链接打开整份文件。\n\n投影不包含完整数据库和 CRDT 历史，不能替代可恢复备份。项目关闭后保留最后快照，重新打开或手动刷新后更新。\n' });
   return { entries: entries.sort((a, b) => a.path.localeCompare(b.path, 'en')), assets: [...assets.values()],
     documents: [...documents.values()].map(({ key, path, title, anchor, sourceVersion }) => ({ key, path, title, anchor, sourceVersion })), documentCount: documents.size };
 }

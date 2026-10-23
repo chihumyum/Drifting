@@ -1,7 +1,7 @@
 {
   "kind": "obsidian-projection-real-application",
-  "generatedAt": "2026-10-19T17:55:17.298Z",
-  "sourceSha256": "b84671725381fbc35cddfd7b23b9eb120d2ed00e514dad324a4a166fea71f502",
+  "generatedAt": "2026-10-22T18:21:42.384Z",
+  "sourceSha256": "bc6f3cdfd37eee3048faacf4fcfdb42cd588722a802f3fd87f9fc305efe089df",
   "status": "passed",
   "synthetic": true,
   "obsidianVersion": "1.10.6",
@@ -12,11 +12,10 @@
         {
           "name": "relative links and embeds resolve inside the projection",
           "status": "passed",
-          "links": 25,
-          "blockReferences": 3
+          "links": 24
         },
         {
-          "name": "paragraph quote heading and empty-block anchors are recognized",
+          "name": "prose carries no block anchors or link fragments",
           "status": "passed"
         },
         {
@@ -52,11 +51,10 @@
         {
           "name": "relative links and embeds resolve inside the projection",
           "status": "passed",
-          "links": 25,
-          "blockReferences": 3
+          "links": 24
         },
         {
-          "name": "paragraph quote heading and empty-block anchors are recognized",
+          "name": "prose carries no block anchors or link fragments",
           "status": "passed"
         },
         {

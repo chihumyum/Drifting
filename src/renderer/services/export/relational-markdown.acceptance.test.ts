@@ -429,12 +429,13 @@ describe('automatic read-only Markdown projection', () => {
     const before = await buildRelationalMarkdownEntries(source, true);
     const body = projectedDocument(before, 'node', SNAPSHOT_NODE_ID);
     expect(body.path).toBe('正文/001 -Snapshot -Chapter-.md');
-    expect(body.text).toContain('Snapshot Yjs truth ^drift-');
+    expect(body.text).toMatch(/^Snapshot Yjs truth$/mu);
     expect(body.text).not.toContain('drifting_source_version:');
     expect(body.sourceVersion).toBe(`sha256:${createHash('sha256').update('Snapshot Yjs truth').digest('hex')}`);
     expect(before.entries.find(entry => entry.path === '导出说明.md')!.text).toContain('NO reverse sync');
     expect(before.documents.some(item => item.key.includes('node-deleted-0004'))).toBe(false);
-    expect(projectedDocument(before, 'node', UPDATE_NODE_ID).text).toContain('Update-log Yjs truth ^drift-');
+    expect(projectedDocument(before, 'node', UPDATE_NODE_ID).text).toMatch(/^Update-log Yjs truth$/mu);
+    for (const entry of before.entries) expect(entry.text).not.toMatch(/\^(?:comment-)?drift-|#\^/u);
     const node = source.books[0]!.graph.nodes.find(node => node.id === SNAPSHOT_NODE_ID)!;
     node.title = 'Renamed readable chapter';
     node.bookOrder = 100;
@@ -443,7 +444,7 @@ describe('automatic read-only Markdown projection', () => {
     expect(renamed.path).toBe('正文/003 Renamed readable chapter.md');
     expect(renamed.sourceVersion).toBe(body.sourceVersion);
     expect(after.entries.some(entry => entry.path === body.path)).toBe(false);
-    expect(renamed.text).toContain('Snapshot Yjs truth ^drift-');
+    expect(renamed.text).toMatch(/^Snapshot Yjs truth$/mu);
   });
 
   it('renders passage citations directly to the readable entity files', async () => {
@@ -454,13 +455,13 @@ describe('automatic read-only Markdown projection', () => {
     const result = await buildRelationalMarkdownEntries(source, true);
     const body = projectedDocument(result, 'element', ELEMENT_ID);
     expect(body.path).toBe('要素/People/Hero.md');
-    expect(body.text).toContain('[See the update](../../%E6%AD%A3%E6%96%87/002%20Update%20chapter.md#^drift-');
+    expect(body.text).toContain('[See the update](../../%E6%AD%A3%E6%96%87/002%20Update%20chapter.md)');
     expect(result.entries.some(entry => /(?:index|prose)\.md$/u.test(entry.path))).toBe(false);
   });
 });
 
 describe('Obsidian projection interoperability', () => {
-  it('resolves every relative link and stable block reference independently of the vault nesting', async () => {
+  it('resolves every relative link to a whole file independently of the vault nesting', async () => {
     const source = await sourceFixture();
     const graph = source.books[0]!.graph;
     const target = graph.nodes.find(node => node.id === UPDATE_NODE_ID)!;
@@ -507,22 +508,23 @@ describe('Obsidian projection interoperability', () => {
           expect(resolved.startsWith(prefix)).toBe(true);
           const targetPath = resolved.slice(prefix.length);
           expect(paths.has(targetPath), `${entry.path} -> ${token.href}`).toBe(true);
-          if (fragment?.startsWith('^')) expect(byPath.get(targetPath)).toContain(fragment);
+          expect(fragment, `${entry.path} -> ${token.href}`).toBeUndefined();
         });
       }
     }
     const bodyPath = projectedDocument(projection, 'element', ELEMENT_ID).path;
     const body = byPath.get(bodyPath)!;
-    expect(body).toContain('（至[末段](');
+    expect(body).not.toContain('末段');
     expect(body).not.toContain('drifting:');
     expect(byPath.get(bodyPath)).toContain('aliases: ["Hero","Hero, the first","别名[甲]","a: b"]');
     expect(projectedDocument(projection, 'node', UPDATE_NODE_ID).path).toMatch(/^正文\/002 /u);
-    const firstAnchor = /#\^(drift-[a-f0-9]+)/u.exec(body)![1]!;
+    for (const entry of projection.entries) expect(entry.text).not.toMatch(/\^(?:comment-)?drift-|#\^|&#8203;/u);
+    const citation = /\[Read the range\]\(([^)]+)\)/u.exec(body)![1]!;
     const json = JSON.parse(graph.nodeContents.find(content => content.nodeId === target.id)!.contentJson!);
     json.content.unshift({ type: 'paragraph', attrs: { id: 'inserted' }, content: [{ type: 'text', text: 'Inserted before citation.' }] });
     graph.nodeContents.find(content => content.nodeId === target.id)!.contentJson = JSON.stringify(json);
     const updated = await buildRelationalMarkdownEntries(source, true);
-    expect(updated.entries.find(entry => entry.path === bodyPath)!.text).toContain(`#^${firstAnchor}`);
+    expect(updated.entries.find(entry => entry.path === bodyPath)!.text).toContain(`[Read the range](${citation})`);
     expect(projection.assets).toHaveLength(2);
     if (process.env.DRIFTING_OBSIDIAN_FIXTURE === '1') {
       const directory = '.local-data/obsidian-projection/generated';
@@ -584,6 +586,7 @@ describe('reader-facing Markdown tree', () => {
     expect(contents).toContain('草稿');
     const comments = result.entries.find(entry => entry.path === '注释与待办.md')!;
     expect(comments.text).toContain('Local comment');
+    expect(comments.text).toContain('### 注释：Local comment\n\n状态：未完成');
     expect(projectedDocument(result, 'node', SNAPSHOT_NODE_ID).text).toContain('注释');
     expect(result.documents.find(document => document.key === 'comment:comment-0001')!.path).toBe(comments.path);
     expect(result.entries.filter(entry => entry.path.startsWith('注释'))).toHaveLength(1);

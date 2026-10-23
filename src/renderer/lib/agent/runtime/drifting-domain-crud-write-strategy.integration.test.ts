@@ -232,8 +232,8 @@ describe('workspace domain CRUD transactions', () => {
     expect(captured.books.map(book => book.project.id)).toEqual([PROJECT_ID]);
     const mirror = await buildRelationalMarkdownEntries(captured, true);
     const bodyFile = mirror.entries.find(entry => entry.path.startsWith('正文/') && entry.text.includes('UniqueSyntheticBody'))!;
-    expect(bodyFile.text).toContain('UniqueSyntheticBody. ^drift-');
-    expect(bodyFile.text).toContain('Second paragraph. ^drift-');
+    expect(bodyFile.text).toMatch(/^UniqueSyntheticBody\.$/mu);
+    expect(bodyFile.text).toMatch(/^Second paragraph\.$/mu);
     expect(mirror.documents.find(document => document.path === bodyFile.path)!.sourceVersion).toBe(version);
     expect(`sha256:${createHash('sha256').update(bodyFile.text).digest('hex')}`).not.toBe(version);
     const range = await mcpCall(writer, 'read_chapter', { chapter: 'Numbered fixture', startLine: 3, endLine: 3, version });

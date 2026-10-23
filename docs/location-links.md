@@ -3,8 +3,8 @@
 A location link addresses a passage of authored prose through a canonical
 `prose.md` view whose editor block N occupies line `2N-1`, the numbering shared
 by `read_chapter` and exact search. The read-only [Obsidian disk projection](local-data-export.md)
-adapts this view to relative links and stable block anchors; its physical file
-lines are not these canonical coordinates.
+adapts this view to relative whole-file links without block anchors; its physical
+file lines are not these canonical coordinates.
 
 ## Addresses
 
@@ -34,9 +34,9 @@ Agent Markdown as before.
 
 Agent prose reads (`read_node`/`read_chapter` numbered view) use the canonical
 formatter. The Obsidian projection records this version in the hidden manifest's `documents[].sourceVersion`,
-then renders human-named documents and file-relative links with `#^drift-…` block anchors. Its file hash and
-line numbers differ from tool output. Canonical versions change when a citation's
-rendered target name or lines change; Obsidian anchors keep the same block identity.
+then renders human-named documents and file-relative links to whole files, without block anchors. Its file
+hash and line numbers differ from tool output. Canonical versions change when a
+citation's rendered target name or lines change.
 `read_element` returns a plain body plus `locationLinks: [{ text, href }]`;
 model-facing projected text lists them as `正文中的实体连接：label（href）`.
 
