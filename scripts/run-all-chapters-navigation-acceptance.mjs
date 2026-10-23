@@ -125,6 +125,50 @@ if (process.argv.includes('--check')) {
     assert.deepEqual(race, [false, true]);
     await delay(1000);
     assert((await inspect('left', 'chapter-0')).inViewport, 'An old async jump stole the destination.');
+
+    // Wheel up from a landing through cold rows: their prose and real height
+    // arrive above the reader, and the page must move by the wheel step alone.
+    // The right pane has only visited chapter 59, so chapters 30 and up are cold.
+    assert.equal(await evaluate('__BOOK_NAV__.panes.right.jump("chapter-31")'), true);
+    await delay(900);
+    // The row above the landing is loaded and laid out before the reader reaches
+    // it. WebKit does not scroll-anchor content-visibility's own estimate swap;
+    // Chromium does, so only this attribute-driven layout is observable here.
+    const ahead = await evaluate(`(() => {
+      const row = document.querySelector('[data-pane=right] [data-chapter-id=chapter-30]');
+      return { contentReady: row.dataset.contentReady, nearReader: row.dataset.nearReader,
+        contentVisibility: getComputedStyle(row).contentVisibility };
+    })()`);
+    assert.deepEqual(ahead, { contentReady: 'true', nearReader: 'true', contentVisibility: 'visible' });
+    const wheelAt = await evaluate(`(() => {
+      const r = document.querySelector('[data-pane=right] .editor-scroll').getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    })()`);
+    const wheelStep = 120;
+    const scrollUp = { stepPx: wheelStep, steps: 0, measured: 0, maxDeviationPx: 0, chapters: [] };
+    for (let step = 0; step < 120; step++) {
+      const reference = await evaluate(`(() => {
+        const block = document.elementFromPoint(${wheelAt.x}, ${wheelAt.y})?.closest('[data-block-id]');
+        window.__scrollReference = block ?? null;
+        return block ? { top: block.getBoundingClientRect().top,
+          chapter: block.closest('[data-chapter-id]')?.dataset.chapterId ?? null } : null;
+      })()`);
+      await client.Input.dispatchMouseEvent({ type: 'mouseWheel', x: wheelAt.x, y: wheelAt.y,
+        deltaX: 0, deltaY: -wheelStep });
+      await delay(60);
+      const top = await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() =>
+        resolve(window.__scrollReference?.isConnected ? window.__scrollReference.getBoundingClientRect().top : null))))`);
+      scrollUp.steps++;
+      if (!reference || top === null) continue;
+      if (scrollUp.chapters.at(-1) !== reference.chapter) scrollUp.chapters.push(reference.chapter);
+      const deviation = Math.abs(top - reference.top - wheelStep);
+      scrollUp.measured++;
+      scrollUp.maxDeviationPx = Math.max(scrollUp.maxDeviationPx, Math.round(deviation * 100) / 100);
+      assert(deviation <= 1.5, `Wheel step ${step} moved the page by ${top - reference.top}px in ${reference.chapter}.`);
+    }
+    assert(scrollUp.measured >= 80, JSON.stringify(scrollUp));
+    assert.deepEqual(scrollUp.chapters.slice(0, 4), ['chapter-31', 'chapter-30', 'chapter-29', 'chapter-28'],
+      'Scrolling up skipped or revisited chapters.');
     assert.equal(await evaluate('document.querySelectorAll("[contenteditable=true]").length'), 0);
     assert.deepEqual(errors, []);
     mkdirSync(path.join(root, '.qa'), { recursive: true });
@@ -135,14 +179,15 @@ if (process.argv.includes('--check')) {
     writeFileSync(output, JSON.stringify({ kind: 'all-chapters-navigation', status: 'passed',
       generatedAt: new Date().toISOString(), sourceSha256: before, inputs,
       browser: (await client.Browser.getVersion()).product,
-      syntheticChaptersPerPane: 60, samples,
+      syntheticChaptersPerPane: 60, samples, scrollUp,
       checks: { legacyColdHeadingNoOpReproduced: true, coldHeadingLoadsBeforeJump: true,
         actualRailButton: true, chapterAndActTargets: true, splitPaneIsolation: true,
         latestClickWins: true, visibleAndHitTestableWithoutUserScroll: true,
+        rowsAheadLoadedAndLaidOut: true, wheelUpThroughColdRowsMovesByStep: true,
         noLiveEditorPromotion: true, noUncaughtExceptions: true },
-      boundary: 'Chromium renderer with real VirtualChapterRow, serializer, EditorOutlineRail, bounded loader, navigation coordinator and styles; synthetic delayed reads in two panes. No Tauri/WKWebView compositing, account, database or prose editing acceptance.',
+      boundary: 'Chromium renderer with real VirtualChapterRow, serializer, EditorOutlineRail, bounded loader, navigation coordinator and styles; synthetic delayed reads in two panes; CDP mouse-wheel input. WebKit\'s unanchored content-visibility estimate swap does not occur in Chromium, so only the laid-out-ahead row state stands in for it. No Tauri/WKWebView compositing, account, database or prose editing acceptance.',
     }, null, 2) + '\n');
-    console.log(`Whole-book navigation: ${samples.length} visible, hit-testable landings passed; cold heading, rail, rapid clicks and split isolation.`);
+    console.log(`Whole-book navigation: ${samples.length} visible, hit-testable landings passed; cold heading, rail, rapid clicks, split isolation and ${scrollUp.measured} wheel-up steps through cold rows.`);
   } finally {
     try { if (client) await client.close(); }
     finally {

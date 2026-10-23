@@ -1274,8 +1274,14 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 
 /* A TOC destination must have real layout/paint before its final scroll offset
    is measured. Keep that one row visible until the next jump; offscreen rows
-   retain content-visibility's normal savings. The live editor uses this too. */
-.all-chap-row[data-navigation-target="true"] {
+   retain content-visibility's normal savings. The live editor uses this too.
+   Rows within a screen of the reader are laid out as well: WebKit does not
+   scroll-anchor `auto`'s own switch from the estimate to the real height, so a
+   cold row above the reader jumped the page while scrolling up. This
+   attribute-driven change is anchored, and the remembered size keeps the row
+   still when it returns to `auto`. */
+.all-chap-row[data-navigation-target="true"],
+.all-chap-row[data-near-reader="true"] {
   content-visibility: visible;
 }
 

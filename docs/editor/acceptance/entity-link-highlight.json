@@ -1,7 +1,7 @@
 {
   "kind": "entity-link-highlight",
-  "generatedAt": "2026-10-05T17:50:39.894Z",
-  "fingerprint": "2df6430fac9600e27bd4de55f1bcd33a1c488205c582d5807ec869951dd11000",
+  "generatedAt": "2026-10-23T02:07:59.370Z",
+  "fingerprint": "f7b53a17d95c72bac4a0c8c7566ae5e346c4739b52cd036907f4f1ce4852f25f",
   "inputs": [
     "src/styles/index.css",
     "scripts/run-entity-link-highlight-acceptance.mjs"

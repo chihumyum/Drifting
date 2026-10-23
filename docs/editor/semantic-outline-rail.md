@@ -1,8 +1,9 @@
 # Semantic outline rail
 
 Status: built on 2026-08-03; updated on 2026-10-20 for reliable whole-book
-navigation through lazy chapter layout. The shared rail covers whole book,
-chapter/idea, element, category, and storyline.
+navigation through lazy chapter layout, and on 2026-10-23 for steady scrolling
+up from a landing. The shared rail covers whole book, chapter/idea, element,
+category, and storyline.
 
 ## Product contract
 
@@ -57,8 +58,13 @@ alter document content, scroll position or the native scrollbar.
 Whole-book TOC jumps resolve each heading's owning chapter from outline metadata,
 including chapters whose prose has not loaded. The destination chapter loads
 through the existing bounded loader and uses `content-visibility: visible` before
-the final offset is measured. That chapter and the focused live editor keep normal
-layout/paint; other rows retain `content-visibility: auto`. Navigation waits for
+the final offset is measured. That chapter, the focused live editor and every row
+within one screen of the reader keep normal layout/paint; farther rows retain
+`content-visibility: auto`. Each row observes its own `.editor-scroll` (a window
+root's margin cannot reach past the scroller's clip), so its prose loads and lays
+out above the reader before it scrolls into view. Native scroll anchoring then
+absorbs the real height. WebKit does not anchor `auto`'s own estimate-to-real
+swap, which made scrolling up after a jump leap by the estimate error. Navigation waits for
 the real prose commit and selects the visible copy of a heading during a live
 editor handoff. It scrolls only its own `.editor-scroll` instantly and reconciles
 nearby height changes until layout is quiet, rather than animating against
@@ -153,8 +159,12 @@ harness below. It uses the real chapter row, static serializer, rail, loader and
 navigation coordinator in two 60-chapter panes with inaccurate height estimates
 and delayed reads. It reproduces the previous cold-heading no-op, then checks
 chapter/act/heading landings, an actual rail button, rapid clicks, split isolation,
-and target visibility/hit testing after settling without a user scroll. It does
-not establish Tauri/WKWebView compositing or physical-device acceptance.
+and target visibility/hit testing after settling without a user scroll. From a
+landing it then wheels up through cold rows, requiring every step to move the
+page by the wheel delta alone, and requires the row above to be loaded and laid
+out beforehand. Chromium anchors `content-visibility`'s estimate swap itself, so
+that WebKit gap is covered only by the laid-out-ahead state. The harness does not
+establish Tauri/WKWebView compositing or physical-device acceptance.
 
 ```bash
 node scripts/run-all-chapters-navigation-acceptance.mjs

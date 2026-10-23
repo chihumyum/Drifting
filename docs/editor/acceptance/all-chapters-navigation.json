@@ -1,8 +1,8 @@
 {
   "kind": "all-chapters-navigation",
   "status": "passed",
-  "generatedAt": "2026-10-22T17:37:19.289Z",
-  "sourceSha256": "293791915cc667343b58ef41cfc344314045f0819bbfff4b0781598c24cba521",
+  "generatedAt": "2026-10-22T18:59:04.932Z",
+  "sourceSha256": "8cab5d8cca890e632654bced97ca934764bd5db4d21ff3ba516dc9d5aaaf3323",
   "inputs": [
     "scripts/run-all-chapters-navigation-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -37,8 +37,8 @@
     {
       "id": "chapter-4",
       "pane": "left",
-      "scrollTop": 32172,
-      "relativeTop": -0.484375,
+      "scrollTop": 12337,
+      "relativeTop": 0,
       "height": 3313.875,
       "visible": true,
       "inViewport": true,
@@ -49,8 +49,8 @@
     {
       "id": "chapter-55-h3",
       "pane": "left",
-      "scrollTop": 640363,
-      "relativeTop": -0.53125,
+      "scrollTop": 620528,
+      "relativeTop": -0.046875,
       "height": 28.796875,
       "visible": true,
       "inViewport": true,
@@ -61,8 +61,8 @@
     {
       "id": "act:act-20",
       "pane": "left",
-      "scrollTop": 207571,
-      "relativeTop": 23.53125,
+      "scrollTop": 167902,
+      "relativeTop": 23.5,
       "height": 316.5,
       "visible": true,
       "inViewport": true,
@@ -85,8 +85,8 @@
     {
       "id": "chapter-59-h1",
       "pane": "right",
-      "scrollTop": 698740,
-      "relativeTop": -0.34375,
+      "scrollTop": 678905,
+      "relativeTop": 0.140625,
       "height": 31.109375,
       "visible": true,
       "inViewport": true,
@@ -97,8 +97,8 @@
     {
       "id": "chapter-45-h2",
       "pane": "left",
-      "scrollTop": 479791,
-      "relativeTop": -0.09375,
+      "scrollTop": 440122,
+      "relativeTop": -0.125,
       "height": 29.328125,
       "visible": true,
       "inViewport": true,
@@ -107,6 +107,19 @@
       "contentReady": "true"
     }
   ],
+  "scrollUp": {
+    "stepPx": 120,
+    "steps": 120,
+    "measured": 85,
+    "maxDeviationPx": 0.86,
+    "chapters": [
+      "chapter-31",
+      "chapter-30",
+      "chapter-29",
+      "chapter-28",
+      "chapter-27"
+    ]
+  },
   "checks": {
     "legacyColdHeadingNoOpReproduced": true,
     "coldHeadingLoadsBeforeJump": true,
@@ -115,8 +128,10 @@
     "splitPaneIsolation": true,
     "latestClickWins": true,
     "visibleAndHitTestableWithoutUserScroll": true,
+    "rowsAheadLoadedAndLaidOut": true,
+    "wheelUpThroughColdRowsMovesByStep": true,
     "noLiveEditorPromotion": true,
     "noUncaughtExceptions": true
   },
-  "boundary": "Chromium renderer with real VirtualChapterRow, serializer, EditorOutlineRail, bounded loader, navigation coordinator and styles; synthetic delayed reads in two panes. No Tauri/WKWebView compositing, account, database or prose editing acceptance."
+  "boundary": "Chromium renderer with real VirtualChapterRow, serializer, EditorOutlineRail, bounded loader, navigation coordinator and styles; synthetic delayed reads in two panes; CDP mouse-wheel input. WebKit's unanchored content-visibility estimate swap does not occur in Chromium, so only the laid-out-ahead row state stands in for it. No Tauri/WKWebView compositing, account, database or prose editing acceptance."
 }

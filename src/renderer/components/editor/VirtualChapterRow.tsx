@@ -41,8 +41,8 @@ interface VirtualChapterRowProps {
   index: number;
 
   // Returns persisted content for this chapter, or null if none yet. Rows load
-  // on entering the generous viewport margin; until then their measured body
-  // reserve keeps the read-through geometry stable.
+  // within a screen of the enclosing `.editor-scroll`; until then their
+  // measured body reserve keeps the read-through geometry stable.
   fetchContent: (nodeId: string) => Promise<NodeContent | null>;
   // Lets the desktop surface stage wait for canonical prose instead of
   // revealing a row-height placeholder on first activation.
@@ -118,7 +118,10 @@ function VirtualChapterRowImpl({
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [content, setContent] = useState<NodeContent | null | undefined>(undefined);
   const [contentLoadError, setContentLoadError] = useState(false);
+  // Sticky: the row has come near the reader once, so its prose is loaded.
   const [nearViewport, setNearViewport] = useState(false);
+  // Live: the row is within a screen of the reader now, so it keeps real layout.
+  const [nearReader, setNearReader] = useState(false);
   const [liveReady, setLiveReady] = useState(false);
 
   const intrinsicHeight = estimateChapterHeight(node.wordCount || 0);
@@ -133,13 +136,19 @@ function VirtualChapterRowImpl({
       const frame = requestAnimationFrame(() => setNearViewport(true));
       return () => cancelAnimationFrame(frame);
     }
+    // rootMargin only widens the root, never the clip of the scroller in
+    // between. Against the window viewport a row above would load only once it
+    // scrolled into view; the browser's scroll anchor then sits in that row and
+    // vanishes with the body spacer, so the prose arriving above the reader
+    // jumped the page while scrolling up. Rooting at the scroller loads and lays
+    // out rows a screen ahead, where scroll anchoring absorbs their real height.
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        setNearViewport(true);
-        observer.disconnect();
+        const near = entries[entries.length - 1]?.isIntersecting ?? false;
+        setNearReader(near);
+        if (near) setNearViewport(true);
       },
-      { rootMargin: '120% 0px' },
+      { root: row.closest('.editor-scroll'), rootMargin: '120% 0px' },
     );
     observer.observe(row);
     return () => observer.disconnect();
@@ -206,6 +215,7 @@ function VirtualChapterRowImpl({
       data-chapter-index={index}
       data-content-ready={content !== undefined}
       data-navigation-target={isNavigationTarget || isFocused}
+      data-near-reader={nearReader}
       className="all-chap-row"
       style={{ '--all-chap-row-h': `${Math.round(intrinsicHeight)}px` } as React.CSSProperties}
     >

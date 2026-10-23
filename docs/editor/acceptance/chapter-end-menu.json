@@ -1,8 +1,8 @@
 {
   "kind": "chapter-end-menu",
   "status": "passed",
-  "generatedAt": "2026-10-22T18:00:55.314Z",
-  "sourceSha256": "3fb0a1dd61e24d981224a71e55e4fc58fdc0f61d7d584665222ce91c2b779460",
+  "generatedAt": "2026-10-22T18:59:59.799Z",
+  "sourceSha256": "4d019b66afb8571abbd255814d4c6fbd092dc86d51baf3678ef3965bbdf5d6f4",
   "inputs": [
     "scripts/run-chapter-end-menu-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -39,12 +39,12 @@
       "filter": "none"
     },
     "opening": {
-      "flipped": 81.59999990463257,
+      "flipped": 77.79999995231628,
       "markBackground": "rgba(0, 0, 0, 0)",
       "mid": {
-        "mark": 0.424233,
-        "action": 0.575767,
-        "actionFilter": "blur(0.848466px)"
+        "mark": 0.424697,
+        "action": 0.575303,
+        "actionFilter": "blur(0.849393px)"
       },
       "end": {
         "mark": 0,
@@ -123,9 +123,9 @@
       "flipped": 0,
       "markBackground": "rgba(0, 0, 0, 0)",
       "mid": {
-        "mark": 0.518985,
-        "action": 0.481015,
-        "actionFilter": "blur(1.03797px)"
+        "mark": 0.519536,
+        "action": 0.480464,
+        "actionFilter": "blur(1.03907px)"
       },
       "end": {
         "mark": 1,
