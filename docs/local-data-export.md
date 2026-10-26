@@ -133,7 +133,8 @@ never blocks saving the authoritative manuscript.
 
 Closed projects retain their last snapshot; consult the manifest time and reopen
 to refresh. Soft-deleted entities and their unreferenced attachments disappear on
-refresh. Deleting a project removes its manifest-owned files at the current
+refresh. A project in Recently Deleted keeps its last projection; permanently
+deleting a project removes its manifest-owned files at the current
 location and the location preference after stopping/draining its writer. Previously
 retained locations remain. Unmanaged files (including `.obsidian`) are preserved;
 collisions with newly generated paths reject the write before managed prose

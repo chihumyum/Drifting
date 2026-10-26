@@ -9,7 +9,6 @@ import { useProjectStore } from '../../../store/project-store';
 import { useWritingStatsStore } from '../../../store/writing-stats-store';
 import { useProject } from '../../../usecase/useProject';
 import { canUseHostedService } from '../../../lib/config';
-import { projectDeletionErrorKey } from '../../../lib/project-deletion-feedback';
 
 type ProjectDialog = 'details' | 'goals' | 'delete';
 
@@ -25,7 +24,7 @@ function ProjectActionDialog({
   onProjectDeleted(): void;
 }) {
   const { t } = useTranslation();
-  const { updateProject, deleteProject } = useProject({ userId: project.userId });
+  const { updateProject, trashProject } = useProject({ userId: project.userId });
   const [plan] = useState(() => useWritingStatsStore.getState().getPlan(project.id));
   const [name, setName] = useState(project.name);
   const [summary, setSummary] = useState(project.summary);
@@ -51,8 +50,8 @@ function ProjectActionDialog({
     setError(null);
     try {
       if (view === 'delete') {
-        const deleted = await deleteProject(project.id);
-        if (!deleted) throw new Error('Project deletion did not commit');
+        const trashed = await trashProject(project.id);
+        if (!trashed) throw new Error('Project trash did not commit');
         onProjectDeleted();
         return;
       }
@@ -65,9 +64,9 @@ function ProjectActionDialog({
         store.setDailyWordGoal(project.id, words[1]);
       }
       onClose();
-    } catch (error) {
+    } catch {
       setError(t(view === 'delete'
-        ? projectDeletionErrorKey(error)
+        ? 'projectPicker.trash.failed'
         : 'mobileWorkspace.projectActions.saveFailed'));
     } finally {
       busyRef.current = false;
@@ -126,16 +125,15 @@ function ProjectActionDialog({
             )}
             {view === 'delete' && <p>{t('mobileWorkspace.projectActions.deleteBody', { name: project.name })}</p>}
             {view === 'delete' && <p>{t(canUseHostedService()
-              ? 'projectPicker.delete.remoteBody' : 'projectPicker.delete.localBody')}</p>}
+              ? 'projectPicker.trash.remoteNote' : 'projectPicker.trash.localNote')}</p>}
             {error && <p role="alert" className="m-project-action-dialog__error">{error}</p>}
           </ModalBody>
           <ModalActions>
             <Button onClick={dismiss} disabled={busy} autoFocus>{t('common.cancel')}</Button>
             <Button type="submit" variant={view === 'delete' ? 'danger' : 'primary'}
               disabled={busy || (view === 'details' && !name.trim())}>
-              {busy ? t(view === 'delete' ? 'projectPicker.delete.deleting' : 'common.saving')
-                : t(view === 'delete' ? (canUseHostedService()
-                  ? 'projectPicker.delete.everywhere' : 'mobileWorkspace.projectActions.delete') : 'common.save')}
+              {busy ? t(view === 'delete' ? 'projectPicker.trash.moving' : 'common.saving')
+                : t(view === 'delete' ? 'projectPicker.trash.confirm' : 'common.save')}
             </Button>
           </ModalActions>
         </form>

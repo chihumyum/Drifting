@@ -181,7 +181,7 @@ function oneOf(...values: readonly string[]) {
 
 type FieldValidator = (value: CanonicalCborValue) => boolean;
 const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidator>>>> = {
-  project: { name: NON_EMPTY_STRING, summary: STRING },
+  project: { name: NON_EMPTY_STRING, summary: STRING, deletedAt: NULLABLE_STRING },
   node: {
     title: NON_EMPTY_STRING,
     summary: STRING,

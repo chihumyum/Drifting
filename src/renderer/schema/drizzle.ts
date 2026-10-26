@@ -87,6 +87,9 @@ export const ProjectTable = sqliteTable('project', {
   kvJson: text('kv_json').notNull().default('[]'),
   storylineTemplateKvJson: text('storyline_template_kv_json').notNull().default('[]'),
   userId: text('user_id').notNull(), // should reference to userId in server pg
+  // Project trash marker. Non-null = in the bookshelf's Recently Deleted list;
+  // the permanent local + Hosted deletion runs 30 days later or on demand.
+  deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

@@ -2100,6 +2100,29 @@
       "cloud": "CLOUD · SYNCED",
       "localDraft": "LOCAL · DRAFT"
     },
+    "trash": {
+      "kicker": "MOVE TO TRASH",
+      "titlePrefix": "Move to Recently Deleted",
+      "body": "{{words}} words · {{nodes}} chapters · {{elements}} elements leave the shelf. You can restore the project from Recently Deleted for 30 days; after that it is permanently deleted.",
+      "remoteNote": "It leaves your other devices too. Hosted data and the readable Markdown copy are kept until the permanent deletion.",
+      "localNote": "The content and the readable Markdown copy are kept until the permanent deletion.",
+      "confirm": "Move to Recently Deleted",
+      "moving": "Moving…",
+      "failed": "The project could not be moved. Please try again.",
+      "entry": "Recently Deleted · {{count}}",
+      "listKicker": "RECENTLY DELETED",
+      "listTitle": "Recently deleted projects",
+      "listSub": "Projects stay here for 30 days and are then permanently deleted, including their Hosted data.",
+      "empty": "No recently deleted projects.",
+      "expiresIn_one": "Permanently deleted in {{count}} day",
+      "expiresIn_other": "Permanently deleted in {{count}} days",
+      "expiresSoon": "Permanent deletion pending",
+      "restore": "Restore",
+      "restoring": "Restoring…",
+      "restoreFailed": "The project could not be restored. Please try again.",
+      "deleteNow": "Delete now",
+      "permanentBody": "Delete it permanently now instead of after 30 days. This cannot be undone."
+    },
     "delete": {
       "everywhere": "Delete locally and from Hosted",
       "remoteBody": "Permanently deletes the Hosted project, snapshots, attachments and Agent conversations, and removes it from other devices. Local data is removed only after Hosted confirms deletion. Offline or failed requests keep the local project.",
@@ -2108,9 +2131,7 @@
       "accountRequired": "Sign in to this project's Hosted account and retry. The local project has been kept.",
       "syncChanged": "The sync connection or project changed. Please retry after the transition finishes.",
       "failed": "Deletion is incomplete; the local project has been kept. Check your connection and server support for remote deletion, then retry.",
-      "kicker": "DELETE PROJECT",
       "titlePrefix": "Delete",
-      "body": "This cannot be undone. {{words}} words · {{nodes}} chapters · {{elements}} elements will be removed.",
       "deleting": "Deleting…"
     },
     "form": {
@@ -3389,7 +3410,7 @@
       "goals": "Writing goals",
       "trash": "Project trash",
       "delete": "Delete project",
-      "deleteBody": "Delete “{{name}}”? Its chapters, ideas, elements, Agent conversations and trash will be permanently deleted. This cannot be undone.",
+      "deleteBody": "Move “{{name}}” to Recently Deleted? You can restore it from Recently Deleted on the desktop shelf for 30 days; after that it is permanently deleted.",
       "deleteFailed": "The project could not be deleted. Please try again.",
       "saveFailed": "Your changes could not be saved. Please try again.",
       "invalidGoal": "Enter a whole number of words greater than or equal to 0.",

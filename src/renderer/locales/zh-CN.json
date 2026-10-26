@@ -2100,6 +2100,29 @@
       "cloud": "CLOUD · SYNCED",
       "localDraft": "LOCAL · 草稿"
     },
+    "trash": {
+      "kicker": "MOVE TO TRASH · 移到最近删除",
+      "titlePrefix": "移到最近删除",
+      "body": "{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素会从书架移走。30 天内可以在「最近删除」里恢复，之后会永久删除。",
+      "remoteNote": "其他设备上也会一起移走。Hosted 上的数据和可读 Markdown 副本都保留到永久删除时。",
+      "localNote": "内容和可读 Markdown 副本都保留到永久删除时。",
+      "confirm": "移到最近删除",
+      "moving": "正在移动…",
+      "failed": "移动未完成，请重试。",
+      "entry": "最近删除 · {{count}}",
+      "listKicker": "RECENTLY DELETED · 最近删除",
+      "listTitle": "最近删除的项目",
+      "listSub": "项目在这里保留 30 天，到期后自动永久删除，包括 Hosted 上的数据。",
+      "empty": "最近没有删除的项目。",
+      "expiresIn_one": "{{count}} 天后永久删除",
+      "expiresIn_other": "{{count}} 天后永久删除",
+      "expiresSoon": "即将永久删除",
+      "restore": "恢复",
+      "restoring": "正在恢复…",
+      "restoreFailed": "恢复未完成，请重试。",
+      "deleteNow": "立即删除",
+      "permanentBody": "立即永久删除，不再等 30 天。此操作无法撤销。"
+    },
     "delete": {
       "everywhere": "删除本地及远端",
       "remoteBody": "将永久删除 Hosted 远端项目、历史快照、附件和 Agent 对话，并在其他设备同步移除。远端确认成功后才删除本地；离线或删除失败时保留本地项目。",
@@ -2108,9 +2131,7 @@
       "accountRequired": "请登录此项目所属的 Hosted 账号后重试。本地项目已保留。",
       "syncChanged": "同步连接正在切换或项目状态已变化，请稍后重试。",
       "failed": "删除尚未完成，本地项目已保留。请检查网络及服务端是否支持远端删除，然后重试。",
-      "kicker": "DELETE PROJECT · 删除项目",
       "titlePrefix": "确认删除",
-      "body": "删除后将无法恢复。{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素都会移除。",
       "deleting": "删除中…"
     },
     "form": {
@@ -3389,7 +3410,7 @@
       "goals": "写作目标",
       "trash": "项目回收站",
       "delete": "删除项目",
-      "deleteBody": "确定删除《{{name}}》吗？项目内的章节、构想、要素、Agent 对话和回收站内容都将被永久删除，无法恢复。",
+      "deleteBody": "把《{{name}}》移到最近删除？30 天内可以在桌面版书架的「最近删除」里恢复，之后会永久删除。",
       "deleteFailed": "删除未完成，请重试。",
       "saveFailed": "保存未完成，请重试。",
       "invalidGoal": "请输入大于或等于 0 的整数字数。",

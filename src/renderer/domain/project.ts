@@ -12,6 +12,8 @@ export interface Project {
   // KV template seeded into every new storyline under this project.
   // Same shape as kvJson; editing only affects future storylines.
   storylineTemplateKvJson: string;
+  // Non-null while the project is in the bookshelf's Recently Deleted list.
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

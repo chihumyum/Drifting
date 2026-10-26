@@ -2,15 +2,15 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "fd93e395ff0e05390b86ccafa6b906f92d434a4c95ac4cf1aa00acec83b1ed21",
+  "schemaSha256": "f17354732e0c64d17955f52f4b6e11bae6c8c8e807904c33605cfce127595e11",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
     "tableCount": 96,
-    "fieldCount": 997,
+    "fieldCount": 998,
     "includedTableCount": 26,
     "excludedTableCount": 70,
     "classCounts": {
-      "authored": 169,
+      "authored": 170,
       "crdt": 10,
       "derived": 92,
       "device-local": 370,
@@ -3979,6 +3979,12 @@
           "classification": "derived",
           "disposition": "exclude",
           "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        },
+        {
+          "field": "deleted_at",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
         },
         {
           "field": "id",

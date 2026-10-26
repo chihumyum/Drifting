@@ -138,6 +138,15 @@ describe('workspace refresh with product SQLite', () => {
     expect(published.mock.calls[0]![0].project.name).toBe('Local project name');
   });
 
+  it('reports an open project that another device moved to the trash as missing', async () => {
+    const { db } = await fixture();
+    const { queue, missing, published } = worker();
+    await db.update(ProjectTable).set({ deletedAt: NOW }).where(eq(ProjectTable.id, INPUT.projectId));
+    queue.request(); await queue.flush();
+    expect(missing).toHaveBeenCalledOnce();
+    expect(published).not.toHaveBeenCalled();
+  });
+
   it('rejects a missing result after a local projection change in the same epoch', async () => {
     const { write } = await fixture();
     const entered = deferred(); const release = deferred();

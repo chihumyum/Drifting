@@ -120,10 +120,22 @@ sync and retains local data; it does not imply pending changes reached the serve
 
 ## Versioned service contract
 
+### Project trash
+
+Deleting a project from the bookshelf or the mobile project actions first moves
+it to **Recently Deleted**: a synced `project.deleted_at` field write (migration
+`0010_project_trash`, last-writer-wins like any other project field). It works
+offline, hides the project on every device, closes it where it is open, and keeps
+all content, Hosted data and the readable Markdown copy. Restoring clears the
+field. Thirty days after `deleted_at`, the shelf permanently deletes the project
+through the path below; it waits two minutes after the shelf opens so a restore
+made elsewhere can arrive first, and a failure leaves the project in the trash
+for the next attempt. Recently Deleted also offers **Delete now**.
+
 ### Project deletion
 
-The bookshelf and project actions share one **Delete locally and from Hosted**
-command. Configured Hosted builds require a connected owning account; there is
+Permanent deletion (from Recently Deleted, or when the trash period expires)
+is one **Delete locally and from Hosted** command. Configured Hosted builds require a connected owning account; there is
 no local-only fallback. The client drains discovery, provisioning and sync,
 keeping sync suspended until overlapping deletion/provider-change holds release,
 checks current bindings plus historical connection receipts, and calls

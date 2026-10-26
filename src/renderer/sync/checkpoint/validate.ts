@@ -107,6 +107,7 @@ function parseAuthored(bytes: Uint8Array): AuthoredStatePayloadV1 {
  */
 const NULLABLE_FIELDS_ADDED_AFTER_V1: Readonly<Record<string, readonly string[]>> = {
   library_item: ['provenance_json'],
+  project: ['deleted_at'],
 };
 
 export function withNullableFieldsAddedAfterV1(

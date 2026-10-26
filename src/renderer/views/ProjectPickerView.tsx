@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useProject, type ProjectSummary } from '../usecase/useProject';
+import { projectTrashExpiresAt, useProject, type ProjectSummary } from '../usecase/useProject';
+import type { Project } from '../domain/project';
 import { useAuthStore } from '../store/auth';
 import { hostedAccountSettingsEnabled } from '../features/settings/hosted-settings-policy';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
@@ -30,6 +31,11 @@ function WindowDragStrip() {
 
 const log = loglevel.getLogger('ProjectPickerView');
 log.setLevel(loglevel.levels.DEBUG);
+
+// Expired trash is purged a little after the shelf opens, so sync can first
+// pull a restore made on another device.
+const EXPIRED_TRASH_PURGE_DELAY_MS = 2 * 60 * 1_000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 
 type View = 'grid' | 'list';
 type Filter = 'all' | 'active' | 'paused';
@@ -151,7 +157,16 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const user = useAuthStore((s) => s.user);
   const account = useAuthStore((s) => s.hostedUser);
   const writingPlans = useWritingStatsStore((s) => s.plans);
-  const { loadProjectSummaries, createProject, updateProject, deleteProject } = useProject({
+  const {
+    loadProjectSummaries,
+    createProject,
+    updateProject,
+    trashProject,
+    restoreProject,
+    loadTrashedProjects,
+    deleteProject,
+    purgeExpiredTrashedProjects,
+  } = useProject({
     userId: user?.id ?? '',
   });
   const avatarRef = useRef<HTMLButtonElement | null>(null);
@@ -173,15 +188,28 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const openDelete = (project: ProjectSummary) => { setDeleteError(null); setConfirmDelete(project); };
   const [busy, setBusy] = useState(false);
+  const [trashed, setTrashed] = useState<Project[]>([]);
+  const [trashOpen, setTrashOpen] = useState(false);
 
   useProjectRoutePreload(!loading && Boolean(user?.id));
 
   const fetchProjects = useCallback(async () => {
-    const data = await loadProjectSummaries();
+    const [data, trash] = await Promise.all([loadProjectSummaries(), loadTrashedProjects()]);
     log.debug('Loaded project summaries:', data);
     setProjects(data);
+    setTrashed(trash);
     setConfirmDelete(current => current && data.some(project => project.id === current.id) ? current : null);
-  }, [loadProjectSummaries]);
+  }, [loadProjectSummaries, loadTrashedProjects]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const timer = setTimeout(() => {
+      void purgeExpiredTrashedProjects()
+        .then((purged) => (purged.length > 0 ? fetchProjects() : undefined))
+        .catch((error) => log.warn('Expired project purge failed:', error));
+    }, EXPIRED_TRASH_PURGE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [user?.id, purgeExpiredTrashedProjects, fetchProjects]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -323,17 +351,34 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     setBusy(true);
     setDeleteError(null);
     try {
-      const ok = await deleteProject(confirmDelete.id);
-      if (!ok) throw new Error('Project deletion did not commit');
+      const ok = await trashProject(confirmDelete.id);
+      if (!ok) throw new Error('Project trash did not commit');
       setProjects((prev) => prev.filter((p) => p.id !== confirmDelete.id));
       setConfirmDelete(null);
+      setTrashed(await loadTrashedProjects());
     } catch (e) {
-      log.error('Failed to delete project:', e);
-      setDeleteError(projectDeletionErrorKey(e));
+      log.error('Failed to move project to the trash:', e);
+      setDeleteError('projectPicker.trash.failed');
     } finally {
       setBusy(false);
     }
-  }, [confirmDelete, busy, deleteProject]);
+  }, [confirmDelete, busy, trashProject, loadTrashedProjects]);
+
+  const handleRestore = useCallback(
+    async (id: string) => {
+      if (!(await restoreProject(id))) throw new Error('Project restore did not commit');
+      await fetchProjects();
+    },
+    [restoreProject, fetchProjects],
+  );
+
+  const handleDeleteNow = useCallback(
+    async (id: string) => {
+      if (!(await deleteProject(id))) throw new Error('Project deletion did not commit');
+      setTrashed((prev) => prev.filter((p) => p.id !== id));
+    },
+    [deleteProject],
+  );
 
   const userInitial = (account?.name?.trim() || account?.email?.trim() || '·')[0].toUpperCase();
 
@@ -515,12 +560,24 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
               <BookOpen className="pp-section__title-mark" size={18} aria-hidden="true" />
               <span className="pp-section__title-cn">{t('projectPicker.allProjectsCn')}</span>
             </div>
-            <span className="pp-section__count">
-              {t('projectPicker.projectCount', {
-                filtered: filtered.length,
-                total: decorated.length,
-              })}
-            </span>
+            <div className="pp-section__aside">
+              {trashed.length > 0 && (
+                <button
+                  type="button"
+                  className="pp-section__trash"
+                  onClick={() => setTrashOpen(true)}
+                >
+                  <Trash2 size={13} aria-hidden="true" />
+                  {t('projectPicker.trash.entry', { count: trashed.length })}
+                </button>
+              )}
+              <span className="pp-section__count">
+                {t('projectPicker.projectCount', {
+                  filtered: filtered.length,
+                  total: decorated.length,
+                })}
+              </span>
+            </div>
           </div>
 
           {decorated.length === 0 ? (
@@ -599,6 +656,14 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           busy={busy}
           onConfirm={handleDelete}
           onClose={() => (busy ? undefined : setConfirmDelete(null))}
+        />
+      )}
+      {trashOpen && (
+        <RecentlyDeletedModal
+          projects={trashed}
+          onRestore={handleRestore}
+          onDeleteNow={handleDeleteNow}
+          onClose={() => setTrashOpen(false)}
         />
       )}
       {createOpen && (
@@ -834,24 +899,24 @@ function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalPr
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={t('projectPicker.delete.titlePrefix')}
+        aria-label={t('projectPicker.trash.titlePrefix')}
       >
         <div className="pp-modal__head">
-          <div className="pp-modal__kicker">{t('projectPicker.delete.kicker')}</div>
+          <div className="pp-modal__kicker">{t('projectPicker.trash.kicker')}</div>
           <h2 className="pp-modal__title">
-            {t('projectPicker.delete.titlePrefix')} <em>《{project.name}》</em>？
+            {t('projectPicker.trash.titlePrefix')} <em>《{project.name}》</em>？
           </h2>
         </div>
         <div className="pp-modal__body">
           <p className="pp-modal__sub">
-            {t('projectPicker.delete.body', {
+            {t('projectPicker.trash.body', {
               words: stats.wordsReady ? stats.words.toLocaleString() : t('common.counting'),
               nodes: stats.nodes,
               elements: stats.elements,
             })}
           </p>
           <p className="pp-modal__sub">{t(canUseHostedService()
-            ? 'projectPicker.delete.remoteBody' : 'projectPicker.delete.localBody')}</p>
+            ? 'projectPicker.trash.remoteNote' : 'projectPicker.trash.localNote')}</p>
           {error && <p role="alert" className="pp-modal__sub">{t(error)}</p>}
         </div>
         <div className="pp-modal__foot">
@@ -870,9 +935,156 @@ function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalPr
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? t('projectPicker.delete.deleting') : t(canUseHostedService()
-              ? 'projectPicker.delete.everywhere' : 'common.delete')}
+            {busy ? t('projectPicker.trash.moving') : t('projectPicker.trash.confirm')}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface RecentlyDeletedModalProps {
+  projects: Project[];
+  onRestore: (id: string) => Promise<void>;
+  onDeleteNow: (id: string) => Promise<void>;
+  onClose: () => void;
+}
+
+function RecentlyDeletedModal({ projects, onRestore, onDeleteNow, onClose }: RecentlyDeletedModalProps) {
+  const { t } = useTranslation();
+  const [confirming, setConfirming] = useState<Project | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [openedAt] = useState(() => Date.now());
+  const busy = busyId !== null;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || busy) return;
+      if (confirming) setConfirming(null);
+      else onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [busy, confirming, onClose]);
+
+  const run = async (id: string, action: () => Promise<void>, errorKey: (e: unknown) => string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      await action();
+      setConfirming(null);
+    } catch (e) {
+      log.error('Recently deleted project action failed:', e);
+      setError(errorKey(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const expiryLabel = (deletedAt: string) => {
+    const days = Math.ceil((projectTrashExpiresAt(deletedAt).getTime() - openedAt) / DAY_MS);
+    return days > 0
+      ? t('projectPicker.trash.expiresIn', { count: days })
+      : t('projectPicker.trash.expiresSoon');
+  };
+
+  return (
+    <div className="pp-modal-backdrop" onClick={() => (busy ? undefined : onClose())}>
+      <div
+        className="pp-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('projectPicker.trash.listTitle')}
+      >
+        <div className="pp-modal__head">
+          <div className="pp-modal__kicker">{t('projectPicker.trash.listKicker')}</div>
+          <h2 className="pp-modal__title">
+            {confirming ? (
+              <>
+                {t('projectPicker.delete.titlePrefix')} <em>《{confirming.name}》</em>？
+              </>
+            ) : (
+              t('projectPicker.trash.listTitle')
+            )}
+          </h2>
+        </div>
+        <div className="pp-modal__body">
+          {confirming ? (
+            <>
+              <p className="pp-modal__sub">{t('projectPicker.trash.permanentBody')}</p>
+              <p className="pp-modal__sub">{t(canUseHostedService()
+                ? 'projectPicker.delete.remoteBody' : 'projectPicker.delete.localBody')}</p>
+            </>
+          ) : (
+            <>
+              <p className="pp-modal__sub">{t('projectPicker.trash.listSub')}</p>
+              {projects.length === 0 ? (
+                <p className="pp-modal__sub">{t('projectPicker.trash.empty')}</p>
+              ) : (
+                <ul className="pp-trash">
+                  {projects.map((project) => (
+                    <li key={project.id} className="pp-trash__row">
+                      <div className="pp-trash__text">
+                        <span className="pp-trash__name">{project.name}</span>
+                        <span className="pp-trash__meta">
+                          {project.deletedAt ? expiryLabel(project.deletedAt) : null}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="pp-modal__btn"
+                        disabled={busy}
+                        onClick={() => void run(project.id, () => onRestore(project.id),
+                          () => 'projectPicker.trash.restoreFailed')}
+                      >
+                        {busyId === project.id ? t('projectPicker.trash.restoring') : t('projectPicker.trash.restore')}
+                      </button>
+                      <button
+                        type="button"
+                        className="pp-modal__btn"
+                        disabled={busy}
+                        onClick={() => { setError(null); setConfirming(project); }}
+                      >
+                        {t('projectPicker.trash.deleteNow')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          {error && <p role="alert" className="pp-modal__sub">{t(error)}</p>}
+        </div>
+        <div className="pp-modal__foot">
+          {confirming ? (
+            <>
+              <button
+                type="button"
+                className="pp-modal__btn"
+                onClick={() => setConfirming(null)}
+                disabled={busy}
+                autoFocus
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                className="pp-modal__btn pp-modal__btn--danger"
+                onClick={() => void run(confirming.id, () => onDeleteNow(confirming.id),
+                  projectDeletionErrorKey)}
+                disabled={busy}
+              >
+                {busy ? t('projectPicker.delete.deleting') : t(canUseHostedService()
+                  ? 'projectPicker.delete.everywhere' : 'common.delete')}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="pp-modal__btn" onClick={onClose} disabled={busy} autoFocus>
+              {t('common.close')}
+            </button>
+          )}
         </div>
       </div>
     </div>

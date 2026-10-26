@@ -67,7 +67,7 @@ const WIRE_KIND: Readonly<Record<AuthoredDomainEntityKind, string>> = {
  * authority; their dedicated lifecycle/set/order/tuple/Yjs writers own them.
  */
 const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<string>>> = {
-  project: new Set(['name', 'summary']),
+  project: new Set(['name', 'summary', 'deletedAt']),
   node: new Set([
     'title',
     'summary',

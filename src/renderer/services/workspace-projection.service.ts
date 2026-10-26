@@ -61,7 +61,9 @@ export async function captureWorkspaceProjection(input: {
   const database = getDb();
   return database.transaction(async (tx) => {
     const project = await createProjectRepository(input.userId, tx).findById(input.projectId);
-    if (!project || project.userId !== input.userId) return null;
+    // A project in Recently Deleted is closed like a missing one, including
+    // when another device trashes it while it is open here.
+    if (!project || project.userId !== input.userId || project.deletedAt) return null;
 
     const coverage = await readWorkspaceProjectionCoverage(tx, input.projectId);
     const previous = input.previous;

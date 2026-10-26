@@ -119,6 +119,7 @@ const tables: SyncDomainTablePolicy[] = [
         'id',
         'name',
         'summary',
+        'deleted_at',
       ),
       group(
         'derived',

@@ -220,7 +220,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(10);
+    expect(journal.entries).toHaveLength(11);
+    expect(journal.entries[10]?.tag).toBe('0010_project_trash');
     expect(journal.entries[9]?.tag).toBe('0009_material_provenance');
     expect(journal.entries[8]?.tag).toBe('0008_sync_journal_truncation');
     expect(journal.entries[7]?.tag).toBe('0007_project_memory_tool_names');

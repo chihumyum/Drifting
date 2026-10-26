@@ -22,6 +22,14 @@ log.setLevel(LogLevel.levels.WARN);
 export type { ProjectStats, ProjectSummary } from '../domain/project-summary';
 
 const MAX_SHELF_METRIC_RECONCILE_CONCURRENCY = 2;
+/** A trashed project is permanently deleted (locally and from Hosted) after this many days. */
+export const PROJECT_TRASH_RETENTION_DAYS = 30;
+const PROJECT_TRASH_RETENTION_MS = PROJECT_TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1_000;
+
+/** When a project in Recently Deleted becomes eligible for permanent deletion. */
+export function projectTrashExpiresAt(deletedAt: string): Date {
+  return new Date(new Date(deletedAt).getTime() + PROJECT_TRASH_RETENTION_MS);
+}
 const MAX_SHELF_STATS_CONCURRENCY = 4;
 
 export interface CreateProjectInput {
@@ -261,6 +269,36 @@ export function useProject({ userId }: UseProjectContext) {
     [userId, ensureDb],
   );
 
+  /**
+   * Move a project to Recently Deleted. This is an ordinary synced field write:
+   * it works offline, hides the project on every device, and keeps all content
+   * (including the readable Markdown copy) until the permanent deletion.
+   */
+  const setProjectTrashed = useCallback(
+    async (id: string, trashed: boolean): Promise<boolean> => {
+      await ensureDb();
+      const now = new Date().toISOString();
+      const deletedAt = trashed ? now : null;
+      const result = await withAtomicSyncTransaction(id, async (tx, sync) => {
+        const updated = await createProjectRepository(userId, tx).setDeletedAt(id, deletedAt, now);
+        if (updated) await sync('project', 'update', id, id, { deletedAt });
+        return updated;
+      });
+      if (!result) return false;
+      if (trashed) useProjectStore.getState().removeProject(id);
+      return true;
+    },
+    [userId, ensureDb],
+  );
+  const trashProject = useCallback((id: string) => setProjectTrashed(id, true), [setProjectTrashed]);
+  const restoreProject = useCallback((id: string) => setProjectTrashed(id, false), [setProjectTrashed]);
+
+  const loadTrashedProjects = useCallback(async (): Promise<Project[]> => {
+    await ensureDb();
+    return await repo.findTrashed();
+  }, [repo, ensureDb]);
+
+  /** Permanently delete a project locally and from Hosted. */
   const deleteProject = useCallback(
     async (id: string): Promise<boolean> => {
       await ensureDb();
@@ -274,6 +312,27 @@ export function useProject({ userId }: UseProjectContext) {
     [ensureDb, userId],
   );
 
+  /**
+   * Permanently delete every project that has been in the trash for longer
+   * than the retention period. A failure (offline, Hosted unavailable) keeps
+   * the project in the trash for the next attempt.
+   */
+  const purgeExpiredTrashedProjects = useCallback(
+    async (now = new Date()): Promise<string[]> => {
+      const purged: string[] = [];
+      for (const project of await loadTrashedProjects()) {
+        if (!project.deletedAt || projectTrashExpiresAt(project.deletedAt) > now) continue;
+        try {
+          if (await deleteProject(project.id)) purged.push(project.id);
+        } catch (error) {
+          log.warn(`Expired trashed project ${project.id} could not be deleted yet`, error);
+        }
+      }
+      return purged;
+    },
+    [loadTrashedProjects, deleteProject],
+  );
+
   return useMemo(
     () => ({
       loadProjects,
@@ -281,8 +340,23 @@ export function useProject({ userId }: UseProjectContext) {
       loadProject,
       createProject,
       updateProject,
+      trashProject,
+      restoreProject,
+      loadTrashedProjects,
       deleteProject,
+      purgeExpiredTrashedProjects,
     }),
-    [loadProjects, loadProjectSummaries, loadProject, createProject, updateProject, deleteProject],
+    [
+      loadProjects,
+      loadProjectSummaries,
+      loadProject,
+      createProject,
+      updateProject,
+      trashProject,
+      restoreProject,
+      loadTrashedProjects,
+      deleteProject,
+      purgeExpiredTrashedProjects,
+    ],
   );
 }

@@ -402,6 +402,31 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect((await db.select().from(SyncChangeSetTable)).filter(({ origin }) => origin === 'local')).toEqual([]);
   });
 
+  it('moves a project to and from the trash by last-writer-wins, whatever the arrival order', async () => {
+    const db = await createDatabase();
+    const trashedAt = '2026-10-27T00:00:00.000Z';
+    const projectDeletedAt = async () =>
+      (await db.select({ deletedAt: ProjectTable.deletedAt }).from(ProjectTable))[0]?.deletedAt;
+    const trash = await changeSet(1, [
+      { action: 'field.set', kind: 'project', id: PROJECT_ID, payload: { field: 'deletedAt', value: trashedAt } },
+    ], { writerId: 'trashing-device', wallMs: 1_700_000_000_010 });
+    const restore = await changeSet(1, [
+      { action: 'field.set', kind: 'project', id: PROJECT_ID, payload: { field: 'deletedAt', value: null } },
+    ], { writerId: 'restoring-device', wallMs: 1_700_000_000_020 });
+
+    await apply(db, trash);
+    expect(await projectDeletedAt()).toBe(trashedAt);
+    await apply(db, restore);
+    expect(await projectDeletedAt()).toBeNull();
+
+    const reordered = await createDatabase();
+    await apply(reordered, restore);
+    await apply(reordered, trash);
+    expect(
+      (await reordered.select({ deletedAt: ProjectTable.deletedAt }).from(ProjectTable))[0]?.deletedAt,
+    ).toBeNull();
+  });
+
   it('accepts the domain writing statuses and rejects retired ones', async () => {
     const db = await createDatabase();
     await apply(db, await changeSet(1, [{

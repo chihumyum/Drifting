@@ -1,6 +1,6 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { ProjectTable } from '../schema/drizzle';
-import { eq, desc } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Project } from '../domain/project';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('ProjectRepositorySQLite');
@@ -10,7 +10,12 @@ export type ProjectUpdateData = Partial<Omit<Project, 'id' | 'createdAt'>> & { u
 
 export interface ProjectRepository {
   findById(id: string): Promise<Project | null>;
+  /** Projects on the bookshelf; trashed projects are excluded. */
   findAll(): Promise<Project[]>;
+  /** Projects in Recently Deleted, most recently trashed first. */
+  findTrashed(): Promise<Project[]>;
+  /** Move a project to or out of the trash without touching its content. */
+  setDeletedAt(id: string, deletedAt: string | null, updatedAt: string): Promise<Project | null>;
   create(input: Project): Promise<Project>;
   update(id: string, data: ProjectUpdateData): Promise<Project | null>;
   delete(id: string): Promise<boolean>;
@@ -29,6 +34,7 @@ function recordToDomain(record: typeof ProjectTable.$inferSelect): Project {
     summary: record.summary,
     kvJson: record.kvJson ?? '[]',
     storylineTemplateKvJson: record.storylineTemplateKvJson ?? '[]',
+    deletedAt: record.deletedAt ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -62,9 +68,31 @@ export function createProjectRepository(
     const rows = await dbProvider()
       .select()
       .from(ProjectTable)
-      .where(eq(ProjectTable.userId, userId))
+      .where(and(eq(ProjectTable.userId, userId), isNull(ProjectTable.deletedAt)))
       .orderBy(desc(ProjectTable.createdAt));
     return rows.map(recordToDomain);
+  };
+
+  const findTrashed = async (): Promise<Project[]> => {
+    const rows = await dbProvider()
+      .select()
+      .from(ProjectTable)
+      .where(and(eq(ProjectTable.userId, userId), isNotNull(ProjectTable.deletedAt)))
+      .orderBy(desc(ProjectTable.deletedAt));
+    return rows.map(recordToDomain);
+  };
+
+  const setDeletedAt = async (
+    id: string,
+    deletedAt: string | null,
+    updatedAt: string,
+  ): Promise<Project | null> => {
+    const res = await dbProvider()
+      .update(ProjectTable)
+      .set({ deletedAt, updatedAt })
+      .where(eq(ProjectTable.id, id))
+      .returning();
+    return res[0] ? recordToDomain(res[0]) : null;
   };
 
   const create = async (input: Project): Promise<Project> => {
@@ -129,6 +157,8 @@ export function createProjectRepository(
   return {
     findById,
     findAll,
+    findTrashed,
+    setDeletedAt,
     create,
     update,
     delete: deleteProject,

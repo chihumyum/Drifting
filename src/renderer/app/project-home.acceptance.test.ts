@@ -15,8 +15,9 @@ describe('Project Home cross-platform acceptance', () => {
     expect(actions).toContain('<AnchoredPopover');
     expect(actions).toContain("openDialog('delete')");
     expect(actions).toContain('menu-surface__item--danger');
-    expect(actions).toContain('await deleteProject(project.id)');
-    expect(actions.indexOf('if (!deleted) throw')).toBeLessThan(actions.indexOf('onProjectDeleted();'));
+    // Deleting from the workspace moves the project to Recently Deleted.
+    expect(actions).toContain('await trashProject(project.id)');
+    expect(actions.indexOf('if (!trashed) throw')).toBeLessThan(actions.indexOf('onProjectDeleted();'));
     expect(actions).toContain('disabled={busy} autoFocus');
     expect(actions).toContain('role="alert"');
     expect(actions).toContain('await updateProject(project.id,');
