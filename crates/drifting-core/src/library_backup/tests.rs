@@ -67,14 +67,39 @@ fn source_backup(root: &Path) -> (PathBuf, BackupSummary) {
     add_writer(&connection, "project-new");
     drop(connection);
     let assets = root.join("source-assets");
-    write_asset(&assets, "project-new", "asset-kept", "source.png", b"backup source");
-    write_asset(&assets, "project-new", "asset-kept", "display.jpg", b"backup display");
-    write_asset(&assets, "project-new", "asset-kept", "thumbnail.jpg", b"backup thumbnail");
-    write_asset(&assets, "project-new", "asset-kept", ".drifting-import-v1", b"session");
+    write_asset(
+        &assets,
+        "project-new",
+        "asset-kept",
+        "source.png",
+        b"backup source",
+    );
+    write_asset(
+        &assets,
+        "project-new",
+        "asset-kept",
+        "display.jpg",
+        b"backup display",
+    );
+    write_asset(
+        &assets,
+        "project-new",
+        "asset-kept",
+        "thumbnail.jpg",
+        b"backup thumbnail",
+    );
+    write_asset(
+        &assets,
+        "project-new",
+        "asset-kept",
+        ".drifting-import-v1",
+        b"session",
+    );
     let snapshot_path = root.join("snapshot.sqlite");
     snapshot(&database, &snapshot_path);
     let package = root.join("out").join("backup.drifting");
-    let summary = write_backup_package(&snapshot_path, &assets, &package, "0.1.0-test", 1_000).unwrap();
+    let summary =
+        write_backup_package(&snapshot_path, &assets, &package, "0.1.0-test", 1_000).unwrap();
     (package, summary)
 }
 
@@ -82,7 +107,10 @@ fn plan(root: &Path, staging: &Path, assets: &Path) -> LibraryRestorePlan {
     LibraryRestorePlan {
         staging: staging.to_path_buf(),
         assets_root: assets.to_path_buf(),
-        safety_directory: root.join("databases").join("safety-backups").join("pre-restore"),
+        safety_directory: root
+            .join("databases")
+            .join("safety-backups")
+            .join("pre-restore"),
         app_version: "0.1.0-test".into(),
         now_ms: 2_000,
     }
@@ -92,10 +120,22 @@ fn plan(root: &Path, staging: &Path, assets: &Path) -> LibraryRestorePlan {
 fn export_lists_projects_and_every_referenced_asset_file() {
     let directory = tempfile::tempdir().unwrap();
     let (package, summary) = source_backup(directory.path());
-    assert_eq!(summary.projects, vec![BackupProject { id: "project-new".into(), name: "雾港".into() }]);
-    assert_eq!(summary.asset_file_count, 3, "the import marker is not packaged");
+    assert_eq!(
+        summary.projects,
+        vec![BackupProject {
+            id: "project-new".into(),
+            name: "雾港".into()
+        }]
+    );
+    assert_eq!(
+        summary.asset_file_count, 3,
+        "the import marker is not packaged"
+    );
     assert_eq!(summary.missing_asset_count, 1);
-    assert_eq!(summary.package_size_bytes, fs::metadata(&package).unwrap().len());
+    assert_eq!(
+        summary.package_size_bytes,
+        fs::metadata(&package).unwrap().len()
+    );
     let mut archive = ZipArchive::new(File::open(&package).unwrap()).unwrap();
     let mut names: Vec<_> = archive.file_names().map(str::to_owned).collect();
     names.sort();
@@ -126,14 +166,33 @@ fn restore_replaces_the_library_merges_assets_and_keeps_a_pre_restore_package() 
     add_asset(&connection, "project-old", "asset-old");
     drop(connection);
     let assets = root.join("target-assets");
-    write_asset(&assets, "project-old", "asset-old", "source.png", b"old source");
-    write_asset(&assets, "project-new", "asset-kept", "source.png", b"corrupt");
-    write_asset(&assets, "project-new", "asset-kept", "display.jpg", b"local display");
+    write_asset(
+        &assets,
+        "project-old",
+        "asset-old",
+        "source.png",
+        b"old source",
+    );
+    write_asset(
+        &assets,
+        "project-new",
+        "asset-kept",
+        "source.png",
+        b"corrupt",
+    );
+    write_asset(
+        &assets,
+        "project-new",
+        "asset-kept",
+        "display.jpg",
+        b"local display",
+    );
 
     let staging = databases.join("library-restore").join("restore-1");
     let staged = stage_backup_package(&package, &staging, "drifting-library.db", NOW).unwrap();
     assert_eq!(staged.projects.len(), 1);
-    let outcome = restore_staged_backup(&databases, &target, &plan(root, &staging, &assets)).unwrap();
+    let outcome =
+        restore_staged_backup(&databases, &target, &plan(root, &staging, &assets)).unwrap();
 
     let restored = Connection::open(&target).unwrap();
     let projects: Vec<(String, String)> = restored
@@ -143,7 +202,10 @@ fn restore_replaces_the_library_merges_assets_and_keeps_a_pre_restore_package() 
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap();
-    assert_eq!(projects, vec![("project-new".into(), "drifting-library.db".into())]);
+    assert_eq!(
+        projects,
+        vec![("project-new".into(), "drifting-library.db".into())]
+    );
     let active_writers: i64 = restored
         .query_row(
             "SELECT count(*) FROM sync_generation_writer_state WHERE retired_at IS NULL",
@@ -151,25 +213,54 @@ fn restore_replaces_the_library_merges_assets_and_keeps_a_pre_restore_package() 
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(active_writers, 0, "restored writers must not reuse published sequences");
+    assert_eq!(
+        active_writers, 0,
+        "restored writers must not reuse published sequences"
+    );
     drop(restored);
 
     let kept = assets.join("project-new").join("asset-kept");
     assert_eq!(fs::read(kept.join("source.png")).unwrap(), b"backup source");
-    assert_eq!(fs::read(kept.join("display.jpg")).unwrap(), b"local display");
-    assert_eq!(fs::read(kept.join("thumbnail.jpg")).unwrap(), b"backup thumbnail");
     assert_eq!(
-        fs::read(assets.join("project-old").join("asset-old").join("source.png")).unwrap(),
+        fs::read(kept.join("display.jpg")).unwrap(),
+        b"local display"
+    );
+    assert_eq!(
+        fs::read(kept.join("thumbnail.jpg")).unwrap(),
+        b"backup thumbnail"
+    );
+    assert_eq!(
+        fs::read(
+            assets
+                .join("project-old")
+                .join("asset-old")
+                .join("source.png")
+        )
+        .unwrap(),
         b"old source",
         "merging never removes asset files"
     );
     assert!(!staging.exists());
 
-    let name = outcome.pre_restore_package.expect("the replaced library is packaged");
+    let name = outcome
+        .pre_restore_package
+        .expect("the replaced library is packaged");
     assert_eq!(outcome.restored_project_count, 1);
     let previous = plan(root, &staging, &assets).safety_directory.join(name);
-    let rollback = stage_backup_package(&previous, &databases.join("rollback"), "drifting-library.db", NOW).unwrap();
-    assert_eq!(rollback.projects, vec![BackupProject { id: "project-old".into(), name: "旧项目".into() }]);
+    let rollback = stage_backup_package(
+        &previous,
+        &databases.join("rollback"),
+        "drifting-library.db",
+        NOW,
+    )
+    .unwrap();
+    assert_eq!(
+        rollback.projects,
+        vec![BackupProject {
+            id: "project-old".into(),
+            name: "旧项目".into()
+        }]
+    );
     assert_eq!(rollback.asset_file_count, 1);
 }
 
@@ -189,8 +280,14 @@ fn backups_and_restores_refuse_cloud_bound_libraries() {
     drop(connection);
     let snapshot_path = root.join("snapshot.sqlite");
     snapshot(&database, &snapshot_path);
-    let error = write_backup_package(&snapshot_path, &root.join("assets"), &root.join("out.drifting"), "0.1.0-test", 1)
-        .unwrap_err();
+    let error = write_backup_package(
+        &snapshot_path,
+        &root.join("assets"),
+        &root.join("out.drifting"),
+        "0.1.0-test",
+        1,
+    )
+    .unwrap_err();
     assert!(error.starts_with("library-sync-connected"), "{error}");
     assert!(!root.join("out.drifting").exists());
 
@@ -201,17 +298,33 @@ fn backups_and_restores_refuse_cloud_bound_libraries() {
     fs::create_dir_all(&databases).unwrap();
     let staging = databases.join("restore");
     stage_backup_package(&package, &staging, "drifting-library.db", NOW).unwrap();
-    let error = restore_staged_backup(&databases, &database, &plan(root, &staging, &root.join("assets")))
-        .unwrap_err();
+    let error = restore_staged_backup(
+        &databases,
+        &database,
+        &plan(root, &staging, &root.join("assets")),
+    )
+    .unwrap_err();
     assert!(error.starts_with("library-sync-connected"), "{error}");
     let still_connecting: String = Connection::open(&database)
         .unwrap()
-        .query_row("SELECT transition_state FROM sync_app_authority", [], |row| row.get(0))
+        .query_row(
+            "SELECT transition_state FROM sync_app_authority",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
-    assert_eq!(still_connecting, "connecting", "a refused restore leaves the library untouched");
+    assert_eq!(
+        still_connecting, "connecting",
+        "a refused restore leaves the library untouched"
+    );
 }
 
-fn rewrite_package(source: &Path, destination: &Path, edit: impl Fn(&str, Vec<u8>) -> Option<Vec<u8>>, extra: Option<(&str, &[u8])>) {
+fn rewrite_package(
+    source: &Path,
+    destination: &Path,
+    edit: impl Fn(&str, Vec<u8>) -> Option<Vec<u8>>,
+    extra: Option<(&str, &[u8])>,
+) {
     let mut archive = ZipArchive::new(File::open(source).unwrap()).unwrap();
     let mut zip = ZipWriter::new(File::create(destination).unwrap());
     for index in 0..archive.len() {
@@ -241,7 +354,13 @@ fn staging_rejects_tampered_unexpected_and_traversal_entries() {
     rewrite_package(
         &package,
         &tampered,
-        |name, bytes| Some(if name.ends_with("source.png") { b"backup sourcX".to_vec() } else { bytes }),
+        |name, bytes| {
+            Some(if name.ends_with("source.png") {
+                b"backup sourcX".to_vec()
+            } else {
+                bytes
+            })
+        },
         None,
     );
     let error = stage_backup_package(&tampered, &root.join("s1"), "u", NOW).unwrap_err();
@@ -249,7 +368,12 @@ fn staging_rejects_tampered_unexpected_and_traversal_entries() {
     assert!(!root.join("s1").exists(), "failed staging is removed");
 
     let extra = root.join("extra.drifting");
-    rewrite_package(&package, &extra, |_, bytes| Some(bytes), Some(("notes.txt", b"hello")));
+    rewrite_package(
+        &package,
+        &extra,
+        |_, bytes| Some(bytes),
+        Some(("notes.txt", b"hello")),
+    );
     let error = stage_backup_package(&extra, &root.join("s2"), "u", NOW).unwrap_err();
     assert!(error.contains("unexpected entries"), "{error}");
 
@@ -261,7 +385,10 @@ fn staging_rejects_tampered_unexpected_and_traversal_entries() {
             Some(if name == MANIFEST_PATH {
                 String::from_utf8(bytes)
                     .unwrap()
-                    .replace("assets/project-new/asset-kept/source.png", "assets/../../escape/source.png")
+                    .replace(
+                        "assets/project-new/asset-kept/source.png",
+                        "assets/../../escape/source.png",
+                    )
                     .into_bytes()
             } else {
                 bytes
@@ -288,7 +415,11 @@ fn staging_rejects_a_backup_from_a_newer_build() {
     let manifest_bytes = {
         let mut archive = ZipArchive::new(File::open(&package).unwrap()).unwrap();
         let mut bytes = Vec::new();
-        archive.by_name(DATABASE_PATH).unwrap().read_to_end(&mut bytes).unwrap();
+        archive
+            .by_name(DATABASE_PATH)
+            .unwrap()
+            .read_to_end(&mut bytes)
+            .unwrap();
         fs::write(&database, bytes).unwrap();
         let connection = Connection::open(&database).unwrap();
         connection
@@ -301,7 +432,11 @@ fn staging_rejects_a_backup_from_a_newer_build() {
         let (sha256, size_bytes) = file_sha256(&database).unwrap();
         let mut manifest: BackupManifest = {
             let mut bytes = Vec::new();
-            archive.by_name(MANIFEST_PATH).unwrap().read_to_end(&mut bytes).unwrap();
+            archive
+                .by_name(MANIFEST_PATH)
+                .unwrap()
+                .read_to_end(&mut bytes)
+                .unwrap();
             serde_json::from_slice(&bytes).unwrap()
         };
         manifest.database.sha256 = sha256;
@@ -330,7 +465,9 @@ fn pre_restore_packages_keep_the_three_newest() {
     let directory = tempfile::tempdir().unwrap();
     for stamp in 1..=5u64 {
         fs::write(
-            directory.path().join(format!("{PRE_RESTORE_PREFIX}{stamp:016}.{BACKUP_EXTENSION}")),
+            directory.path().join(format!(
+                "{PRE_RESTORE_PREFIX}{stamp:016}.{BACKUP_EXTENSION}"
+            )),
             b"x",
         )
         .unwrap();
@@ -378,7 +515,12 @@ fn gateway_restore_replaces_the_open_library_or_reopens_it_on_failure() {
         .unwrap();
     let project_ids = |session: &str| -> Result<Vec<DatabaseValue>, String> {
         gateway
-            .query("SELECT id FROM project".into(), Vec::new(), None, session.into())
+            .query(
+                "SELECT id FROM project".into(),
+                Vec::new(),
+                None,
+                session.into(),
+            )
             .map(|result| result.rows.into_iter().flatten().collect())
     };
 
@@ -386,14 +528,28 @@ fn gateway_restore_replaces_the_open_library_or_reopens_it_on_failure() {
     gateway
         .snapshot_active_database(snapshot_path.clone(), SESSION.into())
         .unwrap();
-    let exported =
-        write_backup_package(&snapshot_path, &assets, &root.join("gateway.drifting"), "0.1.0-test", 3).unwrap();
+    let exported = write_backup_package(
+        &snapshot_path,
+        &assets,
+        &root.join("gateway.drifting"),
+        "0.1.0-test",
+        3,
+    )
+    .unwrap();
     assert_eq!(exported.projects[0].id, "project-old");
 
-    let mut restore = plan(root, &databases.join("library-restore").join("absent"), &assets);
+    let mut restore = plan(
+        root,
+        &databases.join("library-restore").join("absent"),
+        &assets,
+    );
     restore.app_version = env!("CARGO_PKG_VERSION").into();
     let error = gateway
-        .restore_library_backup("drifting-library.db".into(), restore.clone(), SESSION.into())
+        .restore_library_backup(
+            "drifting-library.db".into(),
+            restore.clone(),
+            SESSION.into(),
+        )
         .unwrap_err();
     assert!(error.contains("no longer available"), "{error}");
     assert_eq!(
@@ -408,9 +564,16 @@ fn gateway_restore_replaces_the_open_library_or_reopens_it_on_failure() {
         .restore_library_backup("drifting-library.db".into(), restore, SESSION.into())
         .unwrap();
     assert!(outcome.pre_restore_package.is_some());
-    assert!(project_ids(SESSION).is_err(), "the restored library stays closed");
+    assert!(
+        project_ids(SESSION).is_err(),
+        "the restored library stays closed"
+    );
     gateway
-        .open("drifting-library.db".into(), "reloaded-renderer".into(), false)
+        .open(
+            "drifting-library.db".into(),
+            "reloaded-renderer".into(),
+            false,
+        )
         .unwrap();
     assert_eq!(
         project_ids("reloaded-renderer").unwrap(),

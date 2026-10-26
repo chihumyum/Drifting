@@ -104,7 +104,11 @@ pub struct LibraryRestoreOutcome {
 }
 
 fn sha256_hex(digest: impl AsRef<[u8]>) -> String {
-    digest.as_ref().iter().map(|byte| format!("{byte:02x}")).collect()
+    digest
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn file_sha256(path: &Path) -> io::Result<(String, u64)> {
@@ -136,7 +140,10 @@ fn require_local_authority(connection: &Connection) -> Result<(), String> {
         .map_err(|error| format!("failed to read the library sync mode: {error}"))?;
     match authority {
         Some((mode, state)) if mode == "local" && state == "stable" => Ok(()),
-        Some(_) => Err("library-sync-connected: disconnect sync before backing up or restoring the library".into()),
+        Some(_) => Err(
+            "library-sync-connected: disconnect sync before backing up or restoring the library"
+                .into(),
+        ),
         None => Err("the library has no sync authority record".into()),
     }
 }
@@ -213,7 +220,8 @@ fn add_file<W: Write + Seek>(
         hasher: Sha256::new(),
         size: 0,
     };
-    io::copy(&mut reader, zip).map_err(|error| format!("failed to add {entry} to the backup: {error}"))?;
+    io::copy(&mut reader, zip)
+        .map_err(|error| format!("failed to add {entry} to the backup: {error}"))?;
     Ok(BackupFile {
         path: entry.to_owned(),
         sha256: sha256_hex(reader.hasher.finalize()),
@@ -239,7 +247,12 @@ pub fn write_backup_package(
             .prepare("SELECT id, name FROM project ORDER BY created_at, id")
             .map_err(|error| format!("failed to list backup projects: {error}"))?;
         let rows = statement
-            .query_map([], |row| Ok(BackupProject { id: row.get(0)?, name: row.get(1)? }))
+            .query_map([], |row| {
+                Ok(BackupProject {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            })
             .map_err(|error| format!("failed to list backup projects: {error}"))?;
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(|error| format!("failed to list backup projects: {error}"))?
@@ -249,7 +262,9 @@ pub fn write_backup_package(
             .prepare("SELECT project_id, id FROM project_asset ORDER BY project_id, id")
             .map_err(|error| format!("failed to list backup assets: {error}"))?;
         let rows = statement
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
             .map_err(|error| format!("failed to list backup assets: {error}"))?;
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(|error| format!("failed to list backup assets: {error}"))?
@@ -264,7 +279,12 @@ pub fn write_backup_package(
         let file = File::create(&temporary)
             .map_err(|error| format!("failed to create the backup file: {error}"))?;
         let mut zip = ZipWriter::new(file);
-        let database = add_file(&mut zip, DATABASE_PATH, snapshot, CompressionMethod::Deflated)?;
+        let database = add_file(
+            &mut zip,
+            DATABASE_PATH,
+            snapshot,
+            CompressionMethod::Deflated,
+        )?;
         let mut assets = Vec::new();
         let mut missing_assets = 0u64;
         for (project_id, asset_id) in &referenced_assets {
@@ -295,7 +315,12 @@ pub fn write_backup_package(
                     continue;
                 }
                 let path = format!("{ASSETS_PREFIX}{project}/{asset}/{name}");
-                assets.push(add_file(&mut zip, &path, &entry.path(), CompressionMethod::Stored)?);
+                assets.push(add_file(
+                    &mut zip,
+                    &path,
+                    &entry.path(),
+                    CompressionMethod::Stored,
+                )?);
             }
         }
         let manifest = BackupManifest {
@@ -374,11 +399,17 @@ fn extract_verified<R: Read + Seek>(
     expected: &BackupFile,
     destination: &Path,
 ) -> Result<(), String> {
-    let mut entry = archive
-        .by_name(&expected.path)
-        .map_err(|_| format!("backup-invalid: {} is missing from the backup", expected.path))?;
+    let mut entry = archive.by_name(&expected.path).map_err(|_| {
+        format!(
+            "backup-invalid: {} is missing from the backup",
+            expected.path
+        )
+    })?;
     if entry.size() != expected.size_bytes {
-        return Err(format!("backup-invalid: {} has the wrong size", expected.path));
+        return Err(format!(
+            "backup-invalid: {} has the wrong size",
+            expected.path
+        ));
     }
     ensure_parent_directory(destination)
         .map_err(|error| format!("failed to stage {}: {error}", expected.path))?;
@@ -391,10 +422,12 @@ fn extract_verified<R: Read + Seek>(
     };
     io::copy(&mut reader, &mut output)
         .map_err(|error| format!("failed to stage {}: {error}", expected.path))?;
-    if reader.size != expected.size_bytes
-        || sha256_hex(reader.hasher.finalize()) != expected.sha256
+    if reader.size != expected.size_bytes || sha256_hex(reader.hasher.finalize()) != expected.sha256
     {
-        return Err(format!("backup-invalid: {} does not match its checksum", expected.path));
+        return Err(format!(
+            "backup-invalid: {} does not match its checksum",
+            expected.path
+        ));
     }
     output
         .sync_all()
@@ -429,7 +462,8 @@ fn stage_into(
     project_user_id: &str,
     now_iso: &str,
 ) -> Result<BackupSummary, String> {
-    let file = File::open(package).map_err(|error| format!("failed to open the backup: {error}"))?;
+    let file =
+        File::open(package).map_err(|error| format!("failed to open the backup: {error}"))?;
     let package_size_bytes = file
         .metadata()
         .map_err(|error| format!("failed to open the backup: {error}"))?
@@ -454,11 +488,14 @@ fn stage_into(
     };
     validate_manifest(&manifest)?;
 
-    let mut expected: HashSet<&str> = manifest.assets.iter().map(|asset| asset.path.as_str()).collect();
+    let mut expected: HashSet<&str> = manifest
+        .assets
+        .iter()
+        .map(|asset| asset.path.as_str())
+        .collect();
     expected.insert(MANIFEST_PATH);
     expected.insert(DATABASE_PATH);
-    if archive.len() != expected.len()
-        || archive.file_names().any(|name| !expected.contains(name))
+    if archive.len() != expected.len() || archive.file_names().any(|name| !expected.contains(name))
     {
         return Err("backup-invalid: the backup contains unexpected entries".into());
     }
@@ -522,8 +559,9 @@ fn validate_staged_candidate(
 }
 
 fn read_staged_manifest(staging: &Path) -> Result<BackupManifest, String> {
-    let bytes = fs::read(staging.join(STAGED_MANIFEST_FILE))
-        .map_err(|_| "the staged backup is no longer available; choose the file again".to_string())?;
+    let bytes = fs::read(staging.join(STAGED_MANIFEST_FILE)).map_err(|_| {
+        "the staged backup is no longer available; choose the file again".to_string()
+    })?;
     serde_json::from_slice(&bytes)
         .map_err(|_| "the staged backup is no longer available; choose the file again".to_string())
 }
@@ -531,10 +569,15 @@ fn read_staged_manifest(staging: &Path) -> Result<BackupManifest, String> {
 /// Copy staged asset files into the asset store without removing anything.
 /// Asset identifiers are immutable, so an existing derivative is kept and an
 /// existing source is replaced only when it no longer matches the backup.
-fn merge_assets(staging: &Path, assets_root: &Path, manifest: &BackupManifest) -> Result<(), String> {
+fn merge_assets(
+    staging: &Path,
+    assets_root: &Path,
+    manifest: &BackupManifest,
+) -> Result<(), String> {
     fs::create_dir_all(assets_root)
         .map_err(|error| format!("failed to prepare the asset store: {error}"))?;
-    real_directory(assets_root).map_err(|error| format!("failed to prepare the asset store: {error}"))?;
+    real_directory(assets_root)
+        .map_err(|error| format!("failed to prepare the asset store: {error}"))?;
     let mut created_projects = HashSet::new();
     for asset in &manifest.assets {
         let (project, asset_id, file) =
@@ -542,7 +585,8 @@ fn merge_assets(staging: &Path, assets_root: &Path, manifest: &BackupManifest) -
         let project_directory = assets_root.join(project);
         let directory = project_directory.join(asset_id);
         for path in [&project_directory, &directory] {
-            real_directory(path).map_err(|error| format!("failed to restore asset files: {error}"))?;
+            real_directory(path)
+                .map_err(|error| format!("failed to restore asset files: {error}"))?;
         }
         let target = directory.join(file);
         match fs::symlink_metadata(&target) {
@@ -588,7 +632,8 @@ fn retain_recent_pre_restore_packages(directory: &Path) -> Result<(), String> {
     // Names embed a zero-padded millisecond timestamp, so they sort by age.
     packages.sort_by(|left, right| right.0.cmp(&left.0));
     for (_, path) in packages.into_iter().skip(PRE_RESTORE_PACKAGES_RETAINED) {
-        fs::remove_file(path).map_err(|error| format!("failed to prune a pre-restore backup: {error}"))?;
+        fs::remove_file(path)
+            .map_err(|error| format!("failed to prune a pre-restore backup: {error}"))?;
     }
     Ok(())
 }
@@ -636,7 +681,9 @@ pub(crate) fn restore_staged_backup(
     let candidate = plan.staging.join(CANDIDATE_FILE);
     {
         let connection = Connection::open_with_flags(&candidate, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|_| "the staged backup is no longer available; choose the file again".to_string())?;
+            .map_err(|_| {
+                "the staged backup is no longer available; choose the file again".to_string()
+            })?;
         validate_database_truth(&connection)?;
     }
     let pre_restore_package = save_pre_restore_package(database_path, plan)?;

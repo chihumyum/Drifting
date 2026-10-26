@@ -128,9 +128,10 @@ pub async fn library_backup_export(
     let file_name = file_name_of(&destination);
     let summary = run_blocking(move || {
         let created_at_ms = now_ms()?;
-        let snapshot = gateway
-            .database_directory()
-            .join(format!(".library-backup-{created_at_ms}-{}.sqlite", new_restore_id()?));
+        let snapshot = gateway.database_directory().join(format!(
+            ".library-backup-{created_at_ms}-{}.sqlite",
+            new_restore_id()?
+        ));
         gateway.snapshot_active_database(snapshot.clone(), client_session_id)?;
         let written = write_backup_package(
             &snapshot,
