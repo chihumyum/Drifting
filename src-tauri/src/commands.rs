@@ -297,6 +297,7 @@ pub fn lifecycle_complete_flush(
             }
         }
         ShutdownAction::ExitApp => app.exit(0),
+        ShutdownAction::RestartApp => app.restart(),
     }
     Ok(true)
 }

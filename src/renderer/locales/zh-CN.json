@@ -680,11 +680,14 @@
       "confirm_install": "安装签名更新",
       "install_migration_safety": "若新版本需要修改本地数据，下次启动会先创建经过校验的 SQLite 安全快照，只在隔离 candidate 中迁移并通过检查后才激活。",
       "dismiss": "暂不更新",
+      "installing": "正在保存并安装…",
+      "save_failed": "本地修改暂时没能保存，所以没有安装更新。正在写的内容仍然打开着，请稍后再试。",
       "error": "更新器已安全停止：{{error}}",
       "states": {
         "checking": "正在读取签名 Alpha channel manifest…",
         "available": "签名更新已可下载。",
         "downloading": "正在下载并校验…",
+        "installing": "正在保存本地修改并安装，完成后自动重启…",
         "ready": "签名更新已准备安装。",
         "error": "更新器已停止，当前安装没有被修改。"
       }

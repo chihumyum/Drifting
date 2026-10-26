@@ -118,8 +118,38 @@ fn finish_shutdown(
             }
         }
         Some(ShutdownAction::ExitApp) => app.exit(0),
+        Some(ShutdownAction::RestartApp) => app.restart(),
         None => {}
     }
+}
+
+/// Ask the renderer to drain local persistence, then end the process with
+/// `action`. The renderer confirms through `lifecycle_complete_flush`; the
+/// same deadline as an ordinary quit keeps a stuck renderer from blocking it.
+/// Returns `false` when there is no renderer to flush.
+pub(crate) fn request_flushed_shutdown(app: &tauri::AppHandle, action: ShutdownAction) -> bool {
+    let Some(window) = app.get_webview_window("main") else {
+        return false;
+    };
+    let coordinator = app.state::<Arc<CloseCoordinator>>().inner().clone();
+    let request_id = coordinator.begin(action);
+    let _ = window.emit(
+        LIFECYCLE_EVENT,
+        LifecyclePayload {
+            event: "flush-requested",
+            request_id: Some(request_id),
+            deadline_ms: Some(CLOSE_FLUSH_TIMEOUT.as_millis() as u64),
+            reason: Some("shutdown"),
+            confirmation_required: true,
+        },
+    );
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(CLOSE_FLUSH_TIMEOUT);
+        finish_shutdown(app, None, &coordinator, request_id);
+    });
+    true
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -487,27 +517,11 @@ pub fn run() {
                 return;
             }
 
-            let Some(window) = app_handle.get_webview_window("main") else {
+            if app_handle.get_webview_window("main").is_none() {
                 return;
-            };
+            }
             api.prevent_exit();
-            let request_id = coordinator.begin(ShutdownAction::ExitApp);
-            let _ = window.emit(
-                LIFECYCLE_EVENT,
-                LifecyclePayload {
-                    event: "flush-requested",
-                    request_id: Some(request_id),
-                    deadline_ms: Some(CLOSE_FLUSH_TIMEOUT.as_millis() as u64),
-                    reason: Some("shutdown"),
-                    confirmation_required: true,
-                },
-            );
-
-            let app = app_handle.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(CLOSE_FLUSH_TIMEOUT);
-                finish_shutdown(app, None, &coordinator, request_id);
-            });
+            request_flushed_shutdown(app_handle, ShutdownAction::ExitApp);
         }
         _ => {}
     });

@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
-import { UpdateService } from '../../../services/update/update-service';
+import { UPDATE_LOCAL_SAVE_FAILED, UpdateService } from '../../../services/update/update-service';
 import { createSanitizedDiagnosticSummary } from '../../../services/diagnostics/sanitized-summary';
 import { getSanitizedGoogleDriveOperationTraces } from '../../../services/diagnostics/google-drive-operation-trace';
 import {
@@ -262,7 +262,8 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
   const [installArmed, setInstallArmed] = useState(false);
   const updaterAvailable =
     getPlatformRuntime().capabilities?.featureStatus.appUpdater === 'available';
-  const busy = update.phase === 'checking' || update.phase === 'downloading';
+  const busy =
+    update.phase === 'checking' || update.phase === 'downloading' || update.phase === 'installing';
   const progress =
     update.totalBytes && update.totalBytes > 0
       ? Math.min(100, Math.round((update.downloadedBytes / update.totalBytes) * 100))
@@ -338,6 +339,10 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
                     {t('settings.update.install')}
                   </button>
                 )
+              ) : update.phase === 'installing' ? (
+                <button type="button" className="set-btn set-btn--primary" disabled>
+                  {t('settings.update.installing')}
+                </button>
               ) : (
                 <button
                   type="button"
@@ -364,10 +369,12 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
           )}
           {update.error && (
             <div className="set-note" style={{ color: 'hsl(var(--accent))' }}>
-              {t('settings.update.error', { error: update.error })}
+              {update.error === UPDATE_LOCAL_SAVE_FAILED
+                ? t('settings.update.save_failed')
+                : t('settings.update.error', { error: update.error })}
             </div>
           )}
-          {update.update && update.phase !== 'downloading' && (
+          {update.update && !busy && (
             <button
               type="button"
               className="set-btn"

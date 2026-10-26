@@ -9,6 +9,8 @@ const NO_PENDING_ACTION: u8 = 0;
 pub enum ShutdownAction {
     CloseWindow = 1,
     ExitApp = 2,
+    /// Relaunch after a verified update was installed.
+    RestartApp = 3,
 }
 
 impl ShutdownAction {
@@ -16,7 +18,18 @@ impl ShutdownAction {
         match value {
             value if value == Self::CloseWindow as u8 => Some(Self::CloseWindow),
             value if value == Self::ExitApp as u8 => Some(Self::ExitApp),
+            value if value == Self::RestartApp as u8 => Some(Self::RestartApp),
             _ => None,
+        }
+    }
+
+    /// Ending the process outranks hiding a window, and an explicit quit
+    /// outranks the relaunch that follows an installed update.
+    fn rank(self) -> u8 {
+        match self {
+            Self::CloseWindow => 0,
+            Self::RestartApp => 1,
+            Self::ExitApp => 2,
         }
     }
 }
@@ -78,12 +91,16 @@ impl CloseCoordinator {
     pub fn begin(&self, action: ShutdownAction) -> u64 {
         let pending = self.pending_request_id.load(Ordering::Acquire);
         if pending != NO_PENDING_REQUEST {
-            // A full app exit subsumes a window close. Never downgrade it when
-            // CloseRequested and ExitRequested arrive in either order.
-            if action == ShutdownAction::ExitApp {
+            // One flush covers every overlapping request. Never downgrade the
+            // pending action when requests arrive in either order.
+            let _ =
                 self.pending_action
-                    .store(ShutdownAction::ExitApp as u8, Ordering::Release);
-            }
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                        match ShutdownAction::from_u8(current) {
+                            Some(current) if current.rank() >= action.rank() => None,
+                            _ => Some(action as u8),
+                        }
+                    });
             return pending;
         }
 
@@ -168,6 +185,25 @@ mod tests {
         let coordinator = CloseCoordinator::default();
         let request_id = coordinator.begin(ShutdownAction::CloseWindow);
         assert_eq!(coordinator.begin(ShutdownAction::ExitApp), request_id);
+        assert_eq!(
+            coordinator.complete(request_id),
+            Some(ShutdownAction::ExitApp)
+        );
+    }
+
+    #[test]
+    fn an_update_restart_outranks_a_window_close_but_not_a_quit() {
+        let coordinator = CloseCoordinator::default();
+        let request_id = coordinator.begin(ShutdownAction::CloseWindow);
+        assert_eq!(coordinator.begin(ShutdownAction::RestartApp), request_id);
+        assert_eq!(coordinator.begin(ShutdownAction::CloseWindow), request_id);
+        assert_eq!(
+            coordinator.complete(request_id),
+            Some(ShutdownAction::RestartApp)
+        );
+
+        let request_id = coordinator.begin(ShutdownAction::ExitApp);
+        assert_eq!(coordinator.begin(ShutdownAction::RestartApp), request_id);
         assert_eq!(
             coordinator.complete(request_id),
             Some(ShutdownAction::ExitApp)

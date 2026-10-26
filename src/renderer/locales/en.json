@@ -680,11 +680,14 @@
       "confirm_install": "Install signed update",
       "install_migration_safety": "If the new version needs to change local data, the next launch creates a verified SQLite safety snapshot and migrates an isolated candidate before activating it.",
       "dismiss": "Not now",
+      "installing": "Saving and installing…",
+      "save_failed": "Local changes could not be saved, so the update was not installed. Your writing is still open; try again in a moment.",
       "error": "Updater stopped safely: {{error}}",
       "states": {
         "checking": "Reading the signed Alpha channel manifest…",
         "available": "A signed update is ready to download.",
         "downloading": "Downloading and verifying…",
+        "installing": "Saving local changes, installing, then relaunching…",
         "ready": "The signed update is ready to install.",
         "error": "The updater stopped without changing the installed app."
       }

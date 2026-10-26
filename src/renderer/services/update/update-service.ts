@@ -1,9 +1,12 @@
 import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import type { AppUpdateMetadata } from '../../platform/contracts';
+import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
 
 const AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 const LAST_CHECK_KEY = 'drifting.alpha-updater.last-check.v1';
+/** Published as `error` when local writes could not be saved before installing. */
+export const UPDATE_LOCAL_SAVE_FAILED = 'UPDATE_LOCAL_SAVE_FAILED';
 
 export type UpdateServicePhase =
   | 'idle'
@@ -11,6 +14,7 @@ export type UpdateServicePhase =
   | 'available'
   | 'downloading'
   | 'ready'
+  | 'installing'
   | 'error';
 
 export interface UpdateServiceState {
@@ -141,11 +145,23 @@ async function install(): Promise<void> {
   }
   if (activeOperation) throw new Error('Another updater operation is still running');
   const operation = (async () => {
+    publish({ ...state, phase: 'installing', error: null });
     try {
-      await platform.updater.install();
-    } catch (error) {
-      publish({ ...state, phase: 'error', error: errorMessage(error) });
-      throw error;
+      // Installing ends in a relaunch. Refuse to start it until every local
+      // write is durable; the verified download stays ready for a retry.
+      try {
+        await flushLocalApplicationPersistence();
+      } catch (error) {
+        publish({ ...state, phase: 'ready', error: UPDATE_LOCAL_SAVE_FAILED });
+        throw error;
+      }
+      try {
+        // Native installs, then relaunches through the ordinary quit flush.
+        await platform.updater.install();
+      } catch (error) {
+        publish({ ...state, phase: 'error', error: errorMessage(error) });
+        throw error;
+      }
     } finally {
       activeOperation = null;
     }

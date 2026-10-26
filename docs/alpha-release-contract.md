@@ -29,6 +29,12 @@ touches SQLite, the native layer creates and verifies an internal safety
 snapshot, migrates only an isolated candidate, and activates it only after
 integrity, foreign-key, and migration-journal checks pass.
 
+Installing a downloaded update first drains every local durability lane
+(editor, Yjs, snapshot history, assets, sync journal, SQLite checkpoint). If
+that fails, nothing is installed and the verified download stays ready for a
+retry. After the native install, the relaunch goes through the same flush
+barrier and deadline as an ordinary quit; it never restarts directly.
+
 The Alpha does not expose a whole-library backup/import format or a
 same-ProjectSync replacement workflow. Internal migration snapshots are not a
 general Settings product and appear only when database recovery is required.

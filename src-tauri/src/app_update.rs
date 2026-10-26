@@ -10,6 +10,8 @@ use serde::Serialize;
 use tauri::{ipc::Channel, AppHandle, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
+use crate::state::ShutdownAction;
+
 const ALPHA_UPDATE_ENDPOINT: &str =
     "https://chihumyum.github.io/Drifting/updates/alpha/latest.json";
 
@@ -164,7 +166,12 @@ pub(crate) fn update_install(
     }
     pending.update = None;
     drop(pending);
-    app.restart();
+    // Relaunch through the same flush barrier as an ordinary quit, so edits
+    // made while the bundle was being replaced still reach SQLite.
+    if !crate::request_flushed_shutdown(&app, ShutdownAction::RestartApp) {
+        app.restart();
+    }
+    Ok(())
 }
 
 #[tauri::command]
