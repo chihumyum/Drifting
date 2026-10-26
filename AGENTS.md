@@ -71,6 +71,10 @@ Guidance for coding agents working in this standalone Drifting client repository
 
 ## Public Alpha compatibility policy
 
+- **Release contract and gates paused by the author on 2026-10-28** for a
+  large restructuring; `docs/alpha-release-contract.md` is not in force and
+  gates will be rebuilt once the client stabilizes. The migration rules below
+  still apply unless the author says otherwise.
 - `0.1.0-alpha.1` freezes the first public SQLite/domain/checkpoint baseline.
   Every later public `0.1.x` build must open and migrate every earlier public
   `0.1.x` database without asking the author to reset it.

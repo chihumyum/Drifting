@@ -1,6 +1,9 @@
 # Drifting desktop Alpha release contract
 
-Status: **frozen for `0.1.0-alpha.1` implementation; external release gates remain open**.
+Status: **paused by the author on 2026-10-28.** Drifting is being substantially
+restructured; this contract and its release gates are not in force and will be
+rebuilt once the client stabilizes. It is kept as historical context. The
+migration rules in [`../AGENTS.md`](../AGENTS.md) still apply.
 
 ## Supported product
 
@@ -35,9 +38,11 @@ that fails, nothing is installed and the verified download stays ready for a
 retry. After the native install, the relaunch goes through the same flush
 barrier and deadline as an ordinary quit; it never restarts directly.
 
-The Alpha does not expose a whole-library backup/import format or a
-same-ProjectSync replacement workflow. Internal migration snapshots are not a
-general Settings product and appear only when database recovery is required.
+A local, stable library can be exported and restored as a complete `.drifting`
+package ([`library-backup.md`](library-backup.md)); a cloud-bound library cannot,
+and no same-ProjectSync replacement workflow exists. Internal migration
+snapshots are not a general Settings product and appear only when database
+recovery is required.
 
 ## Release gates
 

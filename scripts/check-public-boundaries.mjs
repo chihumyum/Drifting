@@ -20,6 +20,11 @@ const onboardingSource = readFileSync(
 );
 const platformContractsSource = readFileSync('src/renderer/platform/contracts.ts', 'utf8');
 const tauriHostSource = readFileSync('src-tauri/src/lib.rs', 'utf8');
+const libraryBackupSettingsSource = readFileSync(
+  'src/renderer/features/settings/panels/LibraryBackupSettings.tsx',
+  'utf8',
+);
+const libraryBackupCoreSource = readFileSync('crates/drifting-core/src/library_backup.rs', 'utf8');
 
 function requireCondition(condition, message) {
   if (!condition) errors.push(message);
@@ -134,15 +139,20 @@ requireCondition(
   'AGENTS.md must preserve the frozen public Alpha compatibility policy',
 );
 requireCondition(
-  !syncSettingsSource.includes('BackupService') &&
-    !syncSettingsSource.includes('replace-same-identity') &&
+  !syncSettingsSource.includes('replace-same-identity') &&
     !onboardingSource.includes("preAlphaGuide.backup"),
-  'ordinary Settings and onboarding must not expose a whole-library backup/restore workflow',
+  'Settings and onboarding must not expose a same-identity cloud replacement workflow',
 );
+// The .drifting backup (docs/library-backup.md) never captures or replaces a
+// cloud-bound library: the UI gates on a local authority and drifting-core
+// refuses both the exported snapshot and the staged backup otherwise.
 requireCondition(
-  !platformContractsSource.includes('library_backup_') &&
-    !tauriHostSource.includes('library_backup'),
-  'public renderer/native contracts must not expose the retired library backup archive',
+  libraryBackupSettingsSource.includes("authority.status === 'local'") &&
+    libraryBackupCoreSource.includes('if mode == "local" && state == "stable" => Ok(())') &&
+    libraryBackupCoreSource.includes('require_local_authority(&connection)?;') &&
+    libraryBackupCoreSource.includes('require_local_authority(connection)?;') &&
+    tauriHostSource.includes('library_backup::library_backup_restore,'),
+  '.drifting library backup and restore must stay limited to a local, stable library',
 );
 for (const retiredGuideText of ['Electron', 'src/main', 'backend/', 'out/']) {
   requireCondition(
