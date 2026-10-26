@@ -27,6 +27,7 @@ import {
   type FocusedEntity,
 } from '../../../components/rightBars/MemoMaterialPanel';
 import { EntityRelationPicker } from '../../../components/rightBars/EntityRelationPicker';
+import { libraryItemMatchesQuery } from '../../../features/library/library-item-search';
 import { createPlainCommentDoc, extractTextFromCommentBody } from '../../../domain/comment';
 import { genericAssociationRelationTypeId } from '../../../domain/entity-relation-type';
 import type { Comment } from '../../../domain/comment';
@@ -187,9 +188,9 @@ export function DesktopSuperMemoMaterialView() {
   const visibleLibraryItems = useMemo(
     () =>
       libraryItems.filter(
-        (mat) => isRelatedToEntity('library_item', mat.id) && matchesQuery(mat.title, mat.bodyJson),
+        (mat) => isRelatedToEntity('library_item', mat.id) && libraryItemMatchesQuery(mat, query),
       ),
-    [libraryItems, isRelatedToEntity, matchesQuery],
+    [libraryItems, isRelatedToEntity, query],
   );
 
   const libraryItemsByKind = useMemo(() => {
