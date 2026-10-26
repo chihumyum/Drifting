@@ -3,7 +3,7 @@ import { useDataStore } from '../../../store/data-store';
 import { isDrift } from '../../../domain/book-node';
 
 /** The workspace tab character for a paper's entity type — the same glyph
- * vocabulary as the desktop tabs (§ ❦ ¶ ◆ ⌘ ☰). */
+ * vocabulary as the desktop tabs (§ ❦ ¶ ◆ ⌘ ❏ ☰). */
 export function usePaperGlyph(target: WorkspaceTarget): string {
   const bookNodes = useDataStore((s) => s.bookNodes);
   switch (target.entityType) {
@@ -17,6 +17,8 @@ export function usePaperGlyph(target: WorkspaceTarget): string {
       return '◆';
     case 'category':
       return '⌘';
+    case 'library_item':
+      return '❏';
     case 'all-chapters':
       return '☰';
   }

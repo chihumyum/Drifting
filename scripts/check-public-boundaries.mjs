@@ -128,7 +128,7 @@ requireCondition(
   'DEV_GUIDE.md must record the current local-only build boundary',
 );
 requireCondition(
-  developmentGuide.includes('external-content') &&
+  developmentGuide.includes('byok-provider') &&
     developmentGuide.includes('agent-extension'),
   'DEV_GUIDE.md must record the auditable non-hosted network purposes',
 );

@@ -21,6 +21,7 @@ const NODE_RE = /^\/project\/[^/]+\/editor\/([^/]+)$/;
 const STORYLINE_RE = /^\/project\/[^/]+\/editor\/storyline\/([^/]+)$/;
 const ELEMENT_RE = /^\/project\/[^/]+\/element\/([^/]+)$/;
 const CATEGORY_RE = /^\/project\/[^/]+\/category\/([^/]+)$/;
+const MATERIAL_RE = /^\/project\/[^/]+\/material\/([^/]+)$/;
 
 // Two-way sync between the URL and the focused leaf of the active tab.
 // Mounted at the Layout level so it runs regardless of whether the Outlet
@@ -374,6 +375,8 @@ function expectedPathnameFor(projectId: string, ref: TabRef): string | null {
       return `/project/${projectId}/element/${ref.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(ref.id)}`;
+    case 'library_item':
+      return `/project/${projectId}/material/${encodeURIComponent(ref.id)}`;
     case 'all-chapters':
       return `/project/${projectId}/editor/all`;
   }
@@ -405,6 +408,16 @@ function parseEntityFromPath(pathname: string, projectId: string): TabRef | null
       /* leave raw */
     }
     return { entityType: 'category', id };
+  }
+  const material = MATERIAL_RE.exec(pathname);
+  if (material) {
+    let id = material[1];
+    try {
+      id = decodeURIComponent(material[1]);
+    } catch {
+      /* leave raw */
+    }
+    return { entityType: 'library_item', id };
   }
   return null;
 }

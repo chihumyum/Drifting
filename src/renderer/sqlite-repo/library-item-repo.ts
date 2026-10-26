@@ -4,7 +4,6 @@ import type {
   LibraryItem,
   LibraryItemPatch,
   LibraryTextItem,
-  LibraryUrlItem,
 } from '../domain/library-item';
 import { getDb, type DbExecutor } from '../lib/db';
 import { LibraryItemTable } from '../schema/drizzle';
@@ -45,17 +44,6 @@ function toDomain(record: typeof LibraryItemTable.$inferSelect): LibraryItem {
       previewImageUrl: null,
       bodyJson: null,
     } satisfies LibraryAssetItem;
-  }
-  if (record.kind === 'url') {
-    if (!record.externalUrl) throw new Error(`Library URL item ${record.id} has no URL`);
-    return {
-      ...base(record),
-      kind: 'url',
-      assetId: null,
-      externalUrl: record.externalUrl,
-      previewImageUrl: record.previewImageUrl,
-      bodyJson: null,
-    } satisfies LibraryUrlItem;
   }
   if (record.kind === 'text') {
     return {
@@ -116,8 +104,6 @@ export function createLibraryItemSqliteRepository(
       if (data.title !== undefined) updateValues.title = data.title;
       if (data.bodyJson !== undefined) updateValues.bodyJson = data.bodyJson;
       if (data.notesJson !== undefined) updateValues.notesJson = data.notesJson;
-      if (data.previewImageUrl !== undefined)
-        updateValues.previewImageUrl = data.previewImageUrl;
       if (data.orderKey !== undefined) updateValues.orderKey = data.orderKey;
 
       await dbProvider()

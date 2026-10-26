@@ -125,6 +125,8 @@ const APPLICATION_TRIGGERS = [
   'library_item_asset_binding_update',
   'library_item_asset_owner_insert',
   'library_item_asset_owner_update',
+  'library_item_retired_url_insert',
+  'library_item_retired_url_update',
   'project_asset_immutable_update',
   'protect_locked_relation_type_delete',
   'protect_locked_relation_type_endpoint_delete',
@@ -220,7 +222,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(11);
+    expect(journal.entries).toHaveLength(12);
+    expect(journal.entries[11]?.tag).toBe('0011_retire_url_materials');
     expect(journal.entries[10]?.tag).toBe('0010_project_trash');
     expect(journal.entries[9]?.tag).toBe('0009_material_provenance');
     expect(journal.entries[8]?.tag).toBe('0008_sync_journal_truncation');

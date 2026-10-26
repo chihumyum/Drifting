@@ -8,6 +8,7 @@ import { StorylineEditorView } from '../../../views/StorylineEditorView';
 import { ElementEditorView } from '../../../views/ElementEditorView';
 import { CategoryEditorView } from '../../../views/CategoryEditorView';
 import { AllChaptersEditorView } from '../../../views/AllChaptersEditorView';
+import { MaterialEditorView } from '../../../views/MaterialEditorView';
 
 export interface MobilePaperPresentation {
   title: string;
@@ -18,7 +19,7 @@ export interface MobilePaperPresentation {
 
 export function useMobilePaperPresentation(target: WorkspaceTarget): MobilePaperPresentation {
   const { t } = useTranslation();
-  const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStoreFields('bookNodes', 'storylines', 'bookElements', 'bookElementCategories');
+  const { bookNodes, storylines, bookElements, bookElementCategories, libraryItems } = useDataStoreFields('bookNodes', 'storylines', 'bookElements', 'bookElementCategories', 'libraryItems');
   return useMemo(() => {
     switch (target.entityType) {
       case 'node': {
@@ -60,6 +61,14 @@ export function useMobilePaperPresentation(target: WorkspaceTarget): MobilePaper
           color: category?.color,
         };
       }
+      case 'library_item': {
+        const item = libraryItems.find((candidate) => candidate.id === target.id);
+        return {
+          title: item?.title || t('topTimeline.untitled.library_item'),
+          kicker: t(`memoMaterial.kind.${item?.kind ?? 'text'}`),
+          preview: '',
+        };
+      }
       case 'all-chapters':
         return {
           title: t('rightSidebar.targets.allChapters'),
@@ -67,7 +76,7 @@ export function useMobilePaperPresentation(target: WorkspaceTarget): MobilePaper
           preview: t('rightSidebar.kickers.allChapters'),
         };
     }
-  }, [bookElementCategories, bookElements, bookNodes, storylines, t, target]);
+  }, [bookElementCategories, bookElements, bookNodes, libraryItems, storylines, t, target]);
 }
 
 export function MobilePaperContent({ target }: { target: WorkspaceTarget }) {
@@ -80,6 +89,8 @@ export function MobilePaperContent({ target }: { target: WorkspaceTarget }) {
       return <ElementEditorView key={target.id} elementIdOverride={target.id} />;
     case 'category':
       return <CategoryEditorView key={target.id} categoryIdOverride={target.id} />;
+    case 'library_item':
+      return <MaterialEditorView key={target.id} libraryItemIdOverride={target.id} />;
     case 'all-chapters':
       return <AllChaptersEditorView />;
   }

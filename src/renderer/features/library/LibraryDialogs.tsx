@@ -8,7 +8,6 @@ import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/u
 import { Button } from '../../components/ui/Button';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { platform } from '../../platform';
-import { canUseExternalContent } from '../../lib/config';
 import type { CreateLibraryItemInput } from '../../usecase/useLibraryItem';
 import { FilterPill, type FocusedEntity } from './LibraryPanel';
 import { useEscapeToClose } from './library-item-media';
@@ -108,21 +107,13 @@ export function ComposeLibraryItemDialog({
   onCreate: (input: CreateLibraryItemInput, relations: RelationTarget[]) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [kind, setKind] = useState<LibraryItemKind>('url');
+  const [kind, setKind] = useState<LibraryItemKind>('text');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [url, setUrl] = useState('');
   const [pickedSourcePath, setPickedSourcePath] = useState<string | null>(null);
-  const [urlMeta, setUrlMeta] = useState<{
-    title: string | null;
-    ogImage: string | null;
-    favicon: string | null;
-  } | null>(null);
-  const [resolving, setResolving] = useState(false);
   const [picking, setPicking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
-  const titleAutoFilled = useRef(false);
   const ownedImportPathRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const submitInFlightRef = useRef(false);
@@ -169,48 +160,6 @@ export function ComposeLibraryItemDialog({
         });
     };
   }, []);
-
-  // Debounce-resolve the URL meta as the user pastes / types. Pre-fills the
-  // title if the user hasn't typed one (or only kept the value we auto-filled),
-  // and stashes og:image for the thumbnail slot on submit.
-  useEffect(() => {
-    if (kind !== 'url') return;
-    const trimmed = url.trim();
-    let cancelled = false;
-    if (!/^https?:\/\//i.test(trimmed) || !canUseExternalContent()) {
-      // Bail early; clear stale meta on the next microtask so we don't
-      // synchronously call setState inside the effect body.
-      void Promise.resolve().then(() => {
-        if (cancelled) return;
-        setUrlMeta(null);
-        setResolving(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-    const timer = setTimeout(async () => {
-      setResolving(true);
-      const res = await platform.material.resolveUrlMeta(trimmed);
-      if (cancelled) return;
-      setResolving(false);
-      if (!res.ok) {
-        setUrlMeta(null);
-        return;
-      }
-      setUrlMeta({ title: res.title, ogImage: res.ogImage, favicon: res.favicon });
-      if (res.title && (!title || titleAutoFilled.current)) {
-        titleAutoFilled.current = true;
-        setTitle(res.title);
-      }
-    }, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // Intentional: don't restart fetch when `title` flips from auto-fill.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, kind]);
 
   const pickFile = async (pickerKind: 'image' | 'pdf' | 'any') => {
     if (submitting || pickerInFlightRef.current) return;
@@ -299,7 +248,6 @@ export function ComposeLibraryItemDialog({
 
   const canSubmit = (() => {
     if (!title.trim() && kind !== 'text') return false;
-    if (kind === 'url') return /^https?:\/\//i.test(url.trim());
     if (kind === 'image' || kind === 'pdf') return !!pickedSourcePath;
     if (kind === 'text') return true;
     return false;
@@ -311,28 +259,6 @@ export function ComposeLibraryItemDialog({
     setSubmitting(true);
     setOperationError(null);
     try {
-      if (kind === 'url') {
-        await deleteOwnedImport();
-        const trimmedUrl = url.trim();
-        // If the debounce hasn't fired yet, resolve once more synchronously so
-        // the title / thumbnail are present at create time.
-        let meta = urlMeta;
-        if (!meta && /^https?:\/\//i.test(trimmedUrl) && canUseExternalContent()) {
-          const res = await platform.material.resolveUrlMeta(trimmedUrl);
-          if (res.ok) meta = { title: res.title, ogImage: res.ogImage, favicon: res.favicon };
-        }
-        await onCreate(
-          {
-            title: title.trim() || meta?.title || trimmedUrl,
-            kind: 'url',
-            externalUrl: trimmedUrl,
-            previewImageUrl: meta?.ogImage ?? meta?.favicon ?? null,
-          },
-          relations,
-        );
-        onCancel();
-        return;
-      }
       if (kind === 'image' || kind === 'pdf') {
         if (!pickedSourcePath) return;
         await onCreate(
@@ -392,7 +318,7 @@ export function ComposeLibraryItemDialog({
   return (
     <DialogShell title={t('memoMaterial.dialog.newMaterial')} onCancel={() => void cancel()}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        {(['url', 'image', 'pdf', 'text'] as LibraryItemKind[]).map((k) => (
+        {(['text', 'image', 'pdf'] as LibraryItemKind[]).map((k) => (
           <FilterPill key={k} active={kind === k} onClick={() => void selectKind(k)}>
             {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
           </FilterPill>
@@ -406,76 +332,6 @@ export function ComposeLibraryItemDialog({
         placeholder={t('memoMaterial.dialog.titlePlaceholder')}
         style={dialogInputStyle}
       />
-
-      {kind === 'url' && (
-        <>
-          <input
-            autoFocus
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://…"
-            style={{ ...dialogInputStyle, marginTop: 8 }}
-          />
-          {(resolving || urlMeta) && (
-            <div
-              style={{
-                marginTop: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '6px 8px',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 3,
-                background: 'hsl(var(--paper-deep) / 0.3)',
-                minHeight: 56,
-              }}
-            >
-              {urlMeta?.ogImage && canUseExternalContent() && (
-                <img
-                  src={urlMeta.ogImage}
-                  alt=""
-                  style={{
-                    width: 48,
-                    height: 48,
-                    objectFit: 'cover',
-                    borderRadius: 3,
-                    background: 'hsl(var(--paper))',
-                  }}
-                />
-              )}
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    color: 'hsl(var(--ink-4))',
-                    marginBottom: 2,
-                  }}
-                >
-                  {resolving
-                    ? t('memoMaterial.dialog.resolvingUrl')
-                    : t('memoMaterial.dialog.urlInfo')}
-                </div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 12.5,
-                    color: 'hsl(var(--ink-1))',
-                    lineHeight: 1.3,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {urlMeta?.title ?? (resolving ? '…' : t('memoMaterial.dialog.noUrlTitle'))}
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       {(kind === 'image' || kind === 'pdf') && (
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>

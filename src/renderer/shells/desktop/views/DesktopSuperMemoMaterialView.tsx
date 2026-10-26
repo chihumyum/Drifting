@@ -21,8 +21,6 @@ import {
   LibraryItemCard,
   ComposeLibraryItemDialog,
   ComposeTodoDialog,
-  LibraryItemFullscreenPreview,
-  TextSnippetPopover,
   TodoCard,
   type FocusedEntity,
 } from '../../../components/rightBars/MemoMaterialPanel';
@@ -33,11 +31,10 @@ import { genericAssociationRelationTypeId } from '../../../domain/entity-relatio
 import type { Comment } from '../../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
-import { assetStoreService } from '../../../services/asset-store.service';
-import { platform } from '../../../platform';
+import { openLibraryItemInSystem as openInSystemApp } from '../../../features/library/open-library-item';
 import { getPlatformRuntime } from '../../../platform/runtime';
 
-const KIND_ORDER: LibraryItemKind[] = ['image', 'pdf', 'url', 'text'];
+const KIND_ORDER: LibraryItemKind[] = ['text', 'image', 'pdf'];
 
 const DRAWER_HEADER_HEIGHT = 28;
 const DRAWER_MIN_HEIGHT = 120;
@@ -64,7 +61,7 @@ const TODO_RAIL_WIDTH = 280;
  */
 export function DesktopSuperMemoMaterialView() {
   const { t } = useTranslation();
-  const { projectId } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const closeView = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
@@ -80,7 +77,6 @@ export function DesktopSuperMemoMaterialView() {
       ),
     [entityRelations, genericRelationTypeId],
   );
-  const projectAssets = useDataStore((s) => s.projectAssets);
 
   const commentUsecases = useComment({ projectId, userId });
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
@@ -91,8 +87,6 @@ export function DesktopSuperMemoMaterialView() {
   const [entityFilter, setEntityFilter] = useState<FocusedEntity>({ kind: null, id: null });
   const [composeOpen, setComposeOpen] = useState<null | 'todo' | 'library_item'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [previewLibraryItemId, setPreviewLibraryItemId] = useState<string | null>(null);
-  const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
   const [drawerExpanded, setDrawerExpanded] = useState(false);
 
   // Compose dialogs and material previews consume Escape themselves. The
@@ -104,16 +98,6 @@ export function DesktopSuperMemoMaterialView() {
         id: `compose:${composeOpen ?? ''}`,
         active: composeOpen !== null,
         onEscape: () => setComposeOpen(null),
-      },
-      {
-        id: `material-preview:${previewLibraryItemId ?? ''}`,
-        active: previewLibraryItemId !== null,
-        onEscape: () => setPreviewLibraryItemId(null),
-      },
-      {
-        id: `text-popover:${textPopoverId ?? ''}`,
-        active: textPopoverId !== null,
-        onEscape: () => setTextPopoverId(null),
       },
       {
         id: 'bottom-drawer',
@@ -212,50 +196,22 @@ export function DesktopSuperMemoMaterialView() {
     [visibleLibraryItems, refsByFrom],
   );
 
-  const previewLibraryItem = useMemo(
-    () => libraryItems.find((m) => m.id === previewLibraryItemId) ?? null,
-    [libraryItems, previewLibraryItemId],
-  );
-  const textPopoverLibraryItem = useMemo(
-    () => libraryItems.find((m) => m.id === textPopoverId) ?? null,
-    [libraryItems, textPopoverId],
-  );
-
   const openLibraryItemInSystem = useCallback(
     async (m: LibraryItem) => {
-      if (m.kind === 'text') return;
-      if (m.kind === 'url') {
-        await platform.material.openExternal(m.externalUrl);
-        return;
-      }
-      const asset = projectAssets.find((item) => item.id === m.assetId);
-      if (!asset) return;
-      let path: string;
-      try {
-        path = (await assetStoreService.requireVariant(projectId, asset, 'source')).filePath;
-      } catch (error) {
-        alert(t('memoMaterial.error.openFile', { error: String(error) }));
-        return;
-      }
-      const res = await platform.material.openLocal(path);
-      if (!res.ok) alert(t('memoMaterial.error.openFile', { error: res.error }));
+      const result = await openInSystemApp(projectId, m);
+      if (!result.ok) alert(t('memoMaterial.error.openFile', { error: result.error }));
     },
-    [projectAssets, projectId, t],
+    [projectId, t],
   );
 
+  // Materials open as workspace tabs; the overlay steps aside so the tab is
+  // visible, as the element super view does for elements.
   const openLibraryItemInApp = useCallback(
     (m: LibraryItem) => {
-      if (m.kind === 'url') {
-        void openLibraryItemInSystem(m);
-        return;
-      }
-      if (m.kind === 'text') {
-        setTextPopoverId(m.id);
-        return;
-      }
-      setPreviewLibraryItemId(m.id);
+      openEntity({ entityType: 'library_item', id: m.id });
+      closeView();
     },
-    [openLibraryItemInSystem],
+    [closeView, openEntity],
   );
 
   const toggleKindHidden = useCallback((kind: LibraryItemKind) => {
@@ -408,31 +364,6 @@ export function DesktopSuperMemoMaterialView() {
         />
       )}
 
-      {previewLibraryItem && (
-        <LibraryItemFullscreenPreview
-          key={previewLibraryItem.id}
-          material={previewLibraryItem}
-          onClose={() => setPreviewLibraryItemId(null)}
-          onUpdate={(updates) =>
-            libraryItemUsecases.updateLibraryItem(previewLibraryItem.id, updates)
-          }
-        />
-      )}
-
-      {textPopoverLibraryItem && (
-        <TextSnippetPopover
-          key={textPopoverLibraryItem.id}
-          material={textPopoverLibraryItem}
-          onClose={() => setTextPopoverId(null)}
-          onExpand={() => {
-            setTextPopoverId(null);
-            setPreviewLibraryItemId(textPopoverLibraryItem.id);
-          }}
-          onUpdate={(updates) =>
-            libraryItemUsecases.updateLibraryItem(textPopoverLibraryItem.id, updates)
-          }
-        />
-      )}
     </SuperViewShell>
   );
 }

@@ -54,7 +54,6 @@ export type NetworkPurpose =
   | 'hosted-service'
   | 'personal-cloud'
   | 'byok-provider'
-  | 'external-content'
   | 'agent-extension';
 
 function isBrowserOnline(): boolean {
@@ -82,11 +81,6 @@ export function canUsePersonalCloud(): boolean {
 
 export function canUseByokProvider(): boolean {
   return canUseNetwork('byok-provider');
-}
-
-/** Author-requested web metadata and remote preview images. */
-export function canUseExternalContent(): boolean {
-  return canUseNetwork('external-content');
 }
 
 /**

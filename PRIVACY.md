@@ -97,8 +97,8 @@ it does not disable a personal-cloud provider that the author explicitly
 connects. Google Drive synchronization can therefore run in local-only mode
 after the author completes Google sign-in. A BYOK AI request still sends the
 prompt and selected context directly to the provider you choose. For a fully
-offline session, do not connect Google Drive or invoke BYOK, external-content,
-or remote Agent-extension features. You can export local projects, remove local
+offline session, do not connect Google Drive or invoke BYOK or remote
+Agent-extension features. You can export local projects, remove local
 databases and imported assets through your operating system, disconnect Google
 Drive from Settings, and contact Google or the operator of another configured
 service for remote access or deletion requests.

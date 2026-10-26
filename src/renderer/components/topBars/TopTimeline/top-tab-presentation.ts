@@ -4,8 +4,8 @@ import { indexById } from '../../../lib/immutable-id-index';
 
 type Workspace = ReturnType<typeof useDataStore.getState>;
 type Input = Pick<Workspace, 'workspaceProjectId' | 'workspaceProjectionGeneration' | 'bookNodes' |
-  'storylines' | 'bookElements' | 'bookElementCategories' | 'primaryStorylineByNode'>;
-type Fallback = 'chapter' | 'drift' | 'storyline' | 'element' | 'category' | 'all-chapters';
+  'storylines' | 'bookElements' | 'bookElementCategories' | 'primaryStorylineByNode' | 'libraryItems'>;
+type Fallback = 'chapter' | 'drift' | 'storyline' | 'element' | 'category' | 'library_item' | 'all-chapters';
 export interface TabLabel { title: string; fallback: Fallback }
 export interface TabAppearance { color: string | undefined; isDrift: boolean }
 export interface TopTabPresentation {
@@ -28,7 +28,7 @@ export function createTopTabPresentationSelector(projectId: string, tabs: readon
   let previousInput: readonly unknown[] | undefined;
   return (state: Input): TopTabPresentation => {
     const inputs = [state.workspaceProjectId, state.workspaceProjectionGeneration, state.bookNodes,
-      state.storylines, state.bookElements, state.bookElementCategories, state.primaryStorylineByNode];
+      state.storylines, state.bookElements, state.bookElementCategories, state.primaryStorylineByNode, state.libraryItems];
     if (previous && previousInput?.every((value, index) => value === inputs[index])) return previous;
     previousInput = inputs;
     const available = state.workspaceProjectId === projectId && state.workspaceProjectionGeneration !== null;
@@ -62,6 +62,9 @@ export function createTopTabPresentationSelector(projectId: string, tabs: readon
           case 'category': {
             const category = indexById(state.bookElementCategories).get(leaf.id);
             title = category?.name || ''; color = category?.color; break;
+          }
+          case 'library_item': {
+            title = indexById(state.libraryItems).get(leaf.id)?.title || ''; break;
           }
           case 'all-chapters': break;
         }

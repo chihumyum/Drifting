@@ -76,6 +76,23 @@ fn doc_json(text: &str) -> String {
     json!({"type":"doc","content":paragraphs}).to_string()
 }
 
+/// A note whose only paragraph is `url` as a link. Url materials are retired
+/// (migration 0011); a saved link is a note like any other.
+fn link_doc_json(url: &str) -> String {
+    json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "content": [{
+                "type": "text",
+                "marks": [{"type": "link", "attrs": {"href": url}}],
+                "text": url
+            }]
+        }]
+    })
+    .to_string()
+}
+
 fn doc_text(json: Option<&str>) -> String {
     fn visit(node: &Value, out: &mut String) {
         if let Some(text) = node.get("text").and_then(Value::as_str) {
@@ -260,7 +277,16 @@ impl WorkspaceStore<'_> {
         }
         self.transaction(TransactionBehavior::Immediate, |tx| {
             self.guard_project(tx, context)?;
-            self.insert_item(tx, context, item_id, title, "url", None, Some(url), None)
+            self.insert_item(
+                tx,
+                context,
+                item_id,
+                title,
+                "text",
+                None,
+                None,
+                Some(&link_doc_json(url)),
+            )
         })
     }
 

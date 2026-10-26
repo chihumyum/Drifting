@@ -29,7 +29,6 @@ vi.mock('@tauri-apps/api/event', () => ({
 // production default remains local-only and guards this path before fetch.
 vi.mock('../lib/config', () => ({
   APP_CONFIG: { API_BASE_URL: 'http://localhost:3000' },
-  canUseExternalContent: () => true,
   canUseHostedService: () => true,
 }));
 

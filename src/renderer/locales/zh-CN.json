@@ -697,7 +697,7 @@
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
       "sub": "这页直说：Drifting 用了什么、不用什么、何时离开你的机器。",
-      "noteA": "公开源码构建默认不连接 Drifting 托管服务。你主动选择的模型提供商、个人云盘、远程 Agent 扩展，以及粘贴 URL 后的网页元数据或预览图片可能访问网络；这不会把正文或本地素材上传给 Drifting。",
+      "noteA": "公开源码构建默认不连接 Drifting 托管服务。你主动选择的模型提供商、个人云盘和远程 Agent 扩展可能访问网络；这不会把正文或本地素材上传给 Drifting。",
       "noteBPrefix": "AI 请求适用",
       "noteBStrong": "所选模型提供商",
       "noteBSuffix": "当前的数据与训练条款。",
@@ -1870,10 +1870,9 @@
       "newMaterial": "新建素材"
     },
     "kind": {
-      "text": "片段",
+      "text": "笔记",
       "image": "图片",
-      "pdf": "PDF",
-      "url": "链接"
+      "pdf": "PDF"
     },
     "menu": {
       "type": "类型：{{type}}",
@@ -1890,13 +1889,13 @@
     "card": {
       "collapseImage": "收起图片",
       "expandImage": "展开图片",
-      "collapseSnippet": "收起片段",
-      "expandSnippet": "展开片段",
+      "collapseSnippet": "收起笔记",
+      "expandSnippet": "展开笔记",
       "collapse": "收起",
       "expand": "展开",
-      "addSnippetBody": "添加片段正文…",
+      "addSnippetBody": "写点什么…",
       "fullscreenImage": "全屏查看图片",
-      "snippetPlaceholder": "片段正文…"
+      "snippetPlaceholder": "写下笔记…"
     },
     "preview": {
       "generating": "生成预览中…",
@@ -1910,7 +1909,8 @@
       "renderPdfFailed": "无法渲染 PDF",
       "loadingPdf": "加载 PDF…",
       "previousPage": "上一页",
-      "nextPage": "下一页"
+      "nextPage": "下一页",
+      "loading": "加载中…"
     },
     "archive": {
       "reopen": "重新打开"
@@ -1921,9 +1921,6 @@
       "todoPlaceholder": "待办内容…",
       "newMaterial": "新建材料",
       "titlePlaceholder": "标题",
-      "resolvingUrl": "解析网页…",
-      "urlInfo": "网页信息",
-      "noUrlTitle": "未取到标题",
       "chooseFile": "选择文件…",
       "openingPicker": "正在打开文件选择器…",
       "creating": "正在创建…",
@@ -2389,7 +2386,8 @@
         "element": "本要素 · 详细统计",
         "category": "本类目 · 详细统计",
         "none": "本项目 · 详细统计"
-      }
+      },
+      "materialContent": "素材"
     },
     "empty": {
       "missingChapter": "找不到当前章节。",
@@ -2479,7 +2477,8 @@
       "drift": "未命名构想",
       "storyline": "未命名故事线",
       "element": "未命名要素",
-      "category": "未命名类目"
+      "category": "未命名类目",
+      "library_item": "未命名素材"
     },
     "menu": {
       "closePane": "关闭此格",
@@ -3489,7 +3488,9 @@
       "deleteNode": "删除节点",
       "deleteElement": "删除要素",
       "deleteCategory": "删除类目",
-      "deleteStoryline": "删除故事线"
+      "deleteStoryline": "删除故事线",
+      "openMaterialInSystem": "用默认应用打开",
+      "deleteMaterial": "删除素材"
     }
   },
   "projectMemory": {
@@ -3530,5 +3531,22 @@
   },
   "hostedQuota": {
     "exceeded": "Hosted 存储空间不足（已用 {{used}} / {{quota}}），这个附件没有导入。正文和结构照常同步；删除不需要的附件或项目可以释放空间。"
+  },
+  "materialEditor": {
+    "crumb": "素材",
+    "missing": "这条素材已不存在。",
+    "deleteConfirm": "删除素材「{{title}}」？此操作无法撤销。",
+    "deleteFailed": "素材删除失败。",
+    "descriptionPlaceholder": "添加说明…",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "zoomReset": "适配窗口",
+    "provenance": {
+      "generated": "AI 生成 · {{model}} · {{date}}",
+      "prompt": "画面描述",
+      "style": "画风",
+      "direction": "作者要求",
+      "formerPortrait": "曾是「{{name}}」的设定图"
+    }
   }
 }

@@ -6,13 +6,6 @@ import { useDataStore } from '../../store/data-store';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 
 export function libraryItemSubtitle(item: LibraryItem): string {
-  if (item.kind === 'url') {
-    try {
-      return new URL(item.externalUrl).hostname.replace(/^www\./, '');
-    } catch {
-      return item.externalUrl;
-    }
-  }
   return item.kind === 'pdf' ? 'PDF' : '';
 }
 

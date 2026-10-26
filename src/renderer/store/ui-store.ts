@@ -119,6 +119,7 @@ export interface WorkspaceTabInventory {
   storylineIds: ReadonlySet<string>;
   elementIds: ReadonlySet<string>;
   categoryIds: ReadonlySet<string>;
+  libraryItemIds: ReadonlySet<string>;
 }
 
 // Synthetic key used by the tab bar to identify a top-level tab. Leaves
@@ -250,6 +251,8 @@ function isLeafInWorkspace(leaf: LeafTab, inventory: WorkspaceTabInventory): boo
       return inventory.elementIds.has(leaf.id);
     case 'category':
       return inventory.categoryIds.has(leaf.id);
+    case 'library_item':
+      return inventory.libraryItemIds.has(leaf.id);
     case 'all-chapters':
       return leaf.id === SINGLETON_TAB_ID;
   }
@@ -338,6 +341,7 @@ const PERSISTED_TAB_ENTITY_TYPES = new Set<TabEntityType>([
   'storyline',
   'element',
   'category',
+  'library_item',
   'all-chapters',
 ]);
 
@@ -484,6 +488,7 @@ export type EditorShellView =
   | 'storyline-editor'
   | 'element-editor'
   | 'category-editor'
+  | 'material-editor'
   | 'all-chapters-editor'
   | 'unknown';
 

@@ -99,9 +99,9 @@ VITE_AI_TRANSPORT=direct
 ```
 
 `LOCAL_ONLY_MODE` 只关闭 Drifting-compatible hosted service。网络按
-`hosted-service`、`personal-cloud`、`byok-provider`、`external-content` 与
-`agent-extension` 分类；用户明确选择的 BYOK provider、URL 元数据/预览及已配置的远程
-Agent extension 仅在设备在线时可用。Personal-cloud 同步只使用独立 capability
+`hosted-service`、`personal-cloud`、`byok-provider` 与 `agent-extension` 分类；
+用户明确选择的 BYOK provider 及已配置的远程 Agent extension 仅在设备在线时可用。
+素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Personal-cloud 同步只使用独立 capability
 和 SyncEngine authority，不存在 hosted sync 开关。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
 [official-service.md](docs/official-service.md)，并自行配置 API origin、CSP、隐私政策与
 凭据。

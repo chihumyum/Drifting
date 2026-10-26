@@ -15,6 +15,8 @@ export function workspaceUrlFor(projectId: string, target: WorkspaceTarget): str
       return `/project/${projectId}/element/${target.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(target.id)}`;
+    case 'library_item':
+      return `/project/${projectId}/material/${encodeURIComponent(target.id)}`;
     case 'all-chapters':
       return `/project/${projectId}/editor/all`;
     default:
@@ -44,6 +46,9 @@ export function workspaceTargetFromPathname(
   }
   if (rest.startsWith('category/')) {
     return { entityType: 'category', id: decodeURIComponent(rest.slice('category/'.length)) };
+  }
+  if (rest.startsWith('material/')) {
+    return { entityType: 'library_item', id: decodeURIComponent(rest.slice('material/'.length)) };
   }
   return null;
 }

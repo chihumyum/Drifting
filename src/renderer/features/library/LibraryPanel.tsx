@@ -10,13 +10,11 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import type { LibraryItem } from '../../domain/library-item';
 import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
 import type { EntityKind } from '../../lib/extensions/entity-link';
-import { assetStoreService } from '../../services/asset-store.service';
-import { platform } from '../../platform';
 import { FilterChip } from '../../components/ui/FilterChip';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LibraryItemCard } from './LibraryItemCard';
 import { ComposeLibraryItemDialog } from './LibraryDialogs';
-import { LibraryItemFullscreenPreview, TextSnippetPopover } from './LibraryItemPreview';
+import { openLibraryItemInSystem } from './open-library-item';
 
 export interface FocusedEntity {
   kind: EntityKind | null;
@@ -32,11 +30,9 @@ interface Props {
 type ViewFilter = 'all' | 'related';
 
 /**
- * Right-sidebar Library panel. Renders library_item rows (formerly material)
- * covering image / pdf / url / text references and free-form notes.
- *
- * Image / pdf hand off to the OS default app; url opens externally; text
- * opens an inline snippet popover that can escalate to fullscreen.
+ * Right-sidebar Library panel: an index of library_item rows (images, PDFs and
+ * notes). Activating a card opens the material as a workspace tab; the
+ * context menu can still hand an image/PDF to the OS default app.
  *
  * The `related` filter narrows the list to items whose entity_relation row
  * points at `focused`. The relations toggle hides/shows relation chips
@@ -46,7 +42,8 @@ type ViewFilter = 'all' | 'related';
  */
 export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
   const { t } = useTranslation();
-  const { projectId } = useWorkspaceNavigator();
+  const navigator = useWorkspaceNavigator();
+  const { projectId } = navigator;
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const libraryItems = useDataStore((s) => s.libraryItems);
   const entityRelations = useDataStore((s) => s.entityRelations);
@@ -58,8 +55,6 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
       ),
     [entityRelations, genericRelationTypeId],
   );
-  const projectAssets = useDataStore((s) => s.projectAssets);
-
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
 
@@ -67,11 +62,6 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
   const [showRelations, setShowRelations] = useSidebarPanelState('showRelations', true);
   const [composeOpen, setComposeOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [previewLibraryItemId, setPreviewLibraryItemId] = useState<string | null>(null);
-  // Two-stage preview for text snippets: clicking the inline body opens this
-  // popover first; the popover itself escalates to the fullscreen preview.
-  // Mirrors StoryGraphView's NodeCardPopover default → upgrade flow.
-  const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
 
   // Index entityRelations by from-entity so cards can render their relation
   // chips and the filter can pick out items related to `focused`.
@@ -101,51 +91,15 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
     );
   }, [libraryItems, filter, isRelatedToFocus]);
 
-  const previewLibraryItem = useMemo(
-    () => libraryItems.find((mat) => mat.id === previewLibraryItemId) ?? null,
-    [libraryItems, previewLibraryItemId],
-  );
-
-  const textPopoverLibraryItem = useMemo(
-    () => libraryItems.find((mat) => mat.id === textPopoverId) ?? null,
-    [libraryItems, textPopoverId],
-  );
-
-  const openLibraryItemInSystem = async (m: LibraryItem) => {
-    // text snippets are edited inline on the card — no popover / OS hand-off.
-    if (m.kind === 'text') return;
-    if (m.kind === 'url') {
-      await platform.material.openExternal(m.externalUrl);
-      return;
-    }
-    const asset = projectAssets.find((item) => item.id === m.assetId);
-    if (!asset) return;
-    let path: string;
-    try {
-      path = (await assetStoreService.requireVariant(projectId, asset, 'source')).filePath;
-    } catch (error) {
-      alert(t('memoMaterial.error.openFile', { error: String(error) }));
-      return;
-    }
-    const res = await platform.material.openLocal(path);
-    if (!res.ok) {
-      alert(t('memoMaterial.error.openFile', { error: res.error }));
-    }
+  const openLibraryItem = (m: LibraryItem) => {
+    void openLibraryItemInSystem(projectId, m).then((result) => {
+      if (!result.ok) alert(t('memoMaterial.error.openFile', { error: result.error }));
+    });
   };
 
+  // Every material opens as a workspace tab (a paper on mobile).
   const openLibraryItemInApp = (m: LibraryItem) => {
-    if (m.kind === 'url') {
-      void openLibraryItemInSystem(m);
-      return;
-    }
-    if (m.kind === 'text') {
-      // First stage of the two-step preview — open the floating popover
-      // instead of jumping straight to fullscreen. The popover renders a
-      // 全屏 ↗ control that does the actual escalation.
-      setTextPopoverId(m.id);
-      return;
-    }
-    setPreviewLibraryItemId(m.id);
+    navigator.open({ entityType: 'library_item', id: m.id });
   };
 
   return (
@@ -192,7 +146,7 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
             showRelations={showRelations}
             mobileActions={presentation === 'mobile'}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
-            onOpenInSystem={() => openLibraryItemInSystem(mat)}
+            onOpenInSystem={() => openLibraryItem(mat)}
             onOpenInApp={() => openLibraryItemInApp(mat)}
             onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
             onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
@@ -219,6 +173,8 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
           onCancel={() => setComposeOpen(false)}
           onCreate={async (input, relations) => {
             const mat = await libraryItemUsecases.createLibraryItem(input);
+            // A new note is opened for writing; images and PDFs stay in the list.
+            if (mat.kind === 'text') navigator.open({ entityType: 'library_item', id: mat.id }, { preview: false });
             const relationResults = await Promise.allSettled(
               relations.map((t) =>
                 relationUsecases.addGenericAssociation('library_item', mat.id, t.kind, t.id),
@@ -237,31 +193,6 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
         />
       )}
 
-      {previewLibraryItem && (
-        <LibraryItemFullscreenPreview
-          key={previewLibraryItem.id}
-          material={previewLibraryItem}
-          onClose={() => setPreviewLibraryItemId(null)}
-          onUpdate={(updates) =>
-            libraryItemUsecases.updateLibraryItem(previewLibraryItem.id, updates)
-          }
-        />
-      )}
-
-      {textPopoverLibraryItem && (
-        <TextSnippetPopover
-          key={textPopoverLibraryItem.id}
-          material={textPopoverLibraryItem}
-          onClose={() => setTextPopoverId(null)}
-          onExpand={() => {
-            setTextPopoverId(null);
-            setPreviewLibraryItemId(textPopoverLibraryItem.id);
-          }}
-          onUpdate={(updates) =>
-            libraryItemUsecases.updateLibraryItem(textPopoverLibraryItem.id, updates)
-          }
-        />
-      )}
     </div>
   );
 }

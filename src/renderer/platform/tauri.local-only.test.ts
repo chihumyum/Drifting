@@ -15,7 +15,6 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: tauriMocks.listen }));
 
 vi.mock('../lib/config', () => ({
   APP_CONFIG: { API_BASE_URL: 'http://localhost:3000' },
-  canUseExternalContent: () => false,
   canUseHostedService: () => false,
 }));
 
@@ -34,14 +33,6 @@ describe('local-only native account boundary', () => {
     await expect(tauriPlatform.auth.openOAuthBrowser('google')).rejects.toThrow(
       'HOSTED_SERVICE_DISABLED',
     );
-    expect(tauriMocks.invoke).not.toHaveBeenCalled();
-  });
-
-  it('rejects URL metadata before invoking native HTTP while offline', async () => {
-    await expect(tauriPlatform.material.resolveUrlMeta('https://example.com')).resolves.toEqual({
-      ok: false,
-      error: 'EXTERNAL_CONTENT_OFFLINE: URL metadata is unavailable while offline.',
-    });
     expect(tauriMocks.invoke).not.toHaveBeenCalled();
   });
 });

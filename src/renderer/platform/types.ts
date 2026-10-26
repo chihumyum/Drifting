@@ -42,7 +42,6 @@ import type {
   NativeSyncObjectKind,
   NativeBytes,
   ThumbnailResult,
-  UrlMetadataResult,
   GoogleDriveNativeOAuthResult,
   GoogleDriveNativeRemoteChange,
   GoogleDriveNativeRemoteObject,
@@ -274,7 +273,6 @@ export interface MaterialPlatformApi {
     | (Omit<Extract<ImageVariantResult, { ok: true }>, 'bytes'> & { bytes: ArrayBuffer })
     | Extract<ImageVariantResult, { ok: false }>
   >;
-  resolveUrlMeta(url: string): Promise<UrlMetadataResult>;
 }
 
 export interface AssetStorePlatformApi {

@@ -21,7 +21,7 @@ import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { MarkdownShareDialog } from './MarkdownShareDialog';
 import type { MarkdownShareTarget } from '../../services/export/markdown-share';
 
-export type EditorType = 'node' | 'element' | 'category' | 'storyline';
+export type EditorType = 'node' | 'element' | 'category' | 'storyline' | 'library_item';
 
 // `chapter` for storyline-anchored nodes (the WritingStatus pipeline);
 // `drift` for free-floating drift nodes (drifting / resting).
@@ -110,6 +110,10 @@ interface EditorTopBarProps {
     enabled: boolean;
     onToggle: () => void;
   };
+  // Surfaces without an outline rail (image and PDF materials) hide its toggle.
+  outlineToggle?: boolean;
+  // Menu actions that do not apply to this particular entity.
+  hiddenMenuActions?: readonly string[];
 }
 
 export function EditorTopBar({
@@ -125,6 +129,8 @@ export function EditorTopBar({
   commentToggle,
   referenceLinkToggle,
   plotPlannerToggle,
+  outlineToggle = true,
+  hiddenMenuActions,
 }: EditorTopBarProps) {
   const { t } = useTranslation();
   const [shareRequest, setShareRequest] = useState<MarkdownShareTarget | null>(null);
@@ -154,9 +160,9 @@ export function EditorTopBar({
           </button>
         )}
         {imageEntry}
-        {(editorType || referenceLinkToggle) && (
+        {((editorType && outlineToggle) || referenceLinkToggle) && (
           <div className="editor-bar__toggle-group">
-            {editorType && <OutlineRailToggle translate={t} />}
+            {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
             {referenceLinkToggle && (
               <button
                 type="button"
@@ -202,6 +208,7 @@ export function EditorTopBar({
             nodeWritingStatus={nodeWritingStatus}
             nodeStatusKind={nodeStatusKind}
             menuHeader={menuHeader}
+            hiddenActions={hiddenMenuActions}
             translate={t}
             onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
           />
@@ -347,6 +354,7 @@ interface EditorBarMenuProps {
   nodeWritingStatus?: WritingStatus;
   nodeStatusKind?: NodeStatusKind;
   menuHeader?: ReactNode;
+  hiddenActions?: readonly string[];
   translate?: Translate;
   onShare?: () => void;
 }
@@ -357,13 +365,16 @@ function EditorBarMenu({
   nodeWritingStatus,
   nodeStatusKind,
   menuHeader,
+  hiddenActions,
   translate,
   onShare,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const items = getMenuItems(editorType, nodeStatusKind, translate);
+  const items = getMenuItems(editorType, nodeStatusKind, translate).filter(
+    (item) => !hiddenActions?.includes(item.action),
+  );
   const showStatus =
     editorType === 'node' && nodeWritingStatus !== undefined && nodeStatusKind !== undefined;
   const statusOptions: readonly WritingStatus[] = showStatus
@@ -472,6 +483,8 @@ export const CONVERT_DRIFT_TO_ELEMENT_ACTION = 'convertDriftToElement';
 // export so both the left-panel cell menu (DriftPanel) and the editor top-bar
 // menu (NodeEditorView) branch on the same action — single source of truth.
 export const DRIFT_MOVE_TO_GROUP_ACTION = 'driftMoveToGroup';
+// Image/PDF materials only; notes have no system-app representation.
+export const MATERIAL_OPEN_IN_SYSTEM_ACTION = 'openMaterialInSystem';
 
 // Exported so left-sidebar panel cells can render the same per-entity
 // context menu as the editor top bar — single source of truth for menu
@@ -549,6 +562,18 @@ export function getMenuItems(
         {
           action: 'deleteStoryline',
           label: label('editorTopBar.menu.deleteStoryline', 'Delete Storyline'),
+          danger: true,
+        },
+      ];
+    case 'library_item':
+      return [
+        {
+          action: MATERIAL_OPEN_IN_SYSTEM_ACTION,
+          label: label('editorTopBar.menu.openMaterialInSystem', 'Open in default app'),
+        },
+        {
+          action: 'deleteMaterial',
+          label: label('editorTopBar.menu.deleteMaterial', 'Delete material'),
           danger: true,
         },
       ];

@@ -1197,7 +1197,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         <LibraryItemFullscreenPreview
           material={portraitPreviewMaterial}
           onClose={() => setPortraitPreviewOpen(false)}
-          onUpdate={() => undefined}
         />
       )}
     </div>

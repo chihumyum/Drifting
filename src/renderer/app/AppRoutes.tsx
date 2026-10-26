@@ -134,6 +134,9 @@ export function AppRoutes() {
             <DeferredProjectRoute view="category" />
           }
         />
+        {/* Both shells render material tabs/papers from their own stage; the
+            route only keeps the URL addressable. */}
+        <Route path="material/:libraryItemId" element={null} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

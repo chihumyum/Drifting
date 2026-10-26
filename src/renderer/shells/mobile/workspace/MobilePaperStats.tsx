@@ -19,6 +19,9 @@ function statsTarget(
       kicker: presentation.kicker,
     };
   }
+  if (target.entityType === 'library_item') {
+    return { kind: 'none', id: null, title: presentation.title, kicker: presentation.kicker };
+  }
   if (target.entityType === 'node') {
     const node = data.bookNodes.find((item) => item.id === target.id);
     return {

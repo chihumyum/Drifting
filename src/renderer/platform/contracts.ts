@@ -315,10 +315,6 @@ export type PrepareImageResult =
       error: string;
     };
 
-export type UrlMetadataResult =
-  | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
-  | { ok: false; error: string };
-
 export type AssetVariant = 'source' | 'display' | 'thumbnail';
 
 export type AssetStorePathResult =
@@ -770,7 +766,6 @@ export interface TauriCommandContract {
     args: { filePath: string; size: number; quality: number };
     result: ImageVariantResult;
   };
-  material_resolve_url_meta: { args: { url: string }; result: UrlMetadataResult };
   asset_store_get_path: {
     args: { projectId: string; assetId: string; variant: AssetVariant; ext: string };
     result: AssetStorePathResult;

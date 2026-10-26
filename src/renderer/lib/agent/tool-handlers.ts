@@ -776,13 +776,11 @@ function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
         : {}),
     ...(item.kind === 'text'
       ? { body: materialBodyText(item.bodyJson) || '(empty)' }
-      : item.kind === 'url'
-        ? { externalUrl: item.externalUrl }
-        : {
-            assetId: item.assetId,
-            mime: asset?.sourceMime,
-            sizeBytes: asset?.sourceSizeBytes,
-          }),
+      : {
+          assetId: item.assetId,
+          mime: asset?.sourceMime,
+          sizeBytes: asset?.sourceSizeBytes,
+        }),
     ...(notes ? { notes } : {}),
   };
 }

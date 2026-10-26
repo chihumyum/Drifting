@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../lib/extensions/entity-link';
-import { canUseExternalContent } from '../../lib/config';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import {
   libraryItemSubtitle,
@@ -460,7 +459,6 @@ export function LibraryItemCard({
               )}
               {subtitle && !isTextSnippet && (
                 <div
-                  title={material.kind === 'url' ? material.externalUrl : undefined}
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
@@ -658,7 +656,7 @@ export function LibraryItemCard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Thumbnail — inline preview tile for image / pdf / url libraryItems.
+// Thumbnail — inline preview tile for image / pdf materials.
 
 function LibraryItemThumbnail({
   material,
@@ -670,22 +668,14 @@ function LibraryItemThumbnail({
   const { t } = useTranslation();
   const size = 64;
   const [errorKey, setErrorKey] = useState<string | null>(null);
-  const externalContentEnabled = canUseExternalContent();
   const assetThumbnail = useStoredLibraryItemVariant(
     material,
     'thumbnail',
     material.kind === 'image' || material.kind === 'pdf',
   );
-  const currentImageKey = `${material.id}:${material.assetId ?? ''}:${assetThumbnail.fileUrl ?? material.previewImageUrl ?? material.externalUrl ?? ''}`;
+  const currentImageKey = `${material.id}:${material.assetId ?? ''}:${assetThumbnail.fileUrl ?? ''}`;
   const errored = errorKey === currentImageKey;
-  let src: string | null = null;
-  if (!errored) {
-    if (material.kind === 'image' || material.kind === 'pdf') {
-      src = assetThumbnail.fileUrl;
-    } else if (material.kind === 'url' && externalContentEnabled) {
-      src = material.previewImageUrl;
-    }
-  }
+  const src = !errored && material.kind !== 'text' ? assetThumbnail.fileUrl : null;
   if (!src) {
     if (material.kind === 'text') return null;
     return (
@@ -751,9 +741,3 @@ function LibraryItemThumbnail({
     </button>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Two-stage text snippet popover — first click on a text snippet body opens
-// this compact floating editor; an explicit 全屏 ↗ control escalates to the
-// fullscreen preview. Mirrors the StoryGraphView NodeCardPopover default/upgrade
-// staging so quick reads don't force a fullscreen jump.

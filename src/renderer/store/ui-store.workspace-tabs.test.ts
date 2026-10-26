@@ -25,6 +25,7 @@ describe('project-local workspace tabs', () => {
       storylineIds: new Set(),
       elementIds: new Set(),
       categoryIds: new Set(),
+      libraryItemIds: new Set(),
     });
 
     const project = useUiStore.getState().tabsByProject['project-a'];
@@ -41,6 +42,7 @@ describe('project-local workspace tabs', () => {
       storylineIds: new Set(),
       elementIds: new Set(),
       categoryIds: new Set(),
+      libraryItemIds: new Set(),
     });
     expect(useUiStore.getState().tabsByProject['project-b']?.openTabs.map(tabKey)).toEqual([
       'node:node-b',
@@ -335,6 +337,7 @@ describe('project-local workspace tabs', () => {
       storylineIds: new Set(),
       elementIds: new Set(),
       categoryIds: new Set(),
+      libraryItemIds: new Set(),
     });
 
     const project = useUiStore.getState().tabsByProject['project-a'];

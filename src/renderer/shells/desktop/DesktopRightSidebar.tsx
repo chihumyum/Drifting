@@ -29,6 +29,7 @@ export function DesktopRightSidebar() {
     bookElementCategories,
     storylineNodeMapping,
     primaryStorylineByNode,
+    libraryItems,
   } = useDataStoreFields(
     'bookNodes',
     'bookActs',
@@ -37,6 +38,7 @@ export function DesktopRightSidebar() {
     'bookElementCategories',
     'storylineNodeMapping',
     'primaryStorylineByNode',
+    'libraryItems',
   );
 
   // Decode the active tab into a resolved target so the right panel can show
@@ -117,8 +119,18 @@ export function DesktopRightSidebar() {
         color: c?.color,
       };
     }
+    if (leaf.entityType === 'library_item') {
+      const item = libraryItems.find((candidate) => candidate.id === leaf.id);
+      return {
+        kind: 'none',
+        id: null,
+        title: item?.title || t('topTimeline.untitled.library_item'),
+        kicker: t('rightSidebar.kickers.materialContent'),
+      };
+    }
     return { kind: 'none', id: null, title: '—', kicker: '—' };
   }, [
+    libraryItems,
     activeTabKey,
     openTabs,
     bookNodes,

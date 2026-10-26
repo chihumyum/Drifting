@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   canUseAgentExtension,
   canUseByokProvider,
-  canUseExternalContent,
   canUseHostedService,
   canUseNetwork,
   canUsePersonalCloud,
@@ -28,7 +27,6 @@ describe('network capability policy', () => {
     expect(canUseHostedService()).toBe(false);
     expect(canUsePersonalCloud()).toBe(false);
     expect(canUseByokProvider()).toBe(true);
-    expect(canUseExternalContent()).toBe(true);
     expect(canUseAgentExtension()).toBe(true);
     expect(canUseNetwork('hosted-service')).toBe(false);
     expect(isAuthRequired()).toBe(false);
@@ -40,7 +38,6 @@ describe('network capability policy', () => {
     expect(canUseHostedService()).toBe(false);
     expect(canUsePersonalCloud()).toBe(false);
     expect(canUseByokProvider()).toBe(false);
-    expect(canUseExternalContent()).toBe(false);
     expect(canUseAgentExtension()).toBe(false);
   });
 
@@ -60,7 +57,6 @@ describe('network capability policy', () => {
 
     expect(canUseByokProvider()).toBe(true);
     expect(canUsePersonalCloud()).toBe(false);
-    expect(canUseExternalContent()).toBe(true);
     expect(canUseAgentExtension()).toBe(true);
   });
 });

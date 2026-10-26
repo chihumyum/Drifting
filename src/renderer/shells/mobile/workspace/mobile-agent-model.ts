@@ -38,7 +38,8 @@ export function buildMobileAgentTurnContext(input: {
     },
   ];
   const target = input.target;
-  if (!target) return refs;
+  // Material notes sit outside the book; the conversation keeps project scope.
+  if (!target || target.entityType === 'library_item') return refs;
   if (target.entityType === 'all-chapters') {
     refs.push({
       kind: 'workspace',

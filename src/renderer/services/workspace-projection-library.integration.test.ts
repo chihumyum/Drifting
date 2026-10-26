@@ -33,11 +33,17 @@ describe('covered library projection', () => {
       previous = next;
     }
   });
-  it('decodes a valid payload-kind change without retaining the old text body', async () => {
+  it('decodes a cleared note body without retaining the old text body', async () => {
     const { db, capture } = await fixture(); const previous = (await capture())!;
-    await db.update(LibraryItemTable).set({ kind: 'url', bodyJson: null, externalUrl: 'https://example.invalid/synthetic', previewImageUrl: 'https://example.invalid/preview' }).where(eq(LibraryItemTable.id, 'library'));
+    await db.update(LibraryItemTable).set({ bodyJson: null }).where(eq(LibraryItemTable.id, 'library'));
     const next = await compare(previous, 'changed');
-    expect(next.data.libraryItems.find(({ id }) => id === 'library')).toMatchObject({ kind: 'url', bodyJson: null, externalUrl: 'https://example.invalid/synthetic' });
+    expect(next.data.libraryItems.find(({ id }) => id === 'library')).toMatchObject({ kind: 'text', bodyJson: null });
+  });
+  it('refuses the retired url kind before any projection change is journaled', async () => {
+    const { db, capture } = await fixture(); const previous = (await capture())!;
+    const error: unknown = await db.update(LibraryItemTable).set({ kind: 'url', bodyJson: null, externalUrl: 'https://example.invalid/synthetic' }).where(eq(LibraryItemTable.id, 'library')).then(() => null, (failure: unknown) => failure);
+    expect(String((error as { cause?: unknown } | null)?.cause ?? error)).toMatch(/url materials are retired/);
+    await compare(previous, 'reuse');
   });
   it.each(['insert', 'delete', 'replace', 'project-move', 'id-change', 'reset', 'large-batch'] as const)('falls back on %s', async change => {
     const { db, capture } = await fixture();

@@ -22,6 +22,7 @@ import {
 } from '../../domain/plot-grid';
 import { stringifyKv } from '../../domain/kv';
 import { isValidMaterialProvenanceJson } from '../../domain/material-provenance';
+import { normalizeLegacyUrlRecord } from '../../domain/library-item';
 import {
   parseDocId,
   proseDocId,
@@ -901,9 +902,13 @@ async function upsertLifecycleLive(
     case 'element-patch':
       await context.tx.insert(ElementPatchTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, elementId: seed.elementId as string, sourceNodeId: (seed.sourceNodeId as string | null | undefined) ?? null, sourceBlockId: (seed.sourceBlockId as string | null | undefined) ?? null, sourceBlockText: (seed.sourceBlockText as string | null | undefined) ?? null, textAnchorJson: (seed.textAnchorJson as string | null | undefined) ?? null, invalidatedAt: (seed.invalidatedAt as string | null | undefined) ?? null, title: (seed.title as string | null | undefined) ?? null, contentJson: (seed.contentJson as string | undefined) ?? '{}', orderKey: 0, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
-    case 'library-item':
-      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: seed.title as string, kind: seed.kind as string, assetId: (seed.assetId as string | null | undefined) ?? null, externalUrl: (seed.externalUrl as string | null | undefined) ?? null, bodyJson: (seed.bodyJson as string | null | undefined) ?? null, notesJson: (seed.notesJson as string | null | undefined) ?? null, provenanceJson: (seed.provenanceJson as string | null | undefined) ?? null, orderKey: 0, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
+    case 'library-item': {
+      // Older builds and history still carry retired url seeds; they land as
+      // the same note migration 0011 makes of a stored url row.
+      const material = normalizeLegacyUrlRecord(seed);
+      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: material.title as string, kind: material.kind as string, assetId: (material.assetId as string | null | undefined) ?? null, externalUrl: (material.externalUrl as string | null | undefined) ?? null, bodyJson: (material.bodyJson as string | null | undefined) ?? null, notesJson: (material.notesJson as string | null | undefined) ?? null, provenanceJson: (material.provenanceJson as string | null | undefined) ?? null, orderKey: 0, createdAt: material.createdAt as string, updatedAt: material.updatedAt as string }).onConflictDoNothing();
       return;
+    }
     case 'entity-relation':
       await context.tx.insert(EntityRelationTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, fromKind: seed.fromKind as string, fromId: seed.fromId as string, toKind: seed.toKind as string, toId: seed.toId as string, relationTypeId: seed.relationTypeId as string, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
@@ -1028,7 +1033,11 @@ async function materializeField(context: SyncDomainMaterializationContext, effec
     case 'element': await context.tx.update(BookElementTable).set({ [effect.field]: value, updatedAt }).where(and(eq(BookElementTable.id, effect.target.id), eq(BookElementTable.projectId, context.changeSet.projectId))); return;
     case 'element-category': await context.tx.update(ElementCategoryTable).set({ [effect.field]: value, updatedAt }).where(and(eq(ElementCategoryTable.id, effect.target.id), eq(ElementCategoryTable.projectId, context.changeSet.projectId))); return;
     case 'element-patch': await context.tx.update(ElementPatchTable).set({ [effect.field]: value, updatedAt }).where(and(eq(ElementPatchTable.id, effect.target.id), eq(ElementPatchTable.projectId, context.changeSet.projectId))); return;
-    case 'library-item': await context.tx.update(LibraryItemTable).set({ [effect.field]: value, updatedAt }).where(and(eq(LibraryItemTable.id, effect.target.id), eq(LibraryItemTable.projectId, context.changeSet.projectId))); return;
+    case 'library-item':
+      // A retired url kind or link can only arrive from an older build; the
+      // row is already a note holding that link, so neither is materialized.
+      if ((effect.field === 'kind' && value === 'url') || (effect.field === 'externalUrl' && value !== null)) return;
+      await context.tx.update(LibraryItemTable).set({ [effect.field]: value, updatedAt }).where(and(eq(LibraryItemTable.id, effect.target.id), eq(LibraryItemTable.projectId, context.changeSet.projectId))); return;
     case 'entity-relation': await context.tx.update(EntityRelationTable).set({ [effect.field]: value, updatedAt }).where(and(eq(EntityRelationTable.id, effect.target.id), eq(EntityRelationTable.projectId, context.changeSet.projectId))); return;
     case 'entity-relation-type':
       if (effect.field === 'sourceKinds' || effect.field === 'targetKinds') {

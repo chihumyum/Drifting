@@ -393,7 +393,6 @@ export async function buildRelationalMarkdownEntries(
           item_kind: item.kind,
           asset_id:
             item.kind === 'image' || item.kind === 'pdf' ? (item.assetId ?? undefined) : undefined,
-          external_url: item.kind === 'url' ? (item.externalUrl ?? undefined) : undefined,
           ...materialProvenanceMetadata(item.provenanceJson),
           updated_at: item.updatedAt,
         },

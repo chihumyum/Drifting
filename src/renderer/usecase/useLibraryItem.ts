@@ -11,6 +11,7 @@ import {
 import { createLibraryItemSqliteRepository } from '../sqlite-repo/library-item-repo';
 import { createProjectAssetSqliteRepository } from '../sqlite-repo/project-asset-repo';
 import { useDataStore } from '../store/data-store';
+import { useUiStore } from '../store/ui-store';
 import { withoutRelationsForEntity } from './entity-relation-cleanup';
 import { deleteLibraryItemInTransaction } from './library-item-deletion';
 import { withOptimisticUpdate } from './optimistic';
@@ -40,7 +41,6 @@ export type CreateLibraryItemInput = CreateLibraryItemCommon &
          */
         releaseSourceImport?: boolean;
       }
-    | { kind: 'url'; externalUrl: string; previewImageUrl?: string | null }
     | { kind: 'text'; bodyJson?: string | null }
   );
 
@@ -138,15 +138,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
           previewImageUrl: null,
           bodyJson: null,
         };
-      } else if (input.kind === 'url') {
-        newItem = {
-          ...common,
-          kind: 'url',
-          assetId: null,
-          externalUrl: input.externalUrl,
-          previewImageUrl: input.previewImageUrl ?? null,
-          bodyJson: null,
-        };
       } else if (input.kind === 'text') {
         newItem = {
           ...common,
@@ -227,9 +218,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       if (updates.bodyJson !== undefined && existing.kind !== 'text') {
         throw new Error('Only text library items can update bodyJson');
       }
-      if (updates.previewImageUrl !== undefined && existing.kind !== 'url') {
-        throw new Error('Only URL library items can update previewImageUrl');
-      }
 
       const normalizedUpdates = updates;
       const updated = {
@@ -282,6 +270,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       const items = getItems();
       const existing = items.find((item) => item.id === id);
       if (!existing) throw new Error(`Library item with id ${id} not found`);
+      // Drop tabs before the store loses the row, so no leaf renders an
+      // untitled placeholder for a material that is being deleted.
+      useUiStore.getState().closeTabsForEntity(projectId, { entityType: 'library_item', id });
       const relations = useDataStore.getState().entityRelations;
       const remainingRelations = withoutRelationsForEntity(
         relations,

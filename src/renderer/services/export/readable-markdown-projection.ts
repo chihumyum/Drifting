@@ -240,7 +240,6 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
             .join('\n'),
         );
       }
-      if (item.externalUrl) parts.push(`## 外部链接\n\n[打开链接](${item.externalUrl.replace(/[\s()<>]/gu, char => encodeURIComponent(char))})`);
     }
     const related = document.sections.filter(section => section.startsWith('- '));
     parts.push(...document.sections.filter(section => !section.startsWith('- ')));

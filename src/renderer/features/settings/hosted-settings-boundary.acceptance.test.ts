@@ -160,7 +160,7 @@ describe('hosted settings boundary', () => {
     expect(contract).toContain('Trash items remain local until');
     expect(contract).toContain('project-scoped mobile workspace owns its Trash');
     expect(contract).toContain("Better Auth's own custom fetch transport");
-    expect(contract).toContain('`external-content`, or `agent-extension`');
+    expect(contract).toContain('`byok-provider`, or `agent-extension`');
     expect(contract).toContain('explicit per-server configuration and durable');
     expect(contract).toContain('public production CSP intentionally contains no Drifting hosted origin');
   });

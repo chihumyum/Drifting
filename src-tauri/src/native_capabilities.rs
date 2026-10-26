@@ -20,7 +20,7 @@
 //! centralized in `image_pipeline`; HEIC/HEIF/AVIF are routed to an operating-system codec where
 //! one exists instead of bundling a second native codec stack into every target.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -31,7 +31,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
-use reqwest::header::{HeaderMap, ACCEPT, CONTENT_TYPE};
 use reqwest::redirect::Policy;
 use reqwest::{Client, ClientBuilder, Url};
 use serde::{Deserialize, Serialize};
@@ -55,12 +54,8 @@ const MATERIAL_FILE_TOO_LARGE_ERROR: &str =
     "Selected file is larger than the 64 MiB material limit";
 const AI_LOG_LIMIT: usize = 4 * 1024 * 1024;
 const URL_LIMIT: usize = 4096;
-const URL_META_BODY_LIMIT: usize = 256 * 1024;
-const HTTP_HEADER_TOTAL_LIMIT: usize = 32 * 1024;
-const HTTP_HEADER_VALUE_LIMIT: usize = 8 * 1024;
 const MAX_REDIRECTS: usize = 5;
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-const URL_METADATA_TOTAL_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_EXTENSION_LEN: usize = 16;
 const NAT64_DISCOVERY_HOST: &str = "ipv4only.arpa";
 const NAT64_DISCOVERY_IPV4: [Ipv4Addr; 2] =
@@ -298,22 +293,6 @@ impl From<image_pipeline::ImagePipelineError> for PrepareImageFailure {
 pub enum PrepareImageResult {
     Success(PrepareImageSuccess),
     Failure(PrepareImageFailure),
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UrlMetadataSuccess {
-    ok: bool,
-    title: Option<String>,
-    og_image: Option<String>,
-    favicon: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum UrlMetadataResult {
-    Success(UrlMetadataSuccess),
-    Failure(FailureResult),
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
@@ -1452,6 +1431,8 @@ fn redirect_chain_exceeds_limit(previous_len: usize) -> bool {
     previous_len > MAX_REDIRECTS
 }
 
+/// Test entry to the shared destination guard used by the MCP HTTP client.
+#[cfg(test)]
 fn parse_http_url(value: &str) -> Result<Url, String> {
     if value.is_empty() || value.len() > URL_LIMIT {
         return Err("invalid URL".into());
@@ -1543,210 +1524,6 @@ pub(crate) fn mcp_http_client(value: &str, timeout: Duration) -> Result<(Client,
         .build()
         .map_err(|_| "MCP HTTP client could not be initialized".to_string())?;
     Ok((client, url))
-}
-
-fn url_metadata_http_client() -> Result<Client, String> {
-    http_client_builder()
-        .timeout(URL_METADATA_TOTAL_TIMEOUT)
-        .build()
-        .map_err(|_| "could not initialize HTTP client".to_string())
-}
-
-fn validate_response_headers(headers: &HeaderMap) -> Result<(), String> {
-    let mut total = 0_usize;
-    for (name, value) in headers {
-        let value_length = value.as_bytes().len();
-        if value_length > HTTP_HEADER_VALUE_LIMIT {
-            return Err("HTTP response header is too large".into());
-        }
-        total = total.saturating_add(name.as_str().len() + value_length);
-        if total > HTTP_HEADER_TOTAL_LIMIT {
-            return Err("HTTP response headers are too large".into());
-        }
-    }
-    Ok(())
-}
-
-async fn read_response_capped(
-    response: &mut reqwest::Response,
-    limit: usize,
-) -> Result<Vec<u8>, String> {
-    if response
-        .content_length()
-        .is_some_and(|length| length > limit as u64)
-    {
-        return Err("HTTP response body is too large".into());
-    }
-
-    let mut bytes = Vec::with_capacity(
-        response
-            .content_length()
-            .unwrap_or_default()
-            .min(limit as u64) as usize,
-    );
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|_| "HTTP response body could not be read".to_string())?
-    {
-        if bytes.len().saturating_add(chunk.len()) > limit {
-            return Err("HTTP response body is too large".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(bytes)
-}
-
-fn html_tag_regex() -> &'static Regex {
-    static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"(?is)<(?:meta|link)\b[^>]*>").expect("valid tag regex"))
-}
-
-fn html_attribute_regex() -> &'static Regex {
-    static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| {
-        Regex::new(r#"(?is)([a-z_:][a-z0-9_:.-]*)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)"#)
-            .expect("valid attribute regex")
-    })
-}
-
-fn html_title_regex() -> &'static Regex {
-    static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX
-        .get_or_init(|| Regex::new(r"(?is)<title\b[^>]*>(.*?)</title>").expect("valid title regex"))
-}
-
-fn html_strip_tags_regex() -> &'static Regex {
-    static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"(?is)<[^>]*>").expect("valid strip-tags regex"))
-}
-
-fn tag_attributes(tag: &str) -> HashMap<String, String> {
-    let mut attributes = HashMap::new();
-    for captures in html_attribute_regex().captures_iter(tag) {
-        let Some(name) = captures.get(1) else {
-            continue;
-        };
-        let Some(value) = captures.get(2) else {
-            continue;
-        };
-        let raw = value.as_str();
-        let unquoted = if raw.len() >= 2
-            && ((raw.starts_with('"') && raw.ends_with('"'))
-                || (raw.starts_with('\'') && raw.ends_with('\'')))
-        {
-            &raw[1..raw.len() - 1]
-        } else {
-            raw
-        };
-        attributes.insert(
-            name.as_str().to_ascii_lowercase(),
-            unquoted.trim().to_string(),
-        );
-    }
-    attributes
-}
-
-fn decode_basic_html_entities(value: &str) -> String {
-    value
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&nbsp;", " ")
-}
-
-fn bounded_text(value: &str, max_chars: usize) -> Option<String> {
-    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    if normalized.is_empty() {
-        return None;
-    }
-    Some(normalized.chars().take(max_chars).collect())
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct ParsedMetadata {
-    title: Option<String>,
-    og_image: Option<String>,
-    favicon: Option<String>,
-}
-
-fn parse_document_metadata(html: &str) -> ParsedMetadata {
-    let mut og_title = None;
-    let mut twitter_title = None;
-    let mut og_image = None;
-    let mut twitter_image = None;
-    let mut favicon = None;
-
-    for tag_match in html_tag_regex().find_iter(html) {
-        let tag = tag_match.as_str();
-        let attributes = tag_attributes(tag);
-        if tag
-            .get(..5)
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("<meta"))
-        {
-            let key = attributes
-                .get("property")
-                .or_else(|| attributes.get("name"))
-                .map(|value| value.to_ascii_lowercase());
-            let content = attributes.get("content").cloned();
-            match (key.as_deref(), content) {
-                (Some("og:title"), Some(value)) if og_title.is_none() => og_title = Some(value),
-                (Some("twitter:title"), Some(value)) if twitter_title.is_none() => {
-                    twitter_title = Some(value)
-                }
-                (Some("og:image"), Some(value)) if og_image.is_none() => og_image = Some(value),
-                (Some("twitter:image"), Some(value)) if twitter_image.is_none() => {
-                    twitter_image = Some(value)
-                }
-                _ => {}
-            }
-        } else {
-            let rel = attributes
-                .get("rel")
-                .map(|value| value.to_ascii_lowercase())
-                .unwrap_or_default();
-            if favicon.is_none()
-                && rel.split_whitespace().any(|value| value == "icon")
-                && attributes.contains_key("href")
-            {
-                favicon = attributes.get("href").cloned();
-            }
-        }
-    }
-
-    let document_title = html_title_regex()
-        .captures(html)
-        .and_then(|captures| captures.get(1))
-        .map(|value| {
-            html_strip_tags_regex()
-                .replace_all(value.as_str(), " ")
-                .into_owned()
-        });
-    let title = og_title
-        .or(twitter_title)
-        .or(document_title)
-        .map(|value| decode_basic_html_entities(&value))
-        .and_then(|value| bounded_text(&value, 512));
-
-    ParsedMetadata {
-        title,
-        og_image: og_image
-            .or(twitter_image)
-            .and_then(|value| bounded_text(&value, URL_LIMIT)),
-        favicon: favicon.and_then(|value| bounded_text(&value, URL_LIMIT)),
-    }
-}
-
-fn resolve_http_reference(base: &Url, value: Option<String>) -> Option<String> {
-    let value = value?;
-    let resolved = base.join(&value).ok()?;
-    if !matches!(resolved.scheme(), "http" | "https") {
-        return None;
-    }
-    Some(resolved.to_string())
 }
 
 fn safe_log_filename(filename: &str) -> Result<String, String> {
@@ -2192,66 +1969,6 @@ pub async fn material_create_thumbnail_variant(
             ImageVariantResult::Failure(FailureResult::new("thumbnail variant worker failed"))
         }
     }
-}
-
-#[tauri::command]
-pub async fn material_resolve_url_meta(url: String) -> UrlMetadataResult {
-    let parsed_url = match parse_http_url(&url) {
-        Ok(url) => url,
-        Err(error) => return UrlMetadataResult::Failure(FailureResult::new(error)),
-    };
-    let client = match url_metadata_http_client() {
-        Ok(client) => client,
-        Err(error) => return UrlMetadataResult::Failure(FailureResult::new(error)),
-    };
-    let mut response = match client
-        .get(parsed_url)
-        .header(
-            ACCEPT,
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        )
-        .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(_) => {
-            return UrlMetadataResult::Failure(FailureResult::new("URL request failed"));
-        }
-    };
-    if !response.status().is_success() {
-        return UrlMetadataResult::Failure(FailureResult::new(format!(
-            "HTTP {}",
-            response.status().as_u16()
-        )));
-    }
-    if let Err(error) = validate_response_headers(response.headers()) {
-        return UrlMetadataResult::Failure(FailureResult::new(error));
-    }
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    if !content_type.is_empty()
-        && !content_type.starts_with("text/html")
-        && !content_type.starts_with("application/xhtml+xml")
-    {
-        return UrlMetadataResult::Failure(FailureResult::new("URL did not return HTML"));
-    }
-    let final_url = response.url().clone();
-    let body = match read_response_capped(&mut response, URL_META_BODY_LIMIT).await {
-        Ok(body) => body,
-        Err(error) => return UrlMetadataResult::Failure(FailureResult::new(error)),
-    };
-    let html = String::from_utf8_lossy(&body);
-    let metadata = parse_document_metadata(&html);
-    UrlMetadataResult::Success(UrlMetadataSuccess {
-        ok: true,
-        title: metadata.title,
-        og_image: resolve_http_reference(&final_url, metadata.og_image),
-        favicon: resolve_http_reference(&final_url, metadata.favicon),
-    })
 }
 
 #[tauri::command]
@@ -3098,33 +2815,8 @@ mod tests {
     }
 
     #[test]
-    fn metadata_client_uses_bounded_timeouts() {
+    fn http_clients_use_a_bounded_connect_timeout() {
         assert_eq!(HTTP_CONNECT_TIMEOUT, Duration::from_secs(5));
-        assert_eq!(URL_METADATA_TOTAL_TIMEOUT, Duration::from_secs(8));
-        assert!(url_metadata_http_client().is_ok());
-    }
-
-    #[test]
-    fn metadata_parser_handles_attribute_order_and_relative_assets() {
-        let html = r#"
-          <html><head>
-            <meta content="A &amp; B" property="og:title">
-            <meta content="/cover.jpg" property="og:image">
-            <link href="icons/site.png" rel="shortcut icon">
-            <title>Fallback</title>
-          </head></html>
-        "#;
-        let parsed = parse_document_metadata(html);
-        assert_eq!(parsed.title.as_deref(), Some("A & B"));
-        let base = parse_http_url("https://example.com/articles/one").unwrap();
-        assert_eq!(
-            resolve_http_reference(&base, parsed.og_image),
-            Some("https://example.com/cover.jpg".into())
-        );
-        assert_eq!(
-            resolve_http_reference(&base, parsed.favicon),
-            Some("https://example.com/articles/icons/site.png".into())
-        );
     }
 
     #[test]

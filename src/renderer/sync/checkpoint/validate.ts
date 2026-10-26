@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { normalizeLegacyUrlRecord } from '../../domain/library-item';
 
 import {
   SYNC_DOMAIN_MANIFEST_V1,
@@ -121,6 +122,24 @@ export function withNullableFieldsAddedAfterV1(
   return { ...row, ...Object.fromEntries(missing.map((field) => [field, null])) };
 }
 
+/**
+ * A checkpoint captured before migration 0011 may hold retired url materials.
+ * They restore as the same note the migration makes of a stored url row; the
+ * insert guard would otherwise refuse the whole restore.
+ */
+export function withRetiredUrlMaterialAsNote(
+  table: string,
+  row: Readonly<Record<string, CanonicalCborValue>>,
+): Readonly<Record<string, CanonicalCborValue>> {
+  if (table !== 'library_item' || row.kind !== 'url') return row;
+  const note = normalizeLegacyUrlRecord({
+    kind: row.kind,
+    externalUrl: row.external_url,
+    bodyJson: row.body_json,
+  });
+  return { ...row, kind: note.kind as string, external_url: null, body_json: note.bodyJson as string };
+}
+
 function parseAuthoredTables(entries: readonly unknown[]): AuthoredStatePayloadV1 {
   const tables: SnapshotTableRowsV1[] = entries.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.table !== 'string' || !Array.isArray(entry.rows)) {
@@ -131,7 +150,10 @@ function parseAuthoredTables(entries: readonly unknown[]): AuthoredStatePayloadV
       if (!isRecord(row)) {
         throw new SnapshotRestoreError('schema-mismatch', `${table} row ${rowIndex} is malformed`);
       }
-      return withNullableFieldsAddedAfterV1(table, row as Readonly<Record<string, CanonicalCborValue>>);
+      return withRetiredUrlMaterialAsNote(
+        table,
+        withNullableFieldsAddedAfterV1(table, row as Readonly<Record<string, CanonicalCborValue>>),
+      );
     });
     return { table: entry.table, rows };
   });

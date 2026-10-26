@@ -12,6 +12,7 @@ describe('workspace route mapping', () => {
     { entityType: 'storyline', id: 'storyline-1' },
     { entityType: 'element', id: 'element-1' },
     { entityType: 'category', id: '人物 / 主要' },
+    { entityType: 'library_item', id: 'library-item-1' },
     { entityType: 'all-chapters', id: 'self' },
   ])('round-trips $entityType targets between a shell session and the URL', (target) => {
     const url = workspaceUrlFor('project-1', target);

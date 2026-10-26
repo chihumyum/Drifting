@@ -40,10 +40,10 @@ adapter runs, and Better Auth's own custom fetch transport applies the same
 gate. Direct calls to `authClient` therefore cannot bypass local-only mode.
 
 Product network access is classified as one of `hosted-service`,
-`personal-cloud`, `byok-provider`, `external-content`, or `agent-extension`.
+`personal-cloud`, `byok-provider`, or `agent-extension`.
 The local-first build allows only author-initiated non-hosted purposes while the
-device is online. Pasted-URL metadata and remote preview images use
-`external-content`; both fail closed while offline. BYOK clients check
+device is online. Materials never fetch web metadata or remote preview images
+(url materials were retired in 2026-10). BYOK clients check
 `byok-provider` before creating or using a direct provider transport. Remote
 Agent extensions already require explicit per-server configuration and durable
 per-tool grants, so `agent-extension` records availability and purpose rather

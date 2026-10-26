@@ -1,0 +1,270 @@
+/* ============================================================
+   Material workbench — material tabs, media stages, note pages.
+   See docs/material-workbench.md.
+   ============================================================ */
+
+.material-editor__missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: hsl(var(--ink-4));
+  font-size: 13px;
+}
+
+.material-editor__title {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+.material-editor__title::placeholder {
+  color: hsl(var(--ink-4));
+}
+.material-editor__note-page .material-editor__title {
+  font-size: 34px;
+}
+
+.material-editor__provenance {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-4));
+}
+.material-editor__provenance-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.material-editor__provenance-toggle:hover {
+  color: hsl(var(--ink-2));
+}
+.material-editor__generation {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  color: hsl(var(--ink-2));
+}
+.material-editor__generation dt {
+  color: hsl(var(--ink-4));
+}
+.material-editor__generation dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.material-editor__description {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  resize: none;
+  outline: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.material-editor__description:hover {
+  background: hsl(var(--paper-deep) / 0.6);
+}
+.material-editor__description:focus {
+  border-color: hsl(var(--rule-strong));
+  background: hsl(var(--surface));
+}
+
+.material-editor__relations {
+  margin-top: 8px;
+}
+
+/* ---- Image / PDF tab: compact header over a full-bleed stage ---- */
+
+.material-editor__media-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: hsl(var(--paper-deep));
+}
+.material-editor__header {
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 18px 28px 12px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--page));
+}
+
+.material-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+.material-stage--tab {
+  flex: 1;
+  min-height: 0;
+  outline: 0;
+}
+.material-stage[data-zoomed='true'] {
+  cursor: grab;
+}
+.material-stage[data-dragging='true'] {
+  cursor: grabbing;
+}
+.material-stage__fit {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  outline: 0;
+}
+.material-stage__media {
+  position: relative;
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.12);
+}
+.material-stage__media--pdf {
+  background: hsl(var(--surface));
+}
+.material-stage__message {
+  font-size: 14px;
+  color: hsl(var(--ink-3));
+}
+.material-stage__pager {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  background: hsl(var(--paper) / 0.9);
+  box-shadow: 0 12px 24px -14px hsl(var(--ink-1) / 0.3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: hsl(var(--ink-2));
+}
+.material-stage__pager button {
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 2px;
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+  font: inherit;
+  cursor: pointer;
+}
+.material-stage__pager button:disabled {
+  background: transparent;
+  color: hsl(var(--ink-5));
+  cursor: default;
+}
+.material-stage__tools {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 1;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  background: hsl(var(--paper) / 0.92);
+}
+.material-stage__tools button {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.material-stage__tools button:hover {
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+}
+
+/* Fullscreen lightbox (element portrait「查看大图」, tab ⤢). */
+.material-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-context-menu);
+  display: flex;
+  background: hsl(var(--ink-1) / 0.58);
+}
+.material-lightbox > .material-stage {
+  width: 100%;
+  height: 100%;
+}
+.material-lightbox .material-stage__media {
+  box-shadow: none;
+}
+
+/* ---- Note tab ---- */
+
+.material-editor__note-page {
+  padding-top: 40px;
+}
+.material-editor__note-text {
+  display: block;
+  width: 100%;
+  min-height: 50vh;
+  margin-top: 24px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.material-editor__link {
+  display: inline-block;
+  margin-top: 24px;
+  color: hsl(var(--accent));
+  overflow-wrap: anywhere;
+}

@@ -62,6 +62,17 @@ describe('open-tab semantic presentation', () => {
     expect(result.labels.get(leafPresentationKey(tabs[1] as LeafTab))).toEqual({ title: 'Story', fallback: 'storyline' });
     expect(result.labels.get(leafPresentationKey(tabs[3] as LeafTab))).toEqual({ title: '', fallback: 'all-chapters' });
   });
+  it('labels material tabs by title and falls back for untitled or missing materials', () => {
+    const data = fixture();
+    data.libraryItems = [{ id: 'synthetic-library', projectId: 'synthetic-tabs', kind: 'text', title: '合成资料',
+      notesJson: null, provenanceJson: null, orderKey: 0, createdAt: '', updatedAt: '', assetId: null,
+      externalUrl: null, previewImageUrl: null, bodyJson: null }];
+    const material = leaf('library_item', 'synthetic-library');
+    const titled = selector([material])(data);
+    expect(titled.labels.get(leafPresentationKey(material))).toEqual({ title: '合成资料', fallback: 'library_item' });
+    const missing = selector([leaf('library_item', 'gone')])(data);
+    expect(missing.labels.get(leafPresentationKey(leaf('library_item', 'gone')))).toEqual({ title: '', fallback: 'library_item' });
+  });
   it('deduplicates repeated split leaves and ignores the create draft contents', () => {
     const tabs: AnyTab[] = [nodeTab, { kind: 'split', id: 'split', left: nodeTab, right: elementTab, focused: 'left', splitRatio: 0.5 },
       { kind: 'create', id: 'universal-new', isPreview: true, returnTabKey: null, draft: { step: 'kind', entityKind: null, storylineId: null,

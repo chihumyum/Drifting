@@ -145,14 +145,14 @@ fn workspace_library_items_assets_and_portraits() {
             }
         )
         .is_err());
-    // Links and text notes; notes and body edits journal one field each.
+    // A saved link is a note holding the link (url materials are retired);
+    // notes and body edits journal one field each.
     let link = store
         .create_library_link(&c, "link", "钟楼资料", " https://example.invalid/tower ")
         .unwrap();
-    assert_eq!(
-        link.external_url.as_deref(),
-        Some("https://example.invalid/tower")
-    );
+    assert_eq!(link.kind, "text");
+    assert_eq!(link.external_url, None);
+    assert_eq!(link.text, "https://example.invalid/tower");
     assert!(store
         .create_library_link(&c, "bad-link", "x", "ftp://x")
         .is_err());

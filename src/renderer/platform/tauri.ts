@@ -1,7 +1,7 @@
 import type { McpServerEvent } from './mcp-server-contract';
 import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { APP_CONFIG, canUseExternalContent, canUseHostedService } from '../lib/config';
+import { APP_CONFIG, canUseHostedService } from '../lib/config';
 import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
 import { consumePendingNativeOAuth, createPendingNativeOAuth } from './native-oauth-state';
 import { LOCATION_OPEN_PREFIX } from '../lib/location-link';
@@ -903,13 +903,6 @@ export const tauriPlatform: PlatformApi = {
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
       }
     },
-    resolveUrlMeta: (url) =>
-      canUseExternalContent()
-        ? invokeContract('material_resolve_url_meta', { url })
-        : Promise.resolve({
-            ok: false,
-            error: 'EXTERNAL_CONTENT_OFFLINE: URL metadata is unavailable while offline.',
-          }),
   },
 
   assetStore: {

@@ -155,7 +155,8 @@ retain their exact pre-capture real values because those values are authored.
 
 The following excluded fields are not blockers: `created_at/updated_at` are HLC
 projections, `outline_json` and word-count basis are rebuilt from Yjs, and
-`library_item.preview_image_url` is a local network/cache projection.
+`library_item.preview_image_url` is a retired local projection that stays null
+since url materials became notes (migration `0011`).
 
 ## Completed vertical slice — Plot Grid
 

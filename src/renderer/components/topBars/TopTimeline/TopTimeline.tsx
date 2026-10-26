@@ -95,6 +95,8 @@ function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): st
       return '◆';
     case 'category':
       return '⌘';
+    case 'library_item':
+      return '❏';
     case 'all-chapters':
       return '☰';
   }

@@ -41,6 +41,7 @@ function pruneDeviceTabsToProjection(projectId: string, data: WorkspaceDataProje
     storylineIds: new Set(data.storylines.map((storyline) => storyline.id)),
     elementIds: new Set(data.bookElements.map((element) => element.id)),
     categoryIds: new Set(data.bookElementCategories.map((category) => category.id)),
+    libraryItemIds: new Set(data.libraryItems.map((item) => item.id)),
   });
 }
 

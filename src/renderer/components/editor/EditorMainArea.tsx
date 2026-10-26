@@ -24,6 +24,7 @@ import { NodeEditorView } from '../../views/NodeEditorView';
 import { StorylineEditorView } from '../../views/StorylineEditorView';
 import { ElementEditorView } from '../../views/ElementEditorView';
 import { CategoryEditorView } from '../../views/CategoryEditorView';
+import { MaterialEditorView } from '../../views/MaterialEditorView';
 import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
 import { ProjectDashboard } from '../../views/ProjectDashboard';
 import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
@@ -546,6 +547,8 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
       return <ElementEditorView key={leaf.id} elementIdOverride={leaf.id} />;
     case 'category':
       return <CategoryEditorView key={leaf.id} categoryIdOverride={leaf.id} />;
+    case 'library_item':
+      return <MaterialEditorView key={leaf.id} libraryItemIdOverride={leaf.id} />;
     case 'all-chapters':
       return <AllChaptersEditorView />;
   }

@@ -697,7 +697,7 @@
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
       "sub": "A plain view of what Drifting uses, what it does not use, and when data leaves your machine.",
-      "noteA": "Public source builds do not contact a Drifting hosted service by default. Author-selected model providers, personal cloud, remote Agent extensions, and web metadata or preview images for pasted URLs may use the network; this does not upload manuscripts or local assets to Drifting.",
+      "noteA": "Public source builds do not contact a Drifting hosted service by default. Author-selected model providers, personal cloud and remote Agent extensions may use the network; this does not upload manuscripts or local assets to Drifting.",
       "noteBPrefix": "AI requests follow the",
       "noteBStrong": "selected provider's",
       "noteBSuffix": "current data and training terms.",
@@ -1870,10 +1870,9 @@
       "newMaterial": "New material"
     },
     "kind": {
-      "text": "Snippet",
+      "text": "Note",
       "image": "Image",
-      "pdf": "PDF",
-      "url": "Link"
+      "pdf": "PDF"
     },
     "menu": {
       "type": "Type: {{type}}",
@@ -1890,13 +1889,13 @@
     "card": {
       "collapseImage": "Collapse image",
       "expandImage": "Expand image",
-      "collapseSnippet": "Collapse snippet",
-      "expandSnippet": "Expand snippet",
+      "collapseSnippet": "Collapse note",
+      "expandSnippet": "Expand note",
       "collapse": "Collapse",
       "expand": "Expand",
-      "addSnippetBody": "Add snippet body…",
+      "addSnippetBody": "Write in this note…",
       "fullscreenImage": "View image fullscreen",
-      "snippetPlaceholder": "Snippet body…"
+      "snippetPlaceholder": "Write your note…"
     },
     "preview": {
       "generating": "Generating preview…",
@@ -1910,7 +1909,8 @@
       "renderPdfFailed": "Cannot render PDF",
       "loadingPdf": "Loading PDF…",
       "previousPage": "Previous",
-      "nextPage": "Next"
+      "nextPage": "Next",
+      "loading": "Loading…"
     },
     "archive": {
       "reopen": "Reopen"
@@ -1921,9 +1921,6 @@
       "todoPlaceholder": "Todo content…",
       "newMaterial": "New material",
       "titlePlaceholder": "Title",
-      "resolvingUrl": "Resolving page…",
-      "urlInfo": "Page info",
-      "noUrlTitle": "No title found",
       "chooseFile": "Choose file…",
       "openingPicker": "Opening picker…",
       "creating": "Creating…",
@@ -2389,7 +2386,8 @@
         "element": "This element · detailed stats",
         "category": "This category · detailed stats",
         "none": "Project · detailed stats"
-      }
+      },
+      "materialContent": "Material"
     },
     "empty": {
       "missingChapter": "Could not find the current chapter.",
@@ -2479,7 +2477,8 @@
       "drift": "Untitled idea",
       "storyline": "Untitled storyline",
       "element": "Untitled element",
-      "category": "Untitled category"
+      "category": "Untitled category",
+      "library_item": "Untitled material"
     },
     "menu": {
       "closePane": "Close pane",
@@ -3489,7 +3488,9 @@
       "deleteNode": "Delete node",
       "deleteElement": "Delete element",
       "deleteCategory": "Delete category",
-      "deleteStoryline": "Delete storyline"
+      "deleteStoryline": "Delete storyline",
+      "openMaterialInSystem": "Open in default app",
+      "deleteMaterial": "Delete material"
     }
   },
   "projectMemory": {
@@ -3530,5 +3531,22 @@
   },
   "hostedQuota": {
     "exceeded": "Hosted storage is full ({{used}} of {{quota}} used), so this attachment was not imported. Writing and structure keep syncing; delete attachments or projects you no longer need to free space."
+  },
+  "materialEditor": {
+    "crumb": "Materials",
+    "missing": "This material no longer exists.",
+    "deleteConfirm": "Delete the material “{{title}}”? This cannot be undone.",
+    "deleteFailed": "The material could not be deleted.",
+    "descriptionPlaceholder": "Add a description…",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Fit to view",
+    "provenance": {
+      "generated": "AI generated · {{model}} · {{date}}",
+      "prompt": "Description",
+      "style": "Style",
+      "direction": "Author direction",
+      "formerPortrait": "Former portrait of “{{name}}”"
+    }
   }
 }

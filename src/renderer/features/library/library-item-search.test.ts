@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPlainCommentDoc } from '../../domain/comment';
-import type { LibraryItem } from '../../domain/library-item';
+import { legacyUrlNoteBodyJson, type LibraryItem } from '../../domain/library-item';
 import { libraryItemMatchesQuery } from './library-item-search';
 
 const base = {
@@ -23,15 +23,15 @@ const textItem: LibraryItem = {
   bodyJson: createPlainCommentDoc('守夜人在雾里点亮了第三盏灯'),
 };
 
-const urlItem: LibraryItem = {
+const retiredLinkNote: LibraryItem = {
   ...base,
-  id: 'synthetic-url',
-  kind: 'url',
+  id: 'synthetic-retired-link',
+  kind: 'text',
   title: '参考链接',
   assetId: null,
-  externalUrl: 'https://example.com/lighthouse-history',
+  externalUrl: null,
   previewImageUrl: null,
-  bodyJson: null,
+  bodyJson: legacyUrlNoteBodyJson('https://example.com/lighthouse-history'),
   notesJson: createPlainCommentDoc('潮汐表在第二页'),
 };
 
@@ -42,12 +42,13 @@ describe('library item search', () => {
     }
   });
 
-  it('matches Chinese body text, title, link and notes as plain text', () => {
+  it('matches Chinese body text, title, a retired link and notes as plain text', () => {
     expect(libraryItemMatchesQuery(textItem, '第三盏灯')).toBe(true);
     expect(libraryItemMatchesQuery(textItem, '灯塔')).toBe(true);
-    expect(libraryItemMatchesQuery(urlItem, 'lighthouse-history')).toBe(true);
-    expect(libraryItemMatchesQuery(urlItem, '潮汐表')).toBe(true);
-    expect(libraryItemMatchesQuery(urlItem, 'paragraph')).toBe(false);
+    expect(libraryItemMatchesQuery(retiredLinkNote, 'lighthouse-history')).toBe(true);
+    expect(libraryItemMatchesQuery(retiredLinkNote, '潮汐表')).toBe(true);
+    expect(libraryItemMatchesQuery(retiredLinkNote, 'paragraph')).toBe(false);
+    expect(libraryItemMatchesQuery(retiredLinkNote, 'href')).toBe(false);
   });
 
   it('treats a blank query as matching everything', () => {

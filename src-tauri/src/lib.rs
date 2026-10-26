@@ -312,7 +312,6 @@ pub fn run() {
             native_capabilities::material_prepare_image,
             native_capabilities::material_create_image_variant,
             native_capabilities::material_create_thumbnail_variant,
-            native_capabilities::material_resolve_url_meta,
             native_capabilities::asset_store_get_path,
             native_capabilities::asset_store_write_bytes,
             native_capabilities::asset_store_copy_file,

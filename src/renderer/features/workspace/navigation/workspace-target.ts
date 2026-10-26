@@ -3,6 +3,7 @@ export type WorkspaceEntityType =
   | 'storyline'
   | 'element'
   | 'category'
+  | 'library_item'
   | 'all-chapters';
 
 /** Shell-neutral description of content the user wants to open. */

@@ -20,9 +20,10 @@ describe('clean local project asset architecture', () => {
     }
     expect(library).toContain("kind: 'image' | 'pdf'");
     expect(library).toContain('assetId: string');
-    expect(library).toContain("kind: 'url'");
-    expect(library).toContain('externalUrl: string');
     expect(library).toContain("kind: 'text'");
+    // Url materials are retired (migration 0011); no variant carries a link.
+    expect(library).not.toContain("kind: 'url'");
+    expect(library).not.toContain('externalUrl: string');
 
     for (const retiredField of [
       'ownerKind',
@@ -107,22 +108,16 @@ describe('clean local project asset architecture', () => {
   });
 
   it('uses derived bytes for image rendering and canonical source bytes for fidelity hand-offs', () => {
-    const preview = source('../features/library/LibraryItemPreview.tsx');
-    const libraryPanel = source('../features/library/LibraryPanel.tsx');
-    const desktopLibrary = source('../shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
+    const lightbox = source('../features/library/LibraryItemPreview.tsx');
+    const materialTab = source('../views/MaterialEditorView.tsx');
+    const openInSystem = source('../features/library/open-library-item.ts');
 
-    expect(preview).toMatch(
-      /const assetImageSource = useStoredLibraryItemVariant\(\s*material,\s*'display'/u,
-    );
-    expect(preview).toMatch(
-      /const assetPdfSource = useStoredLibraryItemVariant\(\s*material,\s*'source'/u,
-    );
-    expect(libraryPanel).toContain(
-      "assetStoreService.requireVariant(projectId, asset, 'source')",
-    );
-    expect(desktopLibrary).toContain(
-      "assetStoreService.requireVariant(projectId, asset, 'source')",
-    );
+    for (const view of [lightbox, materialTab]) {
+      expect(view).toMatch(/useStoredLibraryItemVariant\(\s*(material|item),\s*'display',\s*isImage\)/u);
+      expect(view).toMatch(/useStoredLibraryItemVariant\(\s*(material|item),\s*'source',/u);
+    }
+    // The OS hand-off is the fidelity path: it always opens the source bytes.
+    expect(openInSystem).toContain("assetStoreService.requireVariant(projectId, asset, 'source')");
   });
 
   it('deletes a library owner and its relation rows through one transaction boundary', () => {

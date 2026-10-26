@@ -32,8 +32,13 @@ clean-over-compatibility rule lives in [`../AGENTS.md`](../AGENTS.md).
 | kind | required payload | forbidden payload |
 | --- | --- | --- |
 | `image` / `pdf` | `assetId` | external URL and text body |
-| `url` | `externalUrl`; optional `previewImageUrl` | asset and text body |
 | `text` | optional canonical TipTap `bodyJson` | asset and external URL |
+
+The former `url` kind is retired (migration `0011`): stored url rows became
+notes holding their link, guard triggers refuse new ones, and url records from
+older builds or checkpoints are converted the same way. The `external_url` and
+`preview_image_url` columns remain in the published table, always null. See
+[`material-workbench.md`](material-workbench.md).
 
 `notesJson`, when present, is also a canonical TipTap document. Picker paths are
 command input only and are never persisted in a domain row, sync operation, or

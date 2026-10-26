@@ -24,7 +24,6 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 vi.mock('../lib/config', () => ({
   APP_CONFIG: { API_BASE_URL: 'http://localhost:3000' },
-  canUseExternalContent: () => false,
   canUseHostedService: () => false,
 }));
 
