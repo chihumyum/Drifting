@@ -13,6 +13,7 @@ import { disableMobileWebViewZoom } from './shells/mobile/mobile-webview-zoom';
 import { DatabaseRecoveryBoundary } from './app/components/DatabaseRecoveryBoundary';
 import { useDatabaseOpenFailure } from './platform/database-recovery-store';
 import { ConfirmationDialog } from './components/modals/ConfirmationDialog';
+import { reportError } from './services/diagnostics/crash-reporter';
 
 const log = loglevel.getLogger('App');
 
@@ -31,6 +32,8 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, RootErrorBoun
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     log.error('[App] Unhandled renderer error:', error, info.componentStack);
+    // The whole UI was replaced by the fallback, so this is always fatal.
+    reportError('render-failure', error, 'fatal');
   }
 
   private retry = () => this.setState({ error: null });

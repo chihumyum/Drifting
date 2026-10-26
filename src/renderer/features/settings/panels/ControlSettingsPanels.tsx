@@ -26,6 +26,7 @@ import {
 import { hostedAccountSettingsEnabled } from '../hosted-settings-policy';
 import { LibraryBackupSettings } from './LibraryBackupSettings';
 import { MarkdownProjectionSettings } from './MarkdownProjectionSettings';
+import { useSettingsStore } from '../../../store/settings-store';
 
 export function KeysPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -401,6 +402,8 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
   const runtime = useProductSyncRuntime();
   const update = useSyncExternalStore(UpdateService.subscribe, UpdateService.getState);
   const [diagnosticMessage, setDiagnosticMessage] = useState<string | null>(null);
+  const sendCrashLogs = useSettingsStore((state) => state.sendCrashLogs);
+  const setSendCrashLogs = useSettingsStore((state) => state.setSendCrashLogs);
 
   const copyDiagnostics = async () => {
     setDiagnosticMessage(null);
@@ -460,11 +463,7 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
           <SettingsRow
             label={t('settings.privacy.crashLogs')}
             desc={t('settings.privacy.crashLogsDesc')}
-            control={
-              <span title={t('settings.common.not_available_yet')}>
-                <SettingsToggle on={false} onChange={() => undefined} disabled />
-              </span>
-            }
+            control={<SettingsToggle on={sendCrashLogs} onChange={setSendCrashLogs} />}
           />
         </div>
       )}

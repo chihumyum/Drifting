@@ -67,7 +67,9 @@ describe('hosted settings boundary', () => {
     const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as {
       preAlphaGuide: Record<string, string>;
     };
-    expect(onboarding).toContain("const GUIDE_VERSION = 'v5'");
+    // v6 discloses content-free crash reports, which default on in Hosted builds.
+    expect(onboarding).toContain("const GUIDE_VERSION = 'v6'");
+    expect(onboarding).toContain("{hosted && <li>{t('preAlphaGuide.crashReports')}</li>}");
     expect(onboarding).toContain("t('preAlphaGuide.localData')");
     expect(onboarding).toContain("{hosted && <li>{t('settings.hosted.trust')}</li>}");
     expect(onboarding).toMatch(/\{hosted && \(\s*<Button variant="default" onClick=\{onOpenAccount\}>/);

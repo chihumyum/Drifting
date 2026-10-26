@@ -19,6 +19,7 @@ import { events } from '../../lib/events';
 import { UpdateService } from '../../services/update/update-service';
 import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
 import { applyResolvedColorScheme } from '../../lib/initial-theme';
+import { reportIntegrityEvent } from '../../services/diagnostics/crash-reporter';
 
 const log = loglevel.getLogger('AppEffects');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -160,7 +161,10 @@ function PersistenceLifecycleEffects() {
             .confirmFlushBeforeQuit(request.requestId)
             .catch((error) => log.warn('confirmFlushBeforeQuit failed:', error));
         })
-        .catch((error) => log.warn('Lifecycle persistence flush failed:', error));
+        .catch((error) => {
+          log.warn('Lifecycle persistence flush failed:', error);
+          reportIntegrityEvent('local-flush-failed', error, { reason: request.reason });
+        });
     });
 
     const onBeforeUnload = () => {

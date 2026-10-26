@@ -38,9 +38,22 @@ import type { ObjectLogProvider } from './protocol';
 import { productionSyncDomainMaterializationKernel } from './reducer';
 import { SyncGenerationTable } from '../schema/drizzle';
 import { productSyncRuntimeControl } from './product-runtime-control';
+import { reportIntegrityEvent } from '../services/diagnostics/crash-reporter';
 
 const log = loglevel.getLogger('SyncEngineProductionRuntime');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
+
+
+// A cycle that cannot be retried stops this project's sync until something
+// changes. Session and deletion outcomes are expected; the rest is reported.
+const EXPECTED_SYNC_STOPS = new Set(['needs-reauth', 'permission-denied', 'ABORTED', 'GENERATION_DELETED']);
+function reportBlockedSync(error: unknown) {
+  const failure = error as { code?: unknown; retryable?: unknown } | null;
+  if (!failure || failure.retryable === true) return;
+  const code = typeof failure.code === 'string' ? failure.code : 'unknown';
+  if (EXPECTED_SYNC_STOPS.has(code)) return;
+  reportIntegrityEvent(`sync-blocked:${code}`, error);
+}
 
 export interface ProductionSyncRuntimeDependencies {
   readonly database: () => DbClient;
@@ -111,6 +124,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
     new SyncEngineCoordinator({
       onCycleError(syncGenerationId, error) {
         log.warn(`SyncEngine cycle failed for ${syncGenerationId}; local journal remains durable`, error);
+        reportBlockedSync(error);
       },
     }),
   createCheckpoint({ database, binding, provider }) {

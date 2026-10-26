@@ -10,7 +10,7 @@ import { getPlatformRuntime } from '../../platform/runtime';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
-const GUIDE_VERSION = 'v5';
+const GUIDE_VERSION = 'v6';
 
 function usePreAlphaGuide() {
   const userId = useAuthStore((state) => state.user?.id ?? null);
@@ -61,6 +61,7 @@ function PreAlphaGuideCard({
             <li>{t('preAlphaGuide.localData')}</li>
             {hosted && <li>{t('settings.hosted.trust')}</li>}
             <li>{t('preAlphaGuide.byok')}</li>
+            {hosted && <li>{t('preAlphaGuide.crashReports')}</li>}
           </ul>
         </div>
         <p style={{ margin: '0 0 20px', color: 'hsl(var(--ink-2))', lineHeight: 1.65 }}>

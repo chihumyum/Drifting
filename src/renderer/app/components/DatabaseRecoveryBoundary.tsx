@@ -8,6 +8,7 @@ import {
 import { publishDatabaseOpenFailure } from '../../platform/database-recovery-store';
 import { platform } from '../../platform';
 import { requestConfirmation } from '../../store/confirmation-store';
+import { reportCrash } from '../../services/diagnostics/crash-reporter';
 
 function diagnosticSummary(failure: DatabaseOpenFailureData): string {
   return JSON.stringify(
@@ -46,6 +47,22 @@ export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFai
   useEffect(() => {
     primaryRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    // The library could not be opened or migrated; the author may lose access.
+    reportCrash({
+      kind: 'integrity',
+      severity: 'fatal',
+      code: `database-open-failed:${failure.code}`,
+      name: failure.name,
+      message: failure.message,
+      context: {
+        sourceVersion: failure.sourceVersion ?? 'unknown',
+        targetVersion: failure.targetVersion,
+        safetyBackup: Boolean(failure.safetyBackup),
+      },
+    });
+  }, [failure]);
 
   const run = async (label: string, operation: () => Promise<void>) => {
     setBusy(label);

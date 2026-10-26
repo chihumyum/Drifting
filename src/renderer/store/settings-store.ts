@@ -132,7 +132,7 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 30;
+export const SETTINGS_STORAGE_VERSION = 31;
 
 /**
  * Keep an explicit persisted choice, including `off`, while giving new or
@@ -719,7 +719,8 @@ export const useSettingsStore = create<SettingsState>()(
       setImproveModelsWithManuscripts: (on) => set({ improveModelsWithManuscripts: on }),
       sendUsageStats: false,
       setSendUsageStats: (on) => set({ sendUsageStats: on }),
-      sendCrashLogs: false,
+      // Content-free crash and integrity reports; see services/diagnostics/crash-reporter.ts.
+      sendCrashLogs: true,
       setSendCrashLogs: (on) => set({ sendCrashLogs: on }),
     }),
     {
@@ -1018,6 +1019,11 @@ export const useSettingsStore = create<SettingsState>()(
           // existing installation the bounded default once; the author can
           // explicitly choose unlimited again in Settings → Agent.
           next.agentTurnIterationLimit = AGENT_TURN_ITERATION_LIMIT_DEFAULT;
+        }
+        if (version < 31) {
+          // The crash-log toggle was a disabled placeholder before reports
+          // existed, so no stored value reflects a choice. Start enabled.
+          next.sendCrashLogs = true;
         }
         return next;
       },

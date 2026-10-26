@@ -8,6 +8,7 @@ mod codex_images;
 mod codex_models;
 mod codex_oauth;
 mod commands;
+mod crash_reports;
 mod data_paths;
 mod database;
 #[cfg(all(debug_assertions, desktop))]
@@ -352,6 +353,7 @@ pub fn run() {
             app_update::update_install,
             #[cfg(desktop)]
             app_update::update_dismiss,
+            crash_reports::diagnostics_take_native_reports,
             #[cfg(all(debug_assertions, desktop))]
             dev_watchdog::dev_watchdog_heartbeat,
             #[cfg(all(debug_assertions, desktop))]
@@ -365,6 +367,12 @@ pub fn run() {
             let data_directories = data_paths::prepare_data_directories(app.handle())
                 .map_err(std::io::Error::other)?;
             let database_directory = data_directories.database_directory;
+            let crash_directory = crash_reports::report_directory(&database_directory);
+            crash_reports::install_panic_hook(
+                crash_directory.clone(),
+                app.package_info().version.to_string(),
+            );
+            app.manage(crash_reports::directory_state(crash_directory));
             #[cfg(all(debug_assertions, desktop))]
             app.manage(dev_watchdog::DevWatchdog::start(
                 dev_watchdog::log_directory(&database_directory),

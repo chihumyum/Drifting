@@ -48,8 +48,7 @@ import type {
   GoogleDriveNativeRemoteObject,
   GoogleDriveNativeProjectSnapshotCandidate,
   GoogleDriveNativeGeneration,
-  GoogleDriveTransferProgressEvent,
-} from './contracts';
+  GoogleDriveTransferProgressEvent, NativeCrashReport } from './contracts';
 
 export type Unsubscribe = () => void;
 
@@ -406,6 +405,10 @@ export interface PlatformApi {
     saveMarkdown(filename: string, markdown: string): Promise<ArchiveSaveResult>;
   };
   readonly updater: UpdatePlatformApi;
+  readonly diagnostics: {
+    /** Native panic records since the last call; each is returned once. */
+    takeNativeCrashReports(): Promise<NativeCrashReport[]>;
+  };
   readonly aiLog: AILogPlatformApi;
   readonly markdownProjection: {
     remove(projectId: string): Promise<void>;

@@ -2,6 +2,7 @@ import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import type { AppUpdateMetadata } from '../../platform/contracts';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
+import { reportIntegrityEvent } from '../diagnostics/crash-reporter';
 
 const AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 const LAST_CHECK_KEY = 'drifting.alpha-updater.last-check.v1';
@@ -153,6 +154,7 @@ async function install(): Promise<void> {
         await flushLocalApplicationPersistence();
       } catch (error) {
         publish({ ...state, phase: 'ready', error: UPDATE_LOCAL_SAVE_FAILED });
+        reportIntegrityEvent('local-flush-failed', error, { reason: 'update-install' });
         throw error;
       }
       try {

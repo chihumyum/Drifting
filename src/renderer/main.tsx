@@ -23,6 +23,7 @@ import { elementCandidateCapability } from './lib/copilot/capabilities/element-c
 import { elementPatchCapability } from './lib/copilot/capabilities/element-patch';
 import { hydratePlatformRuntime } from './platform/runtime';
 import { applyInitialThemeBeforeRender } from './lib/initial-theme';
+import { installCrashReporting } from './services/diagnostics/crash-reporter';
 import App from './App';
 
 // Register Copilot capabilities once at app boot. Order doesn't matter —
@@ -31,6 +32,7 @@ registerCopilotCapability(elementCandidateCapability);
 registerCopilotCapability(elementPatchCapability);
 
 installAIDevConsole();
+installCrashReporting();
 
 // Kept behind both Vite's compile-time DEV branch and an explicit opt-in. The
 // dynamic module and its global debug registry are absent from release builds.

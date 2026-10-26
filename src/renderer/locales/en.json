@@ -63,6 +63,7 @@
     "intro": "Start writing without an account. Projects and prose are saved on this device first.",
     "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
     "byok": "Copilot and General Agent are Experimental and BYOK-only. Requests, costs, retention, training terms, and output risk follow the model provider you select; API keys remain in the system Keychain.",
+    "crashReports": "When something goes wrong, Drifting sends a crash report without any of your writing so it can be fixed quickly; turn this off in Settings → Privacy.",
     "settingsHint": "Continue locally to create your first project and start writing.",
     "accountAction": "Sign in / sign up and sync",
     "continueLocal": "Continue locally"
@@ -705,8 +706,8 @@
       "improveModelsDesc": "Reserved for a future explicit policy; unavailable in this build.",
       "usageStats": "Send anonymous usage stats",
       "usageStatsDesc": "UI clicks, errors, and performance metrics. No manuscript content.",
-      "crashLogs": "Crash logs",
-      "crashLogsDesc": "Upload stack traces and runtime environment after app crashes.",
+      "crashLogs": "Send crash reports automatically",
+      "crashLogsDesc": "When the app crashes or data fails to save, send the error details (where it failed, version, system) to the Drifting maintainer, never your writing. When you are signed in, the report includes your account so we can follow up.",
       "diagnostics": "Sanitized diagnostic summary",
       "diagnosticsDesc": "Copy version, platform, feature availability, sync counts/error categories, and updater state. It contains no manuscript, credential, project identifier, or absolute path and is never uploaded automatically.",
       "copyDiagnostics": "Copy summary",

@@ -972,6 +972,10 @@ export const tauriPlatform: PlatformApi = {
     dismiss: () => invokeContract('update_dismiss', undefined),
   },
 
+  diagnostics: {
+    takeNativeCrashReports: () => invokeContract('diagnostics_take_native_reports', undefined),
+  },
+
   aiLog: {
     write: (filename, content) => invokeContract('ai_log_write', { filename, content }),
     openDir: () => invokeContract('ai_log_open_dir', undefined),

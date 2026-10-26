@@ -10,6 +10,7 @@ import {
 } from '../sync/journal/yjs-update';
 import { maybeCaptureSnapshotHistory } from './snapshot-history.service';
 import { compactUpdatesAfterSnapshot } from './yjs-local-durability.service';
+import { reportIntegrityEvent } from './diagnostics/crash-reporter';
 
 const log = loglevel.getLogger('yjs-document-session');
 log.setLevel(loglevel.levels.WARN);
@@ -249,6 +250,8 @@ export class YjsDocumentSession {
       this.status = 'error';
       this.publish({ isReady: false, hasLocalState: false, error: normalized });
       log.error(`[yjs session] failed to load doc ${this.docId}:`, normalized);
+      // Only the document family is reported; the identifier stays local.
+      reportIntegrityEvent('yjs-load-failed', normalized, { docKind: this.docId.split(':')[0] ?? 'unknown' });
       throw normalized;
     });
     // The UI observes the error through getSnapshot(); keep a handled branch so

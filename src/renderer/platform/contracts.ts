@@ -350,6 +350,16 @@ export type ArchiveSaveResult =
   | { ok: false; canceled: true }
   | { ok: false; canceled: false; error: string };
 
+/** One native panic recorded by the panic hook and taken on the next launch. */
+export interface NativeCrashReport {
+  message: string;
+  location: string;
+  thread: string;
+  backtrace: string;
+  occurredAtMs: number;
+  appVersion: string;
+}
+
 export interface AppUpdateMetadata {
   version: string;
   currentVersion: string;
@@ -820,6 +830,7 @@ export interface TauriCommandContract {
   };
   update_install: { args: undefined; result: undefined };
   update_dismiss: { args: undefined; result: undefined };
+  diagnostics_take_native_reports: { args: undefined; result: NativeCrashReport[] };
   ai_log_write: {
     args: { filename: string; content: string };
     result: AILogWriteResult;
