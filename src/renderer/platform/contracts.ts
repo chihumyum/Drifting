@@ -747,6 +747,7 @@ export interface TauriCommandContract {
   };
   material_open_local: { args: { filePath: string }; result: OpenResult };
   material_pick_file: { args: { kind: FilePickerKind }; result: PickFileResult };
+  material_stage_import_bytes: { args: { bytes: number[]; name: string }; result: PickFileResult };
   material_delete_import: { args: { filePath: string }; result: DeleteImportResult };
   material_thumbnail: {
     args: { filePath: string; size: number };

@@ -108,20 +108,27 @@ test (no DOM test environment).
 ### Embedded images are materials
 
 `materialEmbed` holds a reference, never bytes. Inserting an image (slash menu
-`图片`, paste or drop) imports it as an ordinary image material through the
-local asset transaction and inserts the reference. Deleting the node leaves the
-material in the library; deleting the material renders the node as a missing
-placeholder. Asset ownership therefore stays "expressed exactly once".
+插入素材…, or pasting or dropping an image or PDF file into a note) imports it
+as an ordinary image material through the local asset transaction and inserts
+the reference. Pasted bytes are staged by the native
+`material_stage_import_bytes` command with the picker's size limit, symlink
+check, sniffed extension and naming, so the import path cannot tell them from
+a picked file. Deleting the node leaves the material in the library; deleting
+the material renders the node as a missing placeholder. Asset ownership
+therefore stays "expressed exactly once".
 
 ### TODO links
 
-A task item can be linked to a TODO (`comment.kind = 'todo'`). Promoting a task
-item creates a TODO targeting the note (`target_kind = 'library_item'`,
-`target_block_id` = the task item id) and writes its id into `todoId`. While
-linked, the TODO's status is authoritative: the checkbox renders the TODO
-status and toggling it resolves or reopens the TODO, mirroring `checked` for
-export. The TODO rail shows the item; activating it opens the note at that
-item. Unlinked task items stay local checkboxes.
+A task item can be linked to a TODO (`comment.kind = 'todo'`). With the caret
+in a task item, the note shows **转为 TODO**: it creates a TODO targeting the
+note (`target_kind = 'library_item'`, `target_block_id` = the task item id)
+and writes its id into the item's `todoId`; linked items carry a small TODO
+mark and offer **取消关联**. While linked, the TODO's status is authoritative
+(`views/note-todo-links.ts`): resolving or reopening the TODO anywhere (TODO
+rail, Review panel, another device) moves the checkbox, ticking the checkbox
+resolves or reopens the TODO, and deleting the TODO unlinks the item. Remote
+document edits never write TODO status; only the author's own toggles do.
+Unlinked task items stay local checkboxes.
 
 ### Region comments
 
@@ -201,6 +208,6 @@ boundary, because older builds validate what they receive:
 | M3 | Notes on Yjs (`library-item` doc kind), edited in their tab | done |
 | M4 | `note` editor profile: lists, tasks, tables, code, highlight, callout, material embeds, slash items; Markdown excerpts on cards | done |
 | M5 | Region comments on images and PDFs | done |
-| M6 | Note task items ↔ TODOs; image embeds ↔ image materials | planned |
+| M6 | Note task items ↔ TODOs; pasted/dropped images and PDFs become embedded materials | done |
 
 Deferred: image markup/ink, ePub, Agent note editing, mobile material tabs.

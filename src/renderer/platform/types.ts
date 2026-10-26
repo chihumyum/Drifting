@@ -237,6 +237,8 @@ export interface MaterialPlatformApi {
   openLocal(filePath: string): Promise<OpenResult>;
   openExternal(url: string): Promise<OpenResult>;
   pickFile(kind?: FilePickerKind): Promise<PickFileResult>;
+  /** Stages pasted or dropped image/PDF bytes as a picker-equivalent import. */
+  stageImportBytes(bytes: ArrayBuffer | Uint8Array, name: string): Promise<PickFileResult>;
   deleteImport(filePath: string): Promise<DeleteImportResult>;
   thumbnail(filePath: string, size?: number): Promise<ThumbnailResult>;
   readBytes(

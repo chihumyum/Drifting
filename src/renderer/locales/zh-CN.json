@@ -3573,7 +3573,9 @@
       "pickerTitle": "插入素材",
       "importFile": "从文件导入图片或 PDF…",
       "importing": "导入中…",
-      "empty": "还没有图片或 PDF 素材。"
+      "empty": "还没有图片或 PDF 素材。",
+      "pastedImage": "粘贴的图片",
+      "pastedPdf": "粘贴的 PDF"
     },
     "regions": {
       "draw": "框选批注",
@@ -3588,6 +3590,12 @@
       "page": "第 {{page}} 页",
       "whole": "整条素材",
       "createFailed": "批注保存失败。"
+    },
+    "todo": {
+      "toolbar": "待办项",
+      "promote": "转为 TODO",
+      "linked": "已关联 TODO",
+      "unlink": "取消关联"
     }
   }
 }

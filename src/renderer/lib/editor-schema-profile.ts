@@ -68,6 +68,24 @@ export function profileStarterKit(profile: EditorSchemaProfile, options: SchemaE
  */
 export const noteParagraphIndent = ParagraphIndent.extend({ priority: 50 });
 
+/**
+ * A note task item may be linked to a TODO (`todoId`); while linked, the
+ * TODO's status is authoritative and the checkbox mirrors it.
+ */
+export const NoteTaskItem = TaskItem.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      todoId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-todo-id'),
+        renderHTML: (attributes: Record<string, unknown>) =>
+          typeof attributes.todoId === 'string' ? { 'data-todo-id': attributes.todoId } : {},
+      },
+    };
+  },
+});
+
 export interface NoteOnlyExtensionOptions {
   /** The live editor renders embeds with a React node view; schemas do not. */
   materialEmbed?: AnyExtension;
@@ -77,7 +95,7 @@ export interface NoteOnlyExtensionOptions {
 export function noteOnlyExtensions(options: NoteOnlyExtensionOptions = {}): AnyExtension[] {
   return [
     TaskList,
-    TaskItem.configure({ nested: true }),
+    NoteTaskItem.configure({ nested: true }),
     TableKit.configure({ table: { resizable: false } }),
     Highlight,
     Callout,

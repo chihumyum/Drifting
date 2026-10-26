@@ -821,3 +821,28 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* A note task item linked to a TODO: the TODO status drives its checkbox. */
+.note-prose ul[data-type='taskList'] li[data-todo-id] > div > p:first-child::after {
+  content: 'TODO';
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: hsl(32 85% 55% / 0.16);
+  color: hsl(32 70% 36%);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  vertical-align: 2px;
+  text-decoration: none;
+}
+.note-task-bar__status {
+  padding: 3px 6px;
+  font-size: 12px;
+  color: hsl(var(--ink-3));
+}
+.note-table-bar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

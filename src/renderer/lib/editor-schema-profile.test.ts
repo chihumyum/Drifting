@@ -78,6 +78,22 @@ describe('editor schema profiles', () => {
     document.destroy();
   });
 
+  it('keeps a task item\'s TODO link through seeding', async () => {
+    const linked = {
+      type: 'doc',
+      content: [{
+        type: 'taskList',
+        content: [{ type: 'taskItem', attrs: { checked: false, todoId: 'todo-1' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '查年代' }] }] }],
+      }],
+    };
+    expect(schemaForProfile('note').nodes.taskItem?.spec.attrs?.todoId).toBeDefined();
+    const document = new Y.Doc();
+    Y.applyUpdate(document, await createYjsProseSeedState(JSON.stringify(linked), 'note'));
+    const restored = yDocToProsemirrorJSON(document, 'default') as { content: Array<{ content: Array<{ attrs: Record<string, unknown> }> }> };
+    expect(restored.content[0]?.content[0]?.attrs).toMatchObject({ todoId: 'todo-1', checked: false });
+    document.destroy();
+  });
+
   it('refuses note-only blocks in a prose seed instead of dropping them', async () => {
     await expect(createYjsProseSeedState(JSON.stringify(richNote))).rejects.toThrow();
   });

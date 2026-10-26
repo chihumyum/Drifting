@@ -1,4 +1,5 @@
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Extension, Node, mergeAttributes } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 // Block nodes that exist only in the `note` editor profile (material notes).
 // The specs here are headless: schema builders for seeding, export and Agent
@@ -81,5 +82,54 @@ export const MaterialEmbed = Node.create({
         ({ commands }) =>
           commands.insertContent({ type: this.name, attrs: { libraryItemId } }),
     };
+  },
+});
+
+export interface NoteFileImportOptions {
+  /** Called with pasted or dropped image/PDF files and the insert position. */
+  onFiles: (files: File[], position: number) => void;
+}
+
+function mediaFiles(list: FileList | null | undefined): File[] {
+  return Array.from(list ?? []).filter(
+    (file) => file.type.startsWith('image/') || file.type === 'application/pdf',
+  );
+}
+
+/**
+ * Pasted or dropped images and PDFs become materials embedded at the caret or
+ * drop point; the note never stores the bytes itself.
+ */
+export const NoteFileImport = Extension.create<NoteFileImportOptions>({
+  name: 'noteFileImport',
+
+  addOptions() {
+    return { onFiles: () => undefined };
+  },
+
+  addProseMirrorPlugins() {
+    const options = this.options;
+    return [
+      new Plugin({
+        key: new PluginKey('noteFileImport'),
+        props: {
+          handlePaste: (view, event) => {
+            const files = mediaFiles(event.clipboardData?.files);
+            if (files.length === 0) return false;
+            event.preventDefault();
+            options.onFiles(files, view.state.selection.from);
+            return true;
+          },
+          handleDrop: (view, event) => {
+            const files = mediaFiles(event.dataTransfer?.files);
+            if (files.length === 0) return false;
+            event.preventDefault();
+            const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+            options.onFiles(files, position ?? view.state.selection.from);
+            return true;
+          },
+        },
+      }),
+    ];
   },
 });

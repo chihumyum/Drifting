@@ -305,6 +305,7 @@ pub fn run() {
             google_drive_sync::google_drive_cancel_transfer,
             native_capabilities::material_open_local,
             native_capabilities::material_pick_file,
+            native_capabilities::material_stage_import_bytes,
             native_capabilities::material_delete_import,
             native_capabilities::material_thumbnail,
             native_capabilities::material_read_bytes,

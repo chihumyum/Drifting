@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EditorContent, useEditorState } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -16,7 +16,9 @@ import { platform } from '../platform';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/Modal';
 import { MaterialEmbedWithView } from '../features/library/MaterialEmbedView';
+import { NoteFileImport } from '../lib/extensions/note-blocks';
 import { useStoredLibraryItemVariant } from '../features/library/library-item-media';
+import { taskItemAtSelection, useNoteTodoLinks } from './note-todo-links';
 
 const log = loglevel.getLogger('MaterialNotePage');
 log.setLevel(loglevel.levels.ERROR);
@@ -80,7 +82,48 @@ export function MaterialNotePage({
     ],
     [t],
   );
-  const noteExtensions = useMemo(() => noteOnlyExtensions({ materialEmbed: MaterialEmbedWithView }), []);
+  // Pasted or dropped images/PDFs become materials, embedded where they landed.
+  const editorRef = useRef<Editor | null>(null);
+  const importFiles = useCallback(
+    async (files: File[], position: number) => {
+      for (const file of files) {
+        try {
+          const staged = await platform.material.stageImportBytes(await file.arrayBuffer(), file.name || 'pasted');
+          if (!staged.ok) {
+            if (!staged.canceled) log.error('Failed to stage pasted file:', staged.error);
+            continue;
+          }
+          const kind = file.type === 'application/pdf' ? 'pdf' : 'image';
+          const created = await libraryItemUsecases.createLibraryItem({
+            kind,
+            title: file.name || t(kind === 'pdf' ? 'materialEditor.embed.pastedPdf' : 'materialEditor.embed.pastedImage'),
+            sourcePath: staged.filePath,
+          });
+          const editor = editorRef.current;
+          if (!editor || editor.isDestroyed) continue;
+          const at = Math.min(position, editor.state.doc.content.size);
+          editor.chain().insertContentAt(at, { type: 'materialEmbed', attrs: { libraryItemId: created.id } }).run();
+        } catch (error) {
+          log.error('Failed to import pasted file:', error);
+        }
+      }
+    },
+    [libraryItemUsecases, t],
+  );
+  const importFilesRef = useRef(importFiles);
+  useEffect(() => {
+    importFilesRef.current = importFiles;
+  }, [importFiles]);
+  const noteExtensions = useMemo(
+    () => [
+      ...noteOnlyExtensions({ materialEmbed: MaterialEmbedWithView }),
+      // ProseMirror calls this later, outside React render; it reads the latest
+      // handler through the ref, as useEntityEditor's own callbacks do.
+      // eslint-disable-next-line react-hooks/refs
+      NoteFileImport.configure({ onFiles: (files, position) => void importFilesRef.current(files, position) }),
+    ],
+    [],
+  );
 
   const { editor, ready } = useEntityEditor({
     sourceKind: 'library_item',
@@ -100,6 +143,11 @@ export function MaterialNotePage({
   });
 
   useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+  const { promoteTaskItem, unlinkTaskItem } = useNoteTodoLinks({ editor, noteId: item.id, projectId, userId });
+
+  useEffect(() => {
     onReadyChange(ready || Boolean(ydocError));
     return () => onReadyChange(false);
   }, [onReadyChange, ready, ydocError]);
@@ -110,6 +158,7 @@ export function MaterialNotePage({
         <article className="page page--entity material-editor__note-page">
           {header}
           {editor && <NoteTableBar editor={editor} />}
+          {editor && <NoteTaskBar editor={editor} onPromote={() => void promoteTaskItem().catch((error: unknown) => log.error('Failed to link TODO:', error))} onUnlink={unlinkTaskItem} />}
           <div className="material-editor__note-body">
             {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
           </div>
@@ -148,6 +197,37 @@ function NoteTableBar({ editor }: { editor: Editor }) {
       {action(t('materialEditor.table.deleteColumn'), () => editor.chain().focus().deleteColumn().run())}
       {action(t('materialEditor.table.headerRow'), () => editor.chain().focus().toggleHeaderRow().run())}
       {action(t('materialEditor.table.deleteTable'), () => editor.chain().focus().deleteTable().run())}
+    </div>
+  );
+}
+
+/** Links the task item at the caret to a TODO, or shows that it is linked. */
+function NoteTaskBar({ editor, onPromote, onUnlink }: { editor: Editor; onPromote: () => void; onUnlink: () => void }) {
+  const { t } = useTranslation();
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: current }) => {
+      if (!current) return null;
+      const found = taskItemAtSelection(current);
+      if (!found) return null;
+      return { linked: typeof found.node.attrs.todoId === 'string', empty: !found.node.textContent.trim() };
+    },
+  });
+  if (!state) return null;
+  return (
+    <div className="note-table-bar note-task-bar" role="toolbar" aria-label={t('materialEditor.todo.toolbar')}>
+      {state.linked ? (
+        <>
+          <span className="note-task-bar__status">{t('materialEditor.todo.linked')}</span>
+          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onUnlink}>
+            {t('materialEditor.todo.unlink')}
+          </button>
+        </>
+      ) : (
+        <button type="button" disabled={state.empty} onMouseDown={(event) => event.preventDefault()} onClick={onPromote}>
+          {t('materialEditor.todo.promote')}
+        </button>
+      )}
     </div>
   );
 }

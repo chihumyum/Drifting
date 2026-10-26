@@ -3573,7 +3573,9 @@
       "pickerTitle": "Insert material",
       "importFile": "Import an image or PDF…",
       "importing": "Importing…",
-      "empty": "No image or PDF materials yet."
+      "empty": "No image or PDF materials yet.",
+      "pastedImage": "Pasted image",
+      "pastedPdf": "Pasted PDF"
     },
     "regions": {
       "draw": "Comment on a region",
@@ -3588,6 +3590,12 @@
       "page": "Page {{page}}",
       "whole": "Whole material",
       "createFailed": "The comment could not be saved."
+    },
+    "todo": {
+      "toolbar": "To-do item",
+      "promote": "Make it a TODO",
+      "linked": "Linked to a TODO",
+      "unlink": "Unlink"
     }
   }
 }

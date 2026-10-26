@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import type {
   AgentRuntimeEntityWriteKind,
@@ -808,7 +808,7 @@ async function assertCommentTargetExists(
         .limit(1);
       break;
     case 'library_item':
-      // Region comments target images and PDFs; notes take no comments.
+      // Region comments target images and PDFs; a note's task items link TODOs.
       rows = await tx
         .select({ id: LibraryItemTable.id })
         .from(LibraryItemTable)
@@ -816,7 +816,6 @@ async function assertCommentTargetExists(
           and(
             eq(LibraryItemTable.id, comment.targetId),
             eq(LibraryItemTable.projectId, comment.projectId),
-            inArray(LibraryItemTable.kind, ['image', 'pdf']),
           ),
         )
         .limit(1);

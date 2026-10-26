@@ -966,7 +966,10 @@ fn safe_import_stem(selected: &FilePath) -> String {
             .and_then(|value| value.to_str()),
     }
     .unwrap_or("import");
+    safe_stem(candidate)
+}
 
+fn safe_stem(candidate: &str) -> String {
     let mut safe = String::new();
     for character in candidate.chars().take(80) {
         if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
@@ -979,6 +982,75 @@ fn safe_import_stem(selected: &FilePath) -> String {
         "import".into()
     } else {
         safe
+    }
+}
+
+/// Stages bytes the author pasted or dropped into a note as an ordinary
+/// picker import: same imports directory, size limit, content-sniffed
+/// extension and naming, so the material import path cannot tell them apart.
+fn stage_import_bytes(app: &AppHandle, bytes: &[u8], name: &str) -> Result<PathBuf, String> {
+    validate_material_import_size(bytes.len() as u64)?;
+    let imports = app_local_dir(app, "imports")?;
+    fs::create_dir_all(&imports)
+        .map_err(|_| "could not create the imports directory".to_string())?;
+    if fs::symlink_metadata(&imports)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("refusing to import through a symlinked directory".into());
+    }
+    let extension = match sniff_extension(&bytes[..bytes.len().min(512)]) {
+        "bin" => return Err("pasted content is not a supported image or PDF".into()),
+        extension => extension,
+    };
+    let stem = safe_stem(
+        Path::new(name)
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("import"),
+    );
+    let token = unique_token();
+    let temporary = imports.join(format!(".{token}.part"));
+    let destination = imports.join(format!("{token}-{stem}.{extension}"));
+    let result = (|| {
+        let mut target = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|_| "could not create the imported file".to_string())?;
+        target
+            .write_all(bytes)
+            .map_err(|_| "could not write the imported file".to_string())?;
+        target
+            .sync_all()
+            .map_err(|_| "could not finalize the imported file".to_string())?;
+        drop(target);
+        fs::rename(&temporary, &destination)
+            .map_err(|_| "could not finalize the imported file".to_string())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map(|()| destination)
+}
+
+#[tauri::command]
+pub async fn material_stage_import_bytes(
+    app: AppHandle,
+    bytes: Vec<u8>,
+    name: String,
+) -> PickFileResult {
+    let size_bytes = bytes.len() as u64;
+    let staged =
+        tauri::async_runtime::spawn_blocking(move || stage_import_bytes(&app, &bytes, &name)).await;
+    match staged {
+        Ok(Ok(path)) => PickFileResult::Success(PickFileSuccess {
+            ok: true,
+            file_path: path.to_string_lossy().into_owned(),
+            size_bytes: Some(size_bytes),
+        }),
+        Ok(Err(error)) => PickFileResult::Failure(material_import_failure(error)),
+        Err(_) => PickFileResult::Failure(material_import_failure("import worker failed".into())),
     }
 }
 
