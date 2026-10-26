@@ -92,8 +92,9 @@ async function send(report: CrashReportPayload): Promise<boolean> {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        // No keepalive: WebKit refuses keepalive requests that need a CORS
+        // preflight, and unsent reports are retried from the queue anyway.
         body: JSON.stringify(report),
-        keepalive: true,
       },
     );
     // A rejected report (invalid, rate limited) is dropped rather than retried.
@@ -103,21 +104,31 @@ async function send(report: CrashReportPayload): Promise<boolean> {
   }
 }
 
+/**
+ * Send the oldest report until the queue is empty or a send fails. The queue
+ * is re-read after every send, so reports added meanwhile are neither lost
+ * nor overwritten by a stale copy.
+ */
+async function drainQueue(): Promise<void> {
+  for (;;) {
+    const [next] = readQueue();
+    if (!next || !(await send(next))) return;
+    const queue = readQueue();
+    const index = queue.findIndex(
+      (item) => item.fingerprint === next.fingerprint && item.occurredAt === next.occurredAt,
+    );
+    if (index >= 0) queue.splice(index, 1);
+    writeQueue(queue);
+  }
+}
+
 /** Send queued reports; unsent ones stay queued for the next launch. */
 export function flushCrashReports(): Promise<void> {
   if (!reportsEnabled()) return Promise.resolve();
-  flushing ??= (async () => {
-    try {
-      let queue = readQueue();
-      while (queue.length > 0) {
-        if (!(await send(queue[0]!))) break;
-        queue = queue.slice(1);
-        writeQueue(queue);
-      }
-    } finally {
-      flushing = null;
-    }
-  })();
+  // `finally` runs after the assignment, even when the queue is already empty.
+  flushing ??= drainQueue().finally(() => {
+    flushing = null;
+  });
   return flushing;
 }
 

@@ -118,3 +118,19 @@ it('sends native panics from the previous launch as fatal reports, and clears th
   expect(nativeReports.take).toHaveBeenCalledTimes(2);
   expect(fetchMock).toHaveBeenCalledOnce();
 });
+
+it('keeps sending live after an empty flush and never loses a report added during a send', async () => {
+  await flushCrashReports(); // the startup flush with nothing queued
+  let release!: () => void;
+  fetchMock.mockImplementationOnce(() => new Promise((resolve) => {
+    release = () => resolve({ ok: true, status: 202 });
+  }));
+  reportIntegrityEvent('first');
+  await Promise.resolve();
+  reportIntegrityEvent('second'); // queued while the first is in flight
+  release();
+  await flushCrashReports();
+  await flushCrashReports();
+  expect(sentBodies().map((body) => body.fingerprint)).toEqual(['integrity:first', 'integrity:second']);
+  expect(storage.has('drifting.diagnostics.queue.v1')).toBe(false);
+});
