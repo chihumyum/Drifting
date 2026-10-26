@@ -216,6 +216,15 @@ pnpm agent:capabilities:check
   edits fail closed and preserve an unsaved author draft. The mobile Agent
   panel also exposes this UI through its Working Memory tab, rendering the same
   shared `AgentWorkingMemoryView`.
+- `generate_element_images` (experimental, 2026-10-26) generates concept image
+  candidates for one element (any kind: person, place, object, idea) through the ChatGPT subscription into the
+  device-local generation inbox. It is a write-class tool (absent from
+  read-only turns) that touches no project data, so it declares
+  `scheduling: 'independent'` and does not hold the shared write barrier; it
+  keeps no receipt and is never replayed. It runs without a prompt only in a
+  conversation the element page started; elsewhere it asks once, since it
+  spends the author's image quota. The model sees a short summary, never
+  paths or image data. See `../../image-generation.md`.
 
 ### Providers and extensions
 

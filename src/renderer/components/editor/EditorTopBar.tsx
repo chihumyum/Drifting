@@ -69,6 +69,7 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
   Shared editor top bar:
   - Breadcrumb area on the left, built from <EditorCrumb> children
   - The semantic TOC rail visibility control sits beside Entity Link highlighting
+  - An optional entity-image entry sits just left of that toggle group
   - Free-form right slot for contextual controls and non-word-count metadata
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
@@ -76,6 +77,9 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
 interface EditorTopBarProps {
   children?: ReactNode;
   right?: ReactNode;
+  // Element image entry (thumbnail button + popover), placed left of the
+  // outline toggle. Only the element editor supplies it.
+  imageEntry?: ReactNode;
   editorType?: EditorType;
   onMenuAction?: (action: string) => void;
   shareTarget?: MarkdownShareTarget;
@@ -111,6 +115,7 @@ interface EditorTopBarProps {
 export function EditorTopBar({
   children,
   right,
+  imageEntry,
   editorType,
   onMenuAction,
   shareTarget,
@@ -148,6 +153,7 @@ export function EditorTopBar({
             <LayoutGrid size={14} />
           </button>
         )}
+        {imageEntry}
         {(editorType || referenceLinkToggle) && (
           <div className="editor-bar__toggle-group">
             {editorType && <OutlineRailToggle translate={t} />}

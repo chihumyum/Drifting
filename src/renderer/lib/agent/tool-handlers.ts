@@ -26,6 +26,7 @@ import type {
   AgentRuntimeNodeWriteGuard,
 } from '../../domain/agent-runtime-freshness';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
+import { materialSource, parseMaterialProvenance } from '../../domain/material-provenance';
 import {
   commentIdsRelatedToEntity,
   createPlainCommentDoc,
@@ -726,6 +727,7 @@ function listMaterials(ctx: AgentToolContext) {
     materials: items.map((m) => ({
       title: m.title || '(untitled)',
       kind: m.kind,
+      source: materialSource(m.provenanceJson),
       // Text materials advertise their length so the agent can pick a
       // reusable snippet without reading every item.
       chars: m.kind === 'text' ? materialBodyText(m.bodyJson).length : undefined,
@@ -752,9 +754,26 @@ function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
     item.kind === 'image' || item.kind === 'pdf'
       ? useDataStore.getState().projectAssets.find((candidate) => candidate.id === item.assetId)
       : null;
+  const provenance = parseMaterialProvenance(item.provenanceJson);
   return {
     title: item.title,
     kind: item.kind,
+    source: materialSource(item.provenanceJson),
+    ...(provenance?.origin === 'generated'
+      ? {
+          generation: {
+            model: provenance.generation.model,
+            prompt: provenance.generation.subjectPrompt ?? provenance.generation.prompt,
+            ...(provenance.generation.styleText ? { style: provenance.generation.styleText } : {}),
+            ...(provenance.generation.extraPrompt
+              ? { authorDirection: provenance.generation.extraPrompt }
+              : {}),
+            generatedAt: provenance.generation.generatedAt,
+          },
+        }
+      : provenance?.origin === 'element-portrait'
+        ? { replacedAt: provenance.replacedAt }
+        : {}),
     ...(item.kind === 'text'
       ? { body: materialBodyText(item.bodyJson) || '(empty)' }
       : item.kind === 'url'

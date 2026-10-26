@@ -5,6 +5,7 @@ import { createMarkdownZip, type MarkdownZipEntry } from './markdown-zip';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../domain/entity-kinds';
 import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
+import { parseMaterialProvenance } from '../../domain/material-provenance';
 import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import { platform } from '../../platform';
 import { flushAllOpenYjsDocuments } from '../yjs-local-durability.service';
@@ -34,6 +35,24 @@ interface Relation {
 
 interface ExportBook extends LocalExportBook {
   prefix: string;
+}
+
+/** Frontmatter for where a material came from; author imports add nothing. */
+function materialProvenanceMetadata(raw: string | null): Record<string, string | undefined> {
+  const provenance = parseMaterialProvenance(raw);
+  if (provenance?.origin === 'generated') {
+    return {
+      source: 'generated',
+      generation_model: provenance.generation.model,
+      generation_prompt: provenance.generation.subjectPrompt ?? provenance.generation.prompt,
+      generation_style: provenance.generation.styleText ?? undefined,
+      generated_at: provenance.generation.generatedAt,
+    };
+  }
+  if (provenance?.origin === 'element-portrait') {
+    return { source: 'former-portrait', replaced_at: provenance.replacedAt };
+  }
+  return {};
 }
 
 function safeSegment(value: string): string {
@@ -375,6 +394,7 @@ export async function buildRelationalMarkdownEntries(
           asset_id:
             item.kind === 'image' || item.kind === 'pdf' ? (item.assetId ?? undefined) : undefined,
           external_url: item.kind === 'url' ? (item.externalUrl ?? undefined) : undefined,
+          ...materialProvenanceMetadata(item.provenanceJson),
           updated_at: item.updatedAt,
         },
         body: '',

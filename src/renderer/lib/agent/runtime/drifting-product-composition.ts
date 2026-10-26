@@ -104,8 +104,15 @@ import {
   createAgentWorkingMemoryAwarePermissionPolicy,
   resolveAgentWorkingMemoryToolAccess,
 } from './working-memory-tool-runtime';
+import {
+  AgentElementImageToolRuntime,
+  createElementImageAwarePermissionPolicy,
+  resolveAgentElementImageToolAccess,
+} from './element-image-tool-runtime';
 import { AgentExtensionManager } from './agent-extension-manager';
 import { platform } from '../../../platform';
+import { readArtStyle } from '../../../domain/material-provenance';
+import { useImageInboxStore } from '../../../store/image-inbox-store';
 import type { AgentAuthoredJournal } from './agent-authored-journal';
 
 export interface DriftingAgentProductRepositories {
@@ -159,6 +166,7 @@ export interface DriftingAgentProductComposition {
   workspaceTools: DriftingWorkspaceToolRuntime;
   longTaskTools: AgentLongTaskToolRuntime;
   workingMemoryTools: AgentWorkingMemoryToolRuntime;
+  elementImageTools: AgentElementImageToolRuntime;
   dynamicTools: DynamicAgentToolRegistry;
   extensionManager: AgentExtensionManager;
   repositories: DriftingAgentProductRepositories;
@@ -174,7 +182,8 @@ export function resolveDriftingBuiltInToolAccess(name: string): 'read' | 'write'
   return (
     resolveDriftingCertifiedToolAccess(name) ??
     resolveAgentLongTaskToolAccess(name) ??
-    resolveAgentWorkingMemoryToolAccess(name)
+    resolveAgentWorkingMemoryToolAccess(name) ??
+    resolveAgentElementImageToolAccess(name)
   );
 }
 
@@ -296,6 +305,21 @@ export function createDriftingAgentProductComposition(
   const workingMemoryTools = new AgentWorkingMemoryToolRuntime({
     ...(options.database ? { database: options.database } : {}),
   });
+  const elementImageTools = new AgentElementImageToolRuntime({
+    generate: (input, signal) => platform.imageGeneration.generate(input, signal),
+    resolveElement: (projectId, elementId) => {
+      const element = useDataStore
+        .getState()
+        .bookElements.find((entry) => entry.id === elementId && entry.projectId === projectId);
+      return element ? { id: element.id, name: element.name } : null;
+    },
+    getArtStyle: (projectId) => {
+      const project = useProjectStore.getState().currentProject;
+      return project?.id === projectId ? readArtStyle(project.kvJson) : '';
+    },
+    onCandidates: (projectId, candidates, quota) =>
+      useImageInboxStore.getState().addCandidates(projectId, candidates, quota),
+  });
   const dynamicTools =
     options.dynamicTools ??
     new DynamicAgentToolRegistry({
@@ -310,7 +334,7 @@ export function createDriftingAgentProductComposition(
       ],
     });
   const toolRuntime = new CompositeAgentToolRuntime(
-    [workspaceTools, tools, longTaskTools, workingMemoryTools],
+    [workspaceTools, tools, longTaskTools, workingMemoryTools, elementImageTools],
     dynamicTools,
   );
   const extensionManager = new AgentExtensionManager({
@@ -330,13 +354,15 @@ export function createDriftingAgentProductComposition(
       (options.toolSelectionMode?.() ?? useSettingsStore.getState().agentToolSearch) !== 'off',
     toolSelector: createDriftingProductToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
-      createAgentWorkingMemoryAwarePermissionPolicy(
-        createAgentLongTaskAwarePermissionPolicy(
-          createDriftingAgentPermissionPolicy({
-            ...(options.allowDangerousOperations
-              ? { allowDangerousOperations: options.allowDangerousOperations }
-              : {}),
-          }),
+      createElementImageAwarePermissionPolicy(
+        createAgentWorkingMemoryAwarePermissionPolicy(
+          createAgentLongTaskAwarePermissionPolicy(
+            createDriftingAgentPermissionPolicy({
+              ...(options.allowDangerousOperations
+                ? { allowDangerousOperations: options.allowDangerousOperations }
+                : {}),
+            }),
+          ),
         ),
       ),
       dynamicTools,
@@ -417,6 +443,7 @@ export function createDriftingAgentProductComposition(
     workspaceTools,
     longTaskTools,
     workingMemoryTools,
+    elementImageTools,
     dynamicTools,
     extensionManager,
     repositories,

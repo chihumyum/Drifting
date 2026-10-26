@@ -11,6 +11,7 @@
  */
 import { Type, type TSchema } from '@sinclair/typebox';
 import type { AITool } from '../ai/types';
+import { ELEMENT_IMAGE_TOOL_NAME } from './element-image-requests';
 import type {
   AgentProviderToolPolicy,
   AgentToolApproval,
@@ -1631,6 +1632,40 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     certificationNote:
       'Runtime-certified project-scoped Markdown passage edits with revision CAS; no size ceiling.',
     resultBudgetChars: 12_000,
+  },
+  {
+    name: ELEMENT_IMAGE_TOOL_NAME,
+    description:
+      '用作者的 ChatGPT 订阅为一个写作要素（人物、地点、物件、组织、现象或概念皆可）生成设定图候选，放进本机候选区供作者挑选；不会改动要素或素材。prompt 写具体的画面描述；项目设有画风时会自动附加，不要重复。会消耗作者的生图额度。',
+    parametersSchema: Type.Object(
+      {
+        elementId: Type.String({
+          minLength: 1,
+          maxLength: 128,
+          description: '要素的不透明 id（任务里给出的 id，不是名称）',
+        }),
+        prompt: Type.String({
+          minLength: 1,
+          maxLength: 6_000,
+          description: '具体的画面描述：主体、样子、环境、构图与氛围',
+        }),
+        count: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 4, description: '候选张数，默认取作者请求或 2' }),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'write',
+    risk: 'low',
+    effect: 'external',
+    concurrency: 'parallel',
+    approval: 'automatic',
+    retry: 'never',
+    revertStrategy: 'not_applicable',
+    certificationNote:
+      'Runtime-certified device-local generation inbox writes; spends the author image quota, no project data, no durable receipt, never replayed.',
+    resultBudgetChars: 2_000,
   },
   {
     name: 'ask_user',

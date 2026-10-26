@@ -133,6 +133,14 @@ export interface AgentToolDefinition {
    */
   executionRevision?: string;
   /**
+   * Local-only scheduling hint. A write normally runs under the reader/writer
+   * barrier shared by every conversation; `independent` marks a write whose
+   * side effect touches no project data (e.g. a slow external request that
+   * only produces local files), so it must not hold that barrier. Stop still
+   * waits for a started call to settle.
+   */
+  scheduling?: 'independent';
+  /**
    * Runtime validation is mandatory. `inputSchema` is sent to the model, while
    * this function is the local authority and may also normalize the value.
    */

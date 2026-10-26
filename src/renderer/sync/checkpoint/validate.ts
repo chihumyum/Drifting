@@ -100,16 +100,37 @@ function parseAuthored(bytes: Uint8Array): AuthoredStatePayloadV1 {
   return parseAuthoredTables(value.tables);
 }
 
+/**
+ * Nullable authored columns added after checkpoint format v1 was published.
+ * A checkpoint captured before a column existed omits it; the row is accepted
+ * with an explicit null so older checkpoints keep restoring.
+ */
+const NULLABLE_FIELDS_ADDED_AFTER_V1: Readonly<Record<string, readonly string[]>> = {
+  library_item: ['provenance_json'],
+};
+
+export function withNullableFieldsAddedAfterV1(
+  table: string,
+  row: Readonly<Record<string, CanonicalCborValue>>,
+): Readonly<Record<string, CanonicalCborValue>> {
+  const missing = (NULLABLE_FIELDS_ADDED_AFTER_V1[table] ?? []).filter(
+    (field) => !Object.prototype.hasOwnProperty.call(row, field),
+  );
+  if (missing.length === 0) return row;
+  return { ...row, ...Object.fromEntries(missing.map((field) => [field, null])) };
+}
+
 function parseAuthoredTables(entries: readonly unknown[]): AuthoredStatePayloadV1 {
   const tables: SnapshotTableRowsV1[] = entries.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.table !== 'string' || !Array.isArray(entry.rows)) {
       throw new SnapshotRestoreError('schema-mismatch', `Authored table ${index} is malformed`);
     }
+    const table = entry.table;
     const rows = entry.rows.map((row, rowIndex) => {
       if (!isRecord(row)) {
-        throw new SnapshotRestoreError('schema-mismatch', `${entry.table} row ${rowIndex} is malformed`);
+        throw new SnapshotRestoreError('schema-mismatch', `${table} row ${rowIndex} is malformed`);
       }
-      return row as Readonly<Record<string, CanonicalCborValue>>;
+      return withNullableFieldsAddedAfterV1(table, row as Readonly<Record<string, CanonicalCborValue>>);
     });
     return { table: entry.table, rows };
   });

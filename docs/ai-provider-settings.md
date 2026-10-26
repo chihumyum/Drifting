@@ -16,6 +16,8 @@ Drifting 只有一个凭据管理入口：**设置 → 模型与 API**。每个 
 
 ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订阅」行只驱动 OpenAI Codex 设备码登录并读取非敏感账号状态，OAuth token 全程在原生 Rust 侧读写、刷新与注入，`secure_storage` 拒绝 renderer 访问 `oauth.` 前缀。它不是 Copilot provider，也不进入 BYOK 密钥选择器。只要该登录有效，General Agent 页面就视为已有可用凭据并允许进入 composer；实际发送仍使用 composer 当前明确选择的 provider，不做静默 fallback。OpenAI 未对第三方应用开放该路径，用量计入作者本人的 ChatGPT 套餐，随时可能失效，不构成任何发布声明。
 
+同一登录还承载实验性的要素设定图生成（`codex_images.rs` → Codex 后端 `images/generations`，`gpt-image-2`）：生成结果先进本机收件箱，作者保留时才成为素材；生图单独计量，`quality`/`size` 被服务端忽略。见 [image-generation.md](image-generation.md)。
+
 ## ChatGPT 订阅模型发现
 
 General Agent 在登录或账号变化、composer 挂载、打开模型菜单、窗口重新获得焦点和恢复联网时，自动请求当前账号的模型目录；菜单也提供「刷新模型」。原生 `codex_models_list` 复用现有 Codex OAuth 凭据和固定 `https://chatgpt.com/backend-api/codex/models?client_version=0.0.0` 路由，使用当前原生 host 的开发客户端版本身份。请求拒绝重定向，限制为 30 秒、8 MiB；401 只刷新凭据后重试一次。renderer 只收到模型名称、标识和能力字段，不接收 token、原始目录或其中的 instructions。

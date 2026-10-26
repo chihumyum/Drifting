@@ -5,6 +5,8 @@ interface LibraryItemBase {
   projectId: string;
   title: string;
   notesJson: string | null;
+  /** Versioned origin record (see material-provenance.ts); null for author imports. */
+  provenanceJson: string | null;
   orderKey: number;
   createdAt: string;
   updatedAt: string;

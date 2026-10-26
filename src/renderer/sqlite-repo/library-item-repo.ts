@@ -27,6 +27,7 @@ function base(record: typeof LibraryItemTable.$inferSelect) {
     projectId: record.projectId,
     title: record.title,
     notesJson: record.notesJson,
+    provenanceJson: record.provenanceJson,
     orderKey: record.orderKey,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

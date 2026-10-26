@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-22T18:21:56.540Z",
-  "sourceSha256": "99e1a1e44358d1a4aa11e2d7d3dfc8cfad923a68ff5106fefa9ee47f03706d85",
+  "generatedAt": "2026-10-26T16:30:21.050Z",
+  "sourceSha256": "95851414c875996443b172cc3b68c7b33758982004d28d2c1f20011133fd0b08",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -546,7 +546,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
       "status": "passed"
     },
     {
@@ -554,7 +554,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
@@ -562,15 +562,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
       "status": "passed"
     },
     {
@@ -578,7 +574,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
@@ -586,11 +582,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
       "status": "passed"
     },
     {
@@ -610,6 +610,14 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
       "status": "passed"
     },
@@ -618,11 +626,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
@@ -634,27 +642,15 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
+      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
       "status": "passed"
     },
     {
@@ -663,6 +659,10 @@
     },
     {
       "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
       "status": "passed"
     },
     {

@@ -21,6 +21,7 @@ import {
   MIN_CELL_W,
 } from '../../domain/plot-grid';
 import { stringifyKv } from '../../domain/kv';
+import { isValidMaterialProvenanceJson } from '../../domain/material-provenance';
 import {
   parseDocId,
   proseDocId,
@@ -235,6 +236,8 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
     externalUrl: NULLABLE_STRING,
     bodyJson: (value) => value === null || validJson(value),
     notesJson: (value) => value === null || validJson(value),
+    provenanceJson: (value) =>
+      value === null || (typeof value === 'string' && isValidMaterialProvenanceJson(value)),
   },
   'entity-relation': {
     fromKind: (value) => isEntityKind(value),
@@ -899,7 +902,7 @@ async function upsertLifecycleLive(
       await context.tx.insert(ElementPatchTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, elementId: seed.elementId as string, sourceNodeId: (seed.sourceNodeId as string | null | undefined) ?? null, sourceBlockId: (seed.sourceBlockId as string | null | undefined) ?? null, sourceBlockText: (seed.sourceBlockText as string | null | undefined) ?? null, textAnchorJson: (seed.textAnchorJson as string | null | undefined) ?? null, invalidatedAt: (seed.invalidatedAt as string | null | undefined) ?? null, title: (seed.title as string | null | undefined) ?? null, contentJson: (seed.contentJson as string | undefined) ?? '{}', orderKey: 0, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
     case 'library-item':
-      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: seed.title as string, kind: seed.kind as string, assetId: (seed.assetId as string | null | undefined) ?? null, externalUrl: (seed.externalUrl as string | null | undefined) ?? null, bodyJson: (seed.bodyJson as string | null | undefined) ?? null, notesJson: (seed.notesJson as string | null | undefined) ?? null, orderKey: 0, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
+      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: seed.title as string, kind: seed.kind as string, assetId: (seed.assetId as string | null | undefined) ?? null, externalUrl: (seed.externalUrl as string | null | undefined) ?? null, bodyJson: (seed.bodyJson as string | null | undefined) ?? null, notesJson: (seed.notesJson as string | null | undefined) ?? null, provenanceJson: (seed.provenanceJson as string | null | undefined) ?? null, orderKey: 0, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
     case 'entity-relation':
       await context.tx.insert(EntityRelationTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, fromKind: seed.fromKind as string, fromId: seed.fromId as string, toKind: seed.toKind as string, toId: seed.toId as string, relationTypeId: seed.relationTypeId as string, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();

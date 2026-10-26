@@ -9,9 +9,9 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 
 | Capability | Current value |
 | --- | ---: |
-| Installed built-in model tools | 77 |
+| Installed built-in model tools | 78 |
 | Installed reads | 27 |
-| Installed writes | 50 |
+| Installed writes | 51 |
 | Direct catalog writes | 37 |
 | Direct write-certified | 22 |
 | Direct unavailable | 15 |
@@ -108,6 +108,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `delete_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `edit_working_memory` | write | working-memory-runtime | working-memory-runtime | internal-certified |
 | `find_element_appearances` | read | domain-tools | workspace-runtime | internal-certified |
+| `generate_element_images` | write | element-image-runtime | element-image-runtime | internal-certified |
 | `get_element_patches` | read | domain-tools | workspace-runtime | read-certified |
 | `get_project_facts` | read | domain-tools | workspace-runtime | internal-certified |
 | `get_project_overview` | read | domain-tools | workspace-runtime | internal-certified |

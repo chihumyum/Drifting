@@ -1,6 +1,7 @@
 import { deriveActSegments } from '../../domain/book-act';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
+import { parseMaterialProvenance } from '../../domain/material-provenance';
 import { proseReadMarkdown, proseReadVersion } from '../../lib/agent/prose-read-view';
 import { contentJsonBlockIds, createLocationResolver, type LocationEntity } from '../../lib/location-link';
 import type { ProseEntityType } from '../../lib/yjs-doc-id';
@@ -231,6 +232,14 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     if (document.kind === 'library_item') {
       const item = graph.libraryItems.find(item => item.id === document.id)!;
       parts.push(richText(item.bodyJson, document.path), richText(item.notesJson, document.path));
+      const generation = parseMaterialProvenance(item.provenanceJson);
+      if (generation?.origin === 'generated') {
+        const { model, subjectPrompt, prompt, styleText } = generation.generation;
+        parts.push(
+          ['## 生成信息', `- 模型：${model}`, `- 画面描述：${subjectPrompt ?? prompt}`, ...(styleText ? [`- 画风：${styleText}`] : [])]
+            .join('\n'),
+        );
+      }
       if (item.externalUrl) parts.push(`## 外部链接\n\n[打开链接](${item.externalUrl.replace(/[\s()<>]/gu, char => encodeURIComponent(char))})`);
     }
     const related = document.sections.filter(section => section.startsWith('- '));

@@ -1298,7 +1298,10 @@ export class AgentRuntime {
       try {
         let result: AgentToolExecutionResult;
         if (call.definition.access === 'write') {
-          const pending = this.scheduler.runWrite(request, execute);
+          const pending =
+            call.definition.scheduling === 'independent'
+              ? execute()
+              : this.scheduler.runWrite(request, execute);
           try {
             result = await awaitAbortable(pending);
           } catch (error) {

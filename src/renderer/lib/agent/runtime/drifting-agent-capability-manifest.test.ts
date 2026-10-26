@@ -68,6 +68,7 @@ describe('Drifting Agent capability manifest', () => {
       'drifting-runtime': definitionMap(composition.tools),
       'long-task-runtime': definitionMap(composition.longTaskTools),
       'working-memory-runtime': definitionMap(composition.workingMemoryTools),
+      'element-image-runtime': definitionMap(composition.elementImageTools),
     } as const;
     for (const tool of manifest.installedModelTools.entries) {
       expect(owners[tool.owner].get(tool.name)).toBe(tool.access);

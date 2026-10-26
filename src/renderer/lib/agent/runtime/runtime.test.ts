@@ -20,6 +20,7 @@ import type {
   AgentModelStreamEvent,
   AgentRuntimeJournalEntry,
   AgentRuntimeRunInput,
+  AgentRuntimeScheduler,
   AgentRuntimeUsage,
   AgentToolDefinition,
   AgentToolRuntime,
@@ -113,6 +114,51 @@ describe('AgentRuntime', () => {
     expect(result.state.terminal?.failureCode).toBe('BUDGET_EXCEEDED');
     expect(result.completedContextCheckpoint).toBeDefined();
     expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
+  });
+
+  it('runs an independent write outside the shared write barrier', async () => {
+    const barrierWrites: string[] = [];
+    const scheduler: AgentRuntimeScheduler = {
+      runRead: (_request, run) => run(),
+      runWrite: (request, run) => {
+        barrierWrites.push(request.name);
+        return run();
+      },
+    };
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({ ok: true, data: 'ok' }));
+    const round = (callId: string, name: string): ScriptedDriverRound => ({
+      steps: [
+        ...toolCallSteps(callId, name, ['{}']),
+        { op: 'emit', event: { type: 'usage', usage: usage(4, 2) } },
+        { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+      ],
+    });
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        round('call-independent', 'generate'),
+        round('call-barrier', 'write'),
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'done' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const result = await new AgentRuntime({
+      driver,
+      scheduler,
+      tools: toolRuntime(
+        [{ ...definition('generate', 'write'), scheduling: 'independent' }, definition('write', 'write')],
+        execute,
+      ),
+      permissionPolicy: { decide: () => ({ decision: 'allow', scope: 'once' }) },
+    }).runTurn(input());
+
+    expect(result.state.status).toBe('completed');
+    expect(execute.mock.calls.map(([request]) => request.name)).toEqual(['generate', 'write']);
+    expect(barrierWrites).toEqual(['write']);
   });
 
   it('gates a write before the scheduler and executes only after a provenance-bound approval', async () => {

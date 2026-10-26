@@ -14,7 +14,15 @@ clean-over-compatibility rule lives in [`../AGENTS.md`](../AGENTS.md).
   `id`, `projectId`, `kind`, `sourceMime`, `sourceSizeBytes`, `sourceSha256`,
   optional image dimensions, and `createdAt`.
 - Ownership is expressed exactly once: `library_item.assetId` owns an image or
-  PDF; `element.portraitAssetId` owns a portrait image.
+  PDF; `element.portraitAssetId` owns a portrait image. A material and a
+  portrait showing the same picture are two assets with one SHA-256.
+- `library_item.provenanceJson` (migration `0009`) records where a material
+  came from (generated, or a replaced portrait); `null` means the author
+  imported it. Picker paths never enter it. See
+  [`image-generation.md`](image-generation.md).
+- Generated candidates live in the device-local generation inbox, outside this
+  layout and outside sync, until the author keeps one through the ordinary
+  import below.
 - Provider file IDs, revisions, cursors, transfer sessions, and retry state do
   not belong in `project_asset`. SyncEngine stores them in its own
   replica/transport tables.

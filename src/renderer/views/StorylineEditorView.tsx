@@ -11,6 +11,7 @@ import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EntityTitleField } from '../components/editor/EntityTitleField';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import {
@@ -384,8 +385,7 @@ export function StorylineEditorView({
                   <span className="elem-portrait__hint">{currentStoryline.name}</span>
                 </div>
                 <div className="elem-hero__main">
-                  <input
-                    type="text"
+                  <EntityTitleField
                     className="elem-hero__name"
                     value={displayedName}
                     onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}

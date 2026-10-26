@@ -21,9 +21,9 @@
     }
   },
   "installedModelTools": {
-    "total": 77,
+    "total": 78,
     "read": 27,
-    "write": 50,
+    "write": 51,
     "entries": [
       {
         "name": "add_chapter_to_storyline",
@@ -286,6 +286,17 @@
         "certification": "internal-certified",
         "risk": "none",
         "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "generate_element_images",
+        "access": "write",
+        "owner": "element-image-runtime",
+        "surface": "element-image-runtime",
+        "certification": "internal-certified",
+        "risk": "low",
+        "effect": "external",
         "approval": "automatic",
         "revertStrategy": "not_applicable"
       },

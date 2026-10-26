@@ -39,7 +39,7 @@ function publish(projectId: string) {
     fixture.libraryItems = ['alpha', 'beta'].map((name, index) => ({
       id: `synthetic-material-${index}`, projectId, kind: 'text', title: `${projectId} ${name}`,
       bodyJson: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: `${name} synthetic text` }] }] }),
-      assetId: null, externalUrl: null, previewImageUrl: null, notesJson: null, orderKey: index,
+      assetId: null, externalUrl: null, previewImageUrl: null, notesJson: null, provenanceJson: null, orderKey: index,
       createdAt: '2026-09-12T00:00:00Z', updatedAt: '2026-09-12T00:00:00Z',
     }));
   }

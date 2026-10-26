@@ -53,6 +53,31 @@ describe('authored domain mutation wire classification', () => {
     });
   });
 
+  it('carries material provenance as an authored seed field', async () => {
+    const provenanceJson = JSON.stringify({ v: 1, origin: 'element-portrait', elementId: 'e', replacedAt: 'now' });
+    const changes = new SyncChangeBuilder();
+    appendAuthoredDomainMutation(changes, {
+      entityType: 'libraryItem',
+      mutationType: 'create',
+      entityId: 'library-1',
+      projectId: 'project-1',
+      payload: { id: 'library-1', title: 'Portrait', kind: 'image', notesJson: null, provenanceJson },
+    });
+    appendAuthoredDomainMutation(changes, {
+      entityType: 'libraryItem',
+      mutationType: 'create',
+      entityId: 'library-2',
+      projectId: 'project-1',
+      // Author imports omit the field so builds before migration 0009 accept them.
+      payload: { id: 'library-2', title: 'Imported', kind: 'image', notesJson: null },
+    });
+
+    const finalized = await changes.finalize();
+    const seeds = finalized.mutations.map(({ mutation }) => (mutation.payload as { seed: object }).seed);
+    expect(seeds[0]).toMatchObject({ title: 'Portrait', provenanceJson });
+    expect(seeds[1]).not.toHaveProperty('provenanceJson');
+  });
+
   it('keeps continuous timeline coordinates in scalar LWW mutations', async () => {
     const changes = new SyncChangeBuilder();
     appendAuthoredDomainMutation(changes, {

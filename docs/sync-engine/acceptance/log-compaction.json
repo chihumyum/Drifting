@@ -33,7 +33,7 @@
       "src/renderer/sync/providers/hosted/provider.ts": "47bc31084fb90ab174fc5fd3b7b93df16d849ace0afe0d62dc6dba66e0898746",
       "src/renderer/sync/providers/memory-provider.prune.test.ts": "1d9ee852c9ff3aaf632ca8949224cec556ba757a626f4e71a72dc39b182f6e0c",
       "src/renderer/sync/providers/memory-provider.ts": "908c35be2a94000cf52e85e43bd5395a44581c2a58ee3cd836d23d29ad73c7b8",
-      "src/renderer/sync/reducer/production-domain-kernel.ts": "82c32aeedbd45493675e7f827e112599bac3b79f590034ebe30445c3d8986b4a",
+      "src/renderer/sync/reducer/production-domain-kernel.ts": "d865db89885d51117bdcf3d45bc4bee085a7b70941ab0396f6e2097ce029c6ba",
       "src/renderer/sync/reducer/reducer.ts": "caad8b59617d95963914683e880a0c5428bfe83e27471a1bc8a091a3984ba5f1",
       "src/renderer/sync/reducer/sqlite-materializer.ts": "31abca5c2d6a66699955021efcec8918fe1f13b2d1b62a56522a3fd5a3bb11d5",
       "src/renderer/sync/restore/cloud-restore.ts": "6ee8b8f77f60ff1ce02ccd6febad49637a559d723cfbef90cc2bd1e25a572620"
@@ -42,7 +42,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/sync/compaction src/renderer/sync/providers/memory-provider.prune.test.ts src/renderer/sync/providers/hosted/provider.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/checkpoint src/renderer/sync/restore src/renderer/schema/sync-journal-truncation-migration.integration.test.ts",
-    "passed": 98,
+    "passed": 100,
     "failed": 0,
     "skipped": 0,
     "cases": [

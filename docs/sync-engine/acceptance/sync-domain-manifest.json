@@ -2,15 +2,15 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "621e5e931722590b6d15558d96ae275a31ff5b9f66f8540eaebe0c956d6dd9c5",
+  "schemaSha256": "fd93e395ff0e05390b86ccafa6b906f92d434a4c95ac4cf1aa00acec83b1ed21",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
     "tableCount": 96,
-    "fieldCount": 996,
+    "fieldCount": 997,
     "includedTableCount": 26,
     "excludedTableCount": 70,
     "classCounts": {
-      "authored": 168,
+      "authored": 169,
       "crdt": 10,
       "derived": 92,
       "device-local": 370,
@@ -3682,7 +3682,7 @@
       "table": "library_item",
       "scope": "project-direct",
       "disposition": "include",
-      "reason": "Library text, URL, binary metadata, notes, asset binding, and ordering are authored state.",
+      "reason": "Library text, URL, binary metadata, notes, provenance, asset binding, and ordering are authored state.",
       "fields": [
         {
           "field": "asset_id",
@@ -3740,6 +3740,12 @@
         },
         {
           "field": "project_id",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
+          "field": "provenance_json",
           "classification": "authored",
           "disposition": "include",
           "reason": "Stable identity or authored domain state required to reconstruct the project."

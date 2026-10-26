@@ -34,6 +34,7 @@ import {
   AGENT_WORKING_MEMORY_EDIT_TOOL,
   AGENT_WORKING_MEMORY_READ_TOOL,
 } from './working-memory-tool-contract';
+import { ELEMENT_IMAGE_TOOL_NAME } from '../element-image-requests';
 import { TOOL_SEARCH, CALL_TOOL } from './tool-discovery';
 import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
@@ -43,13 +44,15 @@ export type DriftingAgentToolOwner =
   | 'workspace-runtime'
   | 'drifting-runtime'
   | 'long-task-runtime'
-  | 'working-memory-runtime';
+  | 'working-memory-runtime'
+  | 'element-image-runtime';
 
 export type DriftingAgentToolSurface =
   | 'domain-tools'
   | 'runtime-control'
   | 'long-task-runtime'
-  | 'working-memory-runtime';
+  | 'working-memory-runtime'
+  | 'element-image-runtime';
 
 export interface DriftingAgentInstalledToolCapability {
   name: string;
@@ -252,11 +255,19 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       'working-memory-runtime',
     ),
   );
+  const elementImageEntries = [
+    catalogCapability(
+      requiredCatalogTool(ELEMENT_IMAGE_TOOL_NAME),
+      'element-image-runtime',
+      'element-image-runtime',
+    ),
+  ];
   const installed = [
     ...domainEntries,
     ...controlEntries,
     ...longTaskEntries,
     ...workingMemoryEntries,
+    ...elementImageEntries,
   ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
   assertUniqueInstalledNames(installed);
 

@@ -68,6 +68,8 @@ const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp
   delete_inspiration: { entityType: 'node', op: 'delete' },
   // element
   read_element: { entityType: 'element', op: 'read' },
+  // Candidates land in the device inbox; the element itself is not modified.
+  generate_element_images: { entityType: 'element', op: 'read' },
   get_element_patches: { entityType: 'element', op: 'read' },
   // Creating a patch is a write to its owning element (lights the element's "M"
   // + makes it a 本轮改动 link). Resolves the element from args.element (a NAME).

@@ -10,6 +10,7 @@ import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EntityTitleField } from '../components/editor/EntityTitleField';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import {
@@ -362,8 +363,7 @@ export function CategoryEditorView({
                   <span className="elem-portrait__hint">◆ {curCategory.name}</span>
                 </div>
                 <div className="elem-hero__main">
-                  <input
-                    type="text"
+                  <EntityTitleField
                     className="elem-hero__name"
                     value={displayedName}
                     onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}

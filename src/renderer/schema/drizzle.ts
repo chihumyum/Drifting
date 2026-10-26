@@ -937,6 +937,8 @@ export const LibraryItemTable = sqliteTable(
     externalUrl: text('external_url'),
     bodyJson: text('body_json'),
     notesJson: text('notes_json'),
+    // Versioned origin record (domain/material-provenance.ts); null for author imports.
+    provenanceJson: text('provenance_json'),
     previewImageUrl: text('preview_image_url'),
     orderKey: integer('order_key').notNull().default(0),
     createdAt: text('created_at').notNull(),
@@ -975,6 +977,10 @@ export const LibraryItemTable = sqliteTable(
     check(
       'library_item_notes_json_check',
       sql`${t.notesJson} is null or (json_valid(${t.notesJson}) and json_extract(${t.notesJson}, '$.type') = 'doc')`,
+    ),
+    check(
+      'library_item_provenance_json_check',
+      sql`${t.provenanceJson} is null or (json_valid(${t.provenanceJson}) and json_type(${t.provenanceJson}, '$.v') is 'integer')`,
     ),
   ],
 );

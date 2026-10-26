@@ -118,6 +118,7 @@ const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<str
     'externalUrl',
     'bodyJson',
     'notesJson',
+    'provenanceJson',
   ]),
   entityRelation: new Set([
     'fromKind',

@@ -8,11 +8,13 @@ import { LOCATION_OPEN_PREFIX } from '../lib/location-link';
 import type {
   ContractAvailability,
   AppUpdateDownloadEvent,
+  CodexImagesGenerateInput,
   GoogleDriveNativeError,
   GoogleDriveNativeErrorCode,
   GoogleDriveNativeDiagnostics,
   GoogleDriveNativeResult,
   GoogleDriveTransferProgressEvent,
+  ImageInboxCandidate,
   ImageVariantResult,
   LifecycleEventPayload,
   NativeBytes,
@@ -27,7 +29,12 @@ import type {
   TauriEventContract,
 } from './contracts';
 import { recordActiveGoogleDriveNativeDiagnostics } from '../services/diagnostics/google-drive-operation-trace';
-import type { PlatformApi, Unsubscribe } from './types';
+import type {
+  ImageGenerationResult,
+  ImageInboxEntry,
+  PlatformApi,
+  Unsubscribe,
+} from './types';
 
 const DEEP_LINK_EVENT = 'drifting:deep-link' as const;
 const OAUTH_DEEP_LINK_PREFIX = 'drifting://auth/';
@@ -306,6 +313,33 @@ async function readNativeFileBytes(filePath: string): Promise<ArrayBuffer | null
 function normalizeStoredAssetFileUrl<T extends { ok: boolean }>(result: T): T {
   if (!result.ok || !('filePath' in result) || typeof result.filePath !== 'string') return result;
   return { ...result, fileUrl: convertFileSrc(result.filePath) };
+}
+
+function inboxEntry(candidate: ImageInboxCandidate): ImageInboxEntry {
+  return { ...candidate, fileUrl: convertFileSrc(candidate.filePath) };
+}
+
+async function generateImages(
+  input: Omit<CodexImagesGenerateInput, 'requestId'>,
+  signal?: AbortSignal,
+): Promise<ImageGenerationResult> {
+  if (signal?.aborted) throw abortException();
+  const requestId = `images-${openAIRequestId()}`;
+  const onAbort = () => {
+    void invokeContract('codex_images_cancel', { requestId }).catch(() => undefined);
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  try {
+    const result = await invokeContract('codex_images_generate', {
+      input: { ...input, requestId },
+    });
+    return { ...result, candidates: result.candidates.map(inboxEntry) };
+  } catch (error) {
+    if (signal?.aborted) throw abortException();
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
 }
 
 function openAIRequestId(): string {
@@ -989,5 +1023,15 @@ export const tauriPlatform: PlatformApi = {
     startLogin: () => invokeContract('codex_oauth_start', undefined),
     cancelLogin: () => invokeContract('codex_oauth_cancel', undefined),
     logout: () => invokeContract('codex_oauth_logout', undefined),
+  },
+
+  imageGeneration: {
+    generate: generateImages,
+    listInbox: async (projectId) =>
+      (await invokeContract('image_inbox_list', { projectId })).map(inboxEntry),
+    discard: (projectId, candidateId) =>
+      invokeContract('image_inbox_delete', { projectId, candidateId }),
+    stageImport: (projectId, candidateId) =>
+      invokeContract('image_inbox_stage_import', { projectId, candidateId }),
   },
 };

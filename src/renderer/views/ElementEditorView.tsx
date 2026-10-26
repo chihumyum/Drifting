@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
-import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { requestConfirmation } from '../store/confirmation-store';
@@ -12,6 +11,7 @@ import { useBookElement } from '../usecase/useBookElement';
 import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EntityTitleField } from '../components/editor/EntityTitleField';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import {
@@ -45,6 +45,10 @@ import { assetStoreService } from '../services/asset-store.service';
 import type { LibraryItem } from '../domain/library-item';
 import { platform } from '../platform';
 import { Button } from '../components/ui/Button';
+import { ElementImageEntry } from '../features/element-images/ElementImageEntry';
+import { ElementImageCandidatePreview } from '../features/element-images/ElementImageCandidatePreview';
+import { useElementImageWorkflow } from '../features/element-images/useElementImageWorkflow';
+import { useGeneratedImageCommands } from '../usecase/useGeneratedImages';
 import {
   ModalActions,
   ModalBody,
@@ -84,6 +88,21 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const { updateElement } = elementUsecases;
 
   const curElement = elementId ? (bookElements.find((e) => e.id === elementId) ?? null) : null;
+  const elementCategoryName = curElement?.categoryId
+    ? (bookElementCategories.find((category) => category.id === curElement.categoryId)?.name ?? null)
+    : null;
+  const generatedImageCommands = useGeneratedImageCommands({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+    elementUsecases,
+  });
+  const imageWorkflow = useElementImageWorkflow({
+    projectId: projectId ?? null,
+    elementId: elementId ?? null,
+    elementName: curElement?.name ?? '',
+    categoryName: elementCategoryName,
+    commands: generatedImageCommands,
+  });
   const portraitAssetId = curElement?.portraitAssetId ?? null;
   const portraitAsset = useMemo(() => {
     if (!portraitAssetId) return null;
@@ -132,6 +151,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       externalUrl: null,
       bodyJson: null,
       notesJson: null,
+      provenanceJson: null,
       previewImageUrl: null,
       orderKey: 0,
       createdAt: portraitAsset.createdAt || now,
@@ -473,7 +493,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       const picked = await platform.material.pickFile('image');
       if (!picked.ok) return;
       pickedImportPath = picked.filePath;
-      await elementUsecases.setElementPortraitFromLocalFile(elementId, picked.filePath);
+      await generatedImageCommands.replacePortraitFromLocalFile(elementId, picked.filePath);
       ownershipTransferred = true;
     } catch (error) {
       log.error('Failed to import element portrait:', error);
@@ -494,7 +514,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       }
       setPortraitPickerBusy(false);
     }
-  }, [projectId, elementId, portraitAssetId, elementUsecases, t]);
+  }, [projectId, elementId, portraitAssetId, generatedImageCommands, t]);
 
   const handleRemovePortrait = useCallback(async () => {
     if (!projectId || !elementId || !portraitAssetId) return;
@@ -598,6 +618,18 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       <EditorTopBar
         editorType="element"
         onMenuAction={handleContextAction}
+        imageEntry={
+          <ElementImageEntry
+            imageUrl={portraitUrl}
+            hasImage={portraitHasImageSlot}
+            busy={portraitBusy}
+            error={portraitError}
+            onViewLarge={() => setPortraitPreviewOpen(true)}
+            onImportFromFile={() => void handleImportPortrait()}
+            onRemove={() => void handleRemovePortrait()}
+            workflow={imageWorkflow}
+          />
+        }
         shareTarget={projectId && curElement ? { projectId, kind: 'element', id: curElement.id, title: curElement.name } : undefined}
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
@@ -696,68 +728,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               </div>
 
               <section id="el-overview" className="elem-overview">
-                {portraitUrl && (
-                  <div className="elem-overview__art" aria-hidden="true">
-                    <img src={portraitUrl} alt="" />
-                  </div>
-                )}
-                <div
-                  className={`elem-overview__portrait-tools${portraitUrl ? ' elem-overview__portrait-tools--has-image' : ''}`}
-                  aria-busy={portraitBusy}
-                >
-                  {portraitUrl && (
-                    <button
-                      type="button"
-                      className="elem-overview__portrait-action"
-                      onClick={(event) => {
-                        if (event.detail > 0) event.currentTarget.blur();
-                        setPortraitPreviewOpen(true);
-                      }}
-                    >
-                      {t('elementEditor.portrait.view')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className={`elem-overview__portrait-action${!portraitAsset ? ' elem-overview__portrait-action--add' : ''}`}
-                    onClick={(event) => {
-                      if (event.detail > 0) event.currentTarget.blur();
-                      void handleImportPortrait();
-                    }}
-                    disabled={portraitBusy}
-                    aria-label={t(portraitAsset ? 'elementEditor.portrait.replace' : 'elementEditor.portrait.add')}
-                    title={t(portraitAsset ? 'elementEditor.portrait.replace' : 'elementEditor.portrait.add')}
-                  >
-                    {portraitBusy ? (
-                      <Loader2 className="elem-portrait__icon elem-portrait__icon--spin" aria-hidden />
-                    ) : !portraitAsset ? (
-                      <ImagePlus className="elem-overview__add-icon" strokeWidth={1.4} aria-hidden />
-                    ) : null}
-                    {portraitAsset && t(portraitBusy ? 'elementEditor.portrait.importing' : 'elementEditor.portrait.replace')}
-                  </button>
-                  {portraitAsset && (
-                    <button
-                      type="button"
-                      className="elem-overview__portrait-action"
-                      onClick={(event) => {
-                        if (event.detail > 0) event.currentTarget.blur();
-                        void handleRemovePortrait();
-                      }}
-                      disabled={portraitBusy}
-                      title={t('elementEditor.portrait.remove')}
-                      aria-label={t('elementEditor.portrait.remove')}
-                    >
-                      <Trash2 className="elem-portrait__icon" aria-hidden />
-                    </button>
-                  )}
-                  {portraitHasImageSlot && !portraitUrl && !portraitError && (
-                    <span className="elem-overview__portrait-status">{t('elementEditor.portrait.loading')}</span>
-                  )}
-                </div>
                 <div className="elem-hero">
                   <div className="elem-hero__main">
-                    <input
-                      type="text"
+                    <EntityTitleField
                       className="elem-hero__name"
                       value={nameValue}
                       onChange={(e) => {
@@ -901,9 +874,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                     />
                   )}
                 </div>
-                {portraitError && (
-                  <div className="elem-portrait__error" role="alert">{portraitError}</div>
-                )}
               </section>
 
               {/* 记·传 — the element's free-form biography (TipTap body). Sits
@@ -1219,6 +1189,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         </ModalRoot>
       )}
 
+      {imageWorkflow.preview && <ElementImageCandidatePreview {...imageWorkflow.preview} />}
       {portraitPreviewOpen && portraitPreviewMaterial && (
         <LibraryItemFullscreenPreview
           material={portraitPreviewMaterial}

@@ -14,8 +14,11 @@ import type {
   AssetVariant,
   CodexLoginProjection,
   CodexModel,
+  CodexImagesGenerateInput,
+  CodexImagesGenerateResult,
   CodexSubscriptionStatus,
   DeleteImportResult,
+  ImageInboxCandidate,
   FilePickerKind,
   ImageVariantResult,
   InspectImageResult,
@@ -356,6 +359,30 @@ export interface CodexSubscriptionPlatformApi extends OpenAIResponsesPlatformApi
   logout(): Promise<boolean>;
 }
 
+export type ImageInboxEntry = ImageInboxCandidate & {
+  /** Webview-loadable URL for the candidate image. */
+  fileUrl: string;
+};
+
+export type ImageGenerationResult = Omit<CodexImagesGenerateResult, 'candidates'> & {
+  candidates: ImageInboxEntry[];
+};
+
+/**
+ * Experimental image generation through the ChatGPT subscription sign-in.
+ * Results are local, unsynced inbox candidates until the author keeps one.
+ */
+export interface ImageGenerationPlatformApi {
+  generate(
+    input: Omit<CodexImagesGenerateInput, 'requestId'>,
+    signal?: AbortSignal,
+  ): Promise<ImageGenerationResult>;
+  listInbox(projectId: string): Promise<ImageInboxEntry[]>;
+  discard(projectId: string, candidateId: string): Promise<void>;
+  /** Copies a candidate into the picker import area for the ordinary asset import. */
+  stageImport(projectId: string, candidateId: string): Promise<string>;
+}
+
 export interface PlatformApi {
   readonly app: AppPlatformApi;
   readonly window: WindowPlatformApi;
@@ -392,4 +419,5 @@ export interface PlatformApi {
   readonly mcpHttp: McpHttpPlatformApi;
   readonly openAIResponses: OpenAIResponsesPlatformApi;
   readonly codexSubscription: CodexSubscriptionPlatformApi;
+  readonly imageGeneration: ImageGenerationPlatformApi;
 }

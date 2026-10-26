@@ -381,6 +381,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
           externalUrl: null,
           bodyJson: proseDoc,
           notesJson: createPlainCommentDoc('参考节奏'),
+          provenanceJson: null,
           previewImageUrl: null,
           orderKey: 1,
           createdAt: '2026-01-01T00:00:00.000Z',

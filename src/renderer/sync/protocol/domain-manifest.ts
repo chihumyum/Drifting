@@ -605,7 +605,7 @@ const tables: SyncDomainTablePolicy[] = [
     table: 'library_item',
     scope: 'project-direct',
     disposition: 'include',
-    reason: 'Library text, URL, binary metadata, notes, asset binding, and ordering are authored state.',
+    reason: 'Library text, URL, binary metadata, notes, provenance, asset binding, and ordering are authored state.',
     groups: [
       group(
         'authored',
@@ -618,6 +618,7 @@ const tables: SyncDomainTablePolicy[] = [
         'external_url',
         'body_json',
         'notes_json',
+        'provenance_json',
       ),
       group(
         'derived',

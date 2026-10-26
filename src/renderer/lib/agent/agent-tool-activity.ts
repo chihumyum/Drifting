@@ -54,6 +54,7 @@ export function describeAgentToolActivity(
     read_element: [`查看写作要素${quoted}`, `Review story element${quoted}`],
     get_element_patches: [`查看写作要素变化${quoted}`, `Review element evolution${quoted}`],
     find_element_appearances: [`查找写作要素出场${quoted}`, `Find appearances of element${quoted}`],
+    generate_element_images: ['生成设定图候选', 'Generate concept images'],
     list_storylines: ['查看故事线', 'Review storylines'],
     read_storyline: [`查看故事线${quoted}`, `Review storyline${quoted}`],
     list_relations: ['查看实体关系', 'Review relationships'],

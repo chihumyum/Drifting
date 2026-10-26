@@ -474,6 +474,70 @@ export interface CodexModel {
   supportsVerbosity: boolean;
 }
 
+export interface ImageCandidateTarget {
+  kind: 'element';
+  id: string;
+}
+
+/** Recorded with every generated candidate; keeping it copies this into the material. */
+export interface ImageCandidateProvenance {
+  provider: 'chatgpt-subscription';
+  model: string;
+  /** Exact prompt sent to the provider. */
+  prompt: string;
+  subjectPrompt: string | null;
+  styleText: string | null;
+  extraPrompt: string | null;
+  conversationId: string | null;
+  generationId: string | null;
+  imagegenRequestId: string | null;
+}
+
+/** Unsynced local candidate under the native generation inbox. */
+export interface ImageInboxCandidate {
+  id: string;
+  projectId: string;
+  target: ImageCandidateTarget;
+  createdAtMs: number;
+  mime: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  filePath: string;
+  provenance: ImageCandidateProvenance;
+}
+
+/** Non-secret image limit projected from the Codex backend's response headers. */
+export interface ImageQuotaSnapshot {
+  limit: string | null;
+  usedPercent: number | null;
+  windowMinutes: number | null;
+  resetsAtMs: number | null;
+}
+
+export interface CodexImagesGenerateInput {
+  /** Transport-only cancellation identity. */
+  requestId: string;
+  projectId: string;
+  target: ImageCandidateTarget;
+  prompt: string;
+  /** 1–4 independent requests; the subscription endpoint returns one image each. */
+  count: number;
+  provenance: {
+    subjectPrompt?: string | null;
+    styleText?: string | null;
+    extraPrompt?: string | null;
+    conversationId?: string | null;
+  };
+}
+
+export interface CodexImagesGenerateResult {
+  candidates: ImageInboxCandidate[];
+  /** Bounded failure codes for requests that produced no candidate. */
+  failures: string[];
+  quota: ImageQuotaSnapshot | null;
+}
+
 export type OpenAIResponsesStreamEvent =
   | {
       type: 'started';
@@ -810,6 +874,14 @@ export interface TauriCommandContract {
   codex_models_list: { args: undefined; result: CodexModel[] };
   codex_oauth_cancel: { args: undefined; result: boolean };
   codex_oauth_logout: { args: undefined; result: boolean };
+  codex_images_generate: {
+    args: { input: CodexImagesGenerateInput };
+    result: CodexImagesGenerateResult;
+  };
+  codex_images_cancel: { args: { requestId: string }; result: boolean };
+  image_inbox_list: { args: { projectId: string }; result: ImageInboxCandidate[] };
+  image_inbox_delete: { args: { projectId: string; candidateId: string }; result: void };
+  image_inbox_stage_import: { args: { projectId: string; candidateId: string }; result: string };
 }
 
 export interface TauriEventContract {

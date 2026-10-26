@@ -64,6 +64,13 @@
       "when": 1792522579945,
       "tag": "0008_sync_journal_truncation",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792948401962,
+      "tag": "0009_material_provenance",
+      "breakpoints": true
     }
   ]
 }

@@ -23,7 +23,7 @@ export function createWorkspaceSharingFixture(projectId: string, nodes = 1_000):
   base.trashedEntityIds = new Set(['node:synthetic-trashed']);
   base.projectAssets = [{ id: 'synthetic-asset', projectId, kind: 'image', sourceMime: 'image/png',
     sourceSizeBytes: 1, sourceSha256: '0'.repeat(64), width: 1, height: 1, createdAt: at }];
-  base.libraryItems = [{ id: 'synthetic-library', projectId, kind: 'text', title: '合成资料', notesJson: null,
+  base.libraryItems = [{ id: 'synthetic-library', projectId, kind: 'text', title: '合成资料', notesJson: null, provenanceJson: null,
     orderKey: 0, assetId: null, externalUrl: null, previewImageUrl: null, bodyJson: '{}', createdAt: at, updatedAt: at }];
   base.comments = [{ id: 'synthetic-comment', projectId, kind: 'note', targetKind: 'node', targetId: nodeId,
     targetBlockId: null, anchorJson: '{}', authorKind: 'user', authorId: null, authorName: null,

@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import type { LibraryItem, LibraryItemPatch } from '../domain/library-item';
+import { isValidMaterialProvenanceJson } from '../domain/material-provenance';
 import { initDatabase } from '../lib/db';
 import { assetStoreService } from '../services/asset-store.service';
 import {
@@ -23,11 +24,22 @@ import { entityIdsByNumericPlacement } from '../sync/journal/order-authority';
 type CreateLibraryItemCommon = {
   title?: string;
   notesJson?: string | null;
+  /** Serialized `MaterialProvenance`; omitted for the author's own imports. */
+  provenanceJson?: string | null;
 };
 
 export type CreateLibraryItemInput = CreateLibraryItemCommon &
   (
-    | { kind: 'image' | 'pdf'; sourcePath: string }
+    | {
+        kind: 'image' | 'pdf';
+        sourcePath: string;
+        /**
+         * Release the picker import after commit (default). False when the
+         * source is another app-owned file, e.g. an existing asset copied
+         * into a new material.
+         */
+        releaseSourceImport?: boolean;
+      }
     | { kind: 'url'; externalUrl: string; previewImageUrl?: string | null }
     | { kind: 'text'; bodyJson?: string | null }
   );
@@ -48,6 +60,10 @@ function libraryMutationPayload(item: LibraryItem): Record<string, unknown> {
     externalUrl: item.externalUrl,
     bodyJson: item.bodyJson,
     notesJson: item.notesJson,
+    // Absent rather than null when unset: builds before migration 0009 reject
+    // any provenanceJson field, so only materials that carry provenance need
+    // every device on a current build.
+    ...(item.provenanceJson !== null ? { provenanceJson: item.provenanceJson } : {}),
   };
 }
 
@@ -90,6 +106,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       const itemId = uuidv7();
       const now = new Date().toISOString();
       const orderKey = prependedLibraryOrder(previous);
+      if (!isValidMaterialProvenanceJson(input.provenanceJson ?? null)) {
+        throw new Error('Material provenance is not a valid current record');
+      }
       const localAsset =
         input.kind === 'image' || input.kind === 'pdf'
           ? await prepareLocalProjectAsset({
@@ -103,6 +122,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         projectId,
         title: input.title?.trim() ?? '',
         notesJson: input.notesJson ?? null,
+        provenanceJson: input.provenanceJson ?? null,
         orderKey,
         createdAt: now,
         updatedAt: now,
@@ -179,9 +199,11 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
             // the marker is safe: startup GC clears it from the retained set.
             console.warn('[material] failed to clear committed asset import marker:', error);
           });
-          void releasePickedMaterialImport(input.sourcePath).catch((error) => {
-            console.warn('[material] failed to release committed picker import:', error);
-          });
+          if (input.releaseSourceImport !== false) {
+            void releasePickedMaterialImport(input.sourcePath).catch((error) => {
+              console.warn('[material] failed to release committed picker import:', error);
+            });
+          }
         }
         return persisted;
       } catch (error) {
