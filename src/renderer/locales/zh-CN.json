@@ -1153,6 +1153,9 @@
       "back_to_library": "返回本地书库",
       "trust": "启用托管同步后，项目和原始素材会保存在你连接的服务端。该服务端可以读取这些内容。",
       "onboarding": "登录或注册 Drifting 账号后，会将云端项目下载到本机，并上传当前本地书库。也可以先在本地写作，之后从「账号」设置登录。",
+      "storage": "Hosted 存储",
+      "storage_description": "已用 {{used}} / {{quota}}。附件计入用量，正文和结构不受限制。",
+      "quota_blocked": "Hosted 存储已满，有附件无法上传，这个项目暂时无法继续同步。删除不需要的附件或项目后会自动恢复；本地内容不受影响。",
       "progress": "同步进度",
       "retrying": "暂时未能完成同步；正文已保存在本机，会自动重试。",
       "pending": "正在同步或等待同步完成。",
@@ -3534,5 +3537,8 @@
     "startFailed": "没能开始：{{error}}",
     "start": "交给 Agent",
     "started": "已交给 Agent · 点击查看对话"
+  },
+  "hostedQuota": {
+    "exceeded": "Hosted 存储空间不足（已用 {{used}} / {{quota}}），这个附件没有导入。正文和结构照常同步；删除不需要的附件或项目可以释放空间。"
   }
 }

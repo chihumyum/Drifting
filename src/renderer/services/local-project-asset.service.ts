@@ -5,6 +5,7 @@ import type {
 } from '../domain/project-asset';
 import { platform } from '../platform';
 import { ensureLocalAuthoredAssetBlobVerified } from '../sync/assets/local-authored-blob';
+import { assertHostedQuotaAllows } from '../sync/hosted/quota';
 import { assetStoreService, extForMime } from './asset-store.service';
 
 export interface PrepareLocalProjectAssetInput {
@@ -32,6 +33,9 @@ async function sourceSha256(sourcePath: string): Promise<string> {
  * The source variant written below is the authoritative local byte stream.
  * Display and thumbnail variants are rebuildable derivatives. Publishing the
  * source is a later SyncEngine concern and is never triggered by local import.
+ *
+ * A Hosted library refuses the import (before any blob is registered) when it
+ * would exceed the account's storage quota; see `assertHostedQuotaAllows`.
  *
  * This function performs file IO only. The caller must persist the returned
  * metadata and owner binding in one SQLite transaction, then release the picker
@@ -82,6 +86,7 @@ export async function prepareLocalProjectAsset(
       );
       if (failedWrite) throw failedWrite.reason;
       const source = (writes[0] as PromiseFulfilledResult<{ sizeBytes: number }>).value;
+      await assertHostedQuotaAllows(source.sizeBytes);
       const asset: ProjectAsset = {
         id: assetId,
         projectId: input.projectId,
@@ -123,6 +128,7 @@ export async function prepareLocalProjectAsset(
     );
     if (failedWrite) throw failedWrite.reason;
     const source = (writes[0] as PromiseFulfilledResult<{ sizeBytes: number }>).value;
+    await assertHostedQuotaAllows(source.sizeBytes);
     const asset: ProjectAsset = {
       id: assetId,
       projectId: input.projectId,

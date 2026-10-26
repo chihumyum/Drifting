@@ -1945,6 +1945,25 @@
   border-color: hsl(var(--accent));
 }
 
+/* Storage usage meter */
+.set-meter {
+  display: block;
+  width: 140px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: hsl(var(--rule));
+}
+.set-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: hsl(var(--accent));
+}
+.set-meter__fill[data-full] {
+  background: hsl(var(--danger, 0 70% 50%));
+}
+
 /* Misc utility */
 .set-mono {
   font-family: var(--font-mono);

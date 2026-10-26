@@ -53,6 +53,7 @@ export class TauriHostedObjectTransport implements HostedObjectTransport {
         'IMMUTABLE_OBJECT_CONFLICT',
         'HASH_MISMATCH',
         'SIZE_MISMATCH',
+        'QUOTA_EXCEEDED',
         'REMOTE_OBJECT_MISSING',
         'REMOTE_STORE_CORRUPT',
         'ABORTED',

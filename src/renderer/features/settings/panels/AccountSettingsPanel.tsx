@@ -7,6 +7,7 @@ import { productSyncCommands } from '../../../sync/product-commands';
 import { useProductSyncRuntime } from '../../../sync/product-runtime-react';
 import { synchronizeHostedNow } from '../../../sync/hosted/connect';
 import { disconnectHosted } from '../../../sync/hosted/disconnect';
+import { formatStorageBytes, readHostedUsage, type HostedUsage } from '../../../sync/hosted/quota';
 import { HostedAccountDetails } from './HostedAccountDetails';
 import {
   SettingsPanelHeader,
@@ -34,6 +35,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
       : null;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [usage, setUsage] = useState<HostedUsage | null>(null);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
   const run = async (action: (signal: AbortSignal) => Promise<unknown>) => {
@@ -57,6 +59,15 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
   const hostedTransition = authority.targetMode === 'hosted';
   const paused = connected && authority.status === 'cloud-paused';
   const accountReady = status === 'connected';
+  useEffect(() => {
+    if (!connected || !accountReady) return undefined;
+    const controller = new AbortController();
+    void readHostedUsage({ maxAgeMs: 0, signal: controller.signal }).then((value) => {
+      if (!controller.signal.aborted) setUsage(value);
+    });
+    return () => controller.abort();
+  }, [connected, accountReady, syncedAt]);
+  const usageRatio = usage && usage.quotaBytes > 0 ? Math.min(1, usage.usedBytes / usage.quotaBytes) : 0;
   return (
     <section className="set-panel" ref={registerRef} id="account">
       <SettingsPanelHeader
@@ -148,6 +159,34 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
               failure?.lastErrorCode ? (
                 <span className="set-mono">{failure.lastErrorCode}</span>
               ) : null
+            }
+          />
+        )}
+        {connected && failure?.lastErrorCode === 'QUOTA_EXCEEDED' && (
+          <p role="alert">{t('settings.hosted.quota_blocked')}</p>
+        )}
+        {connected && usage && (
+          <SettingsRow
+            label={t('settings.hosted.storage')}
+            desc={t('settings.hosted.storage_description', {
+              used: formatStorageBytes(usage.usedBytes),
+              quota: formatStorageBytes(usage.quotaBytes),
+            })}
+            control={
+              <span
+                className="set-meter"
+                role="meter"
+                aria-label={t('settings.hosted.storage')}
+                aria-valuemin={0}
+                aria-valuemax={usage.quotaBytes}
+                aria-valuenow={Math.min(usage.usedBytes, usage.quotaBytes)}
+              >
+                <span
+                  className="set-meter__fill"
+                  data-full={usageRatio >= 0.9 ? 'true' : undefined}
+                  style={{ width: `${Math.round(usageRatio * 100)}%` }}
+                />
+              </span>
             }
           />
         )}

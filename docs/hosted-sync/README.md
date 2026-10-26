@@ -171,6 +171,22 @@ cursors, uploads immutable objects with SHA-256, and downloads them into native
 staging references. Account-wide snapshot discovery never activates unvalidated
 bytes. The current service ceiling is 64 MiB per object.
 
+### Storage quota
+
+`GET /api/sync/v1/usage` reports the account's `usedBytes` (live projects only),
+the 500 MiB product `quotaBytes` and a 1 GiB `hardLimitBytes`. Before a new
+image or PDF is committed to a Hosted library, `assertHostedQuotaAllows`
+(`src/renderer/sync/hosted/quota.ts`, called from `prepareLocalProjectAsset`)
+adds the account's server usage, local attachment bytes not yet uploaded and the
+new file, and refuses the import with a readable message when that exceeds the
+quota; the partial import is removed. Prose and structure are never limited.
+Local-only libraries are not checked, and an unreadable usage (offline, first
+launch) never blocks writing; the service's hard limit is the backstop. A blob the
+service refuses (`413 QUOTA_EXCEEDED`, a distinct non-retryable code) holds back
+that project's later change-sets until usage drops, so the import gate keeps it
+from happening in normal use. Settings → Account shows the usage meter and
+explains a quota-blocked project.
+
 ### Log truncation
 
 Every native request sends `X-Drifting-Sync-Capabilities: removals-v1`, and

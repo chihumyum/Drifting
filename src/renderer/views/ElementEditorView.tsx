@@ -56,6 +56,7 @@ import {
   ModalHeader,
   ModalRoot,
 } from '../components/ui/Modal';
+import { HostedQuotaExceededError } from '../sync/hosted/quota';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -500,7 +501,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       setPortraitErrorState({
         elementId,
         assetId: portraitAssetId,
-        message: t('elementEditor.portrait.importFailed'),
+        message: error instanceof HostedQuotaExceededError
+          ? error.message
+          : t('elementEditor.portrait.importFailed'),
       });
     } finally {
       if (pickedImportPath && !ownershipTransferred) {

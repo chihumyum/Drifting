@@ -75,31 +75,50 @@ fn request_url(origin: &str, path: &str) -> Result<Url, String> {
     }
     Ok(url)
 }
+/// Read at most 4 KiB of an error body; `None` when it is larger or broken.
+async fn bounded_error_body(response: reqwest::Response) -> Option<Vec<u8>> {
+    let mut stream = response.bytes_stream();
+    let mut body = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.ok()?;
+        if body.len() + chunk.len() > 4096 {
+            return None;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Some(body)
+}
 async fn response_error(response: reqwest::Response) -> String {
     if response.status().as_u16() == 410 {
         // Forward only a bounded deletion receipt. The provider validates its exact scope.
-        let mut stream = response.bytes_stream();
-        let mut body = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            let Ok(chunk) = chunk else {
-                return "REMOTE_STORE_CORRUPT".into();
-            };
-            if body.len() + chunk.len() > 4096 {
-                return "REMOTE_STORE_CORRUPT".into();
-            }
-            body.extend_from_slice(&chunk);
-        }
+        let Some(body) = bounded_error_body(response).await else {
+            return "REMOTE_STORE_CORRUPT".into();
+        };
         if let Ok(value) = serde_json::from_slice::<Value>(&body) {
             return format!("HOSTED_DELETION_RECEIPT:{}", value);
         }
         return "REMOTE_STORE_CORRUPT".into();
+    }
+    if response.status().as_u16() == 413 {
+        // The account storage ceiling and the per-object size ceiling share 413.
+        let quota = bounded_error_body(response)
+            .await
+            .and_then(|body| serde_json::from_slice::<Value>(&body).ok())
+            .is_some_and(|value| {
+                value.get("code").and_then(Value::as_str) == Some("QUOTA_EXCEEDED")
+            });
+        return if quota {
+            "QUOTA_EXCEEDED"
+        } else {
+            "SIZE_MISMATCH"
+        }
+        .into();
     }
     match response.status().as_u16() {
         401 => "needs-reauth",
         403 => "permission-denied",
         404 => "REMOTE_OBJECT_MISSING",
         409 => "IMMUTABLE_OBJECT_CONFLICT",
-        413 => "SIZE_MISMATCH",
         422 => "HASH_MISMATCH",
         429 => "rate-limited",
         500..=599 => "provider-unavailable",
@@ -118,8 +137,7 @@ async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, Strin
     if input.method == "DELETE" && (input.source_ref.is_some() || input.destination_ref.is_some()) {
         return Err("HOSTED_INVALID_METHOD".into());
     }
-    if (input.method == "POST")
-        != input.json_body.is_some()
+    if (input.method == "POST") != input.json_body.is_some()
         || (input.method == "POST"
             && (input.source_ref.is_some() || input.destination_ref.is_some()))
     {

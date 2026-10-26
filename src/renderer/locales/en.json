@@ -1153,6 +1153,9 @@
       "back_to_library": "Back to local library",
       "trust": "Hosted sync stores projects and original assets on the connected service. That service can read their contents.",
       "onboarding": "Sign in or create a Drifting account to download your cloud projects and upload your local library. You can also start writing locally and sign in later from Account settings.",
+      "storage": "Hosted storage",
+      "storage_description": "{{used}} of {{quota}} used. Attachments count toward it; writing and structure are not limited.",
+      "quota_blocked": "Hosted storage is full and an attachment could not be uploaded, so this project cannot sync further for now. Deleting attachments or projects you no longer need resumes it; local content is unaffected.",
       "progress": "Sync progress",
       "retrying": "Sync could not finish. Writing remains saved locally; retrying automatically.",
       "pending": "Syncing or waiting for sync to finish.",
@@ -3534,5 +3537,8 @@
     "startFailed": "Could not start: {{error}}",
     "start": "Hand to Agent",
     "started": "Handed to Agent · open the conversation"
+  },
+  "hostedQuota": {
+    "exceeded": "Hosted storage is full ({{used}} of {{quota}} used), so this attachment was not imported. Writing and structure keep syncing; delete attachments or projects you no longer need to free space."
   }
 }
