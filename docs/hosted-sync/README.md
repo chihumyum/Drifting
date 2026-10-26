@@ -135,9 +135,10 @@ dialog open with a retryable error. Never-synced projects in service-disabled
 local builds retain local deletion; unowned remote evidence blocks that path.
 Suspended Drive history is retained outside the Hosted deletion contract.
 
-The service deletes live project objects and the same generation's `agent-chat-v1`
-objects in one PostgreSQL transaction, retaining permanent generation tombstones.
-Retries return the same deletion receipt, discovery omits the removed snapshots,
+The service tombstones the project stream and the same generation's
+`agent-chat-v1` stream in one PostgreSQL transaction. Tombstones are permanent;
+the bytes stay operator-recoverable for 30 days and are then purged by the service.
+Retries return the same deletion receipt, discovery omits tombstoned snapshots,
 and old devices cannot reopen or upload to either deleted stream. A scoped
 HTTP 410 receipt includes `GENERATION_DELETED`, namespace, generation ID and deletion
 time; the client validates the receipt and current account before applying the
