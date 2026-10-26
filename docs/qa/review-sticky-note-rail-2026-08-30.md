@@ -1,6 +1,6 @@
 # Review panel and sticky-note rail acceptance
 
-Updated: 2026-10-02
+Updated: 2026-10-27
 
 This document supersedes the original automatic comment-margin projection.
 Review is the only project review list. It combines
@@ -71,7 +71,27 @@ TODO data model.
   deck and expands vertically on demand. The old per-card collapsed/expanded
   state no longer exists.
 - The rail is a transparent overlay and must not reflow, tint, wash, or veil the
-  manuscript.
+  manuscript. Anchor highlights below are separate from the rail.
+
+## Prose anchor highlights
+
+- Every unresolved block-anchored note and TODO keeps a light resting wash on
+  its anchored prose in chapter, element, storyline and category editors and in
+  the whole-book reader. Visibility does not depend on sticky-rail membership,
+  the rail toggle or Review being open. Resolved and converted items have no
+  resting wash; Copilot proposals have none either.
+- A precise text anchor paints only its text, and only while the live text still
+  matches the captured selection (relocating to the nearest occurrence after
+  earlier edits). Otherwise, or for whole-block anchors, the anchored blocks are
+  washed. Unresolvable anchors paint nothing.
+- Hovering a card in Review, a sticky rail or the TODO workbench adds a stronger
+  overlay on that item's anchor, including resolved and Copilot items.
+- Highlights are display-only. They are painted with the CSS Custom Highlight
+  API, never change ProseMirror DOM, Yjs or exports, and are absent where the
+  API is unavailable. Painters re-resolve anchors 150ms after prose DOM
+  mutations and release their ranges and observers while a surface is hidden.
+- Washes are per family (note rouge, TODO ochre, Copilot blue on hover), use
+  background colour only, and add no border, left bar or layout change.
 
 ## Visual contract
 
@@ -123,6 +143,12 @@ collapse state, mobile transparency, top-entry motion, and this contract.
 and `src/renderer/components/workspace-surface-language.acceptance.test.ts`
 also enforce the shared panel/list primitives, action-menu ownership, compact
 radius ladder, and absence of large-radius or elevated Review/sticky cards.
+
+`src/renderer/components/editor/comment-anchor-highlight.acceptance.test.ts`
+checks the five painter mounts, rail independence, DOM-free painting, hidden
+surface release, card hover wiring and background-only highlight rules.
+`src/renderer/components/editor/comment-highlight-model.test.ts` covers the
+candidate selector, resting/active layer rules and stable snapshots.
 
 `pnpm exec node scripts/run-todo-edit-acceptance.mjs` generates
 `docs/qa/todo-edit.json` from real card/editor components in an isolated headless

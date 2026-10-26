@@ -1,20 +1,23 @@
-// In-prose hover highlight for comments, via the CSS Custom Highlight API
+// In-prose comment anchors, via the CSS Custom Highlight API
 // (CSS.highlights + ::highlight()). Chosen over a CSS class on the block —
 // ProseMirror strips externally-added `class` from the nodes it manages — and
-// over WAAPI — which can only wash a whole element, not a sub-text span. A
+// over inline decorations, which split text nodes under IME composition. A
 // custom highlight paints an arbitrary DOM Range without mutating the DOM at
 // all, so it (a) survives PM reconciliation and (b) supports fine-grained
 // text-level anchoring (a comment pinned to a phrase highlights just that
 // phrase; a whole-block anchor highlights the block).
 //
-// Colour is per source/kind (manual / copilot / todo) via three fixed
-// highlight names, each styled by a `::highlight(...)` rule in index.css.
+// Unresolved notes and TODOs keep a resting wash; Copilot proposals stay
+// quiet. The comment whose Review or sticky card is hovered gets a stronger
+// `-active` overlay. Each name is styled by a `::highlight(...)` rule in
+// comments-review.css.
 import {
   commentBlockIds,
   commentColorKey,
   getBlockSnapshotsFromAnchor,
   getTextAnchorFromAnchor,
   type Comment,
+  type CommentColorKey,
   type CommentTextAnchor,
 } from '../domain/comment';
 
@@ -24,6 +27,7 @@ interface HighlightLike {
   add(range: Range): void;
   delete(range: Range): boolean;
   readonly size: number;
+  priority?: number;
 }
 type HighlightCtor = new (...ranges: Range[]) => HighlightLike;
 interface HighlightRegistryLike {
@@ -32,11 +36,24 @@ interface HighlightRegistryLike {
   delete(name: string): boolean;
 }
 
-const HIGHLIGHT_NAME: Record<string, string> = {
+const RESTING_HIGHLIGHT: Partial<Record<CommentColorKey, string>> = {
   todo: 'comment-hl-todo',
   manual: 'comment-hl-manual',
-  copilot: 'comment-hl-copilot',
 };
+const ACTIVE_HIGHLIGHT: Record<CommentColorKey, string> = {
+  todo: 'comment-hl-todo-active',
+  manual: 'comment-hl-manual-active',
+  copilot: 'comment-hl-copilot-active',
+};
+const ACTIVE_HIGHLIGHT_NAMES = new Set(Object.values(ACTIVE_HIGHLIGHT));
+// Paint the hovered anchor above overlapping resting washes.
+const ACTIVE_HIGHLIGHT_PRIORITY = 1;
+// Live Ranges follow most edits on their own; the delayed re-resolve repairs
+// ranges whose text nodes ProseMirror re-rendered, without per-keystroke work.
+const REPAINT_DELAY_MS = 150;
+// Up to this many comments, look blocks up one by one; beyond it, index the
+// scroller once (the whole-book reader can hold thousands of blocks).
+const DIRECT_BLOCK_LOOKUP_LIMIT = 8;
 
 function getApi(): { Ctor: HighlightCtor; registry: HighlightRegistryLike } | null {
   const Ctor = (globalThis as unknown as { Highlight?: HighlightCtor }).Highlight;
@@ -45,8 +62,18 @@ function getApi(): { Ctor: HighlightCtor; registry: HighlightRegistryLike } | nu
   return { Ctor, registry };
 }
 
-function blockEl(scrollEl: HTMLElement, id: string): HTMLElement | null {
-  return scrollEl.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+type BlockLookup = (id: string) => HTMLElement | null;
+
+function blockLookup(scrollEl: HTMLElement, comments: readonly Comment[]): BlockLookup {
+  if (comments.length > DIRECT_BLOCK_LOOKUP_LIMIT) {
+    const blocks = new Map<string, HTMLElement>();
+    scrollEl.querySelectorAll<HTMLElement>('[data-block-id]').forEach((el) => {
+      const id = el.getAttribute('data-block-id');
+      if (id && !blocks.has(id)) blocks.set(id, el);
+    });
+    return (id) => blocks.get(id) ?? null;
+  }
+  return (id) => scrollEl.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
 }
 
 // Map a plain-text char offset within `el` to a concrete DOM (text node, offset)
@@ -113,12 +140,12 @@ function rangeForNeedle(el: HTMLElement, needle: string, expectedOffset: number)
 }
 
 function rangeForTextAnchor(
-  scrollEl: HTMLElement,
+  blockEl: BlockLookup,
   t: CommentTextAnchor,
   snapshots: { blockId: string | null; blockText: string }[],
 ): Range | null {
-  const startEl = blockEl(scrollEl, t.startBlockId);
-  const endEl = blockEl(scrollEl, t.endBlockId);
+  const startEl = blockEl(t.startBlockId);
+  const endEl = blockEl(t.endBlockId);
   if (!startEl || !endEl) return null;
   const start = domPointAtOffset(startEl, t.startOffset);
   const end = domPointAtOffset(endEl, t.endOffset);
@@ -178,41 +205,168 @@ function rangeForWholeBlock(el: HTMLElement): Range {
 }
 
 /**
- * Highlight a comment's anchored region in the prose — a precise text span when
- * the comment carries a text anchor, else its whole block range. Returns a
- * dispose fn that removes exactly the ranges it added (and drops the highlight
- * name when empty). No-op (returns a noop dispose) when the API is unavailable
- * or nothing resolves.
+ * A comment's anchored region in the prose — a precise text span when the
+ * comment carries a text anchor that still matches, else its whole block range.
  */
-export function highlightComment(scrollEl: HTMLElement, comment: Comment): () => void {
-  const api = getApi();
-  if (!api) return () => {};
-  const name = HIGHLIGHT_NAME[commentColorKey(comment)] ?? HIGHLIGHT_NAME.manual;
-
-  const ranges: Range[] = [];
+function commentRanges(blockEl: BlockLookup, comment: Comment): Range[] {
   const textAnchor = getTextAnchorFromAnchor(comment.anchorJson);
   if (textAnchor) {
-    const r = rangeForTextAnchor(
-      scrollEl,
+    const range = rangeForTextAnchor(
+      blockEl,
       textAnchor,
       getBlockSnapshotsFromAnchor(comment.anchorJson),
     );
-    if (r) ranges.push(r);
+    if (range) return [range];
   }
-  if (ranges.length === 0) {
-    for (const id of commentBlockIds(comment)) {
-      const el = blockEl(scrollEl, id);
-      if (el) ranges.push(rangeForWholeBlock(el));
+  return commentBlockIds(comment).flatMap((id) => {
+    const el = blockEl(id);
+    return el ? [rangeForWholeBlock(el)] : [];
+  });
+}
+
+/** Highlight names one comment paints: its resting wash, plus the active overlay. */
+export function commentHighlightNames(comment: Comment, activeId: string | null): string[] {
+  if (comment.status === 'converted') return [];
+  const key = commentColorKey(comment);
+  const names: string[] = [];
+  const resting = comment.status === 'open' ? RESTING_HIGHLIGHT[key] : undefined;
+  if (resting) names.push(resting);
+  if (comment.id === activeId) names.push(ACTIVE_HIGHLIGHT[key]);
+  return names;
+}
+
+export function sameRangeList<T>(
+  a: readonly T[],
+  b: readonly T[],
+  same: (left: T, right: T) => boolean,
+): boolean {
+  return a.length === b.length && a.every((range, index) => same(range, b[index]));
+}
+
+function sameRange(a: Range, b: Range): boolean {
+  return (
+    a.startContainer === b.startContainer &&
+    a.startOffset === b.startOffset &&
+    a.endContainer === b.endContainer &&
+    a.endOffset === b.endOffset
+  );
+}
+
+interface PaintedLayer {
+  name: string;
+  ranges: Range[];
+}
+
+function addLayer(api: { Ctor: HighlightCtor; registry: HighlightRegistryLike }, layer: PaintedLayer) {
+  let highlight = api.registry.get(layer.name);
+  if (!highlight) {
+    highlight = new api.Ctor();
+    if (ACTIVE_HIGHLIGHT_NAMES.has(layer.name)) highlight.priority = ACTIVE_HIGHLIGHT_PRIORITY;
+    api.registry.set(layer.name, highlight);
+  }
+  for (const range of layer.ranges) highlight.add(range);
+}
+
+function removeLayer(registry: HighlightRegistryLike, layer: PaintedLayer) {
+  const highlight = registry.get(layer.name);
+  if (!highlight) return;
+  for (const range of layer.ranges) highlight.delete(range);
+  if (highlight.size === 0) registry.delete(layer.name);
+}
+
+/**
+ * Paints the comment anchors of one editor scroller. A painter adds and removes
+ * only its own ranges in the shared named highlights, so split panes and the
+ * whole-book reader can show the same chapter independently. While attached it
+ * re-resolves anchors after prose DOM mutations; detaching releases every range.
+ */
+export class CommentHighlightPainter {
+  private comments: readonly Comment[] = [];
+  private activeId: string | null = null;
+  private painted = new Map<string, PaintedLayer>();
+  private observer: MutationObserver | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly scrollEl: HTMLElement) {}
+
+  attach(): () => void {
+    if (!this.observer) {
+      this.observer = new MutationObserver(() => this.schedule());
+      this.observer.observe(this.scrollEl, { childList: true, subtree: true, characterData: true });
     }
+    this.repaint();
+    return () => this.detach();
   }
-  if (ranges.length === 0) return () => {};
 
-  const highlight = api.registry.get(name) ?? new api.Ctor();
-  ranges.forEach((r) => highlight.add(r));
-  api.registry.set(name, highlight);
+  update(comments: readonly Comment[], activeId: string | null): void {
+    this.comments = comments;
+    this.activeId = activeId;
+    if (this.observer) this.repaint();
+  }
 
-  return () => {
-    ranges.forEach((r) => highlight.delete(r));
-    if (highlight.size === 0) api.registry.delete(name);
-  };
+  private detach(): void {
+    this.observer?.disconnect();
+    this.observer = null;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    const api = getApi();
+    if (api) for (const layer of this.painted.values()) removeLayer(api.registry, layer);
+    this.painted.clear();
+  }
+
+  private schedule(): void {
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.repaint();
+    }, REPAINT_DELAY_MS);
+  }
+
+  private repaint(): void {
+    const api = getApi();
+    if (!api || (this.comments.length === 0 && this.painted.size === 0)) return;
+    const lookup = blockLookup(this.scrollEl, this.comments);
+    const next = new Map<string, PaintedLayer>();
+    for (const comment of this.comments) {
+      const names = commentHighlightNames(comment, this.activeId);
+      if (names.length === 0) continue;
+      const ranges = commentRanges(lookup, comment);
+      if (ranges.length === 0) continue;
+      for (const name of names) next.set(`${name}\u0000${comment.id}`, { name, ranges });
+    }
+    // Keep unchanged layers in place so an unrelated edit does not repaint them.
+    for (const [key, layer] of this.painted) {
+      const fresh = next.get(key);
+      if (fresh && sameRangeList(layer.ranges, fresh.ranges, sameRange)) next.set(key, layer);
+      else removeLayer(api.registry, layer);
+    }
+    for (const [key, layer] of next) {
+      if (this.painted.get(key) !== layer) addLayer(api, layer);
+    }
+    this.painted = next;
+  }
+}
+
+// The comment whose Review, sticky-note or TODO card is under the pointer.
+let activeCommentId: string | null = null;
+const activeCommentListeners = new Set<() => void>();
+
+export function setActiveCommentHighlight(id: string | null): void {
+  if (activeCommentId === id) return;
+  activeCommentId = id;
+  activeCommentListeners.forEach((listener) => listener());
+}
+
+/** Clear the active comment only if it is still `id` (leave/unmount of its card). */
+export function clearActiveCommentHighlight(id: string): void {
+  if (activeCommentId === id) setActiveCommentHighlight(null);
+}
+
+export function getActiveCommentHighlight(): string | null {
+  return activeCommentId;
+}
+
+export function subscribeActiveCommentHighlight(listener: () => void): () => void {
+  activeCommentListeners.add(listener);
+  return () => activeCommentListeners.delete(listener);
 }

@@ -331,19 +331,27 @@
 .mnote:hover .mnote__leader {
   background: hsl(var(--accent));
 }
-/* Comment hover highlight — painted via the CSS Custom Highlight API (see
+/* Comment anchors — painted via the CSS Custom Highlight API (see
    lib/comment-highlight.ts), NOT a CSS class: ProseMirror strips externally-
    added classes from its nodes, and a highlight can wash an arbitrary DOM Range
-   (a sub-text phrase OR whole blocks). Coloured per family. Background only — no
-   left bar (user preference). Only `background-color`/`color`/text-decoration
-   are honoured inside ::highlight(). */
+   (a sub-text phrase OR whole blocks). Coloured per family. Unresolved notes and
+   TODOs keep a light resting wash; Copilot proposals have none. The `-active`
+   overlay marks the hovered card's anchor and stacks on the resting wash.
+   Background only — no left bar (user preference). Only
+   `background-color`/`color`/text-decoration are honoured inside ::highlight(). */
 ::highlight(comment-hl-manual) {
-  background-color: hsl(var(--comment) / 0.24);
-}
-::highlight(comment-hl-copilot) {
-  background-color: hsl(var(--story-2) / 0.26);
+  background-color: hsl(var(--comment) / 0.16);
 }
 ::highlight(comment-hl-todo) {
+  background-color: hsl(var(--story-4) / 0.18);
+}
+::highlight(comment-hl-manual-active) {
+  background-color: hsl(var(--comment) / 0.24);
+}
+::highlight(comment-hl-copilot-active) {
+  background-color: hsl(var(--story-2) / 0.26);
+}
+::highlight(comment-hl-todo-active) {
   background-color: hsl(var(--story-4) / 0.32);
 }
 

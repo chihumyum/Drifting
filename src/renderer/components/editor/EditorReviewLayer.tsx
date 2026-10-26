@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 
 import { AgentEditAnimator } from './AgentEditAnimator';
+import { CommentAnchorHighlights } from './CommentAnchorHighlights';
 import { EditorScrollMarkers } from './EditorScrollMarkers';
 import { planAgentAddedProseReveal } from './agent-added-file';
 import { entityKey, type ActivityEntityType } from '../../lib/agent/tool-entity-ref';
@@ -91,9 +92,10 @@ function useAgentAddedFileReveal(
 }
 
 /**
- * The agent-edit review surface for ONE prose editor, as a single mountable
- * unit: the colored scrollbar ticks (overview ruler) + the reveal / approve
- * overlay (✓/✗ in approve mode, typewriter reveal in auto mode). Mounted once
+ * The review surface for ONE prose editor, as a single mountable unit: the
+ * comment anchor highlights, the colored scrollbar ticks (overview ruler) + the
+ * reveal / approve overlay (✓/✗ in approve mode, typewriter reveal in auto
+ * mode). Mounted once
  * per prose editor — chapter / element / storyline / category — so the review
  * wiring is identical everywhere and future review pieces are added in one file.
  *
@@ -113,6 +115,14 @@ export function EditorReviewLayer({
 
   return (
     <>
+      {id && (
+        <CommentAnchorHighlights
+          scrollEl={scrollEl}
+          projectId={projectId}
+          targetKind={entityType}
+          targetId={id}
+        />
+      )}
       <EditorScrollMarkers
         projectId={projectId}
         targetKind={entityType}

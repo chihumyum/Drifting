@@ -1,5 +1,5 @@
 import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -26,6 +26,7 @@ import {
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { getActiveEditor } from '../../lib/active-editor';
+import { clearActiveCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
 import {
   getCopilotCapabilityForMetadataKind,
   type CopilotServices,
@@ -147,6 +148,8 @@ export function ReviewItemCard({
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number } | null>(null);
   const sourceHover = useCommentSourceHover(!editing && !actionMenu && !snapshotOpen);
+  // A card removed under the pointer never receives mouseleave.
+  useEffect(() => () => clearActiveCommentHighlight(comment.id), [comment.id]);
   const selectedRelations = useMemo(
     () => new Set(relations.map((relation) => `${relation.toKind}:${relation.toId}`)),
     [relations],
@@ -305,8 +308,14 @@ export function ReviewItemCard({
         className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
         aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
-        onMouseEnter={(event) => sourceHover.onEnter(event.currentTarget)}
-        onMouseLeave={sourceHover.onLeave}
+        onMouseEnter={(event) => {
+          sourceHover.onEnter(event.currentTarget);
+          setActiveCommentHighlight(comment.id);
+        }}
+        onMouseLeave={() => {
+          sourceHover.onLeave();
+          clearActiveCommentHighlight(comment.id);
+        }}
         onPointerDownCapture={sourceHover.onLeave}
         onKeyDownCapture={sourceHover.onLeave}
         onContextMenuCapture={sourceHover.onLeave}

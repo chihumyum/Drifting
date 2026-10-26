@@ -20,6 +20,7 @@ import {
   type AllChaptersDestination,
 } from '../components/editor/all-chapters-navigation';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
+import { CommentAnchorHighlights } from '../components/editor/CommentAnchorHighlights';
 import {
   useEditorSurfaceLifecycle,
   useReportEditorSurfaceReady,
@@ -390,6 +391,12 @@ export function AllChaptersEditorView() {
   }, [boundedOutlineLoad, orderedNodes]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Comment highlights need a render when the scroller mounts; the ref alone does not.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const attachScroll = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    setScrollEl(el);
+  }, []);
   // The chapter holding the caret drives the footer's word count.
   const getScrollRoot = useCallback(() => scrollRef.current, []);
   useWholeBookEditingChapter(projectId, getScrollRoot);
@@ -963,7 +970,7 @@ export function AllChaptersEditorView() {
           onItemClick={handleOutlineClick}
           emptyHint={t('allChapters.empty.noChaptersShort')}
         />
-        <div className="editor-scroll" ref={scrollRef}>
+        <div className="editor-scroll" ref={attachScroll}>
           {readRows.map((row) => {
             if (row.kind === 'act') {
               return (
@@ -1024,6 +1031,12 @@ export function AllChaptersEditorView() {
             );
           })}
         </div>
+        <CommentAnchorHighlights
+          scrollEl={scrollEl}
+          projectId={projectId}
+          targetKind="node"
+          targetId={null}
+        />
       </div>
 
       {find.open && (
