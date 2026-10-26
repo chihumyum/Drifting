@@ -42,9 +42,7 @@ describe('desktop editor continuity acceptance', () => {
     const chapter = source('src/renderer/components/editor/ChapterEditor.tsx');
     const allChaptersRow = source('src/renderer/components/editor/VirtualChapterRow.tsx');
     const allChapters = source('src/renderer/views/AllChaptersEditorView.tsx');
-    const materialPreview = source(
-      'src/renderer/components/rightBars/MaterialPreviewPopover.tsx',
-    );
+    const libraryPreview = source('src/renderer/features/library/LibraryItemPreview.tsx');
     const loadError = source(
       'src/renderer/components/editor/EditorDocumentLoadError.tsx',
     );
@@ -71,8 +69,9 @@ describe('desktop editor continuity acceptance', () => {
     expect(allChaptersRow).toContain('onContentReady?.(node.id)');
     expect(allChapters).toContain('useReportEditorSurfaceReady(hasCanonicalProseForCurrentBook)');
     expect(loadError).toContain('data-editor-document-load-error');
-    expect(materialPreview).toContain('content: parsePreviewBody(item.bodyJson)');
-    expect(materialPreview).not.toContain('content: null');
+    // Library text previews are seeded with the stored body on first render.
+    expect(libraryPreview).toContain('const [draft, setDraft] = useState(currentBody);');
+    expect(libraryPreview).toContain('const [textDraft, setTextDraft] = useState(() => currentBody);');
   });
 
   it('keeps node editor chrome mounted while only the keyed prose body waits', () => {

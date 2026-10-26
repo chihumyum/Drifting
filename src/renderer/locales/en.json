@@ -1224,7 +1224,6 @@
     "untitled": "Untitled",
     "words": "words",
     "wordsCount": "{{count}} words",
-    "resizeHeight": "Drag to resize height",
     "chapters": "chapters",
     "days": "days",
     "storylinesUnit": " lines",
@@ -1356,10 +1355,6 @@
   "todoPanel": {
     "empty": "No TODOs yet. Use the + button in the upper right to create one.",
     "newTodo": "New TODO"
-  },
-  "materialPreview": {
-    "kicker": "Library · Fragment",
-    "closeTitle": "Close (Esc)"
   },
   "editChapterStoryline": {
     "title": "Edit chapter storyline",
@@ -1890,8 +1885,6 @@
       "deleteMaterial": "Delete material"
     },
     "todo": {
-      "jumpToBlock": "Jump to linked block",
-      "markDone": "Mark as done",
       "empty": "(empty TODO)"
     },
     "card": {
@@ -1920,10 +1913,6 @@
       "nextPage": "Next"
     },
     "archive": {
-      "done": "Done",
-      "expandDone": "Expand done",
-      "collapseDone": "Collapse done",
-      "noDone": "No completed TODO",
       "reopen": "Reopen"
     },
     "dialog": {

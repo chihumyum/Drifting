@@ -651,8 +651,3 @@ function FullscreenEmpty({ message }: { message: string }) {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Resolved TODO archive — slim bottom-pinned drawer for resolved/converted
-// TODOs, mirroring the old ResolvedArchive layout but with the simpler
-// open/resolved bucket the comment model gives us (no three-state machine).

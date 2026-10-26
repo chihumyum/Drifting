@@ -149,7 +149,6 @@ describe('renderer ownership boundaries', () => {
     expect(source('components/ui/EntityHoverCard.tsx').split('\n').length).toBeLessThan(20);
     expect(source('components/ui/entity-hover-card-model.ts').split('\n').length).toBeLessThan(20);
     expect(source('components/modals/SettingsModal.tsx').split('\n').length).toBeLessThan(20);
-    expect(source('components/rightBars/RightSidebarPanels.tsx').split('\n').length).toBeLessThan(20);
     expect(source('shells/desktop/DesktopRightSidebar.tsx').split('\n').length).toBeLessThan(400);
     expect(source('components/agent/CompanionPanel.tsx').split('\n').length).toBeLessThan(20);
     expect(source('features/settings/desktop/DesktopSettingsModal.tsx').split('\n').length).toBeLessThan(

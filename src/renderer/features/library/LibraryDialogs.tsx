@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
-import type { Comment } from '../../domain/comment';
-import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/comment';
+import { createPlainCommentDoc } from '../../domain/comment';
 import type { LibraryItemKind } from '../../domain/library-item';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
-import { CollapsibleFooter } from '../../components/ui/CollapsibleFooter';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
@@ -14,102 +12,6 @@ import { canUseExternalContent } from '../../lib/config';
 import type { CreateLibraryItemInput } from '../../usecase/useLibraryItem';
 import { FilterPill, type FocusedEntity } from './LibraryPanel';
 import { useEscapeToClose } from './library-item-media';
-
-export function ResolvedTodoArchive({
-  todos,
-  onReopen,
-  onDelete,
-}: {
-  todos: Comment[];
-  onReopen: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <CollapsibleFooter
-      label={t('memoMaterial.archive.done')}
-      count={todos.length}
-      expandTitle={t('memoMaterial.archive.expandDone')}
-      collapseTitle={t('memoMaterial.archive.collapseDone')}
-      bodyStyle={{ padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}
-    >
-      {todos.length === 0 && (
-        <div
-          style={{
-            fontSize: 11,
-            color: 'hsl(var(--ink-4))',
-            fontStyle: 'italic',
-            padding: '8px 4px',
-          }}
-        >
-          {t('memoMaterial.archive.noDone')}
-        </div>
-      )}
-      {todos.map((todo) => (
-        <div
-          key={todo.id}
-          className="resolved-todo-archive__row"
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 8,
-            padding: '4px 6px',
-            borderRadius: 3,
-            fontSize: 12,
-            color: 'hsl(var(--ink-3))',
-            opacity: 0.7,
-          }}
-        >
-          <div
-            style={{
-              flex: 1,
-              fontFamily: 'var(--font-sans)',
-              textDecoration: 'line-through',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          >
-            {extractTextFromCommentBody(todo.bodyJson) || t('memoMaterial.todo.empty')}
-          </div>
-          <button
-            onClick={() => onReopen(todo.id)}
-            title={t('memoMaterial.archive.reopen')}
-            aria-label={t('memoMaterial.archive.reopen')}
-            className="resolved-todo-archive__action"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'hsl(var(--ink-4))',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '0 4px',
-            }}
-          >
-            ↺
-          </button>
-          <button
-            onClick={() => onDelete(todo.id)}
-            title={t('common.delete')}
-            aria-label={t('common.delete')}
-            className="resolved-todo-archive__action"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'hsl(var(--ink-4))',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '0 4px',
-            }}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </CollapsibleFooter>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compose dialogs

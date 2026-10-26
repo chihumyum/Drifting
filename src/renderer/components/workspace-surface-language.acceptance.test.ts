@@ -528,7 +528,6 @@ describe('workspace surface language acceptance', () => {
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const review = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const library = source('src/renderer/features/library/LibraryPanel.tsx');
-    const collapsibleFooter = source('src/renderer/components/ui/CollapsibleFooter.tsx');
     const timeline = block(timelineCss, '.btl {', '.btl__resize {');
     const timelineHead = block(timelineCss, '.btl__head {', '.btl__head-left {');
     const timelineRows = block(timelineCss, '.btl-row {', 'Rail (sticky left)');
@@ -611,7 +610,6 @@ describe('workspace surface language acceptance', () => {
     expect(reviewList).toContain('gap: 6px;');
     expect(library).toContain("padding: '6px 12px 12px'");
     expect(library).toContain('gap: 6');
-    expect(collapsibleFooter).toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
     expect(elementPanel).not.toContain('left-panel-cat-footer');
     expect(elementPanel).not.toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
   });

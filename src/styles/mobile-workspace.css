@@ -1931,32 +1931,6 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
   touch-action: manipulation;
 }
 
-.m-library-workspace .collapsible-footer:not([data-expanded='true']) {
-  min-height: 44px !important;
-  height: 44px !important;
-}
-
-.m-library-workspace .collapsible-footer__header {
-  height: 44px !important;
-  min-height: 44px;
-}
-
-.m-library-workspace .collapsible-footer__toggle {
-  min-height: 44px;
-  touch-action: manipulation;
-}
-
-.m-library-workspace .resolved-todo-archive__row {
-  align-items: center !important;
-  min-height: 52px;
-}
-
-.m-library-workspace .resolved-todo-archive__action {
-  min-width: 44px;
-  min-height: 44px;
-  touch-action: manipulation;
-}
-
 .m-library-workspace input,
 .m-library-workspace textarea,
 .m-library-workspace [contenteditable='true'] {

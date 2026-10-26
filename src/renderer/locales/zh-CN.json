@@ -1224,7 +1224,6 @@
     "untitled": "未命名",
     "words": "字",
     "wordsCount": "{{count}} 字",
-    "resizeHeight": "拖动调整高度",
     "chapters": "章",
     "days": "天",
     "storylinesUnit": "线",
@@ -1356,10 +1355,6 @@
   "todoPanel": {
     "empty": "还没有 TODO。点击右上 “+” 新建。",
     "newTodo": "新建 TODO"
-  },
-  "materialPreview": {
-    "kicker": "素材库 · 片段",
-    "closeTitle": "关闭 (Esc)"
   },
   "editChapterStoryline": {
     "title": "编辑章节故事线",
@@ -1890,8 +1885,6 @@
       "deleteMaterial": "删除材料"
     },
     "todo": {
-      "jumpToBlock": "跳转到关联 block",
-      "markDone": "标记为已完成",
       "empty": "(空 TODO)"
     },
     "card": {
@@ -1920,10 +1913,6 @@
       "nextPage": "下一页"
     },
     "archive": {
-      "done": "已完成",
-      "expandDone": "展开已完成",
-      "collapseDone": "收起已完成",
-      "noDone": "无已完成 TODO",
       "reopen": "重新打开"
     },
     "dialog": {

@@ -62,8 +62,6 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const library = source('features/library/LibraryPanel.tsx');
     const card = source('features/library/LibraryItemCard.tsx');
-    const dialogs = source('features/library/LibraryDialogs.tsx');
-    const footer = source('components/ui/CollapsibleFooter.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
     expect(panels).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
@@ -71,10 +69,7 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
     expect(library).toContain("mobileActions={presentation === 'mobile'}");
     expect(card).toContain('className="library-item-card__mobile-menu"');
     expect(card).toContain("data-library-mobile-actions={mobileActions ? 'true' : undefined}");
-    expect(dialogs).toContain('resolved-todo-archive__action');
-    expect(footer).toContain('className="collapsible-footer__toggle"');
     expect(css).toContain(".btl-cmenu[data-library-mobile-actions='true'] .menu-surface__item");
-    expect(css).toContain('.m-library-workspace .resolved-todo-archive__action');
     expect(css).toContain('min-height: 44px');
   });
 
