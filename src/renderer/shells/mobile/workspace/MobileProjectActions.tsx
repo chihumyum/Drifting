@@ -130,7 +130,7 @@ function ProjectActionDialog({
           </ModalBody>
           <ModalActions>
             <Button onClick={dismiss} disabled={busy} autoFocus>{t('common.cancel')}</Button>
-            <Button type="submit" variant={view === 'delete' ? 'danger' : 'primary'}
+            <Button type="submit" variant="primary"
               disabled={busy || (view === 'details' && !name.trim())}>
               {busy ? t(view === 'delete' ? 'projectPicker.trash.moving' : 'common.saving')
                 : t(view === 'delete' ? 'projectPicker.trash.confirm' : 'common.save')}

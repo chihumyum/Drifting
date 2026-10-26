@@ -931,7 +931,7 @@ function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalPr
           </button>
           <button
             type="button"
-            className="pp-modal__btn pp-modal__btn--danger"
+            className="pp-modal__btn pp-modal__btn--primary"
             onClick={onConfirm}
             disabled={busy}
           >
@@ -1019,7 +1019,8 @@ function RecentlyDeletedModal({ projects, onRestore, onDeleteNow, onClose }: Rec
             </>
           ) : (
             <>
-              <p className="pp-modal__sub">{t('projectPicker.trash.listSub')}</p>
+              <p className="pp-modal__sub">{t(canUseHostedService()
+                ? 'projectPicker.trash.listSub' : 'projectPicker.trash.listSubLocal')}</p>
               {projects.length === 0 ? (
                 <p className="pp-modal__sub">{t('projectPicker.trash.empty')}</p>
               ) : (

@@ -2103,7 +2103,7 @@
     "trash": {
       "kicker": "MOVE TO TRASH · 移到最近删除",
       "titlePrefix": "移到最近删除",
-      "body": "{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素会从书架移走。30 天内可以在「最近删除」里恢复，之后会永久删除。",
+      "body": "这本书（{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "remoteNote": "其他设备上也会一起移走。Hosted 上的数据和可读 Markdown 副本都保留到永久删除时。",
       "localNote": "内容和可读 Markdown 副本都保留到永久删除时。",
       "confirm": "移到最近删除",
@@ -2113,6 +2113,7 @@
       "listKicker": "RECENTLY DELETED · 最近删除",
       "listTitle": "最近删除的项目",
       "listSub": "项目在这里保留 30 天，到期后自动永久删除，包括 Hosted 上的数据。",
+      "listSubLocal": "项目在这里保留 30 天，到期后自动永久删除。",
       "empty": "最近没有删除的项目。",
       "expiresIn_one": "{{count}} 天后永久删除",
       "expiresIn_other": "{{count}} 天后永久删除",

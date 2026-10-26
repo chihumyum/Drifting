@@ -2103,7 +2103,7 @@
     "trash": {
       "kicker": "MOVE TO TRASH",
       "titlePrefix": "Move to Recently Deleted",
-      "body": "{{words}} words · {{nodes}} chapters · {{elements}} elements leave the shelf. You can restore the project from Recently Deleted for 30 days; after that it is permanently deleted.",
+      "body": "This book ({{words}} words · {{nodes}} chapters · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "remoteNote": "It leaves your other devices too. Hosted data and the readable Markdown copy are kept until the permanent deletion.",
       "localNote": "The content and the readable Markdown copy are kept until the permanent deletion.",
       "confirm": "Move to Recently Deleted",
@@ -2113,6 +2113,7 @@
       "listKicker": "RECENTLY DELETED",
       "listTitle": "Recently deleted projects",
       "listSub": "Projects stay here for 30 days and are then permanently deleted, including their Hosted data.",
+      "listSubLocal": "Projects stay here for 30 days and are then permanently deleted.",
       "empty": "No recently deleted projects.",
       "expiresIn_one": "Permanently deleted in {{count}} day",
       "expiresIn_other": "Permanently deleted in {{count}} days",
