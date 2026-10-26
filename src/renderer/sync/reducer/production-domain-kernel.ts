@@ -1857,9 +1857,6 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
         else if (effect.type === 'asset.bind') {
           const parsed = parseProjectAssetMutationV1({ action: effect.type, target: effect.target, payload: effect.payload });
           if (parsed.ok && parsed.value.action === 'asset.bind') await materializeAssetBind(context, effect, parsed.value.payload);
-        } else if (effect.type === 'asset.unbind') {
-          const parsed = parseProjectAssetMutationV1({ action: effect.type, target: effect.target, payload: effect.payload });
-          if (parsed.ok && parsed.value.action === 'asset.unbind') await unbindAssetOwner(context, effect.target.id, parsed.value.payload.owner);
         } else if (effect.type === 'sync-generation.purge') {
           await deleteProjectDataInTransaction(context.tx, context.changeSet.projectId);
           await context.tx.update(SyncProviderBindingTable).set({ state: 'purged', updatedAt: winningIso(effect) }).where(eq(SyncProviderBindingTable.syncGenerationId, context.changeSet.syncGenerationId));
@@ -1883,6 +1880,15 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
             await purgeEntity(context, effect);
           }
         }
+      }
+      // An unbind also materializes for an owner trashed or purged at its
+      // incarnation. An image or PDF material row cannot drop its asset
+      // (library_item_payload_check), so the owner row goes before the asset
+      // metadata, matching the local deletion order.
+      for (const effect of effects) {
+        if (effect.type !== 'asset.unbind') continue;
+        const parsed = parseProjectAssetMutationV1({ action: effect.type, target: effect.target, payload: effect.payload });
+        if (parsed.ok && parsed.value.action === 'asset.unbind') await unbindAssetOwner(context, effect.target.id, parsed.value.payload.owner);
       }
       if (effects.length > 0 || (scope?.kvOwnerIds.size ?? 0) > 0) {
         await rebuildNormalizedProjections(context, materializable, effects, affectedGridNodeIds, scope?.kvOwnerIds ?? null);

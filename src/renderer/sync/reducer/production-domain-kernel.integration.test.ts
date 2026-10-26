@@ -8,7 +8,7 @@ import * as Y from 'yjs';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { createYjsProseSeedState } from '../../lib/agent/runtime/yjs-prose-command';
-import type { DbClient } from '../../lib/db';
+import type { DbClient, DbTransaction } from '../../lib/db';
 import {
   BookElementTable,
   BookNodeTable,
@@ -16,6 +16,7 @@ import {
   CommentTable,
   EntityRelationTable,
   EntityRelationTypeEndpointKindTable,
+  LibraryItemTable,
   NodeContentTable,
   NodeStorylineLinkTable,
   ProjectAssetTable,
@@ -34,6 +35,9 @@ import {
   yjsUpdates,
 } from '../../schema/drizzle';
 import {
+  appendAuthoredDomainMutation,
+  appendProjectAssetBindMutation,
+  appendProjectAssetUnbindMutation,
   recordAuthoredChangeSetInTransaction,
   SyncChangeBuilder,
   type SyncWriterIdentitySource,
@@ -185,6 +189,80 @@ async function apply(db: DbClient, value: SyncChangeSetV1) {
     clock: { nowMs: 1_700_000_000_100, nowIso: NOW },
     kernel: productionSyncDomainMaterializationKernel,
   }));
+}
+
+/** Commit domain rows plus their change-set through the local post-write validation. */
+async function author(
+  db: DbClient,
+  nowMs: number,
+  work: (tx: DbTransaction, changes: SyncChangeBuilder) => Promise<void>,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const changes = new SyncChangeBuilder();
+    await work(tx, changes);
+    const recorded = await recordAuthoredChangeSetInTransaction(tx, {
+      projectId: PROJECT_ID,
+      projectSyncId: PROJECT_SYNC_ID,
+      syncGenerationId: SYNC_GENERATION_ID,
+      identity: identity(),
+      clock: { nowMs, nowIso: NOW },
+    }, changes);
+    await observeLocalAuthoredReducerInTransaction(tx, {
+      changeSet: recorded.changeSet,
+      clock: { nowMs, nowIso: NOW },
+      validator: productionSyncDomainMaterializationKernel,
+    });
+  });
+}
+
+async function insertVerifiedBlob(db: DbClient, digest: string): Promise<void> {
+  await db.insert(SyncBlobStateTable).values({
+    syncGenerationId: SYNC_GENERATION_ID,
+    blobId: `sha256:${digest}`,
+    logicalKeyId: `blob-${digest.slice(0, 8)}`,
+    contentSha256: digest,
+    sizeBytes: 4,
+    mime: 'image/png',
+    localState: 'verified',
+    remoteState: 'available',
+    verifiedAt: NOW,
+    updatedAt: NOW,
+  });
+}
+
+function imageAssetPayload(digest: string, owner: { kind: 'library-item' | 'element-portrait'; id: string }) {
+  return {
+    blobId: `sha256:${digest}`,
+    sourceSha256: `sha256:${digest}`,
+    sourceMime: 'image/png',
+    sourceSizeBytes: 4,
+    kind: 'image',
+    width: 1,
+    height: 1,
+    createdAt: NOW,
+    owner,
+  } as const;
+}
+
+/** An element whose portrait is bound, both applied from a remote writer. */
+async function remotePortraitOwner(db: DbClient, elementId: string, assetId: string, digest: string) {
+  await insertVerifiedBlob(db, digest);
+  const document = new Y.Doc();
+  document.getText('content').insert(0, 'portrait owner');
+  await apply(db, await changeSet(1, [
+    {
+      action: 'entity.create', kind: 'element', id: elementId,
+      payload: { seed: { name: 'Portrait owner', summary: '', categoryId: null, groupName: null } },
+    },
+    {
+      action: 'yjs.update', kind: 'prose-document', id: `element:${elementId}`,
+      payload: { update: Y.encodeStateAsUpdate(document) },
+    },
+  ]));
+  await apply(db, await changeSet(2, [{
+    action: 'asset.bind', kind: 'project-asset', id: assetId,
+    payload: imageAssetPayload(digest, { kind: 'element-portrait', id: elementId }),
+  }]));
 }
 
 afterEach(async () => {
@@ -1234,6 +1312,107 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(await reverse.select().from(ProjectAssetTable)).toEqual([]);
     expect(await forward.select({ portraitAssetId: BookElementTable.portraitAssetId }).from(BookElementTable).where(eq(BookElementTable.id, 'asset-owner'))).toEqual([{ portraitAssetId: null }]);
     expect(await reverse.select({ portraitAssetId: BookElementTable.portraitAssetId }).from(BookElementTable).where(eq(BookElementTable.id, 'asset-owner'))).toEqual([{ portraitAssetId: null }]);
+  });
+
+  it('removes a binary material and its asset on a replica that receives the deletion', async () => {
+    const db = await createDatabase();
+    const itemId = 'replica-image-material';
+    const assetId = 'replica-image-asset';
+    const digest = 'e'.repeat(64);
+    await insertVerifiedBlob(db, digest);
+    // The replica holds the material as a local write or checkpoint would.
+    await author(db, 1_700_000_000_050, async (tx, changes) => {
+      await tx.insert(ProjectAssetTable).values({
+        id: assetId, projectId: PROJECT_ID, kind: 'image', sourceMime: 'image/png',
+        sourceSizeBytes: 4, sourceSha256: digest, width: 1, height: 1, createdAt: NOW,
+      });
+      await tx.insert(LibraryItemTable).values({
+        id: itemId, projectId: PROJECT_ID, title: 'Replica image', kind: 'image',
+        assetId, createdAt: NOW, updatedAt: NOW,
+      });
+      appendProjectAssetBindMutation(changes, PROJECT_ID, {
+        id: assetId, projectId: PROJECT_ID, kind: 'image', sourceMime: 'image/png',
+        sourceSizeBytes: 4, sourceSha256: digest, width: 1, height: 1, createdAt: NOW,
+      }, { kind: 'library-item', id: itemId });
+      appendAuthoredDomainMutation(changes, {
+        entityType: 'libraryItem', mutationType: 'create', entityId: itemId, projectId: PROJECT_ID,
+        payload: { title: 'Replica image', kind: 'image', externalUrl: null, bodyJson: null, notesJson: null },
+      });
+    });
+
+    const deleted = await apply(db, await changeSet(1, [
+      {
+        action: 'asset.unbind', kind: 'project-asset', id: assetId,
+        payload: { owner: { kind: 'library-item', id: itemId } },
+      },
+      { action: 'entity.purge', kind: 'library-item', id: itemId, payload: {} },
+    ], { writerId: 'production-kernel-remote', wallMs: 1_700_000_000_100 }));
+
+    expect(deleted.effects).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'asset.unbind', materialize: true }),
+      expect.objectContaining({ type: 'entity.lifecycle', status: 'purged', materialize: true }),
+    ]));
+    expect(deleted.conflicts).toEqual([]);
+    expect(await db.select().from(LibraryItemTable)).toEqual([]);
+    expect(await db.select().from(ProjectAssetTable)).toEqual([]);
+  });
+
+  it('accepts a local authored portrait unbind bundled with its element purge', async () => {
+    const db = await createDatabase();
+    const elementId = 'purged-portrait-owner';
+    const assetId = 'purged-portrait-asset';
+    await remotePortraitOwner(db, elementId, assetId, 'f'.repeat(64));
+    await apply(db, await changeSet(3, [{
+      action: 'entity.trash', kind: 'element', id: elementId, payload: {},
+    }]));
+
+    // The permanent-delete transaction of useBookElement.hardDeleteElement.
+    await author(db, 1_700_000_000_200, async (tx, changes) => {
+      await tx.delete(BookElementTable).where(eq(BookElementTable.id, elementId));
+      appendProjectAssetUnbindMutation(changes, assetId, { kind: 'element-portrait', id: elementId });
+      await tx.delete(ProjectAssetTable).where(eq(ProjectAssetTable.id, assetId));
+      appendAuthoredDomainMutation(changes, {
+        entityType: 'element', mutationType: 'delete', entityId: elementId, projectId: PROJECT_ID,
+      });
+    });
+
+    expect(await db.select().from(BookElementTable).where(eq(BookElementTable.id, elementId))).toEqual([]);
+    expect(await db.select().from(ProjectAssetTable)).toEqual([]);
+    expect(await db.select({ state: SyncEntityLifecycleTable.state })
+      .from(SyncEntityLifecycleTable)
+      .where(eq(SyncEntityLifecycleTable.entityId, elementId))).toEqual([{ state: 'purged' }]);
+  });
+
+  it('converges a portrait removal concurrent with its owner trash in either order', async () => {
+    const forward = await createDatabase();
+    const reverse = await createDatabase();
+    const elementId = 'concurrently-trashed-owner';
+    const assetId = 'concurrently-removed-portrait';
+    for (const db of [forward, reverse]) {
+      await remotePortraitOwner(db, elementId, assetId, '9'.repeat(64));
+    }
+    const removed = await changeSet(1, [{
+      action: 'asset.unbind', kind: 'project-asset', id: assetId,
+      payload: { owner: { kind: 'element-portrait', id: elementId } },
+    }], { writerId: 'portrait-remover', wallMs: 1_700_000_000_010 });
+    const trashed = await changeSet(1, [{
+      action: 'entity.trash', kind: 'element', id: elementId, payload: {},
+    }], { writerId: 'element-trasher', wallMs: 1_700_000_000_010 });
+    await apply(forward, removed);
+    await apply(forward, trashed);
+    await apply(reverse, trashed);
+    await apply(reverse, removed);
+
+    for (const db of [forward, reverse]) {
+      expect(await db.select({
+        portraitAssetId: BookElementTable.portraitAssetId,
+        deletedAt: BookElementTable.deletedAt,
+      }).from(BookElementTable).where(eq(BookElementTable.id, elementId))).toEqual([{
+        portraitAssetId: null,
+        deletedAt: expect.any(String),
+      }]);
+      expect(await db.select().from(ProjectAssetTable)).toEqual([]);
+    }
   });
 
   it('materializes sync-generation.purge without deleting the immutable sync receipt', async () => {

@@ -153,7 +153,8 @@ pnpm exec vitest run src/renderer/domain/material-provenance.test.ts \
   src/renderer/lib/agent/runtime/element-image-tool-runtime.test.ts \
   src/renderer/schema/material-provenance-migration.integration.test.ts \
   src/renderer/sync/checkpoint/validate-added-fields.test.ts \
-  src/renderer/sync/journal/domain-mutation.test.ts
+  src/renderer/sync/journal/domain-mutation.test.ts \
+  src/renderer/usecase/library-item-persistence.integration.test.ts
 pnpm exec vitest run src/renderer/lib/agent/runtime/runtime.test.ts -t "independent write"
 pnpm agent:capabilities:check
 ```
@@ -167,9 +168,11 @@ association, portrait copy, candidate removed) → replacing that portrait with 
 second candidate (no former-portrait copy, since a material holds the bytes) →
 two picker replacements with the native file dialog stubbed (the second created
 the `element-portrait` material). It found and fixed the dialog rendering
-behind the page (missing `z-index`). Not covered: 收入素材 / 丢弃 on their own,
-native pointer and keyboard input, and deleting a generated material, which
-fails for every image material today: deleting the owner and unbinding its
-asset in one change-set leaves the unbind unmaterialized
-(`canMaterializeAssetBinding` requires a live owner), so the local post-write
-validation rejects the deletion.
+behind the page (missing `z-index`). Not covered: 收入素材 / 丢弃 on their own
+and native pointer and keyboard input. Deleting a generated (or any image/PDF)
+material used to fail the local post-write validation because its asset unbind
+shares the owner's purge change-set. Since 2026-10-27 an unbind materializes
+for an owner trashed or purged at its incarnation (see
+[the reducer materializer](sync-engine/phase1-sqlite-reducer-materializer.md));
+`library-item-persistence.integration.test.ts` deletes both kinds through the
+authored write path. That fix was not rerun in the app.

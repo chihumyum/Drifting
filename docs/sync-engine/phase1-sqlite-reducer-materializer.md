@@ -109,7 +109,13 @@ effects, but a remote kernel must explicitly claim, validate, and materialize
 them. Asset bind/unbind has a reducer-owned LWW register, so a late old unbind
 cannot erase a newer bind. Yjs updates remain CRDT operations and are applied
 only when their prose owner incarnation is current and live. Asset
-bind/unbind follows the same owner-lifecycle gate. Late Yjs/asset operations
+bind/unbind follows the same owner-lifecycle gate, except that an unbind, like
+a membership removal, is a tombstone: it also materializes when its owner is
+trashed or purged at that incarnation, so deleting a material or portrait owner
+can unbind its asset in the same change-set and replicas converge whichever of
+a removal and a concurrent trash arrives first. Remote materialization applies
+unbinds after lifecycle trash/purge, because an image or PDF material row cannot
+lose its asset. Late Yjs/asset operations
 from a pre-restore incarnation remain immutable reducer evidence but cannot
 materialize into the restored entity. Unknown target kinds and unclaimed
 actions fail closed.
@@ -235,7 +241,8 @@ file-backed database and covers typed field materialization, OR-set membership
 plus primary-register ordering, membership tombstones that must delete links
 before their owning storyline is trashed, invalid primary blocking, blocked
 semantic effects, relation invariants, Yjs remote provenance, verified asset binding,
-asset bind/unbind reverse delivery, and terminal `sync-generation.purge` with receipt
+asset bind/unbind reverse delivery, asset unbinds bundled with their owner's
+deletion (local and remote) or concurrent with its trash, and terminal `sync-generation.purge` with receipt
 survival. It also reproduces the physical-device sequence where the next
 chapter bundle follows the locked built-in relation type and proves that the
 second receipt, chapter row, prose row, and unchanged endpoint set commit

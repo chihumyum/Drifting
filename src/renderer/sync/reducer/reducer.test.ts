@@ -375,6 +375,55 @@ describe('canonical SyncEngine reducer', () => {
     ]));
   });
 
+  it('materializes an unbind in its owner deletion change-set but never binds a deleted owner', () => {
+    const profile: ReducerProfile = {
+      knownTargetKinds: new Set(['library-item', 'project-asset']),
+      externallyMaterializedActions: new Set(['asset.bind', 'asset.unbind']),
+    };
+    const owner = { kind: 'library-item', id: 'material-1' } as const;
+    const create = changeSet({
+      writer: 'writer-a', seq: 1, wallMs: 1,
+      mutations: [
+        {
+          action: 'entity.create', kind: 'library-item', id: 'material-1',
+          payload: { seed: { title: 'image', kind: 'image' } },
+        },
+        {
+          action: 'asset.bind', family: 'asset', kind: 'project-asset', id: 'asset-1',
+          payload: {
+            blobId: `sha256:${'b'.repeat(64)}`,
+            sourceSha256: `sha256:${'b'.repeat(64)}`,
+            sourceMime: 'image/png',
+            sourceSizeBytes: 1,
+            kind: 'image',
+            width: 1,
+            height: 1,
+            createdAt: '2026-08-15T00:00:00.000Z',
+            owner,
+          },
+        },
+      ],
+    });
+    const unbind: MutationInput = {
+      action: 'asset.unbind', family: 'asset', kind: 'project-asset', id: 'asset-1',
+      payload: { owner },
+    };
+    for (const action of ['entity.purge', 'entity.trash'] as const) {
+      const deleted = reduceSyncChangeSet(applyAll([create], profile), changeSet({
+        writer: 'writer-a', seq: 2, wallMs: 2,
+        mutations: [unbind, { action, kind: 'library-item', id: 'material-1', payload: {} }],
+      }), profile);
+      expect(deleted.status).toBe('applied');
+      expect(effect(deleted.state, 'asset.unbind')).toMatchObject({ materialize: true });
+    }
+
+    const purged = applyAll([create, changeSet({
+      writer: 'writer-a', seq: 2, wallMs: 2,
+      mutations: [{ action: 'entity.purge', kind: 'library-item', id: 'material-1', payload: {} }],
+    })], profile);
+    expect(effect(purged, 'asset.bind')).toMatchObject({ materialize: false });
+  });
+
   it('sorts equal order keys by entity ID UTF-8 bytes and applies concurrent move by LWW', () => {
     const moves = [
       changeSet({

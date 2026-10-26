@@ -133,6 +133,14 @@ describe('clean local project asset architecture', () => {
       'deleteLibraryItemInTransaction(tx, sync, changes, projectId, existing)',
     );
     expect(libraryUsecase).toContain('setEntityRelations(remainingRelations)');
+    // The app-owned directory is removed only after the awaited commit.
+    const committedDeletion = libraryUsecase.indexOf(
+      'deleteLibraryItemInTransaction(tx, sync, changes, projectId, existing)',
+    );
+    const directoryCleanup = libraryUsecase.indexOf(
+      'await assetStoreService.deleteAsset(projectId, existing.assetId)',
+    );
+    expect(directoryCleanup).toBeGreaterThan(committedDeletion);
     expect(deletion).toContain('deleteEntityRelationsInTransaction');
     expect(deletion).toContain('appendProjectAssetUnbindMutation');
     expect(deletion).toContain('createLibraryItemSqliteRepository(projectId, tx).delete');

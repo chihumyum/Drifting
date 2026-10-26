@@ -868,9 +868,15 @@ function canMaterializeAssetBinding(
   const lifecycle = state.lifecycles.get(entityKey(lifecycleOwner));
   if (!lifecycle) return true;
   const resolved = resolvedLifecycle(lifecycle);
+  if (resolved.incarnation !== register.target.incarnation) return false;
+  // Like an observed membership removal, an unbind is a tombstone rather than
+  // a new reference: it still clears the binding when its owner is trashed or
+  // purged at that incarnation, including in the change-set that deletes the
+  // owner. Otherwise replicas diverge on arrival order and a restore can
+  // resurrect a removed binding. A bind still requires a live owner.
   return (
-    resolved.status === 'live' &&
-    resolved.incarnation === register.target.incarnation
+    resolved.status === 'live' ||
+    (register.value.action === 'asset.unbind' && resolved.status !== 'unresolved')
   );
 }
 

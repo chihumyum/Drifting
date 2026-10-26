@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import type { LibraryItem } from '../domain/library-item';
+import type { ProjectAsset } from '../domain/project-asset';
 import {
   genericAssociationRelationType,
   genericAssociationRelationTypeId,
@@ -16,14 +17,25 @@ import {
   LibraryItemTable,
   ProjectTable,
   ProjectAssetTable,
+  SyncBlobStateTable,
+  SyncEntityLifecycleTable,
+  SyncGenerationTable,
 } from '../schema/drizzle';
 import { createLibraryItemSqliteRepository } from '../sqlite-repo/library-item-repo';
 import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
+import { createProjectAssetSqliteRepository } from '../sqlite-repo/project-asset-repo';
 import { deleteLibraryItemInTransaction } from './library-item-deletion';
 import type { AtomicSyncWriter } from './sync-helpers';
-import { appendAuthoredDomainMutation, SyncChangeBuilder } from '../sync/journal';
+import {
+  appendAuthoredDomainMutation,
+  appendProjectAssetBindMutation,
+  createAuthoredTransactionRunner,
+  SyncChangeBuilder,
+} from '../sync/journal';
+import { invalidateSqliteReducerStateCache } from '../sync/reducer/sqlite-materializer';
 
 const NOW = '2026-08-15T00:00:00.000Z';
+const SYNC_GENERATION_ID = 'sync-generation-library-item';
 const temporaryDirectories: string[] = [];
 const openGateways: ProductFileBackedSqliteGateway[] = [];
 
@@ -69,7 +81,119 @@ function textItem(projectId: string, id: string): LibraryItem {
   };
 }
 
+function journalWriter(changes: SyncChangeBuilder): AtomicSyncWriter {
+  return async (entityType, mutationType, entityId, projectId, payload, parentId) => {
+    appendAuthoredDomainMutation(changes, {
+      entityType,
+      mutationType,
+      entityId,
+      projectId,
+      payload,
+      parentId,
+    });
+  };
+}
+
+/** The product authored entrypoint, including its post-write reducer validation. */
+async function authoredRunner(
+  db: ReturnType<ProductFileBackedSqliteGateway['client']>,
+  projectId: string,
+) {
+  await db.insert(SyncGenerationTable).values({
+    syncGenerationId: SYNC_GENERATION_ID,
+    projectId,
+    projectSyncId: `project-sync-${projectId}`,
+    generationNumber: 1,
+    protocolVersion: 1,
+    domainSchemaVersion: 1,
+    status: 'active',
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
+  let nowMs = 1_700_000_000_000;
+  return createAuthoredTransactionRunner({
+    database: () => db,
+    identity: async () => ({
+      installationId: 'installation-library-item',
+      createWriterIdentity: () => ({ writerId: 'writer-library-item', writerEpoch: 'epoch-1' }),
+    }),
+    clock: () => ({ nowMs: ++nowMs, nowIso: NOW }),
+    syncGenerationIds: {
+      createSyncGenerationId: () => SYNC_GENERATION_ID,
+      createProjectSyncId: () => `project-sync-${projectId}`,
+    },
+  });
+}
+
+/** Create a binary material the way `useLibraryItem.createLibraryItem` commits it. */
+async function createBinaryItemThroughAuthoredPath(
+  db: ReturnType<ProductFileBackedSqliteGateway['client']>,
+  run: Awaited<ReturnType<typeof authoredRunner>>,
+  projectId: string,
+  kind: 'image' | 'pdf',
+): Promise<LibraryItem> {
+  const sourceSha256 = (kind === 'image' ? 'a' : 'b').repeat(64);
+  const asset: ProjectAsset = {
+    id: `asset-${kind}`,
+    projectId,
+    kind,
+    sourceMime: kind === 'image' ? 'image/png' : 'application/pdf',
+    sourceSizeBytes: 3,
+    sourceSha256,
+    width: kind === 'image' ? 10 : null,
+    height: kind === 'image' ? 20 : null,
+    createdAt: NOW,
+  };
+  // ensureLocalAuthoredAssetBlobVerified runs before the product transaction.
+  await db.insert(SyncBlobStateTable).values({
+    syncGenerationId: SYNC_GENERATION_ID,
+    blobId: `sha256:${sourceSha256}`,
+    assetId: asset.id,
+    logicalKeyId: `blob-${kind}`,
+    contentSha256: sourceSha256,
+    sizeBytes: 3,
+    mime: asset.sourceMime,
+    localState: 'verified',
+    verifiedAt: NOW,
+    updatedAt: NOW,
+  });
+  const item: LibraryItem = {
+    id: `library-${kind}`,
+    projectId,
+    title: `library-${kind}`,
+    kind,
+    assetId: asset.id,
+    externalUrl: null,
+    previewImageUrl: null,
+    bodyJson: null,
+    notesJson: null,
+    provenanceJson: null,
+    orderKey: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  await run(projectId, 'library.create', async ({ tx, changes }) => {
+    await createProjectAssetSqliteRepository(projectId, tx).create(asset);
+    appendProjectAssetBindMutation(changes, projectId, asset, {
+      kind: 'library-item',
+      id: item.id,
+    });
+    await createLibraryItemSqliteRepository(projectId, tx).create(item);
+    await journalWriter(changes)('libraryItem', 'create', item.id, projectId, {
+      id: item.id,
+      title: item.title,
+      kind: item.kind,
+      assetId: item.assetId,
+      externalUrl: null,
+      bodyJson: null,
+      notesJson: null,
+    });
+  });
+  return item;
+}
+
 afterEach(async () => {
+  invalidateSqliteReducerStateCache();
   for (const gateway of openGateways.splice(0)) await gateway.close();
   for (const directory of temporaryDirectories.splice(0)) {
     await rm(directory, { recursive: true, force: true });
@@ -263,4 +387,31 @@ describe('library item persistence boundaries', () => {
       },
     ]);
   });
+
+  it.each(['image', 'pdf'] as const)(
+    'commits a %s material deletion through the authored write path',
+    async (kind) => {
+      const { db } = await createDatabase();
+      await seedProject(db, 'project-a');
+      const run = await authoredRunner(db, 'project-a');
+      const item = await createBinaryItemThroughAuthoredPath(db, run, 'project-a', kind);
+      expect(await db.select().from(ProjectAssetTable)).toHaveLength(1);
+
+      await run('project-a', 'library.delete', ({ tx, changes }) =>
+        deleteLibraryItemInTransaction(tx, journalWriter(changes), changes, 'project-a', item),
+      );
+
+      expect(await db.select().from(LibraryItemTable)).toEqual([]);
+      expect(await db.select().from(ProjectAssetTable)).toEqual([]);
+      expect(
+        await db
+          .select({
+            incarnation: SyncEntityLifecycleTable.incarnation,
+            state: SyncEntityLifecycleTable.state,
+          })
+          .from(SyncEntityLifecycleTable)
+          .where(eq(SyncEntityLifecycleTable.entityId, item.id)),
+      ).toEqual([{ incarnation: 0, state: 'purged' }]);
+    },
+  );
 });
