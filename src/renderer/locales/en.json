@@ -559,6 +559,32 @@
         }
       },
       "local_data": "Local data",
+      "backup": {
+        "exportTitle": "Library backup",
+        "exportDesc": "Package every project's database together with original image and PDF files into one .drifting file. Use it to restore, or to move to another computer.",
+        "exportButton": "Export backup…",
+        "exporting": "Backing up…",
+        "exported": "Saved “{{file}}”.",
+        "summary": "{{projects}} projects, {{assets}} asset files, {{size}}.",
+        "missingAssets": "{{count}} assets are missing on this device and were not backed up.",
+        "restoreTitle": "Restore from backup",
+        "restoreDesc": "Replace the current library with a .drifting backup. The current library is saved as a pre-restore copy first.",
+        "restoreButton": "Choose backup…",
+        "inspecting": "Verifying…",
+        "restoring": "Restoring…",
+        "openSafety": "Open pre-restore copies",
+        "restoreConfirm": "Replace the current library with “{{file}}”.\n\nCreated: {{date}}\nContents: {{summary}}\nProjects: {{projects}}\n\nThe current library is saved as a pre-restore copy first; find it under “Open pre-restore copies”. Drifting reloads when the restore finishes.",
+        "restoreConfirmButton": "Replace and restore",
+        "noProjects": "(no projects)",
+        "loading": "Reading sync status…",
+        "syncConnected": "The library cannot be backed up or restored while sync is on. Disconnect sync in Account first.",
+        "errors": {
+          "sync-connected": "The library cannot be backed up or restored while sync is on. Disconnect sync in Account first.",
+          "invalid": "This file is not a valid Drifting backup, or it is damaged. The current library was not changed.",
+          "newer": "This backup was made by a newer version of Drifting. Update the app before restoring it.",
+          "unknown": "The operation did not finish and the current library was not changed: {{detail}}"
+        }
+      },
       "history": "Version history",
       "auto_snapshot": "Auto snapshot",
       "auto_snapshot_desc": "Captured about every 15 minutes after prose or entity changes; kept locally for 30 days with automatic thinning.",

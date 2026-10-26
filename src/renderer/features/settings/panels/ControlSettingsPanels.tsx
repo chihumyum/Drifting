@@ -24,6 +24,7 @@ import {
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
 import { hostedAccountSettingsEnabled } from '../hosted-settings-policy';
+import { LibraryBackupSettings } from './LibraryBackupSettings';
 import { MarkdownProjectionSettings } from './MarkdownProjectionSettings';
 
 export function KeysPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
@@ -199,6 +200,7 @@ export function SyncPanel({
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.sync.local_data')} hint="LOCAL" />
+        <LibraryBackupSettings />
         <MarkdownProjectionSettings projectRuntimeMounted={projectImportEnabled} />
         <SettingsRow
           label={t('settings.account.export_all')}

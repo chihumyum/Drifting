@@ -68,10 +68,11 @@ currently suspended.
 Copy or save a document or whole-book manuscript as Markdown, or export a
 Markdown ZIP containing project structure and relationships. The ZIP is a
 readable copy for migration, not a complete backup; original image and PDF files
-are not included.
+are not included. For a complete, restorable copy of a local library, export a
+`.drifting` backup in Settings.
 
 [Sync details](docs/hosted-sync/README.md) · [Manuscript sharing](docs/editor/markdown-sharing.md) ·
-[Project export](docs/local-data-export.md)
+[Project export](docs/local-data-export.md) · [Library backup](docs/library-backup.md)
 
 ### Current stage
 
@@ -160,9 +161,10 @@ Google Drive 同步目前暂停。
 
 可以将单篇或整本书的正文复制、保存为 Markdown，也可以导出包含项目结构与关系的
 Markdown ZIP。它是便于阅读和迁移的副本，不是完整备份，不包含图片、PDF 的原始文件。
+需要可恢复的完整副本时，可在设置中把本地资料库导出为 `.drifting` 备份。
 
 [同步说明](docs/hosted-sync/README.md) · [正文分享](docs/editor/markdown-sharing.md) ·
-[项目导出](docs/local-data-export.md)
+[项目导出](docs/local-data-export.md) · [资料库备份](docs/library-backup.md)
 
 ### 当前阶段
 

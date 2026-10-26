@@ -35,6 +35,7 @@ client remains the daily-use implementation until each replacement is accepted.
 | What is the canonical local image/PDF boundary?            | [`local-assets.md`](local-assets.md)                                                                                                                                  |
 | How do element portraits get generated and kept?           | [`image-generation.md`](image-generation.md) — experimental ChatGPT subscription route, local inbox, material provenance                                            |
 | How does account-free relational Markdown export work?     | [`local-data-export.md`](local-data-export.md)                                                                                                                        |
+| How do complete `.drifting` library backups and restore work? | [`library-backup.md`](library-backup.md) — local-only package, staged verification, pre-restore copy, additive asset merge                                        |
 | How do chapter/line location links work?                   | [`location-links.md`](location-links.md)                                                                                                                              |
 | What is the current Google Drive trust/restore contract?   | [`sync-engine/trusted-cloud-google-drive.md`](sync-engine/trusted-cloud-google-drive.md)                                                                              |
 | How do committed remote Yjs updates reach an open editor?  | [`sync-engine/phase1-remote-yjs-live-merge.md`](sync-engine/phase1-remote-yjs-live-merge.md)                                                                          |
@@ -77,7 +78,8 @@ client remains the daily-use implementation until each replacement is accepted.
   provider-routing ownership.
 - [`local-assets.md`](local-assets.md) and
   [`local-data-export.md`](local-data-export.md) define the current local asset
-  and readable-export boundaries. The Markdown archive is not a lossless backup.
+  and readable-export boundaries. The Markdown archive is not a lossless backup;
+  [`library-backup.md`](library-backup.md) defines the restorable `.drifting` package.
 - [`sync-engine/trusted-cloud-google-drive.md`](sync-engine/trusted-cloud-google-drive.md)
   is the current authority for the Google trust boundary, Google-sign-in plus
   automatic project discovery, and the Project-only user vocabulary. Drifting

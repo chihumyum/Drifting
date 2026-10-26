@@ -61,7 +61,6 @@ const HTTP_HEADER_VALUE_LIMIT: usize = 8 * 1024;
 const MAX_REDIRECTS: usize = 5;
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const URL_METADATA_TOTAL_TIMEOUT: Duration = Duration::from_secs(8);
-const MAX_ASSET_SEGMENT_LEN: usize = 128;
 const MAX_EXTENSION_LEN: usize = 16;
 const NAT64_DISCOVERY_HOST: &str = "ipv4only.arpa";
 const NAT64_DISCOVERY_IPV4: [Ipv4Addr; 2] =
@@ -531,27 +530,7 @@ fn is_single_normal_component(value: &str) -> bool {
 }
 
 fn safe_asset_segment(value: &str) -> Result<String, String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() || trimmed.chars().count() > MAX_ASSET_SEGMENT_LEN {
-        return Err("invalid asset store identifier".into());
-    }
-
-    let mut safe = String::with_capacity(trimmed.len());
-    for character in trimmed.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') {
-            safe.push(character);
-        } else {
-            safe.push('_');
-        }
-    }
-
-    if safe == "." || safe == ".." || !is_single_normal_component(&safe) {
-        return Err("invalid asset store identifier".into());
-    }
-    if safe.starts_with('.') {
-        safe.insert(0, '_');
-    }
-    Ok(safe)
+    drifting_core::asset_store::sanitized_asset_segment(value)
 }
 
 fn safe_asset_extension(value: &str) -> Result<String, String> {

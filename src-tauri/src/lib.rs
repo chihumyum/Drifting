@@ -16,6 +16,7 @@ mod google_drive_sync;
 mod hosted_sync;
 mod image_pipeline;
 mod installation_identity;
+mod library_backup;
 #[cfg(target_os = "macos")]
 mod local_lab_session;
 mod markdown_projection;
@@ -308,6 +309,11 @@ pub fn run() {
             database::database_rollback,
             database::database_checkpoint,
             database::database_close,
+            library_backup::library_backup_export,
+            library_backup::library_backup_inspect,
+            library_backup::library_backup_restore,
+            library_backup::library_backup_discard,
+            library_backup::library_backup_open_safety_directory,
             #[cfg(desktop)]
             app_update::update_check,
             #[cfg(desktop)]

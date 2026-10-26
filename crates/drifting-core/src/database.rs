@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::file_io::{atomic_write, durable_replace_file, temporary_sibling};
+use crate::library_backup::{restore_staged_backup, LibraryRestoreOutcome, LibraryRestorePlan};
 
 type DatabaseResult<T> = Result<T, String>;
 type Response<T> = mpsc::Sender<DatabaseResult<T>>;
@@ -189,6 +190,17 @@ enum Request {
         backup_id: String,
         client_session_id: String,
         response: Response<DatabaseOpenResult>,
+    },
+    SnapshotActiveDatabase {
+        client_session_id: String,
+        destination: PathBuf,
+        response: Response<()>,
+    },
+    RestoreLibraryBackup {
+        client_session_id: String,
+        database_name: String,
+        plan: LibraryRestorePlan,
+        response: Response<LibraryRestoreOutcome>,
     },
     Shutdown,
 }
@@ -411,6 +423,44 @@ impl DatabaseGateway {
         })
     }
 
+    /// The directory holding every library database and its safety copies.
+    pub fn database_directory(&self) -> &Path {
+        &self.inner.database_directory
+    }
+
+    /// Write a standalone `VACUUM INTO` copy of the open library to
+    /// `destination` between transactions. The source is never modified.
+    pub fn snapshot_active_database(
+        &self,
+        destination: PathBuf,
+        client_session_id: String,
+    ) -> DatabaseResult<()> {
+        validate_client_session_id(&client_session_id)?;
+        self.request(|response| Request::SnapshotActiveDatabase {
+            client_session_id,
+            destination,
+            response,
+        })
+    }
+
+    /// Close the library owned by `client_session_id` and replace it with a
+    /// staged backup. On failure before activation the original library is
+    /// reopened; on success it stays closed until the renderer reopens it.
+    pub fn restore_library_backup(
+        &self,
+        database_name: String,
+        plan: LibraryRestorePlan,
+        client_session_id: String,
+    ) -> DatabaseResult<LibraryRestoreOutcome> {
+        validate_client_session_id(&client_session_id)?;
+        self.request(|response| Request::RestoreLibraryBackup {
+            client_session_id,
+            database_name,
+            plan,
+            response,
+        })
+    }
+
     pub fn recovery_status(&self, session: &str) -> DatabaseResult<DatabaseOpenFailure> {
         let receipt = self.recovery_receipt(session)?;
         verify_recovery_backup(&self.inner.database_directory, &receipt)?;
@@ -541,13 +591,14 @@ fn should_defer(
         Request::Execute { transaction_id, .. } | Request::Query { transaction_id, .. } => {
             *transaction_id != Some(active_transaction)
         }
-        Request::Begin { .. } => true,
+        Request::Begin { .. } | Request::SnapshotActiveDatabase { .. } => true,
         Request::Open { .. }
         | Request::Commit { .. }
         | Request::Rollback { .. }
         | Request::Checkpoint { .. }
         | Request::Close { .. }
         | Request::RestoreSafetyBackup { .. }
+        | Request::RestoreLibraryBackup { .. }
         | Request::Shutdown => false,
     }
 }
@@ -580,6 +631,12 @@ impl Request {
                 client_session_id, ..
             }
             | Self::RestoreSafetyBackup {
+                client_session_id, ..
+            }
+            | Self::SnapshotActiveDatabase {
+                client_session_id, ..
+            }
+            | Self::RestoreLibraryBackup {
                 client_session_id, ..
             } => Some(client_session_id),
             Self::Shutdown => None,
@@ -763,6 +820,42 @@ fn process_request(
             );
             let _ = response.send(result);
         }
+        Request::SnapshotActiveDatabase {
+            client_session_id,
+            destination,
+            response,
+        } => {
+            let result = ensure_client_session_access(
+                current_client_session_id.as_deref(),
+                &client_session_id,
+            )
+            .and_then(|()| {
+                if active_transaction.is_some() {
+                    return Err("cannot snapshot while a transaction is active".into());
+                }
+                with_connection(database, |connection| {
+                    snapshot_connection_into(connection, &destination)
+                })
+            });
+            let _ = response.send(result);
+        }
+        Request::RestoreLibraryBackup {
+            client_session_id,
+            database_name,
+            plan,
+            response,
+        } => {
+            let result = restore_library_backup_for_client_session(
+                database,
+                active_transaction,
+                current_client_session_id,
+                database_directory,
+                &database_name,
+                &plan,
+                &client_session_id,
+            );
+            let _ = response.send(result);
+        }
         Request::Shutdown => {
             let _ = rollback_and_close(database, active_transaction);
             *current_client_session_id = None;
@@ -889,6 +982,72 @@ fn restore_safety_backup_for_client_session(
     Ok(result)
 }
 
+/// `VACUUM INTO` writes committed truth, including WAL content, to one
+/// standalone file without modifying the source database.
+pub(crate) fn snapshot_connection_into(
+    connection: &Connection,
+    destination: &Path,
+) -> DatabaseResult<()> {
+    if destination.exists() {
+        return Err("database snapshot destination already exists".into());
+    }
+    let destination_text = destination
+        .to_str()
+        .ok_or_else(|| "database snapshot path is not valid UTF-8".to_string())?;
+    connection
+        .execute("VACUUM INTO ?1", params![destination_text])
+        .map_err(|error| format!("failed to snapshot the library database: {error}"))?;
+    File::open(destination)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| format!("failed to finalize the library database snapshot: {error}"))
+}
+
+fn restore_library_backup_for_client_session(
+    database: &mut Option<OpenDatabase>,
+    active_transaction: &mut Option<u64>,
+    current_client_session_id: &mut Option<String>,
+    database_directory: &Path,
+    database_name: &str,
+    plan: &LibraryRestorePlan,
+    requested_client_session_id: &str,
+) -> DatabaseResult<LibraryRestoreOutcome> {
+    let database_path = resolve_database_path(database_directory, database_name)?;
+    match current_client_session_id.as_deref() {
+        Some(current) if current != requested_client_session_id => {
+            return Err("database is owned by another renderer session".into());
+        }
+        _ => {}
+    }
+    if active_transaction.is_some() {
+        return Err("cannot restore a library backup while a transaction is active".into());
+    }
+    if let Some(open_database) = database.as_ref() {
+        if open_database.path != database_path {
+            return Err("library restore target is not the open database".into());
+        }
+    }
+    *current_client_session_id = Some(requested_client_session_id.to_owned());
+    if let Some(open_database) = database.take() {
+        close_database(open_database)?;
+    }
+
+    match restore_staged_backup(database_directory, &database_path, plan) {
+        Ok(outcome) => {
+            // The renderer reloads and reopens the replaced library itself.
+            *current_client_session_id = None;
+            Ok(outcome)
+        }
+        Err(error) => {
+            // Activation is the last step, so a failure leaves the original
+            // file in place. Reopen it for the same renderer session.
+            match open_or_switch_database(database, database_directory, database_name) {
+                Ok(_) => Err(error),
+                Err(reopen_error) => Err(format!("{error}; {reopen_error}")),
+            }
+        }
+    }
+}
+
 fn with_connection<T>(
     database: &mut Option<OpenDatabase>,
     operation: impl FnOnce(&Connection) -> DatabaseResult<T>,
@@ -969,7 +1128,7 @@ fn rollback_and_close(
     }
 }
 
-fn resolve_database_path(
+pub(crate) fn resolve_database_path(
     database_directory: &Path,
     database_name: &str,
 ) -> DatabaseResult<PathBuf> {
@@ -1404,7 +1563,7 @@ fn verify_recovery_backup(
     Ok(path)
 }
 
-fn validate_database_truth(connection: &Connection) -> DatabaseResult<()> {
+pub(crate) fn validate_database_truth(connection: &Connection) -> DatabaseResult<()> {
     let integrity: String = connection
         .query_row("PRAGMA integrity_check", [], |row| row.get(0))
         .map_err(|error| format!("database integrity check failed to run: {error}"))?;
@@ -1613,7 +1772,7 @@ fn migrate_shadow_candidate(
     outcome
 }
 
-fn remove_database_sidecars(database_path: &Path) -> DatabaseResult<()> {
+pub(crate) fn remove_database_sidecars(database_path: &Path) -> DatabaseResult<()> {
     let Some(filename) = database_path.file_name().and_then(|value| value.to_str()) else {
         return Err("database filename is not valid UTF-8".into());
     };
@@ -1700,7 +1859,7 @@ fn database_version_marker(
         .join(format!("{filename}.last-version")))
 }
 
-fn record_opened_app_version(
+pub(crate) fn record_opened_app_version(
     database_directory: &Path,
     database_path: &Path,
     app_version: &str,
@@ -1989,7 +2148,7 @@ fn schema_reset_required(detail: impl AsRef<str>) -> String {
     )
 }
 
-fn apply_migrations(connection: &Connection) -> DatabaseResult<usize> {
+pub(crate) fn apply_migrations(connection: &Connection) -> DatabaseResult<usize> {
     let journal_file = DRIZZLE_MIGRATIONS
         .get_file("meta/_journal.json")
         .ok_or_else(|| "embedded Drizzle migration journal is missing".to_string())?;

@@ -211,7 +211,8 @@ notes. Curated entity relations, comment targets, storyline membership, category
 inline `entityLink` marks become portable `[[path|title]]` links. User-controlled path segments
 are normalized and combined with a stable ID suffix.
 
-This is a **readable migration archive**, not a lossless backup:
+This is a **readable migration archive**, not a lossless backup (use a
+[`.drifting` library backup](library-backup.md) for that):
 
 - image and PDF binary files are not included;
 - local paths, caches, runtime state, credentials, Agent execution journals, and database-only

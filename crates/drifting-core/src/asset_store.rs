@@ -64,6 +64,39 @@ fn extension(value: &str) -> Result<String, String> {
     Ok(normalized)
 }
 
+/// The directory name the Tauri client stores an asset identifier under:
+/// characters outside `[A-Za-z0-9._-]` become `_` and a leading dot is
+/// prefixed with `_`, so the result is always one normal path component.
+pub fn sanitized_asset_segment(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.chars().count() > MAX_SEGMENT {
+        return Err("invalid asset store identifier".into());
+    }
+    let mut safe: String = trimmed
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if safe == "."
+        || safe == ".."
+        || !matches!(
+            Path::new(&safe).components().collect::<Vec<_>>()[..],
+            [Component::Normal(_)]
+        )
+    {
+        return Err("invalid asset store identifier".into());
+    }
+    if safe.starts_with('.') {
+        safe.insert(0, '_');
+    }
+    Ok(safe)
+}
+
 /// Refuses a symlink anywhere below the root, so a managed path never
 /// escapes the store.
 fn real_directory(path: &Path) -> io::Result<bool> {

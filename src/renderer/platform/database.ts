@@ -77,6 +77,47 @@ export interface DatabaseRecoveryApi {
   openBackupDirectory(recoverySessionId: string): Promise<void>;
 }
 
+export interface LibraryBackupProject {
+  id: string;
+  name: string;
+}
+
+export interface LibraryBackupSummary {
+  createdAtMs: number;
+  appVersion: string;
+  projects: LibraryBackupProject[];
+  assetFileCount: number;
+  missingAssetCount: number;
+  packageSizeBytes: number;
+}
+
+export type LibraryBackupExportResult =
+  | { canceled: true }
+  | { canceled: false; fileName: string | null; summary: LibraryBackupSummary };
+
+export type LibraryBackupInspectResult =
+  | { canceled: true }
+  | {
+      canceled: false;
+      restoreId: string;
+      fileName: string | null;
+      summary: LibraryBackupSummary;
+    };
+
+export interface LibraryRestoreOutcome {
+  preRestorePackage: string | null;
+  restoredProjectCount: number;
+}
+
+/** Complete `.drifting` library packages; see docs/library-backup.md. */
+export interface LibraryBackupApi {
+  exportLibraryBackup(suggestedFileName: string): Promise<LibraryBackupExportResult>;
+  inspectLibraryBackup(projectUserId: string, nowIso: string): Promise<LibraryBackupInspectResult>;
+  restoreLibraryBackup(restoreId: string, databaseName: string): Promise<LibraryRestoreOutcome>;
+  discardLibraryBackup(restoreId: string): Promise<void>;
+  openLibraryBackupSafetyDirectory(): Promise<void>;
+}
+
 export interface DatabaseExecuteResult {
   changes: number;
   lastInsertRowid: number | bigint;
@@ -368,13 +409,87 @@ function decodeQueryResult(value: unknown): DatabaseQueryResult {
   return { columns, rows };
 }
 
+function parseBackupSummary(value: unknown): LibraryBackupSummary {
+  const raw = record(value, 'library backup summary');
+  if (!Array.isArray(raw.projects)) throw new TypeError('library backup projects must be a list');
+  if (typeof raw.appVersion !== 'string') throw new TypeError('library backup version must be text');
+  return {
+    createdAtMs: safeCount(raw.createdAtMs, 'library backup creation time'),
+    appVersion: raw.appVersion,
+    projects: raw.projects.map((entry) => {
+      const project = record(entry, 'library backup project');
+      if (typeof project.id !== 'string' || typeof project.name !== 'string') {
+        throw new TypeError('library backup project identity must be text');
+      }
+      return { id: project.id, name: project.name };
+    }),
+    assetFileCount: safeCount(raw.assetFileCount, 'library backup asset count'),
+    missingAssetCount: safeCount(raw.missingAssetCount, 'library backup missing asset count'),
+    packageSizeBytes: safeCount(raw.packageSizeBytes, 'library backup size'),
+  };
+}
+
 export function createDatabasePlatform(
   invokeCommand: DatabaseCommandInvoker,
   clientSessionId = createClientSessionId(),
-): DatabasePlatformApi & DatabaseRecoveryApi {
+): DatabasePlatformApi & DatabaseRecoveryApi & LibraryBackupApi {
   const sessionId = parseClientSessionId(clientSessionId);
 
   return {
+    async exportLibraryBackup(suggestedFileName) {
+      const raw = record(
+        await invokeCommand('library_backup_export', {
+          clientSessionId: sessionId,
+          suggestedFileName,
+        }),
+        'library backup export result',
+      );
+      if (raw.canceled === true) return { canceled: true };
+      return {
+        canceled: false,
+        fileName: nullableString(raw.fileName, 'library backup file name'),
+        summary: parseBackupSummary(raw.summary),
+      };
+    },
+
+    async inspectLibraryBackup(projectUserId, nowIso) {
+      const raw = record(
+        await invokeCommand('library_backup_inspect', { projectUserId, nowIso }),
+        'library backup inspection',
+      );
+      if (raw.canceled === true) return { canceled: true };
+      if (typeof raw.restoreId !== 'string') throw new TypeError('library restore ID must be text');
+      return {
+        canceled: false,
+        restoreId: raw.restoreId,
+        fileName: nullableString(raw.fileName, 'library backup file name'),
+        summary: parseBackupSummary(raw.summary),
+      };
+    },
+
+    async restoreLibraryBackup(restoreId, databaseName) {
+      const raw = record(
+        await invokeCommand('library_backup_restore', {
+          restoreId,
+          databaseName,
+          clientSessionId: sessionId,
+        }),
+        'library restore outcome',
+      );
+      return {
+        preRestorePackage: nullableString(raw.preRestorePackage, 'pre-restore package name'),
+        restoredProjectCount: safeCount(raw.restoredProjectCount, 'restored project count'),
+      };
+    },
+
+    async discardLibraryBackup(restoreId) {
+      await invokeCommand('library_backup_discard', { restoreId });
+    },
+
+    async openLibraryBackupSafetyDirectory() {
+      await invokeCommand('library_backup_open_safety_directory');
+    },
+
     async readProseSearchText(docIds) {
       if (docIds.length === 0 || docIds.length > 16 || new Set(docIds).size !== docIds.length) {
         throw new RangeError('Search capture requires 1 to 16 distinct document identities');

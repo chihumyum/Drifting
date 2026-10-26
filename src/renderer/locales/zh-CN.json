@@ -559,6 +559,32 @@
         }
       },
       "local_data": "本地数据",
+      "backup": {
+        "exportTitle": "资料库备份",
+        "exportDesc": "把所有项目的数据库，连同图片、PDF 原文件，打包成一个 .drifting 文件。可用来恢复，也可以带到另一台电脑。",
+        "exportButton": "导出备份…",
+        "exporting": "正在备份…",
+        "exported": "已保存「{{file}}」。",
+        "summary": "共 {{projects}} 个项目、{{assets}} 个素材文件，{{size}}。",
+        "missingAssets": "有 {{count}} 个素材在本机缺失，未能备份。",
+        "restoreTitle": "从备份恢复",
+        "restoreDesc": "用 .drifting 备份替换当前资料库。恢复前，当前资料库会自动存成一份恢复前副本。",
+        "restoreButton": "选择备份…",
+        "inspecting": "正在校验…",
+        "restoring": "正在恢复…",
+        "openSafety": "打开恢复前副本",
+        "restoreConfirm": "将用「{{file}}」替换当前资料库。\n\n备份时间：{{date}}\n内容：{{summary}}\n项目：{{projects}}\n\n当前资料库会先自动存成恢复前副本，可在「打开恢复前副本」中找到。恢复完成后应用会重新载入。",
+        "restoreConfirmButton": "替换并恢复",
+        "noProjects": "（没有项目）",
+        "loading": "正在读取同步状态…",
+        "syncConnected": "同步开启时不能备份或恢复资料库。请先在「账户」中断开同步。",
+        "errors": {
+          "sync-connected": "同步开启时不能备份或恢复资料库。请先在「账户」中断开同步。",
+          "invalid": "这个文件不是有效的 Drifting 备份，或已经损坏。当前资料库没有改动。",
+          "newer": "这个备份来自更新版本的 Drifting。请先更新应用再恢复。",
+          "unknown": "操作没有完成，当前资料库没有改动：{{detail}}"
+        }
+      },
       "history": "版本历史",
       "auto_snapshot": "自动快照",
       "auto_snapshot_desc": "正文或实体发生变化后约每 15 分钟留存一份；本地保留 30 天，并按时间自动稀疏。",

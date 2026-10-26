@@ -174,3 +174,49 @@ describe('Tauri database command adapter', () => {
     expect(new DatabaseOpenFailure(failure)).toBeInstanceOf(Error);
   });
 });
+
+describe('library backup platform contract', () => {
+  const summary = {
+    createdAtMs: 1_000,
+    appVersion: '0.1.0-test',
+    projects: [{ id: 'project-1', name: '雾港' }],
+    assetFileCount: 3,
+    missingAssetCount: 1,
+    packageSizeBytes: 4_096,
+  };
+
+  it('binds export and restore to the renderer session and parses summaries', async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === 'library_backup_export') return { canceled: false, fileName: 'b.drifting', summary };
+      if (command === 'library_backup_inspect') return { canceled: false, restoreId: 'ab'.repeat(16), fileName: 'b.drifting', summary };
+      if (command === 'library_backup_restore') return { preRestorePackage: 'Drifting-pre-restore-1.drifting', restoredProjectCount: 1 };
+      return undefined;
+    });
+    const database = createDatabasePlatform(invoke, 'backup-renderer');
+
+    await expect(database.exportLibraryBackup('Drifting-Backup.drifting')).resolves.toEqual({
+      canceled: false, fileName: 'b.drifting', summary,
+    });
+    await expect(database.inspectLibraryBackup('drifting-library.db', '2026-10-28T00:00:00.000Z'))
+      .resolves.toMatchObject({ canceled: false, restoreId: 'ab'.repeat(16), summary });
+    await expect(database.restoreLibraryBackup('ab'.repeat(16), 'drifting-library.db')).resolves.toEqual({
+      preRestorePackage: 'Drifting-pre-restore-1.drifting', restoredProjectCount: 1,
+    });
+    expect(invoke).toHaveBeenCalledWith('library_backup_export', {
+      clientSessionId: 'backup-renderer', suggestedFileName: 'Drifting-Backup.drifting',
+    });
+    expect(invoke).toHaveBeenCalledWith('library_backup_restore', {
+      restoreId: 'ab'.repeat(16), databaseName: 'drifting-library.db', clientSessionId: 'backup-renderer',
+    });
+  });
+
+  it('reports a cancelled dialog and rejects malformed summaries', async () => {
+    const cancelled = createDatabasePlatform(async () => ({ canceled: true }));
+    await expect(cancelled.exportLibraryBackup('a.drifting')).resolves.toEqual({ canceled: true });
+    await expect(cancelled.inspectLibraryBackup('u', 'now')).resolves.toEqual({ canceled: true });
+    const malformed = createDatabasePlatform(async () => ({
+      canceled: false, restoreId: 'x', fileName: null, summary: { ...summary, projects: 'none' },
+    }));
+    await expect(malformed.inspectLibraryBackup('u', 'now')).rejects.toThrow(/projects must be a list/);
+  });
+});
