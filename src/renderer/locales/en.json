@@ -3574,6 +3574,20 @@
       "importFile": "Import an image or PDF…",
       "importing": "Importing…",
       "empty": "No image or PDF materials yet."
+    },
+    "regions": {
+      "draw": "Comment on a region",
+      "stopDrawing": "Stop commenting",
+      "drawHint": "Drag over the image to mark a region",
+      "compose": "Region comment",
+      "placeholder": "What about this part? (⌘↩ to save)",
+      "asTodo": "As a TODO",
+      "save": "Save",
+      "listLabel": "Comments on this material",
+      "empty": "Drag over the image or page to add the first comment.",
+      "page": "Page {{page}}",
+      "whole": "Whole material",
+      "createFailed": "The comment could not be saved."
     }
   }
 }

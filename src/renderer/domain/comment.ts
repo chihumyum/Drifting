@@ -113,6 +113,41 @@ export interface CommentAnchorPayload {
   // (which highlight the whole block instead). Drives the fine-grained hover
   // highlight (a DOM Range) and text-level "original changed?" detection.
   textAnchor?: CommentTextAnchor;
+  // Region comments on an image or PDF material (target_kind 'library_item').
+  region?: MaterialRegion;
+}
+
+/**
+ * A rectangle on an image, or on one page of a PDF, normalized to 0..1 of the
+ * media box so it survives display size, zoom and re-rendering.
+ */
+export interface MaterialRegion {
+  v: 1;
+  /** 1-based PDF page; absent for images. */
+  page?: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const unit = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+
+/** Lenient read of a region anchor; malformed or future regions read as none. */
+export function parseMaterialRegion(anchorJson: string | null | undefined): MaterialRegion | null {
+  if (!anchorJson) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(anchorJson);
+  } catch {
+    return null;
+  }
+  const region = (parsed as { region?: Record<string, unknown> } | null)?.region;
+  if (!region || region.v !== 1) return null;
+  const { x, y, w, h, page } = region;
+  if (!unit(x) || !unit(y) || !unit(w) || !unit(h) || x + w > 1.000001 || y + h > 1.000001) return null;
+  if (page !== undefined && !(Number.isInteger(page) && (page as number) >= 1)) return null;
+  return { v: 1, ...(page !== undefined ? { page: page as number } : {}), x, y, w, h };
 }
 
 export interface CommentTextAnchor {

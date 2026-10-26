@@ -11,7 +11,7 @@ import {
   type CommentTargetKind,
 } from '../../domain/comment';
 import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
-import { isStructuralEntityKind } from '../../domain/entity-kinds';
+import { isCommentTargetKind, isStructuralEntityKind } from '../../domain/entity-kinds';
 import { ReviewItemCard } from '../../features/comments/ReviewItemCard';
 import { ComposeTodoDialog } from '../../features/library/LibraryDialogs';
 import type { FocusedEntity } from '../../features/library/LibraryPanel';
@@ -64,7 +64,8 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const toolbarRef = useRef<HTMLElement | null>(null);
   const [compactToolbar, setCompactToolbar] = useState(false);
   useStickyNoteRailRegistryRevision();
-  const hasCurrentScope = isStructuralEntityKind(focused.kind) && Boolean(focused.id);
+  // A material tab scopes to its region comments, which target it directly.
+  const hasCurrentScope = isCommentTargetKind(focused.kind) && Boolean(focused.id);
   const effectiveScope: ReviewScope = hasCurrentScope ? scope : 'project';
 
   useEffect(() => {
@@ -114,7 +115,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   );
   const matchesScope = useCallback(
     (comment: Comment) => {
-      if (effectiveScope === 'project' || !isStructuralEntityKind(focused.kind) || !focused.id) {
+      if (effectiveScope === 'project' || !isCommentTargetKind(focused.kind) || !focused.id) {
         return true;
       }
       return commentBelongsToEntity(comment, focused.kind, focused.id, relatedIds);
@@ -174,9 +175,12 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
 
   const createItem = async (body: string, relations: RelationTarget[]) => {
     if (!composeKind) return;
+    // Materials cannot be relation targets, so both notes and TODOs about a
+    // material target it directly (a comment on the whole image or PDF).
     const directTarget =
-      composeKind === 'note' && isStructuralEntityKind(focused.kind) && focused.id
-        ? { targetKind: focused.kind, targetId: focused.id }
+      focused.id &&
+      ((composeKind === 'note' && isStructuralEntityKind(focused.kind)) || focused.kind === 'library_item')
+        ? { targetKind: focused.kind as CommentTargetKind, targetId: focused.id }
         : {};
     const created = await commentUsecases.createComment({
       ...directTarget,

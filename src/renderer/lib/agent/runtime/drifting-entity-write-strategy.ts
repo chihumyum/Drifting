@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import type {
   AgentRuntimeEntityWriteKind,
@@ -43,6 +43,7 @@ import {
   BookNodeTable,
   ElementCategoryTable,
   ElementPatchTable,
+  LibraryItemTable,
   StorylineTable,
 } from '../../../schema/drizzle';
 import { useDataStore } from '../../../store/data-store';
@@ -802,6 +803,20 @@ async function assertCommentTargetExists(
             eq(ElementPatchTable.id, comment.targetId),
             eq(ElementPatchTable.projectId, comment.projectId),
             isNull(ElementPatchTable.invalidatedAt),
+          ),
+        )
+        .limit(1);
+      break;
+    case 'library_item':
+      // Region comments target images and PDFs; notes take no comments.
+      rows = await tx
+        .select({ id: LibraryItemTable.id })
+        .from(LibraryItemTable)
+        .where(
+          and(
+            eq(LibraryItemTable.id, comment.targetId),
+            eq(LibraryItemTable.projectId, comment.projectId),
+            inArray(LibraryItemTable.kind, ['image', 'pdf']),
           ),
         )
         .limit(1);

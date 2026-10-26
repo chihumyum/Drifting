@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { Maximize2, Minus, Plus } from 'lucide-react';
+import { Maximize2, MessageSquarePlus, Minus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
@@ -13,7 +13,7 @@ import { useLibraryItem } from '../usecase/useLibraryItem';
 import { useEntityRelations } from '../usecase/useEntityRelations';
 import { genericAssociationRelationTypeId } from '../domain/entity-relation-type';
 import type { LibraryItem } from '../domain/library-item';
-import { createPlainCommentDoc, extractTextFromCommentBody } from '../domain/comment';
+import { createPlainCommentDoc, extractTextFromCommentBody, parseMaterialRegion, type MaterialRegion } from '../domain/comment';
 import { parseMaterialProvenance } from '../domain/material-provenance';
 import { EditorCrumb, EditorTopBar, MATERIAL_OPEN_IN_SYSTEM_ACTION } from '../components/editor/EditorTopBar';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
@@ -27,7 +27,11 @@ import {
   ImageMediaStage,
   MediaStageMessage,
   PdfMediaStage,
+  type MediaBox,
 } from '../features/library/MaterialMediaStage';
+import { MaterialRegionLayer, RegionCommentComposer, type RegionMark } from '../features/library/MaterialRegionLayer';
+import { ReviewItemCard } from '../features/comments/ReviewItemCard';
+import { useComment } from '../usecase/useComment';
 import { useZoomPanSurface } from '../features/library/use-zoom-pan-surface';
 import { openLibraryItemInSystem } from '../features/library/open-library-item';
 import { LibraryItemFullscreenPreview } from '../features/library/LibraryItemPreview';
@@ -327,6 +331,10 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
   const { t } = useTranslation();
   const [surface, setSurface] = useState<HTMLDivElement | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const [pending, setPending] = useState<{ rect: Pick<MaterialRegion, 'x' | 'y' | 'w' | 'h'>; page: number | null; screen: { x: number; y: number } } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
   const zoomPan = useZoomPanSurface(surface, true);
   const isImage = item.kind === 'image';
   const imageSource = useStoredLibraryItemVariant(item, 'display', isImage);
@@ -336,6 +344,66 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
       ? state.projectAssets.find((candidate) => candidate.id === item.assetId) ?? null
       : null,
   );
+  const allComments = useDataStore((state) => state.comments);
+  const commentUsecases = useComment({ projectId, userId });
+
+  // Region comments first in reading order (page, then top to bottom); whole-
+  // material comments without a region follow.
+  const comments = useMemo(() => {
+    const mine = allComments
+      .filter((comment) => comment.targetKind === 'library_item' && comment.targetId === item.id && comment.status !== 'converted')
+      .map((comment) => ({ comment, region: parseMaterialRegion(comment.anchorJson) }));
+    const order = (entry: (typeof mine)[number]) =>
+      entry.region ? (entry.region.page ?? 1) * 10 + entry.region.y : Number.POSITIVE_INFINITY;
+    return mine.sort((a, b) => order(a) - order(b) || a.comment.createdAt.localeCompare(b.comment.createdAt));
+  }, [allComments, item.id]);
+  const marks = useMemo<RegionMark[]>(
+    () =>
+      comments.flatMap(({ comment, region }, index) =>
+        region
+          ? [{ id: comment.id, index: index + 1, region, resolved: comment.status === 'resolved', todo: comment.kind === 'todo' }]
+          : [],
+      ),
+    [comments],
+  );
+
+  const selectComment = (id: string) => {
+    setSelectedId(id);
+    const page = comments.find((entry) => entry.comment.id === id)?.region?.page;
+    if (page) setPdfPage(page);
+    document.getElementById(`material-comment-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+
+  const createRegionComment = async (body: string, asTodo: boolean) => {
+    if (!pending) return;
+    const region: MaterialRegion = { v: 1, ...(pending.page ? { page: pending.page } : {}), ...pending.rect };
+    setPending(null);
+    setDrawing(false);
+    try {
+      const created = await commentUsecases.createComment({
+        kind: asTodo ? 'todo' : 'note',
+        targetKind: 'library_item',
+        targetId: item.id,
+        anchorJson: JSON.stringify({ region, createdAt: new Date().toISOString() }),
+        bodyJson: createPlainCommentDoc(body),
+      });
+      setSelectedId(created.id);
+    } catch (error) {
+      log.error('Failed to create region comment:', error);
+      alert(t('materialEditor.regions.createFailed'));
+    }
+  };
+
+  const overlay = (box: MediaBox) => (
+    <MaterialRegionLayer
+      box={box}
+      marks={marks}
+      selectedId={selectedId}
+      drawing={drawing}
+      onSelect={selectComment}
+      onDrawn={(rect, screen) => setPending({ rect, page: box.page, screen })}
+    />
+  );
 
   const stage = isImage ? (
     imageSource.fileUrl ? (
@@ -344,6 +412,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
         naturalWidth={asset?.width ?? null}
         naturalHeight={asset?.height ?? null}
         viewport={zoomPan.viewport}
+        overlay={overlay}
       />
     ) : (
       <MediaStageMessage
@@ -351,7 +420,14 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
       />
     )
   ) : pdfSource.filePath ? (
-    <PdfMediaStage key={pdfSource.filePath} filePath={pdfSource.filePath} viewport={zoomPan.viewport} />
+    <PdfMediaStage
+      key={pdfSource.filePath}
+      filePath={pdfSource.filePath}
+      viewport={zoomPan.viewport}
+      overlay={overlay}
+      page={pdfPage}
+      onPageChange={setPdfPage}
+    />
   ) : (
     <MediaStageMessage
       message={pdfSource.loading ? t('memoMaterial.preview.loadingPdf') : t('memoMaterial.preview.noPdf')}
@@ -366,30 +442,77 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
         <MaterialDescription item={item} onUpdate={onUpdate} />
         <MaterialRelations item={item} projectId={projectId} userId={userId} />
       </header>
-      <div
-        ref={setSurface}
-        className="material-stage material-stage--tab"
-        data-dragging={zoomPan.dragging ? 'true' : undefined}
-        data-zoomed={zoomPan.viewport.scale > 1 ? 'true' : undefined}
-        onDoubleClick={() => zoomPan.reset()}
-        {...zoomPan.pointerHandlers}
-      >
-        {stage}
-        <div className="material-stage__tools" onPointerDown={(event) => event.stopPropagation()}>
-          <button type="button" title={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
-            <Minus size={13} />
-          </button>
-          <button type="button" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
-            {Math.round(zoomPan.viewport.scale * 100)}%
-          </button>
-          <button type="button" title={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
-            <Plus size={13} />
-          </button>
-          <button type="button" title={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
-            <Maximize2 size={13} />
-          </button>
+      <div className="material-editor__media-body">
+        <div
+          ref={setSurface}
+          className="material-stage material-stage--tab"
+          data-dragging={zoomPan.dragging ? 'true' : undefined}
+          data-zoomed={zoomPan.viewport.scale > 1 ? 'true' : undefined}
+          data-drawing={drawing ? 'true' : undefined}
+          onDoubleClick={() => {
+            if (!drawing) zoomPan.reset();
+          }}
+          {...zoomPan.pointerHandlers}
+        >
+          {stage}
+          <div className="material-stage__tools" onPointerDown={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className={drawing ? 'is-active' : undefined}
+              aria-pressed={drawing}
+              title={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
+              onClick={() => {
+                setDrawing((value) => !value);
+                setPending(null);
+              }}
+            >
+              <MessageSquarePlus size={13} />
+            </button>
+            <button type="button" title={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
+              <Minus size={13} />
+            </button>
+            <button type="button" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
+              {Math.round(zoomPan.viewport.scale * 100)}%
+            </button>
+            <button type="button" title={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
+              <Plus size={13} />
+            </button>
+            <button type="button" title={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
+              <Maximize2 size={13} />
+            </button>
+          </div>
+          {drawing && <div className="material-stage__hint">{t('materialEditor.regions.drawHint')}</div>}
         </div>
+        {(comments.length > 0 || drawing) && (
+          <aside className="material-comments" aria-label={t('materialEditor.regions.listLabel')}>
+            {comments.length === 0 ? (
+              <div className="material-comments__empty">{t('materialEditor.regions.empty')}</div>
+            ) : (
+              comments.map(({ comment, region }, index) => (
+                <div
+                  key={comment.id}
+                  id={`material-comment-${comment.id}`}
+                  className={`material-comments__item${comment.id === selectedId ? ' material-comments__item--selected' : ''}`}
+                  onClickCapture={() => selectComment(comment.id)}
+                >
+                  <div className="material-comments__meta">
+                    <span className="material-comments__index">{index + 1}</span>
+                    {region?.page ? t('materialEditor.regions.page', { page: region.page }) : !region ? t('materialEditor.regions.whole') : null}
+                  </div>
+                  <ReviewItemCard comment={comment} projectId={projectId} presentation="panel" />
+                </div>
+              ))
+            )}
+          </aside>
+        )}
       </div>
+      {pending && (
+        <RegionCommentComposer
+          anchor={pending.screen}
+          onSubmit={(body, asTodo) => void createRegionComment(body, asTodo)}
+          onCancel={() => setPending(null)}
+        />
+      )}
       {lightboxOpen && <LibraryItemFullscreenPreview material={item} onClose={() => setLightboxOpen(false)} />}
     </div>
   );

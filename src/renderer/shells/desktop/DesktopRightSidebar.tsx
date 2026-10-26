@@ -155,6 +155,17 @@ export function DesktopRightSidebar() {
     const kind = kindMap[target.kind] ?? null;
     return { kind, id: target.id };
   }, [target.kind, target.id]);
+  // Review follows a material tab to its region comments; the library list has
+  // no "related to this material" relation to filter by.
+  const focusedMaterialId = useMemo(() => {
+    const activeTab = openTabs.find((tab) => tabKey(tab) === activeTabKey);
+    const leaf = activeTab ? focusedLeafOf(activeTab) : null;
+    return leaf?.entityType === 'library_item' ? leaf.id : null;
+  }, [activeTabKey, openTabs]);
+  const focusedForReview: FocusedEntity = useMemo(
+    () => (focusedMaterialId ? { kind: 'library_item', id: focusedMaterialId } : focusedForPanel),
+    [focusedForPanel, focusedMaterialId],
+  );
   return (
     <DesktopSidebarLayout
       side="right"
@@ -171,7 +182,7 @@ export function DesktopRightSidebar() {
             title={target.title}
           />}
           <SidebarPanelBody>
-            {tab === 'review' && <ReviewPanel focused={focusedForPanel} onOpenAgentTask={() => revealDesktopAgentView()} />}
+            {tab === 'review' && <ReviewPanel focused={focusedForReview} onOpenAgentTask={() => revealDesktopAgentView()} />}
             {tab === 'library' && <LibraryPanel focused={focusedForPanel} />}
             {tab === 'stats' && <EntityStatsContent
               target={target}

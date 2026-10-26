@@ -6,6 +6,7 @@ import type { DbTransaction } from '../../lib/db';
 
 import {
   isEntityKind,
+  isCommentTargetKind,
   isStructuralEntityKind,
 } from '../../domain/entity-kinds';
 import {
@@ -261,7 +262,8 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
   },
   comment: {
     kind: oneOf('note', 'todo'),
-    targetKind: (value) => value === null || isStructuralEntityKind(value),
+    // Image/PDF materials take region comments (docs/material-workbench.md).
+    targetKind: (value) => value === null || isCommentTargetKind(value),
     targetId: NULLABLE_STRING,
     targetBlockId: NULLABLE_STRING,
     anchorJson: validJson,
@@ -1656,7 +1658,7 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
     if (effect.target.kind === 'comment') {
       const noTarget = candidate.targetKind === null && candidate.targetId === null && candidate.targetBlockId === null;
       const anchored = typeof candidate.targetKind === 'string' && typeof candidate.targetId === 'string';
-      if (!noTarget && !anchored) issues.push(entityConflict(context.effects, effect, 'comment.invalid-anchor', 'Comment target fields must be all absent or identify a structural entity'));
+      if (!noTarget && !anchored) issues.push(entityConflict(context.effects, effect, 'comment.invalid-anchor', 'Comment target fields must be all absent or identify a structural entity or material'));
     }
     if (effect.target.kind === 'kv-entry') {
       const key = `${candidate.ownerKind}:${candidate.namespace}`;

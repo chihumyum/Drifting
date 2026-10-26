@@ -13,6 +13,7 @@ import {
 import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import {
   BookNodeTable,
+  CommentTable,
   EntityRelationTable,
   LibraryItemTable,
   ProjectTable,
@@ -269,6 +270,42 @@ describe('library item persistence boundaries', () => {
       'library-a',
       'project-a',
     );
+  });
+
+  it('deletes the comments that target the material with it', async () => {
+    const { db } = await createDatabase();
+    await seedProject(db, 'project-a');
+    const item = textItem('project-a', 'library-a');
+    await createLibraryItemSqliteRepository('project-a', db).create(item);
+    const comment = (id: string, targetKind: string | null, targetId: string | null) => ({
+      id,
+      projectId: 'project-a',
+      kind: 'note',
+      targetKind,
+      targetId,
+      anchorJson: JSON.stringify({ region: { v: 1, x: 0.1, y: 0.1, w: 0.2, h: 0.2 } }),
+      bodyJson: '{"type":"doc","content":[]}',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await db.insert(CommentTable).values([
+      comment('region-comment', 'library_item', item.id),
+      comment('other-material-comment', 'library_item', 'library-b'),
+      comment('floating-comment', null, null),
+    ]);
+    const sync = vi.fn().mockResolvedValue(undefined) as unknown as AtomicSyncWriter;
+
+    const receipt = await db.transaction((tx) =>
+      deleteLibraryItemInTransaction(tx, sync, new SyncChangeBuilder(), 'project-a', item),
+    );
+
+    expect(receipt.commentIds).toEqual(['region-comment']);
+    expect((await db.select({ id: CommentTable.id }).from(CommentTable)).map((row) => row.id).sort()).toEqual([
+      'floating-comment',
+      'other-material-comment',
+    ]);
+    expect(sync).toHaveBeenCalledWith('comment', 'delete', 'region-comment', 'project-a');
+    expect(sync).toHaveBeenLastCalledWith('libraryItem', 'delete', 'library-a', 'project-a');
   });
 
   it('rolls back the relation delete when the owner deletion transaction fails', async () => {

@@ -314,15 +314,20 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         'library_item',
         id,
       );
+      const comments = useDataStore.getState().comments;
 
       await withOptimisticUpdate({
         apply: () => {
           setItems(items.filter((item) => item.id !== id));
           useDataStore.getState().setEntityRelations(remainingRelations);
+          useDataStore.getState().setComments(
+            comments.filter((comment) => !(comment.targetKind === 'library_item' && comment.targetId === id)),
+          );
         },
         rollback: () => {
           setItems(items);
           useDataStore.getState().setEntityRelations(relations);
+          useDataStore.getState().setComments(comments);
         },
         effect: () =>
           withAtomicSyncTransaction(projectId, (tx, sync, changes) =>

@@ -930,6 +930,37 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     ]));
   });
 
+  it('accepts comments that target a material with a region anchor', async () => {
+    const db = await createDatabase();
+    const result = await apply(db, await changeSet(1, [{
+      action: 'entity.create',
+      kind: 'comment',
+      id: 'region-comment',
+      payload: {
+        seed: {
+          kind: 'todo',
+          targetKind: 'library_item',
+          targetId: 'image-1',
+          targetBlockId: null,
+          anchorJson: JSON.stringify({ region: { v: 1, page: 2, x: 0.1, y: 0.1, w: 0.2, h: 0.2 } }),
+          authorKind: 'user',
+          authorId: null,
+          authorName: null,
+          bodyJson: '{"type":"doc","content":[]}',
+          status: 'open',
+          priority: null,
+          source: 'manual',
+          metadataJson: null,
+          targetBlockIdsJson: '[]',
+          resolvedAt: null,
+        },
+      },
+    }]));
+    expect(result.conflicts).toEqual([]);
+    expect(await db.select({ targetKind: CommentTable.targetKind, targetId: CommentTable.targetId }).from(CommentTable))
+      .toEqual([{ targetKind: 'library_item', targetId: 'image-1' }]);
+  });
+
   it('restores rows without deletedAt from physical trash projections at incarnation one', async () => {
     const db = await createDatabase();
     const commentId = 'restorable-comment';

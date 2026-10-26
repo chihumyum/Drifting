@@ -2,6 +2,7 @@ import type { LibraryItem } from '../domain/library-item';
 import type { DbTransaction } from '../lib/db';
 import { createLibraryItemSqliteRepository } from '../sqlite-repo/library-item-repo';
 import { createProjectAssetSqliteRepository } from '../sqlite-repo/project-asset-repo';
+import { createCommentRepository } from '../sqlite-repo/comment-repo';
 import { deleteEntityRelationsInTransaction } from './entity-relation-cleanup';
 import type { AtomicSyncWriter } from './sync-helpers';
 import {
@@ -11,9 +12,15 @@ import {
 
 export interface LibraryItemDeletionReceipt {
   relationIds: string[];
+  /** Region comments (and their relations) removed with an image or PDF. */
+  commentIds: string[];
 }
 
-/** Delete one library owner, its curated relations, and local asset metadata atomically. */
+/**
+ * Delete one library owner, its curated relations, the comments that target
+ * it, and local asset metadata atomically. A comment left behind would point
+ * at nothing and make checkpoint restore fail its target check.
+ */
 export async function deleteLibraryItemInTransaction(
   tx: DbTransaction,
   sync: AtomicSyncWriter,
@@ -32,6 +39,15 @@ export async function deleteLibraryItemInTransaction(
     'library_item',
     item.id,
   );
+  const commentRepository = createCommentRepository(projectId, tx);
+  const comments = (await commentRepository.findAll()).filter(
+    (comment) => comment.targetKind === 'library_item' && comment.targetId === item.id,
+  );
+  for (const comment of comments) {
+    relationIds.push(...(await deleteEntityRelationsInTransaction(tx, sync, projectId, 'comment', comment.id)));
+    await commentRepository.delete(comment.id);
+    await sync('comment', 'delete', comment.id, projectId);
+  }
   const deleted = await createLibraryItemSqliteRepository(projectId, tx).delete(item.id);
   if (!deleted) throw new Error(`Library item with id ${item.id} not found`);
 
@@ -49,5 +65,5 @@ export async function deleteLibraryItemInTransaction(
   }
   await sync('libraryItem', 'delete', item.id, projectId);
 
-  return { relationIds };
+  return { relationIds, commentIds: comments.map((comment) => comment.id) };
 }

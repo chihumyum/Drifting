@@ -804,6 +804,8 @@ function entityLabel(s: DataState, kind: string, id: string): string {
       return s.storylines.find((sl) => sl.id === id)?.name ?? id;
     case 'category':
       return s.bookElementCategories.find((c) => c.id === id)?.name ?? id;
+    case 'library_item':
+      return s.libraryItems.find((item) => item.id === id)?.title ?? id;
     default:
       return id;
   }

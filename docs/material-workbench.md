@@ -133,8 +133,24 @@ Comments and TODOs may target an image or PDF material
 ```
 
 Coordinates are normalized to the image or PDF page (`page` only for PDFs).
-The tab draws regions over the media and lists the comments beside it; the
-Review panel and TODO rail list them like other comments.
+
+- The tab's **框选批注** tool turns the stage into a drawing surface: drag a
+  rectangle, write the comment in a floating composer (⌘↩ saves, optionally
+  as a TODO). Regions are numbered over the media and zoom and pan with it;
+  a PDF shows only the current page's regions.
+- The comment column beside the stage lists the material's comments in
+  reading order with the ordinary review card; selecting one highlights its
+  region and turns the PDF to its page.
+- With a material tab active, the Review panel's current scope is that
+  material, and composing a note or TODO there targets it directly (a
+  material cannot be a relation target).
+- `CommentTargetKind` includes `library_item`; prose surfaces (sticky rails,
+  highlights, markers) keep `ProseCommentTargetKind`. `parseMaterialRegion`
+  reads anchors leniently.
+- Deleting a material deletes the comments that target it, with their
+  relations, in the same transaction. The paused Apple client's Rust delete
+  does not cascade yet.
+- The Agent can read and name material comments; it does not create them.
 
 ## Agent
 
@@ -184,7 +200,7 @@ boundary, because older builds validate what they receive:
 | M2 | Material tabs for image, PDF and text (desktop tabs and mobile papers); fullscreen preview kept only as a lightbox; snippet popover removed | done |
 | M3 | Notes on Yjs (`library-item` doc kind), edited in their tab | done |
 | M4 | `note` editor profile: lists, tasks, tables, code, highlight, callout, material embeds, slash items; Markdown excerpts on cards | done |
-| M5 | Region comments on images and PDFs | planned |
+| M5 | Region comments on images and PDFs | done |
 | M6 | Note task items ↔ TODOs; image embeds ↔ image materials | planned |
 
 Deferred: image markup/ink, ePub, Agent note editing, mobile material tabs.

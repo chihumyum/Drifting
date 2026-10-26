@@ -3574,6 +3574,20 @@
       "importFile": "从文件导入图片或 PDF…",
       "importing": "导入中…",
       "empty": "还没有图片或 PDF 素材。"
+    },
+    "regions": {
+      "draw": "框选批注",
+      "stopDrawing": "结束批注",
+      "drawHint": "在画面上拖出一个区域来批注",
+      "compose": "区域批注",
+      "placeholder": "写下对这一处的批注…（⌘↩ 保存）",
+      "asTodo": "作为待办",
+      "save": "保存",
+      "listLabel": "这条素材的批注",
+      "empty": "在画面或页面上拖出区域，写下第一条批注。",
+      "page": "第 {{page}} 页",
+      "whole": "整条素材",
+      "createFailed": "批注保存失败。"
     }
   }
 }

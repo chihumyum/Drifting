@@ -58,6 +58,7 @@ function todoTargetName(comment: Comment): string | null {
     case 'element': return data.bookElements.find((element) => element.id === comment.targetId)?.name ?? null;
     case 'storyline': return data.storylines.find((storyline) => storyline.id === comment.targetId)?.name ?? null;
     case 'category': return data.bookElementCategories.find((category) => category.id === comment.targetId)?.name ?? null;
+    case 'library_item': return data.libraryItems.find((item) => item.id === comment.targetId)?.title ?? null;
     default: return null;
   }
 }

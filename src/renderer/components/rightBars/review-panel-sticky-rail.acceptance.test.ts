@@ -37,7 +37,8 @@ describe('unified Review surface acceptance', () => {
     const store = source('src/renderer/store/ui-store.ts');
 
     expect(desktop).toContain("tab === 'review'");
-    expect(desktop).toContain('<ReviewPanel focused={focusedForPanel} onOpenAgentTask=');
+    // A material tab scopes Review to its region comments (docs/material-workbench.md).
+    expect(desktop).toContain('<ReviewPanel focused={focusedForReview} onOpenAgentTask=');
     expect(mobile).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
     expect(mobile).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
     expect(mobile).toContain('lastMobileRightSidebarTab');

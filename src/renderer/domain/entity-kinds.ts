@@ -10,7 +10,9 @@
 //
 //   ANNOTATIVE — author-side scaffolding (comments / library items). They
 //                link OUT to structural entities but are never linked to.
-//                Not comment-able, not @-mention-able.
+//                Not @-mention-able. Image and PDF materials are the one
+//                annotative comment target: region comments
+//                (docs/material-workbench.md).
 //
 //   ALL        — STRUCTURAL ∪ ANNOTATIVE. The full polymorphic vocabulary
 //                that may appear in `entity_relation.fromKind`. The
@@ -41,7 +43,10 @@ export type EntityKind = (typeof ALL_ENTITY_KINDS)[number];
 // same today.
 export type EntityRefSourceKind = EntityKind;
 export type EntityRefTargetKind = StructuralEntityKind;
-export type CommentTargetKind = StructuralEntityKind;
+/** What a comment row may target: book entities, or a material (region comments). */
+export type CommentTargetKind = StructuralEntityKind | 'library_item';
+/** Comment targets that carry prose: sticky rails, highlights and markers. */
+export type ProseCommentTargetKind = StructuralEntityKind;
 export type InlineMentionKind = StructuralEntityKind;
 
 const ALL_SET: ReadonlySet<string> = new Set(ALL_ENTITY_KINDS);
@@ -54,6 +59,10 @@ export function isEntityKind(value: unknown): value is EntityKind {
 
 export function isStructuralEntityKind(value: unknown): value is StructuralEntityKind {
   return typeof value === 'string' && STRUCTURAL_SET.has(value);
+}
+
+export function isCommentTargetKind(value: unknown): value is CommentTargetKind {
+  return value === 'library_item' || isStructuralEntityKind(value);
 }
 
 export function isAnnotativeEntityKind(value: unknown): value is AnnotativeEntityKind {
