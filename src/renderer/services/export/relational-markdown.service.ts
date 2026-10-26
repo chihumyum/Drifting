@@ -1,3 +1,4 @@
+import { noteToMarkdown as renderNoteMarkdown } from '../../lib/note-markdown';
 import { buildReadableMarkdownProjection } from './readable-markdown-projection';
 import { readLocalProseJson } from './relational-markdown.prose';
 import type { MarkdownProjectionAsset, MarkdownProjectionDocument } from '../../platform/contracts';
@@ -425,8 +426,18 @@ export async function buildRelationalMarkdownEntries(
     if (document.kind !== 'library_item') continue;
     const item = libraryItems.get(document.key);
     if (!item) continue;
-    document.body = [noteToMarkdown(item.bodyJson, documents), noteToMarkdown(item.notesJson, documents)]
-      .filter(Boolean).join('\n\n');
+    const wikiLink = (target: ExportDocument | undefined, label: string) =>
+      target ? `[[${target.path.replace(/\.md$/, '')}|${label}]]` : null;
+    const body = item.kind === 'text'
+      ? renderNoteMarkdown(item.bodyJson, {
+          embed: (id) => {
+            const target = documents.get(key('library_item', id));
+            return wikiLink(target, target?.title || id);
+          },
+          entity: (kind, id, text) => wikiLink(documents.get(key(kind as ExportKind, id)), text),
+        })
+      : '';
+    document.body = [body, noteToMarkdown(item.notesJson, documents)].filter(Boolean).join('\n\n');
   }
 
   const relations = new Map<string, Relation[]>();

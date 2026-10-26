@@ -3,7 +3,7 @@ import { getDb, getDbIfInitialized, type DbClient } from '../lib/db';
 import { events } from '../lib/events';
 import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction';
 import { boundedProseDocIds } from '../sync/prose-change-scope';
-import { parseDocId } from '../lib/yjs-doc-id';
+import { parseDocId, proseEntityTypeForDocKind } from '../lib/yjs-doc-id';
 import { createReferenceIndexRepository } from './reference-index-repository';
 import { createReferenceIndexQueue, type ReferenceIndexQueueSnapshot } from './reference-index-queue';
 
@@ -80,9 +80,11 @@ export function retainProjectReferenceIndex(projectId: string): () => void {
     const request = (force = false, proseDocIds?: readonly string[]) => {
       if (getDbIfInitialized() !== database) { stop(); return; }
       const bounded = proseDocIds && boundedProseDocIds(proseDocIds);
-      const sources = bounded?.map((docId) => {
+      // Material notes are not reference sources; they never mention the book.
+      const sources = bounded?.flatMap((docId) => {
         const parsed = parseDocId(docId)!;
-        return { kind: parsed.kind === 'node-content' ? 'node' as const : parsed.kind, id: parsed.entityId };
+        const kind = proseEntityTypeForDocKind(parsed.kind);
+        return kind ? [{ kind, id: parsed.entityId }] : [];
       });
       queue.request(force, sources);
     };

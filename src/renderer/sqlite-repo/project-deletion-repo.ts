@@ -1,7 +1,7 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import type { DbTransaction } from '../lib/db';
-import { isProseEntityType, proseDocId } from '../lib/yjs-doc-id';
+import { isProseEntityType, makeDocId, proseDocId } from '../lib/yjs-doc-id';
 import {
   AgentRuntimeResultArtifactTable,
   AgentRuntimeResultBlobTable,
@@ -11,6 +11,7 @@ import {
   BookNodeTable,
   ElementCategoryTable,
   EntitySnapshotHistoryTable,
+  LibraryItemTable,
   ProjectAssetTable,
   ProjectTable,
   StorylineTable,
@@ -82,6 +83,13 @@ async function collectProjectDeletionInventory(
     .from(ElementCategoryTable)
     .where(eq(ElementCategoryTable.projectId, projectId));
   for (const row of categories) addProseDocId(docIds, 'category', row.id);
+
+  // Material notes own a document too (docs/material-workbench.md).
+  const notes = await tx
+    .select({ id: LibraryItemTable.id })
+    .from(LibraryItemTable)
+    .where(and(eq(LibraryItemTable.projectId, projectId), eq(LibraryItemTable.kind, 'text')));
+  for (const row of notes) docIds.add(makeDocId('library-item', row.id));
 
   // History is also durable ownership evidence for a prose entity that was
   // hard-deleted before its project. It lets project deletion collect that

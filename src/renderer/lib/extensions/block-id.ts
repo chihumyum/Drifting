@@ -14,16 +14,23 @@ const ANCHORABLE_BLOCK_TYPES = new Set([
   'blockquote',
   'codeBlock',
   'listItem',
+  // Material notes only: a task item is the unit a TODO links to.
+  'taskItem',
 ]);
 
 // Agent prose commands snapshot every top-level ProseMirror child. Container
 // and separator nodes therefore also need durable identity even though they
-// are not valid inline-reference anchors.
+// are not valid inline-reference anchors. The material-note containers exist
+// only in the `note` schema; prose schemas never declare them.
 const IDENTIFIED_BLOCK_TYPES = new Set([
   ...ANCHORABLE_BLOCK_TYPES,
   'bulletList',
   'orderedList',
   'horizontalRule',
+  'taskList',
+  'table',
+  'callout',
+  'materialEmbed',
 ]);
 
 export const BlockIdPluginKey = new PluginKey('blockId');

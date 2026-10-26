@@ -31,6 +31,7 @@ import {
 import { useZoomPanSurface } from '../features/library/use-zoom-pan-surface';
 import { openLibraryItemInSystem } from '../features/library/open-library-item';
 import { LibraryItemFullscreenPreview } from '../features/library/LibraryItemPreview';
+import { MaterialNotePage } from './MaterialNotePage';
 
 const log = loglevel.getLogger('MaterialEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -59,7 +60,10 @@ export function MaterialEditorView({
   const { leaveDeletedEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(libraryItemId);
-  useReportEditorSurfaceReady(Boolean(item));
+  // Media is ready once mounted; a note waits for its document-bound editor.
+  const [noteReady, setNoteReady] = useState(false);
+  const isMedia = item?.kind === 'image' || item?.kind === 'pdf';
+  useReportEditorSurfaceReady(!item || isMedia || noteReady);
 
   // Any authored change pins a preview tab, as in the other entity editors.
   const promoteOnEdit = useCallback(() => {
@@ -115,7 +119,6 @@ export function MaterialEditorView({
     return <div className="material-editor__missing">{t('materialEditor.missing')}</div>;
   }
 
-  const isMedia = item.kind === 'image' || item.kind === 'pdf';
   const kindLabel = t(`memoMaterial.kind.${item.kind}`, { defaultValue: item.kind });
 
   return (
@@ -132,13 +135,26 @@ export function MaterialEditorView({
       {isMedia ? (
         <MaterialMediaPage key={item.id} item={item} projectId={projectId} userId={userId} onUpdate={update} />
       ) : (
-        <MaterialNotePage key={item.id} item={item} projectId={projectId} userId={userId} onUpdate={update} />
+        <MaterialNotePage
+          key={item.id}
+          item={item}
+          projectId={projectId}
+          userId={userId}
+          onAuthoredEdit={promoteOnEdit}
+          onReadyChange={setNoteReady}
+          header={
+            <>
+              <MaterialTitle item={item} onUpdate={update} />
+              <MaterialRelations item={item} projectId={projectId} userId={userId} />
+            </>
+          }
+        />
       )}
     </div>
   );
 }
 
-type UpdateMaterial = (patch: { title?: string; notesJson?: string | null; bodyJson?: string | null }) => void;
+type UpdateMaterial = (patch: { title?: string; notesJson?: string | null }) => void;
 
 interface MaterialPageProps {
   item: LibraryItem;
@@ -375,35 +391,6 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
         </div>
       </div>
       {lightboxOpen && <LibraryItemFullscreenPreview material={item} onClose={() => setLightboxOpen(false)} />}
-    </div>
-  );
-}
-
-function MaterialNotePage({ item, projectId, userId, onUpdate }: MaterialPageProps) {
-  const { t } = useTranslation();
-  const stored = item.kind === 'text' ? extractTextFromCommentBody(item.bodyJson) : '';
-  const [draft, setDraft] = useState<string | null>(null);
-  const value = draft ?? stored;
-  return (
-    <div className="editor-scroll">
-      <div className="editor__spread">
-        <article className="page page--entity material-editor__note-page">
-          <MaterialTitle item={item} onUpdate={onUpdate} />
-          <MaterialRelations item={item} projectId={projectId} userId={userId} />
-          <textarea
-            className="material-editor__note-text"
-            value={value}
-            placeholder={t('memoMaterial.card.snippetPlaceholder')}
-            onFocus={() => setDraft(stored)}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={() => {
-              const next = draft ?? stored;
-              setDraft(null);
-              if (next !== stored) onUpdate({ bodyJson: next ? createPlainCommentDoc(next) : null });
-            }}
-          />
-        </article>
-      </div>
     </div>
   );
 }

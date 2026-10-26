@@ -451,6 +451,7 @@ function proseOwnerKind(kind: DocKind): string {
     case 'element': return 'element';
     case 'storyline': return 'storyline';
     case 'category': return 'element-category';
+    case 'library-item': return 'library-item';
   }
 }
 
@@ -719,6 +720,9 @@ async function validateExternalEffect(
         ownerExists ||= (await context.tx.select({ id: BookElementTable.id }).from(BookElementTable).where(and(eq(BookElementTable.id, parsedDoc.entityId), eq(BookElementTable.projectId, context.changeSet.projectId))).limit(1)).length === 1;
       } else if (parsedDoc.kind === 'storyline') {
         ownerExists ||= (await context.tx.select({ id: StorylineTable.id }).from(StorylineTable).where(and(eq(StorylineTable.id, parsedDoc.entityId), eq(StorylineTable.projectId, context.changeSet.projectId))).limit(1)).length === 1;
+      } else if (parsedDoc.kind === 'library-item') {
+        // Only a note owns a document; images and PDFs keep their bytes.
+        ownerExists ||= (await context.tx.select({ id: LibraryItemTable.id }).from(LibraryItemTable).where(and(eq(LibraryItemTable.id, parsedDoc.entityId), eq(LibraryItemTable.projectId, context.changeSet.projectId), eq(LibraryItemTable.kind, 'text'))).limit(1)).length === 1;
       } else {
         ownerExists ||= (await context.tx.select({ id: ElementCategoryTable.id }).from(ElementCategoryTable).where(and(eq(ElementCategoryTable.id, parsedDoc.entityId), eq(ElementCategoryTable.projectId, context.changeSet.projectId))).limit(1)).length === 1;
       }
@@ -1382,6 +1386,13 @@ async function writeProseProjection(
         eq(ElementCategoryTable.projectId, projectId),
       ));
       return;
+    case 'library-item':
+      await tx.update(LibraryItemTable).set({ bodyJson: contentJson, updatedAt }).where(and(
+        eq(LibraryItemTable.id, parsed.entityId),
+        eq(LibraryItemTable.projectId, projectId),
+        eq(LibraryItemTable.kind, 'text'),
+      ));
+      return;
   }
 }
 
@@ -1390,13 +1401,14 @@ async function proseOwnerExists(
   projectId: string,
   parsed: NonNullable<ReturnType<typeof parseDocId>>,
 ): Promise<boolean> {
-  const exists = async (table: typeof BookNodeTable | typeof BookElementTable | typeof StorylineTable | typeof ElementCategoryTable) =>
+  const exists = async (table: typeof BookNodeTable | typeof BookElementTable | typeof StorylineTable | typeof ElementCategoryTable | typeof LibraryItemTable) =>
     (await tx.select({ id: table.id }).from(table).where(and(eq(table.id, parsed.entityId), eq(table.projectId, projectId))).limit(1)).length === 1;
   switch (parsed.kind) {
     case 'node-content': return exists(BookNodeTable);
     case 'element': return exists(BookElementTable);
     case 'storyline': return exists(StorylineTable);
     case 'category': return exists(ElementCategoryTable);
+    case 'library-item': return exists(LibraryItemTable);
   }
 }
 

@@ -481,8 +481,15 @@ async function assertAssets(packageValue: Pick<SnapshotPackageV1, 'assets'>, aut
 
 async function assertProse(packageValue: Pick<SnapshotPackageV1, 'proseDocuments'>, authored: AuthoredStatePayloadV1): Promise<void> {
   const seeds = proseSeedRows(authored.tables);
-  if (seeds.size !== packageValue.proseDocuments.length) {
+  const captured = new Set(packageValue.proseDocuments.map((document) => document.documentId));
+  for (const documentId of seeds.keys()) {
+    // Checkpoints from builds before note documents existed carry none; such a
+    // note restores from its body and seeds its document when first opened.
+    if (captured.has(documentId) || documentId.startsWith('library-item:')) continue;
     throw new SnapshotRestoreError('reference-invalid', 'Prose manifest does not cover every prose-capable entity');
+  }
+  if (captured.size !== packageValue.proseDocuments.length) {
+    throw new SnapshotRestoreError('reference-invalid', 'Prose manifest lists a document twice');
   }
   for (const document of packageValue.proseDocuments) {
     const seed = seeds.get(document.documentId);

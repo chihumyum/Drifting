@@ -60,9 +60,23 @@ every `library_item` trigger.
 ### Note body
 
 A note's body is a Yjs document `library-item:<id>` (DocKind `library-item`).
-`body_json` becomes its seed and cache, exactly like `contentJson` for
-storylines and categories. Existing text materials seed their Yjs document on
-first open; their plain paragraphs are valid in the richer schema.
+`body_json` becomes its seed and projection, exactly like `contentJson` for
+storylines and categories: the editor writes it with a derived, never-journaled
+transaction (`projectNoteBody`), remote updates refresh it in the sync kernel,
+and the ordinary row update refuses body edits.
+
+- A note seeds its document from `body_json` when it is first opened, using
+  the `note` schema (`createYjsProseSeedState(json, 'note')`, deterministic, so
+  two devices seeding the same body merge idempotently). Creating a note does
+  not require a seed in the same change-set; notes made before this design
+  simply seed on first open.
+- The kernel accepts `library-item:` updates only when the owner is a note.
+- Checkpoints carry note documents (`proseSeedRows` includes text items).
+  Restore accepts packages captured before note documents existed.
+- Agent review, references, check-ins and entity history skip note documents
+  (`proseEntityTypeForDocKind`); notes sit outside the book.
+- Project deletion removes note documents; deleting a single material leaves
+  its Yjs rows, as for every other entity.
 
 ### Note schema (`note` profile)
 
@@ -79,11 +93,17 @@ The prose schema plus:
 | `materialEmbed` | atom block `{ libraryItemId }` referencing an image or PDF material |
 
 `BlockId` identifies every top-level block and every `taskItem` so TODO links
-and agent snapshots have stable anchors.
+and snapshots have stable anchors. `lib/editor-schema-profile.ts` owns both
+profiles: the headless schema (seeding, Markdown), the live editor
+(`useEntityEditor({ profile: 'note' })`) and the note-only extensions share one
+definition. The note page adds slash items (lists, to-do list, table, code
+block, callout, highlight, insert material), a table toolbar and an embed
+picker that can also import a new image or PDF.
 
-Paste from a note into a prose editor degrades note-only nodes (tables become
-paragraphs of tab-separated cells, task items become paragraphs, embeds are
-dropped with their caption) before ProseMirror sees them.
+Paste from a note into a prose editor relies on ProseMirror parsing the copied
+HTML with the prose schema, which keeps the text of tables, task items and
+callouts as paragraphs and drops embeds. This is not covered by an automated
+test (no DOM test environment).
 
 ### Embedded images are materials
 
@@ -119,15 +139,17 @@ Review panel and TODO rail list them like other comments.
 ## Agent
 
 - `list_materials` / `read_material` keep their contract; `read_material`
-  returns a note's live document as Markdown (tables and task lists included)
-  instead of the cached `body_json`.
+  returns a note as Markdown (`lib/note-markdown.ts`: GFM tables, task lists,
+  code fences, callouts) rendered from its projection.
 - The Agent does not edit notes in this design.
 
 ## Export
 
-Relational and readable Markdown export render notes from the live document:
-GFM tables, `- [ ]` task lists, code fences, and embeds as links to the
-referenced material document. Retired url rows export as the notes they became.
+Relational and readable Markdown export render notes with `noteToMarkdown`
+from their projection: GFM tables, `- [ ]` task lists, code fences, `> [!note]`
+callouts, `==highlights==`, and embeds and mentions as links in each export's
+own style (wiki links in the relational ZIP, relative links in the readable
+projection). Retired url rows export as the notes they became.
 
 ## Compatibility
 
@@ -160,8 +182,8 @@ boundary, because older builds validate what they receive:
 | --- | --- | --- |
 | M1 | Retire url materials (migration `0011`, sync and checkpoint conversion, UI, native metadata command and the `external-content` network purpose removed) | done |
 | M2 | Material tabs for image, PDF and text (desktop tabs and mobile papers); fullscreen preview kept only as a lightbox; snippet popover removed | done |
-| M3 | Notes on Yjs (`library-item` doc kind), edited in their tab | planned |
-| M4 | `note` editor profile: lists, tasks, tables, code, highlight, callout, slash items | planned |
+| M3 | Notes on Yjs (`library-item` doc kind), edited in their tab | done |
+| M4 | `note` editor profile: lists, tasks, tables, code, highlight, callout, material embeds, slash items; Markdown excerpts on cards | done |
 | M5 | Region comments on images and PDFs | planned |
 | M6 | Note task items ↔ TODOs; image embeds ↔ image materials | planned |
 

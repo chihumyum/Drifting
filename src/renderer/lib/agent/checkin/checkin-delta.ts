@@ -16,7 +16,7 @@ import {
   yjsUpdates,
 } from '../../../schema/drizzle';
 import { useDataStore } from '../../../store/data-store';
-import { parseDocId, type ProseEntityType } from '../../yjs-doc-id';
+import { parseDocId, proseEntityTypeForDocKind, type ProseEntityType } from '../../yjs-doc-id';
 import { computeBlockChanges, diffTokens } from '../block-diff';
 import { docToPlainText } from '../serialize';
 
@@ -98,11 +98,9 @@ function liveProjectObjects(projectId: string): Map<string, ProjectObject> {
 
 function entityForDoc(docId: string): { entityType: ProseEntityType; entityId: string } | null {
   const parsed = parseDocId(docId);
-  if (!parsed) return null;
-  return {
-    entityType: parsed.kind === 'node-content' ? 'node' : parsed.kind,
-    entityId: parsed.entityId,
-  };
+  const entityType = parsed ? proseEntityTypeForDocKind(parsed.kind) : null;
+  if (!parsed || !entityType) return null;
+  return { entityType, entityId: parsed.entityId };
 }
 
 interface ChangedDocRow {

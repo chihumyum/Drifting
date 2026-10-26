@@ -22,6 +22,7 @@ import type * as Y from 'yjs';
 import { useAuthStore } from '../store/auth';
 import { useYjsSync } from './useYjsSync';
 import { makeDocId, type DocKind } from '../lib/yjs-doc-id';
+import { profileForDocId, type EditorSchemaProfile } from '../lib/editor-schema-profile';
 
 /**
  * Projection seeding must be byte-stable across every renderer path.
@@ -31,11 +32,12 @@ import { makeDocId, type DocKind } from '../lib/yjs-doc-id';
  */
 export async function createEntitySeedUpdate(
   seedContentJson: string,
+  profile: EditorSchemaProfile = 'prose',
 ): Promise<Uint8Array> {
   const { createYjsProseSeedState } = await import(
     '../lib/agent/runtime/yjs-prose-command'
   );
-  return createYjsProseSeedState(seedContentJson);
+  return createYjsProseSeedState(seedContentJson, profile);
 }
 
 export interface UseEntityYjsDocOptions<K extends DocKind> {
@@ -86,7 +88,7 @@ export function useEntityYjsDoc<K extends DocKind>({
       try {
         const [Y, update] = await Promise.all([
           import('yjs'),
-          createEntitySeedUpdate(seedContentJson),
+          createEntitySeedUpdate(seedContentJson, profileForDocId(makeDocId(kind, entityId))),
         ]);
         apply((targetDoc) => {
           Y.applyUpdate(targetDoc, update);

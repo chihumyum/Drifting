@@ -24,6 +24,7 @@ import * as Y from 'yjs';
 
 import { BlockId } from '../../extensions/block-id';
 import { EntityLink } from '../../extensions/entity-link';
+import { schemaForProfile, type EditorSchemaProfile } from '../../editor-schema-profile';
 
 const DEFAULT_FRAGMENT = 'default';
 const COMMAND_ORIGIN = 'agent-runtime:yjs-prose-command';
@@ -664,6 +665,8 @@ export function replaceYjsProseBlocks(doc: Y.Doc, blocks: readonly YjsProseBlock
  */
 export async function createYjsProseSeedState(
   contentJson: string,
+  /** Material notes seed with the richer `note` schema; prose keeps its own. */
+  profile: EditorSchemaProfile = 'prose',
 ): Promise<Uint8Array> {
   let document: Record<string, unknown>;
   const source = contentJson.trim();
@@ -714,14 +717,16 @@ export async function createYjsProseSeedState(
   document = { ...document, content: normalizedContent };
 
   try {
-    const schema = getSchema([
-      StarterKit.configure({ underline: false, link: false }),
-      Underline,
-      Link,
-      TextAlign,
-      BlockId,
-      EntityLink,
-    ] as never);
+    const schema = profile === 'note'
+      ? schemaForProfile('note')
+      : getSchema([
+          StarterKit.configure({ underline: false, link: false }),
+          Underline,
+          Link,
+          TextAlign,
+          BlockId,
+          EntityLink,
+        ] as never);
     const seeded = prosemirrorJSONToYDoc(schema, document, DEFAULT_FRAGMENT);
     try {
       // Fail closed now if this projection cannot satisfy the runtime's

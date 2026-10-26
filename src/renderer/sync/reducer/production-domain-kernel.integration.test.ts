@@ -8,6 +8,7 @@ import * as Y from 'yjs';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { createYjsProseSeedState } from '../../lib/agent/runtime/yjs-prose-command';
+import { legacyUrlNoteBodyJson } from '../../domain/library-item';
 import type { DbClient, DbTransaction } from '../../lib/db';
 import {
   BookElementTable,
@@ -877,6 +878,56 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(await db.select().from(StorylineTable).where(
       eq(StorylineTable.id, 'storyline-without-yjs'),
     )).toEqual([]);
+  });
+
+  it('lands a retired url seed as a note and keeps older builds from restoring the link', async () => {
+    const db = await createDatabase();
+    const url = 'https://example.com/lighthouse';
+    const created = await apply(db, await changeSet(1, [{
+      action: 'entity.create',
+      kind: 'library-item',
+      id: 'legacy-link',
+      payload: { seed: { title: 'Legacy link', kind: 'url', assetId: null, externalUrl: url, bodyJson: null, notesJson: null } },
+    }]));
+    expect(created.conflicts).toEqual([]);
+    const row = async () => (await db.select().from(LibraryItemTable).where(eq(LibraryItemTable.id, 'legacy-link')))[0];
+    expect(await row()).toMatchObject({ kind: 'text', externalUrl: null, previewImageUrl: null, bodyJson: legacyUrlNoteBodyJson(url) });
+
+    const relinked = await apply(db, await changeSet(2, [
+      { action: 'field.set', kind: 'library-item', id: 'legacy-link', payload: { field: 'externalUrl', value: 'https://example.com/other' } },
+      { action: 'field.set', kind: 'library-item', id: 'legacy-link', payload: { field: 'kind', value: 'url' } },
+    ]));
+    expect(relinked.conflicts).toEqual([]);
+    expect(await row()).toMatchObject({ kind: 'text', externalUrl: null, bodyJson: legacyUrlNoteBodyJson(url) });
+  });
+
+  it('accepts note documents for notes only and projects them into body_json', async () => {
+    const db = await createDatabase();
+    await apply(db, await changeSet(1, [{
+      action: 'entity.create',
+      kind: 'library-item',
+      id: 'note-1',
+      payload: { seed: { title: 'Note', kind: 'text', assetId: null, externalUrl: null, bodyJson: null, notesJson: null } },
+    }]));
+    const document = new Y.Doc();
+    const paragraph = new Y.XmlElement('paragraph');
+    paragraph.insert(0, [new Y.XmlText('remote note body')]);
+    document.getXmlFragment('default').insert(0, [paragraph]);
+    const update = Y.encodeStateAsUpdate(document);
+
+    const accepted = await apply(db, await changeSet(2, [{
+      action: 'yjs.update', kind: 'prose-document', id: 'library-item:note-1', payload: { update },
+    }]));
+    expect(accepted.conflicts).toEqual([]);
+    const [note] = await db.select().from(LibraryItemTable).where(eq(LibraryItemTable.id, 'note-1'));
+    expect(note?.bodyJson).toContain('remote note body');
+
+    const orphan = await apply(db, await changeSet(3, [{
+      action: 'yjs.update', kind: 'prose-document', id: 'library-item:missing-note', payload: { update },
+    }]));
+    expect(orphan.conflicts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'yjs.missing-owner' }),
+    ]));
   });
 
   it('restores rows without deletedAt from physical trash projections at incarnation one', async () => {

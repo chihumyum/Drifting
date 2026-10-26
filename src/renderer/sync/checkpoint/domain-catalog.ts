@@ -707,5 +707,9 @@ export function proseSeedRows(
   for (const row of map.get('storylines') ?? []) add(`storyline:${String(row.id)}`, row.content_json);
   for (const row of map.get('element') ?? []) add(`element:${String(row.id)}`, row.content_json);
   for (const row of map.get('element_category') ?? []) add(`category:${String(row.id)}`, row.content_json);
+  // Material notes own a document; images and PDFs do not (docs/material-workbench.md).
+  for (const row of map.get('library_item') ?? []) {
+    if (row.kind === 'text') add(`library-item:${String(row.id)}`, row.body_json);
+  }
   return seeds;
 }

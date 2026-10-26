@@ -19,7 +19,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { mergeBlockChanges, type AgentBlockChange, type AgentFieldRef } from '../lib/agent/block-diff';
-import { parseDocId } from '../lib/yjs-doc-id';
+import { parseDocId, proseEntityTypeForDocKind } from '../lib/yjs-doc-id';
 
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -544,9 +544,10 @@ export const useAgentEditStore = create<AgentEditState>()(
         const projectEntityKeys = new Set<string>();
         for (const docId of proseDocIds) {
           const parsed = parseDocId(docId);
-          if (!parsed) continue;
-          const entityType: ActivityEntityType =
-            parsed.kind === 'node-content' ? 'node' : parsed.kind;
+          const entityType: ActivityEntityType | null = parsed
+            ? proseEntityTypeForDocKind(parsed.kind)
+            : null;
+          if (!parsed || !entityType) continue;
           projectEntityKeys.add(entityKey(entityType, parsed.entityId));
         }
 

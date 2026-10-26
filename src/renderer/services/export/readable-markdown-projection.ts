@@ -1,3 +1,4 @@
+import { noteToMarkdown } from '../../lib/note-markdown';
 import { deriveActSegments } from '../../domain/book-act';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
@@ -8,7 +9,7 @@ import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import type { MarkdownProjectionAsset, MarkdownProjectionDocument } from '../../platform/contracts';
 import { extForMime } from '../asset-store.service';
 import { markdownShareSummary } from './markdown-share';
-import { markdownLabel, obsidianProse, relativeMarkdownHref } from './obsidian-markdown';
+import { markdownLabel, obsidianProse, relativeMarkdownHref, relativeMarkdownLink } from './obsidian-markdown';
 import { readLocalProseJson } from './relational-markdown.prose';
 import type { LocalRelationalMarkdownSource } from './relational-markdown.local-source';
 import type { MarkdownZipEntry } from './markdown-zip';
@@ -231,7 +232,20 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     }
     if (document.kind === 'library_item') {
       const item = graph.libraryItems.find(item => item.id === document.id)!;
-      parts.push(richText(item.bodyJson, document.path), richText(item.notesJson, document.path));
+      const linkTo = (target: Document | undefined, label: string) =>
+        target ? relativeMarkdownLink(document.path, target.path, label) : null;
+      parts.push(
+        item.kind === 'text'
+          ? noteToMarkdown(item.bodyJson, {
+              embed: (id) => {
+                const target = documents.get(key('library_item', id));
+                return linkTo(target, target?.title || id);
+              },
+              entity: (kind, id, text) => linkTo(documents.get(key(kind, id)), text),
+            })
+          : '',
+        richText(item.notesJson, document.path),
+      );
       const generation = parseMaterialProvenance(item.provenanceJson);
       if (generation?.origin === 'generated') {
         const { model, subjectPrompt, prompt, styleText } = generation.generation;

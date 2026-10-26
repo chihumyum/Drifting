@@ -788,6 +788,32 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     expect(abandoned.sort()).toEqual(['restore-atomic-invalid', 'restore-atomic-valid']);
   });
 
+  it('accepts checkpoints from builds before note documents but still requires book prose', async () => {
+    const source = await database('note-docs-source');
+    await seedSource(source, true);
+    const captured = await capture(source);
+    const expected = { projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, syncGenerationId: SYNC_GENERATION_ID };
+    const withoutNotes = await repackage(captured, {
+      ...captured.package,
+      proseDocuments: captured.package.proseDocuments.filter((document) => !document.documentId.startsWith('library-item:')),
+    });
+    await expect(validateSnapshotForRestore({
+      packageBytes: withoutNotes.packageBytes,
+      commitMarkerBytes: withoutNotes.commitMarkerBytes,
+      expected,
+    })).resolves.toBeTruthy();
+
+    const withoutElement = await repackage(captured, {
+      ...captured.package,
+      proseDocuments: captured.package.proseDocuments.filter((document) => document.documentId !== 'element:element-update'),
+    });
+    await expect(validateSnapshotForRestore({
+      packageBytes: withoutElement.packageBytes,
+      commitMarkerBytes: withoutElement.commitMarkerBytes,
+      expected,
+    })).rejects.toMatchObject({ code: 'reference-invalid' });
+  });
+
   it('captures and restores snapshot-only, update-only, combined, and seed-only prose', async () => {
     const source = await database('source');
     await seedSource(source, true);
@@ -795,6 +821,9 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     expect(captured.package.proseDocuments.map((entry) => [entry.documentId, entry.mode])).toEqual([
       ['category:category-seed', 'seed-only'],
       ['element:element-update', 'full-state'],
+      // Text materials are notes and own a document; never opened, it is seed-only.
+      ['library-item:library-a', 'seed-only'],
+      ['library-item:library-b', 'seed-only'],
       ['node-content:node-snapshot', 'full-state'],
       ['storyline:storyline-combined', 'full-state'],
     ]);

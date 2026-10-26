@@ -22,7 +22,7 @@ import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
-import { parseDocId, type ProseEntityType } from '../lib/yjs-doc-id';
+import { parseDocId, proseEntityTypeForDocKind, type ProseEntityType } from '../lib/yjs-doc-id';
 import {
   createEntitySnapshotRepository,
   type EntitySnapshotRepository,
@@ -56,7 +56,7 @@ export interface SnapshotMeta {
 
 function docKindToEntityKind(kind: ReturnType<typeof parseDocId>): ProseEntityType | null {
   if (!kind) return null;
-  return kind.kind === 'node-content' ? 'node' : kind.kind;
+  return proseEntityTypeForDocKind(kind.kind);
 }
 
 /** Look up the entity's projectId + restorable metadata from the data store.

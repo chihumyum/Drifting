@@ -3547,6 +3547,33 @@
       "style": "Style",
       "direction": "Author direction",
       "formerPortrait": "Former portrait of “{{name}}”"
+    },
+    "notePlaceholder": "Write a note… (type / for tables, to-dos and materials)",
+    "slash": {
+      "bulletList": "Bulleted list",
+      "orderedList": "Numbered list",
+      "taskList": "To-do list",
+      "table": "Table",
+      "codeBlock": "Code block",
+      "callout": "Callout",
+      "highlight": "Highlight",
+      "material": "Insert material…"
+    },
+    "table": {
+      "toolbar": "Table",
+      "addRow": "Add row",
+      "addColumn": "Add column",
+      "deleteRow": "Delete row",
+      "deleteColumn": "Delete column",
+      "headerRow": "Header row",
+      "deleteTable": "Delete table"
+    },
+    "embed": {
+      "missing": "This material has been deleted.",
+      "pickerTitle": "Insert material",
+      "importFile": "Import an image or PDF…",
+      "importing": "Importing…",
+      "empty": "No image or PDF materials yet."
     }
   }
 }

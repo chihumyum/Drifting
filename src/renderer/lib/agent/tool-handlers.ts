@@ -1,3 +1,4 @@
+import { noteToMarkdown } from '../note-markdown';
 import { searchExactProse } from './exact-prose-search';
 /**
  * Renderer-side execution of the agent's entity tools.
@@ -775,7 +776,7 @@ function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
         ? { replacedAt: provenance.replacedAt }
         : {}),
     ...(item.kind === 'text'
-      ? { body: materialBodyText(item.bodyJson) || '(empty)' }
+      ? { body: noteToMarkdown(item.bodyJson) || '(empty)' }
       : {
           assetId: item.assetId,
           mime: asset?.sourceMime,

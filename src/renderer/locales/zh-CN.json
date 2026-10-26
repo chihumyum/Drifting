@@ -3547,6 +3547,33 @@
       "style": "画风",
       "direction": "作者要求",
       "formerPortrait": "曾是「{{name}}」的设定图"
+    },
+    "notePlaceholder": "写下笔记…（输入 / 插入表格、待办或素材）",
+    "slash": {
+      "bulletList": "无序列表",
+      "orderedList": "有序列表",
+      "taskList": "待办清单",
+      "table": "表格",
+      "codeBlock": "代码块",
+      "callout": "提示块",
+      "highlight": "高亮",
+      "material": "插入素材…"
+    },
+    "table": {
+      "toolbar": "表格",
+      "addRow": "加一行",
+      "addColumn": "加一列",
+      "deleteRow": "删除行",
+      "deleteColumn": "删除列",
+      "headerRow": "表头行",
+      "deleteTable": "删除表格"
+    },
+    "embed": {
+      "missing": "这条素材已被删除。",
+      "pickerTitle": "插入素材",
+      "importFile": "从文件导入图片或 PDF…",
+      "importing": "导入中…",
+      "empty": "还没有图片或 PDF 素材。"
     }
   }
 }

@@ -51,6 +51,8 @@ function proseOwner(docId: string): LifecycleOwner {
       return { kind: 'storyline', id: parsed.entityId };
     case 'category':
       return { kind: 'element-category', id: parsed.entityId };
+    case 'library-item':
+      return { kind: 'library-item', id: parsed.entityId };
   }
 }
 

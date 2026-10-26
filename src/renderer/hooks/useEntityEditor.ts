@@ -3,8 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
-import type { JSONContent } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
+import type { AnyExtension, JSONContent } from '@tiptap/core';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
@@ -21,6 +20,12 @@ import type { EditorPersistDerived } from '../features/editor/entity-editor-sess
 export type { EditorPersistDerived } from '../features/editor/entity-editor-session';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
+import {
+  noteOnlyExtensions,
+  noteParagraphIndent,
+  profileStarterKit,
+  type EditorSchemaProfile,
+} from '../lib/editor-schema-profile';
 import {
   AgentDiffDecoration,
 } from '../lib/extensions/agent-diff-decoration';
@@ -378,6 +383,14 @@ export interface UseEntityEditorConfig {
   // review). Defaults to true. The caller keys the editor on this so toggling it
   // remounts + re-creates the editor with the new editable state.
   editable?: boolean;
+
+  // Schema profile of the document (lib/editor-schema-profile.ts). Material
+  // notes use 'note'; every book surface keeps the default 'prose'. Fixed for
+  // the editor's lifetime, like the document it edits.
+  profile?: EditorSchemaProfile;
+  // Note-only extensions with live node views (the material embed); defaults
+  // to the headless set.
+  noteExtensions?: AnyExtension[];
 }
 
 export interface UseEntityEditorResult {
@@ -429,6 +442,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     onAddPatchRequest,
     enableInlineCopilot = false,
     editable = true,
+    profile = 'prose',
+    noteExtensions,
   } = config;
   const documentMode = requestedDocumentMode ?? (ydoc ? 'yjs' : 'json');
 
@@ -524,24 +539,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({
-          heading: { levels: [1, 2, 3] },
-          // Novel-writing surface: no code or lists. Disabling the nodes/marks
-          // also strips their input rules (`- `, `1. `, ``` ``` ```) and keymaps
-          // (Mod-Shift-7/8, Mod-e, Mod-Alt-c), so there's no way to create them.
-          bulletList: false,
-          orderedList: false,
-          listItem: false,
-          listKeymap: false,
-          code: false,
-          codeBlock: false,
-          // Collaboration ships its own y-undo manager; if StarterKit's
-          // undoRedo is left on alongside it, ProseMirror's history plugin
-          // collides with the Yjs binding and crashes on first edit.
-          undoRedo: ydoc ? false : { depth: editorUndoDepth },
-          underline: false,
-          link: false,
-        }),
+        // The prose profile is the novel-writing surface: no code or lists.
+        // Disabling the nodes/marks also strips their input rules (`- `, `1. `,
+        // ``` ``` ```) and keymaps (Mod-Shift-7/8, Mod-e, Mod-Alt-c), so there's
+        // no way to create them. Notes enable them (see editor-schema-profile).
+        // Collaboration ships its own y-undo manager; if StarterKit's
+        // undoRedo is left on alongside it, ProseMirror's history plugin
+        // collides with the Yjs binding and crashes on first edit.
+        profileStarterKit(profile, { undoRedo: ydoc ? false : { depth: editorUndoDepth } }),
         Underline,
         Link.configure({ openOnClick: false, autolink: true }),
         TextAlign.configure({
@@ -567,8 +572,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         BlockId,
         // Tab / Shift-Tab block indent. Without this Tab has no binding (lists
         // are disabled, so listKeymap is gone) and the browser default blurs
-        // the editor. Always consumes Tab.
-        ParagraphIndent,
+        // the editor. Always consumes Tab; in notes only after lists/tables.
+        profile === 'note' ? noteParagraphIndent : ParagraphIndent,
         // In-place agent-edit diff decorations (approve mode). Inert until
         // useEntityEditor pushes a DecorationSet for node editors (below).
         AgentDiffDecoration,
@@ -588,6 +593,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         }),
         // eslint-disable-next-line react-hooks/refs
         createDefaultSlashMenu({ extraItems: getSlashItems, gate: suggestionGate }),
+        ...(profile === 'note' ? (noteExtensions ?? noteOnlyExtensions()) : []),
       ],
       content: initialContent,
       autofocus: autoFocus ? 'end' : false,

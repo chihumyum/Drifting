@@ -247,24 +247,384 @@
 .material-editor__note-page {
   padding-top: 40px;
 }
-.material-editor__note-text {
-  display: block;
-  width: 100%;
-  min-height: 50vh;
-  margin-top: 24px;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  resize: none;
-  background: transparent;
-  color: hsl(var(--ink-1));
-  font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.7;
-}
 .material-editor__link {
   display: inline-block;
   margin-top: 24px;
   color: hsl(var(--accent));
   overflow-wrap: anywhere;
+}
+
+/* ---- Note editor (`note` profile) ---- */
+
+.material-editor__note-body {
+  margin-top: 28px;
+}
+.note-prose {
+  min-height: 50vh;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: hsl(var(--ink-1));
+  text-wrap: pretty;
+}
+.note-prose > * + * {
+  margin-top: 0.6em;
+}
+.note-prose p {
+  margin: 0;
+}
+.note-prose h1,
+.note-prose h2,
+.note-prose h3 {
+  margin: 1.2em 0 0.3em;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+.note-prose h1 { font-size: 24px; }
+.note-prose h2 { font-size: 19px; }
+.note-prose h3 { font-size: 16.5px; }
+.note-prose ul,
+.note-prose ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+.note-prose ul { list-style: disc; }
+.note-prose ol { list-style: decimal; }
+.note-prose li > p { margin: 0; }
+.note-prose li + li { margin-top: 0.15em; }
+
+.note-prose ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.note-prose ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+}
+.note-prose ul[data-type='taskList'] li > label {
+  flex-shrink: 0;
+  margin-top: 0.32em;
+  user-select: none;
+}
+.note-prose ul[data-type='taskList'] li > label input {
+  width: 14px;
+  height: 14px;
+  accent-color: hsl(var(--accent));
+  cursor: pointer;
+}
+.note-prose ul[data-type='taskList'] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.note-prose ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: hsl(var(--ink-4));
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-4) / 0.6);
+}
+
+.note-prose blockquote {
+  margin: 0.6em 0;
+  padding: 0.1em 0 0.1em 1em;
+  color: hsl(var(--ink-2));
+  border-left: 0;
+  background: hsl(var(--paper-deep) / 0.5);
+  border-radius: 4px;
+}
+.note-prose code {
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.note-prose pre {
+  margin: 0.6em 0;
+  padding: 10px 12px;
+  border-radius: 5px;
+  background: hsl(var(--paper-deep));
+  overflow-x: auto;
+}
+.note-prose pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.note-prose mark {
+  padding: 0 0.12em;
+  border-radius: 2px;
+  background: hsl(48 96% 64% / 0.45);
+  color: inherit;
+}
+.note-prose hr {
+  margin: 1.2em 0;
+  border: 0;
+  border-top: 1px solid hsl(var(--rule));
+}
+
+/* Callout: a washed aside. AGENTS.md: no inset vertical accent bar. */
+.note-prose .note-callout {
+  margin: 0.8em 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: hsl(var(--accent) / 0.09);
+  border: 1px solid hsl(var(--accent) / 0.18);
+}
+.note-prose .note-callout > p + p {
+  margin-top: 0.4em;
+}
+
+.note-prose table {
+  width: 100%;
+  margin: 0.8em 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 14.5px;
+}
+.note-prose th,
+.note-prose td {
+  padding: 6px 9px;
+  border: 1px solid hsl(var(--rule-strong));
+  vertical-align: top;
+  min-width: 3em;
+}
+.note-prose th {
+  background: hsl(var(--paper-deep) / 0.7);
+  font-weight: 600;
+  text-align: left;
+}
+.note-prose td > p,
+.note-prose th > p {
+  margin: 0;
+}
+.note-prose .selectedCell {
+  background: hsl(var(--accent) / 0.12);
+}
+.note-prose .tableWrapper {
+  overflow-x: auto;
+}
+
+.note-table-bar {
+  position: sticky;
+  top: 8px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: fit-content;
+  margin: 16px 0 -12px;
+  padding: 3px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 5px;
+  background: hsl(var(--paper) / 0.95);
+  box-shadow: 0 6px 18px -12px hsl(var(--ink-1) / 0.35);
+}
+.note-table-bar button {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.note-table-bar button:hover {
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+}
+
+/* Embedded materials in notes. */
+.note-embed {
+  margin: 0.8em 0;
+  border-radius: 6px;
+}
+.note-embed--selected {
+  outline: 2px solid hsl(var(--accent) / 0.5);
+  outline-offset: 2px;
+}
+.note-embed__image {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+  margin: 0 auto;
+  border-radius: 4px;
+  cursor: zoom-in;
+}
+.note-embed__caption {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 12px;
+}
+.note-embed__caption button {
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  font: inherit;
+  cursor: pointer;
+}
+.note-embed__caption button:hover {
+  color: hsl(var(--ink-2));
+}
+.note-embed__card {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 6px;
+  background: hsl(var(--paper));
+  text-align: left;
+  cursor: pointer;
+}
+.note-embed__card:hover {
+  background: hsl(var(--paper-deep) / 0.6);
+}
+.note-embed__card img,
+.note-embed__glyph {
+  grid-row: span 2;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-4));
+}
+.note-embed__card-title {
+  font-size: 14px;
+  color: hsl(var(--ink-1));
+}
+.note-embed__card-kind {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-4));
+}
+.note-embed__missing {
+  padding: 12px;
+  border: 1px dashed hsl(var(--rule-strong));
+  border-radius: 6px;
+  color: hsl(var(--ink-4));
+  font-size: 13px;
+  text-align: center;
+}
+
+.note-embed-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.note-embed-picker__import {
+  align-self: flex-start;
+  padding: 5px 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.note-embed-picker__error {
+  color: hsl(var(--destructive));
+  font-size: 12px;
+}
+.note-embed-picker__empty {
+  color: hsl(var(--ink-4));
+  font-size: 13px;
+}
+.note-embed-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.note-embed-picker__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 6px;
+  background: hsl(var(--paper));
+  cursor: pointer;
+}
+.note-embed-picker__tile:hover {
+  background: hsl(var(--paper-deep) / 0.6);
+}
+.note-embed-picker__tile img,
+.note-embed-picker__tile > span:first-child {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-4));
+  font-size: 11px;
+}
+.note-embed-picker__tile-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+}
+
+/* Note excerpt on library cards: the Agent reply typography, compact. */
+.note-excerpt {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: hsl(var(--ink-2));
+  word-break: break-word;
+  cursor: pointer;
+}
+.note-excerpt > :first-child { margin-top: 0; }
+.note-excerpt > :last-child { margin-bottom: 0; }
+.note-excerpt p,
+.note-excerpt ul,
+.note-excerpt ol,
+.note-excerpt pre,
+.note-excerpt table,
+.note-excerpt blockquote {
+  margin: 0 0 0.4em;
+}
+.note-excerpt h1,
+.note-excerpt h2,
+.note-excerpt h3 {
+  margin: 0 0 0.3em;
+  font-size: 13px;
+  font-weight: 600;
+}
+.note-excerpt table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.note-excerpt th,
+.note-excerpt td {
+  padding: 2px 6px;
+  border: 1px solid hsl(var(--rule));
+}
+.note-excerpt mark {
+  background: hsl(48 96% 64% / 0.45);
+  color: inherit;
+}
+.note-excerpt--clamped {
+  max-height: 140px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent);
+}
+.note-excerpt__empty {
+  color: hsl(var(--ink-4));
+  font-style: italic;
 }

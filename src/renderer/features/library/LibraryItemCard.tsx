@@ -2,8 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
-import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../lib/extensions/entity-link';
+import { NoteExcerpt } from './NoteExcerpt';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import {
   libraryItemSubtitle,
@@ -237,7 +237,6 @@ export function LibraryItemCard({
   const canExpandImage = material.kind === 'image';
   const isImageExpanded = material.kind === 'image' && imageExpanded && !!imageSrc;
   const isTextExpanded = isTextSnippet && textExpanded;
-  const textBody = material.kind === 'text' ? extractTextFromCommentBody(material.bodyJson) : '';
   const handleOpenInSystem = useCallback(() => onOpenInSystem(), [onOpenInSystem]);
   const handleOpenInApp = useCallback(() => onOpenInApp(), [onOpenInApp]);
 
@@ -548,22 +547,12 @@ export function LibraryItemCard({
                 )}
               </div>
             )}
-            <div
-              className="library-item-card__snippet-body"
-              onClick={handleOpenInApp}
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12.5,
-                color: textBody ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
-                fontStyle: textBody ? 'normal' : 'italic',
-                lineHeight: 1.5,
-                cursor: 'text',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}
-            >
-              {textBody || t('memoMaterial.card.addSnippetBody')}
-            </div>
+            <NoteExcerpt
+              bodyJson={material.kind === 'text' ? material.bodyJson : null}
+              emptyLabel={t('memoMaterial.card.addSnippetBody')}
+              clamp={false}
+              onOpen={handleOpenInApp}
+            />
           </div>
         )}
 
@@ -601,28 +590,13 @@ export function LibraryItemCard({
         )}
 
         {isTextSnippet && !isTextExpanded && (
-          <div
-            className="library-item-card__snippet-body"
-            onClick={handleOpenInApp}
-            style={{
-              marginTop: 6,
-              fontFamily: 'var(--font-sans)',
-              fontSize: 12.5,
-              color: textBody ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
-              fontStyle: textBody ? 'normal' : 'italic',
-              lineHeight: 1.5,
-              cursor: 'text',
-              maxHeight: 140,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 7,
-              WebkitBoxOrient: 'vertical',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          >
-            {textBody || t('memoMaterial.card.addSnippetBody')}
+          <div style={{ marginTop: 6 }}>
+            <NoteExcerpt
+              bodyJson={material.kind === 'text' ? material.bodyJson : null}
+              emptyLabel={t('memoMaterial.card.addSnippetBody')}
+              clamp
+              onOpen={handleOpenInApp}
+            />
           </div>
         )}
 

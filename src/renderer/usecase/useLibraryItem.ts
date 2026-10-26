@@ -16,6 +16,7 @@ import { withoutRelationsForEntity } from './entity-relation-cleanup';
 import { deleteLibraryItemInTransaction } from './library-item-deletion';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
+import { runDerivedTransaction } from '../sync/journal/authored-transaction';
 import {
   appendPlannedAuthoredOrderInTransaction,
   appendProjectAssetBindMutation,
@@ -215,8 +216,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       const items = getItems();
       const existing = items.find((item) => item.id === id);
       if (!existing) throw new Error(`Library item with id ${id} not found`);
-      if (updates.bodyJson !== undefined && existing.kind !== 'text') {
-        throw new Error('Only text library items can update bodyJson');
+      if (updates.bodyJson !== undefined) {
+        // A note's body is its Yjs document; body_json is only its projection.
+        throw new Error('Note bodies are edited through their document (projectNoteBody)');
       }
 
       const normalizedUpdates = updates;
@@ -254,6 +256,38 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
                 desiredEntityIds,
               });
             }
+            return persisted;
+          }),
+        onSuccess: (persisted) => {
+          setItems(getItems().map((item) => (item.id === id ? persisted : item)));
+        },
+      });
+    },
+    [ensureDb, getItems, projectId, setItems],
+  );
+
+  /**
+   * Writes a note's live document into body_json. The projection is a local
+   * cache for lists, search and export; it is never journaled, because the
+   * document already syncs as Yjs updates.
+   */
+  const projectNoteBody = useCallback(
+    async (id: string, bodyJson: string) => {
+      await ensureDb();
+      const items = getItems();
+      const existing = items.find((item) => item.id === id);
+      if (!existing || existing.kind !== 'text' || existing.bodyJson === bodyJson) return;
+      const updated: LibraryItem = { ...existing, bodyJson, updatedAt: new Date().toISOString() };
+      await withOptimisticUpdate({
+        apply: () => setItems(items.map((item) => (item.id === id ? updated : item))),
+        rollback: () => setItems(items),
+        effect: () =>
+          runDerivedTransaction('prose.library-item-projection', async (tx) => {
+            const persisted = await createLibraryItemSqliteRepository(projectId, tx).update(id, {
+              bodyJson,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Library item with id ${id} not found`);
             return persisted;
           }),
         onSuccess: (persisted) => {
@@ -322,7 +356,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
   );
 
   return useMemo(
-    () => ({ loadInitial, createLibraryItem, updateLibraryItem, removeLibraryItem }),
-    [createLibraryItem, loadInitial, removeLibraryItem, updateLibraryItem],
+    () => ({ loadInitial, createLibraryItem, updateLibraryItem, projectNoteBody, removeLibraryItem }),
+    [createLibraryItem, loadInitial, projectNoteBody, removeLibraryItem, updateLibraryItem],
   );
 }

@@ -28,7 +28,7 @@ import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 
-import { parseDocId, proseDocId, type ProseEntityType } from '../yjs-doc-id';
+import { parseDocId, proseDocId, proseEntityTypeForDocKind, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
@@ -79,10 +79,11 @@ function setBlockText(el: Y.XmlElement, text: string): void {
  */
 function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], projectId: string | null, docId: string): void {
   const source = parseDocId(docId);
-  if (!source) return;
+  const sourceKind = source ? proseEntityTypeForDocKind(source.kind) : null;
+  if (!source || !sourceKind) return;
   const config = selectProseAutoDetectConfig(
     useDataStore.getState(), useSettingsStore.getState().autoElementLinkEnabled,
-    projectId, source.kind === 'node-content' ? 'node' : source.kind, source.entityId,
+    projectId, sourceKind, source.entityId,
   );
   for (const blockId of blockIds) {
     const idx = blockIndexInFrag(frag, blockId);

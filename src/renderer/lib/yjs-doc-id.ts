@@ -5,14 +5,17 @@
 //   element             → `element:<elementId>`
 //   storyline           → `storyline:<storylineId>` (body = contentJson)
 //   element category    → `category:<categoryId>`   (body = contentJson)
+//   material note       → `library-item:<itemId>`   (body = bodyJson; `note`
+//                          editor profile, see lib/editor-schema-profile.ts)
 //
-export type DocKind = 'node-content' | 'element' | 'storyline' | 'category';
+export type DocKind = 'node-content' | 'element' | 'storyline' | 'category' | 'library-item';
 
 const KIND_PREFIXES: Record<DocKind, string> = {
   'node-content': 'node-content:',
   element: 'element:',
   storyline: 'storyline:',
   category: 'category:',
+  'library-item': 'library-item:',
 };
 
 export function makeDocId(kind: DocKind, entityId: string): string {
@@ -37,6 +40,14 @@ export type ProseEntityType = (typeof PROSE_ENTITY_TYPES)[number];
  *  e.g. 'patch' (a CommentTargetKind with no Yjs doc) is excluded. */
 export function isProseEntityType(kind: string): kind is ProseEntityType {
   return (PROSE_ENTITY_TYPES as readonly string[]).includes(kind);
+}
+
+/** The prose entity a document belongs to, or null for a material note: notes
+ *  sit outside the book, so Agent review, references, check-ins and entity
+ *  history do not track them. */
+export function proseEntityTypeForDocKind(kind: DocKind): ProseEntityType | null {
+  if (kind === 'library-item') return null;
+  return kind === 'node-content' ? 'node' : kind;
 }
 
 /** The Yjs docId for a prose entity's body, bridging the one spelling mismatch:
