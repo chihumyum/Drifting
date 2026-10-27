@@ -1,4 +1,4 @@
-import type { Comment, CommentTargetKind } from '../../domain/comment';
+import { isNoteTaskTodo, type Comment, type CommentTargetKind } from '../../domain/comment';
 
 const EMPTY_COMMENTS: readonly Comment[] = [];
 
@@ -23,7 +23,9 @@ export function createCommentHighlightSelector(
       comment.targetKind === kind &&
       (targetId === null || comment.targetId === targetId) &&
       comment.targetBlockId !== null &&
-      comment.status !== 'converted');
+      comment.status !== 'converted' &&
+      // A note's checklist line already shows its TODO.
+      !isNoteTaskTodo(comment));
     const changed = next.length !== snapshot.length ||
       next.some((comment, index) => comment !== snapshot[index]);
     if (changed) snapshot = next.length > 0 ? next : EMPTY_COMMENTS;

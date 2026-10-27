@@ -16,6 +16,7 @@ import {
   EntityRelationTypeEndpointKindTable,
   EntityRelationTypeTable,
   LibraryItemTable,
+  MaterialFolderTable,
   NodeContentTable,
   NodeStorylineLinkTable,
   PlotGridCellTable,
@@ -79,6 +80,7 @@ const TABLES_BY_NAME = Object.freeze({
   entity_relation_type: EntityRelationTypeTable,
   entity_relation_type_endpoint_kind: EntityRelationTypeEndpointKindTable,
   library_item: LibraryItemTable,
+  material_folder: MaterialFolderTable,
   node_content: NodeContentTable,
   node_storyline_link: NodeStorylineLinkTable,
   plot_grid_cell: PlotGridCellTable,
@@ -114,6 +116,7 @@ const INSERT_ORDER: readonly SnapshotDomainTableNameV1[] = Object.freeze([
   'entity_relation',
   'comment',
   'comment_action',
+  'material_folder',
   'library_item',
   'book_act',
   'timeline_marker',
@@ -164,7 +167,7 @@ export async function captureAuthoredTablesV1(
   projectId: string,
 ): Promise<readonly SnapshotTableRowsV1[]> {
   const [projects, assets, kvEntries, categories, storylines, groups, nodes, elements, patches, relationTypes,
-    relations, comments, commentActions, libraryItems, acts, markers, memories] = await Promise.all([
+    relations, comments, commentActions, libraryItems, acts, markers, memories, folders] = await Promise.all([
     tx.select().from(ProjectTable).where(eq(ProjectTable.id, projectId)),
     tx.select().from(ProjectAssetTable).where(eq(ProjectAssetTable.projectId, projectId)),
     tx.select().from(EntityKvEntryTable).where(eq(EntityKvEntryTable.projectId, projectId)),
@@ -182,6 +185,7 @@ export async function captureAuthoredTablesV1(
     tx.select().from(BookActTable).where(eq(BookActTable.projectId, projectId)),
     tx.select().from(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId)),
     tx.select().from(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId)),
+    tx.select().from(MaterialFolderTable).where(eq(MaterialFolderTable.projectId, projectId)),
   ]);
   if (projects.length !== 1) throw new Error(`Project ${projectId} does not exist exactly once`);
 
@@ -244,6 +248,7 @@ export async function captureAuthoredTablesV1(
     entity_relation_type: relationTypes,
     entity_relation_type_endpoint_kind: endpointKinds,
     library_item: libraryItems,
+    material_folder: folders,
     node_content: nodeContents,
     node_storyline_link: storylineLinks,
     plot_grid_cell: plotCells,
@@ -311,6 +316,7 @@ export async function materializeAuthoredTablesV1(
       case 'element_category': await tx.insert(ElementCategoryTable).values(rows as (typeof ElementCategoryTable.$inferInsert)[]); break;
       case 'storylines': await tx.insert(StorylineTable).values(rows as (typeof StorylineTable.$inferInsert)[]); break;
       case 'drift_group': await tx.insert(DriftGroupTable).values(rows as (typeof DriftGroupTable.$inferInsert)[]); break;
+      case 'material_folder': await tx.insert(MaterialFolderTable).values(rows as (typeof MaterialFolderTable.$inferInsert)[]); break;
       case 'book_node': await tx.insert(BookNodeTable).values(rows as (typeof BookNodeTable.$inferInsert)[]); break;
       case 'node_content': await tx.insert(NodeContentTable).values(rows as (typeof NodeContentTable.$inferInsert)[]); break;
       case 'plot_grid_document': await tx.insert(PlotGridDocumentTable).values(rows as (typeof PlotGridDocumentTable.$inferInsert)[]); break;

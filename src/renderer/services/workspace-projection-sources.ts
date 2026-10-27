@@ -15,6 +15,7 @@ export const WORKSPACE_PROJECTION_SOURCES = [
   { table: 'block_section', collection: 'sections', project: '{row}.project_id', entity: '{row}.id' },
   { table: 'book_act', collection: 'acts', project: '{row}.project_id', entity: '{row}.id' },
   { table: 'drift_group', collection: 'drift-groups', project: '{row}.project_id', entity: '{row}.id' },
+  { table: 'material_folder', collection: 'material-folders', project: '{row}.project_id', entity: '{row}.id' },
   { table: 'timeline_marker', collection: 'markers', project: '{row}.project_id', entity: '{row}.id' },
   { table: 'node_storyline_link', collection: 'memberships', project: '(SELECT project_id FROM book_node WHERE id = {row}.node_id)', entity: '{row}.node_id' },
 ] as const;

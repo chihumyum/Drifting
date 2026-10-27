@@ -385,3 +385,20 @@ export function commentColorKey(comment: Comment): CommentColorKey {
   if (comment.source === 'copilot') return 'copilot';
   return 'manual';
 }
+
+/** metadataJson of a TODO projected from a material note's checklist line. */
+export const NOTE_TASK_TODO_METADATA = JSON.stringify({ kind: 'note-task' });
+
+/**
+ * A TODO projected from a material note's checklist line
+ * (views/note-todo-links). The line is its anchor and owns its text, so the
+ * note editor paints no highlight for it and the Review card does not edit it.
+ */
+export function isNoteTaskTodo(comment: Pick<Comment, 'kind' | 'targetKind' | 'metadataJson'>): boolean {
+  if (comment.kind !== 'todo' || comment.targetKind !== 'library_item' || !comment.metadataJson) return false;
+  try {
+    return (JSON.parse(comment.metadataJson) as { kind?: unknown }).kind === 'note-task';
+  } catch {
+    return false;
+  }
+}

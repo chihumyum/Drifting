@@ -1,3 +1,4 @@
+import { materialFolderPath } from '../../domain/material-folder';
 import { noteToMarkdown as renderNoteMarkdown } from '../../lib/note-markdown';
 import { buildReadableMarkdownProjection } from './readable-markdown-projection';
 import { readLocalProseJson } from './relational-markdown.prose';
@@ -395,6 +396,10 @@ export async function buildRelationalMarkdownEntries(
           asset_id:
             item.kind === 'image' || item.kind === 'pdf' ? (item.assetId ?? undefined) : undefined,
           ...materialProvenanceMetadata(item.provenanceJson),
+          folder:
+            materialFolderPath(graph.materialFolders, item.folderId)
+              .map((folder) => folder.name)
+              .join('/') || undefined,
           updated_at: item.updatedAt,
         },
         body: '',

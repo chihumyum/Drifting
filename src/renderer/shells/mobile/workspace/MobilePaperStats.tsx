@@ -20,7 +20,7 @@ function statsTarget(
     };
   }
   if (target.entityType === 'library_item') {
-    return { kind: 'none', id: null, title: presentation.title, kicker: presentation.kicker };
+    return { kind: 'material', id: target.id, title: presentation.title, kicker: presentation.kicker };
   }
   if (target.entityType === 'node') {
     const node = data.bookNodes.find((item) => item.id === target.id);

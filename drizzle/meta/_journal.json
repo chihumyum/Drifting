@@ -85,6 +85,13 @@
       "when": 1793041074931,
       "tag": "0011_retire_url_materials",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793072638700,
+      "tag": "0012_material_folders",
+      "breakpoints": true
     }
   ]
 }

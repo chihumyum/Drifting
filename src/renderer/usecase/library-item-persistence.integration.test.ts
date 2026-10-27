@@ -76,7 +76,7 @@ function textItem(projectId: string, id: string): LibraryItem {
     bodyJson: null,
     notesJson: null,
     provenanceJson: null,
-    orderKey: 0,
+    orderKey: 0, folderId: null, taskTodos: true,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -169,7 +169,7 @@ async function createBinaryItemThroughAuthoredPath(
     bodyJson: null,
     notesJson: null,
     provenanceJson: null,
-    orderKey: 0,
+    orderKey: 0, folderId: null, taskTodos: true,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -368,7 +368,7 @@ describe('library item persistence boundaries', () => {
       bodyJson: null,
       notesJson: null,
       provenanceJson: null,
-      orderKey: 0,
+      orderKey: 0, folderId: null, taskTodos: true,
       createdAt: NOW,
       updatedAt: NOW,
     };

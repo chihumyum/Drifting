@@ -27,12 +27,14 @@ import {
   type EntitySnapshotRow,
 } from '../sqlite-repo/entity-snapshot-repo';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
-import { proseDocId, type ProseEntityType } from '../lib/yjs-doc-id';
+import { isProseEntityType, snapshotDocId, type ProseEntityType } from '../lib/yjs-doc-id';
 import { getLiveYDoc } from '../lib/yjs-doc-registry';
 import { getActiveAgentToolContext, type AgentToolContext } from '../lib/agent/tool-handlers';
 import { useAgentEditStore } from '../store/agent-edit-store';
 import { useAgentActivityStore } from '../store/agent-activity-store';
 import { materializeCanonicalNodeProse } from './node-prose-metrics.service';
+import { createLibraryItemUsecases } from '../usecase/useLibraryItem';
+import { useAuthStore } from '../store/auth';
 import type { WritingStatus } from '../domain/book-node';
 import {
   compactUpdatesAfterSnapshot,
@@ -219,6 +221,14 @@ async function restoreMetadata(
       });
       return;
     }
+    case 'library_item': {
+      const userId = useAuthStore.getState().user?.id;
+      if (!userId) throw new Error('No signed-in user to restore the note as.');
+      const notes = createLibraryItemUsecases({ projectId: row.projectId, userId });
+      await notes.projectNoteBody(row.entityId, contentJson);
+      if (meta.title !== undefined) await notes.updateLibraryItem(row.entityId, { title: meta.title });
+      return;
+    }
   }
 }
 
@@ -238,7 +248,7 @@ async function restoreEntitySnapshotPayload(row: EntitySnapshotRow): Promise<voi
   const ctx = getActiveAgentToolContext();
   if (!ctx) throw new Error('No writable project context is available. Restore inside an open project.');
 
-  const docId = proseDocId(row.entityKind, row.entityId);
+  const docId = snapshotDocId(row.entityKind, row.entityId);
 
   // Safety net first: the pre-restore state becomes its own history row.
   await captureCurrentState(docId);
@@ -248,8 +258,10 @@ async function restoreEntitySnapshotPayload(row: EntitySnapshotRow): Promise<voi
 
   // Pending agent-review markers referenced the replaced content — clear them
   // (the restore supersedes that review), along with the activity "M" dot.
-  useAgentEditStore.getState().clear(row.entityKind, row.entityId);
-  useAgentActivityStore.getState().clearTouched(row.entityKind, row.entityId);
+  if (isProseEntityType(row.entityKind)) {
+    useAgentEditStore.getState().clear(row.entityKind, row.entityId);
+    useAgentActivityStore.getState().clearTouched(row.entityKind, row.entityId);
+  }
 }
 
 export type { ProseEntityType };

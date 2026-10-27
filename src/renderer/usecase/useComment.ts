@@ -2,6 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { initDatabase } from '../lib/db';
 import { events } from '../lib/events';
+import { removeNoteTaskLines } from '../lib/note-task-document';
+import { createLibraryItemUsecases } from './useLibraryItem';
 import { createPlainCommentDoc } from '../domain/comment';
 import type {
   Comment,
@@ -341,6 +343,21 @@ export function useComment({ projectId, userId }: UseCommentContext) {
         'comment',
         id,
       );
+      // A TODO projected from a note task takes its checklist line with it, so
+      // the note does not project it again (docs/material-workbench.md). The
+      // line goes first: an open note seeing the TODO vanish while its line
+      // is still linked would keep the line as a plain checkbox instead.
+      if (existing.kind === 'todo' && existing.targetKind === 'library_item' && existing.targetId) {
+        const noteId = existing.targetId;
+        try {
+          const bodyJson = await removeNoteTaskLines(projectId, noteId, [id]);
+          if (bodyJson !== null) {
+            await createLibraryItemUsecases({ projectId, userId }).projectNoteBody(noteId, bodyJson);
+          }
+        } catch (error) {
+          console.warn('[comment] failed to remove the note task line:', error);
+        }
+      }
 
       const result = await withOptimisticUpdate({
         apply: () => {
@@ -363,7 +380,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       events.emit('comment:deleted', { commentId: id });
       return result;
     },
-    [ensureDb, projectId],
+    [ensureDb, projectId, userId],
   );
 
   // Promote a note-style comment to a TODO. In the consolidated model this is

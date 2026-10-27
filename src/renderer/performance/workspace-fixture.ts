@@ -9,7 +9,7 @@ export function createWorkspaceSharingFixture(projectId: string, nodes = 1_000):
   const base = createSyntheticWorkspaceProjection(projectId, nodes, Math.max(1, nodes / 5));
   const nodeId = base.bookNodes[0].id;
   base.storylines = ['main', 'support'].map((id, index) => ({
-    id, projectId, name: `合成线${index}`, color: '#123456', summary: '', orderKey: index,
+    id, projectId, name: `合成线${index}`, color: '#123456', summary: '', orderKey: index, folderId: null, taskTodos: true,
     contentJson: '{}', kvJson: '[]', nodeContentTemplateJson: '{}', createdAt: at, updatedAt: at,
   }));
   Object.assign(base, deriveNodeStorylineState(base.bookNodes.flatMap((node) => [
@@ -24,7 +24,7 @@ export function createWorkspaceSharingFixture(projectId: string, nodes = 1_000):
   base.projectAssets = [{ id: 'synthetic-asset', projectId, kind: 'image', sourceMime: 'image/png',
     sourceSizeBytes: 1, sourceSha256: '0'.repeat(64), width: 1, height: 1, createdAt: at }];
   base.libraryItems = [{ id: 'synthetic-library', projectId, kind: 'text', title: '合成资料', notesJson: null, provenanceJson: null,
-    orderKey: 0, assetId: null, externalUrl: null, previewImageUrl: null, bodyJson: '{}', createdAt: at, updatedAt: at }];
+    orderKey: 0, folderId: null, taskTodos: true, assetId: null, externalUrl: null, previewImageUrl: null, bodyJson: '{}', createdAt: at, updatedAt: at }];
   base.comments = [{ id: 'synthetic-comment', projectId, kind: 'note', targetKind: 'node', targetId: nodeId,
     targetBlockId: null, anchorJson: '{}', authorKind: 'user', authorId: null, authorName: null,
     bodyJson: '{}', status: 'open', priority: null, source: 'manual', metadataJson: null,

@@ -22,7 +22,7 @@ import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
-import { parseDocId, proseEntityTypeForDocKind, type ProseEntityType } from '../lib/yjs-doc-id';
+import { parseDocId, snapshotEntityKindForDocKind, type SnapshotEntityKind } from '../lib/yjs-doc-id';
 import {
   createEntitySnapshotRepository,
   type EntitySnapshotRepository,
@@ -41,7 +41,7 @@ export type CaptureReason = 'periodic' | 'close' | 'restore';
 
 /** The restorable metadata fields snapshotted alongside the prose body. */
 export interface SnapshotMeta {
-  // node
+  // node / material note
   title?: string;
   writingStatus?: string;
   // element / storyline / category
@@ -54,16 +54,16 @@ export interface SnapshotMeta {
   summary?: string;
 }
 
-function docKindToEntityKind(kind: ReturnType<typeof parseDocId>): ProseEntityType | null {
+function docKindToEntityKind(kind: ReturnType<typeof parseDocId>): SnapshotEntityKind | null {
   if (!kind) return null;
-  return proseEntityTypeForDocKind(kind.kind);
+  return snapshotEntityKindForDocKind(kind.kind);
 }
 
 /** Look up the entity's projectId + restorable metadata from the data store.
  *  Returns null when the entity isn't loaded (foreign project / just deleted) —
  *  in that case we skip the capture rather than write an orphan row. */
 function entityMeta(
-  entityKind: ProseEntityType,
+  entityKind: SnapshotEntityKind,
   entityId: string,
 ): { projectId: string; meta: SnapshotMeta } | null {
   const s = useDataStore.getState();
@@ -109,6 +109,10 @@ function entityMeta(
             meta: { name: c.name, elementTemplateKvJson: c.elementTemplateKvJson },
           }
         : null;
+    }
+    case 'library_item': {
+      const item = s.libraryItems.find((x) => x.id === entityId);
+      return item?.kind === 'text' ? { projectId: item.projectId, meta: { title: item.title } } : null;
     }
   }
 }
@@ -240,7 +244,7 @@ async function captureOnce(
 
 async function cleanup(
   repo: EntitySnapshotRepository,
-  entityKind: ProseEntityType,
+  entityKind: SnapshotEntityKind,
   entityId: string,
 ): Promise<void> {
   try {

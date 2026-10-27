@@ -6,6 +6,7 @@ import {
   BookElementTable,
   BookActTable,
   DriftGroupTable,
+  MaterialFolderTable,
   BookNodeTable,
   CommentTable,
   ElementCategoryTable,
@@ -39,6 +40,7 @@ export interface LocalExportGraph {
   assets: LocalExportAsset[];
   acts: (typeof BookActTable.$inferSelect)[];
   driftGroups: (typeof DriftGroupTable.$inferSelect)[];
+  materialFolders: (typeof MaterialFolderTable.$inferSelect)[];
   nodes: LocalExportNode[];
   nodeContents: LocalExportNodeContent[];
   elements: LocalExportElement[];
@@ -111,6 +113,7 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
       .orderBy(asc(ProjectTable.name), asc(ProjectTable.id));
     const acts = await tx.select().from(BookActTable).where(projectId ? eq(BookActTable.projectId, projectId) : undefined).orderBy(asc(BookActTable.id));
     const driftGroups = await tx.select().from(DriftGroupTable).where(projectId ? eq(DriftGroupTable.projectId, projectId) : undefined).orderBy(asc(DriftGroupTable.id));
+    const materialFolders = await tx.select().from(MaterialFolderTable).where(projectId ? eq(MaterialFolderTable.projectId, projectId) : undefined).orderBy(asc(MaterialFolderTable.id));
     const assets = await tx.select().from(ProjectAssetTable).where(projectId ? eq(ProjectAssetTable.projectId, projectId) : undefined).orderBy(asc(ProjectAssetTable.id));
     const nodes = await tx.select().from(BookNodeTable).where(projectId ? eq(BookNodeTable.projectId, projectId) : undefined).orderBy(asc(BookNodeTable.id));
     const nodeIds = nodes.map(node => node.id);
@@ -196,6 +199,7 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
         assets: assetsByProject.get(project.id) ?? [],
         acts: acts.filter(act => act.projectId === project.id),
         driftGroups: driftGroups.filter(group => group.projectId === project.id),
+        materialFolders: materialFolders.filter(folder => folder.projectId === project.id),
         nodes: nodesByProject.get(project.id) ?? [],
         nodeContents: nodeContentsByProject.get(project.id) ?? [],
         elements: elementsByProject.get(project.id) ?? [],

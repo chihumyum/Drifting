@@ -1,6 +1,6 @@
 import { useSidebarPreference, useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, ListPlus, MessageSquarePlus } from 'lucide-react';
+import { ArrowDownUp, ChevronRight, ListPlus, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -13,9 +13,16 @@ import {
 import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
 import { isCommentTargetKind, isStructuralEntityKind } from '../../domain/entity-kinds';
 import { ReviewItemCard } from '../../features/comments/ReviewItemCard';
+import {
+  groupReviewItems,
+  reviewGroupTitle,
+  type ReviewGroup,
+  type ReviewGroupData,
+} from '../../features/comments/review-groups';
 import { ComposeTodoDialog } from '../../features/library/LibraryDialogs';
 import type { FocusedEntity } from '../../features/library/LibraryPanel';
 import { useWorkspaceNavigator } from '../../features/workspace/navigation/WorkspaceNavigationContext';
+import { workspaceTargetGlyph } from '../../features/workspace/navigation/workspace-target';
 import {
   addCommentToStickyNoteRail,
   commentStickyNoteRailTarget,
@@ -24,13 +31,13 @@ import {
 } from '../../hooks/useEntityStickyNoteRail';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
-import { type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
+import { type ReviewGroupMode, type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
 import { FilterChip } from '../ui/FilterChip';
 import { GhostIconButton } from '../ui/GhostIconButton';
-import { SortMenu } from '../leftBars/SortMenu';
+import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
 
 type ReviewTypeFilter = 'all' | 'comment' | 'todo';
@@ -41,9 +48,16 @@ interface ReviewPanelProps {
   onOpenAgentTask?: () => string | void;
 }
 
-function canOwnEditorRail(kind: string | null): kind is Exclude<CommentTargetKind, 'patch'> {
+/** Targets whose editor shows a margin comment rail: the prose editors and
+ *  material notes (images and PDFs keep their own comment column). */
+function canOwnEditorRail(kind: string | null, id: string | null): kind is Exclude<CommentTargetKind, 'patch'> {
+  if (kind === 'library_item') {
+    return useDataStore.getState().libraryItems.some((item) => item.id === id && item.kind === 'text');
+  }
   return kind === 'node' || kind === 'element' || kind === 'category' || kind === 'storyline';
 }
+
+const OPENABLE_GROUP_KINDS = new Set<CommentTargetKind>(['node', 'element', 'storyline', 'category', 'library_item']);
 
 export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const { t } = useTranslation();
@@ -57,6 +71,17 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const [typeFilter, setTypeFilter] = useSidebarPanelState<ReviewTypeFilter>('typeFilter', 'all');
   const [scope, setScope] = useSidebarPreference('reviewScope');
   const [sortMode, setSortMode] = useSidebarPreference('reviewSortMode');
+  const [groupMode, setGroupMode] = useSidebarPreference('reviewGroupMode');
+  const [collapsedGroups, setCollapsedGroups] = useSidebarPanelState<string[]>('collapsedGroups', []);
+  const bookNodes = useDataStore((state) => state.bookNodes);
+  const bookElements = useDataStore((state) => state.bookElements);
+  const storylines = useDataStore((state) => state.storylines);
+  const bookElementCategories = useDataStore((state) => state.bookElementCategories);
+  const libraryItems = useDataStore((state) => state.libraryItems);
+  const groupData = useMemo<ReviewGroupData>(
+    () => ({ bookNodes, bookElements, storylines, bookElementCategories, libraryItems }),
+    [bookElementCategories, bookElements, bookNodes, libraryItems, storylines],
+  );
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortButtonRef = useRef<HTMLButtonElement>(null);
   const [resolvedExpanded, setResolvedExpanded] = useSidebarPanelState('resolvedExpanded', true);
@@ -142,20 +167,20 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const resolvedItems = filtered.filter((comment) => comment.status === 'resolved');
 
   const railTargetFor = (comment: Comment) => {
-    if (canOwnEditorRail(comment.targetKind) && comment.targetId) {
+    if (canOwnEditorRail(comment.targetKind, comment.targetId) && comment.targetId) {
       return { kind: comment.targetKind, id: comment.targetId };
     }
     const structuralRelations = (refsByComment.get(comment.id) ?? []).filter(
-      (relation) => canOwnEditorRail(relation.toKind),
+      (relation) => canOwnEditorRail(relation.toKind, relation.toId),
     );
     const relationTarget =
       structuralRelations.find(
         (relation) => relation.toKind === focused.kind && relation.toId === focused.id,
       ) ?? structuralRelations[0];
-    if (relationTarget && canOwnEditorRail(relationTarget.toKind)) {
+    if (relationTarget && canOwnEditorRail(relationTarget.toKind, relationTarget.toId)) {
       return { kind: relationTarget.toKind, id: relationTarget.toId };
     }
-    if (canOwnEditorRail(focused.kind) && focused.id) {
+    if (canOwnEditorRail(focused.kind, focused.id) && focused.id) {
       return { kind: focused.kind, id: focused.id };
     }
     return null;
@@ -235,6 +260,63 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
     );
   };
 
+  const renderGroup = (group: ReviewGroup, section: 'open' | 'resolved') => {
+    const collapseKey = `${section}:${group.key}`;
+    const collapsed = collapsedGroups.includes(collapseKey);
+    const named = group.targetKind && group.targetId ? reviewGroupTitle(groupData, group.targetKind, group.targetId) : null;
+    const title = !group.targetKind
+      ? t('reviewPanel.groups.floating')
+      : named
+        ? named.title || t('common.untitled')
+        : t(group.targetKind === 'patch' ? 'reviewPanel.groups.patch' : 'reviewPanel.groups.deleted');
+    const glyph =
+      group.targetKind && group.targetKind !== 'patch'
+        ? workspaceTargetGlyph(group.targetKind, { isDrift: named?.isDrift })
+        : '○';
+    const openable = Boolean(named && group.targetKind && OPENABLE_GROUP_KINDS.has(group.targetKind));
+    const toggle = () =>
+      setCollapsedGroups(collapsed ? collapsedGroups.filter((key) => key !== collapseKey) : [...collapsedGroups, collapseKey]);
+    return (
+      <div key={collapseKey} className="review-group">
+        <div className="review-group__header">
+          <button
+            type="button"
+            className={`review-group__toggle${collapsed ? '' : ' review-group__toggle--open'}`}
+            aria-expanded={!collapsed}
+            aria-label={t(collapsed ? 'reviewPanel.groups.expand' : 'reviewPanel.groups.collapse', { name: title })}
+            onClick={toggle}
+          >
+            <ChevronRight size={11} strokeWidth={1.8} />
+          </button>
+          <button
+            type="button"
+            className="review-group__title"
+            disabled={!openable}
+            title={openable ? t('reviewPanel.groups.open', { name: title }) : undefined}
+            onClick={() => {
+              if (openable && group.targetKind && group.targetId && group.targetKind !== 'patch') {
+                navigator.open({ entityType: group.targetKind, id: group.targetId });
+              }
+            }}
+          >
+            <span className="review-group__glyph" aria-hidden="true">{glyph}</span>
+            <span className="review-group__name">{title}</span>
+          </button>
+          <span className="review-group__count">{group.items.length}</span>
+        </div>
+        {!collapsed && <div className="review-group__items">{group.items.map(renderCard)}</div>}
+      </div>
+    );
+  };
+
+  const renderItems = (items: Comment[], section: 'open' | 'resolved') => {
+    if (groupMode === 'flat') return items.map(renderCard);
+    const groups = groupReviewItems(items, groupData);
+    // One target needs no header (e.g. the current-entity scope).
+    if (groups.length === 1) return groups[0]!.items.map(renderCard);
+    return groups.map((group) => renderGroup(group, section));
+  };
+
   return (
     <section className="review-panel" aria-label={t('reviewPanel.title')}>
       <header ref={toolbarRef} className="review-panel__toolbar workspace-panel-header-row">
@@ -308,11 +390,22 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
         ]}
         value={sortMode}
         onChange={setSortMode}
+        groups={[
+          sortMenuGroup<ReviewGroupMode>({
+            title: t('reviewPanel.groupBy.title'),
+            options: [
+              { value: 'target', label: t('reviewPanel.groupBy.target') },
+              { value: 'flat', label: t('reviewPanel.groupBy.flat') },
+            ],
+            value: groupMode,
+            onChange: setGroupMode,
+          }),
+        ]}
       />
 
       <div className="review-panel__list scroll-no-bar workspace-list">
         {openItems.length === 0 && <EmptyState density="compact" message={t('reviewPanel.empty')} />}
-        {openItems.map(renderCard)}
+        {renderItems(openItems, 'open')}
         {resolvedItems.length > 0 && (
           <details
             className="review-panel__resolved"
@@ -320,7 +413,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
             onToggle={(event) => setResolvedExpanded(event.currentTarget.open)}
           >
             <summary>{t('reviewPanel.resolved', { count: resolvedItems.length })}</summary>
-            <div className="review-panel__resolved-list">{resolvedItems.map(renderCard)}</div>
+            <div className="review-panel__resolved-list">{renderItems(resolvedItems, 'resolved')}</div>
           </details>
         )}
       </div>

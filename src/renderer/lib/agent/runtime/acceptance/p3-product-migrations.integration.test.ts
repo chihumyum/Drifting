@@ -63,6 +63,7 @@ const APPLICATION_TABLES = [
   'entity_snapshot_history',
   'inline_mention',
   'library_item',
+  'material_folder',
   'node_content',
   'node_storyline_link',
   'plot_grid_cell',
@@ -222,7 +223,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(12);
+    expect(journal.entries).toHaveLength(13);
+    expect(journal.entries[12]?.tag).toBe('0012_material_folders');
     expect(journal.entries[11]?.tag).toBe('0011_retire_url_materials');
     expect(journal.entries[10]?.tag).toBe('0010_project_trash');
     expect(journal.entries[9]?.tag).toBe('0009_material_provenance');
@@ -269,7 +271,7 @@ describe('product file-backed migration acceptance', () => {
           "SELECT count(*) AS count FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_%'",
         )
         .get(),
-    ).toEqual({ count: 204 });
+    ).toEqual({ count: 207 });
     expect(first.database.prepare('PRAGMA integrity_check').all()).toEqual([
       { integrity_check: 'ok' },
     ]);

@@ -1509,7 +1509,8 @@
       "node": "章节",
       "element": "要素",
       "storyline": "故事线",
-      "category": "类目"
+      "category": "类目",
+      "library_item": "笔记"
     }
   },
   "notifications": {
@@ -2385,7 +2386,8 @@
         "storyline": "本故事线 · 详细统计",
         "element": "本要素 · 详细统计",
         "category": "本类目 · 详细统计",
-        "none": "本项目 · 详细统计"
+        "none": "本项目 · 详细统计",
+        "material": "这份素材 · 详细统计"
       },
       "materialContent": "素材"
     },
@@ -2394,7 +2396,8 @@
       "missingStoryline": "找不到当前故事线。",
       "missingElement": "找不到当前要素。",
       "missingCategory": "找不到当前类目。",
-      "noStats": "项目主页暂无单项统计。打开一个章节、要素或故事线查看详情。"
+      "noStats": "项目主页暂无单项统计。打开一个章节、要素或故事线查看详情。",
+      "missingMaterial": "找不到当前素材。"
     },
     "stats": {
       "jumpTo": "跳到「{{name}}」",
@@ -2464,7 +2467,20 @@
       "allElementsAppeared": "所有要素都已在正文出场。",
       "moreUnappearedElements": "还有 {{count}} 个未出场",
       "storylineDistribution": "故事线分布",
-      "floatingStoryline": "漂浮 / 未归线"
+      "floatingStoryline": "漂浮 / 未归线",
+      "materialCoordinates": "素材坐标",
+      "created": "创建",
+      "noteShape": "笔记概况",
+      "noteWords": "字数",
+      "noteTasks": "待办",
+      "noteTasksValue": "{{done}} / {{total}} 已完成",
+      "openComments": "未解决的批注与 TODO",
+      "materialFile": "文件",
+      "fileType": "格式",
+      "fileSize": "大小",
+      "dimensions": "尺寸",
+      "embeddedMaterials": "嵌入的素材",
+      "materialRelations": "关联"
     }
   },
   "topTimeline": {
@@ -2919,7 +2935,22 @@
     "stickyCount": "{{count}} 张便笺",
     "expandSticky": "展开便笺",
     "stackSticky": "叠放便笺",
-    "clearSticky": "移除全部便笺"
+    "clearSticky": "移除全部便笺",
+    "groupBy": {
+      "title": "分组",
+      "target": "按位置",
+      "flat": "不分组"
+    },
+    "groups": {
+      "floating": "未挂载",
+      "deleted": "已删除",
+      "patch": "要素补丁",
+      "open": "打开 {{name}}",
+      "expand": "展开 {{name}}",
+      "collapse": "收起 {{name}}"
+    },
+    "editInNote": "在笔记中编辑",
+    "noteTaskHint": "来自笔记清单。双击回到笔记中修改。"
   },
   "commentRail": {
     "aria": {
@@ -3490,7 +3521,10 @@
       "deleteCategory": "删除类目",
       "deleteStoryline": "删除故事线",
       "openMaterialInSystem": "用默认应用打开",
-      "deleteMaterial": "删除素材"
+      "deleteMaterial": "删除素材",
+      "noteTaskTodosOff": "清单不再同步为 TODO",
+      "noteTaskTodosOn": "清单同步为 TODO",
+      "moveMaterialToFolder": "移动到文件夹…"
     }
   },
   "projectMemory": {
@@ -3594,8 +3628,34 @@
     "todo": {
       "toolbar": "待办项",
       "promote": "转为 TODO",
-      "linked": "已关联 TODO",
-      "unlink": "取消关联"
+      "linked": "已同步为 TODO",
+      "unlink": "不作为 TODO"
+    }
+  },
+  "materialFolders": {
+    "root": "素材库",
+    "untitled": "新文件夹",
+    "tree": "素材文件夹",
+    "breadcrumb": "文件夹路径",
+    "empty": "还没有素材。右键可新建文件夹。",
+    "deleteConfirm": "删除文件夹「{{name}}」？里面的素材和子文件夹会移到上一级，不会删除任何素材。",
+    "menu": {
+      "newFolder": "新建文件夹",
+      "newSubfolder": "在其中新建文件夹",
+      "rename": "重命名",
+      "delete": "删除文件夹",
+      "open": "打开",
+      "move": "移动到文件夹…",
+      "moveSelected": "将 {{count}} 份素材移动到文件夹…"
+    },
+    "toolbar": {
+      "showFolders": "按文件夹查看",
+      "showAll": "平铺全部素材"
+    },
+    "picker": {
+      "title": "移动到文件夹",
+      "newPlaceholder": "新文件夹名称",
+      "createAndMove": "新建并移入"
     }
   }
 }

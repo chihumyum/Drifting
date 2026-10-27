@@ -9,6 +9,7 @@ import type { Comment, CommentAction } from '../domain/comment';
 import type { BlockSection } from '../domain/block-section';
 import type { BookAct } from '../domain/book-act';
 import type { DriftGroup } from '../domain/drift-group';
+import type { MaterialFolder } from '../domain/material-folder';
 import type { TimelineMarker } from '../domain/timeline-marker';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 import type { EntityRelationType } from '../domain/entity-relation-type';
@@ -47,6 +48,7 @@ export interface WorkspaceDataProjection {
   blockSections: BlockSection[];
   bookActs: BookAct[];
   driftGroups: DriftGroup[];
+  materialFolders: MaterialFolder[];
   timelineMarkers: TimelineMarker[];
 }
 
@@ -216,6 +218,11 @@ interface DataState {
   updateDriftGroup: (id: string, updates: Partial<DriftGroup>) => void;
   removeDriftGroup: (id: string) => void;
 
+  /** Material folders — the material panel's nested folders. Unsorted; the
+   *  panel derives the tree via domain/material-folder helpers. */
+  materialFolders: MaterialFolder[];
+  setMaterialFolders: (folders: MaterialFolder[]) => void;
+
   /** Narrative-axis time pins (optionally drift-bound). Kept sorted by
    *  narrativeOrder by the setters so consumers can render directly. */
   timelineMarkers: TimelineMarker[];
@@ -259,6 +266,7 @@ function emptyWorkspaceProjection(): WorkspaceDataProjection {
     blockSections: [],
     bookActs: [],
     driftGroups: [],
+    materialFolders: [],
     timelineMarkers: [],
   };
 }
@@ -630,6 +638,8 @@ export const useDataStore = create<DataState>((set) => ({
     })),
   removeDriftGroup: (id) =>
     set((state) => ({ driftGroups: state.driftGroups.filter((g) => g.id !== id) })),
+  materialFolders: [],
+  setMaterialFolders: (materialFolders) => set({ materialFolders }),
 
   timelineMarkers: [],
   setTimelineMarkers: (timelineMarkers) => set({ timelineMarkers: sortMarkers(timelineMarkers) }),

@@ -96,10 +96,10 @@ export type AppEvents = {
   // panel). Empty payload = open at last position.
   'settings:open': { railId?: string };
   // Open the entity time-machine (snapshot history) modal for one prose
-  // entity. Emitted by the editor three-dot menu and the panel cell context
+  // entity or material note. Emitted by the editor three-dot menu and the panel cell context
   // menu; consumed by the globally-mounted EntitySnapshotHistoryModal.
   'snapshot-history:open': {
-    entityKind: 'node' | 'element' | 'storyline' | 'category';
+    entityKind: 'node' | 'element' | 'storyline' | 'category' | 'library_item';
     entityId: string;
   };
   // Open the drift-binding picker modal for a timeline marker or an act.

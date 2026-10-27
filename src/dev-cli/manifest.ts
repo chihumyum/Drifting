@@ -193,6 +193,15 @@ export const DEV_CLI_MODEL_CAPABILITIES: readonly CliModelCapability[] = [
     note: 'Material lifecycle is owned by the renderer import workflow and local asset store.',
   },
   {
+    name: 'material_folder',
+    scope: 'workspace',
+    authority: 'sqlite',
+    coverage: 'workflow_only',
+    commands: RESOURCE_READ,
+    table: 'material_folder',
+    note: 'Material folders are inspectable; generic writes cannot bypass domain transactions.',
+  },
+  {
     name: 'project_asset',
     scope: 'workspace',
     authority: 'sqlite',
@@ -362,6 +371,7 @@ export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   comment: 'comment',
   comment_action: 'comment_action',
   library_item: 'library_item',
+  material_folder: 'material_folder',
   agent_conversation: 'agent_conversation',
   agent_chat_branch: 'agent_runtime',
   agent_chat_object: 'agent_runtime',

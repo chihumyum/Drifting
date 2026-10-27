@@ -40,6 +40,7 @@ function projection(projectId: string, nodeId: string): WorkspaceDataProjection 
     blockSections: [],
     bookActs: [],
     driftGroups: [],
+    materialFolders: [],
     timelineMarkers: [],
   };
 }

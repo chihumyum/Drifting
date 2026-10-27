@@ -6,6 +6,26 @@ export type WorkspaceEntityType =
   | 'library_item'
   | 'all-chapters';
 
+// Tab bar glyph, shared with lists that name a target (Review groups). For
+// node entities the caller passes isDrift so chapters (§) can be told from
+// drift nodes (❦ — matches the "构想" button in LeftSidebarHeader).
+export function workspaceTargetGlyph(entityType: WorkspaceEntityType, opts?: { isDrift?: boolean }): string {
+  switch (entityType) {
+    case 'node':
+      return opts?.isDrift ? '❦' : '§';
+    case 'storyline':
+      return '¶';
+    case 'element':
+      return '◆';
+    case 'category':
+      return '⌘';
+    case 'library_item':
+      return '❏';
+    case 'all-chapters':
+      return '☰';
+  }
+}
+
 /** Shell-neutral description of content the user wants to open. */
 export interface WorkspaceTarget {
   entityType: WorkspaceEntityType;

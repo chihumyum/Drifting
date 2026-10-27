@@ -20,11 +20,11 @@ import type { SnapshotMeta } from '../../services/snapshot-history.service';
 import { docToPlainText } from '../../lib/agent/serialize';
 import { countWordsInPmJson } from '../../lib/word-count';
 import { useDataStore } from '../../store/data-store';
-import type { ProseEntityType } from '../../lib/yjs-doc-id';
+import type { SnapshotEntityKind } from '../../lib/yjs-doc-id';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 interface Target {
-  entityKind: ProseEntityType;
+  entityKind: SnapshotEntityKind;
   entityId: string;
 }
 
@@ -120,6 +120,8 @@ export function EntitySnapshotHistoryModal() {
         return s.storylines.find((sl) => sl.id === target.entityId)?.name ?? '';
       case 'category':
         return s.bookElementCategories.find((c) => c.id === target.entityId)?.name ?? '';
+      case 'library_item':
+        return s.libraryItems.find((item) => item.id === target.entityId)?.title ?? '';
     }
   });
 

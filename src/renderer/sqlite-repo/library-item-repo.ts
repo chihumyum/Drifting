@@ -28,6 +28,8 @@ function base(record: typeof LibraryItemTable.$inferSelect) {
     notesJson: record.notesJson,
     provenanceJson: record.provenanceJson,
     orderKey: record.orderKey,
+    folderId: record.folderId,
+    taskTodos: record.taskTodos,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -105,6 +107,8 @@ export function createLibraryItemSqliteRepository(
       if (data.bodyJson !== undefined) updateValues.bodyJson = data.bodyJson;
       if (data.notesJson !== undefined) updateValues.notesJson = data.notesJson;
       if (data.orderKey !== undefined) updateValues.orderKey = data.orderKey;
+      if (data.folderId !== undefined) updateValues.folderId = data.folderId;
+      if (data.taskTodos !== undefined) updateValues.taskTodos = data.taskTodos;
 
       await dbProvider()
         .update(LibraryItemTable)

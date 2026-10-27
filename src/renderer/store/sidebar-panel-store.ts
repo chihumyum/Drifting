@@ -16,7 +16,8 @@ export type SidebarPreferences = Pick<ReturnType<typeof useUiStore.getState>,
   'chapterPanelViewMode' | 'chapterGlobalSortMode' | 'chapterStorylineInnerSortMode' |
   'chapterStorylineOuterSortMode' | 'chapterStorylinePrimaryOnly' | 'chapterCellMeta' |
   'elementSortMode' | 'elementCategorySortMode' | 'elementPanelViewMode' |
-  'driftSortMode' | 'driftCellMeta' | 'reviewScope' | 'reviewSortMode'>;
+  'driftSortMode' | 'driftCellMeta' | 'reviewScope' | 'reviewSortMode' | 'reviewGroupMode' |
+  'libraryViewMode'>;
 
 interface SidebarPanelStore {
   preferences: Record<string, Partial<SidebarPreferences>>;

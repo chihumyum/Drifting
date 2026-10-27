@@ -26,6 +26,10 @@ export type ElementSortMode = 'alphabet' | 'createdAt';
 export type ElementCategorySortMode = 'alphabet' | 'createdAt';
 export type ReviewSortMode = 'createdAt' | 'updatedAt';
 export type ReviewScope = 'current' | 'project';
+/** Review list layout: grouped under each item's target, or one flat list. */
+export type ReviewGroupMode = 'target' | 'flat';
+/** Material panel layout: every material as cards, or the folder tree. */
+export type LibraryViewMode = 'all' | 'folders';
 export type ElementPanelViewMode = 'compact' | 'list';
 
 // What the right edge of a node cell (章节 / 构想) shows. The 章节 and 构想
@@ -622,6 +626,8 @@ interface UiState {
   setReviewSortMode: (mode: ReviewSortMode) => void;
   reviewScope: ReviewScope;
   setReviewScope: (scope: ReviewScope) => void;
+  reviewGroupMode: ReviewGroupMode;
+  libraryViewMode: LibraryViewMode;
 
   // Right-edge meta shown on node cells (date vs. word count). The 章节 and 构想
   // panels keep independent preferences, each toggled from its own SortMenu.
@@ -1038,6 +1044,8 @@ export const useUiStore = create<UiState>()(
       setReviewSortMode: (mode) => set({ reviewSortMode: mode }),
       reviewScope: 'current',
       setReviewScope: (scope) => set({ reviewScope: scope }),
+      reviewGroupMode: 'target',
+      libraryViewMode: 'all',
 
       chapterCellMeta: 'date',
       setChapterCellMeta: (mode) => set({ chapterCellMeta: mode }),
@@ -1888,6 +1896,8 @@ export const useUiStore = create<UiState>()(
         elementPanelViewMode: state.elementPanelViewMode,
         reviewSortMode: state.reviewSortMode,
         reviewScope: state.reviewScope,
+        reviewGroupMode: state.reviewGroupMode,
+        libraryViewMode: state.libraryViewMode,
         chapterCellMeta: state.chapterCellMeta,
         driftCellMeta: state.driftCellMeta,
         chapterStorylinePrimaryOnly: state.chapterStorylinePrimaryOnly,
@@ -1941,6 +1951,12 @@ export const useUiStore = create<UiState>()(
         }
         if (merged.reviewScope !== 'current' && merged.reviewScope !== 'project') {
           merged.reviewScope = 'current';
+        }
+        if (merged.reviewGroupMode !== 'target' && merged.reviewGroupMode !== 'flat') {
+          merged.reviewGroupMode = 'target';
+        }
+        if (merged.libraryViewMode !== 'all' && merged.libraryViewMode !== 'folders') {
+          merged.libraryViewMode = 'all';
         }
         // Retired Shadow selections fall back to the Agent group.
         if ((merged.activeRightPanel as string) === 'shadow') {

@@ -102,24 +102,43 @@ function parseAuthored(bytes: Uint8Array): AuthoredStatePayloadV1 {
 }
 
 /**
- * Nullable authored columns added after checkpoint format v1 was published.
- * A checkpoint captured before a column existed omits it; the row is accepted
- * with an explicit null so older checkpoints keep restoring.
+ * Authored columns added after checkpoint format v1 was published, with the
+ * value a row takes when its checkpoint predates the column: null for the
+ * nullable ones, the column default otherwise. Older checkpoints keep
+ * restoring.
  */
-const NULLABLE_FIELDS_ADDED_AFTER_V1: Readonly<Record<string, readonly string[]>> = {
-  library_item: ['provenance_json'],
-  project: ['deleted_at'],
+const FIELDS_ADDED_AFTER_V1: Readonly<Record<string, Readonly<Record<string, CanonicalCborValue>>>> = {
+  library_item: { provenance_json: null, folder_id: null, task_todos: true },
+  project: { deleted_at: null },
 };
+
+/** Authored tables added after format v1; an older checkpoint restores them empty. */
+const TABLES_ADDED_AFTER_V1: readonly string[] = ['material_folder'];
 
 export function withNullableFieldsAddedAfterV1(
   table: string,
   row: Readonly<Record<string, CanonicalCborValue>>,
 ): Readonly<Record<string, CanonicalCborValue>> {
-  const missing = (NULLABLE_FIELDS_ADDED_AFTER_V1[table] ?? []).filter(
-    (field) => !Object.prototype.hasOwnProperty.call(row, field),
+  const missing = Object.entries(FIELDS_ADDED_AFTER_V1[table] ?? {}).filter(
+    ([field]) => !Object.prototype.hasOwnProperty.call(row, field),
   );
   if (missing.length === 0) return row;
-  return { ...row, ...Object.fromEntries(missing.map((field) => [field, null])) };
+  return { ...row, ...Object.fromEntries(missing) };
+}
+
+/** Adds an empty entry for each table an older checkpoint could not hold. */
+export function withTablesAddedAfterV1(entries: readonly unknown[]): readonly unknown[] {
+  const present = new Set(
+    entries.map((entry) => (isRecord(entry) && typeof entry.table === 'string' ? entry.table : null)),
+  );
+  const missing = TABLES_ADDED_AFTER_V1.filter((table) => !present.has(table));
+  if (missing.length === 0) return entries;
+  return [...entries, ...missing.map((table) => ({ table, rows: [] }))].sort((left, right) =>
+    compareUtf8Bytewise(
+      isRecord(left) && typeof left.table === 'string' ? left.table : '',
+      isRecord(right) && typeof right.table === 'string' ? right.table : '',
+    ),
+  );
 }
 
 /**
@@ -141,7 +160,7 @@ export function withRetiredUrlMaterialAsNote(
 }
 
 function parseAuthoredTables(entries: readonly unknown[]): AuthoredStatePayloadV1 {
-  const tables: SnapshotTableRowsV1[] = entries.map((entry, index) => {
+  const tables: SnapshotTableRowsV1[] = withTablesAddedAfterV1(entries).map((entry, index) => {
     if (!isRecord(entry) || typeof entry.table !== 'string' || !Array.isArray(entry.rows)) {
       throw new SnapshotRestoreError('schema-mismatch', `Authored table ${index} is malformed`);
     }
@@ -308,6 +327,9 @@ function assertProjectReferences(authored: AuthoredStatePayloadV1, projectId: st
   uniqueIds(authored, 'timeline_marker');
   uniqueIds(authored, 'agent_memory');
   uniqueIds(authored, 'comment_action');
+  // Folder links are not checked: concurrent edits can leave a parent or a
+  // material pointing at a deleted folder, which the panel shows at the root.
+  uniqueIds(authored, 'material_folder');
   uniqueIds(authored, 'entity_relation');
   for (const row of rows(authored, 'node_content')) {
     if (!nodeIds.has(requireString(row, 'node_id'))) throw new SnapshotRestoreError('reference-invalid', 'node_content references a missing node');

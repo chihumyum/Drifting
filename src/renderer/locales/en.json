@@ -1509,7 +1509,8 @@
       "node": "Chapter",
       "element": "Element",
       "storyline": "Storyline",
-      "category": "Category"
+      "category": "Category",
+      "library_item": "Note"
     }
   },
   "notifications": {
@@ -2385,7 +2386,8 @@
         "storyline": "This storyline · detailed stats",
         "element": "This element · detailed stats",
         "category": "This category · detailed stats",
-        "none": "Project · detailed stats"
+        "none": "Project · detailed stats",
+        "material": "This material · Details"
       },
       "materialContent": "Material"
     },
@@ -2394,7 +2396,8 @@
       "missingStoryline": "Could not find the current storyline.",
       "missingElement": "Could not find the current element.",
       "missingCategory": "Could not find the current category.",
-      "noStats": "No per-item stats on the project home. Open a chapter, element, or storyline for details."
+      "noStats": "No per-item stats on the project home. Open a chapter, element, or storyline for details.",
+      "missingMaterial": "Could not find this material."
     },
     "stats": {
       "jumpTo": "Jump to \"{{name}}\"",
@@ -2464,7 +2467,20 @@
       "allElementsAppeared": "All elements have appeared in prose.",
       "moreUnappearedElements": "{{count}} more unappeared",
       "storylineDistribution": "Storyline distribution",
-      "floatingStoryline": "Floating / unaffiliated"
+      "floatingStoryline": "Floating / unaffiliated",
+      "materialCoordinates": "Material",
+      "created": "Created",
+      "noteShape": "Note",
+      "noteWords": "Length",
+      "noteTasks": "To-dos",
+      "noteTasksValue": "{{done}} / {{total}} done",
+      "openComments": "Open comments & TODOs",
+      "materialFile": "File",
+      "fileType": "Type",
+      "fileSize": "Size",
+      "dimensions": "Dimensions",
+      "embeddedMaterials": "Embedded materials",
+      "materialRelations": "Linked to"
     }
   },
   "topTimeline": {
@@ -2919,7 +2935,22 @@
     "stickyCount": "{{count}} sticky notes",
     "expandSticky": "Expand sticky notes",
     "stackSticky": "Stack sticky notes",
-    "clearSticky": "Remove all sticky notes"
+    "clearSticky": "Remove all sticky notes",
+    "groupBy": {
+      "title": "Group",
+      "target": "By location",
+      "flat": "None"
+    },
+    "groups": {
+      "floating": "Not attached",
+      "deleted": "Deleted",
+      "patch": "Element patch",
+      "open": "Open {{name}}",
+      "expand": "Expand {{name}}",
+      "collapse": "Collapse {{name}}"
+    },
+    "editInNote": "Edit in the note",
+    "noteTaskHint": "From a note's checklist. Double-click to edit it in the note."
   },
   "commentRail": {
     "aria": {
@@ -3490,7 +3521,10 @@
       "deleteCategory": "Delete category",
       "deleteStoryline": "Delete storyline",
       "openMaterialInSystem": "Open in default app",
-      "deleteMaterial": "Delete material"
+      "deleteMaterial": "Delete material",
+      "noteTaskTodosOff": "Stop syncing checklist to TODOs",
+      "noteTaskTodosOn": "Sync checklist to TODOs",
+      "moveMaterialToFolder": "Move to folder…"
     }
   },
   "projectMemory": {
@@ -3593,9 +3627,35 @@
     },
     "todo": {
       "toolbar": "To-do item",
-      "promote": "Make it a TODO",
-      "linked": "Linked to a TODO",
-      "unlink": "Unlink"
+      "promote": "Make a TODO",
+      "linked": "Synced as a TODO",
+      "unlink": "Keep as a checkbox"
+    }
+  },
+  "materialFolders": {
+    "root": "All materials",
+    "untitled": "New folder",
+    "tree": "Material folders",
+    "breadcrumb": "Folder path",
+    "empty": "No materials yet. Right-click to create a folder.",
+    "deleteConfirm": "Delete the folder “{{name}}”? Everything in it moves up one level; no material is deleted.",
+    "menu": {
+      "newFolder": "New folder",
+      "newSubfolder": "New folder inside",
+      "rename": "Rename",
+      "delete": "Delete folder",
+      "open": "Open",
+      "move": "Move to folder…",
+      "moveSelected": "Move {{count}} materials to folder…"
+    },
+    "toolbar": {
+      "showFolders": "Browse by folder",
+      "showAll": "Show all materials"
+    },
+    "picker": {
+      "title": "Move to folder",
+      "newPlaceholder": "New folder name",
+      "createAndMove": "Create and move"
     }
   }
 }

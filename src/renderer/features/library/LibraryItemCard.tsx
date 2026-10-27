@@ -10,7 +10,7 @@ import {
   useStoredLibraryItemVariant,
 } from './library-item-media';
 
-type LibraryItemContextMenuAction = 'addRelation' | 'openInSystem' | 'delete';
+type LibraryItemContextMenuAction = 'addRelation' | 'moveToFolder' | 'openInSystem' | 'delete';
 
 function LibraryItemContextMenuItem({
   glyph,
@@ -50,6 +50,7 @@ function LibraryItemContextMenu({
   y,
   onOpenInSystem,
   onAddRelation,
+  onMoveToFolder,
   onDelete,
   onClose,
 }: {
@@ -60,6 +61,7 @@ function LibraryItemContextMenu({
   y: number;
   onOpenInSystem: () => void;
   onAddRelation: () => void;
+  onMoveToFolder?: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -114,6 +116,7 @@ function LibraryItemContextMenu({
 
   const handleAction = (action: LibraryItemContextMenuAction) => {
     if (action === 'addRelation') onAddRelation();
+    if (action === 'moveToFolder') onMoveToFolder?.();
     if (action === 'openInSystem') onOpenInSystem();
     if (action === 'delete') onDelete();
     onClose();
@@ -146,6 +149,14 @@ function LibraryItemContextMenu({
           action="addRelation"
           onAction={handleAction}
         />
+        {onMoveToFolder && (
+          <LibraryItemContextMenuItem
+            glyph="→"
+            label={t('editorTopBar.menu.moveMaterialToFolder')}
+            action="moveToFolder"
+            onAction={handleAction}
+          />
+        )}
       </div>
 
       {!isTextSnippet && (
@@ -183,6 +194,10 @@ export function LibraryItemCard({
   onSetEditing,
   onOpenInSystem,
   onOpenInApp,
+  onPin,
+  active = false,
+  folderPath,
+  onMoveToFolder,
   onUpdate,
   onDelete,
   onAddRelation,
@@ -200,6 +215,13 @@ export function LibraryItemCard({
   onSetEditing: (on: boolean) => void;
   onOpenInSystem: () => void;
   onOpenInApp: () => void;
+  /** Double-click: open the material as a pinned (non-preview) tab. */
+  onPin?: () => void;
+  /** The material shown in the active workspace tab. */
+  active?: boolean;
+  /** "A / B" when the material sits in a folder. */
+  folderPath?: string;
+  onMoveToFolder?: () => void;
   onUpdate: (updates: LibraryItemPatch) => void;
   onDelete: () => void;
   onAddRelation: (t: RelationTarget) => void;
@@ -259,10 +281,16 @@ export function LibraryItemCard({
   return (
     <>
       <div
-        className="workspace-list-row"
+        className={`workspace-list-row${active ? ' workspace-list-row--active' : ''}`}
+        aria-current={active ? 'page' : undefined}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onContextMenu={openContextMenu}
+        onDoubleClick={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (!onPin || target?.closest('input, textarea, button, [contenteditable="true"]')) return;
+          onPin();
+        }}
         style={{
           padding: '8px 10px',
           // The relation target picker is part of the card's authored
@@ -294,6 +322,11 @@ export function LibraryItemCard({
           }}
         >
           <span style={{ color: accent }}>{kindLabel}</span>
+          {folderPath && (
+            <span className="library-item-card__folder" title={folderPath}>
+              {folderPath}
+            </span>
+          )}
           <span style={{ flex: 1 }} />
           {canExpandImage && (
             <button
@@ -621,6 +654,7 @@ export function LibraryItemCard({
           y={contextMenu.y}
           onOpenInSystem={handleOpenInSystem}
           onAddRelation={() => setPickerOpen(true)}
+          onMoveToFolder={onMoveToFolder}
           onDelete={onDelete}
           onClose={closeContextMenu}
         />

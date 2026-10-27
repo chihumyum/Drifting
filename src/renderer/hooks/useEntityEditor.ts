@@ -53,6 +53,7 @@ import { useAuthStore } from '../store/auth';
 import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
 import type { CommentTargetKind } from '../domain/comment';
+import { isCommentTargetKind } from '../domain/entity-kinds';
 import { useTypewriterScrolling } from './useTypewriterScrolling';
 import { useEntityLinkConfiguration } from '../features/editor/useEntityLinkConfiguration';
 import { openEntityLinkTarget } from '../features/editor/open-entity-link';
@@ -108,15 +109,6 @@ function useLatestRef<T>(value: T) {
   return ref;
 }
 
-function isCommentTargetKind(kind: EntityKind): kind is CommentTargetKind {
-  return (
-    kind === 'node' ||
-    kind === 'element' ||
-    kind === 'storyline' ||
-    kind === 'category' ||
-    kind === 'patch'
-  );
-}
 
 /** How many blocks before/after the invocation region to pull in as context when
  *  the chapter is too large to send whole (see FULL_CHAPTER_CHAR_BUDGET). */

@@ -14,6 +14,10 @@ interface LibraryItemBase {
   /** Versioned origin record (see material-provenance.ts); null for author imports. */
   provenanceJson: string | null;
   orderKey: number;
+  /** The material folder holding this item; null = the panel's root. */
+  folderId: string | null;
+  /** Notes only: whether checklist items become TODOs. Default true. */
+  taskTodos: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,7 +42,7 @@ export type LibraryTextItem = LibraryItemBase & {
 export type LibraryItem = LibraryAssetItem | LibraryTextItem;
 
 export type LibraryItemPatch = Partial<
-  Pick<LibraryItemBase, 'title' | 'notesJson' | 'orderKey' | 'updatedAt'>
+  Pick<LibraryItemBase, 'title' | 'notesJson' | 'orderKey' | 'folderId' | 'taskTodos' | 'updatedAt'>
 > & {
   bodyJson?: string | null;
 };

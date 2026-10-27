@@ -76,6 +76,6 @@ export function createSyntheticWorkspaceProjection(projectId: string, nodeCount 
     }],
     storylines: [], storylineNodeMapping: {}, primaryStorylineByNode: {}, trashedEntityIds: new Set(),
     projectAssets: [], libraryItems: [], comments: [], commentActions: [], entityRelations: [],
-    entityRelationTypes: [], blockSections: [], bookActs: [], driftGroups: [], timelineMarkers: [],
+    entityRelationTypes: [], blockSections: [], bookActs: [], driftGroups: [], materialFolders: [], timelineMarkers: [],
   };
 }

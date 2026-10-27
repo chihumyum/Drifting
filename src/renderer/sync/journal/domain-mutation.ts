@@ -21,6 +21,7 @@ export const AUTHORED_DOMAIN_ENTITY_KINDS = [
   'agentMemory',
   'bookAct',
   'driftGroup',
+  'materialFolder',
   'timelineMarker',
 ] as const;
 
@@ -58,6 +59,7 @@ const WIRE_KIND: Readonly<Record<AuthoredDomainEntityKind, string>> = {
   agentMemory: 'agent-memory',
   bookAct: 'book-act',
   driftGroup: 'drift-group',
+  materialFolder: 'material-folder',
   timelineMarker: 'timeline-marker',
 };
 
@@ -119,6 +121,8 @@ const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<str
     'bodyJson',
     'notesJson',
     'provenanceJson',
+    'folderId',
+    'taskTodos',
   ]),
   entityRelation: new Set([
     'fromKind',
@@ -181,6 +185,7 @@ const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<str
   ]),
   bookAct: new Set(['name', 'color', 'startOrder', 'driftNodeId']),
   driftGroup: new Set(['name', 'parentGroupId', 'color']),
+  materialFolder: new Set(['name', 'parentFolderId']),
   timelineMarker: new Set(['narrativeOrder', 'label', 'driftNodeId']),
 };
 

@@ -1,3 +1,4 @@
+import { materialFolderPath } from '../../domain/material-folder';
 import { noteToMarkdown } from '../note-markdown';
 import { searchExactProse } from './exact-prose-search';
 /**
@@ -717,6 +718,12 @@ function materialBodyText(raw: string | null): string {
   return docToPlainText(raw);
 }
 
+/** "A/B" for a material filed in folder B inside A; undefined at the root. */
+function materialFolderLabel(folderId: string | null): string | undefined {
+  const path = materialFolderPath(useDataStore.getState().materialFolders, folderId);
+  return path.length ? path.map((folder) => folder.name).join('/') : undefined;
+}
+
 /** list_materials — the project's library items by TITLE, with kind hints. */
 function listMaterials(ctx: AgentToolContext) {
   const items = useDataStore
@@ -728,6 +735,7 @@ function listMaterials(ctx: AgentToolContext) {
     materials: items.map((m) => ({
       title: m.title || '(untitled)',
       kind: m.kind,
+      folder: materialFolderLabel(m.folderId),
       source: materialSource(m.provenanceJson),
       // Text materials advertise their length so the agent can pick a
       // reusable snippet without reading every item.
@@ -759,6 +767,7 @@ function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
   return {
     title: item.title,
     kind: item.kind,
+    folder: materialFolderLabel(item.folderId),
     source: materialSource(item.provenanceJson),
     ...(provenance?.origin === 'generated'
       ? {

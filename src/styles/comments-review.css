@@ -2573,3 +2573,99 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* Review groups: items gathered under their target. A quiet mono header,
+   no accent bar; collapsing hides only that group's cards. */
+.review-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-group + .review-group {
+  margin-top: 4px;
+}
+
+.review-group__header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px 0 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-secondary, 10.5px)/1.3 var(--font-mono);
+}
+
+.review-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-xs, 3px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.review-group__toggle svg {
+  transition: transform 120ms ease;
+}
+
+.review-group__toggle--open svg {
+  transform: rotate(90deg);
+}
+
+.review-group__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: var(--radius-xs, 3px);
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-group__title:hover:not(:disabled),
+.review-group__toggle:hover {
+  background: var(--workspace-cell-hover-bg);
+}
+
+.review-group__title:disabled {
+  cursor: default;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.review-group__glyph {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.review-group__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.review-group__count {
+  flex-shrink: 0;
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-group__items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

@@ -58,6 +58,7 @@ async function sourceFixture(): Promise<LocalRelationalMarkdownSource> {
           assets: [],
           acts: [],
           driftGroups: [],
+          materialFolders: [],
           nodes: [
             {
               id: SNAPSHOT_NODE_ID,
@@ -590,6 +591,26 @@ describe('reader-facing Markdown tree', () => {
     expect(projectedDocument(result, 'node', SNAPSHOT_NODE_ID).text).toContain('注释');
     expect(result.documents.find(document => document.key === 'comment:comment-0001')!.path).toBe(comments.path);
     expect(result.entries.filter(entry => entry.path.startsWith('注释'))).toHaveLength(1);
+  });
+
+  it('nests materials in their folders in the readable tree and records the folder in the relational export', async () => {
+    const source = await sourceFixture();
+    const graph = source.books[0]!.graph;
+    graph.materialFolders.push(
+      { id: 'folder-a', projectId: PROJECT_ID, name: '调研', parentFolderId: null, createdAt: NOW, updatedAt: NOW },
+      { id: 'folder-b', projectId: PROJECT_ID, name: '地图', parentFolderId: 'folder-a', createdAt: NOW, updatedAt: NOW },
+      // Left inside each other by concurrent moves: still exported, at the root.
+      { id: 'loop-a', projectId: PROJECT_ID, name: '甲', parentFolderId: 'loop-b', createdAt: NOW, updatedAt: NOW },
+      { id: 'loop-b', projectId: PROJECT_ID, name: '乙', parentFolderId: 'loop-a', createdAt: NOW, updatedAt: NOW },
+    );
+    graph.libraryItems[0] = { ...graph.libraryItems[0]!, folderId: 'folder-b' };
+    graph.libraryItems.push({ ...graph.libraryItems[0]!, id: 'library-0002', title: 'Loose note', folderId: 'loop-b' });
+    const readable = await buildRelationalMarkdownEntries(source, true);
+    expect(projectedDocument(readable, 'library_item', 'library-0001').path).toBe('资料/调研/地图/Local note.md');
+    expect(projectedDocument(readable, 'library_item', 'library-0002').path).toBe('资料/甲/乙/Loose note.md');
+    const relational = await buildRelationalMarkdownEntries(source);
+    const note = relational.entries.find(entry => entry.path.includes('/notes/library/') && entry.text.includes('Local note'))!;
+    expect(note.text).toContain('folder: "调研/地图"');
   });
 
   it('handles duplicate names, Unicode normalization, reserved names and file-directory collisions without leaking full IDs', async () => {

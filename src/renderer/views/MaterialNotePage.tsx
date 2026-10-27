@@ -5,7 +5,8 @@ import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
 
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
-import { useEntityEditor, type EditorPersistDerived } from '../hooks/useEntityEditor';
+import { useEntityEditor, type EditorCommentRequest, type EditorPersistDerived } from '../hooks/useEntityEditor';
+import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useLibraryItem } from '../usecase/useLibraryItem';
 import { useDataStore } from '../store/data-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -14,6 +15,12 @@ import type { SlashMenuExtraItem } from '../lib/slash-menu/default-slash-menu';
 import type { LibraryItem } from '../domain/library-item';
 import { platform } from '../platform';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
+import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
+import { nestHeadings } from '../components/editor/outline-rail-model';
+import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
+import { CommentAnchorHighlights } from '../components/editor/CommentAnchorHighlights';
+import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
+import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/Modal';
 import { MaterialEmbedWithView } from '../features/library/MaterialEmbedView';
 import { NoteFileImport } from '../lib/extensions/note-blocks';
@@ -49,6 +56,20 @@ export function MaterialNotePage({
   const { t } = useTranslation();
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const [embedPickerEditor, setEmbedPickerEditor] = useState<Editor | null>(null);
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+
+  // Margin comments and TODOs on the note's text, as in the entity editors.
+  const stickyNoteRail = useEntityStickyNoteRail('library_item', item.id);
+  const marginNotes = stickyNoteRail.visible;
+  const setMarginNotes = stickyNoteRail.setVisible;
+  const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  const handleAddCommentRequest = useCallback(
+    (request: EditorCommentRequest) => {
+      setMarginNotes(true);
+      setPendingComment(request);
+    },
+    [setMarginNotes],
+  );
 
   const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'library-item',
@@ -125,7 +146,7 @@ export function MaterialNotePage({
     [],
   );
 
-  const { editor, ready } = useEntityEditor({
+  const { editor, ready, outline } = useEntityEditor({
     sourceKind: 'library_item',
     sourceId: item.id,
     projectId,
@@ -134,6 +155,7 @@ export function MaterialNotePage({
     ydoc,
     onPersist: handlePersist,
     placeholder: t('materialEditor.notePlaceholder'),
+    onAddCommentRequest: handleAddCommentRequest,
     editorClass: 'prose max-w-none focus:outline-none note-prose',
     slashExtraItems: slashItems,
     selectionKey: editorTabSelectionKey(projectId, { entityType: 'library_item', id: item.id }),
@@ -145,7 +167,14 @@ export function MaterialNotePage({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
-  const { promoteTaskItem, unlinkTaskItem } = useNoteTodoLinks({ editor, noteId: item.id, projectId, userId });
+  const { promoteTaskItem, unlinkTaskItem } = useNoteTodoLinks({
+    editor,
+    ready,
+    noteId: item.id,
+    taskTodos: item.taskTodos,
+    projectId,
+    userId,
+  });
 
   useEffect(() => {
     onReadyChange(ready || Boolean(ydocError));
@@ -153,17 +182,48 @@ export function MaterialNotePage({
   }, [onReadyChange, ready, ydocError]);
 
   return (
-    <div className="editor-scroll">
-      <div className="editor__spread">
-        <article className="page page--entity material-editor__note-page">
-          {header}
-          {editor && <NoteTableBar editor={editor} />}
-          {editor && <NoteTaskBar editor={editor} onPromote={() => void promoteTaskItem().catch((error: unknown) => log.error('Failed to link TODO:', error))} onUnlink={unlinkTaskItem} />}
-          <div className="material-editor__note-body">
-            {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
-          </div>
-        </article>
+    <div className="editor-body">
+      <EditorOutlineRail
+        title={`${item.title || t('common.untitled')} · OUTLINE`}
+        items={nestHeadings(outline)}
+        scrollspyIds={outline.map((heading) => heading.id)}
+        onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+      />
+      <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
+        <div className="editor__spread">
+          <article className="page page--entity material-editor__note-page">
+            {header}
+            {editor && <NoteTableBar editor={editor} />}
+            {editor && (
+              <NoteTaskBar
+                editor={editor}
+                onPromote={() => void promoteTaskItem().catch((error: unknown) => log.error('Failed to link TODO:', error))}
+                onUnlink={() => void unlinkTaskItem().catch((error: unknown) => log.error('Failed to unlink TODO:', error))}
+              />
+            )}
+            <div className="material-editor__note-body">
+              {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
+            </div>
+          </article>
+        </div>
       </div>
+      {marginNotes && (
+        <StickyNoteRail
+          projectId={projectId}
+          targetKind="library_item"
+          targetId={item.id}
+          pendingRequest={pendingComment}
+          onPendingRequestChange={setPendingComment}
+        />
+      )}
+      <CommentAnchorHighlights scrollEl={scrollEl} projectId={projectId} targetKind="library_item" targetId={item.id} />
+      <EditorScrollMarkers
+        projectId={projectId}
+        targetKind="library_item"
+        targetId={item.id}
+        scrollEl={scrollEl}
+        visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
+      />
       {embedPickerEditor && (
         <MaterialEmbedPicker
           projectId={projectId}
@@ -201,7 +261,10 @@ function NoteTableBar({ editor }: { editor: Editor }) {
   );
 }
 
-/** Links the task item at the caret to a TODO, or shows that it is linked. */
+/**
+ * The task item at the caret: whether it is a TODO, with the way out (keep it
+ * a plain checkbox) or back in (make it a TODO).
+ */
 function NoteTaskBar({ editor, onPromote, onUnlink }: { editor: Editor; onPromote: () => void; onUnlink: () => void }) {
   const { t } = useTranslation();
   const state = useEditorState({
@@ -210,7 +273,8 @@ function NoteTaskBar({ editor, onPromote, onUnlink }: { editor: Editor; onPromot
       if (!current) return null;
       const found = taskItemAtSelection(current);
       if (!found) return null;
-      return { linked: typeof found.node.attrs.todoId === 'string', empty: !found.node.textContent.trim() };
+      const todoId = found.node.attrs.todoId as string | null;
+      return { linked: typeof todoId === 'string' && todoId !== '', empty: !found.node.textContent.trim() };
     },
   });
   if (!state) return null;

@@ -12,12 +12,11 @@ import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { ReferencesPanel } from '../../components/editor/ReferencesPanel';
 import { getWritingStatusLabel } from '../../components/editor/EditorTopBar';
-import { events } from '../../lib/events';
-import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { EmptyState } from '../../components/ui/EmptyState';
 import type { EntityStatsTarget } from './entity-stats-types';
 import { AllChaptersStats } from './AllChaptersStats';
+import { MaterialStats } from './MaterialStats';
 import {
   DetailValue,
   Dot,
@@ -27,6 +26,7 @@ import {
   MetaV,
   Notes,
   ProgressBar,
+  SnapshotEntryButton,
   StatsLinkRow,
   StatsRow,
   StatsSection,
@@ -116,6 +116,9 @@ export function EntityStatsContent({
         primaryStorylineByNode={primaryStorylineByNode}
       />
     );
+  }
+  if (target.kind === 'material' && target.id) {
+    return <MaterialStats libraryItemId={target.id} />;
   }
   return <EmptyState message={t('rightSidebar.empty.noStats')} />;
 }
@@ -292,52 +295,6 @@ function useCategoryHealth(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
   return health;
-}
-
-/**
- * The stats panel's entry into the entity time machine — opens the globally
- * mounted EntitySnapshotHistoryModal. This is the ONLY entry point (the
- * editor / cell context menus deliberately don't carry it).
- */
-function SnapshotEntryButton({
-  entityKind,
-  entityId,
-}: {
-  entityKind: ProseEntityType;
-  entityId: string;
-}) {
-  const { t } = useTranslation();
-  return (
-    <button
-      type="button"
-      onClick={() => events.emit('snapshot-history:open', { entityKind, entityId })}
-      title={t('rightSidebar.stats.snapshotTitle')}
-      style={{
-        width: '100%',
-        marginTop: 14,
-        padding: '7px 10px',
-        border: '1px solid hsl(var(--rule))',
-        borderRadius: 4,
-        background: 'transparent',
-        color: 'hsl(var(--ink-2))',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        letterSpacing: '0.06em',
-        cursor: 'pointer',
-        transition: 'background 0.12s, color 0.12s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'hsl(var(--rule) / 0.3)';
-        e.currentTarget.style.color = 'hsl(var(--ink-1))';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'hsl(var(--ink-2))';
-      }}
-    >
-      ↺ {t('rightSidebar.stats.snapshotButton')}
-    </button>
-  );
 }
 
 function ChapterStats({

@@ -2,17 +2,17 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "f17354732e0c64d17955f52f4b6e11bae6c8c8e807904c33605cfce127595e11",
+  "schemaSha256": "d33af5be4382c41e09d801b7eb8de6489a429563a56022ef79f8c01521493f2b",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 96,
-    "fieldCount": 998,
-    "includedTableCount": 26,
+    "tableCount": 97,
+    "fieldCount": 1006,
+    "includedTableCount": 27,
     "excludedTableCount": 70,
     "classCounts": {
-      "authored": 170,
+      "authored": 176,
       "crdt": 10,
-      "derived": 92,
+      "derived": 94,
       "device-local": 370,
       "secret": 5,
       "transport": 332,
@@ -3682,7 +3682,7 @@
       "table": "library_item",
       "scope": "project-direct",
       "disposition": "include",
-      "reason": "Library text, URL, binary metadata, notes, provenance, asset binding, and ordering are authored state.",
+      "reason": "Library text, URL, binary metadata, notes, provenance, folder, TODO switch, asset binding, and ordering are authored state.",
       "fields": [
         {
           "field": "asset_id",
@@ -3704,6 +3704,12 @@
         },
         {
           "field": "external_url",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
+          "field": "folder_id",
           "classification": "authored",
           "disposition": "include",
           "reason": "Stable identity or authored domain state required to reconstruct the project."
@@ -3751,7 +3757,57 @@
           "reason": "Stable identity or authored domain state required to reconstruct the project."
         },
         {
+          "field": "task_todos",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
           "field": "title",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
+          "field": "updated_at",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        }
+      ]
+    },
+    {
+      "table": "material_folder",
+      "scope": "project-direct",
+      "disposition": "include",
+      "reason": "Material folder names and nesting are authored project organization.",
+      "fields": [
+        {
+          "field": "created_at",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        },
+        {
+          "field": "id",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
+          "field": "name",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
+          "field": "parent_folder_id",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
+        },
+        {
+          "field": "project_id",
           "classification": "authored",
           "disposition": "include",
           "reason": "Stable identity or authored domain state required to reconstruct the project."

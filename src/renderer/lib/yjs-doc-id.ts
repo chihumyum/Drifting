@@ -43,8 +43,8 @@ export function isProseEntityType(kind: string): kind is ProseEntityType {
 }
 
 /** The prose entity a document belongs to, or null for a material note: notes
- *  sit outside the book, so Agent review, references, check-ins and entity
- *  history do not track them. */
+ *  sit outside the book, so Agent review, references and check-ins do not
+ *  track them. Entity history does (see SnapshotEntityKind). */
 export function proseEntityTypeForDocKind(kind: DocKind): ProseEntityType | null {
   if (kind === 'library-item') return null;
   return kind === 'node-content' ? 'node' : kind;
@@ -54,6 +54,19 @@ export function proseEntityTypeForDocKind(kind: DocKind): ProseEntityType | null
  *  'node' → the 'node-content' body doc; the rest map 1:1 to their DocKind. */
 export function proseDocId(entityType: ProseEntityType, id: string): string {
   return makeDocId(entityType === 'node' ? 'node-content' : entityType, id);
+}
+
+/** Entities with a local time-machine trail: the prose entities plus material
+ *  notes, which keep their history even though they sit outside the book. */
+export type SnapshotEntityKind = ProseEntityType | 'library_item';
+
+export function snapshotEntityKindForDocKind(kind: DocKind): SnapshotEntityKind {
+  if (kind === 'library-item') return 'library_item';
+  return kind === 'node-content' ? 'node' : kind;
+}
+
+export function snapshotDocId(kind: SnapshotEntityKind, id: string): string {
+  return kind === 'library_item' ? makeDocId('library-item', id) : proseDocId(kind, id);
 }
 
 export function parseDocId(docId: string): { kind: DocKind; entityId: string } | null {

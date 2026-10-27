@@ -43,10 +43,9 @@ export type EntityKind = (typeof ALL_ENTITY_KINDS)[number];
 // same today.
 export type EntityRefSourceKind = EntityKind;
 export type EntityRefTargetKind = StructuralEntityKind;
-/** What a comment row may target: book entities, or a material (region comments). */
+/** What a comment row may target: book entities, or a material (region
+ *  comments on images and PDFs, margin comments on notes). */
 export type CommentTargetKind = StructuralEntityKind | 'library_item';
-/** Comment targets that carry prose: sticky rails, highlights and markers. */
-export type ProseCommentTargetKind = StructuralEntityKind;
 export type InlineMentionKind = StructuralEntityKind;
 
 const ALL_SET: ReadonlySet<string> = new Set(ALL_ENTITY_KINDS);

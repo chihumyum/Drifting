@@ -4,6 +4,7 @@ import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
+import { workspaceTargetGlyph } from '../../../features/workspace/navigation/workspace-target';
 import { useTabReorder } from './useTabReorder';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import {
@@ -81,26 +82,6 @@ const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
 // Total chrome = 50 + 50 + 1 (divider) = 101.
 const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
-// Tab bar glyph. For node entities, the caller passes isDrift so chapters
-// (§) can be distinguished from drift nodes (❦ — matches the
-// "构想" button in LeftSidebarHeader). All-chapters uses ☰ so the bar
-// glance.
-function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): string {
-  switch (entityType) {
-    case 'node':
-      return opts?.isDrift ? '❦' : '§';
-    case 'storyline':
-      return '¶';
-    case 'element':
-      return '◆';
-    case 'category':
-      return '⌘';
-    case 'library_item':
-      return '❏';
-    case 'all-chapters':
-      return '☰';
-  }
-}
 
 export function TopTimeline() {
   const { t } = useTranslation();
@@ -692,7 +673,7 @@ function LeafTabSlot({
           lineHeight: 1,
         }}
       >
-        {getTabIcon(tab.entityType, { isDrift })}
+        {workspaceTargetGlyph(tab.entityType, { isDrift })}
       </span>
       <span
         style={{
@@ -935,7 +916,7 @@ function SplitSubLabel({
           lineHeight: 1,
         }}
       >
-        {getTabIcon(entityType, { isDrift })}
+        {workspaceTargetGlyph(entityType, { isDrift })}
       </span>
       <span
         style={{

@@ -9,7 +9,7 @@ const projectionKeys = {
   projectAssets: true, trashedEntityIds: true, libraryItems: true,
   comments: true, commentActions: true, entityRelations: true,
   entityRelationTypes: true, blockSections: true, bookActs: true,
-  driftGroups: true, timelineMarkers: true,
+  driftGroups: true, materialFolders: true, timelineMarkers: true,
 } satisfies Record<keyof WorkspaceDataProjection, true>;
 
 /** Local reducers and derived metrics can advance without a refresh epoch. */
@@ -100,6 +100,7 @@ export function shareWorkspaceProjection(previous: WorkspaceDataProjection, next
     blockSections: shareRows(previous.blockSections, next.blockSections),
     bookActs: shareRows(previous.bookActs, next.bookActs),
     driftGroups: shareRows(previous.driftGroups, next.driftGroups),
+    materialFolders: shareRows(previous.materialFolders, next.materialFolders),
     timelineMarkers: shareRows(previous.timelineMarkers, next.timelineMarkers),
   };
 }

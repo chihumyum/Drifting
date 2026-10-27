@@ -7,7 +7,7 @@ const base = {
   projectId: 'synthetic-project',
   notesJson: null,
   provenanceJson: null,
-  orderKey: 0,
+  orderKey: 0, folderId: null, taskTodos: true,
   createdAt: '2026-10-27T00:00:00.000Z',
   updatedAt: '2026-10-27T00:00:00.000Z',
 };

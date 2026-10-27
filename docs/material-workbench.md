@@ -38,8 +38,15 @@ next to the book. They are not manuscript.
   splits and persistence like other entities. A tab shows a header (kind, editable title, relations, actions)
   and a kind-specific body.
 - The right-sidebar Library panel and the ⌘⌥5 TODO & 素材库 view are indexes:
-  activating a card opens the material tab. Note cards render a short
-  read-only excerpt of the note document.
+  activating a card opens the material tab (double-click keeps it, and the
+  card of the active tab is highlighted, as in the chapter panel). Note cards
+  render a short read-only excerpt of the note document.
+- A note tab has the entity editors' furniture: the outline rail of its
+  headings, margin comments and TODOs on its text (the shared sticky-note
+  rail, anchor highlights and scroll ticks, targeting the note), and a stats
+  tab section (length, checklist progress, open comments, embeds, relations)
+  with the entity history entry. Image and PDF tabs keep their comment
+  column; their stats section shows the file.
 - The in-place fullscreen preview, the text snippet popover and the card's
   inline text expansion are removed once tabs exist.
 - Image and PDF tabs carry the material's `notes_json` description as a small
@@ -73,8 +80,10 @@ and the ordinary row update refuses body edits.
 - The kernel accepts `library-item:` updates only when the owner is a note.
 - Checkpoints carry note documents (`proseSeedRows` includes text items).
   Restore accepts packages captured before note documents existed.
-- Agent review, references, check-ins and entity history skip note documents
-  (`proseEntityTypeForDocKind`); notes sit outside the book.
+- Agent review, references and check-ins skip note documents
+  (`proseEntityTypeForDocKind`); notes sit outside the book. Entity history
+  includes them (`SnapshotEntityKind`): the local time machine captures and
+  restores a note's body and title like any prose entity.
 - Project deletion removes note documents; deleting a single material leaves
   its Yjs rows, as for every other entity.
 
@@ -85,7 +94,7 @@ The prose schema plus:
 | Node / mark | Notes |
 | --- | --- |
 | `bulletList`, `orderedList`, `listItem` | enabled (disabled in prose) |
-| `taskList`, `taskItem` | `checked`, optional `todoId` linking a TODO |
+| `taskList`, `taskItem` | `checked`; `todoId`: a TODO id, `''` (a plain checkbox), or null (not yet projected) |
 | `codeBlock`, `code` | enabled |
 | `table`, `tableRow`, `tableHeader`, `tableCell` | `@tiptap/extension-table` |
 | `highlight` mark | single highlight colour |
@@ -117,18 +126,44 @@ a picked file. Deleting the node leaves the material in the library; deleting
 the material renders the node as a missing placeholder. Asset ownership
 therefore stays "expressed exactly once".
 
-### TODO links
+### Checklist items are TODOs
 
-A task item can be linked to a TODO (`comment.kind = 'todo'`). With the caret
-in a task item, the note shows **转为 TODO**: it creates a TODO targeting the
-note (`target_kind = 'library_item'`, `target_block_id` = the task item id)
-and writes its id into the item's `todoId`; linked items carry a small TODO
-mark and offer **取消关联**. While linked, the TODO's status is authoritative
-(`views/note-todo-links.ts`): resolving or reopening the TODO anywhere (TODO
-rail, Review panel, another device) moves the checkbox, ticking the checkbox
-resolves or reopens the TODO, and deleting the TODO unlinks the item. Remote
-document edits never write TODO status; only the author's own toggles do.
-Unlinked task items stay local checkboxes.
+A note's task items become TODOs by default (`views/note-todo-links.ts`). The
+note owns which lines exist and what they say; the TODO owns the status.
+
+- A finished line (the caret left it, or the editor lost focus) becomes a TODO
+  targeting the note (`target_kind = 'library_item'`, `target_block_id` = the
+  task item id, `metadata_json = {"kind":"note-task"}`) and its id is written
+  into the item's `todoId`. Lines already in a note are projected when it is
+  opened. Empty lines are not projected.
+- Editing a linked line updates the TODO's text; removing the line deletes the
+  TODO. Deleting the TODO anywhere (Review panel, Agent) removes the line from
+  the note, live or closed (`lib/note-task-document.ts`), so the note does not
+  project it again. Undo restores a removed line, which is projected anew.
+- Status: resolving or reopening the TODO anywhere moves the checkbox; ticking
+  the checkbox resolves or reopens the TODO.
+- **不作为 TODO** keeps a line as a plain checkbox (`todoId = ''`) and deletes
+  its TODO; **转为 TODO** links it again. A link whose TODO no longer exists
+  becomes a plain checkbox. A pasted copy of a linked line gets its own TODO.
+- The note's ⋯ menu turns the projection off (`library_item.task_todos`);
+  existing links keep syncing, new lines stay checkboxes.
+- Only the author's own edits on this device create, edit or delete TODOs;
+  edits arriving from another device were reconciled where they were made.
+  If a line's TODO row arrives after the line's link (a sync race), the line
+  becomes a plain checkbox rather than risk deleting it.
+- The note editor paints no anchor highlight for these TODOs (the line shows
+  them), and their Review cards send text edits back to the note.
+
+### Review panel groups
+
+The Review panel groups comments and TODOs under the entity they target
+(chapter, drift, element, storyline, category, note, image, PDF), each group a
+collapsible header that opens its target; unattached items come last
+(`features/comments/review-groups.ts`). Groups follow their newest item; inside
+a group, block-anchored items follow the document when its body is in memory
+(notes, elements, storylines, categories; chapters keep time order). A list
+with a single target shows no header. The sort menu switches between grouped
+and flat (`reviewGroupMode`, per panel). Grouping is presentation only.
 
 ### Region comments
 
@@ -151,20 +186,42 @@ Coordinates are normalized to the image or PDF page (`page` only for PDFs).
 - With a material tab active, the Review panel's current scope is that
   material, and composing a note or TODO there targets it directly (a
   material cannot be a relation target).
-- `CommentTargetKind` includes `library_item`; prose surfaces (sticky rails,
-  highlights, markers) keep `ProseCommentTargetKind`. `parseMaterialRegion`
-  reads anchors leniently.
+- `CommentTargetKind` includes `library_item`. `parseMaterialRegion` reads
+  anchors leniently.
 - Deleting a material deletes the comments that target it, with their
   relations, in the same transaction. The paused Apple client's Rust delete
   does not cascade yet.
 - The Agent can read and name material comments; it does not create them.
 
+## Folders
+
+Materials can be filed in user-defined nested folders (`material_folder`,
+migration `0012`; `library_item.folder_id`). A material sits in at most one
+folder; relations to chapters and elements stay the cross-cutting link.
+
+- The Library panel switches between **全部** (every material as a card, with
+  its folder path) and **文件夹** (`libraryViewMode`, per panel). On desktop the
+  folder view is a Finder-style tree: disclosure triangles, folders first and
+  everything sorted by name, drag a material or folder onto a folder (or the
+  empty area for the root), ⌘-click to select several materials, right-click
+  to create, rename, move or delete. On mobile it shows one folder at a time
+  under a breadcrumb. New materials go into the folder last selected.
+- **移动到文件夹…** is on every card, tree row and material tab menu; the tab's
+  breadcrumb shows the folder path.
+- Deleting a folder moves its sub-folders and materials up a level
+  (`usecase/useMaterialFolder.ts`), like drift groups; no material is deleted.
+- Concurrent edits can leave a folder or material pointing at a deleted folder,
+  or two folders inside each other. Neither is an invariant: the tree shows
+  such folders at the root (a loop is broken at its smallest id, the same on
+  every device) and such materials at the root.
+
 ## Agent
 
-- `list_materials` / `read_material` keep their contract; `read_material`
-  returns a note as Markdown (`lib/note-markdown.ts`: GFM tables, task lists,
-  code fences, callouts) rendered from its projection.
-- The Agent does not edit notes in this design.
+- `list_materials` / `read_material` keep their contract and add the folder
+  path; `read_material` returns a note as Markdown (`lib/note-markdown.ts`:
+  GFM tables, task lists, code fences, callouts) rendered from its projection.
+- The Agent does not edit notes in this design. Deleting a note-task TODO
+  through the Agent removes its line like any other deletion.
 
 ## Export
 
@@ -172,7 +229,9 @@ Relational and readable Markdown export render notes with `noteToMarkdown`
 from their projection: GFM tables, `- [ ]` task lists, code fences, `> [!note]`
 callouts, `==highlights==`, and embeds and mentions as links in each export's
 own style (wiki links in the relational ZIP, relative links in the readable
-projection). Retired url rows export as the notes they became.
+projection). Retired url rows export as the notes they became. The readable
+projection nests materials in their folders under 资料; the relational export
+records the path as `folder` metadata and keeps its flat layout.
 
 ## Compatibility
 
@@ -198,6 +257,14 @@ boundary, because older builds validate what they receive:
   their own change sets and existing comments are never retargeted to a
   material. Region data lives inside `anchor_json`, which every build treats as
   opaque JSON.
+- **Folders and the checklist switch** (M9, migration `0012`). Older kernels
+  reject the `material-folder` entity kind and the `folderId` / `taskTodos`
+  fields. Materials at the root with the switch on omit both fields, as
+  provenance does, so only filing a material or turning the switch off needs
+  every device on a current build. Checkpoints captured before `0012` restore
+  with an empty folder table, every material at the root and the switch on.
+- **Note-task TODOs** are ordinary TODO rows with a metadata marker; older
+  builds show them as plain TODOs about the note.
 
 ## Milestones
 
@@ -209,5 +276,8 @@ boundary, because older builds validate what they receive:
 | M4 | `note` editor profile: lists, tasks, tables, code, highlight, callout, material embeds, slash items; Markdown excerpts on cards | done |
 | M5 | Region comments on images and PDFs | done |
 | M6 | Note task items ↔ TODOs; pasted/dropped images and PDFs become embedded materials | done |
+| M7 | Tab parity: panel highlight and double-click, note outline, note margin comments, material stats, note history | done |
+| M8 | Checklist items are TODOs by default; Review panel groups by target | done |
+| M9 | Material folders (migration `0012`), folder view, move-to-folder, folder paths in tabs, export and Agent reads | done |
 
-Deferred: image markup/ink, ePub, Agent note editing, mobile material tabs.
+Deferred: image markup/ink, ePub, Agent note editing, Agent folder edits.

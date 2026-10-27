@@ -10,6 +10,7 @@ import { createBlockSectionRepository } from '../sqlite-repo/block-section-repo'
 import { createBookActRepository } from '../sqlite-repo/book-act-repo';
 import { createCommentActionRepository, createCommentRepository } from '../sqlite-repo/comment-repo';
 import { createDriftGroupRepository } from '../sqlite-repo/drift-group-repo';
+import { createMaterialFolderRepository } from '../sqlite-repo/material-folder-repo';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
 import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
@@ -123,6 +124,7 @@ export async function captureWorkspaceProjection(input: {
       blockSections,
       bookActs,
       driftGroups,
+      materialFolders,
       timelineMarkers,
       relationRows,
     ] = await Promise.all([
@@ -149,6 +151,7 @@ export async function captureWorkspaceProjection(input: {
       select('sections', () => createBlockSectionRepository(tx).findByProject(input.projectId), base?.blockSections),
       select('acts', () => createBookActRepository(input.projectId, tx).findAll(), base?.bookActs),
       select('drift-groups', () => createDriftGroupRepository(input.projectId, tx).findAll(), base?.driftGroups),
+      select('material-folders', () => createMaterialFolderRepository(input.projectId, tx).findAll(), base?.materialFolders),
       select('markers', () => createTimelineMarkerRepository(input.projectId, tx).findAll(), base?.timelineMarkers),
       select('relations', async () => tx.select().from(EntityRelationTable)
         .where(eq(EntityRelationTable.projectId, input.projectId)), []),
@@ -221,6 +224,7 @@ export async function captureWorkspaceProjection(input: {
         blockSections,
         bookActs,
         driftGroups,
+        materialFolders,
         timelineMarkers,
       },
     };

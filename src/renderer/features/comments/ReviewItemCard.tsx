@@ -21,6 +21,7 @@ import {
   createPlainCommentDoc,
   extractTextFromCommentBody,
   getBlockSnapshotsFromAnchor,
+  isNoteTaskTodo,
   type Comment,
 } from '../../domain/comment';
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
@@ -146,6 +147,7 @@ export function ReviewItemCard({
   const services = useMemo<CopilotServices>(() => ({ createElement }), [createElement]);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const ownedByNote = isNoteTaskTodo(comment);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number } | null>(null);
   const sourceHover = useCommentSourceHover(!editing && !actionMenu && !snapshotOpen);
@@ -386,12 +388,15 @@ export function ReviewItemCard({
       ) : (
         <div
           className="review-card__body"
+          title={ownedByNote ? t('reviewPanel.noteTaskHint') : undefined}
           onDoubleClick={(event) => {
             event.stopPropagation();
             if (busy) return;
             sourceHover.onLeave();
             setActionMenu(null);
-            setEditing(true);
+            // A note's checklist line owns its text: edit it there.
+            if (ownedByNote) jumpToAnchor();
+            else setEditing(true);
           }}
         >
           {text || t('commentRail.card.emptyComment')}
@@ -453,11 +458,12 @@ export function ReviewItemCard({
           )}
           <ReviewActionMenuItem
             icon={<Pencil size={12} />}
-            label={t('common.edit')}
+            label={ownedByNote ? t('reviewPanel.editInNote') : t('common.edit')}
             disabled={busy}
             onSelect={() =>
               selectMenuAction(() => {
-                setEditing(true);
+                if (ownedByNote) jumpToAnchor();
+                else setEditing(true);
               })
             }
           />

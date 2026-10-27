@@ -155,6 +155,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       provenanceJson: null,
       previewImageUrl: null,
       orderKey: 0,
+      folderId: null,
+      taskTodos: true,
       createdAt: portraitAsset.createdAt || now,
       updatedAt: now,
     };

@@ -7,12 +7,12 @@
 import { and, desc, eq, inArray, lt } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { EntitySnapshotHistoryTable } from '../schema/drizzle';
-import type { ProseEntityType } from '../lib/yjs-doc-id';
+import type { SnapshotEntityKind } from '../lib/yjs-doc-id';
 
 export interface EntitySnapshotRow {
   id: string;
   projectId: string;
-  entityKind: ProseEntityType;
+  entityKind: SnapshotEntityKind;
   entityId: string;
   stateBlob: Uint8Array;
   contentJson: string | null;
@@ -26,17 +26,17 @@ export type EntitySnapshotSummary = Omit<EntitySnapshotRow, 'stateBlob'>;
 export interface EntitySnapshotRepository {
   insert(row: EntitySnapshotRow): Promise<void>;
   /** Newest first. Blob omitted — fetch it via getById on restore. */
-  listForEntity(entityKind: ProseEntityType, entityId: string): Promise<EntitySnapshotSummary[]>;
+  listForEntity(entityKind: SnapshotEntityKind, entityId: string): Promise<EntitySnapshotSummary[]>;
   getById(id: string): Promise<EntitySnapshotRow | null>;
   /** The newest snapshot row for an entity (blob included, for dedup checks). */
   getLatestForEntity(
-    entityKind: ProseEntityType,
+    entityKind: SnapshotEntityKind,
     entityId: string,
   ): Promise<EntitySnapshotRow | null>;
   deleteByIds(ids: string[]): Promise<void>;
   /** Drop all rows older than the cutoff (ISO string). Returns rows pruned. */
   deleteOlderThan(cutoffIso: string): Promise<number>;
-  deleteForEntity(entityKind: ProseEntityType, entityId: string): Promise<void>;
+  deleteForEntity(entityKind: SnapshotEntityKind, entityId: string): Promise<void>;
 }
 
 function normalizeBlob(input: unknown): Uint8Array {
@@ -59,7 +59,7 @@ function toRow(row: typeof EntitySnapshotHistoryTable.$inferSelect): EntitySnaps
   return {
     id: row.id,
     projectId: row.projectId,
-    entityKind: row.entityKind as ProseEntityType,
+    entityKind: row.entityKind as SnapshotEntityKind,
     entityId: row.entityId,
     stateBlob: normalizeBlob(row.stateBlob),
     contentJson: row.contentJson,
@@ -95,7 +95,7 @@ export function createEntitySnapshotRepository(): EntitySnapshotRepository {
           ),
         )
         .orderBy(desc(EntitySnapshotHistoryTable.createdAt));
-      return rows.map((r) => ({ ...r, entityKind: r.entityKind as ProseEntityType }));
+      return rows.map((r) => ({ ...r, entityKind: r.entityKind as SnapshotEntityKind }));
     },
 
     async getById(id) {

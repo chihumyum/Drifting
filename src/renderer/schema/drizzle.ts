@@ -919,6 +919,30 @@ export const CommentActionTable = sqliteTable(
   ],
 );
 
+// Material folder (素材文件夹) — a user-defined nested folder for the
+// material panel. Single-parent tree via `parent_folder_id` (NULL = root);
+// membership lives on library_item.folder_id. As with drift_group, cascades
+// are client-side (useMaterialFolder moves a deleted folder's sub-folders and
+// materials up to its parent) and the only declarative FK is project_id.
+// Siblings sort by name, as in Finder, so there is no order column.
+export const MaterialFolderTable = sqliteTable(
+  'material_folder',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    parentFolderId: text('parent_folder_id'), // null = root-level folder
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_material_folder_project').on(t.projectId),
+    index('idx_material_folder_parent').on(t.parentFolderId),
+  ],
+);
+
 // Library Item (formerly Material)
 // `kind` is the only payload discriminator: image/pdf bind an app-owned asset,
 // url binds an external URL, and text binds a TipTap document. Picker paths and
@@ -944,12 +968,19 @@ export const LibraryItemTable = sqliteTable(
     provenanceJson: text('provenance_json'),
     previewImageUrl: text('preview_image_url'),
     orderKey: integer('order_key').notNull().default(0),
+    // The material folder this item sits in; null = the panel's root. Like
+    // book_node.drift_group_id it has no declarative FK: deleting a folder
+    // moves its materials up a level (usecase/useMaterialFolder).
+    folderId: text('folder_id'),
+    // Notes only: whether checklist items become TODOs (docs/material-workbench.md).
+    taskTodos: integer('task_todos', { mode: 'boolean' }).notNull().default(true),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
     index('idx_library_item_project').on(t.projectId),
     index('idx_library_item_project_kind').on(t.projectId, t.kind),
+    index('idx_library_item_folder').on(t.folderId),
     uniqueIndex('uniq_library_item_asset').on(t.assetId),
     check('library_item_kind_check', sql`${t.kind} in ('image', 'pdf', 'url', 'text')`),
     check(

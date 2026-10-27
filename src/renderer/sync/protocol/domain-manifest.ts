@@ -301,6 +301,23 @@ const tables: SyncDomainTablePolicy[] = [
     ],
   }),
   defineTable({
+    table: 'material_folder',
+    scope: 'project-direct',
+    disposition: 'include',
+    reason: 'Material folder names and nesting are authored project organization.',
+    groups: [
+      group(
+        'authored',
+        authoredIdentity,
+        'id',
+        'project_id',
+        'name',
+        'parent_folder_id',
+      ),
+      group('derived', derivedClock, 'created_at', 'updated_at'),
+    ],
+  }),
+  defineTable({
     table: 'node_content',
     scope: 'project-via-reference',
     disposition: 'include',
@@ -606,7 +623,7 @@ const tables: SyncDomainTablePolicy[] = [
     table: 'library_item',
     scope: 'project-direct',
     disposition: 'include',
-    reason: 'Library text, URL, binary metadata, notes, provenance, asset binding, and ordering are authored state.',
+    reason: 'Library text, URL, binary metadata, notes, provenance, folder, TODO switch, asset binding, and ordering are authored state.',
     groups: [
       group(
         'authored',
@@ -620,6 +637,8 @@ const tables: SyncDomainTablePolicy[] = [
         'body_json',
         'notes_json',
         'provenance_json',
+        'folder_id',
+        'task_todos',
       ),
       group(
         'derived',

@@ -9,13 +9,24 @@ import { useDataStore } from '../store/data-store';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useLibraryItem } from '../usecase/useLibraryItem';
 import { useEntityRelations } from '../usecase/useEntityRelations';
 import { genericAssociationRelationTypeId } from '../domain/entity-relation-type';
 import type { LibraryItem } from '../domain/library-item';
 import { createPlainCommentDoc, extractTextFromCommentBody, parseMaterialRegion, type MaterialRegion } from '../domain/comment';
 import { parseMaterialProvenance } from '../domain/material-provenance';
-import { EditorCrumb, EditorTopBar, MATERIAL_OPEN_IN_SYSTEM_ACTION } from '../components/editor/EditorTopBar';
+import {
+  EditorCrumb,
+  EditorTopBar,
+  MATERIAL_MOVE_TO_FOLDER_ACTION,
+  MATERIAL_OPEN_IN_SYSTEM_ACTION,
+  NOTE_TASK_TODOS_OFF_ACTION,
+  NOTE_TASK_TODOS_ON_ACTION,
+} from '../components/editor/EditorTopBar';
+import { MaterialFolderPicker } from '../features/library/MaterialFolderPicker';
+import { materialFolderPath } from '../domain/material-folder';
+import { useMaterialFolder } from '../usecase/useMaterialFolder';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
 import {
   useEditorSurfaceLifecycle,
@@ -68,6 +79,11 @@ export function MaterialEditorView({
   const [noteReady, setNoteReady] = useState(false);
   const isMedia = item?.kind === 'image' || item?.kind === 'pdf';
   useReportEditorSurfaceReady(!item || isMedia || noteReady);
+  // Media keeps its own comment column; notes use the shared margin rail.
+  const noteComments = useEntityStickyNoteRail('library_item', isMedia ? null : libraryItemId);
+  const materialFolders = useDataStore((state) => state.materialFolders);
+  const folderUsecases = useMaterialFolder(projectId);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
   // Any authored change pins a preview tab, as in the other entity editors.
   const promoteOnEdit = useCallback(() => {
@@ -88,6 +104,14 @@ export function MaterialEditorView({
   const handleMenuAction = useCallback(
     async (action: string) => {
       if (!item) return;
+      if (action === MATERIAL_MOVE_TO_FOLDER_ACTION) {
+        setFolderPickerOpen(true);
+        return;
+      }
+      if (action === NOTE_TASK_TODOS_OFF_ACTION || action === NOTE_TASK_TODOS_ON_ACTION) {
+        update({ taskTodos: action === NOTE_TASK_TODOS_ON_ACTION });
+        return;
+      }
       if (action === MATERIAL_OPEN_IN_SYSTEM_ACTION) {
         const result = await openLibraryItemInSystem(projectId, item);
         if (!result.ok) alert(t('memoMaterial.error.openFile', { error: result.error }));
@@ -107,7 +131,7 @@ export function MaterialEditorView({
         }
       }
     },
-    [item, leaveDeletedEntity, libraryItemUsecases, projectId, t],
+    [item, leaveDeletedEntity, libraryItemUsecases, projectId, t, update],
   );
 
   // Queued actions from tab/sidebar context menus (see NodeEditorView).
@@ -130,12 +154,41 @@ export function MaterialEditorView({
       <EditorTopBar
         editorType="library_item"
         onMenuAction={(action) => void handleMenuAction(action)}
-        outlineToggle={false}
-        hiddenMenuActions={isMedia ? undefined : [MATERIAL_OPEN_IN_SYSTEM_ACTION]}
+        outlineToggle={!isMedia}
+        commentToggle={
+          isMedia
+            ? undefined
+            : {
+                enabled: noteComments.visible,
+                count: noteComments.itemIds.length,
+                onToggle: () => noteComments.setVisible(!noteComments.visible),
+              }
+        }
+        hiddenMenuActions={
+          isMedia
+            ? [NOTE_TASK_TODOS_OFF_ACTION, NOTE_TASK_TODOS_ON_ACTION]
+            : [MATERIAL_OPEN_IN_SYSTEM_ACTION, item.taskTodos ? NOTE_TASK_TODOS_ON_ACTION : NOTE_TASK_TODOS_OFF_ACTION]
+        }
       >
         <EditorCrumb>{t('materialEditor.crumb')}</EditorCrumb>
+        {materialFolderPath(materialFolders, item.folderId).map((folder) => (
+          <EditorCrumb key={folder.id}>{folder.name}</EditorCrumb>
+        ))}
         <EditorCrumb>{kindLabel}</EditorCrumb>
       </EditorTopBar>
+      {folderPickerOpen && (
+        <MaterialFolderPicker
+          projectId={projectId}
+          currentFolderId={item.folderId}
+          onClose={() => setFolderPickerOpen(false)}
+          onPick={(folderId) => {
+            setFolderPickerOpen(false);
+            void folderUsecases
+              .moveMaterialsToFolder([item.id], folderId)
+              .catch((error: unknown) => log.error('Failed to move material:', error));
+          }}
+        />
+      )}
       {isMedia ? (
         <MaterialMediaPage key={item.id} item={item} projectId={projectId} userId={userId} onUpdate={update} />
       ) : (
@@ -158,7 +211,7 @@ export function MaterialEditorView({
   );
 }
 
-type UpdateMaterial = (patch: { title?: string; notesJson?: string | null }) => void;
+type UpdateMaterial = (patch: { title?: string; notesJson?: string | null; taskTodos?: boolean }) => void;
 
 interface MaterialPageProps {
   item: LibraryItem;

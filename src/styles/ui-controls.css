@@ -1044,6 +1044,11 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   background: var(--workspace-cell-hover-bg);
 }
 
+.workspace-list-row--active,
+.workspace-list-row--active:hover {
+  background: hsl(var(--surface));
+}
+
 .label-mono {
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);

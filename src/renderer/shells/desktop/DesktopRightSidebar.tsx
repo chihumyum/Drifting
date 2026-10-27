@@ -1,10 +1,10 @@
 import { revealDesktopAgentView } from '../../store/desktop-agent-navigation';
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useTranslation } from 'react-i18next';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isDrift } from '../../domain/book-node';
-import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
+import { useUiStore, useProjectTabs, focusedLeafOf, tabKey, usePromoteCurrentTab } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader, RightSidebarTitle } from '../../components/rightBars/RightSidebarHeader';
 import { DesktopSidebarLayout } from './DesktopSidebarLayout';
@@ -17,7 +17,15 @@ import type { EntityStatsTarget } from '../../features/stats/entity-stats-types'
 
 export function DesktopRightSidebar() {
   const { t } = useTranslation();
-  const { projectId } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
+  const pinLibraryItem = useCallback(
+    (libraryItemId: string) => {
+      openEntity({ entityType: 'library_item', id: libraryItemId });
+      promoteCurrentTab();
+    },
+    [openEntity, promoteCurrentTab],
+  );
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
   const panes = useUiStore((s) => s.desktopSidebarTabs.right.panes);
 
@@ -122,8 +130,8 @@ export function DesktopRightSidebar() {
     if (leaf.entityType === 'library_item') {
       const item = libraryItems.find((candidate) => candidate.id === leaf.id);
       return {
-        kind: 'none',
-        id: null,
+        kind: 'material',
+        id: leaf.id,
         title: item?.title || t('topTimeline.untitled.library_item'),
         kicker: t('rightSidebar.kickers.materialContent'),
       };
@@ -183,7 +191,7 @@ export function DesktopRightSidebar() {
           />}
           <SidebarPanelBody>
             {tab === 'review' && <ReviewPanel focused={focusedForReview} onOpenAgentTask={() => revealDesktopAgentView()} />}
-            {tab === 'library' && <LibraryPanel focused={focusedForPanel} />}
+            {tab === 'library' && <LibraryPanel focused={focusedForPanel} activeLibraryItemId={focusedMaterialId} onPinLibraryItem={pinLibraryItem} />}
             {tab === 'stats' && <EntityStatsContent
               target={target}
               bookNodes={bookNodes}

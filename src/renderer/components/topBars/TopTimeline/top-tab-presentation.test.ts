@@ -65,7 +65,7 @@ describe('open-tab semantic presentation', () => {
   it('labels material tabs by title and falls back for untitled or missing materials', () => {
     const data = fixture();
     data.libraryItems = [{ id: 'synthetic-library', projectId: 'synthetic-tabs', kind: 'text', title: '合成资料',
-      notesJson: null, provenanceJson: null, orderKey: 0, createdAt: '', updatedAt: '', assetId: null,
+      notesJson: null, provenanceJson: null, orderKey: 0, folderId: null, taskTodos: true, createdAt: '', updatedAt: '', assetId: null,
       externalUrl: null, previewImageUrl: null, bodyJson: null }];
     const material = leaf('library_item', 'synthetic-library');
     const titled = selector([material])(data);

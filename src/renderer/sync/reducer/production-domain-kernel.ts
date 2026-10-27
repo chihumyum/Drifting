@@ -45,6 +45,7 @@ import {
   EntityRelationTypeEndpointKindTable,
   EntityRelationTypeTable,
   LibraryItemTable,
+  MaterialFolderTable,
   NodeContentTable,
   NodeStorylineLinkTable,
   PlotGridCellTable,
@@ -120,6 +121,7 @@ export const PRODUCTION_DOMAIN_KERNEL_COVERAGE = Object.freeze({
     'agent-memory',
     'book-act',
     'drift-group',
+    'material-folder',
     'timeline-marker',
     'kv-entry',
     'plot-grid-row',
@@ -240,6 +242,10 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
     notesJson: (value) => value === null || validJson(value),
     provenanceJson: (value) =>
       value === null || (typeof value === 'string' && isValidMaterialProvenanceJson(value)),
+    // A folder id may outlive its folder after concurrent edits; the panel
+    // shows such a material at the root, so existence is not an invariant.
+    folderId: NULLABLE_STRING,
+    taskTodos: BOOLEAN,
   },
   'entity-relation': {
     fromKind: (value) => isEntityKind(value),
@@ -308,6 +314,7 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
     driftNodeId: NULLABLE_STRING,
   },
   'drift-group': { name: NON_EMPTY_STRING, parentGroupId: NULLABLE_STRING, color: NULLABLE_STRING },
+  'material-folder': { name: NON_EMPTY_STRING, parentFolderId: NULLABLE_STRING },
   'timeline-marker': { narrativeOrder: FINITE_NUMBER, label: STRING, driftNodeId: NULLABLE_STRING },
   'kv-entry': {
     ownerKind: oneOf('project', 'storyline', 'element-category', 'element'),
@@ -427,6 +434,7 @@ function requiredSeedFields(kind: string): readonly string[] {
     case 'agent-memory': return ['kind', 'body'];
     case 'book-act': return ['name'];
     case 'drift-group': return ['name'];
+    case 'material-folder': return ['name'];
     case 'timeline-marker': return ['narrativeOrder'];
     case 'kv-entry': return ['ownerKind', 'ownerId', 'namespace', 'key', 'value'];
     case 'plot-grid-row':
@@ -912,7 +920,7 @@ async function upsertLifecycleLive(
       // Older builds and history still carry retired url seeds; they land as
       // the same note migration 0011 makes of a stored url row.
       const material = normalizeLegacyUrlRecord(seed);
-      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: material.title as string, kind: material.kind as string, assetId: (material.assetId as string | null | undefined) ?? null, externalUrl: (material.externalUrl as string | null | undefined) ?? null, bodyJson: (material.bodyJson as string | null | undefined) ?? null, notesJson: (material.notesJson as string | null | undefined) ?? null, provenanceJson: (material.provenanceJson as string | null | undefined) ?? null, orderKey: 0, createdAt: material.createdAt as string, updatedAt: material.updatedAt as string }).onConflictDoNothing();
+      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: material.title as string, kind: material.kind as string, assetId: (material.assetId as string | null | undefined) ?? null, externalUrl: (material.externalUrl as string | null | undefined) ?? null, bodyJson: (material.bodyJson as string | null | undefined) ?? null, notesJson: (material.notesJson as string | null | undefined) ?? null, provenanceJson: (material.provenanceJson as string | null | undefined) ?? null, folderId: (material.folderId as string | null | undefined) ?? null, taskTodos: (material.taskTodos as boolean | undefined) ?? true, orderKey: 0, createdAt: material.createdAt as string, updatedAt: material.updatedAt as string }).onConflictDoNothing();
       return;
     }
     case 'entity-relation':
@@ -934,6 +942,9 @@ async function upsertLifecycleLive(
       return;
     case 'book-act':
       await context.tx.insert(BookActTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, name: seed.name as string, color: (seed.color as string | null | undefined) ?? null, startOrder: (seed.startOrder as number | null | undefined) ?? null, driftNodeId: (seed.driftNodeId as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
+      return;
+    case 'material-folder':
+      await context.tx.insert(MaterialFolderTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, name: seed.name as string, parentFolderId: (seed.parentFolderId as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
     case 'drift-group':
       await context.tx.insert(DriftGroupTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, name: seed.name as string, parentGroupId: (seed.parentGroupId as string | null | undefined) ?? null, color: (seed.color as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
@@ -1061,6 +1072,7 @@ async function materializeField(context: SyncDomainMaterializationContext, effec
     case 'comment-action': await context.tx.update(CommentActionTable).set({ [effect.field]: value, updatedAt }).where(and(eq(CommentActionTable.id, effect.target.id), eq(CommentActionTable.projectId, context.changeSet.projectId))); return;
     case 'agent-memory': await context.tx.update(AgentMemoryTable).set({ [effect.field]: value, updatedAt }).where(and(eq(AgentMemoryTable.id, effect.target.id), eq(AgentMemoryTable.projectId, context.changeSet.projectId))); return;
     case 'book-act': await context.tx.update(BookActTable).set({ [effect.field]: value, updatedAt }).where(and(eq(BookActTable.id, effect.target.id), eq(BookActTable.projectId, context.changeSet.projectId))); return;
+    case 'material-folder': await context.tx.update(MaterialFolderTable).set({ [effect.field]: value, updatedAt }).where(and(eq(MaterialFolderTable.id, effect.target.id), eq(MaterialFolderTable.projectId, context.changeSet.projectId))); return;
     case 'drift-group': await context.tx.update(DriftGroupTable).set({ [effect.field]: value, updatedAt }).where(and(eq(DriftGroupTable.id, effect.target.id), eq(DriftGroupTable.projectId, context.changeSet.projectId))); return;
     case 'timeline-marker': await context.tx.update(TimelineMarkerTable).set({ [effect.field]: value, updatedAt }).where(and(eq(TimelineMarkerTable.id, effect.target.id), eq(TimelineMarkerTable.projectId, context.changeSet.projectId))); return;
     case 'kv-entry': await context.tx.update(EntityKvEntryTable).set({ [effect.field]: value }).where(and(eq(EntityKvEntryTable.id, effect.target.id), eq(EntityKvEntryTable.projectId, context.changeSet.projectId))); return;
@@ -1276,6 +1288,7 @@ async function purgeEntity(context: SyncDomainMaterializationContext, effect: Li
     case 'comment-action': await context.tx.delete(CommentActionTable).where(and(eq(CommentActionTable.id, effect.target.id), eq(CommentActionTable.projectId, context.changeSet.projectId))); return;
     case 'agent-memory': await context.tx.delete(AgentMemoryTable).where(and(eq(AgentMemoryTable.id, effect.target.id), eq(AgentMemoryTable.projectId, context.changeSet.projectId))); return;
     case 'book-act': await context.tx.delete(BookActTable).where(and(eq(BookActTable.id, effect.target.id), eq(BookActTable.projectId, context.changeSet.projectId))); return;
+    case 'material-folder': await context.tx.delete(MaterialFolderTable).where(and(eq(MaterialFolderTable.id, effect.target.id), eq(MaterialFolderTable.projectId, context.changeSet.projectId))); return;
     case 'drift-group': await context.tx.delete(DriftGroupTable).where(and(eq(DriftGroupTable.id, effect.target.id), eq(DriftGroupTable.projectId, context.changeSet.projectId))); return;
     case 'timeline-marker': await context.tx.delete(TimelineMarkerTable).where(and(eq(TimelineMarkerTable.id, effect.target.id), eq(TimelineMarkerTable.projectId, context.changeSet.projectId))); return;
     case 'kv-entry': await context.tx.delete(EntityKvEntryTable).where(and(eq(EntityKvEntryTable.id, effect.target.id), eq(EntityKvEntryTable.projectId, context.changeSet.projectId))); return;
@@ -1706,6 +1719,9 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
     }
     if (effect.target.kind === 'drift-group' && candidate.parentGroupId === effect.target.id) {
       issues.push(entityConflict(context.effects, effect, 'drift-group.self-parent', 'A drift group cannot parent itself'));
+    }
+    if (effect.target.kind === 'material-folder' && candidate.parentFolderId === effect.target.id) {
+      issues.push(entityConflict(context.effects, effect, 'material-folder.self-parent', 'A material folder cannot parent itself'));
     }
     if ((effect.target.kind === 'book-act' || effect.target.kind === 'timeline-marker') && typeof candidate.driftNodeId === 'string') {
       const local = candidateRecord(context.effects, 'node', candidate.driftNodeId);

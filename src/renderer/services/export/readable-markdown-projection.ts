@@ -1,3 +1,4 @@
+import { effectiveParentFolderIds } from '../../domain/material-folder';
 import { noteToMarkdown } from '../../lib/note-markdown';
 import { deriveActSegments } from '../../domain/book-act';
 import { extractTextFromCommentBody } from '../../domain/comment';
@@ -139,8 +140,24 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
   for (const storyline of graph.storylines.filter(item => !item.deletedAt).sort(compare)) {
     addProse('storyline', storyline.id, storyline.name, paths.claim('故事线', storyline.name, key('storyline', storyline.id)), storyline.contentJson ?? '{}', storyline.summary);
   }
+  // Material folders become directories under 资料, as drift groups do
+  // under 构想. Links left dangling by concurrent edits fall back to 资料.
+  const folders = new Map(graph.materialFolders.map(folder => [folder.id, folder]));
+  const folderParents = effectiveParentFolderIds(graph.materialFolders);
+  const folderPaths = new Map<string, string>();
+  const folderPath = (id: string): string => {
+    if (folderPaths.has(id)) return folderPaths.get(id)!;
+    const folder = folders.get(id);
+    if (!folder) return '资料';
+    const parent = folderParents.get(id) ?? null;
+    const path = paths.claim(parent ? folderPath(parent) : '资料', folder.name, key('material-folder', id), '');
+    folderPaths.set(id, path);
+    return path;
+  };
+  for (const folder of [...folders.values()].sort(compare)) folderPath(folder.id);
   for (const item of [...graph.libraryItems].sort(compare)) {
-    add('library_item', item.id, item.title, paths.claim('资料', item.title, key('library_item', item.id)));
+    const directory = item.folderId && folders.has(item.folderId) ? folderPath(item.folderId) : '资料';
+    add('library_item', item.id, item.title, paths.claim(directory, item.title, key('library_item', item.id)));
   }
   const home = add('project', project.id, project.name, HOME, { summary: project.summary });
   for (const comment of [...graph.comments].sort(compare)) {

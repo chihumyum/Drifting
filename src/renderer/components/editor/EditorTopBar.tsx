@@ -485,6 +485,11 @@ export const CONVERT_DRIFT_TO_ELEMENT_ACTION = 'convertDriftToElement';
 export const DRIFT_MOVE_TO_GROUP_ACTION = 'driftMoveToGroup';
 // Image/PDF materials only; notes have no system-app representation.
 export const MATERIAL_OPEN_IN_SYSTEM_ACTION = 'openMaterialInSystem';
+// Notes only: the per-note switch for projecting checklist items as TODOs.
+// The material view hides whichever of the pair does not apply.
+export const NOTE_TASK_TODOS_OFF_ACTION = 'noteTaskTodosOff';
+export const NOTE_TASK_TODOS_ON_ACTION = 'noteTaskTodosOn';
+export const MATERIAL_MOVE_TO_FOLDER_ACTION = 'moveMaterialToFolder';
 
 // Exported so left-sidebar panel cells can render the same per-entity
 // context menu as the editor top bar — single source of truth for menu
@@ -570,6 +575,18 @@ export function getMenuItems(
         {
           action: MATERIAL_OPEN_IN_SYSTEM_ACTION,
           label: label('editorTopBar.menu.openMaterialInSystem', 'Open in default app'),
+        },
+        {
+          action: MATERIAL_MOVE_TO_FOLDER_ACTION,
+          label: label('editorTopBar.menu.moveMaterialToFolder', 'Move to folder…'),
+        },
+        {
+          action: NOTE_TASK_TODOS_OFF_ACTION,
+          label: label('editorTopBar.menu.noteTaskTodosOff', 'Stop syncing checklist to TODOs'),
+        },
+        {
+          action: NOTE_TASK_TODOS_ON_ACTION,
+          label: label('editorTopBar.menu.noteTaskTodosOn', 'Sync checklist to TODOs'),
         },
         {
           action: 'deleteMaterial',

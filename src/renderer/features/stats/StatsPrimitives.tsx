@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { events } from '../../lib/events';
+import type { SnapshotEntityKind } from '../../lib/yjs-doc-id';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small shared bits
@@ -281,4 +283,50 @@ export function formatDateTime(input: string | number | Date): string {
   const hh = `${d.getHours()}`.padStart(2, '0');
   const mm = `${d.getMinutes()}`.padStart(2, '0');
   return sameYear ? `${m}/${day} ${hh}:${mm}` : `${d.getFullYear()}/${m}/${day} ${hh}:${mm}`;
+}
+
+/**
+ * The stats panel's entry into the entity time machine — opens the globally
+ * mounted EntitySnapshotHistoryModal. This is the ONLY entry point (the
+ * editor / cell context menus deliberately don't carry it).
+ */
+export function SnapshotEntryButton({
+  entityKind,
+  entityId,
+}: {
+  entityKind: SnapshotEntityKind;
+  entityId: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={() => events.emit('snapshot-history:open', { entityKind, entityId })}
+      title={t('rightSidebar.stats.snapshotTitle')}
+      style={{
+        width: '100%',
+        marginTop: 14,
+        padding: '7px 10px',
+        border: '1px solid hsl(var(--rule))',
+        borderRadius: 4,
+        background: 'transparent',
+        color: 'hsl(var(--ink-2))',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        letterSpacing: '0.06em',
+        cursor: 'pointer',
+        transition: 'background 0.12s, color 0.12s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'hsl(var(--rule) / 0.3)';
+        e.currentTarget.style.color = 'hsl(var(--ink-1))';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = 'hsl(var(--ink-2))';
+      }}
+    >
+      ↺ {t('rightSidebar.stats.snapshotButton')}
+    </button>
+  );
 }

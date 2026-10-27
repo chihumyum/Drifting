@@ -1,6 +1,6 @@
-import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
+import { useSidebarPanelState, useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link2, Link2Off, Plus } from 'lucide-react';
+import { FolderPlus, FolderTree, Link2, Link2Off, List, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
@@ -15,6 +15,11 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LibraryItemCard } from './LibraryItemCard';
 import { ComposeLibraryItemDialog } from './LibraryDialogs';
 import { openLibraryItemInSystem } from './open-library-item';
+import { MaterialFolderTree } from './MaterialFolderTree';
+import { MaterialFolderPicker } from './MaterialFolderPicker';
+import { materialFolderPath } from '../../domain/material-folder';
+import { useMaterialFolder } from '../../usecase/useMaterialFolder';
+import { requestConfirmation } from '../../store/confirmation-store';
 
 export interface FocusedEntity {
   kind: EntityKind | null;
@@ -24,6 +29,11 @@ export interface FocusedEntity {
 interface Props {
   /** The currently-focused entity (for the "仅当前条目相关" filter mode). */
   focused: FocusedEntity;
+  /** The material in the active workspace tab, highlighted in the list. */
+  activeLibraryItemId?: string | null;
+  /** Double-click: open the material and keep its tab, as a double-clicked
+   *  chapter does. The desktop shell owns tab promotion. */
+  onPinLibraryItem?: (libraryItemId: string) => void;
   presentation?: 'desktop' | 'mobile';
 }
 
@@ -40,7 +50,12 @@ type ViewFilter = 'all' | 'related';
  *
  * TODOs and comments live in the sibling ReviewPanel, not here.
  */
-export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
+export function LibraryPanel({
+  focused,
+  activeLibraryItemId = null,
+  onPinLibraryItem,
+  presentation = 'desktop',
+}: Props) {
   const { t } = useTranslation();
   const navigator = useWorkspaceNavigator();
   const { projectId } = navigator;
@@ -62,6 +77,21 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
   const [showRelations, setShowRelations] = useSidebarPanelState('showRelations', true);
   const [composeOpen, setComposeOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useSidebarPreference('libraryViewMode');
+  // The folder new materials are filed into in folder view (on mobile, the
+  // folder being shown).
+  const [currentFolderId, setCurrentFolderId] = useSidebarPanelState<string | null>('currentFolder', null);
+  const [moveRequest, setMoveRequest] = useState<{ ids: string[]; current: string | null } | null>(null);
+  const [newFolderRequest, setNewFolderRequest] = useState(0);
+  const materialFolders = useDataStore((s) => s.materialFolders);
+  const folderUsecases = useMaterialFolder(projectId);
+  const folderPathOf = useCallback(
+    (folderId: string | null) =>
+      materialFolderPath(materialFolders, folderId)
+        .map((folder) => folder.name)
+        .join(' / '),
+    [materialFolders],
+  );
 
   // Index entityRelations by from-entity so cards can render their relation
   // chips and the filter can pick out items related to `focused`.
@@ -102,6 +132,15 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
     navigator.open({ entityType: 'library_item', id: m.id });
   };
 
+  const confirmDelete = async (m: LibraryItem) => {
+    const confirmed = await requestConfirmation(
+      t('materialEditor.deleteConfirm', { title: m.title || t('common.untitled') }),
+    );
+    if (confirmed) await libraryItemUsecases.removeLibraryItem(m.id);
+  };
+
+  const folderView = viewMode === 'folders';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <Toolbar
@@ -112,8 +151,30 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
         libraryItemTotal={libraryItems.length}
         showRelations={showRelations}
         onToggleShowRelations={() => setShowRelations((v) => !v)}
+        folderView={folderView}
+        onToggleFolderView={() => setViewMode(folderView ? 'all' : 'folders')}
+        onNewFolder={folderView && presentation === 'desktop' ? () => setNewFolderRequest((count) => count + 1) : undefined}
       />
 
+      {folderView ? (
+        <div className="scroll-no-bar workspace-list" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <MaterialFolderTree
+            projectId={projectId}
+            items={filteredLibraryItems}
+            narrowed={filter === 'related'}
+            activeLibraryItemId={activeLibraryItemId}
+            presentation={presentation}
+            currentFolderId={currentFolderId}
+            onCurrentFolderChange={setCurrentFolderId}
+            onOpenItem={openLibraryItemInApp}
+            onPinItem={onPinLibraryItem ? (m) => onPinLibraryItem(m.id) : undefined}
+            onOpenInSystem={openLibraryItem}
+            onDeleteItem={(m) => void confirmDelete(m)}
+            onMoveItems={(ids, current) => setMoveRequest({ ids, current })}
+            newFolderRequest={newFolderRequest}
+          />
+        </div>
+      ) : (
       <div
         className="scroll-no-bar workspace-list"
         style={{
@@ -148,6 +209,10 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
             onOpenInSystem={() => openLibraryItem(mat)}
             onOpenInApp={() => openLibraryItemInApp(mat)}
+            onPin={onPinLibraryItem ? () => onPinLibraryItem(mat.id) : undefined}
+            active={mat.id === activeLibraryItemId}
+            folderPath={folderPathOf(mat.folderId)}
+            onMoveToFolder={() => setMoveRequest({ ids: [mat.id], current: mat.folderId })}
             onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
             onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
             onAddRelation={(t) =>
@@ -166,13 +231,33 @@ export function LibraryPanel({ focused, presentation = 'desktop' }: Props) {
           />
         ))}
       </div>
+      )}
+
+      {moveRequest && (
+        <MaterialFolderPicker
+          projectId={projectId}
+          currentFolderId={moveRequest.current}
+          onClose={() => setMoveRequest(null)}
+          onPick={(folderId) => {
+            const ids = moveRequest.ids;
+            setMoveRequest(null);
+            void folderUsecases
+              .moveMaterialsToFolder(ids, folderId)
+              .catch((error: unknown) => console.warn('[material] failed to move materials:', error));
+          }}
+        />
+      )}
 
       {composeOpen && (
         <ComposeLibraryItemDialog
           focused={focused}
           onCancel={() => setComposeOpen(false)}
           onCreate={async (input, relations) => {
-            const mat = await libraryItemUsecases.createLibraryItem(input);
+            // In folder view a new material is filed where the author is looking.
+            const mat = await libraryItemUsecases.createLibraryItem({
+              ...input,
+              folderId: folderView && materialFolders.some((folder) => folder.id === currentFolderId) ? currentFolderId : null,
+            });
             // A new note is opened for writing; images and PDFs stay in the list.
             if (mat.kind === 'text') navigator.open({ entityType: 'library_item', id: mat.id }, { preview: false });
             const relationResults = await Promise.allSettled(
@@ -206,7 +291,14 @@ function Toolbar({
   libraryItemTotal,
   showRelations,
   onToggleShowRelations,
+  folderView,
+  onToggleFolderView,
+  onNewFolder,
 }: {
+  folderView: boolean;
+  onToggleFolderView: () => void;
+  /** Present in the desktop folder view: a new folder in the current one. */
+  onNewFolder?: () => void;
   filter: ViewFilter;
   onFilterChange: (f: ViewFilter) => void;
   focusedKind: EntityKind | null;
@@ -278,7 +370,19 @@ function Toolbar({
         }}
       >
         {showCount && <span>{t('memoMaterial.toolbar.count', { count: libraryItemTotal })}</span>}
-        <button
+        {onNewFolder && (
+          <ToolbarIconButton title={t('materialFolders.menu.newFolder')} onClick={onNewFolder}>
+            <FolderPlus size={12} strokeWidth={1.6} />
+          </ToolbarIconButton>
+        )}
+        <ToolbarIconButton
+          title={folderView ? t('materialFolders.toolbar.showAll') : t('materialFolders.toolbar.showFolders')}
+          pressed={folderView}
+          onClick={onToggleFolderView}
+        >
+          {folderView ? <List size={12} strokeWidth={1.6} /> : <FolderTree size={12} strokeWidth={1.6} />}
+        </ToolbarIconButton>
+        {!folderView && <button
           onClick={onToggleShowRelations}
           title={
             showRelations
@@ -312,7 +416,7 @@ function Toolbar({
           ) : (
             <Link2Off size={12} strokeWidth={1.6} />
           )}
-        </button>
+        </button>}
         <button
           onClick={onCompose}
           title={t('memoMaterial.toolbar.newMaterial')}
@@ -366,5 +470,30 @@ export function FilterPill({
     >
       {children}
     </FilterChip>
+  );
+}
+
+function ToolbarIconButton({
+  title,
+  pressed,
+  onClick,
+  children,
+}: {
+  title: string;
+  pressed?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="library-toolbar-icon"
+      title={title}
+      aria-label={title}
+      aria-pressed={pressed}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
