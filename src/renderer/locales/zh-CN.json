@@ -1870,8 +1870,6 @@
       "current": "仅当前条目",
       "currentShort": "Cur",
       "count": "{{count}} 素材",
-      "hideRelations": "隐藏关联",
-      "showRelations": "显示关联",
       "newMaterial": "新建素材"
     },
     "kind": {
@@ -3654,16 +3652,18 @@
       "delete": "删除文件夹",
       "open": "打开",
       "move": "移动到文件夹…",
-      "moveSelected": "将 {{count}} 份素材移动到文件夹…"
-    },
-    "toolbar": {
-      "showFolders": "按文件夹查看",
-      "showAll": "平铺全部素材"
+      "moveSelection": "将 {{count}} 项移动到文件夹…",
+      "deleteSelection": "删除 {{count}} 项",
+      "expandAll": "全部展开",
+      "collapseAll": "全部收起",
+      "expandPreview": "展开预览",
+      "collapsePreview": "收起预览"
     },
     "picker": {
       "title": "移动到文件夹",
       "newPlaceholder": "新文件夹名称",
       "createAndMove": "新建并移入"
-    }
+    },
+    "deleteSelectionConfirm": "删除所选的 {{count}} 项？素材会被删除；删除的文件夹里的内容会移到上一级。"
   }
 }

@@ -7,16 +7,19 @@ import { useDataStore } from '../../store/data-store';
 import { useMaterialFolder } from '../../usecase/useMaterialFolder';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/ui/Modal';
 
-/** Chooses a material folder (or the root) to move materials into. */
+/** Chooses a material folder (or the root) to move materials and folders into. */
 export function MaterialFolderPicker({
   projectId,
   currentFolderId,
+  disabledFolderIds,
   onClose,
   onPick,
 }: {
   projectId: string;
   /** Where the material is now; shown as the current choice. */
   currentFolderId: string | null;
+  /** Folders being moved and everything below them: not a destination. */
+  disabledFolderIds?: ReadonlySet<string>;
   onClose: () => void;
   onPick: (folderId: string | null) => void;
 }) {
@@ -59,6 +62,8 @@ export function MaterialFolderPicker({
                 type="button"
                 role="option"
                 aria-selected={currentFolderId === folder.id}
+                aria-disabled={disabledFolderIds?.has(folder.id) || undefined}
+                disabled={disabledFolderIds?.has(folder.id)}
                 className={`material-folder-picker__row${currentFolderId === folder.id ? ' material-folder-picker__row--current' : ''}`}
                 style={{ paddingLeft: 10 + (depth + 1) * 14 }}
                 onClick={() => onPick(folder.id)}

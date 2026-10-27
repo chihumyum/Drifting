@@ -535,6 +535,7 @@ describe('workspace surface language acceptance', () => {
     );
     const listRow = block(controls, '.workspace-list-row {', '.workspace-list-row:hover,');
     const reviewList = block(reviewCss, '.review-panel__list {', '.review-panel__resolved {');
+    const materialTreeRows = block(source('src/styles/material-workbench.css'), '.material-tree__rows {', '.material-tree__rows--drop {');
     const trackPinLine = block(timelineCss, '.btl-pin-line {', '.btl-pin-line.is-dragging {');
     const shell = block(
       shellCss,
@@ -599,8 +600,9 @@ describe('workspace surface language acceptance', () => {
     expect(review).toContain('className="review-panel__list scroll-no-bar workspace-list"');
     expect(reviewList).toContain('padding: 6px 12px 12px;');
     expect(reviewList).toContain('gap: 6px;');
-    expect(library).toContain("padding: '6px 12px 12px'");
-    expect(library).toContain('gap: 6');
+    expect(library).toContain('className="scroll-no-bar workspace-list"');
+    expect(library).toContain('<MaterialFolderTree');
+    expect(materialTreeRows).toContain('padding: 6px 12px 12px;');
     expect(elementPanel).not.toContain('left-panel-cat-footer');
     expect(elementPanel).not.toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
   });

@@ -37,10 +37,11 @@ next to the book. They are not manuscript.
   and entity links open it without translation), with preview-tab semantics,
   splits and persistence like other entities. A tab shows a header (kind, editable title, relations, actions)
   and a kind-specific body.
-- The right-sidebar Library panel and the ⌘⌥5 TODO & 素材库 view are indexes:
-  activating a card opens the material tab (double-click keeps it, and the
-  card of the active tab is highlighted, as in the chapter panel). Note cards
-  render a short read-only excerpt of the note document.
+- The right-sidebar Library panel (a folder tree, see Folders) and the ⌘⌥5
+  TODO & 素材库 view (cards) are indexes: activating a material opens its tab
+  (double-click keeps it, and the material of the active tab is highlighted,
+  as in the chapter panel). Notes show a short read-only excerpt of the note
+  document.
 - A note tab has the entity editors' furniture: the outline rail of its
   headings, margin comments and TODOs on its text (the shared sticky-note
   rail, anchor highlights and scroll ticks, targeting the note), and a stats
@@ -106,8 +107,14 @@ and snapshots have stable anchors. `lib/editor-schema-profile.ts` owns both
 profiles: the headless schema (seeding, Markdown), the live editor
 (`useEntityEditor({ profile: 'note' })`) and the note-only extensions share one
 definition. The note page adds slash items (lists, to-do list, table, code
-block, callout, highlight, insert material), a table toolbar and an embed
-picker that can also import a new image or PDF.
+block, callout, highlight, insert material), a floating bar and an embed
+picker that can also import a new image or PDF. The floating bar
+(`views/NoteFloatingBar.tsx`) holds the checklist line's 转为 TODO / 不作为
+TODO and the table's row and column actions. It floats above the caret's line
+(below it near the top of the window), portaled to the body, so the note never
+reflows; it shows while the editor has focus and the caret rests, and hides
+while the author types. Code reads in the ink colour in a monospace face
+(Tailwind's prose styles assume a dark code block).
 
 Paste from a note into a prose editor relies on ProseMirror parsing the copied
 HTML with the prose schema, which keeps the text of tables, task items and
@@ -212,15 +219,19 @@ Materials can be filed in user-defined nested folders (`material_folder`,
 migration `0012`; `library_item.folder_id`). A material sits in at most one
 folder; relations to chapters and elements stay the cross-cutting link.
 
-- The Library panel switches between **全部** (every material as a card, with
-  its folder path) and **文件夹** (`libraryViewMode`, per panel). On desktop the
-  folder view is a Finder-style tree: disclosure triangles, folders first and
-  everything sorted by name, drag a material or folder onto a folder (or the
-  empty area for the root), ⌘-click to select several materials, right-click
-  to create, rename, move or delete. On mobile it shows one folder at a time
-  under a breadcrumb. New materials go into the folder last selected.
-- **移动到文件夹…** is on every card, tree row and material tab menu; the tab's
-  breadcrumb shows the folder path.
+- The Library panel is the folder tree; it has no flat view. The root has no
+  row of its own. Folders are thin rows; materials are taller cells with a
+  preview (a thumbnail, or a note's first two lines) that expand to the full
+  preview and the material's relations. Collapsing a folder is the compact
+  view. Folders come first and everything is sorted by name.
+- On desktop it works like Finder: click opens a material (a folder toggles),
+  ⌘-click and ⇧-click select several materials and folders, ⌥-click a folder
+  opens or closes everything inside it, drag a selection onto a folder (or the
+  empty area for the root), right-click to create, rename, move or delete one
+  item or the selection. On mobile it shows one folder at a time under a
+  breadcrumb. New materials go into the folder last selected.
+- **移动到文件夹…** is on tree rows, TODO & 素材库 cards and the material tab
+  menu; the picker disables a moving folder and everything below it.
 - Deleting a folder moves its sub-folders and materials up a level
   (`usecase/useMaterialFolder.ts`), like drift groups; no material is deleted.
 - Concurrent edits can leave a folder or material pointing at a deleted folder,
@@ -302,5 +313,6 @@ boundary, because older builds validate what they receive:
 | M7 | Tab parity: panel highlight and double-click, note outline, note margin comments, material stats, note history | done |
 | M8 | Checklist items are TODOs by default; Review panel groups by target | done |
 | M9 | Material folders (migration `0012`), folder view, move-to-folder, folder paths in tabs, export and Agent reads | done |
+| M10 | Folder tree as the only panel view (preview cells, multi-select); floating note bar; note code colour | done |
 
 Deferred: image markup/ink, ePub, Agent note editing, Agent folder edits.

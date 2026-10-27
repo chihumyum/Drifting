@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EditorContent, useEditorState } from '@tiptap/react';
+import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
 
@@ -25,7 +25,8 @@ import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/M
 import { MaterialEmbedWithView } from '../features/library/MaterialEmbedView';
 import { NoteFileImport } from '../lib/extensions/note-blocks';
 import { useStoredLibraryItemVariant } from '../features/library/library-item-media';
-import { hasLinkedTodo, taskItemAtSelection, useNoteTodoLinks } from './note-todo-links';
+import { useNoteTodoLinks } from './note-todo-links';
+import { NoteFloatingBar } from './NoteFloatingBar';
 
 const log = loglevel.getLogger('MaterialNotePage');
 log.setLevel(loglevel.levels.ERROR);
@@ -193,9 +194,8 @@ export function MaterialNotePage({
         <div className="editor__spread">
           <article className="page page--entity material-editor__note-page">
             {header}
-            {editor && <NoteTableBar editor={editor} />}
             {editor && (
-              <NoteTaskBar
+              <NoteFloatingBar
                 editor={editor}
                 onPromote={() => void promoteTaskItem().catch((error: unknown) => log.error('Failed to link TODO:', error))}
                 onUnlink={() => void unlinkTaskItem().catch((error: unknown) => log.error('Failed to unlink TODO:', error))}
@@ -234,65 +234,6 @@ export function MaterialNotePage({
             setEmbedPickerEditor(null);
           }}
         />
-      )}
-    </div>
-  );
-}
-
-/** Row/column controls while the caret is inside a table. */
-function NoteTableBar({ editor }: { editor: Editor }) {
-  const { t } = useTranslation();
-  const inTable = useEditorState({ editor, selector: ({ editor: current }) => current?.isActive('table') ?? false });
-  if (!inTable) return null;
-  const action = (label: string, run: () => boolean) => (
-    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run()}>
-      {label}
-    </button>
-  );
-  return (
-    <div className="note-table-bar" role="toolbar" aria-label={t('materialEditor.table.toolbar')}>
-      {action(t('materialEditor.table.addRow'), () => editor.chain().focus().addRowAfter().run())}
-      {action(t('materialEditor.table.addColumn'), () => editor.chain().focus().addColumnAfter().run())}
-      {action(t('materialEditor.table.deleteRow'), () => editor.chain().focus().deleteRow().run())}
-      {action(t('materialEditor.table.deleteColumn'), () => editor.chain().focus().deleteColumn().run())}
-      {action(t('materialEditor.table.headerRow'), () => editor.chain().focus().toggleHeaderRow().run())}
-      {action(t('materialEditor.table.deleteTable'), () => editor.chain().focus().deleteTable().run())}
-    </div>
-  );
-}
-
-/**
- * The task item at the caret: whether it is a TODO, with the way out (keep it
- * a plain checkbox) or back in (make it a TODO).
- */
-function NoteTaskBar({ editor, onPromote, onUnlink }: { editor: Editor; onPromote: () => void; onUnlink: () => void }) {
-  const { t } = useTranslation();
-  const state = useEditorState({
-    editor,
-    selector: ({ editor: current }) => {
-      if (!current) return null;
-      const found = taskItemAtSelection(current);
-      if (!found) return null;
-      return { todoId: (found.node.attrs.todoId ?? null) as string | null, empty: !found.node.textContent.trim() };
-    },
-  });
-  // A link to a TODO this device lacks (still syncing, or gone) acts as a
-  // plain checkbox, which can be made a TODO again.
-  const linked = useDataStore((data) => (state ? hasLinkedTodo(state.todoId, data.comments) : false));
-  if (!state) return null;
-  return (
-    <div className="note-table-bar note-task-bar" role="toolbar" aria-label={t('materialEditor.todo.toolbar')}>
-      {linked ? (
-        <>
-          <span className="note-task-bar__status">{t('materialEditor.todo.linked')}</span>
-          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onUnlink}>
-            {t('materialEditor.todo.unlink')}
-          </button>
-        </>
-      ) : (
-        <button type="button" disabled={state.empty} onMouseDown={(event) => event.preventDefault()} onClick={onPromote}>
-          {t('materialEditor.todo.promote')}
-        </button>
       )}
     </div>
   );

@@ -61,12 +61,15 @@ describe('Mobile V2 M6 Agent, Library/TODO, and Stats acceptance wiring', () => 
   it('reflows complete Library/TODO semantics with ordinary mobile action targets', () => {
     const panels = source('shells/mobile/workspace/MobileRightSidebar.tsx');
     const library = source('features/library/LibraryPanel.tsx');
+    const tree = source('features/library/MaterialFolderTree.tsx');
     const card = source('features/library/LibraryItemCard.tsx');
     const css = fs.readFileSync(path.join(repoRoot, 'src/styles/mobile-workspace.css'), 'utf8');
 
     expect(panels).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
     expect(panels).toContain('<LibraryPanel focused={focused} presentation="mobile" />');
-    expect(library).toContain("mobileActions={presentation === 'mobile'}");
+    // The panel's folder tree gives each mobile row a tap target for its menu.
+    expect(library).toContain('presentation={presentation}');
+    expect(tree).toContain('{!desktop && <MoreButton');
     expect(card).toContain('className="library-item-card__mobile-menu"');
     expect(card).toContain("data-library-mobile-actions={mobileActions ? 'true' : undefined}");
     expect(css).toContain(".btl-cmenu[data-library-mobile-actions='true'] .menu-surface__item");

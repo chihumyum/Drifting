@@ -1870,8 +1870,6 @@
       "current": "Current item",
       "currentShort": "Cur",
       "count": "{{count}} materials",
-      "hideRelations": "Hide relations",
-      "showRelations": "Show relations",
       "newMaterial": "New material"
     },
     "kind": {
@@ -3654,16 +3652,18 @@
       "delete": "Delete folder",
       "open": "Open",
       "move": "Move to folder…",
-      "moveSelected": "Move {{count}} materials to folder…"
-    },
-    "toolbar": {
-      "showFolders": "Browse by folder",
-      "showAll": "Show all materials"
+      "moveSelection": "Move {{count}} items to folder…",
+      "deleteSelection": "Delete {{count}} items",
+      "expandAll": "Expand all inside",
+      "collapseAll": "Collapse all inside",
+      "expandPreview": "Show full preview",
+      "collapsePreview": "Hide full preview"
     },
     "picker": {
       "title": "Move to folder",
       "newPlaceholder": "New folder name",
       "createAndMove": "Create and move"
-    }
+    },
+    "deleteSelectionConfirm": "Delete the {{count}} selected items? Materials are deleted; whatever is in a deleted folder moves up one level."
   }
 }
