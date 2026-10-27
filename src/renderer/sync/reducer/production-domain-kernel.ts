@@ -798,8 +798,12 @@ async function validateExternalEffect(
         }
       } else {
         const owners = await context.tx.select({ id: LibraryItemTable.id, kind: LibraryItemTable.kind, assetId: LibraryItemTable.assetId }).from(LibraryItemTable).where(and(eq(LibraryItemTable.id, payload.owner.id), eq(LibraryItemTable.projectId, context.changeSet.projectId))).limit(1);
-        if (!owners[0] || owners[0].kind !== payload.kind || (owners[0].assetId !== null && owners[0].assetId !== effect.target.id)) {
-          return [conflict(effect, 'asset.invalid-owner', 'Asset kind must match an existing unbound library item')];
+        // A material imported on another device arrives with its bind in
+        // the same change set, before it has a row here; its seed has the kind.
+        const ownerKind = owners[0]?.kind ?? candidateRecord(context.effects, 'library-item', payload.owner.id)?.kind;
+        const boundElsewhere = owners[0] !== undefined && owners[0].assetId !== null && owners[0].assetId !== effect.target.id;
+        if (ownerKind !== payload.kind || boundElsewhere) {
+          return [conflict(effect, 'asset.invalid-owner', 'Asset kind must match an existing or newly created unbound library item')];
         }
       }
       const [otherElements, otherLibraryItems] = await Promise.all([
@@ -917,10 +921,25 @@ async function upsertLifecycleLive(
       await context.tx.insert(ElementPatchTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, elementId: seed.elementId as string, sourceNodeId: (seed.sourceNodeId as string | null | undefined) ?? null, sourceBlockId: (seed.sourceBlockId as string | null | undefined) ?? null, sourceBlockText: (seed.sourceBlockText as string | null | undefined) ?? null, textAnchorJson: (seed.textAnchorJson as string | null | undefined) ?? null, invalidatedAt: (seed.invalidatedAt as string | null | undefined) ?? null, title: (seed.title as string | null | undefined) ?? null, contentJson: (seed.contentJson as string | undefined) ?? '{}', orderKey: 0, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
     case 'library-item': {
+      // An existing row stays as it is. It is not re-inserted to be ignored:
+      // SQLite checks an image's payload CHECK (asset required) before the
+      // conflict clause, and seeds carry no asset id.
+      const existing = await context.tx.select({ id: LibraryItemTable.id }).from(LibraryItemTable).where(eq(LibraryItemTable.id, effect.target.id)).limit(1);
+      if (existing[0]) return;
       // Older builds and history still carry retired url seeds; they land as
       // the same note migration 0011 makes of a stored url row.
       const material = normalizeLegacyUrlRecord(seed);
-      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: material.title as string, kind: material.kind as string, assetId: (material.assetId as string | null | undefined) ?? null, externalUrl: (material.externalUrl as string | null | undefined) ?? null, bodyJson: (material.bodyJson as string | null | undefined) ?? null, notesJson: (material.notesJson as string | null | undefined) ?? null, provenanceJson: (material.provenanceJson as string | null | undefined) ?? null, folderId: (material.folderId as string | null | undefined) ?? null, taskTodos: (material.taskTodos as boolean | undefined) ?? true, orderKey: 0, createdAt: material.createdAt as string, updatedAt: material.updatedAt as string }).onConflictDoNothing();
+      let assetId = (material.assetId as string | null | undefined) ?? null;
+      if (assetId === null && (material.kind === 'image' || material.kind === 'pdf')) {
+        // Imported on another device: the asset is bound in the creating
+        // change set, and the row needs it at insert.
+        const bind = libraryItemAssetBinds(context.effects).get(effect.target.id);
+        if (bind) {
+          await ensureProjectAsset(context, bind.assetId, bind.payload);
+          assetId = bind.assetId;
+        }
+      }
+      await context.tx.insert(LibraryItemTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, title: material.title as string, kind: material.kind as string, assetId, externalUrl: (material.externalUrl as string | null | undefined) ?? null, bodyJson: (material.bodyJson as string | null | undefined) ?? null, notesJson: (material.notesJson as string | null | undefined) ?? null, provenanceJson: (material.provenanceJson as string | null | undefined) ?? null, folderId: (material.folderId as string | null | undefined) ?? null, taskTodos: (material.taskTodos as boolean | undefined) ?? true, orderKey: 0, createdAt: material.createdAt as string, updatedAt: material.updatedAt as string }).onConflictDoNothing();
       return;
     }
     case 'entity-relation':
@@ -1298,13 +1317,37 @@ async function purgeEntity(context: SyncDomainMaterializationContext, effect: Li
   }
 }
 
-async function materializeAssetBind(context: SyncDomainMaterializationContext, effect: AssetEffect, payload: ProjectAssetBindPayloadV1): Promise<void> {
+async function ensureProjectAsset(context: SyncDomainMaterializationContext, assetId: string, payload: ProjectAssetBindPayloadV1): Promise<void> {
   const sourceSha256 = payload.sourceSha256.slice('sha256:'.length);
   const repository = createProjectAssetSqliteRepository(context.changeSet.projectId, context.tx);
-  if (!(await repository.findById(effect.target.id))) {
-    await repository.create({ id: effect.target.id, projectId: context.changeSet.projectId, kind: payload.kind, sourceMime: payload.sourceMime, sourceSizeBytes: payload.sourceSizeBytes, sourceSha256, width: payload.width, height: payload.height, createdAt: payload.createdAt });
+  if (!(await repository.findById(assetId))) {
+    await repository.create({ id: assetId, projectId: context.changeSet.projectId, kind: payload.kind, sourceMime: payload.sourceMime, sourceSizeBytes: payload.sourceSizeBytes, sourceSha256, width: payload.width, height: payload.height, createdAt: payload.createdAt });
   }
+}
+
+async function materializeAssetBind(context: SyncDomainMaterializationContext, effect: AssetEffect, payload: ProjectAssetBindPayloadV1): Promise<void> {
+  await ensureProjectAsset(context, effect.target.id, payload);
   await bindAssetOwner(context, effect.target.id, payload.owner);
+}
+
+/**
+ * The admissible binds that give library items their assets, by item id. The
+ * asset id is not a wire field of a material: it travels as this bind, in the
+ * change set that creates the material.
+ */
+function libraryItemAssetBinds(
+  effects: readonly ReducerEffect[],
+  blocked: ReadonlySet<string> = new Set(),
+): Map<string, { assetId: string; payload: ProjectAssetBindPayloadV1 }> {
+  const binds = new Map<string, { assetId: string; payload: ProjectAssetBindPayloadV1 }>();
+  for (const effect of effects) {
+    if (effect.type !== 'asset.bind' || !effect.materialize || blocked.has(effect.effectId)) continue;
+    const parsed = parseProjectAssetMutationV1({ action: effect.type, target: effect.target, payload: effect.payload });
+    if (!parsed.ok || parsed.value.action !== 'asset.bind') continue;
+    const { owner } = parsed.value.payload;
+    if (owner.kind === 'library-item') binds.set(owner.id, { assetId: effect.target.id, payload: parsed.value.payload });
+  }
+  return binds;
 }
 
 async function bindAssetOwner(context: SyncDomainMaterializationContext, assetId: string, owner: ProjectAssetOwnerV1): Promise<void> {
@@ -1533,6 +1576,33 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
         blockedEffectIds: currentChangeSetEffectIds,
       });
     }
+  }
+
+  // An image or PDF is created together with the bind of its asset. Until an
+  // admissible one exists the material stays blocked, rather than failing its
+  // payload CHECK while materializing; it is checked on every apply, so it
+  // lands once the bind becomes admissible.
+  const blocked = new Set(issues.flatMap((issue) => issue.blockedEffectIds ?? []));
+  const binds = libraryItemAssetBinds(context.effects, blocked);
+  for (const effect of context.effects) {
+    if (
+      effect.type !== 'entity.lifecycle' ||
+      effect.status !== 'live' ||
+      effect.target.kind !== 'library-item' ||
+      binds.has(effect.target.id)
+    ) {
+      continue;
+    }
+    const kind = candidateRecord(context.effects, 'library-item', effect.target.id)?.kind;
+    if (kind !== 'image' && kind !== 'pdf') continue;
+    const existing = await context.tx.select({ id: LibraryItemTable.id }).from(LibraryItemTable).where(eq(LibraryItemTable.id, effect.target.id)).limit(1);
+    if (existing[0]) continue;
+    issues.push(entityConflict(
+      context.effects,
+      effect,
+      'library-item.missing-asset',
+      `${kind} materials require an admissible asset bind to be created`,
+    ));
   }
 
   const relationTypeIds = new Set(

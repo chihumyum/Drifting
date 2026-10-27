@@ -8,7 +8,13 @@ import * as Y from 'yjs';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { createYjsProseSeedState } from '../../lib/agent/runtime/yjs-prose-command';
-import { legacyUrlNoteBodyJson } from '../../domain/library-item';
+import { legacyUrlNoteBodyJson, type LibraryItem } from '../../domain/library-item';
+import type { ProjectAsset } from '../../domain/project-asset';
+import { createLibraryItemSqliteRepository } from '../../sqlite-repo/library-item-repo';
+import { createProjectAssetSqliteRepository } from '../../sqlite-repo/project-asset-repo';
+import { deleteLibraryItemInTransaction } from '../../usecase/library-item-deletion';
+import type { AtomicSyncWriter } from '../../usecase/sync-helpers';
+import { libraryMutationPayload } from '../../usecase/useLibraryItem';
 import type { DbClient, DbTransaction } from '../../lib/db';
 import {
   BookElementTable,
@@ -183,10 +189,10 @@ async function changeSet(
   };
 }
 
-async function apply(db: DbClient, value: SyncChangeSetV1) {
+async function apply(db: DbClient, value: SyncChangeSetV1, device: SyncWriterIdentitySource = identity()) {
   return db.transaction((tx) => applyVerifiedRemoteChangeSetInTransaction(tx, {
     changeSet: value,
-    identity: identity(),
+    identity: device,
     clock: { nowMs: 1_700_000_000_100, nowIso: NOW },
     kernel: productionSyncDomainMaterializationKernel,
   }));
@@ -197,15 +203,16 @@ async function author(
   db: DbClient,
   nowMs: number,
   work: (tx: DbTransaction, changes: SyncChangeBuilder) => Promise<void>,
-): Promise<void> {
-  await db.transaction(async (tx) => {
+  device: SyncWriterIdentitySource = identity(),
+): Promise<SyncChangeSetV1> {
+  return db.transaction(async (tx) => {
     const changes = new SyncChangeBuilder();
     await work(tx, changes);
     const recorded = await recordAuthoredChangeSetInTransaction(tx, {
       projectId: PROJECT_ID,
       projectSyncId: PROJECT_SYNC_ID,
       syncGenerationId: SYNC_GENERATION_ID,
-      identity: identity(),
+      identity: device,
       clock: { nowMs, nowIso: NOW },
     }, changes);
     await observeLocalAuthoredReducerInTransaction(tx, {
@@ -213,6 +220,7 @@ async function author(
       clock: { nowMs, nowIso: NOW },
       validator: productionSyncDomainMaterializationKernel,
     });
+    return recorded.changeSet;
   });
 }
 
@@ -1738,5 +1746,147 @@ describe('incremental remote materialization', () => {
       { node_id: NODE_ID, storyline_id: 'storyline-1', is_primary: 0 },
       { node_id: NODE_ID, storyline_id: 'storyline-2', is_primary: 1 },
     ]);
+  });
+});
+
+describe('binary materials across devices', () => {
+  const deviceA: SyncWriterIdentitySource = {
+    installationId: 'device-a-installation',
+    createWriterIdentity: () => ({ writerId: 'device-a', writerEpoch: 'epoch-a' }),
+  };
+  const deviceB: SyncWriterIdentitySource = {
+    installationId: 'device-b-installation',
+    createWriterIdentity: () => ({ writerId: 'device-b', writerEpoch: 'epoch-b' }),
+  };
+
+  /** The authored writer the material use cases journal through. */
+  function journal(changes: SyncChangeBuilder): AtomicSyncWriter {
+    return async (entityType, mutationType, entityId, projectId, payload, parentId) => {
+      appendAuthoredDomainMutation(changes, { entityType, mutationType, entityId, projectId, payload, parentId });
+    };
+  }
+
+  function binaryMaterial(kind: 'image' | 'pdf', digest: string): { asset: ProjectAsset; item: LibraryItem } {
+    const asset: ProjectAsset = {
+      id: `${kind}-asset`,
+      projectId: PROJECT_ID,
+      kind,
+      sourceMime: kind === 'image' ? 'image/png' : 'application/pdf',
+      sourceSizeBytes: 4,
+      sourceSha256: digest,
+      width: kind === 'image' ? 1 : null,
+      height: kind === 'image' ? 1 : null,
+      createdAt: NOW,
+    };
+    const item: LibraryItem = {
+      id: `${kind}-material`,
+      projectId: PROJECT_ID,
+      title: 'Imported',
+      kind,
+      assetId: asset.id,
+      externalUrl: null,
+      previewImageUrl: null,
+      bodyJson: null,
+      notesJson: null,
+      provenanceJson: null,
+      orderKey: 0,
+      folderId: null,
+      taskTodos: true,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    return { asset, item };
+  }
+
+  /** Device A imports the file the way useLibraryItem does: bind and create in one change set. */
+  function importOn(db: DbClient, { asset, item }: ReturnType<typeof binaryMaterial>) {
+    return author(db, 1_700_000_000_010, async (tx, changes) => {
+      await createProjectAssetSqliteRepository(PROJECT_ID, tx).create(asset);
+      appendProjectAssetBindMutation(changes, PROJECT_ID, asset, { kind: 'library-item', id: item.id });
+      await createLibraryItemSqliteRepository(PROJECT_ID, tx).create(item);
+      await journal(changes)('libraryItem', 'create', item.id, PROJECT_ID, libraryMutationPayload(item));
+    }, deviceA);
+  }
+
+  const materialRows = (db: DbClient) =>
+    db.select({ id: LibraryItemTable.id, kind: LibraryItemTable.kind, title: LibraryItemTable.title, assetId: LibraryItemTable.assetId })
+      .from(LibraryItemTable);
+  const assetRows = (db: DbClient) =>
+    db.select({ id: ProjectAssetTable.id, kind: ProjectAssetTable.kind }).from(ProjectAssetTable);
+  const nodeTitle = async (db: DbClient) =>
+    (await db.select({ title: BookNodeTable.title }).from(BookNodeTable).where(eq(BookNodeTable.id, NODE_ID)))[0]?.title;
+
+  it.each(['image', 'pdf'] as const)(
+    'applies a %s imported on another device, its rename and its deletion, and keeps applying after a restart',
+    async (kind) => {
+      const digest = (kind === 'image' ? 'b' : 'c').repeat(64);
+      const a = await createDatabase();
+      const b = await createDatabase();
+      // A segment applies only once its blobs are downloaded and verified.
+      for (const db of [a, b]) await insertVerifiedBlob(db, digest);
+      const material = binaryMaterial(kind, digest);
+
+      const imported = await importOn(a, material);
+      expect((await apply(b, imported, deviceB)).conflicts).toEqual([]);
+      expect(await materialRows(b)).toEqual([{ id: material.item.id, kind, title: 'Imported', assetId: material.asset.id }]);
+      expect(await assetRows(b)).toEqual([{ id: material.asset.id, kind }]);
+
+      const renamed = await author(a, 1_700_000_000_020, async (tx, changes) => {
+        await createLibraryItemSqliteRepository(PROJECT_ID, tx).update(material.item.id, { title: 'Renamed', updatedAt: NOW });
+        await journal(changes)('libraryItem', 'update', material.item.id, PROJECT_ID, { title: 'Renamed' });
+      }, deviceA);
+      expect((await apply(b, renamed, deviceB)).conflicts).toEqual([]);
+      expect((await materialRows(b))[0]?.title).toBe('Renamed');
+
+      // A restart empties the reducer cache, so the next apply re-materializes
+      // every live entity, the material included, on both devices.
+      invalidateSqliteReducerStateCache();
+      const unrelated = await changeSet(1, [
+        { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'After restart' } },
+      ], { writerId: 'device-c', writerEpoch: 'epoch-c', wallMs: 1_700_000_000_030 });
+      expect((await apply(a, unrelated, deviceA)).conflicts).toEqual([]);
+      expect((await apply(b, unrelated, deviceB)).conflicts).toEqual([]);
+      expect([await nodeTitle(a), await nodeTitle(b)]).toEqual(['After restart', 'After restart']);
+      expect(await materialRows(b)).toEqual([{ id: material.item.id, kind, title: 'Renamed', assetId: material.asset.id }]);
+
+      const deleted = await author(a, 1_700_000_000_040, async (tx, changes) => {
+        await deleteLibraryItemInTransaction(tx, journal(changes), changes, PROJECT_ID, { ...material.item, title: 'Renamed' });
+      }, deviceA);
+      expect((await apply(b, deleted, deviceB)).conflicts).toEqual([]);
+      expect(await materialRows(b)).toEqual([]);
+      expect(await assetRows(b)).toEqual([]);
+    },
+  );
+
+  it('blocks an imported image that cannot bind its asset yet, and lands it once it can', async () => {
+    const digest = 'd'.repeat(64);
+    const a = await createDatabase();
+    const b = await createDatabase();
+    await insertVerifiedBlob(a, digest);
+    const material = binaryMaterial('image', digest);
+    const imported = await importOn(a, material);
+
+    // Device B never verified the bytes: the bind is not admissible here.
+    const applied = await apply(b, imported, deviceB);
+    expect(applied.conflicts.map(({ code }) => code)).toEqual(
+      expect.arrayContaining(['asset.blob-not-verified', 'library-item.missing-asset']),
+    );
+    expect(await materialRows(b)).toEqual([]);
+
+    // The project keeps syncing.
+    const unrelated = await changeSet(1, [
+      { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'Still syncing' } },
+    ], { writerId: 'device-c', writerEpoch: 'epoch-c', wallMs: 1_700_000_000_030 });
+    await apply(b, unrelated, deviceB);
+    expect(await nodeTitle(b)).toBe('Still syncing');
+    expect(await materialRows(b)).toEqual([]);
+
+    // The bytes arrive; the next apply admits the bind and the image lands.
+    await insertVerifiedBlob(b, digest);
+    const later = await changeSet(2, [
+      { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'Bytes arrived' } },
+    ], { writerId: 'device-c', writerEpoch: 'epoch-c', wallMs: 1_700_000_000_040 });
+    expect((await apply(b, later, deviceB)).conflicts).toEqual([]);
+    expect(await materialRows(b)).toEqual([{ id: material.item.id, kind: 'image', title: 'Imported', assetId: material.asset.id }]);
   });
 });

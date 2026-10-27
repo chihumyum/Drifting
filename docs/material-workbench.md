@@ -283,6 +283,11 @@ boundary, because older builds validate what they receive:
   folder table, every material at the root and the switch on.
 - **Note-task TODOs** are ordinary TODO rows with a metadata marker; older
   builds show them as plain TODOs about the note.
+- **Images and PDFs from another device.** Through `588efb32` a receiving
+  build failed to apply an imported image or PDF, and failed every remote apply
+  after a restart once the project held one, which stalled that project's sync.
+  The kernel now inserts the material with the asset bound in its creating
+  change set (`docs/local-assets.md`); every syncing device needs this build.
 
 ## Milestones
 

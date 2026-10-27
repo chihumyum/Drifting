@@ -92,6 +92,18 @@ SyncEngine publishes in dependency order:
 content-addressed source blob -> immutable asset metadata -> owner operation
 ```
 
+A material's asset id is not a wire field: the asset travels as the
+`asset.bind` in the change set that creates the image or PDF. The receiving
+kernel admits that bind for an owner created in the same change set and inserts
+the row with the bound asset, which its payload CHECK requires. An existing row
+is never re-inserted, because SQLite checks the CHECK before `ON CONFLICT DO
+NOTHING`. A material whose bind is not admissible yet stays blocked
+(`library-item.missing-asset`) and lands on a later apply. Builds before this
+rule (through `588efb32`) fail such an apply, and fail every remote apply after
+a restart once the project holds an image or PDF, so syncing devices need a
+current build. `production-domain-kernel.integration.test.ts` covers it across
+two devices ("binary materials across devices").
+
 Google Drive and a future hosted provider implement the same opaque object/log
 contract. They transport bytes and immutable records; local SQLite still owns
 transactions, merge rules, Yjs application, and domain validation.

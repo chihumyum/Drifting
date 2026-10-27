@@ -54,7 +54,8 @@ export interface UseLibraryItemContext {
   userId: string;
 }
 
-function libraryMutationPayload(item: LibraryItem): Record<string, unknown> {
+/** The authored sync payload of a material row. Exported for tests. */
+export function libraryMutationPayload(item: LibraryItem): Record<string, unknown> {
   return {
     id: item.id,
     title: item.title,
