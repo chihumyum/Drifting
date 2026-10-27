@@ -2,7 +2,7 @@
 //   tsx --conditions=import src/dev-cli/seed-main.ts --db <library.db> [--scenario <file>]
 // It prints one JSON result line.
 
-import { seedDevelopmentDatabase } from './seed';
+import { installHeadlessRendererGlobals } from './headless-globals';
 
 function option(args: readonly string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -16,6 +16,9 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const databasePath = option(args, '--db');
   if (!databasePath) throw new Error('Usage: seed-main.ts --db <library.db> [--scenario <file>]');
+  // Renderer stores read browser storage when their modules load.
+  installHeadlessRendererGlobals();
+  const { seedDevelopmentDatabase } = await import('./seed');
   const result = await seedDevelopmentDatabase({ databasePath, scenarioPath: option(args, '--scenario') });
   console.log(JSON.stringify(result));
 }
