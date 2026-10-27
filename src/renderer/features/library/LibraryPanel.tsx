@@ -1,6 +1,8 @@
 import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FolderPlus, ListTodo, Plus } from 'lucide-react';
+import { FolderPlus, Plus } from 'lucide-react';
+import { BrushIcon } from '../../components/ui/BrushIcon';
+import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
@@ -309,9 +311,14 @@ function Toolbar({
       >
         {showCount && <span>{t('memoMaterial.toolbar.count', { count: libraryItemTotal })}</span>}
         {onOpenWorkbench && (
-          <ToolbarIconButton title={t('bottomStatusBar.todoLibrary')} onClick={onOpenWorkbench}>
-            <ListTodo size={12} strokeWidth={1.6} />
-          </ToolbarIconButton>
+          <GhostIconButton
+            glass="round"
+            className="workspace-super-view-entry"
+            title={t('bottomStatusBar.todoLibrary')}
+            aria-label={t('bottomStatusBar.todoLibrary')}
+            onClick={onOpenWorkbench}
+            icon={<BrushIcon name="lib-curio" size={15} />}
+          />
         )}
         {onNewFolder && (
           <ToolbarIconButton title={t('materialFolders.menu.newFolder')} onClick={onNewFolder}>

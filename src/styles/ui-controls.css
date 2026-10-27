@@ -269,6 +269,11 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   height: 26px;
 }
 
+.ghost-icon-button--lg {
+  width: 28px;
+  height: 28px;
+}
+
 .ghost-icon-button:hover:not(:disabled) {
   color: hsl(var(--ink-1));
   background: hsl(var(--paper-deep));
@@ -298,6 +303,16 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   cursor: default;
 }
 
+/* Glass never fills: the rim answers hover and press (materials.css). */
+.ghost-icon-button--glass,
+.ghost-icon-button--glass:hover:not(:disabled) {
+  background: transparent;
+}
+
+.ghost-icon-button--glass[aria-pressed='true'] {
+  color: hsl(var(--ink-1));
+}
+
 .context-menu-surface {
   z-index: var(--z-context-menu);
   margin: 0;
@@ -312,16 +327,31 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
    Every action menu uses these classes so trigger type no longer changes its
    typography, chrome, row rhythm, hover, focus, active, or danger treatment.
    Rich menus may opt into `menu-surface--rich` and own their inner layout while
-   retaining the same outer shell. */
+   retaining the same outer shell.
+
+   The shell is floating glass: the shared translucent fill, lightly softened
+   underneath, square corners and a rim that flows steadily for as long as
+   the menu is open. Rows are full-bleed and carry no fill: under the pointer
+   a row's top and bottom edges become hairlines of flowing glass, across the
+   whole slab. Moving between rows only fades one row's lines out and the
+   next row's in; the slab's rim is never touched. Groups are separated by
+   space, not rules. */
+:where(.menu-surface) {
+  position: relative;
+}
+
 .menu-surface {
   box-sizing: border-box;
   width: var(--menu-width-compact);
   max-width: calc(100vw - 16px);
-  padding: 4px;
+  padding: 4px 0;
   overflow: hidden auto;
+  isolation: isolate;
   border: 1px solid var(--menu-surface-border);
   border-radius: var(--menu-surface-radius);
   background: var(--menu-surface-bg);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
   box-shadow: var(--menu-surface-shadow);
   color: hsl(var(--ink-2));
   font-family: var(--font-sans);
@@ -330,6 +360,24 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   line-height: var(--ui-line-body, 18px);
   letter-spacing: normal;
   text-transform: none;
+}
+
+.menu-surface::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 70%, transparent),
+    inset 0 0 14px 1px color-mix(in srgb, var(--glass-clear) 70%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  --glass-gx: -40px;
+  --glass-gy: -90px;
+  animation: glass-flow 9s linear infinite;
 }
 
 .menu-surface--rich {
@@ -357,15 +405,15 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 }
 
 .menu-surface__item {
+  position: relative;
   display: flex;
   align-items: center;
   box-sizing: border-box;
   width: 100%;
   min-height: var(--ui-row-height, 30px);
-  padding: 6px 8px;
-  overflow: hidden;
+  padding: 6px 14px;
   border: 0;
-  border-radius: var(--radius-xs);
+  border-radius: 0;
   background: transparent;
   color: hsl(var(--ink-2));
   font: inherit;
@@ -380,13 +428,61 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__item:hover:not(:disabled),
 .menu-surface__item:focus-visible {
-  background: var(--menu-item-hover-bg);
+  background: transparent;
   color: hsl(var(--ink-1));
 }
 
+/* Desktop only: mobile menus keep their own row pseudo-elements. */
+html:not([data-shell-mode='mobile']) .menu-surface__item::before,
+html:not([data-shell-mode='mobile']) .menu-surface__item::after {
+  --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
+  content: '';
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 3px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--menu-line) 18%, transparent) 0 1px,
+    color-mix(in srgb, var(--menu-line) 80%, transparent) 1px 2px,
+    color-mix(in srgb, var(--menu-line) 18%, transparent) 2px 3px
+  );
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  opacity: 0;
+  animation: glass-flow 9s linear infinite;
+  transition: opacity 0.18s ease-out;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item::before {
+  top: -1px;
+  --glass-gx: -40px;
+  --glass-gy: -12px;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item::after {
+  bottom: -2px;
+  --glass-gx: -40px;
+  --glass-gy: -44px;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,
+html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::after,
+html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::before,
+html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::after {
+  opacity: 1;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item:active::before,
+html:not([data-shell-mode='mobile']) .menu-surface__item:active::after {
+  --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%);
+}
+
 .menu-surface__item:focus-visible {
-  outline: 2px solid hsl(var(--accent) / 0.55);
-  outline-offset: -2px;
+  outline: none;
 }
 
 .menu-surface__item:disabled,
@@ -413,7 +509,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__item--danger:hover:not(:disabled),
 .menu-surface__item--danger:focus-visible {
-  background: var(--menu-item-danger-hover-bg);
+  background: transparent;
   color: var(--menu-item-danger);
 }
 
@@ -423,7 +519,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 }
 
 .menu-surface__section-label {
-  padding: 6px 8px 3px;
+  padding: 8px 14px 3px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-size: var(--ui-font-caption, 9.5px);
   font-weight: 500;
@@ -434,7 +530,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__header {
   max-width: 280px;
-  padding: 6px 8px;
+  padding: 6px 14px;
   overflow: hidden;
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-secondary, 11.5px);
@@ -445,9 +541,10 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__divider,
 .menu-surface__separator {
-  height: 1px;
-  margin: 4px 2px;
-  background: hsl(var(--rule));
+  height: 8px;
+  margin: 0;
+  border: 0;
+  background: transparent;
 }
 
 .tab-context-menu__item {
@@ -1225,7 +1322,8 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 
 .left-sb-inline-add-button--frame,
 .left-sb-group-header--frame .left-sb-inline-actions {
-  background: var(--chrome-bg);
+  /* Inside the legend plate, which already cuts the sand frame. */
+  background: transparent;
 }
 
 .left-sb-group-header--frame .left-sb-inline-actions {
@@ -1246,28 +1344,35 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   --element-category-color: hsl(var(--rule));
   position: relative;
   box-sizing: border-box;
-  margin: 0 6px 10px 4px;
-  padding-bottom: 7px;
+  margin: 2px 12px 12px;
+  padding-bottom: 8px;
   background: transparent;
   transition:
     padding-bottom 120ms ease,
     margin-bottom 120ms ease;
 }
 
+/* Each category is boxed in a dry sand frame of its colour, its heading set
+   into the top edge. The frame is nine-sliced so the stroke keeps one weight
+   at any size; collapsing lets it fade out whole. */
 .element-category-section--compact::before {
   content: '';
   position: absolute;
-  inset: 13px 0 0;
-  border: 1px solid var(--element-category-color);
-  border-top: 0;
-  border-radius: 0 0 3px 3px;
-  opacity: 1;
+  top: 7px;
+  right: -6px;
+  bottom: -6px;
+  left: -6px;
+  background: color-mix(in srgb, var(--element-category-color), #ffffff var(--pigment-lift));
+  -webkit-mask-box-image: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mask-border: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: calc(0.75 * var(--pigment));
   pointer-events: none;
-  transition: opacity 120ms ease;
+  transition: opacity 0.3s ease-out;
 }
 
 .element-category-section--compact.is-collapsed {
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   padding-bottom: 0;
 }
 
@@ -1275,11 +1380,9 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   opacity: 0;
 }
 
-/* The synthetic top edge runs through the sticky header, then the label's
-   chrome background masks its middle. The ::after side connectors live in the
-   same sticky layer, so its opaque background cannot cut a gap at the corners. */
 .left-sb-group-header--frame {
   position: relative;
+  z-index: 1;
   min-height: 26px;
   box-sizing: border-box;
 }
@@ -1288,11 +1391,15 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   display: contents;
 }
 
+/* The heading's own plate cuts the frame's top edge where it sits. */
 .left-sb-group-header--frame .left-sb-group-header__legend {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  height: 22px;
+  padding: 0 7px 0 5px;
+  background: var(--workspace-ui-bg);
 }
 
 .left-sb-group-header__frame-disclosure {
@@ -1304,51 +1411,46 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   flex-shrink: 0;
   padding: 0;
   border: 0;
-  border-radius: 2px;
-  background: var(--chrome-bg);
+  background: transparent;
+  color: hsl(var(--ink-4));
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.left-sb-group-header--frame:hover .left-sb-group-header__frame-disclosure,
+.left-sb-group-header--frame.is-collapsed .left-sb-group-header__frame-disclosure,
+.left-sb-group-header__frame-disclosure:focus-visible {
+  opacity: 1;
 }
 
 .left-sb-group-header__frame-disclosure:disabled {
   cursor: default;
+  opacity: 0;
+}
+
+/* A storyline heading is a cell: its chevron shows on hover or collapsed. */
+.left-sb-group-header__chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-right: -2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.left-sb-group-header--cell:hover .left-sb-group-header__chevron,
+.left-sb-group-header__chevron[aria-expanded='false'],
+.left-sb-group-header__chevron:focus-visible {
   opacity: 1;
-}
-
-.left-sb-group-header__frame-color-square {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: currentColor;
-}
-
-.left-sb-group-header--frame.is-expanded::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: var(--element-category-color);
-  pointer-events: none;
-}
-
-.left-sb-group-header--frame.is-expanded::after {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  border-right: 1px solid var(--element-category-color);
-  border-left: 1px solid var(--element-category-color);
-  pointer-events: none;
-}
-
-.left-sb-group-header--frame.is-expanded > * {
-  position: relative;
-  z-index: 1;
 }
 
 .element-identity-flow {
@@ -1378,7 +1480,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   content: '';
   position: absolute;
   inset: 0 4px;
-  border: 1px solid hsl(var(--rule) / 0.55);
+  border: 1px solid var(--workspace-local-border);
   border-radius: 3px;
   pointer-events: none;
 }
@@ -1391,11 +1493,6 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   letter-spacing: -0.005em;
 }
 
-.element-panel-item-label.is-selected,
-.element-identity-tile.is-selected .element-panel-item-label {
-  font-weight: 500;
-}
-
 .element-identity-tile {
   --element-identity-basis: 78px;
   position: relative;
@@ -1404,22 +1501,28 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  min-height: 30px;
-  padding: 5px 7px;
-  color: hsl(var(--ink-1));
+  min-height: 28px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 3px;
+  color: hsl(var(--ink-2));
   font-family: var(--font-sans);
   text-align: left;
   cursor: pointer;
 }
 
-.element-identity-tile:hover {
+.element-identity-tile:hover,
+.element-identity-tile.is-selected {
   color: hsl(var(--ink-1));
 }
 
-.element-identity-tile.is-selected {
-  background: hsl(var(--surface));
-  box-shadow: none;
-  color: hsl(var(--ink-1));
+.element-identity-tile .kind-mark {
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+}
+
+.element-identity-tile .kind-mark--element > .sand {
+  inset: 0.5px;
 }
 
 .element-identity-tile:focus-visible {
@@ -1466,14 +1569,6 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   font-size: 8px;
   font-weight: 600;
   line-height: 1;
-}
-
-.element-identity-tile__agent--busy {
-  width: 7px;
-  height: 7px;
-  border: 0;
-  border-radius: 50%;
-  background: hsl(var(--accent));
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -6,7 +6,7 @@ import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
-import { SidebarHeaderChrome, SidebarToggleButton } from '../workspaceChrome/WindowControlButtons';
+import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
 import { getPlatformRuntime } from '../../platform/runtime';
 
 export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: {
@@ -27,6 +27,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
       style={{
         display: 'flex', alignItems: 'center',
         background: 'var(--workspace-ui-bg)', flexShrink: 0,
+        position: 'relative',
       }}
     >
       <PanelTabTray ref={tabTrayRef} className="rightbar-tab-tray">
@@ -41,7 +42,8 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
         })}
       </PanelTabTray>
       <SidebarSplitButton side="right" />
-      {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleButton side="right" /></SidebarHeaderChrome>}
+      {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleSlot /></SidebarHeaderChrome>}
+      <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
     </div>
   );
 }

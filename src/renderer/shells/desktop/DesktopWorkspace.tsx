@@ -4,9 +4,10 @@ import { Sidebar } from '../../components/Sidebar';
 import { EditorMainArea } from '../../components/editor/EditorMainArea';
 import { EditorFindPanel } from '../../components/search/EditorFindPanel';
 import { WorkspaceCornerControls } from '../../components/workspaceChrome/WorkspaceCornerControls';
-import { WorkspaceTabDock } from '../../components/workspaceChrome/WorkspaceTabDock';
-import { WorkspaceWordCount } from '../../components/workspaceChrome/WorkspaceWordCount';
+import { WorkspaceSidebarToggles } from '../../components/workspaceChrome/WindowControlButtons';
+import { TimelineToggle, WorkspaceTabDock } from '../../components/workspaceChrome/WorkspaceTabDock';
 import { DesktopBottomTimeline } from './views/DesktopBottomTimeline';
+import { TimelineDrawer } from './TimelineDrawer';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 
@@ -18,10 +19,12 @@ interface DesktopWorkspaceProps {
 
 /**
  * Three full-height columns and nothing across them: no title bar, tab strip
- * or status line. The desk column keeps a transparent window-drag strip for
- * the sidebar toggles, and under the paper the optional Bottom Timeline. The
- * open-document dots, the timeline toggle and the word count rest on the
- * paper's lower edge, so they ride above the timeline when it is open.
+ * or status line. The sidebar toggles are fixed in the window's top corners;
+ * the desk column keeps a transparent window-drag strip, and under the paper
+ * the optional Bottom Timeline. The open-document dots run along the paper's
+ * top on the traffic-light line; the timeline toggle rests in the paper's
+ * lower-right corner beside the editor's toolbar, so it rides above the
+ * timeline when it is open.
  */
 export const DesktopWorkspace = memo(function DesktopWorkspace({
   bottomTimelineHidden,
@@ -39,14 +42,12 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
           <WorkspaceCornerControls />
           <div className="workspace-stage desktop-workspace-stage">
             <EditorMainArea />
-            <WorkspaceWordCount />
             <WorkspaceTabDock />
+            <TimelineToggle />
           </div>
-          {!bottomTimelineHidden && (
-            <div className="workspace-dock desktop-workspace-dock">
-              <DesktopBottomTimeline />
-            </div>
-          )}
+          <TimelineDrawer open={!bottomTimelineHidden}>
+            <DesktopBottomTimeline />
+          </TimelineDrawer>
           {findPanelEditor && (
             <EditorFindPanel editor={findPanelEditor} onClose={onCloseFindPanel} />
           )}
@@ -58,6 +59,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
           </div>
         </Sidebar>
       </div>
+      <WorkspaceSidebarToggles />
     </div>
   );
 });

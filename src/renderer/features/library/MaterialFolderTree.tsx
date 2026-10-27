@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, FileText, Folder, FolderOpen, FolderPlus, MoreHorizontal } from 'lucide-react';
 
@@ -17,6 +17,7 @@ import { requestConfirmation } from '../../store/confirmation-store';
 import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useMaterialFolder } from '../../usecase/useMaterialFolder';
 import { ContextMenuSurface } from '../../components/ui/ContextMenuSurface';
+import { KindMark } from '../../components/ui/KindMark';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { NoteExcerpt } from './NoteExcerpt';
@@ -362,8 +363,12 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         role="treeitem"
         aria-selected={isSelected || active}
         tabIndex={0}
-        className={`material-tree__row material-tree__row--item${active ? ' material-tree__row--active' : ''}${isSelected ? ' material-tree__row--selected' : ''}`}
-        style={{ paddingLeft: 6 + depth * 14 }}
+        className={`material-tree__row material-tree__row--item sand-cell${active ? ' material-tree__row--active is-selected' : ''}${isSelected ? ' material-tree__row--selected' : ''}`}
+        style={{
+          paddingLeft: 6 + depth * 14,
+          '--cell-c': 'hsl(var(--ink-3))',
+          '--cell-frame-origin': `${6 + depth * 14 + 7 + 2}px`,
+        } as CSSProperties}
         draggable={desktop && renamingKey !== entry.key}
         onDragStart={(event) => startDrag(event, entry)}
         onClick={(event) => {
@@ -380,7 +385,10 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         }}
         onContextMenu={(event) => openMenu(event, entry)}
       >
-        <span className="material-tree__chevron-space" aria-hidden />
+        {/* A material: one upright stroke, a slip of paper tucked into the book. */}
+        <span className="material-tree__chevron-space" aria-hidden>
+          <KindMark kind="material" color="hsl(var(--ink-3))" />
+        </span>
         <MaterialCell
           item={item}
           renaming={renamingKey === entry.key}
@@ -398,6 +406,8 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
           onOpen={() => props.onOpenItem(item)}
         />
         {!desktop && <MoreButton label={t('common.more')} onOpen={(event) => openMenu(event, entry)} />}
+        <i className="cell-ring" aria-hidden="true" />
+        <i className="cell-frame" aria-hidden="true" />
       </div>
     );
   };

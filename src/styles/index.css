@@ -57,11 +57,12 @@
 
     /* Shared menu chrome. Cursor context menus and button-anchored dropdowns
        keep separate positioning/interaction owners, but resolve their visual
-       shell and rows through this one token family. */
-    --menu-surface-bg: hsl(var(--surface));
-    --menu-surface-border: hsl(var(--rule-strong));
-    --menu-surface-radius: var(--radius-sm);
-    --menu-surface-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
+       shell and rows through this one token family. Menus are floating
+       glass (materials.css): translucent, square, a flowing rim. */
+    --menu-surface-bg: var(--glass-fill);
+    --menu-surface-border: transparent;
+    --menu-surface-radius: 0;
+    --menu-surface-shadow: 0 16px 30px -16px hsl(var(--ink-1) / 0.38);
     --menu-item-hover-bg: hsl(var(--paper-deep));
     --menu-item-danger: hsl(var(--destructive));
     --menu-item-danger-hover-bg: hsl(var(--destructive) / 0.1);
@@ -72,10 +73,10 @@
     --menu-width-settings: 420px;
 
     /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
-    --paper: 30 8% 96.5%;
-    --paper-deep: 30 6% 92%;
+    --paper: 42 14% 97%;
+    --paper-deep: 40 9% 94.5%;
     --surface: 0 0% 100%;
-    --page: 0 0% 100%;
+    --page: 45 30% 99.5%;
     --page-elevation: 0 1px 0 rgba(28, 24, 19, 0.05), 0 5px 30px -15px rgba(28, 24, 19, 0.13);
 
     --ink-1: 30 6% 12%;
@@ -274,7 +275,7 @@
      instead of just narrowing in place. The duration matches the
      `COLLAPSE_ANIM_MS` constant in components/Sidebar.tsx. */
   .sidebar-shell {
-    transition: width 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1);
   }
   @media (prefers-reduced-motion: reduce) {
     .sidebar-shell {
@@ -326,8 +327,8 @@
 
     --accent-border: 220 6% 26%;
 
-    --paper: 220 6% 11%;
-    --paper-deep: 220 7% 8%;
+    --paper: 220 6% 12.5%;
+    --paper-deep: 220 6% 11.5%;
     --surface: 220 6% 14%;
     --page: 220 6% 14%;
     --page-elevation: 0 1px 0 rgba(0, 0, 0, 0.28), 0 5px 30px -15px rgba(0, 0, 0, 0.55);
@@ -814,38 +815,47 @@ html[data-shell-mode='mobile'] .app-mid {
 }
 
 .editor-bar {
-  /* The document's own controls: a vertical stack resting on the lower-right
-     corner of its paper, outside the flow so prose starts at the top. */
+  /* The document's own controls: one horizontal glass pill resting in the
+     lower-right corner of its paper, beside the Bottom Timeline toggle and
+     outside the flow so prose starts at the top. */
   position: absolute;
-  right: 22px;
-  bottom: 18px;
+  right: 60px;
+  bottom: 16px;
   z-index: 15; /* above the semantic TOC rail and margin notes */
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 18px;
+  --glass-rim: 12px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
   color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 .editor-bar__toggle-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 .editor-bar__icon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
-  background: hsl(var(--page));
-  border: 1px solid hsl(var(--rule));
+  background: transparent;
   cursor: pointer;
   position: relative;
+  transition: color 0.12s ease-out;
 }
-.editor-bar__icon:hover {
-  background: hsl(var(--rule));
+.editor-bar__icon:hover,
+.editor-bar__icon--active {
   color: hsl(var(--ink-1));
 }
 .editor-bar__icon:disabled {
@@ -853,16 +863,7 @@ html[data-shell-mode='mobile'] .app-mid {
   opacity: 0.38;
 }
 .editor-bar__icon:disabled:hover {
-  background: transparent;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
-}
-.editor-bar__icon--active {
-  background: hsl(var(--accent) / 0.1);
-  color: hsl(var(--accent));
-}
-.editor-bar__icon--active:hover {
-  background: hsl(var(--accent) / 0.14);
-  color: hsl(var(--accent));
 }
 /* Element image entry: a thumbnail of the image when there is one, a small
    spinner while the Agent generates candidates. */
@@ -894,18 +895,21 @@ html[data-shell-mode='mobile'] .app-mid {
 }
 .editor-bar__badge {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  min-width: 10px;
-  height: 10px;
-  padding: 0 2px;
-  border-radius: 1px;
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
+  top: -1px;
+  right: -1px;
+  display: grid;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: hsl(var(--ink-3));
+  color: hsl(var(--page));
   font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 7px);
-  line-height: 10px;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
   letter-spacing: 0;
+  place-items: center;
 }
 
 /* Three-dot actions menu. */

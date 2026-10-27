@@ -52,7 +52,9 @@ import {
   MOBILE_PLANNING_MOVE_TOLERANCE_PX,
 } from '../../../features/graph/mobile-planning-gesture';
 import loglevel from 'loglevel';
-import { Waypoints } from 'lucide-react';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { KindMark } from '../../../components/ui/KindMark';
+import { GhostIconButton } from '../../../components/ui/GhostIconButton';
 import { useSuperViewPreloadIntent } from '../../../features/graph/deferred-graph-modules';
 import '../../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
@@ -533,6 +535,14 @@ export function DesktopBottomTimeline({
         }
         return target;
       },
+      // A placed chapter is a weighted slab on its lane; a chip pulled out of
+      // the holding popover just follows the hand.
+      weighted: fromDrawer || isMobilePresentation ? undefined : {
+        rows: () => Array.from(
+          scrollContainerRef.current?.querySelectorAll<HTMLElement>('[data-storyline-row]') ?? [],
+          (row) => row.getBoundingClientRect(),
+        ),
+      },
       onDragStart: () => {
         touchMenuCleanupRef.current?.();
         suppressPointerClickRef.current = true;
@@ -740,9 +750,13 @@ export function DesktopBottomTimeline({
       }
     };
 
+    // On desktop a chapter is a weighted glass slab: rim in its storyline's
+    // colour at rest, flowing under the pointer, pressed while selected.
     const className = [
       'btl-clip',
+      isMobilePresentation ? '' : 'glass glass--rest',
       isSelected ? 'is-selected' : '',
+      isSelected && !isMobilePresentation ? 'is-on' : '',
       stateClass,
     ]
       .filter(Boolean)
@@ -763,6 +777,7 @@ export function DesktopBottomTimeline({
             width: nodeWidth,
             cursor: isPrimary ? 'grab' : 'pointer',
             ['--clip-color' as string]: clipColor,
+            ['--glass-cc' as string]: clipColor,
           } as React.CSSProperties
         }
       >
@@ -849,6 +864,7 @@ export function DesktopBottomTimeline({
           openRowContextMenu(e.currentTarget, e.clientX, e.clientY);
         }}
       >
+        <span className="flow-line flow-line--h btl-row__flow" aria-hidden="true" />
         <div
           className={`btl-rail ${isRouteActive ? 'is-active' : ''}${
             isSynthetic ? '' : ' is-clickable'
@@ -921,7 +937,10 @@ export function DesktopBottomTimeline({
           }
         >
           <div className="btl-rail__main">
-            <div className="btl-rail__name">{storyline.name || 'Untitled'}</div>
+            <div className="btl-rail__name">
+              {!isMobilePresentation && <KindMark kind="storyline" color={storyline.color || 'hsl(var(--ink-4))'} />}
+              {storyline.name || 'Untitled'}
+            </div>
             <div className="btl-rail__count">
               {nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}
             </div>
@@ -1403,15 +1422,15 @@ export function DesktopBottomTimeline({
           {/* Heavier structural work — act boundaries, storyline relations —
               continues in the full-window story graph over the same timeline. */}
           {!isMobilePresentation && (
-            <button
+            <GhostIconButton
               {...storyGraphIntent}
-              className="btl__head-btn"
+              glass="round"
+              className="workspace-super-view-entry"
               title={t('bottomStatusBar.storyGraph')}
               aria-label={t('bottomStatusBar.storyGraph')}
               onClick={() => setActiveSuperView('graph')}
-            >
-              <Waypoints size={12} strokeWidth={1.5} aria-hidden="true" />
-            </button>
+              icon={<BrushIcon name="fullscreen" size={14} />}
+            />
           )}
         </div>
       </div>

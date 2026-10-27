@@ -137,6 +137,7 @@ function ColumnDivider({ ratio, bounds, onChange, onMouseDown }: {
         display: 'flex', justifyContent: 'center', background: 'transparent',
       }}>
       <div style={{ width: 0.5, height: '100%', background: 'var(--workspace-local-border)' }} />
+      <span className="flow-line flow-line--v sidebar-pane-divider__flow" aria-hidden="true" />
     </div>
   );
 }

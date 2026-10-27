@@ -22,7 +22,8 @@ import {
 import { ComposeTodoDialog } from '../../features/library/LibraryDialogs';
 import type { FocusedEntity } from '../../features/library/LibraryPanel';
 import { useWorkspaceNavigator } from '../../features/workspace/navigation/WorkspaceNavigationContext';
-import { workspaceTargetGlyph } from '../../features/workspace/navigation/workspace-target';
+import { KindMark } from '../ui/KindMark';
+import { kindMarkOfTarget } from '../ui/kind-mark';
 import {
   addCommentToStickyNoteRail,
   commentStickyNoteRailTarget,
@@ -269,9 +270,9 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
       : named
         ? named.title || t('common.untitled')
         : t(group.targetKind === 'patch' ? 'reviewPanel.groups.patch' : 'reviewPanel.groups.deleted');
-    const glyph =
+    const mark =
       group.targetKind && group.targetKind !== 'patch'
-        ? workspaceTargetGlyph(group.targetKind, { isDrift: named?.isDrift })
+        ? <KindMark kind={kindMarkOfTarget(group.targetKind, named?.isDrift)} seed={group.targetId ?? ''} color="hsl(var(--ink-3))" />
         : '○';
     const openable = Boolean(named && group.targetKind && OPENABLE_GROUP_KINDS.has(group.targetKind));
     const toggle = () =>
@@ -299,7 +300,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
               }
             }}
           >
-            <span className="review-group__glyph" aria-hidden="true">{glyph}</span>
+            <span className="review-group__glyph" aria-hidden="true">{mark}</span>
             <span className="review-group__name">{title}</span>
           </button>
           <span className="review-group__count">{group.items.length}</span>

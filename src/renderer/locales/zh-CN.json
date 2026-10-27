@@ -2517,7 +2517,9 @@
     "newEntity": "新建实体",
     "newTab": "新建…",
     "closeTab": "关闭标签页",
-    "closePane": "关闭分屏"
+    "closePane": "关闭分屏",
+    "dockLock": "保持展开",
+    "dockUnlock": "收回小点"
   },
   "universalCreate": {
     "eyebrow": "新建实体",

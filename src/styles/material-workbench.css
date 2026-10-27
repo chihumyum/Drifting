@@ -974,8 +974,18 @@
 }
 
 .material-tree__chevron-space {
-  width: 11px;
+  display: grid;
+  width: 14px;
   flex-shrink: 0;
+  place-items: center;
+}
+
+/* Material rows are sand cells (materials.css): no wash under the pointer,
+   a hairline glass ring instead; the open one has its frame drawn from the
+   slip mark. */
+.material-tree__row--item.sand-cell:hover,
+.material-tree__row--item.sand-cell.material-tree__row--active {
+  background: transparent;
 }
 
 .material-tree__name {

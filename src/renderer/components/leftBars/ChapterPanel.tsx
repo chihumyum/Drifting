@@ -11,6 +11,8 @@ import type { BookNode } from '../../domain/book-node';
 import { canonicalWordCount, CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { KindMark } from '../ui/KindMark';
+import { CELL_MARK_CENTER, CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import {
   useHoverPreview,
@@ -98,6 +100,7 @@ export function ChapterPanel({
       : nodeUi.selectedId;
   const [selection] = useSidebarSelection(fallbackSelectedId ? { entityType: 'node', id: fallbackSelectedId } : null);
   const selectedNodeId = selection?.entityType === 'node' ? selection.id : null;
+  const selectedStorylineId = selection?.entityType === 'storyline' ? selection.id : null;
   const scroll = useSidebarPanelScroll();
   const activateTarget = useCallback(
     (target: WorkspaceTarget, options?: { preview?: boolean }) => {
@@ -296,9 +299,9 @@ export function ChapterPanel({
     [activateTarget, bookNodes, createNode],
   );
 
-  // Cell layout: [storyline color stripe] [title] [date]. The stripe slot is
-  // always rendered so titles align; unaffiliated chapters use a quiet neutral
-  // gray instead of disappearing into a transparent slot.
+  // Cell layout: [chapter seal] [title] [date]. The seal is pressed in the
+  // primary storyline's colour; unaffiliated chapters use a quiet neutral
+  // gray instead of disappearing.
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
@@ -310,41 +313,33 @@ export function ChapterPanel({
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;
-    // Agent status rides the leading stripe while working — accent (lit) and
-    // blinking. Once the run is done the stripe is swapped for a plain "M"
-    // marker (below); at rest it keeps the storyline color.
-    const stripeBg = agentBusy ? 'hsl(var(--accent))' : stripeColor;
     const exactWordCount = canonicalWordCount(node);
     const wordCountLabel =
       exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
 
     return (
-      <div
+      <SandCell
         key={node.id}
+        selected={selected}
+        color={stripeColor}
+        markCenter={CELL_MARK_CENTER}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '5px 14px 5px 22px',
+          gap: 9,
+          margin: '0 6px',
+          padding: `5px 10px 5px ${CELL_PAD_LEFT}px`,
+          borderRadius: 3,
           cursor: 'pointer',
-          position: 'relative',
-          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
           fontSize: 'var(--ui-font-body, 12.5px)',
           lineHeight: 'var(--ui-line-body, 1.35)',
           minHeight: 'var(--ui-row-height, 0px)',
-          transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
-          }
           hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
-        onMouseLeave={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'transparent';
-          }
+        onMouseLeave={() => {
           hoverLeave();
         }}
         onClick={() => {
@@ -371,7 +366,7 @@ export function ChapterPanel({
             onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
             title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
             style={{
-              width: 12,
+              width: 14,
               flexShrink: 0,
               textAlign: 'center',
               fontFamily: 'var(--font-mono)',
@@ -384,17 +379,13 @@ export function ChapterPanel({
             {agentAdded ? 'A' : 'M'}
           </AgentChangeIndicator>
         ) : (
-          <span
-            aria-hidden
-            className={agentBusy ? 'agent-glyph-busy' : undefined}
+          // Agent status rides the seal while working: accent and pulsing.
+          <KindMark
+            kind="chapter"
+            seed={node.id}
+            color={stripeColor}
+            busy={agentBusy}
             title={agentBusy ? t('agentActivity.working') : undefined}
-            style={{
-              width: 12,
-              height: 3,
-              borderRadius: 1,
-              background: stripeBg,
-              flexShrink: 0,
-            }}
           />
         )}
 
@@ -403,7 +394,6 @@ export function ChapterPanel({
             flex: 1,
             minWidth: 0,
             color: 'inherit',
-            fontWeight: selected ? 500 : 400,
             letterSpacing: '-0.005em',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -430,7 +420,7 @@ export function ChapterPanel({
                 : formatShortDate(node.updatedAt)}
           </span>
         )}
-      </div>
+      </SandCell>
     );
   };
 
@@ -514,9 +504,12 @@ export function ChapterPanel({
               return (
                 <div key={storyline.id} className="left-sb-group" style={{ marginBottom: 10 }}>
                   <GroupHeaderCell
+                    variant="cell"
                     name={storyline.name}
                     count={sNodes.length}
                     color={color}
+                    mark={<KindMark kind="storyline" color={color} busy={activity.busy || agentSelfBusy} />}
+                    selected={storyline.id === selectedStorylineId}
                     collapsed={collapsed}
                     onToggleCollapsed={() => toggleGroupCollapsed(storyline.id)}
                     onClick={() => {
@@ -558,9 +551,11 @@ export function ChapterPanel({
               footer surface. */}
             <div key={UNAFFILIATED_GROUP_ID} className="left-sb-group" style={{ marginBottom: 10 }}>
               <GroupHeaderCell
+                variant="cell"
                 name={t('leftSidebar.groups.unaffiliated')}
                 count={unaffiliatedChapters.length}
                 color="hsl(var(--ink-4))"
+                mark={<KindMark kind="storyline" color="hsl(var(--ink-4))" busy={unaffiliatedActivity.busy} />}
                 collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}
                 onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}
                 addButtonTitle={t('leftSidebar.actions.newChapter')}

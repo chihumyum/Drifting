@@ -26,10 +26,14 @@ describe('shared menu surface style', () => {
     const controls = source('src/styles/ui-controls.css');
     const surface = block(controls, '.menu-surface {', '.menu-surface--rich {');
     const item = block(controls, '.menu-surface__item {', '.menu-surface__item:hover');
+    const separator = block(controls, '.menu-surface__divider,', '.tab-context-menu__item {');
 
-    expect(tokens).toContain('--menu-surface-bg: hsl(var(--surface));');
-    expect(tokens).toContain('--menu-surface-border: hsl(var(--rule-strong));');
-    expect(tokens).toContain('--menu-surface-radius: var(--radius-sm);');
+    // Menus are floating glass: translucent, square, a flowing rim; rows
+    // carry no fill and show hairline glass along their edges under the
+    // pointer; groups are separated by space, not rules.
+    expect(tokens).toContain('--menu-surface-bg: var(--glass-fill);');
+    expect(tokens).toContain('--menu-surface-border: transparent;');
+    expect(tokens).toContain('--menu-surface-radius: 0;');
     expect(tokens).toContain('--menu-item-hover-bg: hsl(var(--paper-deep));');
     expect(tokens).toContain('--menu-item-danger: hsl(var(--destructive));');
     expect(tokens).toContain('--menu-width-compact: 180px;');
@@ -42,9 +46,17 @@ describe('shared menu surface style', () => {
     expect(surface).toContain('width: var(--menu-width-compact);');
     expect(surface).toContain('font-size: var(--ui-font-body, 12.5px);');
     expect(surface).toContain('line-height: var(--ui-line-body, 18px);');
+    expect(surface).toContain('backdrop-filter: blur(1.6px);');
+    expect(controls).toContain('.menu-surface::before {');
+    expect(controls).toContain('animation: glass-flow 9s linear infinite;');
     expect(item).toContain('min-height: var(--ui-row-height, 30px);');
-    expect(item).toContain('padding: 6px 8px;');
-    expect(item).toContain('border-radius: var(--radius-xs);');
+    expect(item).toContain('padding: 6px 14px;');
+    expect(item).toContain('border-radius: 0;');
+    expect(controls).toContain(
+      "html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,",
+    );
+    expect(separator).toContain('height: 8px;');
+    expect(separator).toContain('background: transparent;');
     expect(item).toContain('overflow-wrap: anywhere;');
     expect(item).toContain('white-space: normal;');
     expect(item).not.toContain('white-space: nowrap;');
@@ -54,7 +66,7 @@ describe('shared menu surface style', () => {
     expect(controls).toContain('.menu-surface--panel {');
     expect(controls).toContain('.menu-surface--settings {');
     expect(controls).toContain('.menu-surface__item--danger');
-    expect(controls).toContain('background: var(--menu-item-danger-hover-bg);');
+    expect(controls).toContain('color: var(--menu-item-danger);');
   });
 
   it('automatically gives pointer-anchored React menus the shared shell', () => {

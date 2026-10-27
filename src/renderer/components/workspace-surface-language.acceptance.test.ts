@@ -26,17 +26,22 @@ describe('workspace surface language acceptance', () => {
     expect(workspace).toContain('<Sidebar sidebarType="left">');
     expect(workspace).toContain('<Sidebar sidebarType="right">');
     expect(centerColumn).toContain('<WorkspaceCornerControls />');
-    // Dots, timeline toggle and word count rest on the paper's lower edge, so
-    // they ride above the optional Bottom Timeline dock.
+    // The dock runs along the paper's top; the timeline toggle rests in the
+    // paper's lower-right corner, so it rides above the optional Bottom
+    // Timeline, which slides in its own drawer. The word count is gone.
     const stage = block(centerColumn, 'className="workspace-stage desktop-workspace-stage"', '</div>');
-    expect(stage).toContain('<WorkspaceWordCount />');
     expect(stage).toContain('<WorkspaceTabDock />');
-    expect(centerColumn).toContain('{!bottomTimelineHidden && (');
+    expect(stage).toContain('<TimelineToggle />');
+    expect(workspace).not.toContain('WorkspaceWordCount');
+    expect(centerColumn).toContain('<TimelineDrawer open={!bottomTimelineHidden}>');
     expect(centerColumn).toContain('<DesktopBottomTimeline />');
+    // The sidebar toggles are fixed above all three columns.
+    expect(workspace).toContain('<WorkspaceSidebarToggles />');
     for (const removed of ['AppTopbar', 'BottomStatusBar']) {
       expect(workspace).not.toContain(removed);
     }
     for (const path of [
+      'src/renderer/components/workspaceChrome/WorkspaceWordCount.tsx',
       'src/renderer/views/AppTopbar.tsx',
       'src/renderer/components/topBars/MainTopBar.tsx',
       'src/renderer/components/topBars/LeftSidebarTopBar.tsx',
@@ -71,17 +76,19 @@ describe('workspace surface language acceptance', () => {
     const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
     const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
 
-    // Closed sidebar: its toggle rests in the desk corner, nothing else.
-    expect(corners).toContain('{!leftOpen && (');
-    expect(corners).toContain('<SidebarToggleButton side="left" />');
-    expect(corners).toContain('{!rightOpen && (');
-    expect(corners).toContain('<SidebarToggleButton side="right" />');
+    // Each toggle is one round glass button fixed in its window corner; the
+    // sidebar slides in and out underneath it. The desk strip only drags.
+    expect(buttons).toContain('<SidebarToggleButton side="left" />');
+    expect(buttons).toContain('<SidebarToggleButton side="right" />');
+    expect(buttons).toContain('glass="round"');
+    expect(buttons).toContain("name={side === 'left' ? 'moon-left' : 'moon-right'}");
+    expect(corners).not.toContain('SidebarToggleButton');
     expect(corners).not.toContain('Account');
-    // Open sidebar: the same toggle sits at the outer end of its tab row.
+    // An open sidebar's tab row keeps an empty slot under its toggle.
     expect(leftSidebar).toContain('windowChrome={index === 0}');
     expect(rightSidebar).toContain('windowChrome={index === panes.length - 1}');
-    expect(leftHeader).toContain('<SidebarHeaderChrome side="left"><SidebarToggleButton side="left" /></SidebarHeaderChrome>');
-    expect(rightHeader).toContain('<SidebarHeaderChrome side="right"><SidebarToggleButton side="right" /></SidebarHeaderChrome>');
+    expect(leftHeader).toContain('<SidebarHeaderChrome side="left"><SidebarToggleSlot /></SidebarHeaderChrome>');
+    expect(rightHeader).toContain('<SidebarHeaderChrome side="right"><SidebarToggleSlot /></SidebarHeaderChrome>');
     expect(buttons).toContain('data-sidebar-header-chrome={side}');
     expect(buttons).toContain("`${side === 'left' ? 'leftSidebar' : 'rightSidebar'}.top.${isOpen ? 'close' : 'open'}`");
     expect(minimum).toContain(':scope > [data-sidebar-header-chrome]');
@@ -122,8 +129,10 @@ describe('workspace surface language acceptance', () => {
     const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
 
-    expect(dock).toContain('<TopTimeline expanded={hovered || focused || held}');
-    expect(dock).toContain('<TimelineToggle />');
+    expect(dock).toContain('expanded={hovered || focused || held || locked}');
+    expect(dock).toContain('export function TimelineToggle()');
+    expect(dock).toContain('className="workspace-tab-dock__lock glass glass--rest glass--round"');
+    expect(dock).toContain('aria-pressed={locked}');
     expect(dock).toContain('aria-pressed={!hidden}');
     expect(dock).toContain('onClick={toggle}');
     expect(dock).not.toContain('setActiveSuperView');
@@ -138,7 +147,9 @@ describe('workspace surface language acceptance', () => {
     expect(subheader).toContain('navigateToAllChapters();');
     expect(subheader).toContain("title={t('bottomStatusBar.elements')}");
     expect(subheader).toContain("onClick={() => setActiveSuperView('element')}");
-    expect(subheader).toContain("import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'");
+    // Entries to whole-book views are round glass with brush icons.
+    expect(subheader).toContain('<BrushIcon name="ov-folding" size={15} />');
+    expect(subheader).toContain('<BrushIcon name="ov-iceberg" size={15} />');
     expect(source('src/renderer/components/ui/icons/IconoirPageFlip.tsx')).toContain(
       'Iconoir `page-flip`, MIT licensed',
     );
@@ -170,26 +181,23 @@ describe('workspace surface language acceptance', () => {
     expect(sharedSuperHeader).not.toContain('super-view-head__title');
   });
 
-  it('keeps document actions on each paper and the word count in the desk corner', () => {
+  it('keeps document actions on each paper as one horizontal glass pill', () => {
     const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
     const indexCss = source('src/styles/index.css');
-    const wordCount = source('src/renderer/components/workspaceChrome/WorkspaceWordCount.tsx');
 
-    expect(topBar).toContain('<div className="editor-bar" role="toolbar" aria-orientation="vertical">');
+    expect(topBar).toContain('<div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">');
     expect(topBar).not.toContain('EditorCrumb');
     expect(topBar).not.toContain('editor-crumbs');
     expect(topBar).toContain('placement="top-end"');
     const bar = block(indexCss, '.editor-bar {', '}');
     expect(bar).toContain('position: absolute;');
-    expect(bar).toContain('flex-direction: column;');
+    expect(bar).toContain('flex-direction: row;');
+    expect(bar).toContain('background: var(--glass-fill);');
     for (const view of ['NodeEditorView', 'ElementEditorView', 'CategoryEditorView', 'StorylineEditorView', 'AllChaptersEditorView', 'MaterialEditorView']) {
       const text = source(`src/renderer/views/${view}.tsx`);
       expect(text, view).not.toContain('EditorCrumb');
       expect(text, view).not.toContain('</EditorTopBar>');
     }
-    expect(wordCount).toContain('deriveWritingStats');
-    expect(wordCount).toContain('deriveStatusWordMetric');
-    expect(wordCount).not.toContain('<button');
   });
 
   it('keeps macOS and cross-platform workspace chrome on one opaque grey plane', () => {
@@ -390,7 +398,7 @@ describe('workspace surface language acceptance', () => {
     expect(zh.leftSidebar.viewMode.globalSummary).toBeUndefined();
   });
 
-  it('uses the document-tab surface instead of an accent wash for left-panel selection', () => {
+  it('selects left-panel cells in sand, not with an accent or surface wash', () => {
     const css = source('src/styles/index.css');
     const controls = source('src/styles/ui-controls.css');
     const chapterPanel = source('src/renderer/components/leftBars/ChapterPanel.tsx');
@@ -405,9 +413,22 @@ describe('workspace surface language acceptance', () => {
     expect(block(controls, '.workspace-list-row:hover,', '.label-mono {')).toContain(
       'background: var(--workspace-cell-hover-bg);',
     );
+    // Every cell is a SandCell: its kind mark, a hairline glass ring under
+    // the pointer and a frame drawn from the mark when selected.
+    const sandCell = source('src/renderer/components/ui/SandCell.tsx');
+    const materials = source('src/styles/materials.css');
+    expect(sandCell).toContain("selected ? 'is-selected' : ''");
+    expect(sandCell).toContain('<i className="cell-ring" aria-hidden="true" />');
+    expect(sandCell).toContain('<i className="cell-frame" aria-hidden="true" />');
+    expect(materials).toContain('.sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }');
+    expect(materials).toContain('.sand-cell.is-selected > .cell-frame {');
+    expect(chapterPanel).toContain('<KindMark\n            kind="chapter"');
+    expect(elementPanel).toContain('<KindMark\n            kind="element"');
+    expect(driftPanel).toContain('<KindMark\n            kind="drift"');
     for (const panel of panels) {
-      expect(panel).toContain("background: selected ? 'hsl(var(--surface))' : 'transparent'");
-      expect(panel).toContain(
+      expect(panel).toContain('<SandCell');
+      expect(panel).not.toContain("background: selected ? 'hsl(var(--surface))' : 'transparent'");
+      expect(panel).not.toContain(
         "event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)'",
       );
       expect(panel).not.toContain(
@@ -484,7 +505,8 @@ describe('workspace surface language acceptance', () => {
     const defaults = block(store, 'sidebars: {', 'setTheme:');
 
     expect(defaults.match(/isOpen:\s*false/g)).toHaveLength(2);
-    expect(css).toContain('transition: width 220ms cubic-bezier(0.32, 0.72, 0, 1);');
+    expect(css).toContain('transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1);');
+    expect(source('src/renderer/components/Sidebar.tsx')).toContain('const COLLAPSE_ANIM_MS = 420;');
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.sidebar-shell\s*\{\s*transition:\s*none;/,
     );
@@ -798,11 +820,14 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('三栏从窗口顶边贯通到底边');
     expect(doc).toContain('**侧栏开关常驻两角**');
     expect(doc).toContain('**账户在左栏底部**');
-    expect(doc).toContain('**标签页在稿纸下方**');
-    expect(doc).toContain('**时间线开关在标签小点下方**');
+    expect(doc).toContain('**标签页在稿纸顶部**');
+    expect(doc).toContain('**时间线开关在稿纸右下角**');
     expect(doc).toContain('**全书视图在对应实体旁边**');
     expect(doc).toContain('**稿纸的操作留在稿纸上**');
-    expect(doc).toContain('**字数在左下角**');
+    expect(doc).toContain('**字数暂时移除**');
+    expect(doc).toContain('## Sand and glass');
+    expect(doc).toContain('**玻璃是手按的东西**');
+    expect(doc).toContain('**砂笔是作者留下的痕迹**');
     expect(doc).toContain('**红灯关闭项目**');
     expect(doc).toContain('不重新定义现有配色');
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');

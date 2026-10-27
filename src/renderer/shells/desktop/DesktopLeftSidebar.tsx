@@ -20,7 +20,8 @@ export function DesktopLeftSidebar() {
   const activeTab = openTabs.find(tab => tabKey(tab) === activeTabKey);
   const singleTarget = activeTab?.kind === 'leaf' ? activeTab : null;
   let targetTab: LeftSidebarTab | null = null;
-  if (singleTarget?.entityType === 'element') targetTab = 'elements';
+  if (singleTarget?.entityType === 'element' || singleTarget?.entityType === 'category') targetTab = 'elements';
+  if (singleTarget?.entityType === 'storyline') targetTab = 'nodes';
   if (singleTarget?.entityType === 'node') {
     const node = bookNodes.find(node => node.id === singleTarget.id);
     if (node) targetTab = isDrift(node) ? 'drift' : 'nodes';

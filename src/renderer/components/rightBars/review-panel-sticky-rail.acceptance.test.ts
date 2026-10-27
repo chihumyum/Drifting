@@ -79,7 +79,7 @@ describe('unified Review surface acceptance', () => {
     expect(panel).toContain('className="review-panel__list scroll-no-bar workspace-list"');
     expect(panel).toContain('<FilterChip');
     expect(panel).toContain('<GhostIconButton');
-    expect(card).toContain("presentation === 'panel' ? ' workspace-list-row' : ''");
+    expect(card).toContain("presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''");
     expect(card).toContain('<ContextMenuSurface');
     expect(card).not.toContain('<footer className="review-card__actions">');
     expect(rail).toContain('<GhostIconButton');

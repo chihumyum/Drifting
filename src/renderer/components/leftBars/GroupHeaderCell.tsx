@@ -1,18 +1,25 @@
-import { ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AgentCountBadge } from './AgentCountBadge';
 import { AgentChangeIndicator } from './AgentChangeIndicator';
+import { SandCell } from '../ui/SandCell';
 
-// Single source for the left-sidebar group-header cell. Storyline groups keep
-// the ordinary [chevron] [color dot] row; compact Element categories opt into
-// a frame mode where one leading disclosure morphs between minus and color dot.
+// Single source for the left-sidebar group-header cell. Label headers keep
+// the ordinary [chevron] [mark] row; compact Element categories opt into a
+// frame mode whose legend sits in the top edge of their sand frame.
+// A storyline heading is a cell of its own (`variant="cell"`): its sand dash
+// at the start, its name, and the chevron at the end; it answers hover and
+// selection exactly like the chapter cells under it (SandCell).
 //
 // The component is purely presentational — it doesn't own collapse or
 // add-affordance state, just renders the chrome and forwards the toggles.
 // Hover-only actions are scoped to this header itself. That prevents hovering
 // a parent group from revealing add buttons in every nested descendant.
+
+/** A storyline heading sits further left than its chapters' seals. */
+const GROUP_CELL_PAD_LEFT = 4;
 
 export interface GroupHeaderCellProps {
   name: string;
@@ -24,13 +31,18 @@ export interface GroupHeaderCellProps {
   // icon for drift groups, to set them apart from the category color dot).
   // When omitted the color dot shows as before.
   glyph?: ReactNode;
+  // The kind mark of an openable group (KindMark), in place of the color dot.
+  mark?: ReactNode;
+  variant?: 'label' | 'cell';
+  // Cell variant: this group's own tab is the active editor.
+  selected?: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   collapseDisabled?: boolean;
-  // Element compact-index categories replace the ordinary chevron with a
-  // state morph: expanded color becomes the surrounding category frame;
-  // collapsed color returns as the small leading square in the exact position
-  // occupied by the expanded minus. The label remains an editor link.
+  // Element compact-index categories are boxed in a sand frame of their
+  // colour (CSS), the heading set into its top edge: [corner mark] [name]
+  // [count] [chevron]. The label remains an editor link; the chevron owns
+  // disclosure, and collapsing lets the frame fade out.
   collapseChrome?: 'chevron' | 'frame';
   // Whole-row click — typically "open this group's entity editor".
   onClick?: () => void;
@@ -77,6 +89,9 @@ export function GroupHeaderCell({
   showTotalCount = true,
   color,
   glyph,
+  mark,
+  variant = 'label',
+  selected = false,
   collapsed,
   onToggleCollapsed,
   collapseDisabled = false,
@@ -104,8 +119,6 @@ export function GroupHeaderCell({
 }: GroupHeaderCellProps) {
   const { t } = useTranslation();
   const showRestingColorMarker = collapseChrome === 'chevron';
-  const frameControlBackground =
-    collapseChrome === 'frame' && !collapsed ? 'var(--chrome-bg)' : 'transparent';
   const leadingBusy = agentIndicatorPlacement === 'leading' && agentBusy;
   const agentIndicator = agentBusy ? (
     <span
@@ -139,6 +152,100 @@ export function GroupHeaderCell({
   const countContent = agentIndicatorPlacement === 'count' && agentIndicator
     ? agentIndicator
     : showTotalCount ? <>· {count}</> : null;
+  const addButton = addButtonTitle && onAdd ? (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onAdd(event);
+      }}
+      title={addButtonTitle}
+      aria-haspopup={addButtonHasPopup}
+      aria-expanded={addButtonHasPopup ? addButtonExpanded : undefined}
+      className={`left-sb-group-add left-sb-inline-add-button${
+        addButtonVisibility === 'always' ? ' left-sb-group-add--always' : ''
+      }${addButtonExpanded ? ' left-sb-group-add--expanded' : ''}${
+        collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''
+      }`}
+      style={{ width: 18, height: 18 }}
+    >
+      <Plus size={12} strokeWidth={1.6} />
+    </button>
+  ) : null;
+
+  if (variant === 'cell') {
+    const leading = agentIndicatorPlacement === 'leading' && !agentBusy && agentIndicator
+      ? agentIndicator
+      : mark;
+    return (
+      <SandCell
+        selected={selected}
+        color={color}
+        markCenter={GROUP_CELL_PAD_LEFT + 7}
+        className="left-sb-group-header left-sb-group-header--cell"
+        onClick={onClick ?? (collapseDisabled ? undefined : onToggleCollapsed)}
+        onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          margin: '0 6px',
+          padding: `3px 6px 3px ${GROUP_CELL_PAD_LEFT}px`,
+          minHeight: 30,
+          borderRadius: 3,
+          cursor: 'pointer',
+          fontSize: 'var(--ui-font-body, 12.5px)',
+          lineHeight: 'var(--ui-line-body, 1.35)',
+          color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+        }}
+      >
+        <span style={{ display: 'flex', width: 14, flexShrink: 0, justifyContent: 'center' }}>{leading}</span>
+        <span
+          className="left-sb-group-header__name"
+          onMouseEnter={(event) => onPreviewEnter?.(event.currentTarget)}
+          onMouseLeave={onPreviewLeave}
+          style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {name}
+        </span>
+        {countContent && <span
+          className="left-sb-group-header__count"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--ui-font-caption, 9.5px)',
+            color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
+            flexShrink: 0,
+          }}
+        >
+          {countContent}
+        </span>}
+        <span style={{ flex: 1 }} />
+        {(rightExtra || addButton) && (
+          <span className="left-sb-inline-actions">
+            {rightExtra}
+            {addButton}
+          </span>
+        )}
+        <button
+          type="button"
+          className="left-sb-group-header__chevron"
+          disabled={collapseDisabled}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
+          title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (collapseDisabled) return;
+            onToggleCollapsed();
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          {collapsed ? <ChevronRight size={11} strokeWidth={2} /> : <ChevronDown size={11} strokeWidth={2} />}
+        </button>
+      </SandCell>
+    );
+  }
   return (
     <div
       className={`left-sb-group-header${
@@ -154,7 +261,7 @@ export function GroupHeaderCell({
         alignItems: 'center',
         justifyContent: 'flex-start',
         gap: 8,
-        padding: '4px 12px 4px 14px',
+        padding: collapseChrome === 'frame' ? '4px 0 4px 6px' : '4px 12px 4px 14px',
         cursor: onClick ? 'pointer' : 'default',
         ...(sticky
           ? {
@@ -215,28 +322,6 @@ export function GroupHeaderCell({
             )}
           </button>
         )}
-        {collapseChrome === 'frame' && (
-          <button
-            type="button"
-            className="left-sb-group-header__frame-disclosure"
-            disabled={collapseDisabled}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? 'Expand' : 'Collapse'}
-            title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (collapseDisabled) return;
-              onToggleCollapsed();
-            }}
-            style={{ color: collapsed ? color : 'hsl(var(--ink-4))' }}
-          >
-            {collapsed ? (
-              <span className="left-sb-group-header__frame-color-square" />
-            ) : (
-              <Minus size={11} strokeWidth={1.8} />
-            )}
-          </button>
-        )}
         {agentIndicatorPlacement === 'leading' && !agentBusy && agentIndicator ? (
           agentIndicator
         ) : glyph ? (
@@ -257,6 +342,8 @@ export function GroupHeaderCell({
           >
             {glyph}
           </span>
+        ) : mark && collapseChrome === 'chevron' && !leadingBusy ? (
+          mark
         ) : showRestingColorMarker || leadingBusy ? (
           <span
             aria-hidden
@@ -273,14 +360,8 @@ export function GroupHeaderCell({
             }}
           />
         ) : null}
-        <div
-          className="left-sb-group-header__legend"
-          style={collapseChrome === 'frame' ? {
-            marginLeft: collapsed ? 0 : -6,
-            padding: collapsed ? 0 : '0 6px',
-            background: frameControlBackground,
-          } : undefined}
-        >
+        <div className="left-sb-group-header__legend">
+          {collapseChrome === 'frame' && mark}
           {collapseChrome === 'frame' ? (
             <button
               type="button"
@@ -353,30 +434,28 @@ export function GroupHeaderCell({
           >
             {countContent}
           </span>}
+          {collapseChrome === 'frame' && (
+            <button
+              type="button"
+              className="left-sb-group-header__frame-disclosure"
+              disabled={collapseDisabled}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? 'Expand' : 'Collapse'}
+              title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (collapseDisabled) return;
+                onToggleCollapsed();
+              }}
+            >
+              {collapsed ? <ChevronRight size={11} strokeWidth={2} /> : <ChevronDown size={11} strokeWidth={2} />}
+            </button>
+          )}
 
-          {(rightExtra || (addButtonTitle && onAdd)) && (
+          {(rightExtra || addButton) && (
             <span className="left-sb-inline-actions">
               {rightExtra}
-              {addButtonTitle && onAdd && (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onAdd(event);
-                  }}
-                  title={addButtonTitle}
-                  aria-haspopup={addButtonHasPopup}
-                  aria-expanded={addButtonHasPopup ? addButtonExpanded : undefined}
-                  className={`left-sb-group-add left-sb-inline-add-button${
-                    addButtonVisibility === 'always' ? ' left-sb-group-add--always' : ''
-                  }${addButtonExpanded ? ' left-sb-group-add--expanded' : ''}${
-                    collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''
-                  }`}
-                  style={{ width: 18, height: 18 }}
-                >
-                  <Plus size={12} strokeWidth={1.6} />
-                </button>
-              )}
+              {addButton}
             </span>
           )}
         </div>

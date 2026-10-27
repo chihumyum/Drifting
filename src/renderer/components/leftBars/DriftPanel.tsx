@@ -30,6 +30,8 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { DRIFT_MOVE_TO_GROUP_ACTION } from '../editor/EditorTopBar';
 import { SimpleContextMenu, type SimpleMenuItem } from './SimpleContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { KindMark } from '../ui/KindMark';
+import { CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import {
   useHoverPreview,
@@ -86,6 +88,7 @@ export function DriftPanel({
   const { t } = useTranslation();
   const { bookNodes } = useDataStoreFields('bookNodes');
   const driftGroups = useDataStore((s) => s.driftGroups);
+  const driftGroupById = useMemo(() => new Map(driftGroups.map((group) => [group.id, group])), [driftGroups]);
   const { nodeUi } = useUiStore();
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
@@ -275,34 +278,37 @@ export function DriftPanel({
     const exactWordCount = canonicalWordCount(node);
     const wordCountLabel =
       exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
+    // A drift is a small eddy, still turning, not yet pressed into a seal:
+    // in its group's colour when the group has one, fainter when it floats
+    // free of any group.
+    const group = node.driftGroupId ? driftGroupById.get(node.driftGroupId) : undefined;
+    const markColor = group?.color || 'hsl(var(--ink-3))';
+    const padLeft = CELL_PAD_LEFT + depth * INDENT_STEP;
     return (
-      <div
+      <SandCell
         key={node.id}
+        selected={selected}
+        color={markColor}
+        markCenter={padLeft + 7}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: `5px 14px 5px ${DRIFT_BASE_PAD_LEFT + depth * INDENT_STEP}px`,
+          gap: 9,
+          margin: '0 6px',
+          padding: `5px 10px 5px ${padLeft}px`,
+          borderRadius: 3,
           cursor: 'pointer',
-          position: 'relative',
-          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : muted ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))',
           fontSize: 'var(--ui-font-body, 12.5px)',
           lineHeight: 'var(--ui-line-body, 1.35)',
           minHeight: 'var(--ui-row-height, 0px)',
           opacity: muted && !selected ? 0.7 : 1,
-          transition: 'background 0.1s, opacity 0.1s',
+          transition: 'opacity 0.1s',
         }}
         onMouseEnter={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
-          }
           hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
-        onMouseLeave={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'transparent';
-          }
+        onMouseLeave={() => {
           hoverLeave();
         }}
         onClick={() => {
@@ -323,46 +329,39 @@ export function DriftPanel({
           });
         }}
       >
-        {/* Drift mark — ❦ glyph, or Agent file status (A/M). */}
-        <AgentChangeIndicator
-          disabled={agentBusy || !(agentAdded || agentChanged)}
-          aria-hidden={agentBusy || !(agentAdded || agentChanged) ? true : undefined}
-          onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
-          className={agentBusy ? 'agent-glyph-busy' : undefined}
-          title={
-            agentBusy
-              ? t('agentActivity.working')
-              : agentAdded || agentChanged
-                ? t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')
-                : undefined
-          }
-          style={{
-            fontFamily: agentAdded || agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
-            fontStyle: agentAdded || agentChanged ? 'normal' : 'italic',
-            fontSize: agentAdded || agentChanged ? 10 : 11,
-            fontWeight: agentAdded || agentChanged ? 600 : undefined,
-            color: agentBusy
-              ? 'hsl(var(--accent))'
-              : agentAdded || agentChanged
-                ? 'hsl(var(--ink-2))'
-                : muted
-                  ? 'hsl(var(--ink-4))'
-                  : 'hsl(var(--ink-3))',
-            flexShrink: 0,
-            lineHeight: 1,
-            width: 12,
-            textAlign: 'center',
-          }}
-        >
-          {agentAdded ? 'A' : agentChanged ? 'M' : '❦'}
-        </AgentChangeIndicator>
+        {/* Drift mark — the eddy, or Agent file status (A/M). */}
+        {agentAdded || agentChanged ? (
+          <AgentChangeIndicator
+            onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
+            title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 600,
+              color: 'hsl(var(--ink-2))',
+              flexShrink: 0,
+              lineHeight: 1,
+              width: 14,
+              textAlign: 'center',
+            }}
+          >
+            {agentAdded ? 'A' : 'M'}
+          </AgentChangeIndicator>
+        ) : (
+          <KindMark
+            kind="drift"
+            color={markColor}
+            loose={!group}
+            busy={agentBusy}
+            title={agentBusy ? t('agentActivity.working') : undefined}
+          />
+        )}
 
         <div
           style={{
             flex: 1,
             minWidth: 0,
             color: 'inherit',
-            fontWeight: selected ? 500 : 400,
             letterSpacing: '-0.005em',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -389,7 +388,7 @@ export function DriftPanel({
                 : formatShortDate(node.updatedAt)}
           </span>
         )}
-      </div>
+      </SandCell>
     );
   };
 

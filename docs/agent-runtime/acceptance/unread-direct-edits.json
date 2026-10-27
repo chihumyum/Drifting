@@ -1,8 +1,8 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-17T09:19:46.839Z",
-  "sourceSha256": "2d7852fae56a4e0a88563d1335a7363d19bddb012320c635178322211f6371ae",
+  "generatedAt": "2026-10-27T19:42:01.292Z",
+  "sourceSha256": "6a06c7850a9204d7ae3ddb4f546afa7e1e2ddf13fa232ef8fb0edba834bf1365",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",
@@ -164,11 +164,11 @@
       "status": "passed"
     },
     {
-      "name": "ElementPanel compact text index uses one minus/square disclosure while the category label opens its editor",
+      "name": "ElementPanel compact text index boxes each category in a sand frame whose heading sits in its top edge",
       "status": "passed"
     },
     {
-      "name": "ElementPanel compact text index reuses the borderless material-card surface and keeps selection as highlight only",
+      "name": "ElementPanel compact text index keeps compact tiles bare: the seal always, the sand frame when selected",
       "status": "passed"
     },
     {

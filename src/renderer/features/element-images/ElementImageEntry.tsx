@@ -58,7 +58,7 @@ export function ElementImageEntry({
       <button
         ref={anchorRef}
         type="button"
-        className={`editor-bar__icon editor-bar__icon--image${open ? ' editor-bar__icon--active' : ''}${imageUrl ? ' editor-bar__icon--thumb' : ''}`}
+        className={`editor-bar__icon glass glass--round editor-bar__icon--image${open ? ' editor-bar__icon--active is-on' : ''}${imageUrl ? ' editor-bar__icon--thumb' : ''}`}
         title={generating ? t('elementEditor.imageGeneration.running') : label}
         aria-label={label}
         aria-haspopup="dialog"

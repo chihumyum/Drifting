@@ -308,7 +308,7 @@ export function ReviewItemCard({
   return (
     <>
       <article
-        className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
+        className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
         aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
         onMouseEnter={(event) => {

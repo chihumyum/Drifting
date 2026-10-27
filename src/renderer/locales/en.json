@@ -2517,7 +2517,9 @@
     "newEntity": "Create entity",
     "newTab": "New…",
     "closeTab": "Close tab",
-    "closePane": "Close pane"
+    "closePane": "Close pane",
+    "dockLock": "Keep open",
+    "dockUnlock": "Fold back to dots"
   },
   "universalCreate": {
     "eyebrow": "Create entity",

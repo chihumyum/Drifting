@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   Ban,
-  Bell,
   CheckCircle2,
   Cloud,
   Loader2,
@@ -20,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { BrushIcon } from '../ui/BrushIcon';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
 import '../../../styles/notifications.css';
 
@@ -208,7 +208,7 @@ export function NotificationPill({ opens = 'down' }: {
     );
   } else {
     iconColor = 'hsl(var(--ink-3))';
-    iconEl = <Bell size={15} strokeWidth={1.7} />;
+    iconEl = <BrushIcon name="furin" />;
   }
 
   return (
@@ -218,13 +218,16 @@ export function NotificationPill({ opens = 'down' }: {
         type="button"
         onClick={handleToggle}
         title={t('notifications.title')}
+        aria-label={t('notifications.title')}
+        aria-expanded={centerOpen}
+        className="notification-pill-button glass glass--round"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           width: 26,
           height: 26,
-          borderRadius: 2,
+          borderRadius: '50%',
           border: 'none',
           background: 'transparent',
           color: iconColor,

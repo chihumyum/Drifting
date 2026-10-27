@@ -53,7 +53,7 @@ describe('ElementPanel compact text index', () => {
     const css = source('src/styles/ui-controls.css');
     const flow = block(css, '.element-identity-flow {', '.element-identity-flow--grouped {');
     const labelTypography = block(css, '.element-panel-item-label {', '.element-identity-tile {');
-    const tileRule = block(css, '.element-identity-tile {', '.element-identity-tile:hover {');
+    const tileRule = block(css, '.element-identity-tile {', '.element-identity-tile:hover,');
     const compactLabel = block(
       css,
       '.element-identity-tile__label {',
@@ -66,47 +66,47 @@ describe('ElementPanel compact text index', () => {
     expect(panel).not.toContain('projectAssets');
     expect(panel).not.toContain('portraitAssetId');
     expect(tile).toContain("const label = element.name.trim() || '?';");
-    expect(tile).toContain('workspace-list-row element-identity-tile');
+    expect(tile).toContain('className="element-identity-tile"');
+    expect(tile).toContain('<KindMark kind="element" color={color} busy={agentState === \'busy\'} />');
     expect(tile).toContain(
       '<span className="element-panel-item-label element-identity-tile__label">{label}</span>',
     );
     expect(panel).toContain(
       "className={`element-panel-item-label${selected ? ' is-selected' : ''}`}",
     );
-    expect(tile).toContain('Math.min(156, Math.max(70, 34 + units * 8))');
+    expect(tile).toContain('Math.min(172, Math.max(80, 44 + units * 12.5))');
     expect(tile).not.toContain('<img');
     expect(tile).not.toContain('IntersectionObserver');
     expect(flow).toContain('display: flex;');
     expect(flow).toContain('flex-wrap: wrap;');
     expect(tileRule).toContain('flex: 1 1 var(--element-identity-basis);');
-    expect(tileRule).toContain('min-height: 30px;');
+    expect(tileRule).toContain('min-height: 28px;');
     expect(tileRule).not.toContain('44px');
     expect(labelTypography).toContain('font-family: var(--font-sans);');
     expect(labelTypography).toContain('font-size: var(--ui-font-body, 12.5px);');
     expect(labelTypography).toContain('font-weight: 400;');
     expect(labelTypography).toContain('line-height: 1.35;');
     expect(labelTypography).toContain('letter-spacing: -0.005em;');
-    expect(labelTypography).toContain(
-      '.element-identity-tile.is-selected .element-panel-item-label',
-    );
+    // Selection is the sand frame, not a heavier label.
+    expect(labelTypography).not.toContain('font-weight: 500;');
     expect(compactLabel).not.toContain('font-size:');
     expect(compactLabel).not.toContain('font-weight:');
     expect(compactLabel).not.toContain('line-height:');
   });
 
-  it('uses one minus/square disclosure while the category label opens its editor', () => {
+  it('boxes each category in a sand frame whose heading sits in its top edge', () => {
     const panel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const header = source('src/renderer/components/leftBars/GroupHeaderCell.tsx');
     const css = source('src/styles/ui-controls.css');
     const categoryBody = block(
       css,
       '.element-category-section--compact {',
-      '.element-identity-flow {',
+      '.left-sb-group-header__chevron {',
     );
     const frameDisclosure = block(
       header,
-      "{collapseChrome === 'frame' && (",
-      "{agentIndicatorPlacement === 'leading' && !agentBusy",
+      "{collapseChrome === 'frame' && (\n            <button",
+      '</button>',
     );
     const frameLabel = block(
       header,
@@ -116,34 +116,31 @@ describe('ElementPanel compact text index', () => {
 
     expect(categoryBody).toContain('background: transparent;');
     expect(categoryBody).toContain('.element-category-section--compact::before {');
-    expect(categoryBody).toContain('inset: 13px 0 0;');
-    expect(categoryBody).toContain('border: 1px solid var(--element-category-color);');
-    expect(categoryBody).toContain('border-top: 0;');
-    expect(categoryBody).toContain('.left-sb-group-header--frame.is-expanded::before {');
-    expect(categoryBody).toContain('background: var(--element-category-color);');
-    expect(categoryBody).toContain('.left-sb-group-header--frame.is-expanded::after {');
-    expect(categoryBody).toContain('border-right: 1px solid var(--element-category-color);');
-    expect(categoryBody).toContain('border-left: 1px solid var(--element-category-color);');
+    expect(categoryBody).toContain(
+      "-webkit-mask-box-image: url('../assets/design/sand/frame-box.png') 24 / 12px round;",
+    );
+    expect(categoryBody).toContain('mix-blend-mode: var(--pigment-blend);');
+    expect(categoryBody).not.toContain('border: 1px solid var(--element-category-color);');
+    expect(categoryBody).toContain('.left-sb-group-header--frame .left-sb-group-header__legend {');
+    expect(categoryBody).toContain('background: var(--workspace-ui-bg);');
     expect(categoryBody).toContain('.element-category-section--compact.is-collapsed {');
     expect(categoryBody).toContain('.element-category-section--compact.is-collapsed::before {');
     expect(categoryBody).toContain('opacity: 0;');
     expect(panel).toContain("collapseChrome={compactIndex ? 'frame' : 'chevron'}");
     expect(panel).toContain("'--element-category-color': categoryColor");
+    expect(panel).toContain('<KindMark kind="category" color={categoryColor} />');
+    expect(panel).toContain('sticky={!compactIndex}');
     expect(panel).toContain('const categoryHasElements = categoryElements.length > 0;');
     expect(panel).toContain('!categoryHasElements || collapsedCategoryIds.has(categoryId)');
     expect(panel).toContain('collapseDisabled={compactIndex && !categoryHasElements}');
     expect(panel).toContain("addButtonVisibility={compactIndex ? 'always' : 'hover'}");
     expect(panel).not.toContain('stickyBackground=');
     expect(header).toContain("const showRestingColorMarker = collapseChrome === 'chevron'");
-    expect(header).toContain("collapseChrome === 'chevron' &&");
-    expect(header).toContain("collapseChrome === 'frame' ?");
+    expect(header).toContain("{collapseChrome === 'frame' && mark}");
     expect(frameDisclosure).toContain('className="left-sb-group-header__frame-disclosure"');
     expect(frameDisclosure).toContain('disabled={collapseDisabled}');
     expect(frameDisclosure).toContain('aria-expanded={!collapsed}');
-    expect(frameDisclosure).toContain("color: collapsed ? color : 'hsl(var(--ink-4))'");
     expect(frameDisclosure).toContain('onToggleCollapsed();');
-    expect(frameDisclosure).toContain('left-sb-group-header__frame-color-square');
-    expect(frameDisclosure).toContain('<Minus size={11} strokeWidth={1.8} />');
     expect(header).toContain('className="left-sb-group-header__frame-label"');
     expect(frameLabel).toContain('aria-disabled={!onClick}');
     expect(frameLabel).toContain('onClick?.();');
@@ -155,29 +152,23 @@ describe('ElementPanel compact text index', () => {
     expect(panel).toContain('agentIndicatorPlacement="count"');
   });
 
-  it('reuses the borderless material-card surface and keeps selection as highlight only', () => {
+  it('keeps compact tiles bare: the seal always, the sand frame when selected', () => {
     const tile = source('src/renderer/components/ui/ElementIdentityTile.tsx');
     const css = source('src/styles/ui-controls.css');
-    const sharedCard = block(css, '.workspace-list-row {', '.label-mono {');
-    const tileRule = block(css, '.element-identity-tile {', '.element-identity-tile:hover {');
+    const tileRule = block(css, '.element-identity-tile {', '.element-identity-tile:hover,');
     const selectedRule = block(
       css,
-      '.element-identity-tile.is-selected {',
-      '.element-identity-tile:focus-visible {',
+      '.element-identity-tile:hover,',
+      '.element-identity-tile .kind-mark {',
     );
 
-    expect(tile).toContain('workspace-list-row element-identity-tile');
-    expect(sharedCard).toContain('border: 0;');
-    expect(sharedCard).not.toContain('workspace-card-border');
-    expect(sharedCard).toContain(
-      'background: color-mix(in srgb, hsl(var(--page)) 55%, var(--workspace-ui-bg));',
-    );
-    expect(sharedCard).toContain('background: var(--workspace-cell-hover-bg);');
+    expect(tile).toContain('<SandCell');
+    expect(tile).toContain('tile');
+    expect(tile).not.toContain('workspace-list-row');
     expect(tileRule).not.toContain('background:');
     expect(tileRule).not.toContain('border:');
-    expect(selectedRule).not.toContain('border');
-    expect(selectedRule).toContain('background: hsl(var(--surface));');
-    expect(selectedRule).toContain('box-shadow: none;');
+    expect(selectedRule).not.toContain('background');
+    expect(selectedRule).toContain('color: hsl(var(--ink-1));');
   });
 
   it('keeps only the final-group/ungrouped gap and scopes group-add hover to its label', () => {
@@ -189,7 +180,7 @@ describe('ElementPanel compact text index', () => {
 
     expect(panel).toContain('const isNamedGroup = groupName !== null;');
     expect(panel).toContain("isNamedGroup ? ' element-identity-flow--grouped' : ''");
-    expect(groupedFlow).toContain('border: 1px solid hsl(var(--rule) / 0.55);');
+    expect(groupedFlow).toContain('border: 1px solid var(--workspace-local-border);');
     expect(groupedFlow).toContain('pointer-events: none;');
     expect(groupedFlow).not.toContain('background:');
     expect(groupedFlow).not.toContain('margin-bottom');

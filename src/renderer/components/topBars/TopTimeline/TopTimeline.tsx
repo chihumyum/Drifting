@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
-import { workspaceTargetGlyph } from '../../../features/workspace/navigation/workspace-target';
+import { KindMark } from '../../ui/KindMark';
+import { kindMarkOfTarget, type KindMarkKind } from '../../ui/kind-mark';
 import { useTabReorder } from './useTabReorder';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import {
@@ -33,11 +34,13 @@ const TAB_FLOOR_WIDTH = 56;
 const TAB_MIN_WIDTH = 120;
 // Max: per-tab cap so a runaway title doesn't dominate the bar in Phase A.
 const TAB_MAX_WIDTH = 320;
-// 0: reorder geometry treats slots as contiguous. Expanded chips draw their
-// own inset frame, so the visible seam lives inside each slot.
+// 0: reorder geometry treats slots as contiguous. Expanded pills draw their
+// glass inset inside the slot, so the visible gap lives inside each slot.
 const TAB_GAP = 0;
-// Only the strip end keeps breathing room for the trailing create action.
-const TAB_STRIP_END_PADDING = 16;
+// The lock before the pills and the create button after them stay put while
+// the pills scroll; each takes a 30px round button and a 5px gap.
+const TAB_STRIP_START_PADDING = 35;
+const TAB_STRIP_END_PADDING = 35;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
 const SPLIT_WEIGHT = 1.6;
 
@@ -82,14 +85,19 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
 
 /**
- * The workspace's open documents, docked under the paper. At rest every tab is
- * a dot in its entity colour (hollow while still a preview); the dock expands
- * the same strip into labelled chips while hovered or focused.
+ * The workspace's open documents, docked along the paper's top. At rest every
+ * tab is the sand mark of its kind in its entity colour (fainter while still a
+ * preview); while hovered or focused glass lands on the marks: each grows
+ * into a pill whose rim takes the mark's colour, its sand spreading away
+ * under the glass. The lock (`leading`) and the create button stay put while
+ * the pills scroll.
  */
-export function TopTimeline({ expanded = true, onHoldExpanded }: {
+export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   expanded?: boolean;
   /** Keeps the dock open while a tab menu is showing. */
   onHoldExpanded?: (held: boolean) => void;
+  /** Rendered before the pills while expanded, outside their overflow. */
+  leading?: ReactNode;
 } = {}) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -207,7 +215,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
     // Preserve the document-tab sizing contract. The adjacent `+` is a
     // separate strip item and may extend the scrollable content; it must not
     // make every existing tab enter proportional shrink earlier.
-    const availableW = Math.max(0, containerWidth - TAB_STRIP_END_PADDING - totalGaps);
+    const availableW = Math.max(0, containerWidth - TAB_STRIP_START_PADDING - TAB_STRIP_END_PADDING - totalGaps);
     const idealTotal = ideals.reduce((a, b) => a + b, 0);
 
     // Phase A — or initial render before ResizeObserver fires.
@@ -443,13 +451,14 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
         width: 'fit-content',
         maxWidth: '100%',
         paddingLeft: 0,
-        paddingRight: expanded ? TAB_STRIP_END_PADDING : 0,
+        paddingRight: 0,
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
       }}
     >
+      {expanded && leading}
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
@@ -465,6 +474,8 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
                 data-cluster-break={clusterBreak ? 'true' : undefined}>
                 {(['left', 'right'] as const).map((side) => (
                   <TabDot key={side}
+                    kind={kindMarkOfTarget(tab[side].entityType, isDriftLeaf(tab[side]))}
+                    seed={tab[side].id}
                     label={labelOfLeaf(tab[side])}
                     color={colorOfLeaf(tab[side])}
                     isActive={isActive && tab.focused === side}
@@ -477,6 +488,8 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
           }
           return (
             <TabDot key={key} tabKeyValue={key}
+              kind={tab.kind === 'leaf' ? kindMarkOfTarget(tab.entityType, isDriftLeaf(tab)) : 'chapter'}
+              seed={tab.id}
               label={tab.kind === 'leaf' ? labelOfLeaf(tab) : t('topTimeline.newTab')}
               color={tab.kind === 'leaf' ? colorOfLeaf(tab) : undefined}
               isActive={isActive}
@@ -553,7 +566,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
 
       {expanded && <button
         type="button"
-        className="top-timeline-create-button"
+        className="top-timeline-create-button glass glass--rest glass--round"
         aria-label={t('topTimeline.newEntity')}
         title={t('topTimeline.newEntity')}
         onClick={() => {
@@ -606,7 +619,7 @@ function CreateTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab app-tab--create${isActive ? ' is-active' : ''}`}
+      className={`app-tab app-tab--create glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       onClick={onSelect}
       onDoubleClick={onPromote}
       onContextMenu={(event) => {
@@ -666,7 +679,7 @@ function LeafTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab${isActive ? ' is-active' : ''}`}
+      className={`app-tab glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       draggable
       onClick={onSelect}
       onDoubleClick={onPromote}
@@ -693,7 +706,9 @@ function LeafTabSlot({
           cursor: 'pointer',
           fontFamily: 'var(--font-sans)',
           fontSize: 'var(--ui-font-body, 12.5px)',
-          color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+          color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+          // A pill's glass takes the colour of the mark it grew from.
+          '--glass-cc': accent,
           // Constant weight: bolding the active tab widens its glyphs, so at
           // the same fixed tab width the SELECTED label ellipsized earlier
           // than unselected ones. Emphasis comes from a metric-neutral
@@ -709,18 +724,9 @@ function LeafTabSlot({
         } as React.CSSProperties
       }
     >
-      <span
-        aria-hidden
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontStyle: 'italic',
-          fontSize: 'var(--ui-font-body, 13px)',
-          color: accent,
-          flexShrink: 0,
-          lineHeight: 1,
-        }}
-      >
-        {workspaceTargetGlyph(tab.entityType, { isDrift })}
+      {/* The dot's sand spreads out and thins away under the glass. */}
+      <span className="app-tab__sand" aria-hidden>
+        <KindMark kind={kindMarkOfTarget(tab.entityType, isDrift)} seed={tab.id} color={color} />
       </span>
       <span
         style={{
@@ -819,9 +825,10 @@ function SplitTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab app-tab--split${isActive ? ' is-active' : ''}`}
+      className={`app-tab app-tab--split glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       draggable
       style={{
+        '--glass-cc': (tab.focused === 'right' ? rightColor : leftColor) || 'hsl(var(--ink-3))',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'stretch',
@@ -832,10 +839,11 @@ function SplitTabSlot({
         overflow: 'hidden',
         height: '100%',
         userSelect: 'none',
-      }}
+      } as React.CSSProperties}
     >
       <SplitSubLabel
         entityType={tab.left.entityType}
+        entityId={tab.left.id}
         label={leftLabel}
         color={leftColor}
         isDrift={leftIsDrift}
@@ -858,6 +866,7 @@ function SplitTabSlot({
       />
       <SplitSubLabel
         entityType={tab.right.entityType}
+        entityId={tab.right.id}
         label={rightLabel}
         color={rightColor}
         isDrift={rightIsDrift}
@@ -874,6 +883,7 @@ function SplitTabSlot({
 
 function SplitSubLabel({
   entityType,
+  entityId,
   label,
   color,
   isDrift,
@@ -885,6 +895,7 @@ function SplitSubLabel({
   onContextMenu,
 }: {
   entityType: TabEntityType;
+  entityId: string;
   label: string;
   color: string | undefined;
   isDrift: boolean;
@@ -896,7 +907,6 @@ function SplitSubLabel({
   onContextMenu: (x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
-  const accent = color || 'hsl(var(--ink-3))';
   return (
     <div
       onClick={(event) => {
@@ -929,7 +939,7 @@ function SplitSubLabel({
         cursor: 'pointer',
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--ui-font-body, 12px)',
-        color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+        color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
         // Metric-neutral emphasis (see LeafTabSlot): real bold widens the
         // focused label and truncates it earlier than the unfocused side.
         fontWeight: 400,
@@ -943,18 +953,8 @@ function SplitSubLabel({
         transition: 'none',
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontStyle: 'italic',
-          fontSize: 'var(--ui-font-body, 12px)',
-          color: accent,
-          flexShrink: 0,
-          lineHeight: 1,
-        }}
-      >
-        {workspaceTargetGlyph(entityType, { isDrift })}
+      <span className="app-tab__sand" aria-hidden>
+        <KindMark kind={kindMarkOfTarget(entityType, isDrift)} seed={entityId} color={color} />
       </span>
       <span
         style={{
@@ -1015,6 +1015,8 @@ function SplitSubLabel({
 
 function TabDot({
   tabKeyValue,
+  kind,
+  seed,
   label,
   color,
   isActive,
@@ -1024,6 +1026,8 @@ function TabDot({
   onContextMenu,
 }: {
   tabKeyValue?: string;
+  kind: KindMarkKind;
+  seed: string;
   label: string;
   color: string | undefined;
   isActive: boolean;
@@ -1043,12 +1047,13 @@ function TabDot({
       data-cluster-break={clusterBreak ? 'true' : undefined}
       data-preview={isPreview ? 'true' : undefined}
       className={`app-tab-dot${isActive ? ' is-active' : ''}`}
-      style={{ '--tab-dot-color': color || 'hsl(var(--ink-3))' } as React.CSSProperties}
       onClick={onSelect}
       onContextMenu={(event) => {
         event.preventDefault();
         onContextMenu(event.clientX, event.clientY);
       }}
-    />
+    >
+      <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} />
+    </button>
   );
 }

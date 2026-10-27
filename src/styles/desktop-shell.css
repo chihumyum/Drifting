@@ -1,6 +1,7 @@
 /* Desktop shell geometry. Feature styles live with their existing owners;
    this file only defines the desktop window composition and app-level status. */
 .desktop-app-shell {
+  position: relative;
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -30,14 +31,42 @@
 }
 
 .desktop-workspace-dock {
+  position: relative;
   z-index: 10;
   flex-shrink: 0;
+  transition: height 420ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* While it slides the timeline is clipped by its own drawer; its top edge
+   and lane dividers bleed glass (TimelineDrawer). */
+.desktop-workspace-dock.is-sliding {
+  overflow: hidden;
+}
+
+.desktop-workspace-dock__flow {
+  top: 0;
+  z-index: 30;
+  --flow-gx: -24px;
+  --flow-gy: -40px;
+}
+
+.btl-row__flow {
+  top: 0;
+  z-index: 25;
+  --flow-gx: -88px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-workspace-dock {
+    transition: none;
+  }
 }
 
 /* ─── Window controls without a title bar ─────────────────────────────
    The desk column keeps a transparent drag strip at the window-control row.
-   Each sidebar toggle stays in its top corner: on the strip while that sidebar
-   is closed, at the outer end of the sidebar's own tab row while it is open. */
+   Each sidebar toggle is a round glass button fixed in its top corner of the
+   window; it never moves, and its sidebar slides in and out underneath it
+   like a drawer. An open sidebar's tab row keeps an empty slot under it. */
 .workspace-window-strip {
   /* Transparent and out of flow: the paper runs to the top of the window and
      scrolls beneath the strip, so no band reads as a title bar. */
@@ -52,18 +81,38 @@
   padding: 0 8px;
 }
 
-.workspace-corner-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+.workspace-sidebar-toggles {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--window-titlebar-height);
+  pointer-events: none;
 }
 
-.workspace-corner-controls--left[data-leading-inset] {
-  margin-left: calc(var(--window-header-leading-inset) - 8px);
+.workspace-sidebar-toggle {
+  position: absolute;
+  top: calc((var(--window-titlebar-height) - 28px) / 2);
+  pointer-events: auto;
 }
 
-.workspace-corner-controls--right {
-  margin-left: auto;
+.workspace-sidebar-toggle--left {
+  left: 8px;
+}
+
+.workspace-sidebar-toggles[data-leading-inset] .workspace-sidebar-toggle--left {
+  left: var(--window-header-leading-inset);
+}
+
+.workspace-sidebar-toggle--right {
+  right: 8px;
+}
+
+.sidebar-toggle-slot {
+  display: block;
+  width: 28px;
+  height: 28px;
 }
 
 .workspace-panel-tab-row.workspace-panel-tab-row--window {
@@ -84,6 +133,13 @@
 
 .sidebar-header-chrome--right {
   margin-left: auto;
+  /* Under the fixed toggle, 8px from the window edge like the left one. */
+  margin-right: 2px;
+}
+
+.workspace-panel-tab-row__flow {
+  bottom: 0;
+  --flow-gy: -60px;
 }
 
 .desktop-left-sidebar {
@@ -95,6 +151,7 @@
 
 /* Account and notifications at the foot of the open left sidebar. */
 .sidebar-account-cell {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -152,78 +209,88 @@
 }
 
 /* ─── Paper-edge dock: open documents, then the timeline toggle ───────── */
+/* ─── The open-document dock along the paper's top ────────────────────
+   Centred on the traffic-light line (y = 21px), dots and pills alike. Each
+   open document is the sand mark of its kind; under the pointer glass lands
+   on the marks: every mark grows in place into a pill, its sand spreading
+   out and thinning away under the glass, the pill's rim (in the mark's
+   colour) comes up, then the title. Leaving reverses it and the sand gathers
+   back into a mark. The lock and the create button stay put while the pills
+   scroll. With a sidebar closed the row keeps clear of both top corners. */
 .workspace-tab-dock {
   position: absolute;
   z-index: 30;
-  bottom: 14px;
+  top: calc(var(--window-titlebar-height) / 2);
   left: 50%;
   display: flex;
-  width: min(820px, calc(100% - 180px));
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  justify-content: center;
+  transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.workspace-tab-dock[data-clear-corners] {
+  width: calc(100% - 260px);
 }
 
 .workspace-tab-dock__tabs {
   display: flex;
   justify-content: center;
   width: 100%;
+  min-width: 0;
   pointer-events: none;
 }
 
-.workspace-tab-dock .top-timeline-container,
-.workspace-timeline-toggle {
+.workspace-tab-dock .top-timeline-container {
   pointer-events: auto;
+  align-items: center !important;
+  border-radius: 19px;
+  overscroll-behavior-x: contain;
 }
 
 .workspace-tab-dock .top-timeline-container.is-collapsed {
-  height: 20px;
-  padding: 2px 4px;
-}
-
-/* The dock floats over prose: until the glass treatment lands, its resting
-   rows and the word count sit on a plain paper-coloured patch to stay legible. */
-.workspace-tab-dock .top-timeline-container.is-collapsed,
-.workspace-timeline-toggle,
-.workspace-word-count {
-  border-radius: 3px;
-  background: hsl(var(--page));
+  height: 26px;
+  padding: 2px 6px;
 }
 
 .workspace-tab-dock .top-timeline-container.is-expanded {
-  height: 30px;
+  height: 38px;
+  padding: 4px;
 }
 
 .app-tab-dot {
+  position: relative;
   display: grid;
   flex-shrink: 0;
-  width: 14px;
-  height: 16px;
+  width: 20px;
+  height: 22px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   place-items: center;
+  animation: sand-arrive 0.34s ease-out backwards;
 }
 
-.app-tab-dot::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--tab-dot-color);
+.app-tab-dot > .kind-mark {
+  transition: transform 0.26s ease-out, opacity 0.2s ease-out;
 }
 
-.app-tab-dot[data-preview]::before {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--tab-dot-color);
+/* In the dock the marks are drawn a size up from the list marks. */
+.app-tab-dot > .kind-mark--chapter > .sand {
+  inset: 0.5px;
 }
 
-.app-tab-dot.is-active::before {
-  width: 10px;
-  height: 10px;
+.app-tab-dot > .kind-mark--element > .sand {
+  inset: 1.5px;
+}
+
+.app-tab-dot.is-active > .kind-mark {
+  transform: scale(1.35);
+}
+
+.app-tab-dot[data-preview] > .kind-mark {
+  opacity: 0.45;
 }
 
 .app-tab-dot-pair {
@@ -233,80 +300,154 @@
 }
 
 .app-tab-dot-pair .app-tab-dot {
-  width: 11px;
+  width: 17px;
 }
 
 .workspace-tab-dock [data-cluster-break] {
   margin-left: 8px;
 }
 
-/* Expanded chips: each slot stays contiguous for reorder geometry and draws an
-   inset frame, so the visible seam lives inside the slot. */
+/* Expanded pills: each slot stays contiguous for reorder geometry and draws
+   its glass inset by 2.5px, so the visible gap lives inside the slot. The
+   rim shows at rest (glass--rest), flows under the pointer and is pressed on
+   the current tab. */
 .workspace-tab-dock .app-tab,
 .workspace-tab-dock .app-tab.is-active,
 .workspace-tab-dock .app-tab--create,
 .workspace-tab-dock .app-tab--create.is-active {
+  height: 30px !important;
   border: 0;
   background: transparent;
+  animation: dock-pill-grow 0.34s cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
 }
 
-.workspace-tab-dock .app-tab::before {
+.workspace-tab-dock .app-tab.glass {
+  --glass-edge: 40%;
+  --glass-rim: 8px;
+}
+
+.workspace-tab-dock .app-tab.glass::before,
+.workspace-tab-dock .app-tab::after {
+  inset: 0 2.5px;
+  border-radius: 999px;
+}
+
+.workspace-tab-dock .app-tab::after {
   content: '';
   position: absolute;
-  z-index: -1;
-  inset: 0 2px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  background: hsl(var(--page));
+  z-index: -2;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
 }
 
-.workspace-tab-dock .app-tab.is-active::before {
-  border-color: hsl(var(--ink-4));
-  background: hsl(var(--surface));
+.workspace-tab-dock .app-tab > * {
+  animation: dock-pill-content 0.36s ease-out backwards;
 }
 
-.workspace-tab-dock .top-timeline-create-button {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 3px;
-}
-
-.workspace-timeline-toggle {
+.app-tab__sand {
   display: grid;
-  width: 28px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  cursor: pointer;
+  flex-shrink: 0;
+  width: 14px;
   place-items: center;
 }
 
-.workspace-timeline-toggle:hover {
+/* The mark the pill grew from spreads out and thins away under the glass. */
+.workspace-tab-dock .app-tab__sand {
+  animation: none;
+}
+
+.workspace-tab-dock .app-tab__sand > .kind-mark {
+  opacity: 0;
+  animation: dock-sand-spread 0.3s cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+@keyframes dock-pill-grow {
+  from {
+    max-width: 20px;
+    min-width: 20px;
+  }
+}
+
+@keyframes dock-pill-content {
+  0%,
+  45% {
+    opacity: 0;
+  }
+}
+
+@keyframes dock-sand-spread {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.8, 1.6);
+    filter: blur(1.4px);
+  }
+}
+
+.workspace-tab-dock__lock,
+.workspace-tab-dock .top-timeline-create-button {
+  position: sticky;
+  z-index: 2;
+  display: grid;
+  flex-shrink: 0;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  cursor: pointer;
+  place-items: center;
+  animation: dock-control-in 0.3s cubic-bezier(0.3, 0.7, 0.2, 1) backwards 0.08s;
+}
+
+.workspace-tab-dock__lock {
+  left: 0;
+  margin-right: 5px;
+}
+
+.workspace-tab-dock .top-timeline-create-button {
+  right: 0;
+  margin-left: 5px;
+}
+
+.workspace-tab-dock__lock:hover,
+.workspace-tab-dock__lock[aria-pressed='true'],
+.workspace-tab-dock .top-timeline-create-button:hover {
   color: hsl(var(--ink-1));
 }
 
-.workspace-timeline-toggle[aria-pressed='true'] {
-  border-color: hsl(var(--ink-4));
-  color: hsl(var(--ink-1));
+@keyframes dock-control-in {
+  from {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+  }
 }
 
-/* ─── Word count resting in the desk's lower-left corner ──────────────── */
-.workspace-word-count {
+/* ─── The paper's lower-right corner ──────────────────────────────────
+   The Bottom Timeline toggle is its own round glass button; beside it,
+   separate, the editor's toolbar is one horizontal glass pill. */
+.workspace-timeline-toggle.ghost-icon-button {
   position: absolute;
   z-index: 20;
-  bottom: 18px;
-  left: 14px;
-  display: flex;
-  gap: 10px;
-  padding: 3px 6px;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10px);
-  pointer-events: none;
-  user-select: none;
+  right: 16px;
+  bottom: 16px;
+  width: 36px;
+  height: 36px;
+  --glass-rim: 10px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
 }
 
 .desktop-sidebar-panel-host {
@@ -464,4 +605,27 @@
 
 .database-recovery__exit {
   margin-left: auto;
+}
+
+/* A sidebar's seam toward the paper bleeds glass while the slab slides or is
+   dragged wider (lib/glass-flow.ts sets --flow/--flowa on the shell). */
+.sidebar-shell--left > .sidebar-shell__edge-flow {
+  right: 0;
+  --flow-gx: -40px;
+}
+
+.sidebar-shell--right > .sidebar-shell__edge-flow {
+  left: 0;
+  --flow-gx: -90px;
+}
+
+.sidebar-pane-divider__flow {
+  left: 3px;
+  --flow-gx: -55px;
+}
+
+.sidebar-account-cell__flow {
+  top: 0;
+  --flow-gx: -70px;
+  --flow-gy: -110px;
 }

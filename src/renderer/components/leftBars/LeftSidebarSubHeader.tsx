@@ -1,6 +1,6 @@
 import { useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Minus, ArrowDownUp, Plus, FolderPlus, Shapes } from 'lucide-react';
+import { Minus, ArrowDownUp, Plus, FolderPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -25,7 +25,8 @@ import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
-import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip';
+import { BrushIcon } from '../ui/BrushIcon';
+import { GhostIconButton } from '../ui/GhostIconButton';
 import { useSuperViewPreloadIntent } from '../../features/graph/deferred-graph-modules';
 import { useUiStore } from '../../store/ui-store';
 
@@ -378,30 +379,35 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   };
 
   // Each panel opens its whole-book view from here: All Chapters beside the
-  // chapters, the element overview beside the elements.
+  // chapters, the element overview beside the elements. These entries are
+  // round glass; the panel's ordinary buttons (sort, new) stay plain.
   const renderOverview = () => {
     if (activeLeftPanel === 'nodes') {
       return (
-        <SubIconBtn
+        <GhostIconButton
+          glass="round"
+          className="workspace-super-view-entry"
           title={t('bottomStatusBar.allChapters')}
+          aria-label={t('bottomStatusBar.allChapters')}
           onClick={() => {
             setActiveSuperView('none');
             navigateToAllChapters();
           }}
-        >
-          <IconoirPageFlip width={12} height={12} strokeWidth={1.5} aria-hidden="true" />
-        </SubIconBtn>
+          icon={<BrushIcon name="ov-folding" size={15} />}
+        />
       );
     }
     if (activeLeftPanel === 'elements') {
       return (
-        <SubIconBtn
+        <GhostIconButton
+          {...elementOverviewIntent}
+          glass="round"
+          className="workspace-super-view-entry"
           title={t('bottomStatusBar.elements')}
-          intent={elementOverviewIntent}
+          aria-label={t('bottomStatusBar.elements')}
           onClick={() => setActiveSuperView('element')}
-        >
-          <Shapes size={12} strokeWidth={1.6} />
-        </SubIconBtn>
+          icon={<BrushIcon name="ov-iceberg" size={15} />}
+        />
       );
     }
     return null;

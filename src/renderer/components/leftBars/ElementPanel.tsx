@@ -25,6 +25,8 @@ import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import { ElementIdentityTile } from '../ui/ElementIdentityTile';
+import { KindMark } from '../ui/KindMark';
+import { CELL_MARK_CENTER, CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import {
   useHoverPreview,
   type EntityHoverTarget,
@@ -370,35 +372,31 @@ export function ElementPanel({
       categoryId === UNCATEGORIZED_ID ? UNCATEGORIZED_COLOR : getCategoryColor(categoryId);
 
     return (
-      <div
+      <SandCell
         key={element.id}
+        selected={selected}
+        color={categoryColor}
+        markCenter={CELL_MARK_CENTER}
         style={{
           // Aligned with ChapterPanel renderNodeCard so all three left-bar
-          // entity cells share the same row metrics — only the leading
-          // chrome (stripe / diamond / drift glyph) differs.
+          // entity cells share the same row metrics — only the kind mark
+          // (round seal / square seal / eddy) differs.
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '5px 14px 5px 22px',
+          gap: 9,
+          margin: '0 6px',
+          padding: `5px 10px 5px ${CELL_PAD_LEFT}px`,
+          borderRadius: 3,
           cursor: 'pointer',
-          position: 'relative',
-          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
           fontSize: 'var(--ui-font-body, 12.5px)',
           lineHeight: 'var(--ui-line-body, 1.35)',
           minHeight: 'var(--ui-row-height, 0px)',
-          transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
-          }
           hoverEnter({ kind: 'element', id: element.id }, event.currentTarget);
         }}
-        onMouseLeave={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'transparent';
-          }
+        onMouseLeave={() => {
           hoverLeave();
         }}
         onClick={() => {
@@ -417,43 +415,34 @@ export function ElementPanel({
           });
         }}
       >
-        {/* Element mark — diamond in category color. Sized to occupy the
-            same 12px-wide slot the chapter stripe uses, so titles line up
-            across panels. */}
-        <AgentChangeIndicator
-          disabled={agentBusy || !(agentAdded || agentChanged)}
-          aria-hidden={agentBusy || !(agentAdded || agentChanged) ? true : undefined}
-          onClick={() => useAgentActivityStore.getState().markSeen([entityKey('element', element.id)])}
-          className={agentBusy ? 'agent-glyph-busy' : undefined}
-          title={
-            agentBusy
-              ? t('agentActivity.working')
-              : agentAdded || agentChanged
-                ? t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')
-                : undefined
-          }
-          style={{
-            // Done swaps the diamond for a plain Agent file marker; working/rest
-            // keep the italic diamond.
-            fontFamily: agentAdded || agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
-            fontStyle: agentAdded || agentChanged ? 'normal' : 'italic',
-            fontSize: agentAdded || agentChanged ? 10 : 11,
-            fontWeight: agentAdded || agentChanged ? 600 : undefined,
-            // Agent status overrides the category color: accent (lit) while
-            // working, muted ink for the done "M". At rest, the category color.
-            color: agentBusy
-              ? 'hsl(var(--accent))'
-              : agentAdded || agentChanged
-                ? 'hsl(var(--ink-2))'
-                : categoryColor,
-            flexShrink: 0,
-            lineHeight: 1,
-            width: 12,
-            textAlign: 'center',
-          }}
-        >
-          {agentAdded ? 'A' : agentChanged ? 'M' : '◆'}
-        </AgentChangeIndicator>
+        {/* Element mark — a square seal in its category's colour. Done
+            swaps it for a plain Agent file marker; working keeps the seal,
+            lit in accent. */}
+        {agentAdded || agentChanged ? (
+          <AgentChangeIndicator
+            onClick={() => useAgentActivityStore.getState().markSeen([entityKey('element', element.id)])}
+            title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 600,
+              color: 'hsl(var(--ink-2))',
+              flexShrink: 0,
+              lineHeight: 1,
+              width: 14,
+              textAlign: 'center',
+            }}
+          >
+            {agentAdded ? 'A' : 'M'}
+          </AgentChangeIndicator>
+        ) : (
+          <KindMark
+            kind="element"
+            color={categoryColor}
+            busy={agentBusy}
+            title={agentBusy ? t('agentActivity.working') : undefined}
+          />
+        )}
 
         {/* Name */}
         <div
@@ -484,11 +473,11 @@ export function ElementPanel({
             {formatShortDate(element.updatedAt)}
           </span>
         )}
-      </div>
+      </SandCell>
     );
   };
 
-  const renderCompactElement = (element: BookElement) => {
+  const renderCompactElement = (element: BookElement, categoryColor: string) => {
     const selected = element.id === selectedBookElementId;
     const agentBusy = `element:${element.id}` in agentActive;
     const agentAdded = !agentBusy && `element:${element.id}` in agentAdditions;
@@ -513,6 +502,7 @@ export function ElementPanel({
         key={element.id}
         element={element}
         selected={selected}
+        color={categoryColor}
         agentState={agentState}
         agentStateLabel={agentStateLabel}
         onAgentSeen={() => useAgentActivityStore.getState().markSeen([entityKey('element', element.id)])}
@@ -601,6 +591,7 @@ export function ElementPanel({
                   count={categoryElements.length}
                   showTotalCount={!compactIndex}
                   color={categoryColor}
+                  mark={isUncategorized ? undefined : <KindMark kind="category" color={categoryColor} />}
                   collapsed={categoryCollapsed}
                   onToggleCollapsed={() => {
                     if (categoryHasElements) toggleCategoryCollapsed(categoryId);
@@ -666,7 +657,9 @@ export function ElementPanel({
                   addButtonHasPopup={isUncategorized ? undefined : 'menu'}
                   addButtonExpanded={categoryCreateCategoryId === categoryId}
                   addButtonVisibility={compactIndex ? 'always' : 'hover'}
-                  sticky
+                  // The compact frame's heading is set into the frame's top
+                  // edge, so it scrolls with its section instead of sticking.
+                  sticky={!compactIndex}
                   agentIndicatorPlacement="count"
                   agentBusy={activity.busy || agentSelfBusy}
                   agentDoneCount={activity.doneCount}
@@ -689,7 +682,7 @@ export function ElementPanel({
                       const isNamedGroup = groupName !== null;
                       const cards = group.items.map((element) =>
                         compactIndex
-                          ? renderCompactElement(element)
+                          ? renderCompactElement(element, categoryColor)
                           : renderElementCard(element, categoryId),
                       );
                       return (
