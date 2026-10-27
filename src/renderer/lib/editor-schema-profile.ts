@@ -78,6 +78,8 @@ export const NoteTaskItem = TaskItem.extend({
       ...this.parent?.(),
       todoId: {
         default: null,
+        // A new line split off a linked one is a new task, not the same TODO.
+        keepOnSplit: false,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-todo-id'),
         renderHTML: (attributes: Record<string, unknown>) =>
           typeof attributes.todoId === 'string' ? { 'data-todo-id': attributes.todoId } : {},

@@ -35,6 +35,10 @@ import { useAgentActivityStore } from '../store/agent-activity-store';
 import { materializeCanonicalNodeProse } from './node-prose-metrics.service';
 import { createLibraryItemUsecases } from '../usecase/useLibraryItem';
 import { useAuthStore } from '../store/auth';
+import { useDataStore } from '../store/data-store';
+import { isNoteTaskTodo, noteTaskTodoInput } from '../domain/comment';
+import { noteTaskItems } from '../lib/note-tasks';
+import { readNoteTaskLinks, setNoteTaskLinks } from '../lib/note-task-document';
 import type { WritingStatus } from '../domain/book-node';
 import {
   compactUpdatesAfterSnapshot,
@@ -140,6 +144,49 @@ async function applyProseState(
   } finally {
     source.destroy();
   }
+}
+
+/**
+ * Keeps a restored note's checklist and TODOs agreeing
+ * (docs/material-workbench.md): lines the restore removed take their TODOs
+ * with them, and restored lines whose TODO is gone get a new one (or wait to
+ * be projected while the note's switch is off). Returns the note's body JSON.
+ * Exported for tests.
+ */
+export async function settleRestoredNoteTasks(
+  ctx: AgentToolContext,
+  row: EntitySnapshotRow,
+  linkedBefore: ReadonlySet<string>,
+  contentJson: string,
+): Promise<string> {
+  const noteId = row.entityId;
+  const byId = new Map(useDataStore.getState().comments.map((comment) => [comment.id, comment]));
+  const tasks = noteTaskItems(contentJson);
+  const linkedAfter = new Set(tasks.map((task) => task.todoId).filter((id): id is string => Boolean(id)));
+
+  for (const todoId of linkedBefore) {
+    if (linkedAfter.has(todoId)) continue;
+    const todo = byId.get(todoId);
+    if (todo && isNoteTaskTodo(todo) && todo.targetId === noteId) await ctx.write.deleteComment(todoId);
+  }
+
+  // A never-opened note only gets the snapshot as its seed; it has no lines
+  // to link yet.
+  const docId = snapshotDocId('library_item', noteId);
+  if (!getLiveYDoc(docId) && !(await createYjsRepository().hasDocState(docId))) return contentJson;
+  const projecting = useDataStore.getState().libraryItems.find((item) => item.id === noteId)?.taskTodos ?? true;
+  const links = new Map<string, string | null>();
+  for (const task of tasks) {
+    if (!task.todoId || !task.blockId || byId.get(task.todoId)?.kind === 'todo') continue;
+    if (!projecting || !task.text) {
+      links.set(task.blockId, null);
+      continue;
+    }
+    const created = (await ctx.write.createComment(noteTaskTodoInput(noteId, task.blockId, task.text))) as { id: string };
+    if (task.checked) await ctx.write.resolveComment(created.id);
+    links.set(task.blockId, created.id);
+  }
+  return (await setNoteTaskLinks(row.projectId, noteId, links)) ?? contentJson;
 }
 
 /** Capture the CURRENT state as a pre-restore safety row (if any state exists). */
@@ -253,7 +300,9 @@ async function restoreEntitySnapshotPayload(row: EntitySnapshotRow): Promise<voi
   // Safety net first: the pre-restore state becomes its own history row.
   await captureCurrentState(docId);
 
-  const contentJson = await applyProseState(row.projectId, docId, row.stateBlob);
+  const noteLinksBefore = row.entityKind === 'library_item' ? await readNoteTaskLinks(row.entityId) : null;
+  let contentJson = await applyProseState(row.projectId, docId, row.stateBlob);
+  if (noteLinksBefore) contentJson = await settleRestoredNoteTasks(ctx, row, noteLinksBefore, contentJson);
   await restoreMetadata(ctx, row, contentJson);
 
   // Pending agent-review markers referenced the replaced content — clear them

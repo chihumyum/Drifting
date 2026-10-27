@@ -345,8 +345,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       );
       // A TODO projected from a note task takes its checklist line with it, so
       // the note does not project it again (docs/material-workbench.md). The
-      // line goes first: an open note seeing the TODO vanish while its line
-      // is still linked would keep the line as a plain checkbox instead.
+      // line goes first, so the note never shows a line whose TODO is gone.
       if (existing.kind === 'todo' && existing.targetKind === 'library_item' && existing.targetId) {
         const noteId = existing.targetId;
         try {

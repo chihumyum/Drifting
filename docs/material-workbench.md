@@ -143,14 +143,27 @@ note owns which lines exist and what they say; the TODO owns the status.
 - Status: resolving or reopening the TODO anywhere moves the checkbox; ticking
   the checkbox resolves or reopens the TODO.
 - **不作为 TODO** keeps a line as a plain checkbox (`todoId = ''`) and deletes
-  its TODO; **转为 TODO** links it again. A link whose TODO no longer exists
-  becomes a plain checkbox. A pasted copy of a linked line gets its own TODO.
+  its TODO; **转为 TODO** links it again.
+- A TODO belongs to the line it is anchored to (same note, same block id).
+  Enter at the end of a linked line starts a new line, not a copy of the link;
+  a pasted copy of a linked line (from this note or another) gets its own
+  TODO. A copy whose original line is gone keeps the link.
+- Deleting a TODO whose line has sub-tasks moves the sub-tasks up into its
+  place; they are TODOs of their own.
 - The note's ⋯ menu turns the projection off (`library_item.task_todos`);
   existing links keep syncing, new lines stay checkboxes.
 - Only the author's own edits on this device create, edit or delete TODOs;
   edits arriving from another device were reconciled where they were made.
-  If a line's TODO row arrives after the line's link (a sync race), the line
-  becomes a plain checkbox rather than risk deleting it.
+  A link to a TODO this device does not have is never rewritten: the TODO
+  may still be syncing (the line can arrive before its TODO row). Until it
+  arrives the line acts as a plain checkbox, and **转为 TODO** gives it a new
+  TODO.
+- Restoring a note version from history deletes the TODOs of lines the
+  restore removed, and gives restored lines whose TODO is gone a new one
+  (with the note's switch off they are left to be projected later).
+- Reconciles run one at a time; one requested while another runs follows it
+  rather than being dropped. If the note closes while a line's TODO is being
+  saved, the line is linked in the note's stored document.
 - The note editor paints no anchor highlight for these TODOs (the line shows
   them), and their Review cards send text edits back to the note.
 
@@ -259,10 +272,15 @@ boundary, because older builds validate what they receive:
   opaque JSON.
 - **Folders and the checklist switch** (M9, migration `0012`). Older kernels
   reject the `material-folder` entity kind and the `folderId` / `taskTodos`
-  fields. Materials at the root with the switch on omit both fields, as
-  provenance does, so only filing a material or turning the switch off needs
-  every device on a current build. Checkpoints captured before `0012` restore
-  with an empty folder table, every material at the root and the switch on.
+  fields, and an unknown entity kind rejects the whole change set: the older
+  device quarantines it (`blocked-update`) and stops applying that project
+  until it updates. Materials at the root with the switch on omit both
+  fields, as provenance does, so only creating a folder, filing a material or
+  turning the switch off needs every device on a current build. Checkpoints
+  are stricter: an older build accepts only its exact table and column set, so
+  no checkpoint captured after `0012` restores there, folders or not.
+  Checkpoints captured before `0012` restore on a current build with an empty
+  folder table, every material at the root and the switch on.
 - **Note-task TODOs** are ordinary TODO rows with a metadata marker; older
   builds show them as plain TODOs about the note.
 

@@ -389,6 +389,20 @@ export function commentColorKey(comment: Comment): CommentColorKey {
 /** metadataJson of a TODO projected from a material note's checklist line. */
 export const NOTE_TASK_TODO_METADATA = JSON.stringify({ kind: 'note-task' });
 
+/** The TODO a note's checklist line becomes, anchored to the line. */
+export function noteTaskTodoInput(noteId: string, blockId: string, text: string) {
+  return {
+    kind: 'todo' as const,
+    targetKind: 'library_item' as const,
+    targetId: noteId,
+    targetBlockId: blockId,
+    targetBlockIds: [blockId],
+    anchorJson: JSON.stringify({ createdAt: new Date().toISOString() }),
+    bodyJson: createPlainCommentDoc(text),
+    metadataJson: NOTE_TASK_TODO_METADATA,
+  };
+}
+
 /**
  * A TODO projected from a material note's checklist line
  * (views/note-todo-links). The line is its anchor and owns its text, so the

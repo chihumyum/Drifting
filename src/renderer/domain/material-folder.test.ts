@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import * as Y from 'yjs';
 
 import {
   buildMaterialFolderChildren,
@@ -10,7 +9,6 @@ import {
   ROOT_FOLDER_KEY,
   type MaterialFolder,
 } from './material-folder';
-import { yRemoveLinkedTaskItems } from '../lib/note-task-document';
 
 function folder(id: string, name: string, parentFolderId: string | null = null): MaterialFolder {
   return { id, projectId: 'p', name, parentFolderId, createdAt: '', updatedAt: '' };
@@ -64,39 +62,5 @@ describe('material folders', () => {
     expect(parents.get('child')).toBe('b');
     expect(flattenMaterialFolders(broken).map(({ folder: entry }) => entry.id)).toEqual(['a', 'b', 'child', 'orphan']);
     expect(materialFolderPath(broken, 'child').map((entry) => entry.id)).toEqual(['a', 'b', 'child']);
-  });
-});
-
-describe('removing a note task line', () => {
-  function taskItem(todoId: string | null, text: string, nested?: Y.XmlElement): Y.XmlElement {
-    const item = new Y.XmlElement('taskItem');
-    if (todoId !== null) item.setAttribute('todoId', todoId);
-    const paragraph = new Y.XmlElement('paragraph');
-    paragraph.insert(0, [new Y.XmlText(text)]);
-    item.insert(0, nested ? [paragraph, nested] : [paragraph]);
-    return item;
-  }
-
-  it('removes linked items with their sub-tasks and drops lists left empty', () => {
-    const doc = new Y.Doc();
-    const fragment = doc.getXmlFragment('default');
-    const nested = new Y.XmlElement('taskList');
-    nested.insert(0, [taskItem('todo-c', '核对年份')]);
-    const list = new Y.XmlElement('taskList');
-    list.insert(0, [taskItem('todo-a', '找潮汐表', nested), taskItem(null, '散记')]);
-    const lone = new Y.XmlElement('taskList');
-    lone.insert(0, [taskItem('todo-b', '查年代')]);
-    fragment.insert(0, [list, lone]);
-
-    expect(yRemoveLinkedTaskItems(fragment, new Set(['todo-c', 'todo-b']))).toBe(2);
-    expect(fragment.toString()).not.toContain('核对年份');
-    expect(fragment.toString()).not.toContain('查年代');
-    // The emptied nested list and the emptied top-level list are gone.
-    expect(fragment.length).toBe(1);
-    expect(fragment.toString()).toContain('找潮汐表');
-    expect((fragment.get(0) as Y.XmlElement).toString()).not.toMatch(/<taskList><\/taskList>/);
-
-    expect(yRemoveLinkedTaskItems(fragment, new Set(['missing']))).toBe(0);
-    doc.destroy();
   });
 });

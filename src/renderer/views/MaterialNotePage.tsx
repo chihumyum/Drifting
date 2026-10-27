@@ -25,7 +25,7 @@ import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/M
 import { MaterialEmbedWithView } from '../features/library/MaterialEmbedView';
 import { NoteFileImport } from '../lib/extensions/note-blocks';
 import { useStoredLibraryItemVariant } from '../features/library/library-item-media';
-import { taskItemAtSelection, useNoteTodoLinks } from './note-todo-links';
+import { hasLinkedTodo, taskItemAtSelection, useNoteTodoLinks } from './note-todo-links';
 
 const log = loglevel.getLogger('MaterialNotePage');
 log.setLevel(loglevel.levels.ERROR);
@@ -273,14 +273,16 @@ function NoteTaskBar({ editor, onPromote, onUnlink }: { editor: Editor; onPromot
       if (!current) return null;
       const found = taskItemAtSelection(current);
       if (!found) return null;
-      const todoId = found.node.attrs.todoId as string | null;
-      return { linked: typeof todoId === 'string' && todoId !== '', empty: !found.node.textContent.trim() };
+      return { todoId: (found.node.attrs.todoId ?? null) as string | null, empty: !found.node.textContent.trim() };
     },
   });
+  // A link to a TODO this device lacks (still syncing, or gone) acts as a
+  // plain checkbox, which can be made a TODO again.
+  const linked = useDataStore((data) => (state ? hasLinkedTodo(state.todoId, data.comments) : false));
   if (!state) return null;
   return (
     <div className="note-table-bar note-task-bar" role="toolbar" aria-label={t('materialEditor.todo.toolbar')}>
-      {state.linked ? (
+      {linked ? (
         <>
           <span className="note-task-bar__status">{t('materialEditor.todo.linked')}</span>
           <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onUnlink}>
