@@ -85,6 +85,9 @@ pub struct CloseCoordinator {
     pending_action: AtomicU8,
     allow_next_close: AtomicBool,
     allow_next_exit: AtomicBool,
+    /// While a project workspace is open, the window's close button returns
+    /// to the bookshelf instead of closing (and flushing) the window.
+    close_returns_to_shelf: AtomicBool,
 }
 
 impl CloseCoordinator {
@@ -158,6 +161,16 @@ impl CloseCoordinator {
 
     pub fn consume_exit_permission(&self) -> bool {
         self.allow_next_exit.swap(false, Ordering::AcqRel)
+    }
+
+    pub fn set_close_returns_to_shelf(&self, enabled: bool) {
+        self.close_returns_to_shelf
+            .store(enabled, Ordering::Release);
+    }
+
+    #[cfg(desktop)]
+    pub fn close_returns_to_shelf(&self) -> bool {
+        self.close_returns_to_shelf.load(Ordering::Acquire)
     }
 }
 

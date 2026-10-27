@@ -52,6 +52,8 @@ import {
   MOBILE_PLANNING_MOVE_TOLERANCE_PX,
 } from '../../../features/graph/mobile-planning-gesture';
 import loglevel from 'loglevel';
+import { Waypoints } from 'lucide-react';
+import { useSuperViewPreloadIntent } from '../../../features/graph/deferred-graph-modules';
 import '../../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
 log.setLevel(loglevel.levels.WARN);
@@ -145,6 +147,8 @@ export function DesktopBottomTimeline({
   const user = useAuthStore((state) => state.user);
   const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'nodeStorylineMapping', 'primaryStorylineByNode');
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
+  const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
+  const storyGraphIntent = useSuperViewPreloadIntent('graph');
   const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
   const { projectId, navigateToNode, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -1396,6 +1400,19 @@ export function DesktopBottomTimeline({
               <line x1="12" y1="8" x2="15" y2="8" />
             </svg>
           </button>
+          {/* Heavier structural work — act boundaries, storyline relations —
+              continues in the full-window story graph over the same timeline. */}
+          {!isMobilePresentation && (
+            <button
+              {...storyGraphIntent}
+              className="btl__head-btn"
+              title={t('bottomStatusBar.storyGraph')}
+              aria-label={t('bottomStatusBar.storyGraph')}
+              onClick={() => setActiveSuperView('graph')}
+            >
+              <Waypoints size={12} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </div>
     );

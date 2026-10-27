@@ -35,7 +35,6 @@ import {
   CONVERT_DRIFT_TO_CHAPTER_ACTION,
   CONVERT_DRIFT_TO_ELEMENT_ACTION,
   DRIFT_MOVE_TO_GROUP_ACTION,
-  EditorCrumb,
   EditorTopBar,
   SET_STATUS_ACTION_PREFIX,
 } from '../components/editor/EditorTopBar';
@@ -69,27 +68,6 @@ import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { getLiveYDoc } from '../lib/yjs-doc-registry';
 import { makeDocId } from '../lib/yjs-doc-id';
 
-const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-function toRoman(n: number): string {
-  if (n <= 0) return String(n);
-  if (n < ROMAN_NUMERALS.length) return ROMAN_NUMERALS[n];
-  // Fallback simple Roman composition for >10
-  const map: [number, string][] = [
-    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
-    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
-    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
-  ];
-  let out = '';
-  let rest = n;
-  for (const [v, s] of map) {
-    while (rest >= v) {
-      out += s;
-      rest -= v;
-    }
-  }
-  return out;
-}
-
 const log = loglevel.getLogger('NodeEditorView');
 log.setLevel(loglevel.levels.ERROR);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -103,8 +81,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const {
     navigateToElement,
     leaveDeletedEntity,
-    navigateToNode,
-    navigateToStoryline,
     openEntity,
   } = useProjectNavigation();
   const params = useParams<{ nodeId: string; projectId: string }>();
@@ -126,14 +102,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     bookNodes,
     storylines,
     nodeStorylineMapping,
-    storylineNodeMapping,
     bookElementCategories,
     primaryStorylineByNode,
   } = useDataStoreFields(
     'bookNodes',
     'storylines',
     'nodeStorylineMapping',
-    'storylineNodeMapping',
     'bookElementCategories',
     'primaryStorylineByNode',
   );
@@ -299,36 +273,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     (curNodePrimaryStorylineId ? storylineById.get(curNodePrimaryStorylineId) : null) ??
     currentStorylines[0] ??
     null;
-
-  // Nodes in the current main storyline, sorted by their position on the timeline
-  const bookNodeById = useMemo(() => new Map(bookNodes.map((n) => [n.id, n])), [bookNodes]);
-  const sameStorylineNodes = useMemo(() => {
-    if (!mainStoryline) return [] as BookNode[];
-    const ids = storylineNodeMapping[mainStoryline.id] ?? [];
-    return ids
-      .map((id) => bookNodeById.get(id))
-      .filter((n): n is BookNode => Boolean(n))
-      .filter(isChapter)
-      .sort((a, b) => a.bookOrder - b.bookOrder);
-  }, [bookNodeById, mainStoryline, storylineNodeMapping]);
-
-  // Nodes shown in the title-level breadcrumb dropdown:
-  // - drift node → all drift nodes (so users can jump between drifts)
-  // - chapter in a storyline → chapters in that storyline (current behavior)
-  // - chapter without a storyline → all chapters without a storyline
-  const breadcrumbSiblingNodes = useMemo<BookNode[]>(() => {
-    if (!curNode) return [];
-    if (isDrift(curNode)) {
-      return bookNodes.filter(isDrift);
-    }
-    if (mainStoryline) {
-      return sameStorylineNodes;
-    }
-    return bookNodes
-      .filter(isChapter)
-      .filter((n) => !primaryStorylineByNode[n.id])
-      .sort((a, b) => a.bookOrder - b.bookOrder);
-  }, [bookNodes, curNode, mainStoryline, primaryStorylineByNode, sameStorylineNodes]);
 
   const isDriftNode = curNode ? isDrift(curNode) : false;
 
@@ -697,86 +641,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               enabled: plotPlannerOpen,
               onToggle: togglePlotPlanner,
             }}
-            right={
-              currentStorylines.length > 1 ? (
-                <span>{t('nodeEditor.meta.storylines', { count: currentStorylines.length })}</span>
-              ) : undefined
-            }
-          >
-            {!isDriftNode && (
-              <EditorCrumb
-                dotColor={storylineColor}
-                dropdown={
-                  <>
-                    {storylines.length === 0 ? (
-                      <div className="crumb-dropdown__empty">{t('nodeEditor.empty.noStorylines')}</div>
-                    ) : (
-                      storylines.map((s) => {
-                        const isActive = s.id === mainStoryline?.id;
-                        return (
-                          <div
-                            key={s.id}
-                            className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                            onClick={() => navigateToStoryline(s.id)}
-                          >
-                            <span
-                              className="crumb-dropdown__dot"
-                              style={{ background: s.color || 'hsl(var(--accent))' }}
-                            />
-                            <span>{s.name}</span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </>
-                }
-              >
-                <span>{mainStoryline?.name ?? t('nodeEditor.empty.noStoryline')}</span>
-              </EditorCrumb>
-            )}
-
-            {/* Drift folder path — the group hierarchy (≤2 levels) the drift
-                lives in. Display-only context: groups have no editor of their
-                own, and relocating the drift here read as a navigation. Moving
-                between groups now lives only in the 3-dot menu's「移动到分组…」. */}
-            {isDriftNode &&
-              driftGroupChain.map((g) => (
-                <EditorCrumb key={g.id}>
-                  <span>{g.name}</span>
-                </EditorCrumb>
-              ))}
-
-            <EditorCrumb
-              dropdown={
-                breadcrumbSiblingNodes.length === 0 ? (
-                  <div className="crumb-dropdown__empty">
-                    {isDriftNode ? t('nodeEditor.empty.noDrifts') : t('nodeEditor.empty.noChapters')}
-                  </div>
-                ) : (
-                  breadcrumbSiblingNodes.map((n, idx) => {
-                    const isActive = n.id === nodeId;
-                    const showNum = isChapter(n) && Boolean(mainStoryline);
-                    return (
-                      <div
-                        key={n.id}
-                        className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                        onClick={() => {
-                          if (!isActive) navigateToNode(n.id);
-                        }}
-                      >
-                        {showNum && (
-                          <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
-                        )}
-                        <span>{n.title || t('common.untitled')}</span>
-                      </div>
-                    );
-                  })
-                )
-              }
-            >
-              <span className="editor-crumb-title">{curNode.title || t('common.untitled')}</span>
-            </EditorCrumb>
-          </EditorTopBar>
+          />
 
           {/* In-chapter plot planner: a top dock between the bar and the prose,
               pushing the editor down. Keyed by nodeId so each chapter/drift

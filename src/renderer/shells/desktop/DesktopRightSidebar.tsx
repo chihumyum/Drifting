@@ -28,6 +28,8 @@ export function DesktopRightSidebar() {
   );
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
   const panes = useUiStore((s) => s.desktopSidebarTabs.right.panes);
+  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const openMaterialWorkbench = useCallback(() => setActiveSuperView('memo-material'), [setActiveSuperView]);
 
   const {
     bookNodes,
@@ -178,10 +180,10 @@ export function DesktopRightSidebar() {
     <DesktopSidebarLayout
       side="right"
       projectId={projectId}
-      panels={panes.map(({ id, tab }) => ({
+      panels={panes.map(({ id, tab }, index) => ({
         id,
         tab,
-        header: <RightSidebarHeader paneId={id} activeTab={tab} />,
+        header: <RightSidebarHeader paneId={id} activeTab={tab} windowChrome={index === panes.length - 1} />,
         content: <>
           {tab === 'stats' && <RightSidebarTitle
             kicker={t(`rightSidebar.kickers.stats.${target.kind}`, {
@@ -191,7 +193,7 @@ export function DesktopRightSidebar() {
           />}
           <SidebarPanelBody>
             {tab === 'review' && <ReviewPanel focused={focusedForReview} onOpenAgentTask={() => revealDesktopAgentView()} />}
-            {tab === 'library' && <LibraryPanel focused={focusedForPanel} activeLibraryItemId={focusedMaterialId} onPinLibraryItem={pinLibraryItem} />}
+            {tab === 'library' && <LibraryPanel focused={focusedForPanel} activeLibraryItemId={focusedMaterialId} onPinLibraryItem={pinLibraryItem} onOpenWorkbench={openMaterialWorkbench} />}
             {tab === 'stats' && <EntityStatsContent
               target={target}
               bookNodes={bookNodes}

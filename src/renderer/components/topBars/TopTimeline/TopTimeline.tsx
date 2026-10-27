@@ -33,12 +33,10 @@ const TAB_FLOOR_WIDTH = 56;
 const TAB_MIN_WIDTH = 120;
 // Max: per-tab cap so a runaway title doesn't dominate the bar in Phase A.
 const TAB_MAX_WIDTH = 320;
-// 0 (not just small): any positive gap between tabs is a window-drag region.
-// Tauri excludes each role="tab" descendant from native dragging, while a 2px
-// empty seam could still start a window drag and swallow horizontal scrolling.
+// 0: reorder geometry treats slots as contiguous. Expanded chips draw their
+// own inset frame, so the visible seam lives inside each slot.
 const TAB_GAP = 0;
-// The first tab meets the left chrome hairline directly. Only the strip end
-// keeps breathing room for horizontal overflow and the trailing create action.
+// Only the strip end keeps breathing room for the trailing create action.
 const TAB_STRIP_END_PADDING = 16;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
 const SPLIT_WEIGHT = 1.6;
@@ -83,7 +81,16 @@ const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
 const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
 
-export function TopTimeline() {
+/**
+ * The workspace's open documents, docked under the paper. At rest every tab is
+ * a dot in its entity colour (hollow while still a preview); the dock expands
+ * the same strip into labelled chips while hovered or focused.
+ */
+export function TopTimeline({ expanded = true, onHoldExpanded }: {
+  expanded?: boolean;
+  /** Keeps the dock open while a tab menu is showing. */
+  onHoldExpanded?: (held: boolean) => void;
+} = {}) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -115,8 +122,10 @@ export function TopTimeline() {
     items: TabMenuItem[];
   } | null>(null);
 
+  // The strip hugs its tabs so it can sit centred under the paper; the dock
+  // around it owns the width the tabs may share.
   useEffect(() => {
-    const el = containerRef.current;
+    const el = containerRef.current?.parentElement;
     if (!el) return;
     const update = () => setContainerWidth(el.clientWidth);
     update();
@@ -124,6 +133,10 @@ export function TopTimeline() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [containerRef]);
+
+  useEffect(() => {
+    onHoldExpanded?.(contextMenu !== null);
+  }, [contextMenu, onHoldExpanded]);
 
   // The portaled probe inherits the same desktop token as visible tabs.
   // Recalculate after a text-size preference change even
@@ -148,6 +161,11 @@ export function TopTimeline() {
     [presentation.appearances]);
   const isDriftLeaf = useCallback((leaf: LeafTab) => presentation.appearances.get(leafPresentationKey(leaf))?.isDrift ?? false,
     [presentation.appearances]);
+  // Dots of one kind sit together; a wider seam marks where the kind changes.
+  const clusterOf = useCallback((tab: AnyTab) => {
+    if (tab.kind !== 'leaf') return tab.kind;
+    return tab.entityType === 'node' && isDriftLeaf(tab) ? 'drift' : tab.entityType;
+  }, [isDriftLeaf]);
 
   // Three-phase tab sizing:
   //
@@ -414,17 +432,18 @@ export function TopTimeline() {
   return (
     <div
       ref={containerRef}
-      className="top-timeline-container"
+      role="tablist"
+      className={`top-timeline-container ${expanded ? 'is-expanded' : 'is-collapsed'}`}
       style={{
         display: 'flex',
-        alignItems: 'stretch',
-        height: 42,
+        alignItems: expanded ? 'stretch' : 'center',
         gap: TAB_GAP,
         overflowX: 'auto',
         overflowY: 'hidden',
-        width: '100%',
+        width: 'fit-content',
+        maxWidth: '100%',
         paddingLeft: 0,
-        paddingRight: TAB_STRIP_END_PADDING,
+        paddingRight: expanded ? TAB_STRIP_END_PADDING : 0,
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
@@ -435,6 +454,38 @@ export function TopTimeline() {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
         const width = tabWidths[index] ?? TAB_MIN_WIDTH;
+        if (!expanded) {
+          const openMenu = (x: number, y: number, side?: 'left' | 'right') =>
+            setContextMenu({ x, y, items: buildMenuItems(tab, index, side) });
+          const clusterBreak = index > 0 && clusterOf(openTabs[index - 1]) !== clusterOf(tab);
+          if (tab.kind === 'split') {
+            return (
+              <span key={key} role="tab" aria-selected={isActive} data-tab-key={key}
+                className={`app-tab-dot-pair${isActive ? ' is-active' : ''}`}
+                data-cluster-break={clusterBreak ? 'true' : undefined}>
+                {(['left', 'right'] as const).map((side) => (
+                  <TabDot key={side}
+                    label={labelOfLeaf(tab[side])}
+                    color={colorOfLeaf(tab[side])}
+                    isActive={isActive && tab.focused === side}
+                    isPreview={tab[side].isPreview}
+                    onSelect={() => activateLeafTab(tab[side])}
+                    onContextMenu={(x, y) => openMenu(x, y, side)} />
+                ))}
+              </span>
+            );
+          }
+          return (
+            <TabDot key={key} tabKeyValue={key}
+              label={tab.kind === 'leaf' ? labelOfLeaf(tab) : t('topTimeline.newTab')}
+              color={tab.kind === 'leaf' ? colorOfLeaf(tab) : undefined}
+              isActive={isActive}
+              isPreview={tab.isPreview}
+              clusterBreak={clusterBreak}
+              onSelect={() => handleSelectTab(tab)}
+              onContextMenu={(x, y) => openMenu(x, y)} />
+          );
+        }
         if (tab.kind === 'create') {
           return (
             <CreateTabSlot
@@ -500,7 +551,7 @@ export function TopTimeline() {
         );
       })}
 
-      <button
+      {expanded && <button
         type="button"
         className="top-timeline-create-button"
         aria-label={t('topTimeline.newEntity')}
@@ -515,7 +566,7 @@ export function TopTimeline() {
         }}
       >
         <Plus size={16} strokeWidth={1.8} aria-hidden />
-      </button>
+      </button>}
 
       {contextMenu && (
         <TabContextMenu
@@ -639,7 +690,6 @@ function LeafTabSlot({
           paddingRight: 6,
           width,
           minWidth: TAB_FLOOR_WIDTH,
-          background: isActive ? 'hsl(var(--surface))' : 'transparent',
           cursor: 'pointer',
           fontFamily: 'var(--font-sans)',
           fontSize: 'var(--ui-font-body, 12.5px)',
@@ -651,9 +701,6 @@ function LeafTabSlot({
           fontWeight: 400,
           textShadow: isActive ? '0 0 0.6px currentcolor' : 'none',
           fontStyle: tab.isPreview ? 'italic' : 'normal',
-          borderBottom: isActive
-            ? '1px solid hsl(var(--surface))'
-            : '1px solid hsl(var(--rule))',
           position: 'relative',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
@@ -780,16 +827,7 @@ function SplitTabSlot({
         alignItems: 'stretch',
         width,
         minWidth: TAB_FLOOR_WIDTH * SPLIT_WEIGHT,
-        background: isActive ? 'hsl(var(--surface))' : 'transparent',
         cursor: 'pointer',
-        // Subtle bracket so the fused tab reads as one slot containing two
-        // sub-labels rather than two independent tabs jammed together.
-        border: '1px solid hsl(var(--rule))',
-        borderTop: 'none',
-        borderBottom: isActive
-          ? '1px solid hsl(var(--surface))'
-          : '1px solid hsl(var(--rule))',
-        borderRadius: 0,
         position: 'relative',
         overflow: 'hidden',
         height: '100%',
@@ -972,5 +1010,45 @@ function SplitSubLabel({
         <X size={10} strokeWidth={2} />
       </button>
     </div>
+  );
+}
+
+function TabDot({
+  tabKeyValue,
+  label,
+  color,
+  isActive,
+  isPreview,
+  clusterBreak = false,
+  onSelect,
+  onContextMenu,
+}: {
+  tabKeyValue?: string;
+  label: string;
+  color: string | undefined;
+  isActive: boolean;
+  isPreview: boolean;
+  clusterBreak?: boolean;
+  onSelect: () => void;
+  onContextMenu: (x: number, y: number) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role={tabKeyValue ? 'tab' : undefined}
+      aria-selected={tabKeyValue ? isActive : undefined}
+      aria-label={label}
+      title={label}
+      data-tab-key={tabKeyValue}
+      data-cluster-break={clusterBreak ? 'true' : undefined}
+      data-preview={isPreview ? 'true' : undefined}
+      className={`app-tab-dot${isActive ? ' is-active' : ''}`}
+      style={{ '--tab-dot-color': color || 'hsl(var(--ink-3))' } as React.CSSProperties}
+      onClick={onSelect}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onContextMenu(event.clientX, event.clientY);
+      }}
+    />
   );
 }

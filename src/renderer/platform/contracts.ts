@@ -567,6 +567,7 @@ export interface TauriCommandContract {
     args: { position: { x: number; y: number } };
     result: void;
   };
+  window_set_close_returns_to_shelf: { args: { enabled: boolean }; result: void };
   opener_open_external: { args: { url: string }; result: void };
   /** Drains only queued URLs that start with `prefix` (one consumer per kind). */
   deep_link_take_pending: { args: { prefix: string }; result: string[] };
@@ -894,6 +895,7 @@ export interface TauriCommandContract {
 export interface TauriEventContract {
   'drifting:deep-link': DeepLinkEventPayload;
   'drifting:lifecycle': LifecycleEventPayload;
+  'drifting:close-to-shelf': null;
 }
 
 export type TauriCommandName = keyof TauriCommandContract;

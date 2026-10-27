@@ -47,6 +47,8 @@ use state::{CloseCoordinator, DeepLinkQueue, ShutdownAction};
 
 const DEEP_LINK_EVENT: &str = "drifting:deep-link";
 const LIFECYCLE_EVENT: &str = "drifting:lifecycle";
+#[cfg(desktop)]
+const CLOSE_TO_SHELF_EVENT: &str = "drifting:close-to-shelf";
 const CLOSE_FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Serialize)]
@@ -233,6 +235,7 @@ pub fn run() {
             commands::window_is_maximized,
             commands::window_close,
             commands::window_set_traffic_light_position,
+            commands::window_set_close_returns_to_shelf,
             commands::opener_open_external,
             commands::deep_link_take_pending,
             commands::lifecycle_get_status,
@@ -455,6 +458,15 @@ pub fn run() {
                     .inner()
                     .clone();
                 if coordinator.consume_close_permission() {
+                    return;
+                }
+
+                // Inside a project the close button means "close this
+                // project": the renderer returns to the bookshelf and the
+                // window stays. The shelf's own close button closes it.
+                if coordinator.close_returns_to_shelf() {
+                    api.prevent_close();
+                    let _ = _window.emit(CLOSE_TO_SHELF_EVENT, ());
                     return;
                 }
 

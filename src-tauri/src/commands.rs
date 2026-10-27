@@ -185,6 +185,15 @@ pub async fn window_close(window: WebviewWindow) -> Result<(), String> {
     window.close().map_err(|error| error.to_string())
 }
 
+/// The workspace owns this flag: on while a project is open, off on the shelf.
+#[tauri::command]
+pub fn window_set_close_returns_to_shelf(
+    coordinator: State<'_, Arc<CloseCoordinator>>,
+    enabled: bool,
+) {
+    coordinator.set_close_returns_to_shelf(enabled);
+}
+
 #[tauri::command]
 pub fn window_set_traffic_light_position(
     window: WebviewWindow,

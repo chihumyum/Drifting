@@ -160,6 +160,12 @@ export function useDesktopGlobalShortcuts({
         return;
       }
 
+      if (matchesAccelerator(event, bindings.closeProject)) {
+        event.preventDefault();
+        navigate('/');
+        return;
+      }
+
       if (matchesAccelerator(event, bindings.goBack)) {
         event.preventDefault();
         if (useUiStore.getState().activeSuperView !== 'none') {

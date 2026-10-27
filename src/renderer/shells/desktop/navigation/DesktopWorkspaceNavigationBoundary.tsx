@@ -13,6 +13,7 @@ import { useDesktopTabCloseTransition } from './DesktopTabCloseTransition';
 import { DesktopTabCloseContext } from './DesktopTabCloseContext';
 import { useDesktopCreateCompletionTransition } from './DesktopCreateCompletionTransition';
 import { DesktopCreateCompletionContext } from './DesktopCreateCompletionContext';
+import { useCloseButtonReturnsToShelf } from './useCloseButtonReturnsToShelf';
 
 interface DesktopWorkspaceNavigationBoundaryProps {
   projectId: string;
@@ -61,6 +62,7 @@ export function DesktopWorkspaceNavigationBoundary({
 
   useSyncSplitFocusedUrl(navigator);
   usePendingLocationLinkConsumer(navigator);
+  useCloseButtonReturnsToShelf(navigate);
   useDesktopGlobalShortcuts({
     projectId,
     openFind,

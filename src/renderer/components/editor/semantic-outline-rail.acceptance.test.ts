@@ -68,7 +68,7 @@ describe('semantic outline rail acceptance wiring', () => {
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
     const outlineToggle = topBar.slice(
       topBar.indexOf('function OutlineRailToggle'),
-      topBar.indexOf('function injectSeparators'),
+      topBar.indexOf('interface EditorBarMenuProps'),
     );
 
     expect(outlineToggle).toContain('editor-bar__icon--outline');

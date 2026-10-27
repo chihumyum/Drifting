@@ -10,11 +10,11 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Surface roles
 
-1. **Workspace plane**：`AppTopbar`、编辑器周围区域、左右栏、底部时间线 dock 与 `BottomStatusBar` 共同组成一张连续桌面。它们全部使用从 editor 稿纸外侧提取的不透明 `--workspace-ui-bg: hsl(var(--paper-deep))`；一级模块不再用不同底色假装处于不同高度。
+1. **Workspace plane**：编辑器周围区域、左右栏与可选的 Bottom Timeline dock 共同组成一张连续桌面；没有标题栏、文档 Tab 栏、editor top bar 或底部状态栏。它们全部使用从 editor 稿纸外侧提取的不透明 `--workspace-ui-bg: hsl(var(--paper-deep))`；一级模块不再用不同底色假装处于不同高度。
 2. **Manuscript page**：`.page` 使用现有 `--page` 与 `--page-elevation`，圆角上限由 `--workspace-corner-radius: 2px` 控制。无论左右栏是否打开，它始终是主界面唯一抬起的一级工作面。
-3. **Borders and internal levels**：细灰黑 `--workspace-border` 只表达顶栏、左右栏、Bottom Timeline 与 Bottom Status Bar 的一级模块边界。三方交点没有渐变、阴影或额外装饰。侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline；左右栏显示双列时，两列之间也用同一条 `--workspace-local-border` hairline，同时保留较宽的透明拖拽热区。panel header 直接衔接 content，不再重复画第二条线，侧栏 footer 顶线则再弱一级。Bottom Timeline header 保持 `--workspace-ui-bg`，幕/叙事时 rail 使用稍浅的 `--paper`，故事线轨道使用 `--page`；幕边界、时间点和相邻故事线轨道的静态 guide 使用 header 的 `--workspace-ui-bg`，厚度统一为 `0.5px`。
+3. **Borders and internal levels**：细灰黑 `--workspace-border` 只表达左右栏与 Bottom Timeline 的一级模块边界。三方交点没有渐变、阴影或额外装饰。侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline；左右栏显示双列时，两列之间也用同一条 `--workspace-local-border` hairline，同时保留较宽的透明拖拽热区。panel header 直接衔接 content，不再重复画第二条线，侧栏 footer 顶线则再弱一级。Bottom Timeline header 保持 `--workspace-ui-bg`，幕/叙事时 rail 使用稍浅的 `--paper`，故事线轨道使用 `--page`；幕边界、时间点和相邻故事线轨道的静态 guide 使用 header 的 `--workspace-ui-bg`，厚度统一为 `0.5px`。
 
-因此普通编辑状态只出现一块抬起的一级工作面：稿纸。标题栏、左右栏、Tab 栏、时间线与 footer 都不是额外的“岛”。
+因此普通编辑状态只出现一块抬起的一级工作面：稿纸。左右栏、时间线、稿纸角上的按钮与稿纸下方的标签小点都不是额外的“岛”。
 
 ## Accent color
 
@@ -31,30 +31,33 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - Agent 对话跟随同一界面字号设置：较小／标准／较大档的用户消息、回复、输入框和代码为 `12 / 14 / 16px`，思考与工具说明为 `11.5 / 13 / 15px`，时间与用量为 `10.5 / 12 / 14px`，Markdown 标题为 `13.5 / 16 / 18px`。消息正文和输入框行高为 `1.4`；输入框在字号变化后重新测量高度，长代码块横向滚动，用量栏允许换行。双栏同时响应同一设置，共享消息组件在移动端保留原字号 fallback。
 - 正文继续由 `--editor-font-size` 与编辑器偏好控制；UI 档位不更改正文、Yjs、数据库或字体来源。变量位于 HTML 根节点，让 portal 到 body 的菜单得到同样字号。
 - 常读辅助文字使用 `--ui-text-muted`。当前浅色/深色状态栏样本对比度为 `4.93:1 / 8.58:1`，不通过缩小、减淡文字同时压低层级。不要将此局部样本视为全产品对比度认证。
-- 桌面列表和 Panel Tab 行为 `32 / 34px`，panel header 最小高度为 `28 / 30px`，footer 为 `24 / 26px`；Super View 底部 inset 同源。菜单使用 `20 / 22px` 行高并允许多行撑高；设置表单在窄窗口堆叠。原生 `42px` 标题栏位置不变。
+- 桌面列表行为 `32 / 34px`，panel header 最小高度为 `28 / 30px`，侧栏 footer 为 `24 / 26px`；Super View 底部 inset 同源。左右栏顶部的 Panel Tab 行同时承载窗口控件，与窗口控件行同高 `42px`。菜单使用 `20 / 22px` 行高并允许多行撑高；设置表单在窄窗口堆叠。
 - 文档 Tab 的隐藏测量节点与可见标签使用同一字号变量，并在字号变动后重新分配宽度。
 
 验收入口和界限见 [桌面字号验收](qa/desktop-typography.md)。
 
 ## Geometry and ownership
 
-- `App.tsx` 只负责应用级 effects/routes；桌面工作区由 `DesktopAppShell` 组合为 `AppTopbar + app-row + BottomStatusBar`，`app-row` 内是 `Sidebar(left) + app-mid + Sidebar(right)`。
-- `app-mid` 只拥有 `workspace-stage` 与可选的 `workspace-dock`；`BottomStatusBar` 位于三栏之外。
-- footer 横跨整个窗口底部，左右栏与中间编辑列共同停在它上方，形成一条连续的全宽基线。
-- 左右栏与 Bottom Timeline 不通过 z 轴高低区分；模块所有权只由外边界普通 hairline 表达。三方交点不再绘制任何渐变或阴影。
-- 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整；不实现同时改变三个区域的三向 resize，也不为不存在的能力绘制提示。
+- `App.tsx` 只负责应用级 effects/routes；桌面工作区（`DesktopWorkspace`）只有一个 `app-row`：`Sidebar(left) + app-mid + Sidebar(right)`，三栏从窗口顶边贯通到底边。没有 `AppTopbar`、文档 Tab 栏、editor top bar 或 `BottomStatusBar`。
+- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Timeline）。`workspace-stage` 的下沿承载左下角的字数（`WorkspaceWordCount`）和中下的标签小点与时间线开关（`WorkspaceTabDock`），时间线打开时它们随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。
+- 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整。
 - 顶层工作面使用直角或最多 `2px` 圆角。更大的圆角不用于页面模块、栏、dock 或内容列表容器。
 - Settings 与三个 Super Views 使用同样的平面化 shell：边缘对齐、无 shell gap、无 shell 圆角或阴影，以分隔线表达区域边界。
 
 ## Command and status ownership
 
-- `AppTopbar` 的固定顺序是当前 Project 名称、搜索、左栏 toggle、项目主页、通览全书、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。`SUPER` 右侧与通知铃铛左侧分别使用和顶栏底边相同的 `1px --workspace-border` hairline，明确分开导航、文档 Tabs 与账户命令区。Project 名称是只读的位置锚点，不兼任项目切换器；普通图标按钮统一使用 `26px` 热区和约 `16px` 图标，低频入口不再各自占用一枚顶栏图标。
-- 通览全书是 Project Home 与 `SUPER` 之间的独立纯图标按钮：`GhostIconButton` 承载 IconoirPageFlip 图标，与其他顶栏图标共用 `26px` 方形热区，直接进入 All Chapters editor，并以图标颜色表达 hover 与 active。`SUPER` 仍是不带 chevron 或其他图标的纯大写英文触发器，但它不再弹出菜单：点击直接进入上次使用的 overview（`openLastSuperView`）；Element overview、Story graph 与 TODO & Materials 三个目的地改由共享 Super View header 的 `navigationSlot`（`DesktopSuperViewHeader`）就地切换。旧的 `SUPER` 菜单与四个自绘 Super View 图标都不再存在。
-- 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；icon button 通过 `aria-pressed` / `data-active` 暴露当前目的地，选中态同样只把前景色提高到 `--ink-1`，不绘制底色、下划线或其他附加选中装饰。真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
-- Copilot 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后可就地修改 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
-- `BottomStatusBar` 以只读写作状态为主，报告当前上下文对应的章节/故事线/全书字数与今日新增字数；时间线开关与字数统计共同靠右，字数统计位于时间线按钮右侧。Google Drive 传输进度属于右上角通知中心，不占用 footer。原 editor top bar 不再重复显示字数。唯一的交互例外是 Bottom Timeline 展开/收起开关，因为它直接控制 footer 上方相邻的 dock。
-- 通知入口仍留在 topbar，因为它会打开通知中心，属于操作入口而不是被动状态。footer 后续只接受无需点击即可理解、且与当前写作任务有关的短状态。
-- footer 在桌面标准/较大字号下使用 `24 / 26px` 高度，移动 fallback 保持 `20px`并使用全宽所有权；除 Timeline 开关外，不把低频设置或导航重新塞回底部角落。
+工作区布局在 2026-10-27 重构为“三栏贯通、没有横贯的栏”：
+
+- **侧栏开关常驻两角**。左栏开关在左上角（macOS 在 `94px` 红绿灯 inset 之后），右栏开关在右上角，始终可见：侧栏收起时浮在桌面角落的透明拖动条上，展开时位于该栏第一（左）/最后（右）个半栏 Tab 行的外端（`SidebarHeaderChrome`，`data-sidebar-header-chrome`），并计入侧栏最小宽度。Tab 行高等于窗口控件行高 `--window-titlebar-height`，本身也是窗口拖动面。全局搜索没有按钮，只用快捷键。
+- **账户在左栏底部**。头像与名字（打开账户菜单）和通知铃铛组成左栏底部的一个 cell（`WorkspaceAccountCell`），横跨双栏；账户菜单与通知中心从这里向上展开。左栏收起时这个 cell 不显示——左栏是主要工作区，预期大多时候常驻。
+- **标签页在稿纸下方**。顶部文档 Tab 栏移除，已打开的文档是稿纸中下方的一排小点（实体色；Preview 为空心），类型变化处留出较宽间隔；分屏标签是相连的两个点。悬停或键盘聚焦时这一排原地展开成带标题和关闭按钮的标签片（沿用原宽度分配、拖拽排序、右键菜单与双击固定），末尾是 Universal 新建 `+`。
+- **时间线开关在标签小点下方**。标签小点下面只有一个 Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）；打开后时间线 dock 停在稿纸下方，可拖高度。
+- **全书视图在对应实体旁边**。通览全书在章节面板头部、要素全景在要素面板头部、TODO 与素材库在素材库面板工具栏、故事图谱在 Bottom Timeline 头部、项目主页在左栏底部的账户 cell。`SUPER` 触发器与底部视图行移除，Super View header 内的切换器保留；某侧栏收起时，其面板里的入口随之隐藏，快捷键仍可用。
+- **稿纸的操作留在稿纸上**。editor top bar 与面包屑移除；大纲、引用链接、批注（带数量）、情节规划、要素图片与三点菜单改为 `.editor-bar` 竖排圆形按钮，停在每个编辑器 pane 的右下角，分屏时各有一组，不被侧栏收走。三点菜单向上展开。
+- **字数在左下角**。原 `BottomStatusBar` 的当前上下文字数与今日字数改为桌面左下角的淡色文字，不可点击。
+- **红灯关闭项目**。项目打开时，窗口关闭按钮不再关窗：renderer 通过 `window_set_close_returns_to_shelf` 打开开关后，Rust 端拦下 `CloseRequested` 并发出 `drifting:close-to-shelf`，renderer 回到书架；书架上的关闭按钮仍按原流程 flush 并关窗。`⌘W` 关当前标签，`⇧⌘W`（`closeProject`）关项目回书架。项目名不再常驻显示。
+- **轻重分工**。Bottom Timeline 承担日常的轻量结构操作；调整故事线之间的相对关系、幕边界、时间点和叙事顺序等较重的操作在故事图谱 Super View 中进行。章节 panel 保持按故事线分组的列表。
+- Copilot 在账户 dropdown 的二级设置页。
 
 ## Component shape rules
 
@@ -67,21 +70,21 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Menu surfaces
 
-- 右键坐标、三点按钮、排序按钮、breadcrumb 与顶栏入口只决定菜单如何定位，不决定菜单长什么样。按钮锚定面继续由 `AnchoredPopover` portal 到 `body` 并使用 `position: fixed`；React 内的坐标锚定菜单优先使用 `ContextMenuSurface`。编辑器 selection menu、ActRail 与资料卡保留各自已有的生命周期 owner，但同样必须 portal 到 `body`、固定定位并使用共享视觉 primitive。
+- 右键坐标、三点按钮、排序按钮与窗口控件只决定菜单如何定位，不决定菜单长什么样。按钮锚定面继续由 `AnchoredPopover` portal 到 `body` 并使用 `position: fixed`；React 内的坐标锚定菜单优先使用 `ContextMenuSurface`。编辑器 selection menu、ActRail 与资料卡保留各自已有的生命周期 owner，但同样必须 portal 到 `body`、固定定位并使用共享视觉 primitive。
 - 所有动作菜单使用 `.menu-surface`。外壳唯一来源是 `--menu-surface-bg`、`--menu-surface-border`、`--menu-surface-radius` 与 `--menu-surface-shadow`；宽度只能从 compact / standard / wide / panel / settings 五档中选择，对应 `180 / 220 / 280 / 360 / 420px`，窄视口再由浮层 primitive 的 viewport max-width 收缩，不为单个入口另写任意宽度。
 - 普通行使用 `.menu-surface__item`，桌面采用 `14px / 20px`（较大档 `16px / 22px`）UI 字体，共享移动 fallback 为 `12.5px / 18px`、`6px 8px` padding 和 `--radius-xs`。桌面单行内容至少为 `32px`；文本超过一行时允许正常换行，由所选档位的行高自然撑高，不截断为单行，也不把富表单强制压进固定 cell。
-- section label、header、divider 与 accelerator 分别使用共享的小型层级。当前 breadcrumb 只以背景 wash 与字重显示当前项，不绘制 inset-left accent bar。
+- section label、header、divider 与 accelerator 分别使用共享的小型层级。当前项只以背景 wash 与字重显示，不绘制 inset-left accent bar。
 - 账户、Agent 配置/历史、关系类型管理、资料卡摘要和“未放置”内容不是普通动作列表。它们使用 `.menu-surface--rich` 保留表单、摘要、chip 或多列布局，但外壳 token、基础字号、hover wash、圆角阶梯与浮层层级仍与简单菜单一致；不为了视觉整齐把富交互压成 30px 动作行。
 - App 自绘菜单受上述约束；可编辑器在没有非空 selection 或只读时回退的浏览器/系统原生 context menu 不属于 renderer 可定制范围。静态测试能证明 token、class 与 portal/fixed 路径已收敛，不能证明不同平台上的字体栅格化、阴影观感或系统原生菜单外观；这些仍由用户在实际窗口中目测验收。
 
 ## Tabs and motion
 
-- 顶部文档 Tab 与左右栏 Panel Tab 都由自身绘制静态矩形选中态。
+- 底部文档标签片与左右栏 Panel Tab 都由自身绘制静态选中态。
 - 分屏文档 Tab 的左右两侧分别保留 Preview／固定态：Preview 标题为斜体，双击某侧标题只固定该侧。打开新 Entity 时只替换获得焦点的 Preview；若该侧已固定，则保留整个分屏，使用普通顶层 Preview 位。切换焦点不改变状态，另一侧的 Preview 不参与替换。详见 [分屏 Preview 契约](editor/split-tab-preview.md)。
 - 左右栏 Panel Tab 统一使用 `label` 文字样式：相同 UI 字体、`500` 字重、保留原始大小写；小／标准／大字号分别为 `11.5 / 13 / 15px`。单侧横向 padding 为 `10px`；Tab 之间不额外留 gap，整行两端各留 `6px`，恢复双栏按钮前也不额外留 gap。
-- 桌面 Universal 新建入口是一个紧跟已打开文档 Tab 列表末尾的 `+`，与 Tab 一起处于横向滚动条带内；零 Tab 时它位于条带起点。它不是贴住顶栏右缘的固定命令，也不占用既有文档 Tab 的宽度预算：空间不足时入口随条带自然溢出。默认和 hover 都保持未选中 Tab 的透明底与次级文字色，键盘 `focus-visible` 只保留克制的轮廓。
+- 桌面 Universal 新建入口是展开后的标签片末尾的 `+`，与标签片一起处于横向滚动条带内；小点状态下不显示。它不占用既有标签的宽度预算：空间不足时入口随条带自然溢出。默认和 hover 都保持未选中 Tab 的透明底与次级文字色，键盘 `focus-visible` 只保留克制的轮廓。
 - Universal 新建先打开会话级“新建…”占位 Tab，默认是斜体 Preview，与实体 Tab 共用一个预览位；打开时替换已有实体 Preview，随后打开其他新实体 Preview 会替换未固定的占位。切换到 Home 或已打开的 Tab 只改变焦点。双击占位 Tab 后固定，保留已选类型与归属；提交创建前也会自动固定，保护后台结果和失败重试。该 Tab 使用普通静态矩形选中态，可切换、可关闭，但不可拖拽或 split；固定后仍仅保留在当前会话，关闭未提交占位不产生实体。选择类型后，章节/构想/要素只补齐现有归属，故事线/类目直接使用默认名称创建，最终由真实实体 Tab 原位替换。
-- 左右栏的桌面 Tab 行使用 `32 / 34px`；其下单行 panel header 最小高度为 `28 / 30px`，不用大块上下 padding 制造空白。Review 的类型/范围筛选和 Agent 的会话/工具动作都属于这一级 header，必须复用 `workspace-panel-header-row` 与同一套小字号纯文字控件，不能在 Tab 下再造一层大标题或带框按钮栏。
+- 左右栏的桌面 Tab 行与窗口控件行同高 `42px`；其下单行 panel header 最小高度为 `28 / 30px`，不用大块上下 padding 制造空白。Review 的类型/范围筛选和 Agent 的会话/工具动作都属于这一级 header，必须复用 `workspace-panel-header-row` 与同一套小字号纯文字控件，不能在 Tab 下再造一层大标题或带框按钮栏。
 - Panel Tab 的默认、hover 与 active 背景完全一致；只用暗淡文字与黑色文字的切换表达未选中和选中，不使用彩色 label、`border-bottom`、inset shadow 或其他下划线。
 - 左右栏 Panel Tab 始终显示完整标题，不再按宽度切换为图标或缩写。桌面两侧统一按“完整标签总宽度 + `12px × (Tab 数量 − 1)` + 两端各 `6px`”计算单栏及每半栏最小宽度；左右栏不另设固定像素下限。标签增减、中英文切换、界面字号和字体加载都会重新测量。超长 Agent 待查看计数不推宽侧栏，可横向滚动或通过键盘聚焦访问。鼠标拖拽、键盘调节、恢复已存比例和窗口缩放共用当前测量值，不强制缩小已保存的宽栏。
 - 不存在跨 Tab 滑动的 pill indicator，也不为选中态测量 DOM 几何。
@@ -120,12 +123,11 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 每个桌面半栏的每种 Tab 以项目、侧栏、稳定半栏身份和 Tab 类型隔离视图状态。左栏的排序、显示模式、辅助信息、选中项、折叠与滚动，Review 的范围、排序、类型筛选与展开状态，以及 Library 的筛选和关联显示均独立；切 Tab、收窄或关闭后恢复时不借用另一半的状态。排序/显示偏好独立持久化，初值沿用已有偏好；折叠、选择、筛选与滚动在当前运行期保留。移动端和独立挂载的面板继续使用原有偏好。项目内容、Agent 活动与实际编辑结果继续共享。
 - Review、素材库和统计继续跟随当前编辑内容，不提供单独选择或固定章节的控件。统计保留原有标题，分隔细线贯穿两半的 TabRow 和内容。
 - 每个 Agent 半栏独立保存当前会话、输入草稿、历史选择和控制按钮的目标；第二个半栏首次打开 Agent 时从空白新对话开始，可同时运行不同对话。切 Tab、关闭半栏再打开或缩放时，状态跟随稳定半栏身份保留。若主动选择同一条历史对话，其消息与运行状态仍属于同一会话，草稿各自独立；同一会话只允许一个启动准备过程及一个运行中回合。模型设置、项目数据与会话历史列表继续共享。来自批注或 Review 的“打开 Agent”先确定目标 Agent 半栏，再加载会话，保持另一半内容和位置。
-- Header、左右栏、编辑器外侧、Bottom Timeline 与 `BottomStatusBar` 在所有平台都直接使用不透明 `--workspace-ui-bg`。macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`；Tauri 窗口配置显式保持 `transparent: false`，renderer 不再加载单独的原生材质样式。这样三处灰色底色来自同一个普通颜色 token，不依赖桌面壁纸、窗口激活状态或系统材质变化。
-- macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。renderer 顶栏高 `42px`，同排图标与文字按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。
-- 桌面顶栏在红绿灯（其他桌面平台为普通 leading inset）之后持续显示当前 Project 名称。macOS leading inset 固定为 `94px`，在第三个红绿灯之后留下独立呼吸空间。名称直接订阅已发布的 `currentProject.name`，重命名后即时更新；整个名称槽是返回书架的语义按钮，默认显示单行、可省略的项目名，hover 或键盘 focus 时原地切换为返回书架。按钮始终保留项目名决定的原始占位，最大不超过 `min(220px, 22vw)`、最小为同排控件高度 `26px`，切换内容不得推动搜索、导航或文档 Tabs；内部 container 按实际槽宽决定文案，低于 `54px` 只显示返回箭头，足够宽时显示箭头与本地化“书架”短标签，完整动作与项目名由 `title`/`aria-label` 暴露。按钮显式退出 Tauri drag region，名称左右的空白仍属于父级窗口拖动面。左侧 section 使用 intrinsic width，命令组禁止收缩，因此后续控件紧跟实际项目名而不是对齐固定栏宽；移动端不复用这一桌面标识，账户菜单中的书架入口继续作为冗余路径。
+- 左右栏与编辑器外侧在所有平台都直接使用不透明 `--workspace-ui-bg`。macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`；Tauri 窗口配置显式保持 `transparent: false`，renderer 不再加载单独的原生材质样式。这样三处灰色底色来自同一个普通颜色 token，不依赖桌面壁纸、窗口激活状态或系统材质变化。
+- macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。窗口控件行高 `42px`（`--window-titlebar-height`），同排图标按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。macOS leading inset 固定为 `94px`：左栏展开时作用于左栏第一个半栏的 Tab 行，收起时作用于左上角的浮动开关。
 - Project Home 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受当前 shell 约束，并使用 `overflow-y: auto`。桌面 Home 保留完整 workspace chrome，但不绘制 Tab 外观；移动 Home 是 paper row 之外的独立 safe-area surface，仅增加项目级 Back、paper overview 和继续当前 paper 入口。隐藏的只是 scrollbar chrome，不是滚动能力。
-- 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。桌面 topbar 的左右 command groups 在窄屏暂时隐藏；移动端必须用独立的 action menu/sheet 恢复这些能力，不能据此宣称功能等价。
-- Super View overlay 停在全宽 `BottomStatusBar` 上方；工作区入口已经迁到 topbar。
+- 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。
+- Super View 仍是覆盖整个窗口的 overlay，带自己的 header、返回与切换器。
 
 ## Acceptance
 
@@ -143,6 +145,6 @@ pnpm test:renderer-architecture
 pnpm exec vitest run src/renderer/lib/sidebar-tabs.test.ts src/renderer/lib/sidebar-pane-events.test.ts src/renderer/store/ui-store.sidebar-tabs.test.ts src/renderer/lib/layout-geometry.test.ts src/renderer/shells/desktop/desktop-sidebar-tabs.acceptance.test.ts src/renderer/store/agent-chat-preparation.integration.test.ts
 ```
 
-测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、要素 panel 已移除的 category footer、紧凑索引的持久化模式/header 摘要切换入口与 sort menu 分离/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首要素建组语义，以及章节、构想、element group 的 inline 动态按钮、章节/要素内外层排序解耦及末尾虚拟组约束、topbar command ownership、当前 Project 名称的桌面位置锚点、原地返回书架状态、实际宽度标签与不压缩命令组约束、Super 菜单、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收；新增返回按钮的 native hover/focus、点击命中、项目名截断与窗口拖动边界仍需要在真实窗口中目测。
+测试覆盖三栏贯通的工作区组合（无顶栏、Tab 栏、editor top bar 与 footer，Bottom Timeline 可开关）、常驻两角的侧栏开关、左栏底部的账户 cell、底部标签小点与时间线开关、就近的全书视图入口、稿纸右下角的竖排操作、左下角字数、红灯回书架、要素 panel 已移除的 category footer、紧凑索引的持久化模式/header 摘要切换入口与 sort menu 分离/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首要素建组语义，以及章节、构想、element group 的 inline 动态按钮、章节/要素内外层排序解耦及末尾虚拟组约束、Super header 切换、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、左右栏与编辑器外侧的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收；红灯回书架、透明拖动条与侧栏 Tab 行的窗口拖动边界、开关与红绿灯的对齐与标签小点的悬停展开仍需要在真实窗口中目测。
 
 Renderer 的桌面/共享所有权规则记录在 [`renderer-ui-architecture.md`](renderer-ui-architecture.md)；移动端起点、缺口和设备验收边界记录在 [`mobile-ui-foundation.md`](mobile-ui-foundation.md)。

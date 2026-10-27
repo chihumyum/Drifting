@@ -17,7 +17,6 @@ import type { LibraryItem } from '../domain/library-item';
 import { createPlainCommentDoc, extractTextFromCommentBody, parseMaterialRegion, type MaterialRegion } from '../domain/comment';
 import { parseMaterialProvenance } from '../domain/material-provenance';
 import {
-  EditorCrumb,
   EditorTopBar,
   MATERIAL_MOVE_TO_FOLDER_ACTION,
   MATERIAL_OPEN_IN_SYSTEM_ACTION,
@@ -25,7 +24,6 @@ import {
   NOTE_TASK_TODOS_ON_ACTION,
 } from '../components/editor/EditorTopBar';
 import { MaterialFolderPicker } from '../features/library/MaterialFolderPicker';
-import { materialFolderPath } from '../domain/material-folder';
 import { useMaterialFolder } from '../usecase/useMaterialFolder';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
 import {
@@ -81,7 +79,6 @@ export function MaterialEditorView({
   useReportEditorSurfaceReady(!item || isMedia || noteReady);
   // Media keeps its own comment column; notes use the shared margin rail.
   const noteComments = useEntityStickyNoteRail('library_item', isMedia ? null : libraryItemId);
-  const materialFolders = useDataStore((state) => state.materialFolders);
   const folderUsecases = useMaterialFolder(projectId);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
@@ -147,8 +144,6 @@ export function MaterialEditorView({
     return <div className="material-editor__missing">{t('materialEditor.missing')}</div>;
   }
 
-  const kindLabel = t(`memoMaterial.kind.${item.kind}`, { defaultValue: item.kind });
-
   return (
     <div className="editor-shell material-editor" data-kind={item.kind}>
       <EditorTopBar
@@ -169,13 +164,7 @@ export function MaterialEditorView({
             ? [NOTE_TASK_TODOS_OFF_ACTION, NOTE_TASK_TODOS_ON_ACTION]
             : [MATERIAL_OPEN_IN_SYSTEM_ACTION, item.taskTodos ? NOTE_TASK_TODOS_ON_ACTION : NOTE_TASK_TODOS_OFF_ACTION]
         }
-      >
-        <EditorCrumb>{t('materialEditor.crumb')}</EditorCrumb>
-        {materialFolderPath(materialFolders, item.folderId).map((folder) => (
-          <EditorCrumb key={folder.id}>{folder.name}</EditorCrumb>
-        ))}
-        <EditorCrumb>{kindLabel}</EditorCrumb>
-      </EditorTopBar>
+      />
       {folderPickerOpen && (
         <MaterialFolderPicker
           projectId={projectId}

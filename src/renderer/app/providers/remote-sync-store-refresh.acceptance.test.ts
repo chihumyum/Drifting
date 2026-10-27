@@ -76,9 +76,8 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(projectRuntime).not.toContain('app-project-sync-pill');
     expect(projectRuntime).toContain('className="app-workspace-blocking-status"');
 
-    const footer = source('../../components/BottomStatusBar.tsx');
-    expect(footer).not.toContain('useProductSyncRuntime');
-    expect(footer).not.toContain('bsb__storage');
+    const wordCount = source('../../components/workspaceChrome/WorkspaceWordCount.tsx');
+    expect(wordCount).not.toContain('useProductSyncRuntime');
 
     const notificationFeed = source('../../hooks/useNotificationFeed.ts');
     expect(notificationFeed).toContain('productSyncRuntimeControl.subscribe(inspect)');

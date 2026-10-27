@@ -10,7 +10,8 @@ export type ShortcutActionId =
   | 'goForward'
   | 'prevTab'
   | 'nextTab'
-  | 'toggleBottomTimeline';
+  | 'toggleBottomTimeline'
+  | 'closeProject';
 
 export interface ShortcutActionDef {
   id: ShortcutActionId;
@@ -23,7 +24,7 @@ export const SHORTCUT_ACTIONS: ShortcutActionDef[] = [
   {
     id: 'closeActiveTab',
     label: 'Close active tab',
-    description: 'Close the active entity editor tab in the top timeline',
+    description: 'Close the active entity editor tab in the bottom dock',
     defaultAccelerator: 'Mod+W',
   },
   {
@@ -59,13 +60,13 @@ export const SHORTCUT_ACTIONS: ShortcutActionDef[] = [
   {
     id: 'prevTab',
     label: 'Previous tab',
-    description: 'Switch left among open top tabs',
+    description: 'Switch left among open tabs',
     defaultAccelerator: 'Mod+Alt+ArrowLeft',
   },
   {
     id: 'nextTab',
     label: 'Next tab',
-    description: 'Switch right among open top tabs',
+    description: 'Switch right among open tabs',
     defaultAccelerator: 'Mod+Alt+ArrowRight',
   },
   {
@@ -73,6 +74,12 @@ export const SHORTCUT_ACTIONS: ShortcutActionDef[] = [
     label: 'Toggle bottom timeline',
     description: 'Show or hide the bottom timeline',
     defaultAccelerator: 'Mod+J',
+  },
+  {
+    id: 'closeProject',
+    label: 'Close project',
+    description: 'Close this project and return to the bookshelf',
+    defaultAccelerator: 'Mod+Shift+W',
   },
 ];
 

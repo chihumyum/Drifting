@@ -10,7 +10,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
-import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EditorTopBar } from '../components/editor/EditorTopBar';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
@@ -410,16 +410,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     void applyGroup(trimmed === '' ? null : trimmed);
   };
 
-  // Sibling elements in the same category — drives the title-crumb dropdown so
-  // the user can jump between elements without leaving the editor. Mirrors the
-  // chapter breadcrumb's sibling switcher (chapters in a storyline).
-  const siblingElements = useMemo(() => {
-    if (!curElement) return [];
-    return bookElements
-      .filter((el) => el.categoryId === curElement.categoryId)
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [bookElements, curElement]);
-
   // All distinct groupNames currently used by elements in this element's
   // category — drives the combobox list in the group modal.
   const groupOptions = useMemo(() => {
@@ -646,65 +636,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
           disabled: false,
           onToggle: toggleComments,
         }}
-      >
-        {currentCategory && (
-          <EditorCrumb
-            dotColor={currentCategory.color || 'hsl(var(--accent))'}
-            dropdown={
-              bookElementCategories.length === 0 ? (
-                <div className="crumb-dropdown__empty">{t('elementEditor.empty.noCategories')}</div>
-              ) : (
-                bookElementCategories.map((cat) => {
-                  const isActive = cat.id === currentCategory.id;
-                  return (
-                    <div
-                      key={cat.id}
-                      className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                      onClick={() => navigate(`/project/${projectId}/category/${cat.id}`)}
-                    >
-                      <span
-                        className="crumb-dropdown__dot"
-                        style={{ background: cat.color || 'hsl(var(--accent))' }}
-                      />
-                      <span>{cat.name}</span>
-                    </div>
-                  );
-                })
-              )
-            }
-          >
-            <span>{currentCategory.name}</span>
-          </EditorCrumb>
-        )}
-        {curElement.groupName && (
-          // Group is display-only context. Switching it here used to MOVE the
-          // element between groups, which read as a navigation; relocation now
-          // lives only in the 3-dot menu's「Change Group」flow.
-          <EditorCrumb>
-            <span>{curElement.groupName}</span>
-          </EditorCrumb>
-        )}
-        <EditorCrumb
-          dropdown={siblingElements.map((el) => {
-            const isActive = el.id === curElement.id;
-            return (
-              <div
-                key={el.id}
-                className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                onClick={() => {
-                  if (!isActive) navigate(`/project/${projectId}/element/${el.id}`);
-                }}
-              >
-                <span>{el.name || t('elementEditor.untitled')}</span>
-              </div>
-            );
-          })}
-        >
-          <span className="editor-crumb-title">
-            {curElement.name || t('elementEditor.untitled')}
-          </span>
-        </EditorCrumb>
-      </EditorTopBar>
+      />
 
       {/* Mode-controlled semantic TOC beside the native scroll tree. */}
       <div className="editor-body">

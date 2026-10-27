@@ -34,13 +34,13 @@ describe('Project Home cross-platform acceptance', () => {
   it('owns the desktop project root without creating a tab', () => {
     const routes = read('src/renderer/app/AppRoutes.tsx');
     const main = read('src/renderer/components/editor/EditorMainArea.tsx');
-    const navigation = read('src/renderer/components/topBars/WorkspaceNavigationButtons.tsx');
+    const navigation = read('src/renderer/components/workspaceChrome/WorkspaceAccountControls.tsx');
     expect(read('src/renderer/app/project-route-components.tsx')).toContain('<EditorShell view="project-home">');
     expect(routes).toContain('<Route path="home" element={<Navigate to=".." replace />} />');
     expect(routes).toContain('<Route path="new" element={null} />');
     expect(main).not.toContain('<EmptyEditorState');
-    expect(navigation).toContain('aria-pressed={projectHomeActive}');
-    expect(navigation).toContain('isProjectHomePathname(projectId, location.pathname)');
+    expect(navigation).toContain('aria-pressed={homeActive}');
+    expect(navigation).toContain("activeSuperView === 'none' && isProjectHomePathname(projectId, location.pathname)");
   });
 
   it('renders mobile Home outside the paper row and gives Back two project levels', () => {

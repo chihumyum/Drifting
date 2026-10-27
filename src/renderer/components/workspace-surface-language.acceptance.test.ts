@@ -15,7 +15,7 @@ function block(text: string, start: string, end: string): string {
 }
 
 describe('workspace surface language acceptance', () => {
-  it('places the full-width footer below the three-column workspace row', () => {
+  it('composes three full-height columns with no bar across them', () => {
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
     const centerColumn = block(
       workspace,
@@ -23,67 +23,137 @@ describe('workspace surface language acceptance', () => {
       '</main>',
     );
 
-    expect(centerColumn).toContain('className="workspace-stage desktop-workspace-stage"');
-    expect(centerColumn).toContain('className="workspace-dock desktop-workspace-dock"');
-    expect(centerColumn).not.toContain('<BottomStatusBar />');
     expect(workspace).toContain('<Sidebar sidebarType="left">');
-    expect(workspace).toContain('<main className="app-mid desktop-workspace-main">');
     expect(workspace).toContain('<Sidebar sidebarType="right">');
-    expect(workspace.indexOf('<BottomStatusBar />')).toBeGreaterThan(
-      workspace.indexOf('<Sidebar sidebarType="right">'),
+    expect(centerColumn).toContain('<WorkspaceCornerControls />');
+    // Dots, timeline toggle and word count rest on the paper's lower edge, so
+    // they ride above the optional Bottom Timeline dock.
+    const stage = block(centerColumn, 'className="workspace-stage desktop-workspace-stage"', '</div>');
+    expect(stage).toContain('<WorkspaceWordCount />');
+    expect(stage).toContain('<WorkspaceTabDock />');
+    expect(centerColumn).toContain('{!bottomTimelineHidden && (');
+    expect(centerColumn).toContain('<DesktopBottomTimeline />');
+    for (const removed of ['AppTopbar', 'BottomStatusBar']) {
+      expect(workspace).not.toContain(removed);
+    }
+    for (const path of [
+      'src/renderer/views/AppTopbar.tsx',
+      'src/renderer/components/topBars/MainTopBar.tsx',
+      'src/renderer/components/topBars/LeftSidebarTopBar.tsx',
+      'src/renderer/components/topBars/RightSidebarTopBar.tsx',
+      'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
+      'src/renderer/components/BottomStatusBar.tsx',
+      'src/styles/bottom-status-bar.css',
+      'src/styles/workspace-navigation.css',
+    ]) {
+      expect(existsSync(resolve(process.cwd(), path)), path).toBe(false);
+    }
+
+    // The drag strip floats over the paper instead of reserving a title-bar band.
+    const shellCss = source('src/styles/desktop-shell.css');
+    expect(block(shellCss, '.workspace-window-strip {', '}')).toContain('position: absolute;');
+    expect(block(shellCss, '.workspace-window-strip {', '}')).toContain(
+      'height: var(--window-titlebar-height);',
     );
   });
 
-  it('uses Page Flip for All Chapters and moves Super switching into each Super header', () => {
-    const appTopbar = source('src/renderer/views/AppTopbar.tsx');
-    const leftTopbar = source('src/renderer/components/topBars/LeftSidebarTopBar.tsx');
-    const workspaceNavigation = source(
-      'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
-    );
-    const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
-    const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
-    const rightTopbar = source('src/renderer/components/topBars/RightSidebarTopBar.tsx');
+  it('keeps each sidebar toggle in its corner and the account at the left sidebar foot', () => {
+    const corners = source('src/renderer/components/workspaceChrome/WorkspaceCornerControls.tsx');
+    const buttons = source('src/renderer/components/workspaceChrome/WindowControlButtons.tsx');
+    const account = source('src/renderer/components/workspaceChrome/WorkspaceAccountControls.tsx');
+    const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
+    const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
+    const leftSidebar = source('src/renderer/shells/desktop/DesktopLeftSidebar.tsx');
+    const rightSidebar = source('src/renderer/shells/desktop/DesktopRightSidebar.tsx');
+    const sidebar = source('src/renderer/components/Sidebar.tsx');
+    const minimum = source('src/renderer/hooks/useSidebarTabMinimumWidth.ts');
     const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
     const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
-    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
-    const footer = source('src/renderer/components/BottomStatusBar.tsx');
-    const footerCss = source('src/styles/bottom-status-bar.css');
-    const shellCss = source('src/styles/index.css');
-    const workspaceNavigationCss = source('src/styles/workspace-navigation.css');
-    const nodeEditor = source('src/renderer/views/NodeEditorView.tsx');
-    const storylineEditor = source('src/renderer/views/StorylineEditorView.tsx');
-    const allChaptersEditor = source('src/renderer/views/AllChaptersEditorView.tsx');
 
-    expect(leftTopbar).toContain('<WorkspaceNavigationButtons />');
-    expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(2);
-    expect(workspaceNavigation).toContain('icon={<Home size={16}');
-    expect(workspaceNavigation).toContain(
-      "import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'",
+    // Closed sidebar: its toggle rests in the desk corner, nothing else.
+    expect(corners).toContain('{!leftOpen && (');
+    expect(corners).toContain('<SidebarToggleButton side="left" />');
+    expect(corners).toContain('{!rightOpen && (');
+    expect(corners).toContain('<SidebarToggleButton side="right" />');
+    expect(corners).not.toContain('Account');
+    // Open sidebar: the same toggle sits at the outer end of its tab row.
+    expect(leftSidebar).toContain('windowChrome={index === 0}');
+    expect(rightSidebar).toContain('windowChrome={index === panes.length - 1}');
+    expect(leftHeader).toContain('<SidebarHeaderChrome side="left"><SidebarToggleButton side="left" /></SidebarHeaderChrome>');
+    expect(rightHeader).toContain('<SidebarHeaderChrome side="right"><SidebarToggleButton side="right" /></SidebarHeaderChrome>');
+    expect(buttons).toContain('data-sidebar-header-chrome={side}');
+    expect(buttons).toContain("`${side === 'left' ? 'leftSidebar' : 'rightSidebar'}.top.${isOpen ? 'close' : 'open'}`");
+    expect(minimum).toContain(':scope > [data-sidebar-header-chrome]');
+    expect(sidebar).not.toContain('sidebar-collapse-handle');
+    // Global search is keyboard-only.
+    expect(buttons).not.toContain('search:open');
+    expect(corners).not.toContain('Search');
+
+    // Account, notifications and the account menu live at the left sidebar foot.
+    expect(leftSidebar).toContain('<WorkspaceAccountCell />');
+    expect(rightHeader).not.toContain('Account');
+    expect(account).toContain('<NotificationPill opens="up" />');
+    expect(account).toContain('placement="top-start"');
+    expect(userMenu).toContain("placement = 'bottom-end'");
+    expect(notification).toContain("opens === 'up'");
+
+    expect(userMenu).toContain("setActiveSettingsPage('copilot')");
+    expect(userMenu).not.toContain("setActiveSettingsPage('shadow')");
+    expect(userMenu).toContain('<CopilotQuickSettings');
+    expect(userMenu).not.toContain('<ShadowQuickSettings');
+    expect(userMenu).toContain('dismissOnEscape={activeSettingsPage === null}');
+    expect(copilot).toContain('export function CopilotQuickSettings');
+    expect(copilot).not.toContain('<GhostIconButton');
+    expect(notification).not.toContain('e.currentTarget.style.background');
+    expect(existsSync(resolve(process.cwd(), 'src/renderer/components/ShadowQuickMenu.tsx'))).toBe(
+      false,
     );
-    expect(workspaceNavigation).toContain('icon={<IconoirPageFlip width={16} height={16}');
+  });
+
+  it('docks open documents above the timeline toggle and opens whole-book views beside their entities', () => {
+    const dock = source('src/renderer/components/workspaceChrome/WorkspaceTabDock.tsx');
+    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const library = source('src/renderer/features/library/LibraryPanel.tsx');
+    const timeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
+    const account = source('src/renderer/components/workspaceChrome/WorkspaceAccountControls.tsx');
+    const shortcuts = source('src/renderer/store/shortcuts-store.ts');
+    const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
+    const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
+
+    expect(dock).toContain('<TopTimeline expanded={hovered || focused || held}');
+    expect(dock).toContain('<TimelineToggle />');
+    expect(dock).toContain('aria-pressed={!hidden}');
+    expect(dock).toContain('onClick={toggle}');
+    expect(dock).not.toContain('setActiveSuperView');
+    expect(shortcuts).toContain("id: 'toggleBottomTimeline'");
+    expect(shortcuts).toContain("defaultAccelerator: 'Mod+J'");
+    expect(topTimeline).toContain('if (!expanded) {');
+    expect(topTimeline).toContain("data-preview={isPreview ? 'true' : undefined}");
+    expect(topTimeline).not.toContain('event.currentTarget.style.background');
+
+    // All Chapters and the element overview open from the left panel headers.
+    expect(subheader).toContain("title={t('bottomStatusBar.allChapters')}");
+    expect(subheader).toContain('navigateToAllChapters();');
+    expect(subheader).toContain("title={t('bottomStatusBar.elements')}");
+    expect(subheader).toContain("onClick={() => setActiveSuperView('element')}");
+    expect(subheader).toContain("import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'");
     expect(source('src/renderer/components/ui/icons/IconoirPageFlip.tsx')).toContain(
       'Iconoir `page-flip`, MIT licensed',
     );
-    expect(workspaceNavigation).toContain(
-      'baseViewVisible && isProjectHomePathname(projectId, location.pathname)',
+    // TODO & Materials from the material panel; the story graph from the timeline head.
+    expect(source('src/renderer/shells/desktop/DesktopRightSidebar.tsx')).toContain(
+      "setActiveSuperView('memo-material')",
     );
-    expect(workspaceNavigation).toContain('aria-pressed={projectHomeActive}');
-    expect(workspaceNavigationCss).toContain(
-      ".workspace-header-action[aria-pressed='true']",
-    );
-    expect(workspaceNavigation).toContain(
-      'className="workspace-all-chapters-trigger workspace-header-action"',
-    );
-    expect(workspaceNavigation).toContain('const superDestinationActive = activeSuperView !==');
-    expect(workspaceNavigation).toContain('state.lastActiveSuperView');
-    expect(workspaceNavigation).toContain(
-      "lastActiveSuperView ?? ('element' satisfies SuperViewId)",
-    );
-    expect(workspaceNavigation).toContain('<span>SUPER</span>');
-    expect(workspaceNavigation).not.toContain('ChevronDown');
-    expect(workspaceNavigation).not.toContain('<AnchoredPopover');
-    expect(workspaceNavigation).not.toContain('role="menuitemradio"');
+    expect(library).toContain('onOpenWorkbench={onOpenWorkbench}');
+    expect(library).toContain("title={t('bottomStatusBar.todoLibrary')}");
+    expect(timeline).toContain("onClick={() => setActiveSuperView('graph')}");
+    expect(timeline).toContain("title={t('bottomStatusBar.storyGraph')}");
+    // Project Home from the account cell.
+    expect(account).toContain("title={t('bottomStatusBar.projectHome')}");
+    expect(account).toContain('navigateToHome();');
+
     expect(superHeader).toContain("{ id: 'element', labelKey: 'superElement.title' }");
     expect(superHeader).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
     expect(superHeader).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
@@ -97,103 +167,29 @@ describe('workspace surface language acceptance', () => {
     expect(superHeaderLeft.indexOf('{navigationSlot}')).toBeGreaterThan(
       superHeaderLeft.indexOf('{onBack && ('),
     );
-    expect(superHeaderLeft.indexOf('{navigationSlot}')).toBeLessThan(
-      superHeaderLeft.indexOf('{meta != null &&'),
-    );
-    expect(sharedSuperHeader).not.toContain('title: string');
     expect(sharedSuperHeader).not.toContain('super-view-head__title');
-    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).not.toContain(
-      "title={t('storyGraph.title')}",
-    );
-    expect(source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx')).not.toContain(
-      "title={t('superElement.title')}",
-    );
-    expect(
-      source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx'),
-    ).not.toContain("title={t('memoMaterial.super.title')}");
-    expect(workspaceNavigation.indexOf('className="workspace-all-chapters-trigger')).toBeLessThan(
-      workspaceNavigation.indexOf('className="workspace-super-trigger"'),
-    );
-    expect(workspaceNavigation).not.toContain('BottomStatusBarIcons');
-    expect(
-      existsSync(resolve(process.cwd(), 'src/renderer/components/BottomStatusBarIcons.tsx')),
-    ).toBe(false);
-    expect(workspaceNavigationCss).not.toContain('.workspace-super-menu');
-    expect(
-      block(
-        workspaceNavigationCss,
-        '.app-topbar .ghost-icon-button:hover:not(:disabled) {',
-        '.workspace-super-trigger {',
-      ),
-    ).toContain('background: transparent;');
-    expect(source('src/styles/ui-controls.css')).not.toContain(
-      ".workspace-header-action[aria-pressed='true']",
-    );
-    expect(workspaceNavigationCss).not.toContain('workspace-super-trigger[aria-expanded');
-    expect(notification).not.toContain('e.currentTarget.style.background');
-    expect(topTimeline).not.toContain('event.currentTarget.style.background');
-    expect(appTopbar).toContain(
-      "const leftWidth = runtime.isMobileShell ? 72 : 'max-content';",
-    );
-    expect(appTopbar).not.toContain("background: 'var(--workspace-ui-bg)'");
-    expect(appTopbar).toContain("borderRight: 'var(--chrome-divider)'");
-    expect(appTopbar).toContain("borderLeft: 'var(--chrome-divider)'");
-    expect(source('src/styles/index.css')).toContain(
-      '--chrome-divider: 1px solid var(--workspace-border);',
-    );
+  });
 
-    expect(rightTopbar).not.toContain('CopilotQuickMenu');
-    expect(rightTopbar).not.toContain('ShadowQuickMenu');
-    expect(rightTopbar).not.toContain('toggleBottomTimelineHidden');
-    expect(rightTopbar.indexOf('<NotificationPill />')).toBeLessThan(
-      rightTopbar.indexOf('<GhostIconButton'),
-    );
-    expect(rightTopbar.indexOf('<GhostIconButton')).toBeLessThan(
-      rightTopbar.indexOf('<UserAvatar'),
-    );
-    expect(userMenu).toContain("setActiveSettingsPage('copilot')");
-    expect(userMenu).not.toContain("setActiveSettingsPage('shadow')");
-    expect(userMenu).toContain('<CopilotQuickSettings');
-    expect(userMenu).not.toContain('<ShadowQuickSettings');
-    expect(userMenu).toContain('dismissOnEscape={activeSettingsPage === null}');
-    expect(copilot).toContain('export function CopilotQuickSettings');
-    expect(copilot).not.toContain('<GhostIconButton');
-    expect(existsSync(resolve(process.cwd(), 'src/renderer/components/ShadowQuickMenu.tsx'))).toBe(
-      false,
-    );
+  it('keeps document actions on each paper and the word count in the desk corner', () => {
+    const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
+    const indexCss = source('src/styles/index.css');
+    const wordCount = source('src/renderer/components/workspaceChrome/WorkspaceWordCount.tsx');
 
-    expect(footer).toContain('<footer className="bsb app-plane"');
-    expect(footer.match(/<button/g)).toHaveLength(1);
-    expect(footer).toContain('className="bsb__timeline-toggle"');
-    expect(footer).toContain('onClick={toggleBottomTimelineHidden}');
-    expect(footer).toContain('title={toggleBottomTimelineShortcut}');
-    expect(footer).toContain('formatAccelerator(toggleBottomTimelineAccelerator)');
-    expect(footer).not.toContain('CopilotQuickMenu');
-    expect(footer).not.toContain('ShadowQuickMenu');
-    expect(footer).toContain('deriveWritingStats');
-    expect(footer).not.toContain('currentProjectSyncActivity');
-    expect(footer).not.toContain('bsb__storage');
-    expect(footer).not.toContain('useSyncObserver');
-    expect(footerCss).toContain('.bsb__timeline-toggle {');
-    expect(footerCss).toContain('cursor: pointer;');
-    expect(footerCss).toContain('background: transparent;');
-    expect(footerCss).not.toContain('.bsb__seg');
-
-    expect(
-      block(nodeEditor, '<EditorTopBar\n            editorType="node"', '</EditorTopBar>'),
-    ).not.toContain('nodeEditor.meta.words');
-    expect(
-      block(storylineEditor, '<EditorTopBar\n        editorType="storyline"', '</EditorTopBar>'),
-    ).not.toContain('storylineEditor.meta.kWords');
-    expect(
-      block(
-        allChaptersEditor,
-        '<EditorTopBar\n        editorType="node"\n        onMenuAction={handleChapterMenuAction}',
-        '</EditorTopBar>',
-      ),
-    ).not.toContain('storylineEditor.meta.kWords');
-
-    expect(shellCss).toContain("html[data-shell-mode='mobile'] .app-topbar__workspace-nav");
+    expect(topBar).toContain('<div className="editor-bar" role="toolbar" aria-orientation="vertical">');
+    expect(topBar).not.toContain('EditorCrumb');
+    expect(topBar).not.toContain('editor-crumbs');
+    expect(topBar).toContain('placement="top-end"');
+    const bar = block(indexCss, '.editor-bar {', '}');
+    expect(bar).toContain('position: absolute;');
+    expect(bar).toContain('flex-direction: column;');
+    for (const view of ['NodeEditorView', 'ElementEditorView', 'CategoryEditorView', 'StorylineEditorView', 'AllChaptersEditorView', 'MaterialEditorView']) {
+      const text = source(`src/renderer/views/${view}.tsx`);
+      expect(text, view).not.toContain('EditorCrumb');
+      expect(text, view).not.toContain('</EditorTopBar>');
+    }
+    expect(wordCount).toContain('deriveWritingStats');
+    expect(wordCount).toContain('deriveStatusWordMetric');
+    expect(wordCount).not.toContain('<button');
   });
 
   it('keeps macOS and cross-platform workspace chrome on one opaque grey plane', () => {
@@ -226,19 +222,14 @@ describe('workspace surface language acceptance', () => {
 
   it('assigns explicit plane and edge-panel roles without legacy island shells', () => {
     const app = source('src/renderer/App.tsx');
-    const topbar = source('src/renderer/views/AppTopbar.tsx');
     const shellCss = source('src/styles/index.css');
     const sidebar = source('src/renderer/components/Sidebar.tsx');
-    const footer = source('src/renderer/components/BottomStatusBar.tsx');
-    const renderer = `${app}\n${topbar}\n${sidebar}\n${footer}`;
+    const renderer = `${app}\n${sidebar}`;
 
-    expect(topbar).toContain('className="app-topbar app-plane"');
-    expect(topbar).not.toContain("background: 'var(--workspace-ui-bg)'");
     expect(shellCss).toMatch(
       /\.app-plane,[\s\S]*?\.workspace-dock\s*\{\s*background:\s*var\(--workspace-ui-bg\);/,
     );
     expect(sidebar).toContain('app-panel-plane sidebar-shell');
-    expect(footer).toContain('className="bsb app-plane"');
     expect(renderer).not.toContain('app-island');
     expect(renderer).not.toContain('app-chrome');
   });
@@ -795,26 +786,25 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('单层桌面，只有一张抬起的稿纸');
     expect(doc).toContain('它们全部使用从 editor 稿纸外侧提取的');
     expect(doc).toContain('macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`');
+    expect(doc).toContain('只表达左右栏与 Bottom Timeline 的一级模块边界');
     expect(doc).toContain('三方交点没有渐变、阴影或额外装饰');
     expect(doc).toContain(
       '侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline',
     );
     expect(doc).toContain('panel header 直接衔接 content，不再重复画第二条线');
-    expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
-    expect(doc).toContain('footer 横跨整个窗口底部');
-    expect(doc).toContain(
-      '`AppTopbar` 的固定顺序是当前 Project 名称、搜索、左栏 toggle、项目主页、通览全书、`SUPER`',
-    );
-    expect(doc).toContain('hover 都只提高前景文字/图标颜色，不绘制额外底色');
-    expect(doc).toContain('`SUPER` 右侧与通知铃铛左侧');
-    expect(doc).toContain('`BottomStatusBar` 以只读写作状态为主');
-    expect(doc).toContain('Google Drive 传输进度属于右上角通知中心');
-    expect(doc).toContain('唯一的交互例外是 Bottom Timeline');
-    expect(doc).toContain('通知入口仍留在 topbar');
+    expect(doc).toContain('三栏从窗口顶边贯通到底边');
+    expect(doc).toContain('**侧栏开关常驻两角**');
+    expect(doc).toContain('**账户在左栏底部**');
+    expect(doc).toContain('**标签页在稿纸下方**');
+    expect(doc).toContain('**时间线开关在标签小点下方**');
+    expect(doc).toContain('**全书视图在对应实体旁边**');
+    expect(doc).toContain('**稿纸的操作留在稿纸上**');
+    expect(doc).toContain('**字数在左下角**');
+    expect(doc).toContain('**红灯关闭项目**');
     expect(doc).toContain('不重新定义现有配色');
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');
     expect(doc).toContain('Plot Planner 是连续的 mini-Excel');
-    expect(doc).toContain('不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收');
+    expect(doc).toContain('不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收');
   });
 });

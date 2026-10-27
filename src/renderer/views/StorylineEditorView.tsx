@@ -10,7 +10,7 @@ import { useAuthStore } from '../store/auth';
 import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
-import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EditorTopBar } from '../components/editor/EditorTopBar';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
@@ -69,7 +69,7 @@ export function StorylineEditorView({
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
   const { storylines, bookNodes, storylineNodeMapping } = useDataStoreFields('storylines', 'bookNodes', 'storylineNodeMapping');
-  const { navigateToStoryline, leaveDeletedEntity, navigateToNode } = useProjectNavigation();
+  const { leaveDeletedEntity, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
   const currentStoryline = useMemo(() => {
@@ -317,35 +317,7 @@ export function StorylineEditorView({
           disabled: false,
           onToggle: toggleComments,
         }}
-        right={
-          <span>{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
-        }
-      >
-        <EditorCrumb
-          dotColor={currentStoryline.color || 'hsl(var(--accent))'}
-          dropdown={
-            storylines.length === 0 ? (
-              <div className="crumb-dropdown__empty">{t('nodeEditor.empty.noStorylines')}</div>
-            ) : (
-              storylines.map((s) => {
-                const isActive = s.id === storylineId;
-                return (
-                  <div
-                    key={s.id}
-                    className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                    onClick={() => navigateToStoryline(s.id)}
-                  >
-                    <span className="crumb-dropdown__dot" style={{ background: s.color || 'hsl(var(--accent))' }} />
-                    <span>{s.name}</span>
-                  </div>
-                );
-              })
-            )
-          }
-        >
-          <span>{currentStoryline.name || t('storylineEditor.untitled')}</span>
-        </EditorCrumb>
-      </EditorTopBar>
+      />
 
       <div className="editor-body">
         <EditorOutlineRail

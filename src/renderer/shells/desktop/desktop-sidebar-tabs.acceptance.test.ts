@@ -72,6 +72,10 @@ vi.mock('../../components/rightBars/ReviewPanel', () => ({ ReviewPanel: () => 'r
 vi.mock('../../features/library/LibraryPanel', () => ({ LibraryPanel: () => 'library' }));
 vi.mock('../../features/stats/EntityStatsContent', () => ({ EntityStatsContent: () => 'stats' }));
 vi.mock('../../features/agent/desktop/DesktopAgentPanel', () => ({ DesktopAgentPanel: () => 'agent' }));
+// The account menu pulls in the settings modules; its rendering is not under test.
+vi.mock('../../components/workspaceChrome/WorkspaceAccountControls', () => ({
+  WorkspaceAccountCell: () => createElement('div', { 'data-account-cell': '' }),
+}));
 
 import { useUiStore } from '../../store/ui-store';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';

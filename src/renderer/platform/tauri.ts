@@ -574,6 +574,9 @@ export const tauriPlatform: PlatformApi = {
     isMaximized: () => invokeContract('window_is_maximized', undefined),
     setTrafficLightPosition: (position) =>
       invokeContract('window_set_traffic_light_position', { position }),
+    setCloseReturnsToShelf: (enabled) =>
+      invokeContract('window_set_close_returns_to_shelf', { enabled }),
+    onCloseToShelf: (callback) => listenContract('drifting:close-to-shelf', () => callback()),
   },
 
   lifecycle: {

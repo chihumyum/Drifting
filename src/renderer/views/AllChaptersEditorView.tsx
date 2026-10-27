@@ -12,7 +12,7 @@ import { useBookNode } from '../usecase/useBookNode';
 import { useProjectStore } from '../store/project-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useUiStore } from '../store/ui-store';
-import { EditorCrumb, EditorTopBar, SET_STATUS_ACTION_PREFIX } from '../components/editor/EditorTopBar';
+import { EditorTopBar, SET_STATUS_ACTION_PREFIX } from '../components/editor/EditorTopBar';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import {
@@ -861,14 +861,7 @@ export function AllChaptersEditorView() {
   if (orderedNodes.length === 0) {
     return (
       <div className="editor-shell" style={{ position: 'relative' }}>
-        <EditorTopBar editorType="node">
-          <EditorCrumb>
-            <span>{projectName}</span>
-          </EditorCrumb>
-          <EditorCrumb>
-            <span className="editor-crumb-title">{t('allChapters.title')}</span>
-          </EditorCrumb>
-        </EditorTopBar>
+        <EditorTopBar editorType="node" />
         <div
           style={{
             display: 'flex',
@@ -936,31 +929,7 @@ export function AllChaptersEditorView() {
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,
         }}
-        right={
-          <>
-            <span>{t('storylineEditor.meta.chapters', { count: orderedNodes.length })}</span>
-            {menuTargetNode && (
-              // The chapter at the reading line — what the three-dot menu acts
-              // on. Updates as you scroll.
-              <>
-                <span className="editor-bar__sep">·</span>
-                <span>
-                  {t('allChapters.currentAt', {
-                    title: menuTargetNode.title || t('allChapters.untitledChapter'),
-                  })}
-                </span>
-              </>
-            )}
-          </>
-        }
-      >
-        <EditorCrumb>
-          <span>{projectName}</span>
-        </EditorCrumb>
-        <EditorCrumb>
-          <span className="editor-crumb-title">{t('allChapters.title')}</span>
-        </EditorCrumb>
-      </EditorTopBar>
+      />
 
       <div className="editor-body">
         <EditorOutlineRail

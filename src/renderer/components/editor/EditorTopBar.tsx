@@ -1,15 +1,5 @@
 import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical, Share2 } from 'lucide-react';
-import {
-  Children,
-  Fragment,
-  type KeyboardEvent,
-  type ReactElement,
-  ReactNode,
-  cloneElement,
-  isValidElement,
-  useRef,
-  useState,
-} from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DRIFT_STATUSES,
@@ -66,17 +56,15 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
 }
 
 /*
-  Shared editor top bar:
-  - Breadcrumb area on the left, built from <EditorCrumb> children
-  - The semantic TOC rail visibility control sits beside Entity Link highlighting
-  - An optional entity-image entry sits just left of that toggle group
-  - Free-form right slot for contextual controls and non-word-count metadata
+  Shared editor actions. There is no bar or breadcrumb: the document's own
+  controls stand in a vertical stack at the lower-right corner of its paper,
+  one stack per editor pane, so split editors never share them.
+  - Plot planner, element image, outline rail and Entity Link highlighting
+  - Margin comments with their count
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
 
 interface EditorTopBarProps {
-  children?: ReactNode;
-  right?: ReactNode;
   // Element image entry (thumbnail button + popover), placed left of the
   // outline toggle. Only the element editor supplies it.
   imageEntry?: ReactNode;
@@ -117,8 +105,6 @@ interface EditorTopBarProps {
 }
 
 export function EditorTopBar({
-  children,
-  right,
   imageEntry,
   editorType,
   onMenuAction,
@@ -134,86 +120,79 @@ export function EditorTopBar({
 }: EditorTopBarProps) {
   const { t } = useTranslation();
   const [shareRequest, setShareRequest] = useState<MarkdownShareTarget | null>(null);
-  const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
 
   return (
-    <div className="editor-bar">
-      <div className="editor-bar__left">
-        <div className="editor-crumbs">{crumbs}</div>
-      </div>
-      <div className="editor-bar__right">
-        {right}
-        {plotPlannerToggle && (
-          <button
-            type="button"
-            className={`editor-bar__icon editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-            title={
-              plotPlannerToggle.enabled
-                ? t('editorTopBar.actions.collapsePlotPlanner')
-                : t('editorTopBar.actions.expandPlotPlanner')
-            }
-            aria-pressed={plotPlannerToggle.enabled}
-            onClick={plotPlannerToggle.onToggle}
-          >
-            <LayoutGrid size={14} />
-          </button>
-        )}
-        {imageEntry}
-        {((editorType && outlineToggle) || referenceLinkToggle) && (
-          <div className="editor-bar__toggle-group">
-            {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
-            {referenceLinkToggle && (
-              <button
-                type="button"
-                className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-                title={
-                  referenceLinkToggle.enabled
-                    ? t('editorTopBar.actions.hideReferenceLinks')
-                    : t('editorTopBar.actions.showReferenceLinks')
-                }
-                aria-pressed={referenceLinkToggle.enabled}
-                onClick={referenceLinkToggle.onToggle}
-              >
-                <Link2 size={14} />
-              </button>
-            )}
-          </div>
-        )}
-        {commentToggle && (
-          <button
-            type="button"
-            className={`editor-bar__icon editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-            title={
-              commentToggle.disabled
-                ? t('editorTopBar.actions.noComments')
-                : commentToggle.enabled
-                  ? t('editorTopBar.actions.hideComments')
-                  : t('editorTopBar.actions.showComments')
-            }
-            aria-pressed={commentToggle.enabled}
-            disabled={commentToggle.disabled}
-            onClick={commentToggle.onToggle}
-          >
-            <MessageSquare size={14} />
-            {commentToggle.count > 0 && (
-              <span className="editor-bar__badge">{commentToggle.count}</span>
-            )}
-          </button>
-        )}
-        {showMenu && editorType && onMenuAction && (
-          <EditorBarMenu
-            editorType={editorType}
-            onAction={onMenuAction}
-            nodeWritingStatus={nodeWritingStatus}
-            nodeStatusKind={nodeStatusKind}
-            menuHeader={menuHeader}
-            hiddenActions={hiddenMenuActions}
-            translate={t}
-            onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
-          />
-        )}
-      </div>
+    <div className="editor-bar" role="toolbar" aria-orientation="vertical">
+      {plotPlannerToggle && (
+        <button
+          type="button"
+          className={`editor-bar__icon editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+          title={
+            plotPlannerToggle.enabled
+              ? t('editorTopBar.actions.collapsePlotPlanner')
+              : t('editorTopBar.actions.expandPlotPlanner')
+          }
+          aria-pressed={plotPlannerToggle.enabled}
+          onClick={plotPlannerToggle.onToggle}
+        >
+          <LayoutGrid size={14} />
+        </button>
+      )}
+      {imageEntry}
+      {((editorType && outlineToggle) || referenceLinkToggle) && (
+        <div className="editor-bar__toggle-group">
+          {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
+          {referenceLinkToggle && (
+            <button
+              type="button"
+              className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+              title={
+                referenceLinkToggle.enabled
+                  ? t('editorTopBar.actions.hideReferenceLinks')
+                  : t('editorTopBar.actions.showReferenceLinks')
+              }
+              aria-pressed={referenceLinkToggle.enabled}
+              onClick={referenceLinkToggle.onToggle}
+            >
+              <Link2 size={14} />
+            </button>
+          )}
+        </div>
+      )}
+      {commentToggle && (
+        <button
+          type="button"
+          className={`editor-bar__icon editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+          title={
+            commentToggle.disabled
+              ? t('editorTopBar.actions.noComments')
+              : commentToggle.enabled
+                ? t('editorTopBar.actions.hideComments')
+                : t('editorTopBar.actions.showComments')
+          }
+          aria-pressed={commentToggle.enabled}
+          disabled={commentToggle.disabled}
+          onClick={commentToggle.onToggle}
+        >
+          <MessageSquare size={14} />
+          {commentToggle.count > 0 && (
+            <span className="editor-bar__badge">{commentToggle.count}</span>
+          )}
+        </button>
+      )}
+      {showMenu && editorType && onMenuAction && (
+        <EditorBarMenu
+          editorType={editorType}
+          onAction={onMenuAction}
+          nodeWritingStatus={nodeWritingStatus}
+          nodeStatusKind={nodeStatusKind}
+          menuHeader={menuHeader}
+          hiddenActions={hiddenMenuActions}
+          translate={t}
+          onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
+        />
+      )}
       {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
     </div>
   );
@@ -239,113 +218,6 @@ function OutlineRailToggle({ translate }: { translate: Translate }) {
       <ListTree size={14} />
     </button>
   );
-}
-
-function injectSeparators(children: ReactNode): ReactNode {
-  const items = Children.toArray(children).filter(
-    (child) => isValidElement(child) || typeof child === 'string',
-  );
-  return items.map((child, index) => (
-    <Fragment key={index}>
-      {index > 0 && <span className="editor-bar__sep">›</span>}
-      {child}
-    </Fragment>
-  ));
-}
-
-interface EditorCrumbProps {
-  children: ReactNode;
-  dotColor?: string;
-  dropdown?: ReactNode;
-  onClick?: () => void;
-}
-
-export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCrumbProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLElement>(null);
-  // Only crumbs that actually do something on click get the pointer cursor +
-  // hover affordance. A plain label crumb (project name, view title) is inert,
-  // so it must read as inert rather than dangling a dead hover/click.
-  const interactive = Boolean(onClick || dropdown);
-  const className = `${dotColor ? 'editor-crumb editor-crumb-storyline' : 'editor-crumb'}${interactive ? ' editor-crumb--interactive' : ''}`;
-  const style = dotColor ? ({ ['--crumb-color' as string]: dotColor } as React.CSSProperties) : undefined;
-
-  const handleClick = () => {
-    if (dropdown) {
-      setOpen((prev) => !prev);
-    } else {
-      onClick?.();
-    }
-  };
-
-  const content = (
-    <>
-      {dotColor && <span className="editor-crumb-dot" />}
-      {children}
-    </>
-  );
-
-  return (
-    <>
-      {interactive ? (
-        <button
-          ref={rootRef as React.RefObject<HTMLButtonElement>}
-          type="button"
-          className={className}
-          style={style}
-          onClick={handleClick}
-          aria-expanded={dropdown ? open : undefined}
-          aria-haspopup={dropdown ? 'menu' : undefined}
-        >
-          {content}
-        </button>
-      ) : (
-        <span ref={rootRef} className={className} style={style}>
-          {content}
-        </span>
-      )}
-      {dropdown && (
-        <AnchoredPopover
-          anchorRef={rootRef}
-          open={open}
-          onClose={() => setOpen(false)}
-          placement="bottom-start"
-          maxHeight={320}
-          className="menu-surface menu-surface--wide crumb-dropdown"
-          role="menu"
-        >
-          <div onClick={() => setOpen(false)}>{makeCrumbItemsKeyboardAccessible(dropdown)}</div>
-        </AnchoredPopover>
-      )}
-    </>
-  );
-}
-
-function makeCrumbItemsKeyboardAccessible(node: ReactNode): ReactNode {
-  return Children.map(node, (child) => {
-    if (!isValidElement(child)) return child;
-    const element = child as ReactElement<{
-      children?: ReactNode;
-      className?: string;
-      onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
-    }>;
-    if (element.type === Fragment) {
-      return cloneElement(element, {
-        children: makeCrumbItemsKeyboardAccessible(element.props.children),
-      });
-    }
-    if (!element.props.className?.split(/\s+/).includes('crumb-dropdown__item')) return child;
-    return cloneElement(element, {
-      role: 'menuitem',
-      tabIndex: 0,
-      onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-        element.props.onKeyDown?.(event);
-        if (event.defaultPrevented || (event.key !== 'Enter' && event.key !== ' ')) return;
-        event.preventDefault();
-        event.currentTarget.click();
-      },
-    } as Partial<typeof element.props> & { role: string; tabIndex: number });
-  });
 }
 
 interface EditorBarMenuProps {
@@ -403,7 +275,7 @@ function EditorBarMenu({
         anchorRef={buttonRef}
         open={isOpen}
         onClose={() => setIsOpen(false)}
-        placement="bottom-end"
+        placement="top-end"
         className="menu-surface menu-surface--standard editor-bar__menu"
         role="menu"
       >

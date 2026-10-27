@@ -16,19 +16,15 @@ function cssBlock(css: string, selector: string): string {
   return css.slice(start, end + 1);
 }
 
-describe('workspace titlebar centerline', () => {
+describe('workspace window-control row', () => {
   it('keeps native traffic lights and renderer controls on the calibrated macOS row', () => {
     const appEffects = source('src/renderer/app/effects/AppEffects.tsx');
-    const topbar = source('src/renderer/views/AppTopbar.tsx');
-    const leftTopbar = source('src/renderer/components/topBars/LeftSidebarTopBar.tsx');
     const shellCss = source('src/styles/index.css');
+    const desktopCss = source('src/styles/desktop-shell.css');
     const controlCss = source('src/styles/ui-controls.css');
-    const navigationCss = source('src/styles/workspace-navigation.css');
+    const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
+    const corners = source('src/renderer/components/workspaceChrome/WorkspaceCornerControls.tsx');
     const doc = source('docs/design-system.md');
-    const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')) as {
-      projectPicker: { backToShelf: string; bookshelfShort: string };
-    };
-    const en = JSON.parse(source('src/renderer/locales/en.json')) as typeof zh;
     const baseConfig = JSON.parse(source('src-tauri/tauri.conf.json')) as {
       app: { windows: Array<{ trafficLightPosition?: { x: number; y: number } }> };
     };
@@ -37,62 +33,72 @@ describe('workspace titlebar centerline', () => {
     };
 
     expect(shellCss).toContain('--window-titlebar-height: 42px;');
-    expect(topbar).toContain("height: 'var(--window-titlebar-height)'");
-    expect(leftTopbar).toContain("height: 'var(--window-titlebar-height)'");
-    expect(leftTopbar).toContain("alignItems: 'center'");
-    expect(leftTopbar).toContain(
-      "useProjectStore((state) => state.currentProject?.name.trim() ?? '')",
-    );
-    expect(leftTopbar).toContain('!runtime.isMobileShell && projectName');
-    expect(leftTopbar).toContain("const handleBackToShelf = () => navigate('/');");
-    expect(leftTopbar).toContain('className="app-topbar__project-return"');
-    expect(leftTopbar).toContain('type="button"');
-    expect(leftTopbar).toContain('onClick={handleBackToShelf}');
-    expect(leftTopbar).toContain("t('projectPicker.backToShelf')");
-    expect(leftTopbar).toContain("t('projectPicker.bookshelfShort')");
-    expect(leftTopbar).toContain('className="app-topbar__project-name"');
-    expect(leftTopbar).toContain('data-tauri-drag-region="false"');
-    expect(leftTopbar).toContain('className="app-topbar__project-return-layer"');
-    expect(leftTopbar.indexOf('className="app-topbar__project-return"')).toBeLessThan(
-      leftTopbar.indexOf('className="app-topbar__left-actions"'),
-    );
     expect(shellCss).toContain('--window-header-leading-inset: 94px;');
-    expect(leftTopbar).toContain(
-      "paddingLeft: runtime.isMacDesktop ? 'var(--window-header-leading-inset)' : 8",
+    // Open left sidebar: its first tab row starts after the traffic lights.
+    expect(leftHeader).toContain(
+      "data-leading-inset={windowChrome && runtime.isMacDesktop ? 'true' : undefined}",
     );
-    expect(topbar).toContain("const leftWidth = runtime.isMobileShell ? 72 : 'max-content';");
+    expect(cssBlock(desktopCss, '.workspace-panel-tab-row.workspace-panel-tab-row--window {')).toContain(
+      'height: var(--window-titlebar-height);',
+    );
+    expect(
+      cssBlock(desktopCss, '.workspace-panel-tab-row.workspace-panel-tab-row--window[data-leading-inset] {'),
+    ).toContain('padding-left: var(--window-header-leading-inset);');
+    // Closed left sidebar: the corner controls start after them instead.
+    expect(corners).toContain("data-leading-inset={runtime.isMacDesktop ? 'true' : undefined}");
+    expect(cssBlock(desktopCss, '.workspace-corner-controls--left[data-leading-inset] {')).toContain(
+      'margin-left: calc(var(--window-header-leading-inset) - 8px);',
+    );
+    expect(cssBlock(desktopCss, '.workspace-window-strip {')).toMatch(
+      /height:\s*var\(--window-titlebar-height\);[\s\S]*align-items:\s*center;|align-items:\s*center;[\s\S]*height:\s*var\(--window-titlebar-height\);/,
+    );
     expect(cssBlock(controlCss, '.ghost-icon-button--md {')).toMatch(
       /width:\s*26px;[\s\S]*height:\s*26px;/,
     );
-    expect(cssBlock(navigationCss, '.workspace-all-chapters-trigger,')).toContain('height: 26px;');
-    expect(cssBlock(navigationCss, '.app-topbar__project-return {')).toMatch(
-      /position:\s*relative;[\s\S]*min-width:\s*26px;[\s\S]*max-width:\s*min\(220px, 22vw\);[\s\S]*height:\s*26px;[\s\S]*flex:\s*0 1 auto;[\s\S]*overflow:\s*hidden;[\s\S]*cursor:\s*pointer;/,
-    );
-    expect(cssBlock(navigationCss, '.app-topbar__project-name {')).toMatch(
-      /min-width:\s*0;[\s\S]*max-width:\s*100%;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
-    );
-    expect(cssBlock(navigationCss, '.app-topbar__project-return-layer {')).toMatch(
-      /position:\s*absolute;[\s\S]*inset:\s*0;[\s\S]*container-name:\s*project-return-slot;[\s\S]*container-type:\s*inline-size;[\s\S]*opacity:\s*0;/,
-    );
-    expect(navigationCss).toContain('@container project-return-slot (min-width: 54px)');
-    expect(navigationCss).toContain('.app-topbar__project-return:focus-visible');
-    expect(cssBlock(navigationCss, '.app-topbar__left-actions {')).toMatch(
-      /flex:\s*0 0 auto;/,
-    );
-    expect(zh.projectPicker).toMatchObject({
-      backToShelf: '返回书架',
-      bookshelfShort: '书架',
-    });
-    expect(en.projectPicker).toMatchObject({
-      backToShelf: 'Back to shelf',
-      bookshelfShort: 'Shelf',
-    });
 
     const expectedPosition = { x: 18, y: 22 };
     expect(baseConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
     expect(macConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
     expect(appEffects).toContain('.setTrafficLightPosition({ x: 18, y: 22 })');
     expect(doc).toContain('macOS 红绿灯固定为 `x: 18, y: 22`');
-    expect(doc).toContain('hover 或键盘 focus 时原地切换为返回书架');
+  });
+
+  it('keeps the window draggable without a title bar', () => {
+    const corners = source('src/renderer/components/workspaceChrome/WorkspaceCornerControls.tsx');
+    const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
+    const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
+
+    for (const text of [corners, leftHeader, rightHeader]) {
+      expect(text).toContain("data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}");
+    }
+  });
+
+  it('returns to the bookshelf from the close button while a project is open', () => {
+    const lib = source('src-tauri/src/lib.rs');
+    const commands = source('src-tauri/src/commands.rs');
+    const state = source('src-tauri/src/state.rs');
+    const hook = source('src/renderer/shells/desktop/navigation/useCloseButtonReturnsToShelf.ts');
+    const boundary = source('src/renderer/shells/desktop/navigation/DesktopWorkspaceNavigationBoundary.tsx');
+    const shortcuts = source('src/renderer/store/shortcuts-store.ts');
+
+    expect(state).toContain('close_returns_to_shelf: AtomicBool');
+    expect(commands).toContain('pub fn window_set_close_returns_to_shelf(');
+    expect(lib).toContain('commands::window_set_close_returns_to_shelf,');
+    // The project check runs after an already-permitted close and before the
+    // flush-and-close path, so the shelf keeps the original close behaviour.
+    const closeRequested = lib.slice(lib.indexOf('WindowEvent::CloseRequested'));
+    expect(closeRequested.indexOf('consume_close_permission()')).toBeLessThan(
+      closeRequested.indexOf('close_returns_to_shelf()'),
+    );
+    expect(closeRequested.indexOf('close_returns_to_shelf()')).toBeLessThan(
+      closeRequested.indexOf('coordinator.begin(ShutdownAction::CloseWindow)'),
+    );
+    expect(closeRequested).toContain('_window.emit(CLOSE_TO_SHELF_EVENT, ())');
+    expect(hook).toContain('setEnabled(true);');
+    expect(hook).toContain("platform.window.onCloseToShelf(() => navigate('/'))");
+    expect(hook).toContain('setEnabled(false);');
+    expect(boundary).toContain('useCloseButtonReturnsToShelf(navigate);');
+    expect(shortcuts).toContain("id: 'closeProject'");
+    expect(shortcuts).toContain("defaultAccelerator: 'Mod+Shift+W'");
   });
 });

@@ -11,6 +11,8 @@ import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
 import { AgentCountBadge } from './AgentCountBadge';
+import { SidebarHeaderChrome, SidebarToggleButton } from '../workspaceChrome/WindowControlButtons';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
 
@@ -30,11 +32,14 @@ function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): TabPanel 
   }
 }
 
-export function LeftSidebarHeader({ paneId, activeTab }: {
+export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
   paneId: SidebarPaneId;
   activeTab: LeftSidebarTab;
+  /** The first pane also carries the sidebar toggle beside the traffic lights. */
+  windowChrome?: boolean;
 }) {
   const { t } = useTranslation();
+  const runtime = getPlatformRuntime();
   const toggleTab = useUiStore((s) => s.toggleLeftSidebarTab);
   const tabTrayRef = useSidebarTabMinimumWidth('left');
 
@@ -71,7 +76,9 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
 
   return (
     <div
-      className="workspace-local-divider workspace-panel-tab-row"
+      className="workspace-local-divider workspace-panel-tab-row workspace-panel-tab-row--window"
+      data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
+      data-leading-inset={windowChrome && runtime.isMacDesktop ? 'true' : undefined}
       style={{
         display: 'flex',
         width: '100%',
@@ -83,6 +90,7 @@ export function LeftSidebarHeader({ paneId, activeTab }: {
         zIndex: 20,
       }}
     >
+      {windowChrome && <SidebarHeaderChrome side="left"><SidebarToggleButton side="left" /></SidebarHeaderChrome>}
       <PanelTabTray ref={tabTrayRef} className="leftbar-tab-tray">
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}

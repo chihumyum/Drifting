@@ -626,7 +626,7 @@
       "actions": {
         "closeActiveTab": {
           "label": "关闭当前标签页",
-          "desc": "关闭顶部时间轴中当前激活的 entity editor 标签"
+          "desc": "关闭底部标签中当前激活的标签页"
         },
         "findInEditor": {
           "label": "当前编辑器内查找",
@@ -650,15 +650,19 @@
         },
         "prevTab": {
           "label": "切换到上一个标签页",
-          "desc": "在顶部已打开的 tab 间向左切换"
+          "desc": "在已打开的标签页间向左切换"
         },
         "nextTab": {
           "label": "切换到下一个标签页",
-          "desc": "在顶部已打开的 tab 间向右切换"
+          "desc": "在已打开的标签页间向右切换"
         },
         "toggleBottomTimeline": {
           "label": "展开 / 收起底部时间轴",
           "desc": "切换底部时间轴的显示与隐藏"
+        },
+        "closeProject": {
+          "label": "关闭项目",
+          "desc": "关闭当前项目并回到书架"
         }
       }
     },
@@ -2356,6 +2360,10 @@
       "review": "Review",
       "library": "素材库",
       "stats": "统计"
+    },
+    "top": {
+      "open": "展开右侧栏",
+      "close": "收起右侧栏"
     },
     "status": {
       "done": "已完成",

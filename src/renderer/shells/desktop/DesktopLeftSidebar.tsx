@@ -10,6 +10,7 @@ import { ElementPanel } from '../../components/leftBars/ElementPanel';
 import { DriftPanel } from '../../components/leftBars/DriftPanel';
 import { ChapterPanel } from '../../components/leftBars/ChapterPanel';
 import { DesktopSidebarLayout } from './DesktopSidebarLayout';
+import { WorkspaceAccountCell } from '../../components/workspaceChrome/WorkspaceAccountControls';
 
 export function DesktopLeftSidebar() {
   const { projectId } = useProjectNavigation();
@@ -28,18 +29,22 @@ export function DesktopLeftSidebar() {
   // tabs. Historical pane selections remain available for split editors.
   const selectedPane = panes.find(pane => pane.tab === targetTab && pane.id === focusedPane)
     ?? panes.find(pane => pane.tab === targetTab);
+  // The account cell spans the whole sidebar foot, below any split panes.
   return (
-    <DesktopSidebarLayout projectId={projectId} side="left" panels={panes.map(({ id, tab }) => ({
-      id,
-      tab,
-      header: <LeftSidebarHeader paneId={id} activeTab={tab} />,
-      content: <SidebarEditorSelectionContext.Provider value={activeTab?.kind === 'split'
-        ? undefined : selectedPane?.id === id ? singleTarget : null}>
-        <LeftSidebarSubHeader panel={tab} />
-        <div className="desktop-sidebar-panel-host">
-          {tab === 'elements' ? <ElementPanel /> : tab === 'drift' ? <DriftPanel /> : <ChapterPanel />}
-        </div>
-      </SidebarEditorSelectionContext.Provider>,
-    }))} />
+    <div className="desktop-left-sidebar">
+      <DesktopSidebarLayout projectId={projectId} side="left" panels={panes.map(({ id, tab }, index) => ({
+        id,
+        tab,
+        header: <LeftSidebarHeader paneId={id} activeTab={tab} windowChrome={index === 0} />,
+        content: <SidebarEditorSelectionContext.Provider value={activeTab?.kind === 'split'
+          ? undefined : selectedPane?.id === id ? singleTarget : null}>
+          <LeftSidebarSubHeader panel={tab} />
+          <div className="desktop-sidebar-panel-host">
+            {tab === 'elements' ? <ElementPanel /> : tab === 'drift' ? <DriftPanel /> : <ChapterPanel />}
+          </div>
+        </SidebarEditorSelectionContext.Provider>,
+      }))} />
+      <WorkspaceAccountCell />
+    </div>
   );
 }

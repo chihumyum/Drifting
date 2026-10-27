@@ -181,19 +181,13 @@ describe('shared menu surface style', () => {
     }
   });
 
-  it('removes the breadcrumb left accent bar and records the native-menu boundary', () => {
+  it('drops the editor breadcrumb menus and records the native-menu boundary', () => {
     const css = source('src/styles/index.css');
-    const activeCrumb = block(
-      css,
-      '.crumb-dropdown__item--active {',
-      '.crumb-dropdown__item--active:hover {',
-    );
     const doc = source('docs/design-system.md');
 
-    expect(activeCrumb).toContain('background: var(--menu-item-hover-bg);');
-    expect(activeCrumb).toContain('font-weight: 500;');
-    expect(activeCrumb).not.toContain('inset');
-    expect(doc).toContain('右键坐标、三点按钮、排序按钮、breadcrumb');
+    expect(css).not.toContain('.crumb-dropdown');
+    expect(css).not.toContain('.editor-crumb');
+    expect(doc).toContain('右键坐标、三点按钮、排序按钮与窗口控件');
     expect(doc).toContain('浏览器/系统原生 context menu 不属于 renderer 可定制范围');
     expect(doc).toContain('180 / 220 / 280 / 360 / 420px');
     expect(doc).toContain('桌面单行内容至少为 `32px`');

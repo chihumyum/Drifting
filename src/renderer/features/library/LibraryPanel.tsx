@@ -1,6 +1,6 @@
 import { useSidebarPanelState, useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FolderPlus, FolderTree, Link2, Link2Off, List, Plus } from 'lucide-react';
+import { FolderPlus, FolderTree, Link2, Link2Off, List, ListTodo, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
@@ -35,6 +35,8 @@ interface Props {
    *  chapter does. The desktop shell owns tab promotion. */
   onPinLibraryItem?: (libraryItemId: string) => void;
   presentation?: 'desktop' | 'mobile';
+  /** Opens the full TODO & Materials view; the desktop shell supplies it. */
+  onOpenWorkbench?: () => void;
 }
 
 type ViewFilter = 'all' | 'related';
@@ -54,6 +56,7 @@ export function LibraryPanel({
   focused,
   activeLibraryItemId = null,
   onPinLibraryItem,
+  onOpenWorkbench,
   presentation = 'desktop',
 }: Props) {
   const { t } = useTranslation();
@@ -154,6 +157,7 @@ export function LibraryPanel({
         folderView={folderView}
         onToggleFolderView={() => setViewMode(folderView ? 'all' : 'folders')}
         onNewFolder={folderView && presentation === 'desktop' ? () => setNewFolderRequest((count) => count + 1) : undefined}
+        onOpenWorkbench={onOpenWorkbench}
       />
 
       {folderView ? (
@@ -294,11 +298,14 @@ function Toolbar({
   folderView,
   onToggleFolderView,
   onNewFolder,
+  onOpenWorkbench,
 }: {
   folderView: boolean;
   onToggleFolderView: () => void;
   /** Present in the desktop folder view: a new folder in the current one. */
   onNewFolder?: () => void;
+  /** Desktop: opens the full TODO & Materials view from beside the materials. */
+  onOpenWorkbench?: () => void;
   filter: ViewFilter;
   onFilterChange: (f: ViewFilter) => void;
   focusedKind: EntityKind | null;
@@ -370,6 +377,11 @@ function Toolbar({
         }}
       >
         {showCount && <span>{t('memoMaterial.toolbar.count', { count: libraryItemTotal })}</span>}
+        {onOpenWorkbench && (
+          <ToolbarIconButton title={t('bottomStatusBar.todoLibrary')} onClick={onOpenWorkbench}>
+            <ListTodo size={12} strokeWidth={1.6} />
+          </ToolbarIconButton>
+        )}
         {onNewFolder && (
           <ToolbarIconButton title={t('materialFolders.menu.newFolder')} onClick={onNewFolder}>
             <FolderPlus size={12} strokeWidth={1.6} />

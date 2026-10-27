@@ -13,7 +13,6 @@ import '../styles/entity-editors.css';
 import '../styles/material-workbench.css';
 import '../styles/desktop-shell.css';
 import '../styles/ui-controls.css';
-import '../styles/workspace-navigation.css';
 import '../styles/settings.css';
 import '../styles/agent-activity.css';
 import '../styles/desktop-typography.css';

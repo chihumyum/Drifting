@@ -1,6 +1,6 @@
 import { useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Minus, ArrowDownUp, Plus, FolderPlus } from 'lucide-react';
+import { Minus, ArrowDownUp, Plus, FolderPlus, Shapes } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -25,6 +25,9 @@ import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
+import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip';
+import { useSuperViewPreloadIntent } from '../../features/graph/deferred-graph-modules';
+import { useUiStore } from '../../store/ui-store';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
@@ -46,7 +49,9 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
 
   const userId = useAuthStore((s) => s.user?.id);
-  const { projectId, openEntity } = useProjectNavigation();
+  const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
+  const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
+  const elementOverviewIntent = useSuperViewPreloadIntent('element');
 
   const driftCount = useMemo(() => bookNodes.filter(isDrift).length, [bookNodes]);
   const storylineNodeCount = useMemo(() => bookNodes.filter(isChapter).length, [bookNodes]);
@@ -372,6 +377,36 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
     );
   };
 
+  // Each panel opens its whole-book view from here: All Chapters beside the
+  // chapters, the element overview beside the elements.
+  const renderOverview = () => {
+    if (activeLeftPanel === 'nodes') {
+      return (
+        <SubIconBtn
+          title={t('bottomStatusBar.allChapters')}
+          onClick={() => {
+            setActiveSuperView('none');
+            navigateToAllChapters();
+          }}
+        >
+          <IconoirPageFlip width={12} height={12} strokeWidth={1.5} aria-hidden="true" />
+        </SubIconBtn>
+      );
+    }
+    if (activeLeftPanel === 'elements') {
+      return (
+        <SubIconBtn
+          title={t('bottomStatusBar.elements')}
+          intent={elementOverviewIntent}
+          onClick={() => setActiveSuperView('element')}
+        >
+          <Shapes size={12} strokeWidth={1.6} />
+        </SubIconBtn>
+      );
+    }
+    return null;
+  };
+
   const renderSecondaryCreate = () => {
     // 构想 panel: a "+ group" affordance next to "+ drift" (each group cell also
     // carries its own "+ drift in this group" button). Other panels have
@@ -452,6 +487,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
         </span>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {renderOverview()}
         {/* "折叠全部" applies to panels with collapsible groups (要素 类目 and,
             now that drifts can be grouped into folders, 构想分组). The 章节 panel
             toggles its storyline lanes individually, so it's excluded. */}
@@ -575,6 +611,7 @@ function SubIconBtn({
   disabled,
   buttonRef,
   expanded,
+  intent,
 }: {
   title: string;
   onClick?: () => void;
@@ -583,9 +620,12 @@ function SubIconBtn({
   disabled?: boolean;
   buttonRef?: React.Ref<HTMLButtonElement>;
   expanded?: boolean;
+  /** Preloads a deferred view on hover/focus. */
+  intent?: ReturnType<typeof useSuperViewPreloadIntent>;
 }) {
   return (
     <button
+      {...intent}
       ref={buttonRef}
       type="button"
       title={title}

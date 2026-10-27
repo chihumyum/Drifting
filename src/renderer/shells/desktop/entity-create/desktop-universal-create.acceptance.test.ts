@@ -20,11 +20,10 @@ describe('desktop universal create acceptance', () => {
     expect(mobileShell).not.toContain('DesktopUniversalCreateView');
   });
 
-  it('renders the plus immediately after the scrollable tab list without hover wash', () => {
+  it('renders the plus immediately after the expanded tab chips without hover wash', () => {
     const topTimeline = source(
       'src/renderer/components/topBars/TopTimeline/TopTimeline.tsx',
     );
-    const mainTopbar = source('src/renderer/components/topBars/MainTopBar.tsx');
     const controls = source('src/styles/ui-controls.css');
 
     expect(topTimeline).toContain('className="top-timeline-create-button"');
@@ -36,10 +35,10 @@ describe('desktop universal create acceptance', () => {
     expect(topTimeline).not.toContain('aria-pressed={openTabs.some');
     expect(controls).not.toContain('.top-timeline-create-button:hover');
     expect(controls).toContain('background: transparent;');
-    expect(mainTopbar).toContain('paddingLeft: 0');
+    expect(topTimeline).toContain('{expanded && <button');
     expect(topTimeline).toContain('const TAB_STRIP_END_PADDING = 16;');
     expect(topTimeline).toContain('paddingLeft: 0');
-    expect(topTimeline).toContain('paddingRight: TAB_STRIP_END_PADDING');
+    expect(topTimeline).toContain('paddingRight: expanded ? TAB_STRIP_END_PADDING : 0');
     expect(topTimeline).toContain('containerWidth - TAB_STRIP_END_PADDING - totalGaps');
     expect(topTimeline).not.toContain('CREATE_BUTTON_WIDTH');
   });
@@ -98,6 +97,6 @@ describe('desktop universal create acceptance', () => {
     expect(architecture).toContain('transient');
     expect(architecture).toContain('`ui-storage`, SQLite, Yjs, sync, or restart restoration');
     expect(designSystem).toContain('Universal 新建');
-    expect(designSystem).toContain('紧跟已打开文档 Tab');
+    expect(designSystem).toContain('展开后的标签片末尾的 `+`');
   });
 });

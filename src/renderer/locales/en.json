@@ -626,7 +626,7 @@
       "actions": {
         "closeActiveTab": {
           "label": "Close active tab",
-          "desc": "Close the active entity editor tab in the top timeline"
+          "desc": "Close the active tab in the bottom dock"
         },
         "findInEditor": {
           "label": "Find in current editor",
@@ -650,15 +650,19 @@
         },
         "prevTab": {
           "label": "Previous tab",
-          "desc": "Move left through open top tabs"
+          "desc": "Move left through open tabs"
         },
         "nextTab": {
           "label": "Next tab",
-          "desc": "Move right through open top tabs"
+          "desc": "Move right through open tabs"
         },
         "toggleBottomTimeline": {
           "label": "Toggle bottom timeline",
           "desc": "Show or hide the bottom timeline"
+        },
+        "closeProject": {
+          "label": "Close project",
+          "desc": "Close this project and return to the bookshelf"
         }
       }
     },
@@ -2356,6 +2360,10 @@
       "review": "Review",
       "library": "Library",
       "stats": "Stats"
+    },
+    "top": {
+      "open": "Open right sidebar",
+      "close": "Close right sidebar"
     },
     "status": {
       "done": "Done",

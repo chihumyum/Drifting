@@ -31,10 +31,8 @@ type FlashResult = {
   id: number;
 } | null;
 
-interface Anchor {
-  top: number;
-  right: number;
-}
+/** Fixed-position edges of the notification center. */
+type Anchor = { top: number; right: number } | { bottom: number; left: number };
 
 function useNow(active: boolean): number {
   const [now, setNow] = useState(() => performance.timeOrigin + performance.now());
@@ -104,7 +102,10 @@ function toneColor(n: AppNotification): string {
   return 'hsl(142 42% 40%)';
 }
 
-export function NotificationPill() {
+export function NotificationPill({ opens = 'down' }: {
+  /** `up` opens the center above the bell, aligned to its left edge. */
+  opens?: 'down' | 'up';
+} = {}) {
   const { t } = useTranslation();
   const items = useNotificationStore((s) => s.items);
   const centerOpen = useNotificationStore((s) => s.centerOpen);
@@ -151,7 +152,10 @@ export function NotificationPill() {
 
   const measure = () => {
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setAnchor({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    if (!r) return;
+    setAnchor(opens === 'up'
+      ? { bottom: window.innerHeight - r.top + 6, left: Math.max(8, r.left - 8) }
+      : { top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
   };
   const handleToggle = () => {
     if (!centerOpen) measure();
@@ -276,8 +280,7 @@ function NotificationCenter({
       ref={containerRef}
       style={{
         position: 'fixed',
-        top: anchor.top,
-        right: anchor.right,
+        ...anchor,
         width: 340,
         maxWidth: 'calc(100vw - 24px)',
         maxHeight: 'min(60vh, 480px)',

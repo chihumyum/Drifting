@@ -23,6 +23,7 @@ import { events } from '../../lib/events';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import type { AnchoredPopoverPlacement } from '../ui/anchored-popover-position';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
@@ -36,11 +37,13 @@ interface UserMenuProps {
   open: boolean;
   onClose: () => void;
   scope?: 'project' | 'shelf';
+  /** Where the menu opens relative to its trigger. */
+  placement?: AnchoredPopoverPlacement;
 }
 
 type UserMenuSettingsPage = 'copilot';
 
-export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserMenuProps) {
+export function UserMenu({ triggerRef, open, onClose, scope = 'project', placement = 'bottom-end' }: UserMenuProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.hostedUser);
   const hostedStatus = useAuthStore((s) => s.hostedStatus);
@@ -123,7 +126,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
       anchorRef={triggerRef}
       open={open}
       onClose={handleClose}
-      placement="bottom-end"
+      placement={placement}
       role="dialog"
       ariaLabel={
         activeSettingsPage

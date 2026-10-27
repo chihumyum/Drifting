@@ -9,7 +9,7 @@ import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStoreFields } from '../store/use-data-store-fields';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
-import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EditorTopBar } from '../components/editor/EditorTopBar';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
 import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
@@ -70,7 +70,7 @@ export function CategoryEditorView({
   const { bookElementCategories, bookElements } = useDataStoreFields('bookElementCategories', 'bookElements');
   useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
-  const { leaveDeletedEntity, navigateToElement, navigateToCategory } = useProjectNavigation();
+  const { leaveDeletedEntity, navigateToElement } = useProjectNavigation();
 
   // Redirect if category param is missing. Fall back to the active tab / empty
   // editor rather than the dashboard (no auto-opened dashboard tab, ever).
@@ -298,37 +298,7 @@ export function CategoryEditorView({
           disabled: false,
           onToggle: toggleComments,
         }}
-        right={
-          <>
-            <span>{t('categoryEditor.meta.elements', { count: cEls.length })}</span>
-          </>
-        }
-      >
-        <EditorCrumb
-          dotColor={curCategory.color || 'hsl(var(--accent))'}
-          dropdown={
-            bookElementCategories.length === 0 ? (
-              <div className="crumb-dropdown__empty">{t('categoryEditor.empty.noCategories')}</div>
-            ) : (
-              bookElementCategories.map((cat) => {
-                const isActive = cat.id === curCategory.id;
-                return (
-                  <div
-                    key={cat.id}
-                    className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                    onClick={() => { if (!isActive) navigateToCategory(cat.id); }}
-                  >
-                    <span className="crumb-dropdown__dot" style={{ background: cat.color || 'hsl(var(--accent))' }} />
-                    <span>{cat.name}</span>
-                  </div>
-                );
-              })
-            )
-          }
-        >
-          <span>{curCategory.name}</span>
-        </EditorCrumb>
-      </EditorTopBar>
+      />
 
       <div className="editor-body">
         <EditorOutlineRail

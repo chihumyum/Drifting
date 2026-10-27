@@ -6,18 +6,24 @@ import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
+import { SidebarHeaderChrome, SidebarToggleButton } from '../workspaceChrome/WindowControlButtons';
+import { getPlatformRuntime } from '../../platform/runtime';
 
-export function RightSidebarHeader({ paneId, activeTab }: {
+export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: {
   paneId: SidebarPaneId;
   activeTab: RightSidebarTab;
+  /** The last pane also carries the sidebar toggle in the top-right corner. */
+  windowChrome?: boolean;
 }) {
   const { t } = useTranslation();
+  const runtime = getPlatformRuntime();
   const toggleTab = useUiStore((s) => s.toggleRightSidebarTab);
   const tabTrayRef = useSidebarTabMinimumWidth('right');
 
   return (
     <div
-      className="workspace-local-divider workspace-panel-tab-row"
+      className="workspace-local-divider workspace-panel-tab-row workspace-panel-tab-row--window"
+      data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
       style={{
         display: 'flex', alignItems: 'center',
         background: 'var(--workspace-ui-bg)', flexShrink: 0,
@@ -35,6 +41,7 @@ export function RightSidebarHeader({ paneId, activeTab }: {
         })}
       </PanelTabTray>
       <SidebarSplitButton side="right" />
+      {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleButton side="right" /></SidebarHeaderChrome>}
     </div>
   );
 }

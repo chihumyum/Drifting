@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { NoteExcerpt } from './NoteExcerpt';
+// The card menu reuses the `.btl-cmenu` rich-menu rules, which the workspace no
+// longer loads through a mounted Bottom Timeline.
+import '../../../styles/bottom-timeline.css';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import {
   libraryItemSubtitle,
