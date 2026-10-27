@@ -16,6 +16,14 @@ that they have the rights needed to distribute it on those terms. AI-generated
 outputs may not be unique. Copyright permission does not grant permission to
 present a fork as the official Drifting product; see [TRADEMARKS.md](TRADEMARKS.md).
 
+## Sand and glass masks
+
+`src/assets/design/` holds alpha masks for the interface's two materials
+(sand marks, glass rims) and its brush-drawn icons. They were generated
+procedurally for Drifting in October 2026; the generators are in
+`scripts/design-assets/`, which lists each output and its script. They are
+original project assets under the client's AGPL-3.0-or-later terms.
+
 ## Inter Tight
 
 The bundled Inter Tight variable font is supplied through
