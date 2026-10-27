@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "name": "default-project-seed",
+  "steps": [
+    {
+      "kind": "workspace.call",
+      "tool": "update_project_facts",
+      "input": {
+        "facts": [
+          { "key": "类型", "value": "海岛悬疑" },
+          { "key": "叙事视角", "value": "第三人称限知，跟随林潮" }
+        ]
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_storyline",
+      "input": {
+        "name": "灯塔的秘密",
+        "summary": "林潮回到北岬，追查灯塔在大潮夜熄灭的原因。",
+        "body": "主线。每逢大潮，北岬灯塔都会熄灭一夜。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_storyline",
+      "input": {
+        "name": "老船长的旧账",
+        "summary": "老船长二十年前的一次出海，和灯塔有关。",
+        "body": "支线。旧日志里缺了三页。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_chapter",
+      "input": {
+        "title": "第一章 潮声",
+        "summary": "林潮坐最后一班渡轮回到岛上。",
+        "body": "渡轮靠岸的时候，潮水正在退。\n\n林潮拎着箱子走下跳板，码头上只有一盏灯亮着。她抬头看向北岬，灯塔是黑的。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_chapter",
+      "input": {
+        "title": "第二章 北岬",
+        "summary": "林潮在灯塔下遇见老船长。",
+        "body": "退潮后的礁石露出水面，像一条通往灯塔的路。\n\n老船长坐在灯塔基座上补网，看见她的时候一点也不意外。“你还是回来了。”他说。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_chapter",
+      "input": {
+        "title": "第三章 退潮",
+        "summary": "旧日志里缺了三页。",
+        "body": "日志的装订线上留着撕痕。\n\n林潮数了三遍，缺的正好是那年大潮前后的三天。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "add_chapter_to_storyline",
+      "input": { "chapter": "第一章 潮声", "storyline": "灯塔的秘密" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "add_chapter_to_storyline",
+      "input": { "chapter": "第二章 北岬", "storyline": "灯塔的秘密" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "add_chapter_to_storyline",
+      "input": { "chapter": "第三章 退潮", "storyline": "灯塔的秘密" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "add_chapter_to_storyline",
+      "input": { "chapter": "第二章 北岬", "storyline": "老船长的旧账" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_inspiration",
+      "input": {
+        "title": "灯塔为什么在大潮夜熄灭",
+        "summary": "也许不是故障，是有人在等船。",
+        "body": "灯塔熄灭的那一夜，海上应该有一条不想被看见的船。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_inspiration",
+      "input": {
+        "title": "撕掉的三页日志",
+        "body": "缺页的撕痕很新，撕的人最近才来过。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_element_category",
+      "input": { "name": "人物", "body": "出场人物。" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_element_category",
+      "input": { "name": "地点", "body": "岛上的地点。" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_element",
+      "input": {
+        "category": "人物",
+        "name": "林潮",
+        "aliases": ["阿潮"],
+        "summary": "在城里做航海保险理赔的调查员，十年没回岛。",
+        "body": "不信天气预报，只信潮水。",
+        "facts": [{ "key": "年龄", "value": "二十七" }]
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_element",
+      "input": {
+        "category": "人物",
+        "name": "老船长",
+        "aliases": ["陈伯"],
+        "summary": "退休的渔船船长，每天在灯塔下补网。",
+        "body": "说话前总要先看一眼海。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_element",
+      "input": {
+        "category": "地点",
+        "name": "北岬灯塔",
+        "summary": "岛北端的老灯塔，退潮时才能步行走到。",
+        "body": "灯光每隔九秒扫过一次。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_relation_type",
+      "input": {
+        "name": "出场于",
+        "orientation": "directed",
+        "sourceRole": "要素",
+        "targetRole": "章节",
+        "sourceKinds": ["element"],
+        "targetKinds": ["chapter"]
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_relation_type",
+      "input": {
+        "name": "相识",
+        "orientation": "symmetric",
+        "sourceRole": "人物",
+        "targetRole": "人物",
+        "sourceKinds": ["element"],
+        "targetKinds": ["element"]
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_relation",
+      "input": { "fromType": "element", "fromName": "林潮", "toType": "chapter", "toName": "第一章 潮声", "relationType": "出场于" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_relation",
+      "input": { "fromType": "element", "fromName": "老船长", "toType": "chapter", "toName": "第二章 北岬", "relationType": "出场于" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_relation",
+      "input": { "fromType": "element", "fromName": "北岬灯塔", "toType": "chapter", "toName": "第二章 北岬", "relationType": "出场于" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_relation",
+      "input": { "fromType": "element", "fromName": "林潮", "toType": "element", "toName": "老船长", "relationType": "相识" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_comment",
+      "input": { "kind": "todo", "targetType": "chapter", "targetName": "第二章 北岬", "body": "补一段灯塔内部的描写。" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_comment",
+      "input": { "kind": "note", "targetType": "element", "targetName": "老船长", "body": "他的口音要和岛上其他人不一样。" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_comment",
+      "input": { "kind": "todo", "body": "定下灯塔熄灭的真正原因。" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "create_project_memory",
+      "input": { "body": "作者偏好短句，场景描写克制，对白少而准。" },
+      "expect": { "ok": true }
+    }
+  ]
+}

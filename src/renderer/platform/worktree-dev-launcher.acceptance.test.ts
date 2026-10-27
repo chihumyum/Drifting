@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -12,6 +12,10 @@ import { loadConfigFromFile } from 'vite';
 
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
 import { createWorktreePlan, parseWorktreeArguments, runWorktreeDev, assertWorktreePortAvailable } from '../../../scripts/run-worktree-dev.mjs';
+// @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
+import { isLinkedGitWorktree, shouldIsolateDevelopment } from '../../../scripts/run-desktop-tauri.mjs';
+// @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
+import { LOCAL_LIBRARY_DATABASE, runSeededDev, seededArguments, SEED_INSTANCE } from '../../../scripts/run-seeded-dev.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const baseConfig = readFileSync(path.join(repoRoot, 'src-tauri/tauri.conf.json'), 'utf8');
@@ -208,5 +212,53 @@ describe('isolated worktree development', () => {
 
   it.each([['--instance', '../escape'], ['--port', '5173oops'], ['--port', '80'], ['--port', '65536'], ['--config', 'other.json'], ['--instance']])('rejects invalid or isolation-breaking arguments %j', (...args) => {
     expect(() => parseWorktreeArguments(args)).toThrow();
+  });
+
+  it('isolates pnpm dev in a linked Git worktree and keeps the main checkout on the shared profile', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'drifting git-'));
+    directories.push(root);
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      if (result.status !== 0) throw new Error(result.stderr);
+    };
+    git('init', '-q', '-b', 'main', 'main');
+    writeFileSync(path.join(root, 'main/README'), 'synthetic');
+    git('-C', 'main', '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.test', 'add', 'README');
+    git('-C', 'main', '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.test', 'commit', '-q', '-m', 'synthetic');
+    git('-C', 'main', 'worktree', 'add', '-q', '../linked');
+
+    expect(isLinkedGitWorktree(path.join(root, 'main'))).toBe(false);
+    expect(isLinkedGitWorktree(path.join(root, 'linked'))).toBe(true);
+    expect(isLinkedGitWorktree(tmpdir())).toBe(false);
+    const linked = () => true;
+    expect(shouldIsolateDevelopment({ command: 'dev', environment: {}, linked })).toBe(true);
+    expect(shouldIsolateDevelopment({ command: 'dev', environment: { DRIFTING_DEV_SHARED_PROFILE: '1' }, linked })).toBe(false);
+    expect(shouldIsolateDevelopment({ command: 'build', environment: {}, linked })).toBe(false);
+    expect(shouldIsolateDevelopment({ command: 'dev', environment: {}, linked: () => false })).toBe(false);
+  });
+
+  it('seeds the seed instance once its port is free, then launches that same profile', async () => {
+    const root = fixture();
+    const calls: string[] = [];
+    const seed = vi.fn(({ databasePath }: { databasePath: string }) => {
+      calls.push('seed');
+      return { seeded: true, databasePath, projectId: 'synthetic-project' };
+    });
+    const checkPort = vi.fn(async () => { calls.push('port'); });
+    const launch = vi.fn(async (_args: string[], _options: unknown) => { calls.push('launch'); });
+    await runSeededDev(['--', '--no-watch'], { root, baseEnvironment: {}, seed, checkPort, launch, output: () => undefined });
+
+    const plan = createWorktreePlan({ root, instance: SEED_INSTANCE, baseEnvironment: {} });
+    expect(calls).toEqual(['port', 'seed', 'launch']);
+    expect(checkPort).toHaveBeenCalledWith(plan.manifest.port);
+    expect(seed.mock.calls[0][0].databasePath).toBe(path.join(plan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE));
+    expect(launch.mock.calls[0][0]).toEqual(['--no-watch', '--instance', SEED_INSTANCE]);
+
+    expect(seededArguments(['--instance', 'demo'])).toEqual(['--instance', 'demo']);
+    expect(() => seededArguments(['--online'])).toThrow(/local-only/);
+    const printed = vi.fn();
+    await runSeededDev(['--print-config'], { root, baseEnvironment: {}, seed, checkPort, launch: printed, output: () => undefined });
+    expect(seed).toHaveBeenCalledTimes(1);
+    expect(printed).toHaveBeenCalledWith(['--print-config', '--instance', SEED_INSTANCE], expect.anything());
   });
 });

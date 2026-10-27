@@ -30,7 +30,7 @@ const recent: Activity[] = [];
 const noop = () => undefined;
 
 export function beginDevActivity(label: string, detail?: ActivityDetail): () => void {
-  if (!import.meta.env.DEV) return noop;
+  if (!import.meta.env?.DEV) return noop;
   const activity: Activity = { label, detail, startedAt: Date.now() };
   open.add(activity);
   return () => {

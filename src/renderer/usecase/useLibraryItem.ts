@@ -3,6 +3,7 @@ import { v7 as uuidv7 } from 'uuid';
 import type { LibraryItem, LibraryItemPatch } from '../domain/library-item';
 import { isValidMaterialProvenanceJson } from '../domain/material-provenance';
 import { initDatabase } from '../lib/db';
+import { libraryMutationPayload } from './library-item-payload';
 import { assetStoreService } from '../services/asset-store.service';
 import {
   prepareLocalProjectAsset,
@@ -52,27 +53,6 @@ export type UpdateLibraryItemUsecaseInput = Omit<LibraryItemPatch, 'updatedAt'>;
 export interface UseLibraryItemContext {
   projectId: string;
   userId: string;
-}
-
-/** The authored sync payload of a material row. Exported for tests. */
-export function libraryMutationPayload(item: LibraryItem): Record<string, unknown> {
-  return {
-    id: item.id,
-    title: item.title,
-    kind: item.kind,
-    assetId: item.assetId,
-    externalUrl: item.externalUrl,
-    bodyJson: item.bodyJson,
-    notesJson: item.notesJson,
-    // Absent rather than null when unset: builds before migration 0009 reject
-    // any provenanceJson field, so only materials that carry provenance need
-    // every device on a current build.
-    ...(item.provenanceJson !== null ? { provenanceJson: item.provenanceJson } : {}),
-    // Likewise only filed materials and notes with TODOs switched off carry
-    // the 0012 fields, so unfiled materials still sync to older builds.
-    ...(item.folderId !== null ? { folderId: item.folderId } : {}),
-    ...(item.taskTodos ? {} : { taskTodos: false }),
-  };
 }
 
 function prependedLibraryOrder(items: readonly LibraryItem[]): number {

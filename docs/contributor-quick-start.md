@@ -48,6 +48,9 @@ checkout's ignored `.local-data/databases` directory.
 For parallel worktrees or AI-driven UI acceptance, use `pnpm dev:worktree`
 with [isolated development profiles](worktree-development.md). This gives each
 checkout a separate database, application identity, WebView store and dev port.
+In a linked Git worktree, plain `pnpm dev` switches to that isolated profile by
+itself. `pnpm dev:seed` starts an isolated profile whose library begins with a
+synthetic sample project.
 
 ### Develop against a Hosted service with HMR
 

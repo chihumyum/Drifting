@@ -7,13 +7,11 @@ import { readProjectStats } from '../sqlite-repo/project-stats-repo';
 import type { ProjectSummary } from '../domain/project-summary';
 import { v7 as uuidv7 } from 'uuid';
 import { withAtomicSyncTransaction } from './sync-helpers';
-import { defaultProjectKvJson } from '../domain/kv';
+import { createProjectInTransaction } from './project-create';
 import { replaceEntityKvEntriesInTransaction } from './normalized-kv-alias-authority';
-import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import LogLevel from 'loglevel';
-import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
 import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.service';
 import { cleanupDeletedProject } from '../services/project-deletion-cleanup';
 const log = LogLevel.getLogger('UseProject');
@@ -161,43 +159,15 @@ export function useProject({ userId }: UseProjectContext) {
       await ensureDb();
 
       const now = new Date().toISOString();
-      const seededProjectKvJson = defaultProjectKvJson();
       const projectId = uuidv7();
-      const builtInRelationType = genericAssociationRelationType(projectId, now);
-      const project = await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
-        const projectRepo = createProjectRepository(userId, tx);
-        const created = await projectRepo.create({
-          id: projectId,
+      const { project, builtInRelationType } = await withAtomicSyncTransaction(projectId, (tx, sync, changes) =>
+        createProjectInTransaction(tx, sync, changes, {
+          projectId,
           userId,
           name: input.projectName ?? 'New Project',
-          summary: '',
-          kvJson: '[]',
-          storylineTemplateKvJson: '[]',
-          createdAt: now,
-          updatedAt: now,
-        });
-        await sync('project', 'create', created.id, created.id, {
-          id: created.id,
-          name: created.name,
-          summary: created.summary,
-        });
-        await replaceEntityKvEntriesInTransaction(tx, changes, {
-          projectId,
-          ownerKind: 'project',
-          ownerId: projectId,
-          namespace: 'facts',
-          nextJson: seededProjectKvJson,
-        });
-        await createEntityRelationTypeRepository(projectId, tx).create(builtInRelationType);
-        await sync(
-          'entityRelationType',
-          'create',
-          builtInRelationType.id,
-          projectId,
-          { ...builtInRelationType },
-        );
-        return (await projectRepo.findById(projectId))!;
-      });
+          now,
+        }),
+      );
 
       // Projects are allowed to have zero storylines AND zero categories. Both
       // are user-created on demand. element.categoryId is nullable; orphan

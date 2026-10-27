@@ -14,7 +14,7 @@ import { createLibraryItemSqliteRepository } from '../../sqlite-repo/library-ite
 import { createProjectAssetSqliteRepository } from '../../sqlite-repo/project-asset-repo';
 import { deleteLibraryItemInTransaction } from '../../usecase/library-item-deletion';
 import type { AtomicSyncWriter } from '../../usecase/sync-helpers';
-import { libraryMutationPayload } from '../../usecase/useLibraryItem';
+import { libraryMutationPayload } from '../../usecase/library-item-payload';
 import type { DbClient, DbTransaction } from '../../lib/db';
 import {
   BookElementTable,

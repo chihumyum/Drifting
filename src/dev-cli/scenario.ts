@@ -28,7 +28,7 @@ interface ScenarioDocument {
   steps: ScenarioStep[];
 }
 
-function parseScenario(value: unknown): ScenarioDocument {
+export function parseScenario(value: unknown): ScenarioDocument {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new CliError('SCENARIO_INVALID', 'Scenario must be a JSON object');
   const candidate = value as Partial<ScenarioDocument>;

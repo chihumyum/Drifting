@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -140,6 +140,29 @@ export function createDesktopTauriConfigOverride({
   return { ...override, plugins: { updater: { pubkey: updaterPublicKey } } };
 }
 
+/**
+ * Whether `directory` is a linked Git worktree rather than the main checkout.
+ * Outside Git, or when Git cannot tell, it is treated as the main checkout.
+ */
+export function isLinkedGitWorktree(directory = repoDir, run = spawnSync) {
+  const result = run('git', ['-C', directory, 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir'], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0 || typeof result.stdout !== 'string') return false;
+  const [gitDirectory, commonDirectory] = result.stdout.trim().split('\n');
+  return Boolean(gitDirectory && commonDirectory) && path.resolve(gitDirectory) !== path.resolve(commonDirectory);
+}
+
+/**
+ * `pnpm dev` in a linked worktree uses that worktree's isolated profile
+ * (docs/worktree-development.md): the shared profile's identity, port and
+ * application data belong to the main checkout. DRIFTING_DEV_SHARED_PROFILE=1
+ * keeps the shared profile.
+ */
+export function shouldIsolateDevelopment({ command, environment = process.env, linked = isLinkedGitWorktree } = {}) {
+  return command === 'dev' && environment.DRIFTING_DEV_SHARED_PROFILE !== '1' && linked();
+}
+
 function writeTemporaryTauriConfig(configuration) {
   const directory = mkdtempSync(path.join(tmpdir(), 'drifting-tauri-config-'));
   const filePath = path.join(directory, 'tauri.override.json');
@@ -155,6 +178,13 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   // pnpm preserves its argument-separator marker. It is not a Tauri runner
   // separator, so remove only that leading marker before forwarding options.
   const normalizedForwarded = forwarded[0] === '--' ? forwarded.slice(1) : forwarded;
+  if (shouldIsolateDevelopment({ command })) {
+    console.log('Linked Git worktree: starting its isolated development profile (pnpm dev:worktree). '
+      + 'Set DRIFTING_DEV_SHARED_PROFILE=1 to use the shared profile instead.');
+    const { runWorktreeDev } = await import('./run-worktree-dev.mjs');
+    await runWorktreeDev(normalizedForwarded);
+    return;
+  }
   const online = normalizedForwarded.includes('--online');
   const tauriArguments = normalizedForwarded.filter((argument) => argument !== '--online');
   const environment = createDesktopTauriEnvironment({ mode: online ? 'online' : 'local' });

@@ -16,6 +16,8 @@ Guidance for coding agents working in this standalone Drifting client repository
   instead of the daily-use launcher. Each checkout gets its own database,
   application identity and port; use `--instance <name>` for parallel runs in
   one checkout and `--print-config` to inspect the non-secret JSON manifest.
+  In a linked Git worktree plain `pnpm dev` uses that isolated profile by
+  itself; `pnpm dev:seed` starts one with a synthetic sample project.
   See `docs/worktree-development.md`. Never point parallel apps at one database.
 
 ## Apple native migration

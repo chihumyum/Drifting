@@ -66,13 +66,48 @@ configuration when testing remote authentication. Do not enable wildcard CORS.
 
 Use only synthetic data in these profiles. A fresh profile starts without cloud
 bindings. Google Drive is temporarily suspended in all App builds. The launcher does not seed fixtures, grant MCP access or
-claim UI acceptance. Configure test-owned MCP access from the isolated app if
-needed. Existing acceptance collectors keep their own fixture workflows.
+claim UI acceptance (`pnpm dev:seed` below seeds one). Configure test-owned MCP
+access from the isolated app if needed. Existing acceptance collectors keep their
+own fixture workflows.
 
 Keep one running launcher per profile. To get fresh state, choose a new
 `--instance` name; there is deliberately no automatic reset/delete operation.
 On macOS/Linux, stop the launcher with SIGINT or SIGTERM to stop its owned
-process group. The ordinary `pnpm dev` and release build commands are unchanged.
+process group. Release build commands are unchanged.
+
+## `pnpm dev` in a linked worktree
+
+The shared profile (identity `cc.drifting.client`, port 5173, its application
+data and Keychain service) belongs to the main checkout's daily library. In the
+main checkout, or outside Git, `pnpm dev` and `pnpm dev:online` are unchanged.
+In a linked Git worktree (`git worktree add`, including agent worktrees) they
+start that worktree's isolated profile instead, exactly as
+`pnpm dev:worktree [--online]` would, so several people or agents can develop
+in their own worktrees at once. `DRIFTING_DEV_SHARED_PROFILE=1 pnpm dev` keeps
+the shared profile deliberately.
+
+## Seeded profiles
+
+```bash
+pnpm dev:seed                      # instance "seed"
+pnpm dev:seed --instance demo --no-watch
+```
+
+`pnpm dev:seed` takes the same options as `pnpm dev:worktree` (local-only; no
+`--online`) and defaults to its own instance, `seed`. Before launching it checks
+that the profile is not running, then seeds the profile's library
+(`databases/drifting-library.db`) if it has no project yet: one project as the
+app creates it (default facts and the built-in relation type), then the
+[default seed scenario](../src/dev-cli/seeds/default-project.json) — storylines,
+chapters with prose, inspirations, element categories and elements, relation
+types and relations, comments and TODOs, project facts and Project Memory —
+and a few material notes in nested folders. Every write is a journaled authored
+change set through the same paths as the app and the General Agent tools
+(`src/dev-cli/seed.ts`), so the seeded library behaves like one built by hand.
+Later launches reuse it; choose a new `--instance` for a fresh copy. Images and
+PDFs are not seeded (their import runs through the native asset pipeline). The
+seed's tool calls leave one "Developer CLI workspace" Agent conversation, as any
+`pnpm drifting workspace call` does.
 
 ## Machine-checkable contract
 
@@ -83,5 +118,8 @@ pnpm exec vitest run src/renderer/platform/worktree-dev-launcher.acceptance.test
 The contract checks independent checkout and instance identities, repeatable
 paths, ignored conflicting environment settings, WebView separation, port
 conflicts, real SQLite separation, generated Vite configuration, non-mutating
-JSON inspection, and launcher argument/environment delivery. It uses disposable
+JSON inspection, launcher argument/environment delivery, linked-worktree
+detection for `pnpm dev`, and the seeded launcher's order (port check, seed,
+launch). `src/dev-cli/seed.integration.test.ts` seeds a real library and checks
+its entities, journal and once-only behaviour. It uses disposable
 synthetic fixtures; it does not open a daily-use library.

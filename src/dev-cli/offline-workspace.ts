@@ -109,7 +109,8 @@ function createDevCliAgentAuthoredJournal() {
   });
 }
 
-function createAtomicRunner(database: DbClient): BookNodeAtomicTransactionRunner {
+/** One authored, journaled domain transaction under the developer CLI's writer. */
+export function createAtomicRunner(database: DbClient): BookNodeAtomicTransactionRunner {
   const runAuthored = createAuthoredTransactionRunner({
     database: () => database,
     identity: async () => DEV_CLI_SYNC_IDENTITY,
