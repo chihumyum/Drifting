@@ -62,6 +62,21 @@ describe.each([
       .toEqual([order[1], order[2]]);
   });
 
+  it('keeps a hand-chosen single column when the sidebar widens past the threshold again', () => {
+    const wide = resizeSidebarTabs(singleSidebarTab(order[0]), true, order);
+    const single = toggleSidebarTab(wide, 'secondary', order[1])!;
+    expect(single.keepSingle).toBe(true);
+    const narrow = resizeSidebarTabs(single, false, order);
+    expect(narrow.keepSingle).toBe(true);
+    const widened = resizeSidebarTabs(narrow, true, order);
+    expect(widened.panes).toEqual(single.panes);
+    expect(widened.canSplit).toBe(true);
+    // Splitting by hand lifts the choice: the next crossing splits again.
+    const split = splitSidebarTabs(widened, order);
+    expect(split.keepSingle).toBeUndefined();
+    expect(resizeSidebarTabs(resizeSidebarTabs(split, false, order), true, order).panes).toHaveLength(2);
+  });
+
   it('reuses an existing navigation destination and otherwise replaces only the focused pane', () => {
     const wide = resizeSidebarTabs(singleSidebarTab(order[0]), true, order);
     const existing = revealSidebarTab(wide, order[1]);
@@ -86,5 +101,6 @@ describe.each([
     expect(restoreSidebarTabs({ ...duplicate, canSplit: false, splitEdge: 'start' }, order[0], order).splitEdge)
       .toBe('start');
     expect(restoreSidebarTabs({ ...duplicate, splitEdge: 'sideways' }, order[0], order)).not.toHaveProperty('splitEdge');
+    expect(restoreSidebarTabs({ ...duplicate, keepSingle: true }, order[0], order).keepSingle).toBe(true);
   });
 });

@@ -11,7 +11,6 @@ import {
   sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
 import { trackGlassFlow } from '../../lib/glass-flow';
-import { SidebarSplitButton } from '../../components/SidebarSplitButton';
 
 // Splitting or merging a sidebar pushes the divider in from (or out to) the
 // side of the pane that arrives or leaves; matches `.sidebar-pane--entering`
@@ -62,28 +61,6 @@ export function DesktopSidebarLayout({
     }
     setShownIds(ids);
   }
-  // While a closed half folds away the split button already waits, still, at
-  // the end of the tab row it will finally sit in; the remaining half's tabs
-  // move across as usual and its own copy of the button stays hidden until
-  // it arrives underneath (`data-split-leaving`).
-  const [splitButtonAt, setSplitButtonAt] = useState<{ top: number; left?: number; right?: number } | null>(null);
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    const button = root?.querySelector<HTMLElement>('[data-sidebar-pane] .sidebar-split-button');
-    const pane = button?.closest<HTMLElement>('[data-sidebar-pane]');
-    if (!leaving || !root || !button || !pane) {
-      setSplitButtonAt(null);
-      return;
-    }
-    const rootBox = root.getBoundingClientRect();
-    const box = button.getBoundingClientRect();
-    const paneBox = pane.getBoundingClientRect();
-    // The button keeps its distance from the row's end as the half grows.
-    setSplitButtonAt(leaving.index === 0
-      ? { top: box.top - rootBox.top, left: box.left - paneBox.left }
-      : { top: box.top - rootBox.top, right: paneBox.right - box.right });
-  }, [leaving]);
-
   useEffect(() => {
     if (!entering && !leaving) return undefined;
     const shell = rootRef.current?.closest<HTMLElement>('.sidebar-shell');
@@ -141,15 +118,10 @@ export function DesktopSidebarLayout({
   };
 
   return (
-    <div ref={rootRef} data-sidebar-layout={side} data-split-leaving={leaving ? 'true' : undefined} style={{
+    <div ref={rootRef} data-sidebar-layout={side} style={{
       display: 'flex', flexDirection: 'column', flex: 1, height: '100%', minHeight: 0,
-      background: 'var(--workspace-ui-bg)', position: 'relative',
+      background: 'var(--workspace-ui-bg)',
     }}>
-      {leaving && splitButtonAt && (
-        <div className="sidebar-split-overlay" style={splitButtonAt}>
-          <SidebarSplitButton side={side} edge={leaving.index === 0 ? 'start' : 'end'} />
-        </div>
-      )}
       <div ref={bodyRef} style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
         {panels.map((panel, index) => {
           const divider = (

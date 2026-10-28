@@ -28,9 +28,9 @@ describe('shared menu surface style', () => {
     const item = block(controls, '.menu-surface__item {', '.menu-surface__item:hover');
     const separator = block(controls, '.menu-surface__divider,', '.tab-context-menu__item {');
 
-    // Menus are floating glass: translucent, square, a flowing rim; rows
-    // carry no fill and show hairline glass along their edges under the
-    // pointer; groups are separated by space, not rules.
+    // Menus are translucent and square with no glass rim of their own; only
+    // the row under the pointer shows hairline glass along its edges; rows
+    // carry no fill; groups are separated by space, not rules.
     expect(tokens).toContain('--menu-surface-bg: var(--glass-fill);');
     expect(tokens).toContain('--menu-surface-border: transparent;');
     expect(tokens).toContain('--menu-surface-radius: 0;');
@@ -47,7 +47,7 @@ describe('shared menu surface style', () => {
     expect(surface).toContain('font-size: var(--ui-font-body, 12.5px);');
     expect(surface).toContain('line-height: var(--ui-line-body, 18px);');
     expect(surface).toContain('backdrop-filter: blur(1.6px);');
-    expect(controls).toContain('.menu-surface::before {');
+    expect(controls).not.toContain('.menu-surface::before {');
     expect(controls).toContain('animation: glass-flow 9s linear infinite;');
     expect(item).toContain('min-height: var(--ui-row-height, 30px);');
     expect(item).toContain('padding: 6px 14px;');

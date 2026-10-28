@@ -628,20 +628,9 @@
   --flow-gx: -55px;
 }
 
-/* While a closed half folds away, the split button waits in its final
-   place above the moving tab row; the row's own copy appears once the half
-   has arrived under it. */
-.sidebar-split-overlay {
-  position: absolute;
-  z-index: 25;
-}
-
-.sidebar-split-overlay .sidebar-split-button {
+/* The split button fades in as it arrives with its half's tab row. */
+.sidebar-split-button {
   animation: sidebar-split-button-in 0.24s ease-out backwards;
-}
-
-[data-split-leaving] [data-sidebar-pane] .sidebar-split-button {
-  visibility: hidden;
 }
 
 @keyframes sidebar-split-button-in {

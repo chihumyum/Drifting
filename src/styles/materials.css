@@ -103,34 +103,6 @@
   }
 }
 
-/* Floating glass (menus, popovers drawn as slabs): the shared translucent
-   fill, lightly softened underneath, square corners; its rim flows steadily
-   for as long as it is open. */
-:where(.glass-slab) {
-  isolation: isolate;
-  border-radius: 0;
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(1.6px);
-  backdrop-filter: blur(1.6px);
-}
-
-.glass-slab::after {
-  --glass-ring: color-mix(in srgb, var(--glass-clear) 70%, transparent);
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px var(--glass-ring), inset 0 0 14px 1px var(--glass-ring);
-  -webkit-mask-image: var(--glass-texture);
-  mask-image: var(--glass-texture);
-  -webkit-mask-size: 150px 150px;
-  mask-size: 150px 150px;
-  --glass-gx: -40px;
-  --glass-gy: -90px;
-  animation: glass-flow 9s linear infinite;
-}
-
 /* ── Lines that bleed glass while their panel moves ─────────────────
  * A hairline at rest. While its panel slides open, closes or is dragged
  * wider, the owner sets --flow (distance travelled, px) and --flowa (0–1,
@@ -366,7 +338,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .glass::before,
-  .glass-slab::after,
   .sand-cell > .cell-ring { animation: none; }
   .sand-cell.is-selected > .cell-frame { transition: none; }
   .sand--arrive { animation: none; }

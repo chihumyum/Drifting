@@ -329,13 +329,12 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
    Rich menus may opt into `menu-surface--rich` and own their inner layout while
    retaining the same outer shell.
 
-   The shell is floating glass: the shared translucent fill, lightly softened
-   underneath, square corners and a rim that flows steadily for as long as
-   the menu is open. Rows are full-bleed and carry no fill: under the pointer
-   a row's top and bottom edges become hairlines of flowing glass, across the
-   whole slab. Moving between rows only fades one row's lines out and the
-   next row's in; the slab's rim is never touched. Groups are separated by
-   space, not rules. */
+   The shell is floating glass without a rim of its own: the shared
+   translucent fill, lightly softened underneath, square corners. Only the
+   row under the pointer carries glass: its top and bottom edges become
+   hairlines of flowing glass across the whole menu. Moving between rows
+   only fades one row's lines out and the next row's in. Rows are full-bleed
+   and carry no fill; groups are separated by space, not rules. */
 :where(.menu-surface) {
   position: relative;
 }
@@ -360,24 +359,6 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   line-height: var(--ui-line-body, 18px);
   letter-spacing: normal;
   text-transform: none;
-}
-
-.menu-surface::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  pointer-events: none;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 70%, transparent),
-    inset 0 0 14px 1px color-mix(in srgb, var(--glass-clear) 70%, transparent);
-  -webkit-mask-image: var(--glass-texture);
-  mask-image: var(--glass-texture);
-  -webkit-mask-size: 150px 150px;
-  mask-size: 150px 150px;
-  --glass-gx: -40px;
-  --glass-gy: -90px;
-  animation: glass-flow 9s linear infinite;
 }
 
 .menu-surface--rich {
