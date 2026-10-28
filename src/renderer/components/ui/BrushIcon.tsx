@@ -21,6 +21,7 @@ export type BrushIconName =
   | 'comment'
   | 'copy'
   | 'dharma-wheel'
+  | 'edit'
   | 'enso'
   | 'folder'
   | 'folder-open'

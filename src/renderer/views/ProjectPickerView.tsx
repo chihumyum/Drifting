@@ -10,7 +10,7 @@ import { FilterChip } from '../components/ui/FilterChip';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
-import { BookOpen, Grid2X2, List, Pencil, Plus } from 'lucide-react';
+import { BookOpen, Grid2X2, List, Plus } from 'lucide-react';
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
@@ -739,7 +739,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
               title={t('common.edit')}
               aria-label={t('common.edit')}
             >
-              <Pencil size={15} aria-hidden="true" />
+              <BrushIcon name="edit" size={15} />
             </button>
             <button
               type="button"
@@ -850,7 +850,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
           title={t('common.edit')}
           aria-label={t('common.edit')}
         >
-          <Pencil size={15} aria-hidden="true" />
+          <BrushIcon name="edit" size={15} />
         </button>
         <button
           type="button"

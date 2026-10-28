@@ -918,7 +918,7 @@ describe('workspace surface language acceptance', () => {
       'gate-in', 'gate-out',
       // Small glyphs, finished with fine grain.
       'close', 'arrow-back', 'arrow-forward', 'chevron-down', 'chevron-right', 'chevron-up', 'chevron-left',
-      'check', 'minus', 'loader', 'trash', 'search', 'copy', 'stop', 'folder', 'folder-open', 'folder-plus',
+      'check', 'minus', 'loader', 'trash', 'edit', 'search', 'copy', 'stop', 'folder', 'folder-open', 'folder-plus',
     ];
     for (const name of names) {
       expect(brushIcon).toContain(`| '${name}'`);
@@ -933,7 +933,7 @@ describe('workspace surface language acceptance', () => {
   it('keeps the basic action glyphs off lucide outside the paused mobile shell', () => {
     const replaced = [
       'X', 'ArrowLeft', 'ChevronDown', 'ChevronRight', 'ChevronUp', 'ChevronLeft', 'Check', 'Minus', 'Loader2',
-      'LoaderCircle', 'Trash2', 'Search', 'Copy', 'Square', 'Folder', 'FolderOpen', 'FolderPlus',
+      'LoaderCircle', 'Trash2', 'Pencil', 'Search', 'Copy', 'Square', 'Folder', 'FolderOpen', 'FolderPlus',
     ];
     const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[])
       .filter((file) => file.endsWith('.tsx') && !file.includes('.test.') && !file.startsWith('shells/mobile/'));

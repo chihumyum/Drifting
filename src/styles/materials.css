@@ -291,6 +291,7 @@
 .brush-icon--minus { -webkit-mask-image: url('../assets/design/icons/minus.png'); mask-image: url('../assets/design/icons/minus.png'); }
 .brush-icon--loader { -webkit-mask-image: url('../assets/design/icons/loader.png'); mask-image: url('../assets/design/icons/loader.png'); }
 .brush-icon--trash { -webkit-mask-image: url('../assets/design/icons/trash.png'); mask-image: url('../assets/design/icons/trash.png'); }
+.brush-icon--edit { -webkit-mask-image: url('../assets/design/icons/edit.png'); mask-image: url('../assets/design/icons/edit.png'); }
 .brush-icon--search { -webkit-mask-image: url('../assets/design/icons/search.png'); mask-image: url('../assets/design/icons/search.png'); }
 .brush-icon--copy { -webkit-mask-image: url('../assets/design/icons/copy.png'); mask-image: url('../assets/design/icons/copy.png'); }
 .brush-icon--stop { -webkit-mask-image: url('../assets/design/icons/stop.png'); mask-image: url('../assets/design/icons/stop.png'); }

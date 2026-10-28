@@ -1,6 +1,6 @@
 import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ListTodo, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Sparkles, StickyNote } from 'lucide-react';
+import { ListTodo, MessageSquare, MoreHorizontal, RotateCcw, Sparkles, StickyNote } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -446,7 +446,7 @@ export function ReviewItemCard({
             />
           )}
           <ReviewActionMenuItem
-            icon={<Pencil size={12} />}
+            icon={<BrushIcon name="edit" size={12} />}
             label={ownedByNote ? t('reviewPanel.editInNote') : t('common.edit')}
             disabled={busy}
             onSelect={() =>

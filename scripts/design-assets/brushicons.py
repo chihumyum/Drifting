@@ -28,6 +28,7 @@ check.png                   a short press, then a long flick drying out
 minus.png                   one level stroke
 loader.png                  an ensō a quarter short (spun in CSS)
 trash.png                   a waste-paper basket (字纸篓) with a cross inside
+edit.png                    a writing brush at a slant, a full head tapering to its tip
 search.png                  an ensō and a short heavy handle
 copy.png                    one sheet over another, a little offset
 stop.png                    a square seal pressed solid
@@ -419,6 +420,13 @@ def trash(rng):
     brush(a, line((62, 46), (34, 76), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
     return a
 
+def edit(rng):
+    a = new()
+    brush(a, line((40, 58), (86, 12)), G * 0.75, rng, load0=1.0, dry=0.2, taper=(0.02, 0.05))
+    head = curve([(44, 50), (36, 54), (24, 68), (10, 88), (28, 74), (42, 64), (48, 56), (44, 50)], 8)
+    fill_poly(a, head, rng, rough=0.6)
+    return a
+
 def search(rng):
     a = new()
     brush(a, arc(40, 40, 24, 24, -120, 250, 120), G, rng, load0=1.0, dry=0.3, taper=(0.04, 0.12))
@@ -478,7 +486,7 @@ ICONS = {
 }
 GLYPHS = {
     "close": (close, 1002), "arrow-back": (arrow_back, 1004), "chevron-down": (chevron_down, 1010),
-    "check": (check, 1016), "minus": (minus, 1019), "loader": (loader, 1021), "trash": (trash, 1099),
+    "check": (check, 1016), "minus": (minus, 1019), "loader": (loader, 1021), "trash": (trash, 1099), "edit": (edit, 1201),
     "search": (search, 1032), "copy": (copy, 1033), "stop": (stop, 1036),
     "folder": (folder, 1038), "folder-open": (folder_open, 1039), "folder-plus": (folder_plus, 1040),
 }
