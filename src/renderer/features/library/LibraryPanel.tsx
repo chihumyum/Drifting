@@ -1,6 +1,5 @@
 import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { useTranslation } from 'react-i18next';
@@ -351,7 +350,7 @@ function Toolbar({
             e.currentTarget.style.color = 'hsl(var(--ink-4))';
           }}
         >
-          <Plus size={12} strokeWidth={1.6} />
+          <BrushIcon name="plus" size={12} />
         </button>
       </div>
     </div>

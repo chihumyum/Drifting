@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Mic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   buildVoiceContextPackFromStores,
@@ -106,7 +105,7 @@ export function VoiceDictationButton({
         ) : phase === 'transcribing' ? (
           <BrushIcon name="loader" size={15} className="agt-mic__spin" />
         ) : (
-          <Mic size={15} aria-hidden="true" />
+          <BrushIcon name="mic" size={15} />
         )}
       </button>
       {statusText && (

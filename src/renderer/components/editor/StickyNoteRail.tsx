@@ -1,6 +1,5 @@
 import { revealDesktopAgentView } from '../../store/desktop-agent-navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Layers3, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { createPlainCommentDoc, extractTextFromCommentBody, type CommentTargetKind } from '../../domain/comment';
@@ -59,7 +58,7 @@ function StickyNoteComposer({
     <div className="review-card review-card--sticky review-card--manual sticky-note-composer">
       <header className="review-card__header">
         <span className="review-card__kind">
-          <MessageSquarePlus size={12} />
+          <BrushIcon name="comment-plus" size={12} />
           {t('commentRail.composer.newComment')}
         </span>
         <GhostIconButton
@@ -184,7 +183,7 @@ export function StickyNoteRail({
         {items.length > 0 && (
           <GhostIconButton
             size="sm"
-            icon={rail.layout === 'stacked' ? <Layers3 size={13} /> : <BrushIcon name="chevron-down" size={13} />}
+            icon={rail.layout === 'stacked' ? <BrushIcon name="layers" size={13} /> : <BrushIcon name="chevron-down" size={13} />}
             onClick={() => rail.setLayout(rail.layout === 'stacked' ? 'expanded' : 'stacked')}
             aria-expanded={rail.layout === 'expanded'}
             title={

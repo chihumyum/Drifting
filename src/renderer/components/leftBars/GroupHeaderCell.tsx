@@ -1,4 +1,3 @@
-import { Plus } from 'lucide-react';
 import type { MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -170,7 +169,7 @@ export function GroupHeaderCell({
       }`}
       style={{ width: 18, height: 18 }}
     >
-      <Plus size={12} strokeWidth={1.6} />
+      <BrushIcon name="plus" size={12} />
     </button>
   ) : null;
 

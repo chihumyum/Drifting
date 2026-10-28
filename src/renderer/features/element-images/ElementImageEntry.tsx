@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image as ImageIcon, ImagePlus, Maximize2, Sparkles } from 'lucide-react';
 import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import type { ImageInboxEntry } from '../../platform';
 import { ElementImageCandidates } from './ElementImageCandidates';
@@ -69,7 +68,7 @@ export function ElementImageEntry({
         {imageUrl ? (
           <img className="editor-bar__thumb" src={imageUrl} alt="" />
         ) : (
-          <ImageIcon size={14} />
+          <BrushIcon name="image" size={14} />
         )}
         {generating ? (
           <span className="editor-bar__spinner" aria-hidden>
@@ -134,7 +133,7 @@ export function ElementImageEntry({
                   setView('generate');
                 }}
               >
-                <Sparkles size={14} aria-hidden />
+                <BrushIcon name="shikigami" size={14} />
                 {t('elementEditor.imageEntry.generate')}
               </button>
               <button
@@ -143,12 +142,12 @@ export function ElementImageEntry({
                 disabled={busy}
                 onClick={closeThen(onImportFromFile)}
               >
-                <ImagePlus size={14} aria-hidden />
+                <BrushIcon name="image-plus" size={14} />
                 {t(hasImage ? 'elementEditor.imageEntry.replaceFromFile' : 'elementEditor.imageEntry.addFromFile')}
               </button>
               {imageUrl && (
                 <button type="button" className="elem-image-menu__action" onClick={closeThen(onViewLarge)}>
-                  <Maximize2 size={14} aria-hidden />
+                  <BrushIcon name="fullscreen" size={14} />
                   {t('elementEditor.portrait.view')}
                 </button>
               )}

@@ -5,7 +5,6 @@
  */
 
 import { useState } from 'react';
-import { Database, Server, RefreshCw } from 'lucide-react';
 import { debugApi, type DebugData } from '../../services/api/debug-api';
 import { useAuthStore } from '../../store/auth';
 import loglevel from 'loglevel';
@@ -272,7 +271,6 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
-            <Database className="text-blue-600" size={24} />
             <h2 className="text-lg font-semibold text-gray-900">Debug 数据查看器</h2>
           </div>
           <div className="flex items-center gap-2">
@@ -281,7 +279,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               disabled={loading}
               className="flex items-center gap-1 rounded-[1px] bg-blue-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              <BrushIcon name="rotate" size={16} className={loading ? 'animate-spin' : ''} />
               {loading ? '加载中...' : '刷新数据'}
             </button>
             <button onClick={onClose} className="rounded-[1px] p-1 transition-colors hover:bg-gray-100">
@@ -300,7 +298,6 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <Server size={18} />
             服务器数据
           </button>
           <button
@@ -311,7 +308,6 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <Database size={18} />
             SQLite 数据
           </button>
           <button

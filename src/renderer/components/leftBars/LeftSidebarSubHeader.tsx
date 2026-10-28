@@ -1,6 +1,5 @@
 import { useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -307,7 +306,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   const renderPrimaryCreate = () => {
     let onClick: () => void;
     let title: string;
-    let icon: React.ReactNode = <Plus size={11} strokeWidth={2} />;
+    let icon: React.ReactNode = <BrushIcon name="plus" size={11} />;
     if (activeLeftPanel === 'nodes') {
       // Mirror ChapterPanel: when there are no storylines the view collapses to
       // 'global', so the primary CTA must be "+ 新章节" regardless of the
@@ -508,7 +507,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
           buttonRef={sortBtnRef}
           expanded={sortMenuOpen}
         >
-          <ArrowDownUp size={11} strokeWidth={1.6} />
+          <BrushIcon name="sort" size={11} />
         </SubIconBtn>
         {renderSecondaryCreate()}
         {renderPrimaryCreate()}

@@ -298,6 +298,28 @@
 .brush-icon--folder { -webkit-mask-image: url('../assets/design/icons/folder.png'); mask-image: url('../assets/design/icons/folder.png'); }
 .brush-icon--folder-open { -webkit-mask-image: url('../assets/design/icons/folder-open.png'); mask-image: url('../assets/design/icons/folder-open.png'); }
 .brush-icon--folder-plus { -webkit-mask-image: url('../assets/design/icons/folder-plus.png'); mask-image: url('../assets/design/icons/folder-plus.png'); }
+.brush-icon--file-text { -webkit-mask-image: url('../assets/design/icons/file-text.png'); mask-image: url('../assets/design/icons/file-text.png'); }
+.brush-icon--comment-plus { -webkit-mask-image: url('../assets/design/icons/comment-plus.png'); mask-image: url('../assets/design/icons/comment-plus.png'); }
+.brush-icon--rotate { -webkit-mask-image: url('../assets/design/icons/rotate.png'); mask-image: url('../assets/design/icons/rotate.png'); }
+.brush-icon--sort { -webkit-mask-image: url('../assets/design/icons/sort.png'); mask-image: url('../assets/design/icons/sort.png'); }
+.brush-icon--status-done { -webkit-mask-image: url('../assets/design/icons/status-done.png'); mask-image: url('../assets/design/icons/status-done.png'); }
+.brush-icon--status-warning { -webkit-mask-image: url('../assets/design/icons/status-warning.png'); mask-image: url('../assets/design/icons/status-warning.png'); }
+.brush-icon--status-stopped { -webkit-mask-image: url('../assets/design/icons/status-stopped.png'); mask-image: url('../assets/design/icons/status-stopped.png'); }
+.brush-icon--cloud { -webkit-mask-image: url('../assets/design/icons/cloud.png'); mask-image: url('../assets/design/icons/cloud.png'); }
+.brush-icon--checklist { -webkit-mask-image: url('../assets/design/icons/checklist.png'); mask-image: url('../assets/design/icons/checklist.png'); }
+.brush-icon--checklist-plus { -webkit-mask-image: url('../assets/design/icons/checklist-plus.png'); mask-image: url('../assets/design/icons/checklist-plus.png'); }
+.brush-icon--sticky-note { -webkit-mask-image: url('../assets/design/icons/sticky-note.png'); mask-image: url('../assets/design/icons/sticky-note.png'); }
+.brush-icon--mic { -webkit-mask-image: url('../assets/design/icons/mic.png'); mask-image: url('../assets/design/icons/mic.png'); }
+.brush-icon--image { -webkit-mask-image: url('../assets/design/icons/image.png'); mask-image: url('../assets/design/icons/image.png'); }
+.brush-icon--image-plus { -webkit-mask-image: url('../assets/design/icons/image-plus.png'); mask-image: url('../assets/design/icons/image-plus.png'); }
+.brush-icon--eraser { -webkit-mask-image: url('../assets/design/icons/eraser.png'); mask-image: url('../assets/design/icons/eraser.png'); }
+.brush-icon--share { -webkit-mask-image: url('../assets/design/icons/share.png'); mask-image: url('../assets/design/icons/share.png'); }
+.brush-icon--layers { -webkit-mask-image: url('../assets/design/icons/layers.png'); mask-image: url('../assets/design/icons/layers.png'); }
+.brush-icon--branch { -webkit-mask-image: url('../assets/design/icons/branch.png'); mask-image: url('../assets/design/icons/branch.png'); }
+.brush-icon--view-grid { -webkit-mask-image: url('../assets/design/icons/view-grid.png'); mask-image: url('../assets/design/icons/view-grid.png'); }
+.brush-icon--view-list { -webkit-mask-image: url('../assets/design/icons/view-list.png'); mask-image: url('../assets/design/icons/view-list.png'); }
+.brush-icon--open-book { -webkit-mask-image: url('../assets/design/icons/open-book.png'); mask-image: url('../assets/design/icons/open-book.png'); }
+.brush-icon--knots { -webkit-mask-image: url('../assets/design/icons/knots.png'); mask-image: url('../assets/design/icons/knots.png'); }
 
 /* ── Cells ──────────────────────────────────────────────────────────
  * A list cell (`.sand-cell`) has no hover wash. Under the pointer its

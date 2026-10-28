@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Download, FileText, RotateCcw } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { platform } from '../../platform';
 import type { MarkdownShareDocument, MarkdownShareTarget } from '../../services/export/markdown-share';
@@ -98,7 +98,7 @@ export function MarkdownShareDialog({ target, onClose }: {
             subtitle={target.kind === 'book' ? t('markdownShare.wholeBook') : t('markdownShare.currentBody')} />
           <ModalBody className="markdown-share__body">
             <div className="markdown-share__meta">
-              <FileText size={15} aria-hidden="true" />
+              <BrushIcon name="file-text" size={15} />
               <strong>{document?.filename ?? `${target.title}.md`}</strong>
               <span>{t('markdownShare.readOnly')}</span>
             </div>
@@ -108,7 +108,7 @@ export function MarkdownShareDialog({ target, onClose }: {
             ) : (
               <div className="markdown-share__placeholder" role={error ? 'alert' : 'status'}>
                 <p>{t(error ? 'markdownShare.loadFailed' : 'markdownShare.loading')}</p>
-                {error && <Button onClick={() => { setError(false); setAttempt(value => value + 1); }}><RotateCcw size={14} />{t('markdownShare.retry')}</Button>}
+                {error && <Button onClick={() => { setError(false); setAttempt(value => value + 1); }}><BrushIcon name="rotate" size={14} />{t('markdownShare.retry')}</Button>}
               </div>
             )}
             <div className="markdown-share__caption">

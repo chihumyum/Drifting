@@ -14,7 +14,6 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MoreHorizontal } from 'lucide-react';
 import type { PlotAxis, PlotGrid } from '../../domain/plot-grid';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import {
@@ -38,6 +37,7 @@ import {
 } from './plot-grid/plot-grid-layout';
 import { usePlotGridDraft } from './plot-grid/usePlotGridDraft';
 import '../../../styles/plot-planner.css';
+import { BrushIcon } from '../ui/BrushIcon';
 
 /**
  * The shared Plot Grid surface: one contiguous hairline table that fills its
@@ -601,7 +601,7 @@ export function PlotGridEditor({
           aria-expanded={menu?.axis === axis && menu.id === item.id}
           onClick={(e) => openMenu(e, { axis, id: item.id })}
         >
-          <MoreHorizontal size={14} aria-hidden="true" />
+          <BrushIcon name="more" size={14} />
         </button>
       </>
     );

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
@@ -629,7 +628,7 @@ function CreateTabSlot({
       }}
       style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
     >
-      <Plus size={14} strokeWidth={1.8} aria-hidden />
+      <BrushIcon name="plus" size={14} />
       <span className="app-tab--create__label">{label}</span>
       <button
         type="button"

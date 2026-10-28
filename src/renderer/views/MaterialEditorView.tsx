@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { Maximize2, MessageSquarePlus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
@@ -509,7 +508,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
                 setPending(null);
               }}
             >
-              <MessageSquarePlus size={13} />
+              <BrushIcon name="comment-plus" size={13} />
             </button>
             <button type="button" title={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
               <BrushIcon name="minus" size={13} />
@@ -518,10 +517,10 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
               {Math.round(zoomPan.viewport.scale * 100)}%
             </button>
             <button type="button" title={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
-              <Plus size={13} />
+              <BrushIcon name="plus" size={13} />
             </button>
             <button type="button" title={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
-              <Maximize2 size={13} />
+              <BrushIcon name="fullscreen" size={13} />
             </button>
           </div>
           {drawing && <div className="material-stage__hint">{t('materialEditor.regions.drawHint')}</div>}

@@ -16,7 +16,6 @@
  * inferred title, then commits the whole batch on click.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
@@ -341,7 +340,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button type="button" className="set-btn" onClick={onPickFiles} disabled={running}>
-              <FileText size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
+              <BrushIcon name="file-text" size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
             </button>
             <button type="button" className="set-btn" onClick={onPickFolder} disabled={running}>
               <BrushIcon name="folder" size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFolder')}
@@ -414,11 +413,11 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                 >
                   <span style={{ color: 'hsl(var(--ink-4))' }}>
                     {it.status === 'committed' ? (
-                      <CheckCircle2 size={14} color="hsl(var(--story-3))" />
+                      <BrushIcon name="status-done" size={14} style={{ color: 'hsl(var(--story-3))' }} />
                     ) : it.status === 'error' ? (
-                      <AlertCircle size={14} color="hsl(var(--accent))" />
+                      <BrushIcon name="status-warning" size={14} style={{ color: 'hsl(var(--accent))' }} />
                     ) : (
-                      <FileText size={14} />
+                      <BrushIcon name="file-text" size={14} />
                     )}
                   </span>
                   <span

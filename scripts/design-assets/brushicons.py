@@ -33,6 +33,26 @@ search.png                  an ensō and a short heavy handle
 copy.png                    one sheet over another, a little offset
 stop.png                    a square seal pressed solid
 folder / folder-open / folder-plus   a cloth book case (书帙) shut, opened, and with a plus
+
+Objects and states, also fine grain:
+
+file-text.png               a sheet with its lower corner curling up
+comment-plus.png            the comment icon, a plus at its corner
+rotate.png                  a circle drawn backwards, arrowhead at its end
+sort.png                    counting rods (算筹) laid long to short
+status-done/-warning/-stopped  an inked round seal, a tick, 「！」 or a slash cut white
+cloud.png                   a scroll of cloud (祥云), its tail drawn off to the right
+checklist / checklist-plus  three rows, each after a small box; the first ticked
+sticky-note.png             a slip tucked in at a slant, its top corner folded
+mic.png                     a length of bamboo in a microphone holder
+image / image-plus          a round moon window with hills in it
+eraser.png                  a whisk (拂尘)
+share.png                   a kite let out on the wind
+layers.png                  three sheets laid one on another
+branch.png                  a twig that forks, a bud on each end
+view-grid / view-list       four square seals / three solid bars
+open-book.png               two pages open, two lines on each
+knots.png                   a cord with knots tied along it (结绳记事)
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -123,6 +143,34 @@ def grain_fine(alpha, rng):
     g = rng.random((h, w))
     dither = (g < alpha * 1.2).astype(float) * (0.75 + 0.25 * rng.random((h, w)))
     return np.clip(alpha * 0.7 + dither * 0.3, 0, 1)
+
+def read_png_alpha(path):
+    """The alpha of a committed mask (8-bit RGBA or grey+alpha, any filter)."""
+    data = Path(path).read_bytes()
+    pos, idat = 8, b""
+    while pos < len(data):
+        n, = struct.unpack(">I", data[pos:pos + 4]); kind = data[pos + 4:pos + 8]; body = data[pos + 8:pos + 8 + n]; pos += 12 + n
+        if kind == b"IHDR": w, h, _, ct = struct.unpack(">IIBB", body[:10])
+        elif kind == b"IDAT": idat += body
+    ch = {6: 4, 4: 2}[ct]
+    raw = zlib.decompress(idat); stride = w * ch
+    out = np.zeros((h, stride), np.int32); prev = np.zeros(stride, np.int32); p = 0
+    for y in range(h):
+        f = raw[p]; cur = np.frombuffer(raw[p + 1:p + 1 + stride], np.uint8).astype(np.int32).copy(); p += 1 + stride
+        if f == 2: cur = (cur + prev) & 255
+        elif f in (1, 3, 4):
+            for i in range(stride):
+                a_ = cur[i - ch] if i >= ch else 0; b_ = prev[i]; c_ = prev[i - ch] if i >= ch else 0
+                if f == 1: pr = a_
+                elif f == 3: pr = (a_ + b_) // 2
+                else:
+                    pa, pb, pc = abs(b_ - c_), abs(a_ - c_), abs(a_ + b_ - 2 * c_)
+                    pr = a_ if pa <= pb and pa <= pc else (b_ if pb <= pc else c_)
+                cur[i] = (cur[i] + pr) & 255
+        out[y] = cur; prev = cur
+    return out.reshape(h, w, ch)[..., ch - 1] / 255.0
+
+ICON_DIR = Path(__file__).resolve().parents[2] / "src/assets/design/icons"
 
 # ── Paths ──
 
@@ -475,6 +523,242 @@ def folder_plus(rng):
     brush(a, line((75, 51), (75, 77), 14), G * 0.85, rng, load0=1.0, dry=0.1, taper=(0.05, 0.05))
     return a
 
+# ── Objects and states ──
+
+T = G
+
+def plus_at(a, rng, cx, cy, r=12, th=None):
+    th = th or T * 0.85
+    brush(a, line((cx - r, cy), (cx + r, cy), 14), th, rng, load0=1.0, dry=0.1, taper=(0.05, 0.05))
+    brush(a, line((cx, cy - r), (cx, cy + r), 14), th, rng, load0=1.0, dry=0.1, taper=(0.05, 0.05))
+
+def clear_disc(a, cx, cy, r):
+    erase(a, np.clip((r - np.hypot(XX - cx, YY - cy)) / 1.5, 0, 1))
+
+def arrowhead(a, rng, tip, direction, length=15, spread=38, th=None):
+    th = th or T
+    dx, dy = direction
+    n = np.hypot(dx, dy); dx, dy = dx / n, dy / n
+    for sgn in (1, -1):
+        ang = np.deg2rad(180 + sgn * spread)
+        bx = dx * np.cos(ang) - dy * np.sin(ang); by = dx * np.sin(ang) + dy * np.cos(ang)
+        brush(a, line(tip, (tip[0] + bx * length, tip[1] + by * length), 10), th, rng, load0=1.0, dry=0.2, taper=(0.0, 0.3))
+
+def _comment(scale=1.0, dx=0, dy=0):
+    m = read_png_alpha(ICON_DIR / 'comment.png')
+    if scale == 1.0 and dx == 0 and dy == 0: return m.copy()
+    out = np.zeros_like(m)
+    ys, xs = np.mgrid[0:S, 0:S].astype(float)
+    sx = ((xs - dx) - 48) / scale + 48; sy = ((ys - dy) - 48) / scale + 48
+    ok = (sx >= 0) & (sx < S - 1) & (sy >= 0) & (sy < S - 1)
+    x0 = np.clip(sx.astype(int), 0, S - 2); y0 = np.clip(sy.astype(int), 0, S - 2)
+    fx = sx - x0; fy = sy - y0
+    v = (m[y0, x0] * (1 - fx) * (1 - fy) + m[y0, x0 + 1] * fx * (1 - fy) + m[y0 + 1, x0] * (1 - fx) * fy + m[y0 + 1, x0 + 1] * fx * fy)
+    out[ok] = v[ok]
+    return out
+
+def _arc_dir(a0, a1):
+    t = np.deg2rad(a1); s = 1 if a1 > a0 else -1
+    return (-np.sin(t) * s, np.cos(t) * s)
+
+def _seal(a, rng):
+    disc(a, 48, 48, 37, rng, wob=0.04)
+
+def _carve(a, fn, th):
+    k = new(); fn(k, np.random.default_rng(21), th); erase(a, np.clip(k * 1.3, 0, 1))
+
+def _tick(a, rng, th, k=1.0):
+    brush(a, line((32, 50), (44, 62), 12), th, rng, load0=1.0, dry=0.0, taper=(0.3, 0.0))
+    brush(a, curve([(44, 62), (54, 48), (66, 32)], 12), th, rng, load0=1.0, dry=0.3, taper=(0.0, 0.5))
+
+def _bang(a, rng, th):
+    brush(a, line((48, 24), (48, 56), 14), th * 1.1, rng, load0=1.0, dry=0.2, taper=(0.05, 0.4))
+    disc(a, 48, 68, th * 1.2, rng)
+
+def _slash(a, rng, th):
+    brush(a, line((26, 26), (70, 70)), th, rng, load0=1.0, dry=0.25, taper=(0.06, 0.12))
+
+def _box_row(a, rng, y, ticked=False, x1=86):
+    brush(a, poly((10, y - 8), (26, y - 8), (26, y + 8), (10, y + 8), (10, y - 8), n=8), T * 0.6, rng, load0=1.0, dry=0.1, taper=(0.02, 0.02))
+    if ticked:
+        brush(a, line((12, y - 1), (18, y + 6), 8), T * 0.6, rng, load0=1.0, dry=0.0, taper=(0.2, 0))
+        brush(a, line((18, y + 6), (30, y - 12), 10), T * 0.6, rng, load0=1.0, dry=0.3, taper=(0, 0.4))
+    brush(a, line((38, y), (x1, y)), T * 0.85, rng, load0=1.0, dry=0.3, taper=(0.05, 0.15))
+
+def _rot(pts, deg, c=(48, 48)):
+    t = np.deg2rad(deg); cs, sn = np.cos(t), np.sin(t)
+    return [(c[0] + (x - c[0]) * cs - (y - c[1]) * sn, c[1] + (x - c[0]) * sn + (y - c[1]) * cs) for x, y in pts]
+
+def file_text(rng):
+    """A sheet with its lower corner curling up, three lines written on it."""
+    a = new()
+    brush(a, poly((60, 86), (22, 86), (22, 10), (74, 10), (74, 66), n=20), T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    brush(a, curve([(74, 66), (70, 78), (60, 86)], 10), T * 0.8, rng, load0=1.0, dry=0.2, taper=(0.02, 0.05))
+    brush(a, curve([(74, 66), (64, 70), (60, 86)], 10), T * 0.6, rng, load0=0.9, dry=0.2, taper=(0.05, 0.05))
+    for y, x1 in ((30, 62), (44, 62), (58, 52)):
+        brush(a, line((32, y), (x1, y), 16), T * 0.65, rng, load0=1.0, dry=0.35, taper=(0.06, 0.2))
+    return a
+
+def comment_plus(rng):
+    a = _comment(0.82, -7, -7)
+    clear_disc(a, 76, 76, 17)
+    p = new(); plus_at(p, rng, 76, 76, 12)
+    return a, p
+
+def rotate(rng):
+    """一笔回旋: a circle drawn backwards, its head at the end."""
+    a = new()
+    a0, a1 = 70, -200
+    brush(a, arc(48, 50, 29, 29, a0, a1, 140), T, rng, load0=1.0, dry=0.3, taper=(0.04, 0.0))
+    tip = (48 + 29 * np.cos(np.deg2rad(a1)), 50 + 29 * np.sin(np.deg2rad(a1)))
+    arrowhead(a, rng, tip, _arc_dir(a0, a1), length=19, spread=42, th=T * 0.8)
+    return a
+
+def sort_rods(rng):
+    """算筹: counting rods laid long to short."""
+    a = new()
+    for y, x1 in ((24, 84), (48, 64), (72, 42)):
+        brush(a, line((12, y), (x1, y)), T * 1.05, rng, load0=1.0, dry=0.3, taper=(0.06, 0.12))
+    return a
+
+def status_done(rng): a = new(); _seal(a, rng); _carve(a, _tick, T * 0.95); return a
+
+def status_warning(rng): a = new(); _seal(a, rng); _carve(a, _bang, T * 0.95); return a
+
+def status_stopped(rng): a = new(); _seal(a, rng); _carve(a, _slash, T * 0.95); return a
+
+def cloud(rng):
+    """祥云: a scroll of cloud — a curl rolled in at the left, two lobes, a tail to the right."""
+    a = new()
+    th = np.linspace(0, 2.3 * np.pi, 90)
+    spiral = [(30 + (17 - 13 * t / th[-1]) * np.cos(np.pi / 2 + t), 52 + (17 - 13 * t / th[-1]) * np.sin(np.pi / 2 + t)) for t in th][::-1]
+    lobes = arc(30, 52, 17, 17, 90 + 360 * 2.3 / 2 % 360, 270, 4)[:1]
+    body = arc(52, 42, 17, 17, 200, 335, 30) + arc(74, 52, 12, 12, 250, 400, 24)
+    brush(a, spiral + body, T * 0.95, rng, load0=1.0, dry=0.25, taper=(0.05, 0.05))
+    brush(a, curve([(30, 69), (50, 68), (72, 64), (92, 70)], 16), T * 0.9, rng, load0=1.0, dry=0.45, taper=(0.05, 0.4))
+    return a
+
+def checklist(rng):
+    a = new()
+    _box_row(a, rng, 22, True); _box_row(a, rng, 48); _box_row(a, rng, 74, x1=70)
+    return a
+
+def checklist_plus(rng):
+    a = new()
+    _box_row(a, rng, 22, True); _box_row(a, rng, 48)
+    brush(a, line((38, 74), (58, 74), 12), T * 0.85, rng, load0=1.0, dry=0.3, taper=(0.05, 0.15))
+    plus_at(a, rng, 78, 74, 12)
+    return a
+
+def sticky_note(rng):
+    """浮签: a slip tucked in at a slant, its top corner folded down."""
+    a = new()
+    brush(a, _rot(poly((50, 10), (32, 10), (32, 88), (64, 88), (64, 24), (50, 10), n=20), 14), T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    brush(a, _rot(poly((50, 11), (50, 24), (63, 24), n=10), 14), T * 0.6, rng, load0=0.9, dry=0.2, taper=(0.05, 0.05))
+    brush(a, _rot(line((40, 40), (56, 40), 10), 14), T * 0.6, rng, load0=0.9, dry=0.3, taper=(0.05, 0.2))
+    return a
+
+def mic(rng):
+    """竹筒: a length of bamboo, two nodes across it, in its holder."""
+    a = new()
+    brush(a, poly((36, 50), (36, 10), (60, 10), (60, 50), n=18) + arc(48, 50, 12, 12, 0, 180, 20)[::-1], T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    for y in (24, 38):
+        brush(a, line((34, y), (62, y), 10), T * 0.6, rng, load0=0.9, dry=0.1, taper=(0.05, 0.05))
+    brush(a, arc(48, 48, 22, 22, 0, 180, 40), T * 0.8, rng, load0=1.0, dry=0.25, taper=(0.04, 0.04))
+    brush(a, line((48, 70), (48, 84), 8), T * 0.8, rng, load0=1.0, dry=0.1, taper=(0, 0))
+    brush(a, line((34, 86), (62, 86), 12), T * 0.85, rng, load0=1.0, dry=0.2, taper=(0.05, 0.08))
+    return a
+
+def image(rng, plus=False):
+    """月洞窗: a round moon window with hills in it."""
+    a = new()
+    cx, cy, r = (42, 42, 32) if plus else (48, 48, 36)
+    brush(a, arc(cx, cy, r, r, -100, 265, 150), T * 0.9, rng, load0=1.0, dry=0.25, taper=(0.04, 0.1))
+    clip = np.clip((r - 3 - np.hypot(XX - cx, YY - cy)) / 1.2, 0, 1)
+    m = new()
+    fill_poly(m, [(cx - r, cy + r), (cx - r, cy + 22), (cx - 12, cy + 8), (cx + 2, cy + 18), (cx + 14, cy + 2), (cx + r, cy + 24), (cx + r, cy + r)], rng, rough=0.7)
+    np.maximum(a, m * clip, out=a)
+    if plus:
+        clear_disc(a, 78, 78, 18); plus_at(a, rng, 78, 78, 12)
+    return a
+
+def image_plus(rng): return image(rng, plus=True)
+
+def eraser(rng):
+    """拂尘: a whisk to sweep the grid clean — a short handle and long hair."""
+    a = new()
+    brush(a, line((84, 12), (58, 40)), T * 1.05, rng, load0=1.0, dry=0.1, taper=(0.03, 0.03))
+    disc(a, 57, 41, 5, rng)
+    for k, (ex, ey) in enumerate(((10, 70), (16, 84), (28, 90), (40, 92), (22, 60))):
+        brush(a, curve([(56, 43), ((56 + ex) / 2 + 6, (43 + ey) / 2 - 4), (ex, ey)], 12), T * 0.72, rng,
+              load0=0.95, dry=0.5, taper=(0.0, 0.6))
+    return a
+
+def share(rng):
+    """风筝: a kite let out on the wind, its tail streaming behind."""
+    a = new()
+    pts = [(58, 6), (86, 32), (58, 62), (30, 32)]
+    brush(a, pts + [pts[0]], T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    brush(a, line((58, 8), (58, 60), 16), T * 0.55, rng, load0=0.9, dry=0.2, taper=(0.03, 0.03))
+    brush(a, line((32, 32), (84, 32), 16), T * 0.55, rng, load0=0.9, dry=0.2, taper=(0.03, 0.03))
+    brush(a, curve([(58, 62), (48, 70), (40, 66), (30, 76), (20, 74), (10, 88)], 12), T * 0.7, rng, load0=1.0, dry=0.5, taper=(0.02, 0.5))
+    return a
+
+def layers(rng):
+    """叠纸: three sheets laid one on another, seen at a slant."""
+    a = new()
+    for k, y in enumerate((22, 42, 62)):
+        pts = [(48, y - 14), (86, y), (48, y + 14), (10, y)]
+        if k == 0:
+            brush(a, pts + [pts[0]], T * 0.8, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+        else:
+            brush(a, [(10, y - 2), (48, y + 14), (86, y - 2)], T * 0.8, rng, load0=1.0, dry=0.2, taper=(0.04, 0.04))
+    return a
+
+def branch(rng):
+    """枝: a twig that forks, a bud on each end."""
+    a = new()
+    brush(a, curve([(28, 90), (32, 62), (30, 36), (26, 14)]), T, rng, load0=1.0, dry=0.3, taper=(0.04, 0.2))
+    brush(a, curve([(31, 62), (48, 48), (64, 36), (72, 20)]), T * 0.9, rng, load0=1.0, dry=0.35, taper=(0.0, 0.25))
+    disc(a, 26, 12, 6.5, rng); disc(a, 74, 17, 6.5, rng)
+    return a
+
+def view_grid(rng):
+    """四印: four small square seals pressed in a grid."""
+    a = new()
+    for x in (14, 52):
+        for y in (14, 52):
+            fill_poly(a, _rot([(x, y), (x + 30, y), (x + 30, y + 30), (x, y + 30)], rng.uniform(-4, 4), (x + 15, y + 15)), rng, rough=0.7)
+    return a
+
+def view_list(rng):
+    """三条: three solid bars."""
+    a = new()
+    for y in (16, 40, 64):
+        fill_poly(a, _rot([(12, y), (84, y), (84, y + 16), (12, y + 16)], rng.uniform(-1.5, 1.5), (48, y + 8)), rng, rough=0.7)
+    return a
+
+def open_book(rng):
+    """摊开的书: two pages open, a line on each."""
+    a = new()
+    brush(a, curve([(48, 26), (30, 18), (10, 22)], 14) + [(10, 76)] + curve([(10, 76), (30, 72), (48, 80)], 14), T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    brush(a, curve([(48, 26), (66, 18), (86, 22)], 14) + [(86, 76)] + curve([(86, 76), (66, 72), (48, 80)], 14), T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    brush(a, line((48, 27), (48, 79)), T * 0.6, rng, load0=0.9, dry=0.2, taper=(0.05, 0.05))
+    for x0 in (20, 58):
+        brush(a, line((x0, 42), (x0 + 18, 41), 10), T * 0.55, rng, load0=0.9, dry=0.3, taper=(0.05, 0.2))
+        brush(a, line((x0, 56), (x0 + 14, 55), 10), T * 0.55, rng, load0=0.9, dry=0.3, taper=(0.05, 0.2))
+    return a
+
+def knots(rng):
+    """结绳: a cord with knots tied along it — the oldest way to remember."""
+    a = new()
+    brush(a, curve([(48, 6), (52, 30), (46, 56), (50, 82)], 20), T * 0.75, rng, load0=1.0, dry=0.2, taper=(0.04, 0.05))
+    for y, r in ((22, 7.5), (44, 8.5), (66, 7.0)):
+        disc(a, 49 + (2 if y == 22 else -2 if y == 44 else 1), y, r, rng, wob=0.12)
+    for dx in (-7, 0, 7):
+        brush(a, line((50, 82), (50 + dx, 94), 6), T * 0.5, rng, load0=0.9, dry=0.5, taper=(0, 0.5))
+    return a
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -490,6 +774,14 @@ GLYPHS = {
     "search": (search, 1032), "copy": (copy, 1033), "stop": (stop, 1036),
     "folder": (folder, 1038), "folder-open": (folder_open, 1039), "folder-plus": (folder_plus, 1040),
 }
+OBJECTS = {
+    "file-text": (file_text, 2003), "comment-plus": (comment_plus, 2004), "rotate": (rotate, 2006), "sort": (sort_rods, 2009),
+    "status-done": (status_done, 2013), "status-warning": (status_warning, 2014), "status-stopped": (status_stopped, 2015),
+    "cloud": (cloud, 2016), "checklist": (checklist, 2018), "checklist-plus": (checklist_plus, 2019),
+    "sticky-note": (sticky_note, 2022), "mic": (mic, 2025), "image": (image, 2027), "image-plus": (image_plus, 2028),
+    "eraser": (eraser, 2033), "share": (share, 2035), "layers": (layers, 2039), "branch": (branch, 2041),
+    "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050),
+}
 masks = {}
 for name, (draw, seed) in ICONS.items():
     rng = np.random.default_rng(seed)
@@ -497,6 +789,14 @@ for name, (draw, seed) in ICONS.items():
 for name, (draw, seed) in GLYPHS.items():
     rng = np.random.default_rng(seed)
     masks[name] = grain_fine(draw(rng), rng)
+for name, (draw, seed) in OBJECTS.items():
+    rng = np.random.default_rng(seed)
+    out = draw(rng)
+    if isinstance(out, tuple):          # a committed icon plus fresh strokes
+        base, extra = out
+        masks[name] = np.maximum(base, grain_fine(extra, rng))
+    else:
+        masks[name] = grain_fine(out, rng)
 # One stroke turned or mirrored, so every direction carries the same grain.
 masks["arrow-forward"] = masks["arrow-back"][:, ::-1]
 for k, name in ((1, "chevron-right"), (2, "chevron-up"), (3, "chevron-left")):

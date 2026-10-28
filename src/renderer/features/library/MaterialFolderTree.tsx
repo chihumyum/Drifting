@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText, MoreHorizontal } from 'lucide-react';
 
 import type { LibraryItem } from '../../domain/library-item';
 import { extractTextFromCommentBody } from '../../domain/comment';
@@ -608,7 +607,7 @@ function MaterialCell({
     <div className="material-tree__cell">
       <div className="material-tree__cell-head">
         <span className={`material-tree__thumb material-tree__thumb--${item.kind}`} aria-hidden>
-          {binary && thumbnail.fileUrl ? <img src={thumbnail.fileUrl} alt="" /> : <FileText size={14} strokeWidth={1.5} />}
+          {binary && thumbnail.fileUrl ? <img src={thumbnail.fileUrl} alt="" /> : <BrushIcon name="file-text" size={14} />}
         </span>
         <span className="material-tree__cell-text">
           {renaming ? (
@@ -684,7 +683,7 @@ function MoreButton({ label, onOpen }: { label: string; onOpen: (event: MouseEve
         onOpen(event);
       }}
     >
-      <MoreHorizontal size={13} strokeWidth={1.6} />
+      <BrushIcon name="more" size={13} />
     </button>
   );
 }

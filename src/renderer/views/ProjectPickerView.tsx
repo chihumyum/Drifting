@@ -10,7 +10,6 @@ import { FilterChip } from '../components/ui/FilterChip';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
-import { BookOpen, Grid2X2, List, Plus } from 'lucide-react';
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
@@ -532,7 +531,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 aria-label={t('projectPicker.view.card')}
                 aria-pressed={view === 'grid'}
               >
-                <Grid2X2 size={16} aria-hidden="true" />
+                <BrushIcon name="view-grid" size={16} />
               </button>
               <button
                 type="button"
@@ -541,7 +540,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 aria-label={t('projectPicker.view.list')}
                 aria-pressed={view === 'list'}
               >
-                <List size={17} aria-hidden="true" />
+                <BrushIcon name="view-list" size={17} />
               </button>
             </div>
             <button
@@ -549,7 +548,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
               className="pp-toolbar__btn pp-toolbar__btn--accent"
               onClick={() => setCreateOpen(true)}
             >
-              <Plus size={17} aria-hidden="true" /> {t('projectPicker.newProject')}
+              <BrushIcon name="plus" size={17} /> {t('projectPicker.newProject')}
             </button>
           </div>
         </div>
@@ -558,7 +557,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         <section className="pp-section">
           <div className="pp-section__head">
             <div className="pp-section__title">
-              <BookOpen className="pp-section__title-mark" size={18} aria-hidden="true" />
+              <BrushIcon name="books" size={18} className="pp-section__title-mark" />
               <span className="pp-section__title-cn">{t('projectPicker.allProjectsCn')}</span>
             </div>
             <div className="pp-section__aside">
@@ -602,7 +601,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 tabIndex={0}
               >
                 <div className="pp-card--new__glyph">
-                  <Plus size={24} aria-hidden="true" />
+                  <BrushIcon name="plus" size={24} />
                 </div>
                 <div className="pp-card--new__label">{t('projectPicker.newBookInline')}</div>
                 <div className="pp-card--new__sub">{t('projectPicker.newBookSubtitle')}</div>
@@ -628,7 +627,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 tabIndex={0}
               >
                 <span className="pp-list__glyph">
-                  <Plus size={18} aria-hidden="true" />
+                  <BrushIcon name="plus" size={18} />
                 </span>
                 <div className="pp-list__title">
                   <span className="pp-list__title-main" style={{ color: 'hsl(var(--ink-4))' }}>

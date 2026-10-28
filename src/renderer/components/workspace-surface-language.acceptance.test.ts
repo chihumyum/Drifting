@@ -919,6 +919,10 @@ describe('workspace surface language acceptance', () => {
       // Small glyphs, finished with fine grain.
       'close', 'arrow-back', 'arrow-forward', 'chevron-down', 'chevron-right', 'chevron-up', 'chevron-left',
       'check', 'minus', 'loader', 'trash', 'edit', 'search', 'copy', 'stop', 'folder', 'folder-open', 'folder-plus',
+      // Objects and states.
+      'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
+      'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
+      'view-grid', 'view-list', 'open-book', 'knots',
     ];
     for (const name of names) {
       expect(brushIcon).toContain(`| '${name}'`);
@@ -930,11 +934,9 @@ describe('workspace surface language acceptance', () => {
     expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
   });
 
-  it('keeps the basic action glyphs off lucide outside the paused mobile shell', () => {
-    const replaced = [
-      'X', 'ArrowLeft', 'ChevronDown', 'ChevronRight', 'ChevronUp', 'ChevronLeft', 'Check', 'Minus', 'Loader2',
-      'LoaderCircle', 'Trash2', 'Pencil', 'Search', 'Copy', 'Square', 'Folder', 'FolderOpen', 'FolderPlus',
-    ];
+  it('keeps lucide out of the desktop renderer outside the paused mobile shell', () => {
+    // Save-as-file and the Project Home "recent" mark are still being picked.
+    const pending = ['Download', 'LayoutDashboard'];
     const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[])
       .filter((file) => file.endsWith('.tsx') && !file.includes('.test.') && !file.startsWith('shells/mobile/'));
     expect(files.length).toBeGreaterThan(100);
@@ -942,7 +944,7 @@ describe('workspace surface language acceptance', () => {
       const lucide = source(`src/renderer/${file}`).match(/import \{([^}]*)\} from 'lucide-react'/);
       if (!lucide) continue;
       const names = lucide[1].split(',').map((name) => name.trim().split(' as ')[0]);
-      expect(names.filter((name) => replaced.includes(name)), file).toEqual([]);
+      expect(names.filter((name) => !pending.includes(name)), file).toEqual([]);
     }
     // The shared generator draws them with fine grain; the spinner turns in CSS.
     const generator = source('scripts/design-assets/brushicons.py');

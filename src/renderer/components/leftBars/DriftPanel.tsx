@@ -5,7 +5,6 @@ import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { canonicalWordCount, isDrift, type BookNode } from '../../domain/book-node';
@@ -520,7 +519,7 @@ export function DriftPanel({
               flexShrink: 0,
             }}
           >
-            <Plus size={11} strokeWidth={1.8} />
+            <BrushIcon name="plus" size={11} />
           </button>
         </div>
       );

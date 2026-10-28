@@ -1,6 +1,5 @@
 import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ListTodo, MessageSquare, MoreHorizontal, RotateCcw, Sparkles, StickyNote } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -105,9 +104,9 @@ function ReviewActionMenuItem({
 }
 
 function itemIcon(comment: Comment) {
-  if (comment.kind === 'todo') return <ListTodo size={12} />;
-  if (comment.source === 'copilot') return <Sparkles size={12} />;
-  return <MessageSquare size={12} />;
+  if (comment.kind === 'todo') return <BrushIcon name="checklist" size={12} />;
+  if (comment.source === 'copilot') return <BrushIcon name="shikigami" size={12} />;
+  return <BrushIcon name="comment" size={12} />;
 }
 
 export function ReviewItemCard({
@@ -342,13 +341,13 @@ export function ReviewItemCard({
         </span>
         {presentation === 'panel' && mountedInStickyRail && (
           <span className="review-card__sticky-state" title={t('reviewPanel.inSticky')}>
-            <StickyNote size={11} />
+            <BrushIcon name="sticky-note" size={11} />
           </span>
         )}
         <GhostIconButton
           size="sm"
           className="review-card__menu-button"
-          icon={<MoreHorizontal size={13} />}
+          icon={<BrushIcon name="more" size={13} />}
           onClick={openActionMenu}
           title={t('common.more')}
           aria-label={t('common.more')}
@@ -439,7 +438,7 @@ export function ReviewItemCard({
         >
           {presentation === 'panel' && onToggleStickyRail && (
             <ReviewActionMenuItem
-              icon={mountedInStickyRail ? <BrushIcon name="close" size={12} /> : <StickyNote size={12} />}
+              icon={mountedInStickyRail ? <BrushIcon name="close" size={12} /> : <BrushIcon name="sticky-note" size={12} />}
               label={mountedInStickyRail ? t('reviewPanel.removeSticky') : t('reviewPanel.addSticky')}
               checked={mountedInStickyRail}
               onSelect={() => selectMenuAction(onToggleStickyRail)}
@@ -458,7 +457,7 @@ export function ReviewItemCard({
           />
           {snapshots.length > 0 && (
             <ReviewActionMenuItem
-              icon={<MessageSquare size={12} />}
+              icon={<BrushIcon name="comment" size={12} />}
               label={t('reviewPanel.source')}
               onSelect={() => selectMenuAction(() => setSnapshotOpen(true))}
             />
@@ -488,7 +487,7 @@ export function ReviewItemCard({
             <>
               <div className="menu-surface__divider" />
               <ReviewActionMenuItem
-                icon={isResolved ? <RotateCcw size={12} /> : <BrushIcon name="check" size={12} />}
+                icon={isResolved ? <BrushIcon name="rotate" size={12} /> : <BrushIcon name="check" size={12} />}
                 label={
                   isResolved ? t('commentRail.actions.reopen') : t('commentRail.actions.resolve')
                 }
@@ -504,7 +503,7 @@ export function ReviewItemCard({
                 }
               />
               <ReviewActionMenuItem
-                icon={<ListTodo size={12} />}
+                icon={<BrushIcon name="checklist" size={12} />}
                 label={isTodo ? t('commentRail.actions.toNote') : t('commentRail.actions.toTodo')}
                 disabled={busy}
                 onSelect={() =>

@@ -6,7 +6,6 @@ import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookElement } from '../../domain/book-element';
@@ -36,6 +35,7 @@ import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import type { EditorType } from '../editor/EditorTopBar';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -931,7 +931,7 @@ function ElementGroupHeader({
             flexShrink: 0,
           }}
         >
-          <Plus size={11} strokeWidth={1.8} />
+          <BrushIcon name="plus" size={11} />
         </button>
       )}
     </div>

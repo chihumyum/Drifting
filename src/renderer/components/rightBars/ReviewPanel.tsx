@@ -1,6 +1,5 @@
 import { useSidebarPreference, useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, ListPlus, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -357,7 +356,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
             ref={sortButtonRef}
             className="review-panel__sort-button"
             size="sm"
-            icon={<ArrowDownUp size={12} strokeWidth={1.6} />}
+            icon={<BrushIcon name="sort" size={12} />}
             onClick={() => setSortMenuOpen((open) => !open)}
             title={t('leftSidebar.actions.sort')}
             aria-label={t('leftSidebar.actions.sort')}
@@ -366,14 +365,14 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
           />
           <GhostIconButton
             size="sm"
-            icon={<MessageSquarePlus size={12} strokeWidth={1.6} />}
+            icon={<BrushIcon name="comment-plus" size={12} />}
             onClick={() => setComposeKind('note')}
             title={t('reviewPanel.newComment')}
             aria-label={t('reviewPanel.newComment')}
           />
           <GhostIconButton
             size="sm"
-            icon={<ListPlus size={12} strokeWidth={1.6} />}
+            icon={<BrushIcon name="checklist-plus" size={12} />}
             onClick={() => setComposeKind('todo')}
             title={t('todoPanel.newTodo')}
             aria-label={t('todoPanel.newTodo')}
