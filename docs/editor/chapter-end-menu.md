@@ -4,8 +4,8 @@ Every chapter page ends with `⁂`, drawn as a sand-brush mark: 三尊石, the
 triad of stones in a dry garden (`stones-triad`). On desktop it is also the
 chapter's end menu (`ChapterEndMenu`): moving the pointer onto it (70 ms),
 clicking it, or Enter/Arrow keys on it morphs the mark into three monospace
-actions on its own line, each led by its brush icon, the primary one centred
-where `⁂` stood:
+actions, each led by its brush icon, in one column centred on the mark, top
+to bottom, with the primary one on the mark's own line:
 
 - 标为完成 / 改回草稿 toggles the chapter between finished and draft; its icon
   is the brush laid on its rest (搁笔) or lifted off it (提笔), and a finished
@@ -22,17 +22,17 @@ last chapter's menu is the end-of-book insert; an empty 通览全书 offers
 
 Opening is armed by real pointer movement on `⁂`, so a page scrolling `⁂`
 under a still pointer never opens it, and hovering gives the mark no pressed
-wash. `⁂` and the action row share one grid cell inside the page, so opening
+wash. The action list overhangs `⁂`'s margins, centred on it, so opening
 never shifts the layout and needs no popover. The morph is one simultaneous
 cross-zoom: `⁂` fades, shrinks to 0.6 and blurs 2 px while the actions fade
-in, unblur and unfold 12 px outward from it, so neither state ever reads as an
-empty gap — 150 ms in, 110 ms back. The row is the band the pointer may roam: moving along it keeps the
+in, unblur and unfold a row (22 px) up and down from it, so neither state ever
+reads as an empty gap — 150 ms in, 110 ms back. The list is the area the pointer may roam: moving along it keeps the
 actions, and leaving it — more than 2 px above or below, or 6 px past either
-end — restores `⁂` at once, as does scrolling the page under a still pointer
+side — restores `⁂` at once, as does scrolling the page under a still pointer
 or leaving the window. Because the
 primary action opens beneath a pointer resting on `⁂`, clicks within 250 ms of
 a hover opening are ignored. A click on `⁂` opens the row at once. The keyboard
-opens on 新建下一章, arrows move along the row, Escape or Tab return to `⁂`, an
+opens on 新建下一章, arrows move along the list, Escape or Tab return to `⁂`, an
 outside click dismisses it, and pointer movement never closes a
 keyboard-opened row. The actions use the platform monospace stack
 (`--font-prose-mono`) with no border or background; each icon sits 6 px before its label.

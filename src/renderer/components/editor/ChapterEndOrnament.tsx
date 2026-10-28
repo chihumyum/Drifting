@@ -36,8 +36,8 @@ export interface ChapterEndMenuProps {
 // Opening waits for the pointer to actually move on ⁂ this long, so a page
 // scrolling beneath a still pointer, or a sweep across the page, never opens it.
 const HOVER_OPEN_MS = 70;
-// The row is the band the pointer may roam: leaving it by more than this
-// (above, below or past either end) restores ⁂ at once.
+// The list is the area the pointer may roam: leaving it by more than this
+// (above, below or past either side) restores ⁂ at once.
 const BAND_SLOP_X = 6;
 const BAND_SLOP_Y = 2;
 // The primary action opens beneath a pointer resting on ⁂; a click this soon
@@ -57,9 +57,9 @@ type Opener = 'hover' | 'click' | 'keyboard';
 
 // A chapter page's ⁂ doubles as its end-of-chapter menu. Moving onto it (after
 // a brief intent delay), a click or keyboard focus cross-fades the mark into
-// three monospace actions on the same line, each led by its brush icon, the
-// primary one centred where ⁂ stood. Leaving that line in any direction fades
-// ⁂ straight back. A finished chapter's ⁂ takes the accent colour.
+// three monospace actions, each led by its brush icon, in one column centred
+// on ⁂ with the primary one on ⁂'s line. Leaving the list in any direction
+// fades ⁂ straight back. A finished chapter's ⁂ takes the accent colour.
 export function ChapterEndMenu({
   finished,
   onInsert,
