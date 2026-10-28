@@ -9,7 +9,13 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { TimelineMarker } from '../../domain/timeline-marker';
 import { MOBILE_PLANNING_CONTEXT_MENU_MS } from '../../features/graph/mobile-planning-gesture';
-import { TimelinePinMenu } from '../graph/TimelinePinMenu';
+import { useHoverPreview } from '../../features/entities/hover/entity-hover-card-model';
+import {
+  HoverCardHeading,
+  HoverCardShell,
+  type HoverAction,
+  type HoverActionGroup,
+} from '../ui/HoverCard';
 
 export interface TimelinePinAnchor {
   left: number;
@@ -36,10 +42,17 @@ export interface TimelinePinProps {
   onOpenDrift?: (anchor?: TimelinePinAnchor) => void;
 }
 
+function anchorOf(element: HTMLElement): TimelinePinAnchor {
+  const rect = element.getBoundingClientRect();
+  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+}
+
 /**
  * Shared narrative-time marker used by both BottomTimeline and StoryGraph.
  * The two surfaces own their coordinate systems and CSS, while drag,
- * rename, drift binding, keyboard, and context-menu behavior stay singular.
+ * rename, drift binding, keyboard, and hover-card behavior stay singular.
+ * What a right-click menu used to offer is along the bottom of the label's
+ * hover card; right-click itself shows the native menu.
  */
 export function TimelinePin({
   marker,
@@ -60,7 +73,14 @@ export function TimelinePin({
   const isBound = Boolean(marker.driftNodeId);
   const [editing, setEditing] = useState(editOnMount && !isBound);
   const [isDragging, setIsDragging] = useState(false);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const {
+    preview: pinCard,
+    onEnter: pinCardEnter,
+    onLeave: pinCardLeave,
+    dismiss: dismissPinCard,
+    open: openPinCard,
+    card: pinCardPointer,
+  } = useHoverPreview<string>();
   const dragCleanupRef = useRef<((updateState?: boolean) => void) | null>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const classPrefix = variant === 'graph' ? 'graph-pin' : 'btl-pin';
@@ -68,23 +88,10 @@ export function TimelinePin({
 
   useLayoutEffect(() => () => dragCleanupRef.current?.(false), []);
 
-  const openBoundDrift = useCallback(
-    (fallback?: TimelinePinAnchor) => {
-      if (!isBound || !onOpenDrift) return;
-      const rect = labelRef.current?.getBoundingClientRect();
-      onOpenDrift(
-        rect
-          ? {
-              left: rect.left,
-              top: rect.top,
-              width: rect.width,
-              height: rect.height,
-            }
-          : fallback,
-      );
-    },
-    [isBound, onOpenDrift],
-  );
+  const openBoundDrift = useCallback(() => {
+    if (!isBound || !onOpenDrift) return;
+    onOpenDrift(labelRef.current ? anchorOf(labelRef.current) : undefined);
+  }, [isBound, onOpenDrift]);
 
   const startDrag = useCallback(
     (event: ReactPointerEvent) => {
@@ -92,20 +99,21 @@ export function TimelinePin({
       event.preventDefault();
       event.stopPropagation();
       dragCleanupRef.current?.();
+      dismissPinCard();
 
       const startMouseX = event.clientX;
       const startPixel = orderToPosition(marker.narrativeOrder);
       const pointerId = event.pointerId;
-      const menuPoint = { x: event.clientX + 2, y: event.clientY - 2 };
       let nextOrder = marker.narrativeOrder;
       let dragging = false;
       let ended = false;
       let longPressed = false;
+      // Touch has no hover: holding the pin opens its card.
       let longPressTimer: number | null =
         event.pointerType === 'touch'
           ? window.setTimeout(() => {
               longPressed = true;
-              setMenu(menuPoint);
+              if (labelRef.current) openPinCard(marker.id, labelRef.current);
             }, MOBILE_PLANNING_CONTEXT_MENU_MS)
           : null;
 
@@ -166,15 +174,30 @@ export function TimelinePin({
       window.addEventListener('blur', onBlur);
     },
     [
+      dismissPinCard,
       editing,
+      marker.id,
       marker.narrativeOrder,
       onChange,
       onDragMove,
       openBoundDrift,
+      openPinCard,
       orderToPosition,
       positionToOrder,
     ],
   );
+
+  // A card opened by a touch hold has no pointer leaving to close it, so a
+  // press anywhere else does.
+  useEffect(() => {
+    if (!pinCard) return undefined;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.timeline-pin__card')) return;
+      dismissPinCard();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [pinCard, dismissPinCard]);
 
   useEffect(() => {
     if (!editing || !labelRef.current) return;
@@ -205,21 +228,71 @@ export function TimelinePin({
     .join(' ');
   const displayLabel = isBound ? boundDriftTitle || t('common.untitled') : marker.label;
 
+  // What the pin's right-click menu used to offer, along its card's bottom.
+  const pinCardActions = (label: HTMLElement): HoverActionGroup[] => {
+    const actions: HoverAction[] = [];
+    if (isBound) {
+      if (onOpenDrift) {
+        actions.push({
+          key: 'open-drift',
+          label: t('bottomTimeline.pinMenu.openDrift'),
+          onSelect: () => onOpenDrift(anchorOf(label)),
+        });
+      }
+      actions.push({
+        key: 'unbind',
+        label: t('bottomTimeline.pinMenu.unbind'),
+        onSelect: handleUnbind,
+      });
+    } else {
+      if (onRequestBind) {
+        actions.push({
+          key: 'bind',
+          label: t('bottomTimeline.pinMenu.bindDrift'),
+          onSelect: onRequestBind,
+        });
+      }
+      actions.push({
+        key: 'rename',
+        label: t('bottomTimeline.pinMenu.rename'),
+        onSelect: () => setEditing(true),
+      });
+    }
+    return [
+      { key: 'marker', actions },
+      {
+        key: 'delete',
+        actions: [
+          {
+            key: 'delete',
+            label: t('bottomTimeline.pinMenu.deleteMarker'),
+            danger: true,
+            onSelect: onDelete,
+          },
+        ],
+      },
+    ];
+  };
+
   return (
     <div
       className={className}
       style={{ left: x, height: pinHeight }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setMenu({ x: event.clientX + 2, y: event.clientY - 2 });
-      }}
+      // A double-click anywhere on the pin is not one on the empty axis the
+      // host listens to for new markers.
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <div
         ref={labelRef}
         className={`${classPrefix}__label`}
         contentEditable={editing}
         suppressContentEditableWarning
+        onMouseEnter={(event) => {
+          // No card while renaming, or while a button is held (a drag).
+          if (editing || event.buttons !== 0) return;
+          pinCardEnter(marker.id, event.currentTarget);
+        }}
+        onMouseLeave={pinCardLeave}
         onPointerDown={editing ? (event) => event.stopPropagation() : startDrag}
         onDoubleClick={(event) => {
           event.stopPropagation();
@@ -242,13 +315,9 @@ export function TimelinePin({
             event.currentTarget.blur();
           }
         }}
-        title={
-          isBound
-            ? t('bottomTimeline.marker.boundTitle')
-            : editing
-              ? t('bottomTimeline.marker.editingTitle')
-              : t('bottomTimeline.marker.renameTitle')
-        }
+        // At rest the hover card carries the hint; a native tooltip would
+        // stack on it.
+        title={editing ? t('bottomTimeline.marker.editingTitle') : undefined}
       >
         {displayLabel}
       </div>
@@ -257,18 +326,25 @@ export function TimelinePin({
         onPointerDown={startDrag}
         title={t('bottomTimeline.marker.dragTitle')}
       />
-      {menu && (
-        <TimelinePinMenu
-          x={menu.x}
-          y={menu.y}
-          isBound={isBound}
-          onOpenDrift={() => openBoundDrift({ left: menu.x, top: menu.y, width: 0, height: 0 })}
-          onUnbind={handleUnbind}
-          onRequestBind={() => onRequestBind?.()}
-          onRename={() => setEditing(true)}
-          onDelete={onDelete}
-          onClose={() => setMenu(null)}
-        />
+      {pinCard && !editing && (
+        <HoverCardShell
+          anchor={pinCard.anchor}
+          placement="top-center"
+          className="timeline-pin__card"
+          label={displayLabel}
+          pointer={pinCardPointer}
+          actions={pinCardActions(pinCard.anchor)}
+          onDismiss={dismissPinCard}
+        >
+          <HoverCardHeading
+            title={displayLabel}
+            detail={
+              isBound
+                ? t('bottomTimeline.marker.boundTitle')
+                : t('bottomTimeline.marker.renameTitle')
+            }
+          />
+        </HoverCardShell>
       )}
     </div>
   );

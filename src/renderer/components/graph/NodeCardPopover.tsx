@@ -11,8 +11,8 @@ import {
   type EntityCardAnchorRect,
 } from '../ui/EntityCardPopoverShell';
 import { GhostIconButton } from '../ui/GhostIconButton';
-import { X } from 'lucide-react';
 import loglevel from 'loglevel';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('NodeCardPopover');
 log.setLevel(loglevel.levels.WARN);
@@ -162,7 +162,7 @@ export function NodeCardPopover({
                 title={t('commentRail.actions.close')}
                 aria-label={t('commentRail.actions.close')}
                 size="sm"
-                icon={<X size={14} aria-hidden="true" />}
+                icon={<BrushIcon name="close" size={14} />}
               />
             </div>
             <textarea
@@ -227,7 +227,7 @@ export function NodeCardPopover({
                 title={t('commentRail.actions.close')}
                 aria-label={t('commentRail.actions.close')}
                 size="sm"
-                icon={<X size={14} aria-hidden="true" />}
+                icon={<BrushIcon name="close" size={14} />}
               />
             </div>
             <div className="node-card__editor">

@@ -1,6 +1,6 @@
-import { Loader2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ImageInboxEntry } from '../../platform';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 export type ElementImageGenerationState = 'idle' | 'starting' | 'running';
 
@@ -42,7 +42,7 @@ export function ElementImageCandidates({
         <span className="elem-candidates__title">{t('elementEditor.imageGeneration.candidates')}</span>
         {generation !== 'idle' && (
           <button type="button" className="elem-candidates__status" onClick={onOpenSession}>
-            <Loader2 className="elem-portrait__icon elem-portrait__icon--spin" aria-hidden />
+            <BrushIcon name="loader" size={12} className="elem-portrait__icon elem-portrait__icon--spin" />
             {t(
               generation === 'starting'
                 ? 'elementEditor.imageGeneration.starting'
@@ -82,7 +82,7 @@ export function ElementImageCandidates({
                     onClick={() => onSetPortrait(candidate)}
                   >
                     {busy ? (
-                      <Loader2 className="elem-portrait__icon elem-portrait__icon--spin" aria-hidden />
+                      <BrushIcon name="loader" size={12} className="elem-portrait__icon elem-portrait__icon--spin" />
                     ) : null}
                     {t('elementEditor.imageGeneration.setPortrait')}
                   </button>
@@ -102,7 +102,7 @@ export function ElementImageCandidates({
                     title={t('elementEditor.imageGeneration.discard')}
                     aria-label={t('elementEditor.imageGeneration.discard')}
                   >
-                    <X className="elem-portrait__icon" aria-hidden />
+                    <BrushIcon name="close" size={12} className="elem-portrait__icon" />
                   </button>
                 </div>
               </li>

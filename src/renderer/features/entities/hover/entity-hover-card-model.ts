@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import type { StructuralEntityKind } from '../../../domain/entity-kinds';
@@ -119,7 +119,9 @@ export function buildEntityHoverCardContent(
       }
       if (groupPath.length > 0) meta.push({ text: groupPath.join(' / '), color });
     }
-    return { summary: node.summary, meta };
+    // Cards now stand on their own (timeline tiles truncate names), so every
+    // kind leads with its name.
+    return { title: node.title || t('common.untitled'), summary: node.summary, meta };
   }
 
   if (target.kind === 'element') {
@@ -152,6 +154,7 @@ export function buildEntityHoverCardContent(
       ? wordCounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
       : null;
     return {
+      title: storyline.name || t('common.untitled'),
       summary: storyline.summary,
       meta: [
         { text: t('storylineEditor.meta.chapters', { count: nodes.length }) },
@@ -182,35 +185,63 @@ export function buildEntityHoverCardContent(
   return null;
 }
 
+// Leaving a row gives the pointer this long to reach its card's actions.
+const HOVER_CARD_GRACE_MS = 220;
+
 /**
- * Shared hover-intent state for sidebar rows and inline entity links. The
- * anchor element is retained so a visible card can reposition on scroll.
+ * Shared hover-intent state for sidebar rows, timeline clips, cards and
+ * inline entity links. The anchor element is retained so a visible card can
+ * reposition on scroll. `onLeave` waits a moment before closing so the
+ * pointer can cross into the card (`card` goes on the card); `dismiss`
+ * closes at once, for clicks and drags; `open` shows at once.
  */
 export function useHoverPreview<T>(delayMs = HOVER_PREVIEW_DELAY_MS) {
   const [preview, setPreview] = useState<EntityHoverPreview<T> | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const showTimerRef = useRef<number | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current == null) return;
-    window.clearTimeout(timerRef.current);
-    timerRef.current = null;
+  const clearTimers = useCallback(() => {
+    for (const ref of [showTimerRef, closeTimerRef]) {
+      if (ref.current == null) continue;
+      window.clearTimeout(ref.current);
+      ref.current = null;
+    }
   }, []);
 
   const onEnter = useCallback(
     (data: T, anchor: HTMLElement) => {
-      clearTimer();
-      timerRef.current = window.setTimeout(() => {
+      clearTimers();
+      showTimerRef.current = window.setTimeout(() => {
+        showTimerRef.current = null;
         if (anchor.isConnected) setPreview({ data, anchor });
       }, delayMs);
     },
-    [clearTimer, delayMs],
+    [clearTimers, delayMs],
   );
 
   const onLeave = useCallback(() => {
-    clearTimer();
-    setPreview(null);
-  }, [clearTimer]);
+    clearTimers();
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setPreview(null);
+    }, HOVER_CARD_GRACE_MS);
+  }, [clearTimers]);
 
-  useEffect(() => () => clearTimer(), [clearTimer]);
-  return { preview, onEnter, onLeave };
+  const dismiss = useCallback(() => {
+    clearTimers();
+    setPreview(null);
+  }, [clearTimers]);
+
+  // Shows at once: a ⋯ button or a keyboard request for the card.
+  const open = useCallback((data: T, anchor: HTMLElement) => {
+    clearTimers();
+    if (anchor.isConnected) setPreview({ data, anchor });
+  }, [clearTimers]);
+
+  // The pointer reaching the card keeps it, and cancels a card pending for a
+  // row it crossed on the way.
+  const card = useMemo(() => ({ onMouseEnter: clearTimers, onMouseLeave: onLeave }), [clearTimers, onLeave]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+  return { preview, onEnter, onLeave, dismiss, open, card };
 }

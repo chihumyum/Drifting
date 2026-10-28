@@ -33,7 +33,6 @@ interface AnchoredPopoverProps {
   restoreFocus?: boolean;
   dismissOnOutside?: boolean;
   dismissOnEscape?: boolean;
-  onContextMenu?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -76,7 +75,6 @@ export function AnchoredPopover({
   restoreFocus = true,
   dismissOnOutside = true,
   dismissOnEscape = true,
-  onContextMenu,
 }: AnchoredPopoverProps) {
   const localPopoverRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -218,7 +216,6 @@ export function AnchoredPopover({
       aria-label={ariaLabel}
       data-placement={position?.resolvedPlacement ?? placement}
       onKeyDown={handlePopoverKeyDown}
-      onContextMenu={onContextMenu}
       style={{
         ...style,
         position: 'fixed',

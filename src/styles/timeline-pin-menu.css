@@ -1,6 +1,0 @@
-/* Context menu for timeline pins (shared by BottomTimeline + StoryGraphView).
-   Portaled to body and rendered as a sharp fixed surface. */
-
-.tlpin-menu {
-  z-index: var(--z-context-menu);
-}

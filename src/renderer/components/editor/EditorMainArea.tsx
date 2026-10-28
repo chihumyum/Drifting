@@ -39,6 +39,7 @@ import {
   EditorSurfaceLifecycleProvider,
   ImmediateEditorSurfaceReady,
 } from './EditorSurfaceLifecycle';
+import { TrailingEditorPaneContext } from './editor-corner';
 import { TextInputLookupStop } from './TextInputLookupStop';
 
 const PROJECT_HOME_SURFACE_KEY = 'project-home';
@@ -330,7 +331,9 @@ function WorkspaceSurface({
         isCommandActive={isInteractive}
         onReadyChange={reportReady}
       >
-        <PaneRenderer leaf={tab} projectId={projectId} />
+        <TrailingEditorPaneContext.Provider value>
+          <PaneRenderer leaf={tab} projectId={projectId} />
+        </TrailingEditorPaneContext.Provider>
       </EditorSurfaceLifecycleProvider>
     );
   }
@@ -400,6 +403,9 @@ function SplitView({
 }: SplitViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
+  const { openEntity } = useProjectNavigation();
+  const swapSplitPanes = useUiStore((s) => s.swapSplitPanes);
+  const unsplitTab = useUiStore((s) => s.unsplitTab);
   const [leftReady, setLeftReady] = useState(false);
   const [rightReady, setRightReady] = useState(false);
 
@@ -456,7 +462,16 @@ function SplitView({
           <PaneRenderer leaf={split.left} projectId={projectId} />
         </EditorSurfaceLifecycleProvider>
       </PaneWrapper>
-      <PaneDivider onMouseDown={onDividerMouseDown} />
+      <PaneDivider
+        onMouseDown={onDividerMouseDown}
+        onSwap={() => swapSplitPanes(projectId, split.id)}
+        onUnsplit={() => {
+          // Point the URL at what stays, so the URL → tab sync doesn't
+          // re-add the pane that just left as a fresh preview tab.
+          const { nextActive } = unsplitTab(projectId, split.id);
+          if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+        }}
+      />
       <PaneWrapper
         isFocused={split.focused === 'right'}
         width={rightPct}
@@ -468,7 +483,9 @@ function SplitView({
           isCommandActive={isSurfaceInteractive && split.focused === 'right'}
           onReadyChange={setRightReady}
         >
-          <PaneRenderer leaf={split.right} projectId={projectId} />
+          <TrailingEditorPaneContext.Provider value>
+            <PaneRenderer leaf={split.right} projectId={projectId} />
+          </TrailingEditorPaneContext.Provider>
         </EditorSurfaceLifecycleProvider>
       </PaneWrapper>
     </div>
@@ -511,23 +528,84 @@ function PaneWrapper({
   );
 }
 
-function PaneDivider({ onMouseDown }: { onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void }) {
-  const [hover, setHover] = useState(false);
+// Leaving the grip and its options gives the pointer this long to cross
+// between them.
+const SEAM_OPTIONS_GRACE_MS = 140;
+
+/**
+ * The seam between two split editors. Dragging anywhere on it resizes the
+ * panes. Its middle carries a small I-shaped grip: resting on it (or focusing
+ * it) unfolds the split's own operations on either side of it — swap the
+ * panes on the left, undo the split on the right — while the grip stays put
+ * as the drag handle; leaving them folds the options back.
+ */
+function PaneDivider({ onMouseDown, onSwap, onUnsplit }: {
+  onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onSwap: () => void;
+  onUnsplit: () => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  const show = () => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const fold = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), SEAM_OPTIONS_GRACE_MS);
+  };
+  const choose = (action: () => void) => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(false);
+    action();
+  };
   return (
     <div
-      onMouseDown={onMouseDown}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseDown={(event) => {
+        setOpen(false);
+        onMouseDown(event);
+      }}
       role="separator"
       aria-orientation="vertical"
-      style={{
-        width: 5,
-        cursor: 'col-resize',
-        background: hover ? 'hsl(var(--accent) / 0.25)' : 'hsl(var(--rule))',
-        flexShrink: 0,
-        transition: 'background 0.15s ease',
-      }}
-    />
+      className="editor-split-seam"
+    >
+      <div
+        className="editor-split-seam__grip-group"
+        data-open={open}
+        onMouseEnter={show}
+        onMouseLeave={fold}
+        onFocus={show}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) fold();
+        }}
+      >
+        <button
+          type="button"
+          className="editor-split-seam__grip"
+          aria-label={t('topTimeline.splitControls')}
+          aria-expanded={open}
+        />
+        {([
+          ['start', 'swap', t('topTimeline.menu.swapPanes'), onSwap],
+          ['end', 'unsplit', t('topTimeline.menu.unsplit'), onUnsplit],
+        ] as const).map(([side, key, label, action]) => (
+          <div key={key} className={`editor-split-seam__options editor-split-seam__options--${side}`}>
+            <button
+              type="button"
+              className="editor-split-seam__option glass glass--surface"
+              tabIndex={open ? 0 : -1}
+              // A press on an option is not the start of a seam drag.
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={() => choose(action)}
+            >
+              {label}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

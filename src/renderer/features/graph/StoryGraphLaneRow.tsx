@@ -1,6 +1,5 @@
 import { memo, type MouseEvent, type PointerEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { canonicalWordCount } from '../../domain/book-node';
 import { GRAPH_CONFIG, type PositionedNode, type StoryGraphLane } from './story-graph-layout';
 
 export interface StoryGraphLaneRowProps {
@@ -12,14 +11,17 @@ export interface StoryGraphLaneRowProps {
   linkSource: string | null;
   isNodeEdgeSelected: (id: string) => boolean;
   onNodePointerDown: (event: PointerEvent<HTMLDivElement>, node: PositionedNode) => void;
-  onNodeContextMenu: (event: MouseEvent<HTMLDivElement>, node: PositionedNode) => void;
   onNodeClick: (event: MouseEvent<HTMLDivElement>, node: PositionedNode) => void;
   onNodeDoubleClick: (node: PositionedNode) => void;
-  onLaneContextMenu: (event: MouseEvent<HTMLDivElement>, laneId: string) => void;
+  /** Resting on a tile or a storyline's rail cell shows its hover card. */
+  onNodePreviewEnter: (event: MouseEvent<HTMLDivElement>, node: PositionedNode) => void;
+  onLanePreviewEnter: (event: MouseEvent<HTMLDivElement>, laneId: string) => void;
+  onPreviewLeave: () => void;
 }
 
 function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, linkSource,
-  isNodeEdgeSelected, onNodePointerDown, onNodeContextMenu, onNodeClick, onNodeDoubleClick, onLaneContextMenu,
+  isNodeEdgeSelected, onNodePointerDown, onNodeClick, onNodeDoubleClick,
+  onNodePreviewEnter, onLanePreviewEnter, onPreviewLeave,
 }: StoryGraphLaneRowProps) {
   const { t } = useTranslation();
   return (
@@ -37,12 +39,9 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
       <div
         className="graph-rail-cell"
         style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          if (lane.synthetic) return;
-          e.stopPropagation();
-          onLaneContextMenu(e, lane.id);
-        }}
+        // Synthetic lanes (本书 / 未归属) have no storyline behind them.
+        onMouseEnter={lane.synthetic ? undefined : (event) => onLanePreviewEnter(event, lane.id)}
+        onMouseLeave={lane.synthetic ? undefined : onPreviewLeave}
       >
         <div className="graph-rail__name">
           <span className="graph-rail__name-dot" style={{ background: lane.color }} />
@@ -80,9 +79,10 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
                 .filter(Boolean)
                 .join(' ')}
               onPointerDown={(event) => onNodePointerDown(event, node)}
-              onContextMenu={(event) => onNodeContextMenu(event, node)}
               onClick={(event) => onNodeClick(event, node)}
               onDoubleClick={() => onNodeDoubleClick(node)}
+              onMouseEnter={(event) => onNodePreviewEnter(event, node)}
+              onMouseLeave={onPreviewLeave}
               style={
                 {
                   left: node.x,
@@ -96,16 +96,6 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
                   height: GRAPH_CONFIG.TILE_HEIGHT,
                   ['--tile-color' as string]: color,
                 } as React.CSSProperties
-              }
-              title={
-                canonicalWordCount(node) == null
-                  ? t('storyGraph.node.titleCounting', {
-                      title: node.title || t('common.untitled'),
-                    })
-                  : t('storyGraph.node.titleWithWords', {
-                      title: node.title || t('common.untitled'),
-                      count: canonicalWordCount(node),
-                    })
               }
             >
               <div className="graph-tile__num">

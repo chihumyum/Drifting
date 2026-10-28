@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 interface CommentSnapshotModalProps {
   snapshots: { blockId: string | null; blockText: string }[];
@@ -40,7 +40,7 @@ export function CommentSnapshotModal({
             onClick={onClose}
             aria-label={t('commentRail.actions.close')}
           >
-            <X size={12} />
+            <BrushIcon name="close" size={12} />
           </button>
         </div>
         <div className="snapshot-modal__body">

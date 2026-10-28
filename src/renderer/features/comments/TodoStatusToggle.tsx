@@ -1,5 +1,5 @@
-import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 export function TodoStatusToggle({
   resolved,
@@ -23,7 +23,7 @@ export function TodoStatusToggle({
       onClick={onToggle}
     >
       <span className="todo-status-toggle__ring" aria-hidden>
-        {resolved && <Check size={10} strokeWidth={2.5} />}
+        {resolved && <BrushIcon name="check" size={10} />}
       </span>
     </button>
   );

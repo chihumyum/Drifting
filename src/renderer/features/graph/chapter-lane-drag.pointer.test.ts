@@ -167,4 +167,56 @@ describe('chapter lane pointer lifecycle', () => {
     expect(state.onDragStart).not.toHaveBeenCalled();
     expect(state.onDrop).not.toHaveBeenCalled();
   });
+
+  it('keeps a weighted slab in its lane until the pointer passes the next lane middle', async () => {
+    const ghostStyle = {} as CSSStyleDeclaration;
+    const ghost = {
+      style: ghostStyle,
+      removeAttribute: vi.fn(),
+      setAttribute: vi.fn(),
+      classList: { add: vi.fn() },
+      remove: () => {
+        ghostRemoved = true;
+      },
+    } as unknown as HTMLElement;
+    const source = {
+      style: { visibility: '' } as CSSStyleDeclaration,
+      cloneNode: () => ghost,
+      getBoundingClientRect: () => ({ left: 80, top: 80, width: 120, height: 40 }) as DOMRect,
+    } as unknown as HTMLElement;
+    const rows = [80, 120, 160].map((top) => ({ top, bottom: top + 40, height: 40 }) as DOMRect);
+    const lanes = ['lane-a', 'lane-b', 'lane-c'];
+    const resolveTarget = vi.fn((_x: number, y: number): ChapterLanePointerTarget | null => {
+      const lane = rows.findIndex((row) => y >= row.top && y < row.bottom);
+      return lane < 0 ? null : { storylineId: lanes[lane], order: 1 };
+    });
+    const onDrop = vi.fn(async () => undefined);
+    startChapterLanePointerDrag({
+      pointerId: 1,
+      pointerType: 'mouse',
+      startClientX: 100,
+      startClientY: 100,
+      sourceElement: source,
+      grabOffsetX: 20,
+      resolveTarget,
+      onDragStart: vi.fn(),
+      onDrop,
+      onDragEnd: vi.fn(),
+      weighted: { rows: () => rows },
+    });
+
+    // Into the next lane but short of its middle: the slab stays where it was.
+    pointer('pointermove', { pointerType: 'mouse', clientX: 140, clientY: 135 });
+    frame?.(16);
+    expect(resolveTarget).toHaveBeenLastCalledWith(140, 100);
+    // Past the middle: one snap over; the drop lands on the lane the slab is in.
+    pointer('pointermove', { pointerType: 'mouse', clientX: 150, clientY: 145 });
+    frame?.(32);
+    expect(resolveTarget).toHaveBeenLastCalledWith(150, 140);
+    pointer('pointerup', { pointerType: 'mouse', clientX: 150, clientY: 145 });
+    await flushPromises();
+    expect(onDrop).toHaveBeenCalledWith({ storylineId: 'lane-b', order: 1 });
+    // The ghost follows on a spring: it has not jumped onto the pointer.
+    expect(ghostStyle.transform).not.toBe('translate3d(130px, 105px, 0)');
+  });
 });

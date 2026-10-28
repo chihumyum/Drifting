@@ -1,8 +1,8 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-17T09:19:46.839Z",
-  "sourceSha256": "2d7852fae56a4e0a88563d1335a7363d19bddb012320c635178322211f6371ae",
+  "generatedAt": "2026-10-28T08:16:21.492Z",
+  "sourceSha256": "ff2be9b652642ab0b77eb8a0118cdf7ed36e05ac65e1b8acc6e3a3a14c6c0d3a",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",
@@ -156,6 +156,50 @@
       "status": "passed"
     },
     {
+      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership still installs required new review masks during composition",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference treats old approval receipts as automatic and removes every mask when motion is off",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
+      "status": "passed"
+    },
+    {
       "name": "ElementPanel compact text index persists compact/list and toggles it from the header summary instead of the sort menu",
       "status": "passed"
     },
@@ -164,11 +208,11 @@
       "status": "passed"
     },
     {
-      "name": "ElementPanel compact text index uses one minus/square disclosure while the category label opens its editor",
+      "name": "ElementPanel compact text index boxes each category in a sand frame whose heading sits in its top edge",
       "status": "passed"
     },
     {
-      "name": "ElementPanel compact text index reuses the borderless material-card surface and keeps selection as highlight only",
+      "name": "ElementPanel compact text index keeps compact tiles bare: the seal always, the sand frame when selected",
       "status": "passed"
     },
     {
@@ -221,50 +265,6 @@
     },
     {
       "name": "buildEntityHoverCardContent does not query non-hydrated patch data",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership still installs required new review masks during composition",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference treats old approval receipts as automatic and removes every mask when motion is off",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
       "status": "passed"
     },
     {

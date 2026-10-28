@@ -11,7 +11,7 @@ import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
 import { AgentCountBadge } from './AgentCountBadge';
-import { SidebarHeaderChrome, SidebarToggleButton } from '../workspaceChrome/WindowControlButtons';
+import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
 import { getPlatformRuntime } from '../../platform/runtime';
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
@@ -90,7 +90,8 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
         zIndex: 20,
       }}
     >
-      {windowChrome && <SidebarHeaderChrome side="left"><SidebarToggleButton side="left" /></SidebarHeaderChrome>}
+      {windowChrome && <SidebarHeaderChrome side="left"><SidebarToggleSlot /></SidebarHeaderChrome>}
+      <SidebarSplitButton side="left" edge="start" />
       <PanelTabTray ref={tabTrayRef} className="leftbar-tab-tray">
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}
@@ -114,7 +115,8 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
           onClick={() => toggleTab(paneId, 'drift')}
         />
       </PanelTabTray>
-      <SidebarSplitButton side="left" />
+      <SidebarSplitButton side="left" edge="end" />
+      <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
     </div>
   );
 }

@@ -1,20 +1,6 @@
 import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  ArrowLeft,
-  Check,
-  ListTodo,
-  MessageSquare,
-  MoreHorizontal,
-  Pencil,
-  RotateCcw,
-  Sparkles,
-  StickyNote,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
 import {
   commentColorKey,
   agentTaskConversationId,
@@ -40,8 +26,8 @@ import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useComment } from '../../usecase/useComment';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
-import { ContextMenuSurface } from '../../components/ui/ContextMenuSurface';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
+import type { HoverActionGroup } from '../../components/ui/HoverCard';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { CommentSnapshotModal } from './CommentSnapshotModal';
 import { CommentBodyEditor } from './CommentBodyEditor';
@@ -49,6 +35,7 @@ import { TodoStatusToggle } from './TodoStatusToggle';
 import { CommentSourceHoverCard } from './CommentSourceHoverCard';
 import { useCommentSourceHover } from './use-comment-source-hover';
 import { buildTodoAgentTask } from './todo-agent-task';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 const launchingTodoTasks = new Set<string>();
 
@@ -83,42 +70,10 @@ export interface ReviewItemCardProps {
   onOpenAgentTask?: () => string | void;
 }
 
-function ReviewActionMenuItem({
-  icon,
-  label,
-  onSelect,
-  disabled = false,
-  danger = false,
-  checked,
-}: {
-  icon: ReactNode;
-  label: string;
-  onSelect: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  checked?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-      className={`menu-surface__item${danger ? ' menu-surface__item--danger' : ''}`}
-      disabled={disabled}
-      aria-checked={checked}
-      onClick={onSelect}
-    >
-      <span className="review-card-menu__icon" aria-hidden>
-        {icon}
-      </span>
-      <span>{label}</span>
-    </button>
-  );
-}
-
 function itemIcon(comment: Comment) {
-  if (comment.kind === 'todo') return <ListTodo size={12} />;
-  if (comment.source === 'copilot') return <Sparkles size={12} />;
-  return <MessageSquare size={12} />;
+  if (comment.kind === 'todo') return <BrushIcon name="checklist" size={12} />;
+  if (comment.source === 'copilot') return <BrushIcon name="shikigami" size={12} />;
+  return <BrushIcon name="comment" size={12} />;
 }
 
 export function ReviewItemCard({
@@ -149,8 +104,11 @@ export function ReviewItemCard({
   const [editing, setEditing] = useState(false);
   const ownedByNote = isNoteTaskTodo(comment);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
-  const [actionMenu, setActionMenu] = useState<{ x: number; y: number } | null>(null);
-  const sourceHover = useCommentSourceHover(!editing && !actionMenu && !snapshotOpen);
+  // The source card doubles as the item's action card (there is no
+  // right-click menu); the ⋯ button shows it at once and hands it the focus.
+  const sourceHover = useCommentSourceHover(!editing && !snapshotOpen);
+  const [cardRequested, setCardRequested] = useState(false);
+  const articleRef = useRef<HTMLElement>(null);
   // A card removed under the pointer never receives mouseleave.
   useEffect(() => () => clearActiveCommentHighlight(comment.id), [comment.id]);
   const selectedRelations = useMemo(
@@ -254,24 +212,87 @@ export function ReviewItemCard({
     await commentUsecases.acceptCopilotSuggestion(comment.id, result);
   };
 
-  const openActionMenu = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-    setActionMenu({ x: rect.right, y: rect.bottom + 4 });
-  }, []);
-
-  const openContextMenu = useCallback((event: React.MouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('input, textarea, [contenteditable="true"]')) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setActionMenu({ x: event.clientX, y: event.clientY });
-  }, []);
-
-  const selectMenuAction = (action: () => void) => {
-    setActionMenu(null);
-    action();
+  const startEditing = () => {
+    // A note's checklist line owns its text: edit it there.
+    if (ownedByNote) jumpToAnchor();
+    else setEditing(true);
   };
+
+  const actions: HoverActionGroup[] = [
+    {
+      key: 'item',
+      actions: [
+        ...(presentation === 'panel' && onToggleStickyRail
+          ? [{
+              key: 'sticky',
+              label: mountedInStickyRail ? t('reviewPanel.removeSticky') : t('reviewPanel.addSticky'),
+              onSelect: onToggleStickyRail,
+            }]
+          : []),
+        {
+          key: 'edit',
+          label: ownedByNote ? t('reviewPanel.editInNote') : t('common.edit'),
+          disabled: busy,
+          onSelect: startEditing,
+        },
+        ...(snapshots.length > 0
+          ? [{ key: 'source', label: t('reviewPanel.source'), onSelect: () => setSnapshotOpen(true) }]
+          : []),
+      ],
+    },
+    {
+      key: 'suggestion',
+      actions: comment.status === 'open' && comment.source === 'copilot' && !isTodo && capability
+        ? [
+            {
+              key: 'accept',
+              label: summary?.actionLabel ?? t('commentRail.actions.accept'),
+              disabled: busy,
+              onSelect: () => void run(acceptSuggestion),
+            },
+            {
+              key: 'reject',
+              label: t('commentRail.actions.reject'),
+              disabled: busy,
+              onSelect: () => void run(() => commentUsecases.rejectCopilotSuggestion(comment.id)),
+            },
+          ]
+        : [],
+    },
+    {
+      key: 'status',
+      actions: isConverted
+        ? []
+        : [
+            {
+              key: 'resolve',
+              label: isResolved ? t('commentRail.actions.reopen') : t('commentRail.actions.resolve'),
+              disabled: busy,
+              onSelect: () => void run(() => isResolved
+                ? commentUsecases.reopenComment(comment.id)
+                : commentUsecases.resolveComment(comment.id)),
+            },
+            {
+              key: 'convert',
+              label: isTodo ? t('commentRail.actions.toNote') : t('commentRail.actions.toTodo'),
+              disabled: busy,
+              onSelect: () => void run(() => isTodo
+                ? commentUsecases.revertToNote(comment.id)
+                : commentUsecases.convertToTodo(comment.id)),
+            },
+          ],
+    },
+    {
+      key: 'delete',
+      actions: [{
+        key: 'delete',
+        label: t('common.delete'),
+        danger: true,
+        disabled: busy,
+        onSelect: () => void run(() => commentUsecases.deleteComment(comment.id)),
+      }],
+    },
+  ];
 
   // Hover-only text beside the resolve ring; clicking it hands the TODO to
   // the Agent (or reopens that conversation). No icon, no persistent row.
@@ -308,10 +329,12 @@ export function ReviewItemCard({
   return (
     <>
       <article
-        className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
+        ref={articleRef}
+        className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
         aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
         onMouseEnter={(event) => {
+          setCardRequested(false);
           sourceHover.onEnter(event.currentTarget);
           setActiveCommentHighlight(comment.id);
         }}
@@ -319,10 +342,9 @@ export function ReviewItemCard({
           sourceHover.onLeave();
           clearActiveCommentHighlight(comment.id);
         }}
-        onPointerDownCapture={sourceHover.onLeave}
-        onKeyDownCapture={sourceHover.onLeave}
-        onContextMenuCapture={sourceHover.onLeave}
-        onContextMenu={openContextMenu}
+        onPointerDownCapture={sourceHover.dismiss}
+        onKeyDownCapture={sourceHover.dismiss}
+        onContextMenuCapture={sourceHover.dismiss}
       >
       <header className="review-card__header">
         <span className="review-card__kind">
@@ -341,7 +363,7 @@ export function ReviewItemCard({
             title={t('reviewPanel.jumpToText')}
             aria-label={t('reviewPanel.jumpToText')}
           >
-            <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
+            <BrushIcon name="arrow-back" size={10} />
           </button>
         )}
         <span className="review-card__status">
@@ -353,24 +375,28 @@ export function ReviewItemCard({
         </span>
         {presentation === 'panel' && mountedInStickyRail && (
           <span className="review-card__sticky-state" title={t('reviewPanel.inSticky')}>
-            <StickyNote size={11} />
+            <BrushIcon name="sticky-note" size={11} />
           </span>
         )}
         <GhostIconButton
           size="sm"
           className="review-card__menu-button"
-          icon={<MoreHorizontal size={13} />}
-          onClick={openActionMenu}
+          icon={<BrushIcon name="more" size={13} />}
+          onClick={(event) => {
+            event.stopPropagation();
+            setCardRequested(true);
+            if (articleRef.current) sourceHover.open(articleRef.current);
+          }}
           title={t('common.more')}
           aria-label={t('common.more')}
-          aria-haspopup="menu"
-          aria-expanded={actionMenu !== null}
+          aria-expanded={Boolean(sourceHover.anchor)}
+          aria-controls={sourceHover.anchor ? sourceHover.id : undefined}
         />
         {presentation === 'sticky' && onRemoveFromStickyRail && (
           <GhostIconButton
             size="sm"
             className="review-card__close-button"
-            icon={<X size={13} />}
+            icon={<BrushIcon name="close" size={13} />}
             onClick={onRemoveFromStickyRail}
             title={t('reviewPanel.removeSticky')}
             aria-label={t('reviewPanel.removeSticky')}
@@ -392,11 +418,8 @@ export function ReviewItemCard({
           onDoubleClick={(event) => {
             event.stopPropagation();
             if (busy) return;
-            sourceHover.onLeave();
-            setActionMenu(null);
-            // A note's checklist line owns its text: edit it there.
-            if (ownedByNote) jumpToAnchor();
-            else setEditing(true);
+            sourceHover.dismiss();
+            startEditing();
           }}
         >
           {text || t('commentRail.card.emptyComment')}
@@ -437,110 +460,17 @@ export function ReviewItemCard({
       )}
       </article>
 
-      {sourceHover.anchor && <CommentSourceHoverCard comment={comment} relations={relations} anchor={sourceHover.anchor} id={sourceHover.id} />}
-
-      {actionMenu && (
-        <ContextMenuSurface
-          x={actionMenu.x}
-          y={actionMenu.y}
-          onClose={() => setActionMenu(null)}
-          className="menu-surface--standard review-card-menu"
-          dismissOnScroll
-          ariaLabel={t('common.more')}
-        >
-          {presentation === 'panel' && onToggleStickyRail && (
-            <ReviewActionMenuItem
-              icon={mountedInStickyRail ? <X size={12} /> : <StickyNote size={12} />}
-              label={mountedInStickyRail ? t('reviewPanel.removeSticky') : t('reviewPanel.addSticky')}
-              checked={mountedInStickyRail}
-              onSelect={() => selectMenuAction(onToggleStickyRail)}
-            />
-          )}
-          <ReviewActionMenuItem
-            icon={<Pencil size={12} />}
-            label={ownedByNote ? t('reviewPanel.editInNote') : t('common.edit')}
-            disabled={busy}
-            onSelect={() =>
-              selectMenuAction(() => {
-                if (ownedByNote) jumpToAnchor();
-                else setEditing(true);
-              })
-            }
-          />
-          {snapshots.length > 0 && (
-            <ReviewActionMenuItem
-              icon={<MessageSquare size={12} />}
-              label={t('reviewPanel.source')}
-              onSelect={() => selectMenuAction(() => setSnapshotOpen(true))}
-            />
-          )}
-          {comment.status === 'open' && comment.source === 'copilot' && !isTodo && capability && (
-            <>
-              <div className="menu-surface__divider" />
-              <ReviewActionMenuItem
-                icon={<Check size={12} />}
-                label={summary?.actionLabel ?? t('commentRail.actions.accept')}
-                disabled={busy}
-                onSelect={() => selectMenuAction(() => void run(acceptSuggestion))}
-              />
-              <ReviewActionMenuItem
-                icon={<X size={12} />}
-                label={t('commentRail.actions.reject')}
-                disabled={busy}
-                onSelect={() =>
-                  selectMenuAction(() =>
-                    void run(() => commentUsecases.rejectCopilotSuggestion(comment.id)),
-                  )
-                }
-              />
-            </>
-          )}
-          {!isConverted && (
-            <>
-              <div className="menu-surface__divider" />
-              <ReviewActionMenuItem
-                icon={isResolved ? <RotateCcw size={12} /> : <Check size={12} />}
-                label={
-                  isResolved ? t('commentRail.actions.reopen') : t('commentRail.actions.resolve')
-                }
-                disabled={busy}
-                onSelect={() =>
-                  selectMenuAction(() =>
-                    void run(() =>
-                      isResolved
-                        ? commentUsecases.reopenComment(comment.id)
-                        : commentUsecases.resolveComment(comment.id),
-                    ),
-                  )
-                }
-              />
-              <ReviewActionMenuItem
-                icon={<ListTodo size={12} />}
-                label={isTodo ? t('commentRail.actions.toNote') : t('commentRail.actions.toTodo')}
-                disabled={busy}
-                onSelect={() =>
-                  selectMenuAction(() =>
-                    void run(() =>
-                      isTodo
-                        ? commentUsecases.revertToNote(comment.id)
-                        : commentUsecases.convertToTodo(comment.id),
-                    ),
-                  )
-                }
-              />
-            </>
-          )}
-          <div className="menu-surface__divider" />
-          <ReviewActionMenuItem
-            icon={<Trash2 size={12} />}
-            label={t('common.delete')}
-            danger
-            disabled={busy}
-            onSelect={() =>
-              selectMenuAction(() => void run(() => commentUsecases.deleteComment(comment.id)))
-            }
-          />
-        </ContextMenuSurface>
+      {sourceHover.anchor && (
+        <CommentSourceHoverCard
+          comment={comment}
+          relations={relations}
+          anchor={sourceHover.anchor}
+          id={sourceHover.id}
+          pointer={sourceHover.card}
+          actions={actions}
+          onDismiss={sourceHover.dismiss}
+          autoFocus={cardRequested}
+        />
       )}
     </>
   );

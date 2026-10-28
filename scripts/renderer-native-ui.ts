@@ -489,8 +489,8 @@ async function run() {
       await i18next.changeLanguage(locale === 'en' ? 'zh-CN' : 'en');
       await waitFor(() => tick().title === i18next.t('editorScrollMarkers.jumpToComment'), 'translated marker title');
       ensure(!first.isDestroyed && getLiveYDoc(`node-content:${a.nodeIds[0]}`) === doc, 'Locale update recreated canonical editor');
+      first.view.focus(); first.commands.setTextSelection(1);
       first.commands.setTextSelection({ from: 1, to: 5 });
-      first.view.dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
       await waitFor(() => document.querySelector('.editor-comment-menu')?.textContent?.includes(i18next.t('entityEditor.contextMenu.format')), 'latest translated context menu');
       await delay(20); document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       await waitFor(() => !document.querySelector('.editor-comment-menu'), 'context menu dismissed');
@@ -540,9 +540,11 @@ async function run() {
     if (config.contextMenus) {
       await progress('context-menu-lifetime');
       const rootMenu = () => document.body.querySelector<HTMLElement>(':scope > .editor-comment-menu');
+      // The selection bar floats in once a selection settles in the focused editor.
       const openMenu = async (editor = first) => {
-        editor.view.dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
-        return waitFor(rootMenu, 'actual owned editor context menu');
+        const { from, to } = editor.state.selection;
+        editor.view.focus(); editor.commands.setTextSelection(from); editor.commands.setTextSelection({ from, to });
+        return waitFor(rootMenu, 'actual owned editor selection bar');
       };
       const bound = () => contextMenuObservations.filter(row => (row.counts.bind ?? 0) > (row.counts.unbind ?? 0));
       first.commands.setTextSelection({ from: 2, to: 5 });
@@ -801,7 +803,13 @@ async function run() {
     if (config.contextMenus) {
       const splitEditors = [...document.querySelectorAll<HTMLElement>('[data-editor-surface-visible="true"] .ProseMirror[contenteditable="true"]')];
       const menu = () => document.body.querySelector<HTMLElement>(':scope > .editor-comment-menu');
-      const context = (dom: HTMLElement) => dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
+      // Re-settle the split's current selection; only the focused, command-active split shows its bar.
+      const context = (dom: HTMLElement) => {
+        const editor = (dom as HTMLElement & { editor?: { state: { selection: { from: number; to: number } }; commands: { setTextSelection: (range: number | { from: number; to: number }) => boolean } } }).editor;
+        if (!editor) return;
+        const { from, to } = editor.state.selection;
+        editor.commands.setTextSelection(from); editor.commands.setTextSelection({ from, to });
+      };
       context(splitEditors[0]); ensure(!menu(), 'Unfocused split opened a custom menu');
       const right = getActiveEditor(); ensure(right?.view.dom === splitEditors[1], 'Wrong active split before menu test');
       right.commands.setTextSelection({ from: 2, to: 5 }); context(splitEditors[1]);

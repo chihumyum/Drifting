@@ -58,7 +58,7 @@
   background: var(--workspace-cell-hover-bg, hsl(var(--ink-1) / 0.06));
   outline: none;
 }
-.plot-planner__add svg {
+.plot-planner__add .brush-icon {
   width: 13px;
   height: 13px;
 }

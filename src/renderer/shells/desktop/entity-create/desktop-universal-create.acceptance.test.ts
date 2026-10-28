@@ -20,27 +20,31 @@ describe('desktop universal create acceptance', () => {
     expect(mobileShell).not.toContain('DesktopUniversalCreateView');
   });
 
-  it('renders the plus immediately after the expanded tab chips without hover wash', () => {
+  it('keeps the plus after the expanded pills, outside their overflow', () => {
     const topTimeline = source(
       'src/renderer/components/topBars/TopTimeline/TopTimeline.tsx',
     );
-    const controls = source('src/styles/ui-controls.css');
+    const shell = source('src/styles/desktop-shell.css');
 
-    expect(topTimeline).toContain('className="top-timeline-create-button"');
-    expect(topTimeline.indexOf('className="top-timeline-create-button"')).toBeGreaterThan(
+    expect(topTimeline).toContain('className="top-timeline-create-button glass glass--rest glass--round"');
+    expect(topTimeline.indexOf('className="top-timeline-create-button')).toBeGreaterThan(
       topTimeline.indexOf('{openTabs.map((tab, index) => {'),
     );
     expect(topTimeline).toContain('openCreateTab(projectId);');
     expect(topTimeline).toContain('navigate(`/project/${projectId}/new`);');
     expect(topTimeline).not.toContain('aria-pressed={openTabs.some');
-    expect(controls).not.toContain('.top-timeline-create-button:hover');
-    expect(controls).toContain('background: transparent;');
     expect(topTimeline).toContain('{expanded && <button');
-    expect(topTimeline).toContain('const TAB_STRIP_END_PADDING = 16;');
+    expect(topTimeline).toContain('const TAB_STRIP_START_PADDING = 35;');
+    expect(topTimeline).toContain('const TAB_STRIP_END_PADDING = 35;');
     expect(topTimeline).toContain('paddingLeft: 0');
-    expect(topTimeline).toContain('paddingRight: expanded ? TAB_STRIP_END_PADDING : 0');
-    expect(topTimeline).toContain('containerWidth - TAB_STRIP_END_PADDING - totalGaps');
+    expect(topTimeline).toContain(
+      'containerWidth - TAB_STRIP_START_PADDING - TAB_STRIP_END_PADDING - totalGaps',
+    );
     expect(topTimeline).not.toContain('CREATE_BUTTON_WIDTH');
+    // The lock and the plus stay put while only the pills scroll.
+    expect(shell).toContain(
+      '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {\n  position: sticky;',
+    );
   });
 
   it('mounts one desktop-only create surface and reuses all four authored usecases', () => {

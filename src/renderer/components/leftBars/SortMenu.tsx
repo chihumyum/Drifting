@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
-import { Check } from 'lucide-react';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { BrushIcon } from '../ui/BrushIcon';
 
 export interface SortMenuOption<T extends string> {
   value: T;
@@ -146,7 +146,7 @@ function SortMenuRow({
           flexShrink: 0,
         }}
       >
-        {active ? <Check size={12} strokeWidth={2.2} /> : null}
+        {active ? <BrushIcon name="check" size={12} /> : null}
       </span>
       <span
         style={{

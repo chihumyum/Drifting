@@ -6,7 +6,7 @@ import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
-import { SidebarHeaderChrome, SidebarToggleButton } from '../workspaceChrome/WindowControlButtons';
+import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
 import { getPlatformRuntime } from '../../platform/runtime';
 
 export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: {
@@ -27,8 +27,10 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
       style={{
         display: 'flex', alignItems: 'center',
         background: 'var(--workspace-ui-bg)', flexShrink: 0,
+        position: 'relative',
       }}
     >
+      <SidebarSplitButton side="right" edge="start" />
       <PanelTabTray ref={tabTrayRef} className="rightbar-tab-tray">
         {RIGHT_SIDEBAR_TABS.map((tab) => {
           const label = tab === 'companion' ? 'Agent' : t(`rightSidebar.tabs.${tab}`);
@@ -40,8 +42,9 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
           );
         })}
       </PanelTabTray>
-      <SidebarSplitButton side="right" />
-      {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleButton side="right" /></SidebarHeaderChrome>}
+      <SidebarSplitButton side="right" edge="end" />
+      {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleSlot /></SidebarHeaderChrome>}
+      <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
     </div>
   );
 }

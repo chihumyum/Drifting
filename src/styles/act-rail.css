@@ -95,10 +95,10 @@
   /* NO fill, and INERT. The band is just a positioned/clip wrapper that homes
      the act chip (see .actrail__label) at its boundary; the act reads as a
      narrative-marker-style chip plus its boundary line (.actrail__divider).
-     pointer-events: none means it no longer captures right-click / double-click
+     pointer-events: none means it no longer captures hovers or double-clicks
      across the whole segment — all act interaction lives on the chip, so the
-     bare rail between chips reads as empty (→ 在此处新建幕), exactly like the
-     timeline-marker rail. (The full-width opaque band that used to "divide"
+     bare rail between chips reads as empty (double-click → 在此处新建幕),
+     exactly like the timeline-marker rail. (The full-width opaque band that used to "divide"
      the rail is gone; only the chip + boundary line remain.) */
   background: transparent;
   pointer-events: none;
@@ -120,7 +120,7 @@
   border-radius: 3px;
   line-height: 13px;
   /* The chip is the ONLY interactive act surface (the band wrapper is inert):
-     right-click manages the act, double-click renames. Re-enable pointer
+     its hover card manages the act, double-click renames. Re-enable pointer
      events the band turned off. */
   pointer-events: auto;
   cursor: default;
@@ -215,11 +215,6 @@
   opacity: 0.85;
   pointer-events: none;
   z-index: 4;
-}
-
-/* Band context menu — portaled to body as a sharp fixed surface. */
-.actrail__menu {
-  z-index: var(--z-context-menu);
 }
 
 .actrail__label:focus-visible,

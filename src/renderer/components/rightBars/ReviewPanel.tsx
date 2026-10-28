@@ -1,6 +1,5 @@
 import { useSidebarPreference, useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, ChevronRight, ListPlus, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -22,7 +21,8 @@ import {
 import { ComposeTodoDialog } from '../../features/library/LibraryDialogs';
 import type { FocusedEntity } from '../../features/library/LibraryPanel';
 import { useWorkspaceNavigator } from '../../features/workspace/navigation/WorkspaceNavigationContext';
-import { workspaceTargetGlyph } from '../../features/workspace/navigation/workspace-target';
+import { KindMark } from '../ui/KindMark';
+import { kindMarkOfTarget } from '../ui/kind-mark';
 import {
   addCommentToStickyNoteRail,
   commentStickyNoteRailTarget,
@@ -35,10 +35,13 @@ import { type ReviewGroupMode, type ReviewScope, type ReviewSortMode } from '../
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
-import { FilterChip } from '../ui/FilterChip';
+import { GlassSlider } from '../ui/GlassSlider';
+import { ScopeToggle } from '../ui/ScopeToggle';
+import { scopeToggleSubject } from '../ui/scope-toggle';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
+import { BrushIcon } from '../ui/BrushIcon';
 
 type ReviewTypeFilter = 'all' | 'comment' | 'todo';
 type ComposeKind = 'note' | 'todo';
@@ -269,9 +272,9 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
       : named
         ? named.title || t('common.untitled')
         : t(group.targetKind === 'patch' ? 'reviewPanel.groups.patch' : 'reviewPanel.groups.deleted');
-    const glyph =
+    const mark =
       group.targetKind && group.targetKind !== 'patch'
-        ? workspaceTargetGlyph(group.targetKind, { isDrift: named?.isDrift })
+        ? <KindMark kind={kindMarkOfTarget(group.targetKind, named?.isDrift)} seed={group.targetId ?? ''} color="hsl(var(--ink-3))" />
         : '○';
     const openable = Boolean(named && group.targetKind && OPENABLE_GROUP_KINDS.has(group.targetKind));
     const toggle = () =>
@@ -286,7 +289,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
             aria-label={t(collapsed ? 'reviewPanel.groups.expand' : 'reviewPanel.groups.collapse', { name: title })}
             onClick={toggle}
           >
-            <ChevronRight size={11} strokeWidth={1.8} />
+            <BrushIcon name="chevron-right" size={11} />
           </button>
           <button
             type="button"
@@ -299,7 +302,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
               }
             }}
           >
-            <span className="review-group__glyph" aria-hidden="true">{glyph}</span>
+            <span className="review-group__glyph" aria-hidden="true">{mark}</span>
             <span className="review-group__name">{title}</span>
           </button>
           <span className="review-group__count">{group.items.length}</span>
@@ -320,34 +323,27 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   return (
     <section className="review-panel" aria-label={t('reviewPanel.title')}>
       <header ref={toolbarRef} className="review-panel__toolbar workspace-panel-header-row">
-        <div
+        <GlassSlider
           className="review-panel__type-filters"
-          role="group"
-          aria-label={t('reviewPanel.type')}
-        >
-          {(['all', 'comment', 'todo'] as const).map((filter) => (
-            <FilterChip
-              key={filter}
-              active={typeFilter === filter}
-              shape="square"
-              size="sm"
-              onClick={() => setTypeFilter(filter)}
-            >
-              {t(`reviewPanel.${compactToolbar ? 'filtersCompact' : 'filters'}.${filter}`)}
-            </FilterChip>
-          ))}
-        </div>
+          ariaLabel={t('reviewPanel.type')}
+          value={typeFilter}
+          onChange={setTypeFilter}
+          options={(['all', 'comment', 'todo'] as const).map((filter) => ({
+            value: filter,
+            label: t(`reviewPanel.${compactToolbar ? 'filtersCompact' : 'filters'}.${filter}`),
+          }))}
+        />
 
-        <button
-          type="button"
+        <ScopeToggle
           className="review-panel__scope-toggle"
-          aria-label={`${t('reviewPanel.scope')}: ${t(`reviewPanel.scopes.${effectiveScope}`)}`}
-          aria-pressed={effectiveScope === 'current'}
+          subject={scopeToggleSubject(
+            focused.kind,
+            focused.kind === 'node' && focused.id ? reviewGroupTitle(groupData, 'node', focused.id)?.isDrift : false,
+          )}
+          pressed={effectiveScope === 'current'}
           disabled={!hasCurrentScope}
-          onClick={() => setScope(effectiveScope === 'current' ? 'project' : 'current')}
-        >
-          {t(`reviewPanel.scopes.${effectiveScope}`)}
-        </button>
+          onToggle={() => setScope(effectiveScope === 'current' ? 'project' : 'current')}
+        />
 
         <span className="review-panel__toolbar-spacer" />
         <div className="review-panel__create-actions">
@@ -355,7 +351,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
             ref={sortButtonRef}
             className="review-panel__sort-button"
             size="sm"
-            icon={<ArrowDownUp size={12} strokeWidth={1.6} />}
+            icon={<BrushIcon name="sort" size={12} />}
             onClick={() => setSortMenuOpen((open) => !open)}
             title={t('leftSidebar.actions.sort')}
             aria-label={t('leftSidebar.actions.sort')}
@@ -364,14 +360,14 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
           />
           <GhostIconButton
             size="sm"
-            icon={<MessageSquarePlus size={12} strokeWidth={1.6} />}
+            icon={<BrushIcon name="comment-plus" size={12} />}
             onClick={() => setComposeKind('note')}
             title={t('reviewPanel.newComment')}
             aria-label={t('reviewPanel.newComment')}
           />
           <GhostIconButton
             size="sm"
-            icon={<ListPlus size={12} strokeWidth={1.6} />}
+            icon={<BrushIcon name="checklist-plus" size={12} />}
             onClick={() => setComposeKind('todo')}
             title={t('todoPanel.newTodo')}
             aria-label={t('todoPanel.newTodo')}

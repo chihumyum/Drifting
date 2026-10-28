@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   deriveActSegments,
@@ -11,6 +10,13 @@ import {
   MOBILE_PLANNING_CONTEXT_MENU_MS,
   MOBILE_PLANNING_MOVE_TOLERANCE_PX,
 } from '../../features/graph/mobile-planning-gesture';
+import { useHoverPreview } from '../../features/entities/hover/entity-hover-card-model';
+import {
+  HoverCardHeading,
+  HoverCardShell,
+  type HoverAction,
+  type HoverActionGroup,
+} from '../ui/HoverCard';
 import '../../../styles/act-rail.css';
 
 // ActRail — the 幕 strip that replaced FullBookLane in book mode.
@@ -19,15 +25,17 @@ import '../../../styles/act-rail.css';
 // TRACK COORDINATE SPACE: callers pass their own orderToX so act bands align
 // vertically with the chapter columns below, in both BottomTimeline (20px
 // grid) and StoryGraphView (32px grid). The empty track stays interactive so
-// the host's context menu / head button can create the first boundary.
+// a double-click or the head button can create the first boundary.
 //
 // Interactions, all rail-local:
 //   • drag the divider between two bands → move that act's startOrder
 //     (continuous coordinate, clamped strictly between neighbors)
-//   • double-click a band → inline rename
-//   • right-click a band → 重命名 / 在此处开始新幕 / 删除（并入相邻幕）
-//     (menu portals to body — fixed positioning escapes the shell
-//     backdrop-filter containing block)
+//   • double-click a chip → inline rename
+//   • rest on a chip → its hover card: 重命名 / 在此处开始新幕 / 幕笔记 /
+//     删除（并入相邻幕）. Shift+F10 or the menu key opens it from the
+//     keyboard, a touch hold from a finger.
+//   • double-click the bare rail → 新建幕 at that spot
+// There are no right-click menus: right-click shows the native one.
 interface ActRailProps {
   acts: BookAct[];
   chapters: ActChapterRef[];
@@ -70,15 +78,12 @@ interface ActRailProps {
   className?: string;
 }
 
-// Two context menus on the rail, mirroring the timeline-marker rail:
-//   • 'act'  — right-click an act CHIP → manage that act (rename / split /
-//              drift / delete). Carries the act id.
-//   • 'rail' — right-click the bare rail (anywhere but a chip) → 在此处新建幕
-//              only. The chip stops propagation, so this fires on empty rail.
-// Both carry the cursor order so 新建幕 lands where the user clicked.
-type ActMenuState =
-  | { kind: 'act'; actId: string; x: number; y: number; orderAtCursor: number }
-  | { kind: 'rail'; x: number; y: number; orderAtCursor: number };
+// What an act chip's hover card acts on: the act, and the spot on the axis
+// the pointer came in at, where 在此处开始新幕 splits.
+interface ActCardTarget {
+  actId: string;
+  orderAtCursor: number;
+}
 
 export function ActRail({
   acts,
@@ -104,12 +109,19 @@ export function ActRail({
 }: ActRailProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<ActMenuState | null>(null);
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
+  const {
+    preview: actCard,
+    onEnter: actCardEnter,
+    onLeave: actCardLeave,
+    dismiss: dismissActCard,
+    open: openActCard,
+    card: actCardPointer,
+  } = useHoverPreview<ActCardTarget>();
   const trackRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuReturnFocusRef = useRef<HTMLElement | null>(null);
+  // The chip whose card was opened from the keyboard; focus returns to it.
+  const cardReturnFocusRef = useRef<HTMLElement | null>(null);
   const touchMenuCleanupRef = useRef<(() => void) | null>(null);
   const boundaryDragCleanupRef = useRef<((updateState?: boolean) => void) | null>(null);
   const suppressTouchClickRef = useRef(false);
@@ -122,29 +134,39 @@ export function ActRail({
     if (editingId) editInputRef.current?.select();
   }, [editingId]);
 
+  // A card opened without hover (keyboard, touch hold) has no pointer leaving
+  // to close it, so a press anywhere else does. From the keyboard it also
+  // takes focus to its first action and hands focus back to the chip after.
   useEffect(() => {
-    if (!menu) return undefined;
-    const menuElement = menuRef.current;
-    const returnFocus = menuReturnFocusRef.current;
-    const frame = window.requestAnimationFrame(() => {
-      menuElement?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    });
+    if (!actCard) return undefined;
+    const chip = cardReturnFocusRef.current;
+    cardReturnFocusRef.current = null;
+    const frame = chip
+      ? window.requestAnimationFrame(() => {
+          document
+            .querySelector<HTMLButtonElement>('.actrail__card .hover-card__action:not(:disabled)')
+            ?.focus();
+        })
+      : 0;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.actrail__card')) return;
+      dismissActCard();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       window.cancelAnimationFrame(frame);
-      if (
-        returnFocus &&
-        document.activeElement instanceof Node &&
-        menuElement?.contains(document.activeElement)
-      ) {
-        returnFocus.focus({ preventScroll: true });
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      // The focused action unmounted with the card; a rename's input keeps focus.
+      if (chip?.isConnected && document.activeElement === document.body) {
+        chip.focus({ preventScroll: true });
       }
-      menuReturnFocusRef.current = null;
     };
-  }, [menu]);
+  }, [actCard, dismissActCard]);
 
   useEffect(() => () => touchMenuCleanupRef.current?.(), []);
   useLayoutEffect(() => () => boundaryDragCleanupRef.current?.(false), []);
 
+  // Touch has no hover: holding a chip opens its card.
   const beginTouchMenu = (event: React.PointerEvent, open: () => void) => {
     if (event.pointerType !== 'touch') return;
     touchMenuCleanupRef.current?.();
@@ -181,28 +203,6 @@ export function ActRail({
     window.addEventListener('pointercancel', onEnd);
   };
 
-  // Outside-click / Esc dismissal for the band menu.
-  useEffect(() => {
-    if (!menu) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t?.closest('.actrail__menu')) return;
-      setMenu(null);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      setMenu(null);
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [menu]);
-
   // Invert orderToX for cursor positions. The mapping is affine
   // (px = (order - minOrder) * unit), so two probes recover it exactly.
   const xToOrder = (px: number): number => {
@@ -220,6 +220,10 @@ export function ActRail({
   const boundaryEpsilon = Math.max(Number.EPSILON, onePixelOrder / 1000);
   const orderAtTrackX = (px: number): number =>
     Math.min(axisMaxOrder, Math.max(axisMinOrder, xToOrder(px)));
+  const orderAtClientX = (clientX: number): number => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    return orderAtTrackX(rect ? clientX - rect.left : 0);
+  };
   const movableBoundaryRange = (segIndex: number): { min: number; max: number } | null => {
     if (segIndex < 0 || segIndex >= segments.length) return null;
     const previous = segIndex > 0 ? segments[segIndex - 1].act.startOrder : null;
@@ -230,28 +234,6 @@ export function ActRail({
         : Math.max(axisMinOrder, (previous ?? axisMinOrder) + boundaryEpsilon);
     const max = Math.min(axisMaxOrder, (next ?? axisMaxOrder) - boundaryEpsilon);
     return min <= max ? { min, max } : null;
-  };
-
-  // Right-click the bare rail (anywhere but an act chip) → 在此处新建幕 only,
-  // mirroring the timeline-marker rail. An act chip's own onContextMenu stops
-  // propagation, so this only fires on empty rail. The host axis remains
-  // usable even when there are no chapters.
-  const openRailMenu = (clientX: number, clientY: number) => {
-    const rect = trackRef.current?.getBoundingClientRect();
-    const px = rect ? clientX - rect.left : 0;
-    menuReturnFocusRef.current = null;
-    setMenu({
-      kind: 'rail',
-      x: clientX + 2,
-      y: clientY - 2,
-      orderAtCursor: orderAtTrackX(px),
-    });
-  };
-
-  const handleRailContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    openRailMenu(e.clientX, e.clientY);
   };
 
   // Rail head cell — mirrors the narrative time-axis head ("TIME ＋"): the
@@ -290,14 +272,14 @@ export function ActRail({
   // null boundary starts at axisMinOrder; the first real movement converts it
   // to an ordinary finite coordinate.
   const startBoundaryDrag = (e: React.PointerEvent, segIndex: number) => {
-    if (e.button !== 0) return; // left button only; right-click → context menu
+    if (e.button !== 0) return; // left button only
     const act = segments[segIndex].act;
     const range = movableBoundaryRange(segIndex);
     if (!range) return;
     // A boundary may pass THROUGH chapters freely but never cross a sibling
     // boundary — that would reorder the acts under the user's cursor.
     // Don't preventDefault on pointerdown: the chip also needs its click /
-    // double-click (rename) / context-menu to fire. The drag runs on window
+    // double-click (rename) to fire. The drag runs on window
     // listeners regardless, and a movement threshold below keeps a plain click
     // from registering as a drag (and from flashing the ghost line).
     e.stopPropagation();
@@ -356,17 +338,80 @@ export function ActRail({
 
   const actIndexOf = (id: string) => sorted.findIndex((a) => a.id === id);
 
-  const openActMenuFromKeyboard = (element: HTMLElement, actId: string, segmentLeft: number) => {
-    const rect = element.getBoundingClientRect();
-    menuReturnFocusRef.current = element;
-    setMenu({
-      kind: 'act',
-      actId,
-      x: rect.left + Math.min(rect.width, 24),
-      y: rect.bottom + 4,
-      orderAtCursor: orderAtTrackX(segmentLeft),
-    });
+  // What the act chip's right-click menu used to offer, along its card's bottom.
+  const actCardActions = (
+    act: BookAct,
+    orderAtCursor: number,
+    chip: HTMLElement,
+  ): HoverActionGroup[] => {
+    const driftNodeId = act.driftNodeId;
+    // Drift binding — a bound act opens or unbinds its note; an unbound one
+    // opens the standalone bind picker (DriftBindModal).
+    const driftActions: HoverAction[] = [];
+    if (driftNodeId) {
+      if (onOpenDrift) {
+        driftActions.push({
+          key: 'open-drift',
+          label: t('bottomTimeline.act.openActNote'),
+          onSelect: () => {
+            const r = chip.getBoundingClientRect();
+            onOpenDrift(driftNodeId, {
+              left: r.left,
+              top: r.top,
+              width: r.width,
+              height: r.height,
+            });
+          },
+        });
+      }
+      if (onUnbindDrift) {
+        driftActions.push({
+          key: 'unbind',
+          label: t('bottomTimeline.act.unbindDrift'),
+          onSelect: () => onUnbindDrift(act.id),
+        });
+      }
+    } else if (onRequestBind) {
+      driftActions.push({
+        key: 'bind',
+        label: t('bottomTimeline.pinMenu.bindDrift'),
+        onSelect: () => onRequestBind(act.id),
+      });
+    }
+    return [
+      {
+        key: 'act',
+        actions: [
+          {
+            key: 'rename',
+            label: t('bottomTimeline.pinMenu.rename'),
+            onSelect: () => setEditingId(act.id),
+          },
+          {
+            key: 'split',
+            label: t('bottomTimeline.act.startHere'),
+            onSelect: () => onSplitAt(orderAtCursor),
+          },
+        ],
+      },
+      { key: 'drift', actions: driftActions },
+      {
+        key: 'delete',
+        actions: [
+          {
+            key: 'delete',
+            label:
+              actIndexOf(act.id) === 0
+                ? t('bottomTimeline.act.deleteMergeNext')
+                : t('bottomTimeline.act.deleteMergePrev'),
+            danger: true,
+            onSelect: () => onDeleteAct(act.id),
+          },
+        ],
+      },
+    ];
   };
+  const cardAct = actCard ? (acts.find((a) => a.id === actCard.data.actId) ?? null) : null;
 
   const moveBoundaryFromKeyboard = (segIndex: number, direction: -1 | 1) => {
     const act = segments[segIndex]?.act;
@@ -391,17 +436,18 @@ export function ActRail({
         className="actrail__track"
         style={{ minWidth: trackWidth }}
         title={segments.length === 0 ? t('bottomTimeline.act.emptyTrackTitle') : undefined}
-        onContextMenu={handleRailContextMenu}
-        onPointerDown={(event) =>
-          beginTouchMenu(event, () => openRailMenu(event.clientX, event.clientY))
-        }
+        onDoubleClick={(event) => {
+          // Bare rail only: chips rename on their own double-click, and the
+          // inert bands around them let the pointer through to the track.
+          if (event.target !== event.currentTarget) return;
+          onSplitAt(orderAtClientX(event.clientX));
+        }}
       >
         {segments.map((seg, i) => {
           const { left, right } = bandEdges(i);
           const isEditing = editingId === seg.act.id;
           const tint = seg.act.color;
-          // Tooltip lives on the chip now (the band is inert), so it reads only
-          // when hovering the act chip — not anywhere across the segment.
+          // The chip's accessible name; the pointer gets its hover card.
           const chipTitle = `${seg.act.name} · ${t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}${
             seg.act.driftNodeId
               ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
@@ -411,11 +457,11 @@ export function ActRail({
           // starts at the left edge and becomes numeric on its first drag.
           const draggable = movableBoundaryRange(i) !== null;
           return (
-            // The band is now an inert positioning/clip wrapper (pointer-events
-            // off in CSS) — it no longer captures right-click / double-click
-            // across the whole segment. All act interaction lives on the chip
-            // below, so the bare rail between chips reads as empty (→ 新建幕),
-            // exactly like the timeline-marker rail.
+            // The band is an inert positioning/clip wrapper (pointer-events
+            // off in CSS) — it doesn't capture double-clicks across the whole
+            // segment. All act interaction lives on the chip below, so the
+            // bare rail between chips reads as empty (double-click → 新建幕),
+            // like the timeline-marker axis.
             <div
               key={seg.act.id}
               className={`actrail__band${tint ? ' has-color' : ''}`}
@@ -447,26 +493,26 @@ export function ActRail({
               ) : (
                 <span
                   className={`actrail__label${draggable ? ' is-draggable' : ''}`}
-                  title={chipTitle}
                   role="button"
                   tabIndex={0}
                   aria-label={chipTitle}
+                  onMouseEnter={(event) => {
+                    // A held button means a boundary or chapter is being carried.
+                    if (event.buttons !== 0) return;
+                    actCardEnter(
+                      { actId: seg.act.id, orderAtCursor: orderAtClientX(event.clientX) },
+                      event.currentTarget,
+                    );
+                  }}
+                  onMouseLeave={actCardLeave}
                   onPointerDown={(event) => {
                     event.stopPropagation();
-                    const clientX = event.clientX;
-                    const clientY = event.clientY;
-                    beginTouchMenu(event, () => {
-                      const rect = trackRef.current?.getBoundingClientRect();
-                      const px = rect ? clientX - rect.left : 0;
-                      menuReturnFocusRef.current = null;
-                      setMenu({
-                        kind: 'act',
-                        actId: seg.act.id,
-                        x: clientX + 2,
-                        y: clientY - 2,
-                        orderAtCursor: orderAtTrackX(px),
-                      });
-                    });
+                    dismissActCard();
+                    const chip = event.currentTarget;
+                    const orderAtCursor = orderAtClientX(event.clientX);
+                    beginTouchMenu(event, () =>
+                      openActCard({ actId: seg.act.id, orderAtCursor }, chip),
+                    );
                     if (draggable) startBoundaryDrag(event, i);
                   }}
                   onClick={(event) => {
@@ -480,22 +526,6 @@ export function ActRail({
                     e.stopPropagation();
                     setEditingId(seg.act.id);
                   }}
-                  onContextMenu={(e) => {
-                    // Manage THIS act — the full menu. Stops propagation so the
-                    // rail's 新建幕 menu doesn't also open.
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const rect = trackRef.current?.getBoundingClientRect();
-                    const px = rect ? e.clientX - rect.left : 0;
-                    menuReturnFocusRef.current = null;
-                    setMenu({
-                      kind: 'act',
-                      actId: seg.act.id,
-                      x: e.clientX + 2,
-                      y: e.clientY - 2,
-                      orderAtCursor: orderAtTrackX(px),
-                    });
-                  }}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -503,7 +533,11 @@ export function ActRail({
                       setEditingId(seg.act.id);
                     } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
                       e.preventDefault();
-                      openActMenuFromKeyboard(e.currentTarget, seg.act.id, left);
+                      cardReturnFocusRef.current = e.currentTarget;
+                      openActCard(
+                        { actId: seg.act.id, orderAtCursor: orderAtTrackX(left) },
+                        e.currentTarget,
+                      );
                     }
                   }}
                 >
@@ -575,143 +609,26 @@ export function ActRail({
         {dragGhostX !== null && <div className="actrail__ghost" style={{ left: dragGhostX }} />}
       </div>
 
-      {menu &&
-        createPortal(
-          (() => {
-            // Bare-rail menu: a single create action, mirroring the marker rail.
-            if (menu.kind === 'rail') {
-              return (
-                <div
-                  ref={menuRef}
-                  className="menu-surface menu-surface--compact actrail__menu"
-                  style={{
-                    position: 'fixed',
-                    left: Math.min(menu.x, Math.max(8, window.innerWidth - 176)),
-                    top: Math.min(menu.y, Math.max(8, window.innerHeight - 52)),
-                  }}
-                  role="menu"
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="menu-surface__item"
-                    onClick={() => {
-                      setMenu(null);
-                      onSplitAt(menu.orderAtCursor);
-                    }}
-                  >
-                    {t('bottomTimeline.act.createHere')}
-                  </button>
-                </div>
-              );
+      {actCard && cardAct && (
+        <HoverCardShell
+          anchor={actCard.anchor}
+          placement="top-center"
+          className="actrail__card"
+          label={cardAct.name}
+          pointer={actCardPointer}
+          actions={actCardActions(cardAct, actCard.data.orderAtCursor, actCard.anchor)}
+          onDismiss={dismissActCard}
+        >
+          <HoverCardHeading
+            title={cardAct.name}
+            detail={
+              cardAct.driftNodeId
+                ? `⚓ ${driftTitleById?.(cardAct.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
+                : undefined
             }
-            const menuAct = acts.find((a) => a.id === menu.actId) ?? null;
-            const isBound = Boolean(menuAct?.driftNodeId);
-            return (
-              <div
-                ref={menuRef}
-                className="menu-surface menu-surface--compact actrail__menu"
-                style={{
-                  position: 'fixed',
-                  left: Math.min(menu.x, Math.max(8, window.innerWidth - 176)),
-                  top: Math.min(menu.y, Math.max(8, window.innerHeight - 220)),
-                }}
-                role="menu"
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu-surface__item"
-                  onClick={() => {
-                    setMenu(null);
-                    setEditingId(menu.actId);
-                  }}
-                >
-                  {t('bottomTimeline.pinMenu.rename')}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu-surface__item"
-                  onClick={() => {
-                    setMenu(null);
-                    onSplitAt(menu.orderAtCursor);
-                  }}
-                >
-                  {t('bottomTimeline.act.startHere')}
-                </button>
-                {/* Drift binding — bound acts open / unbind; unbound acts open
-                    the standalone bind picker (DriftBindModal). */}
-                {isBound ? (
-                  <>
-                    {onOpenDrift && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="menu-surface__item"
-                        onClick={() => {
-                          setMenu(null);
-                          if (menuAct?.driftNodeId)
-                            onOpenDrift(menuAct.driftNodeId, {
-                              left: menu.x,
-                              top: menu.y,
-                              width: 0,
-                              height: 0,
-                            });
-                        }}
-                      >
-                        {t('bottomTimeline.act.openActNote')}
-                      </button>
-                    )}
-                    {onUnbindDrift && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="menu-surface__item"
-                        onClick={() => {
-                          setMenu(null);
-                          onUnbindDrift(menu.actId);
-                        }}
-                      >
-                        {t('bottomTimeline.act.unbindDrift')}
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  onRequestBind && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="menu-surface__item"
-                      onClick={() => {
-                        setMenu(null);
-                        onRequestBind(menu.actId);
-                      }}
-                    >
-                      {t('bottomTimeline.pinMenu.bindDrift')}
-                    </button>
-                  )
-                )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu-surface__item menu-surface__item--danger"
-                  onClick={() => {
-                    setMenu(null);
-                    onDeleteAct(menu.actId);
-                  }}
-                >
-                  {actIndexOf(menu.actId) === 0
-                    ? t('bottomTimeline.act.deleteMergeNext')
-                    : t('bottomTimeline.act.deleteMergePrev')}
-                </button>
-              </div>
-            );
-          })(),
-          document.body,
-        )}
+          />
+        </HoverCardShell>
+      )}
     </div>
   );
 }

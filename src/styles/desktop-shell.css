@@ -1,6 +1,7 @@
 /* Desktop shell geometry. Feature styles live with their existing owners;
    this file only defines the desktop window composition and app-level status. */
 .desktop-app-shell {
+  position: relative;
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -30,14 +31,42 @@
 }
 
 .desktop-workspace-dock {
+  position: relative;
   z-index: 10;
   flex-shrink: 0;
+  transition: height 420ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* While it slides the timeline is clipped by its own drawer; its top edge
+   and lane dividers bleed glass (TimelineDrawer). */
+.desktop-workspace-dock.is-sliding {
+  overflow: hidden;
+}
+
+.desktop-workspace-dock__flow {
+  top: 0;
+  z-index: 30;
+  --flow-gx: -24px;
+  --flow-gy: -40px;
+}
+
+.btl-row__flow {
+  top: 0;
+  z-index: 25;
+  --flow-gx: -88px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-workspace-dock {
+    transition: none;
+  }
 }
 
 /* ─── Window controls without a title bar ─────────────────────────────
    The desk column keeps a transparent drag strip at the window-control row.
-   Each sidebar toggle stays in its top corner: on the strip while that sidebar
-   is closed, at the outer end of the sidebar's own tab row while it is open. */
+   Each sidebar toggle is a round glass button fixed in its top corner of the
+   window; it never moves, and its sidebar slides in and out underneath it
+   like a drawer. An open sidebar's tab row keeps an empty slot under it. */
 .workspace-window-strip {
   /* Transparent and out of flow: the paper runs to the top of the window and
      scrolls beneath the strip, so no band reads as a title bar. */
@@ -52,18 +81,38 @@
   padding: 0 8px;
 }
 
-.workspace-corner-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+.workspace-sidebar-toggles {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--window-titlebar-height);
+  pointer-events: none;
 }
 
-.workspace-corner-controls--left[data-leading-inset] {
-  margin-left: calc(var(--window-header-leading-inset) - 8px);
+.workspace-sidebar-toggle {
+  position: absolute;
+  top: calc((var(--window-titlebar-height) - 28px) / 2);
+  pointer-events: auto;
 }
 
-.workspace-corner-controls--right {
-  margin-left: auto;
+.workspace-sidebar-toggle--left {
+  left: 8px;
+}
+
+.workspace-sidebar-toggles[data-leading-inset] .workspace-sidebar-toggle--left {
+  left: var(--window-header-leading-inset);
+}
+
+.workspace-sidebar-toggle--right {
+  right: 8px;
+}
+
+.sidebar-toggle-slot {
+  display: block;
+  width: 28px;
+  height: 28px;
 }
 
 .workspace-panel-tab-row.workspace-panel-tab-row--window {
@@ -84,6 +133,13 @@
 
 .sidebar-header-chrome--right {
   margin-left: auto;
+  /* Under the fixed toggle, 8px from the window edge like the left one. */
+  margin-right: 2px;
+}
+
+.workspace-panel-tab-row__flow {
+  bottom: 0;
+  --flow-gy: -60px;
 }
 
 .desktop-left-sidebar {
@@ -95,6 +151,7 @@
 
 /* Account and notifications at the foot of the open left sidebar. */
 .sidebar-account-cell {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -152,79 +209,86 @@
 }
 
 /* ─── Paper-edge dock: open documents, then the timeline toggle ───────── */
+/* ─── The open-document dock along the paper's top ────────────────────
+   Centred on the traffic-light line (y = 21px), dots and pills alike. Each
+   open document is the sand mark of its kind; under the pointer glass lands
+   on the marks: every mark grows in place into a pill, its sand spreading
+   out and thinning away under the glass, the pill's rim (in the mark's
+   colour) comes up, then the title. Leaving reverses it and the sand gathers
+   back into a mark. The lock and the create button stay put while the pills
+   scroll. With a sidebar closed the row keeps clear of both top corners. */
 .workspace-tab-dock {
   position: absolute;
   z-index: 30;
-  bottom: 14px;
+  top: calc(var(--window-titlebar-height) / 2);
   left: 50%;
   display: flex;
-  width: min(820px, calc(100% - 180px));
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  justify-content: center;
+  transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.workspace-tab-dock[data-clear-corners] {
+  width: calc(100% - 260px);
 }
 
 .workspace-tab-dock__tabs {
   display: flex;
   justify-content: center;
   width: 100%;
+  min-width: 0;
   pointer-events: none;
 }
 
-.workspace-tab-dock .top-timeline-container,
-.workspace-timeline-toggle {
+.workspace-tab-dock .top-timeline-container {
   pointer-events: auto;
+  align-items: center !important;
+  border-radius: 19px;
+  overscroll-behavior-x: contain;
 }
 
 .workspace-tab-dock .top-timeline-container.is-collapsed {
-  height: 20px;
-  padding: 2px 4px;
-}
-
-/* The dock floats over prose: until the glass treatment lands, its resting
-   rows and the word count sit on a plain paper-coloured patch to stay legible. */
-.workspace-tab-dock .top-timeline-container.is-collapsed,
-.workspace-timeline-toggle,
-.workspace-word-count {
-  border-radius: 3px;
-  background: hsl(var(--page));
+  height: 26px;
+  padding: 2px 6px;
 }
 
 .workspace-tab-dock .top-timeline-container.is-expanded {
-  height: 30px;
+  height: 38px;
+  padding: 4px;
 }
 
 .app-tab-dot {
+  position: relative;
   display: grid;
   flex-shrink: 0;
-  width: 14px;
-  height: 16px;
+  width: 20px;
+  height: 22px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   place-items: center;
+  animation: sand-arrive 0.34s ease-out backwards;
 }
 
-.app-tab-dot::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--tab-dot-color);
+.app-tab-dot > .kind-mark {
+  transition: transform 0.26s ease-out, opacity 0.2s ease-out;
 }
 
-.app-tab-dot[data-preview]::before {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--tab-dot-color);
+/* In the dock the marks are drawn a size up from the list marks. */
+.app-tab-dot > .kind-mark--chapter > .sand {
+  inset: 0.5px;
 }
 
-.app-tab-dot.is-active::before {
-  width: 10px;
-  height: 10px;
+.app-tab-dot > .kind-mark--element > .sand {
+  inset: 1.5px;
 }
+
+.app-tab-dot.is-active > .kind-mark {
+  transform: scale(1.35);
+}
+
 
 .app-tab-dot-pair {
   display: inline-flex;
@@ -233,80 +297,204 @@
 }
 
 .app-tab-dot-pair .app-tab-dot {
-  width: 11px;
+  width: 17px;
 }
 
 .workspace-tab-dock [data-cluster-break] {
   margin-left: 8px;
 }
 
-/* Expanded chips: each slot stays contiguous for reorder geometry and draws an
-   inset frame, so the visible seam lives inside the slot. */
+/* Expanded pills: each slot stays contiguous for reorder geometry and draws
+   its glass inset by 2.5px, so the visible gap lives inside the slot. The
+   rim shows at rest (glass--rest), flows under the pointer and is pressed on
+   the current tab. */
 .workspace-tab-dock .app-tab,
 .workspace-tab-dock .app-tab.is-active,
 .workspace-tab-dock .app-tab--create,
 .workspace-tab-dock .app-tab--create.is-active {
+  height: 30px !important;
   border: 0;
   background: transparent;
+  animation: dock-pill-grow 0.34s cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
 }
 
-.workspace-tab-dock .app-tab::before {
+.workspace-tab-dock .app-tab.glass {
+  --glass-edge: 40%;
+  --glass-rim: 8px;
+}
+
+.workspace-tab-dock .app-tab.glass::before,
+.workspace-tab-dock .app-tab::after,
+.workspace-tab-dock .app-tab > .glass-wave {
+  inset: 0 2.5px;
+  border-radius: 999px;
+}
+
+.workspace-tab-dock .app-tab::after {
   content: '';
   position: absolute;
-  z-index: -1;
-  inset: 0 2px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  background: hsl(var(--page));
+  z-index: -2;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
 }
 
-.workspace-tab-dock .app-tab.is-active::before {
-  border-color: hsl(var(--ink-4));
-  background: hsl(var(--surface));
+.workspace-tab-dock .app-tab > * {
+  animation: dock-pill-content 0.36s ease-out backwards;
 }
 
+/* A press-and-drag on a pill drags the pill: its title never selects, and
+   WebKit still needs the prefixed property for that. */
+.workspace-tab-dock .top-timeline-container,
+.workspace-tab-dock .top-timeline-container * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.workspace-tab-dock .top-timeline-container > [draggable='true'] {
+  -webkit-user-drag: element;
+  cursor: pointer;
+}
+
+/* The kind of thing the tab holds, before its title (hollow while preview). */
+.app-tab__mark {
+  flex: none;
+}
+
+/* The pill that follows the pointer while a tab is dragged (tab-reorder.ts):
+   a still copy of the pill, lifted a little. */
+.app-tab--drag-ghost,
+.app-tab--drag-ghost * {
+  animation: none !important;
+}
+
+.app-tab--drag-ghost {
+  z-index: 50;
+  margin: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 12px hsl(var(--ink-1) / 0.14));
+}
+
+/* The dot the pill grew from sits out of the flow on the spot where the
+   pill's own kind mark leads its title; it spreads out and thins away under
+   the glass while the mark settles in. */
+.app-tab__sand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px;
+  display: grid;
+  width: 14px;
+  place-items: center;
+  pointer-events: none;
+}
+
+.app-tab--split .app-tab__sand {
+  left: 8px;
+}
+
+.workspace-tab-dock .app-tab__sand {
+  animation: none;
+}
+
+.workspace-tab-dock .app-tab__sand > .kind-mark {
+  opacity: 0;
+  animation: dock-sand-spread 0.3s cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+/* Grows from the mark's width to the pill's own (inline) width. */
+@keyframes dock-pill-grow {
+  from {
+    width: 20px;
+    min-width: 20px;
+  }
+}
+
+@keyframes dock-pill-content {
+  0%,
+  45% {
+    opacity: 0;
+  }
+}
+
+@keyframes dock-sand-spread {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.8, 1.6);
+    filter: blur(1.4px);
+  }
+}
+
+.workspace-tab-dock__lock,
 .workspace-tab-dock .top-timeline-create-button {
+  position: sticky;
+  z-index: 2;
+  display: grid;
+  flex-shrink: 0;
   width: 30px;
   min-width: 30px;
   height: 30px;
-  border: 0;
-  border-radius: 3px;
-}
-
-.workspace-timeline-toggle {
-  display: grid;
-  width: 28px;
-  height: 24px;
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
+  border-radius: 50%;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
   place-items: center;
+  animation: dock-control-in 0.3s cubic-bezier(0.3, 0.7, 0.2, 1) backwards 0.08s;
 }
 
-.workspace-timeline-toggle:hover {
+.workspace-tab-dock__lock {
+  left: 0;
+  margin-right: 5px;
+}
+
+.workspace-tab-dock .top-timeline-create-button {
+  right: 0;
+  margin-left: 5px;
+}
+
+.workspace-tab-dock__lock:hover,
+.workspace-tab-dock__lock[aria-pressed='true'],
+.workspace-tab-dock .top-timeline-create-button:hover {
   color: hsl(var(--ink-1));
 }
 
-.workspace-timeline-toggle[aria-pressed='true'] {
-  border-color: hsl(var(--ink-4));
-  color: hsl(var(--ink-1));
+@keyframes dock-control-in {
+  from {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+  }
 }
 
-/* ─── Word count resting in the desk's lower-left corner ──────────────── */
-.workspace-word-count {
+/* ─── The paper's lower-right corner ──────────────────────────────────
+   The Bottom Timeline toggle is its own round glass button; to its right,
+   separate, the editor's toolbar is one horizontal glass pill
+   (`.editor-corner` in index.css). With no editor showing, the stage keeps
+   the toggle alone in the same corner. */
+.workspace-timeline-toggle--stage.ghost-icon-button {
   position: absolute;
   z-index: 20;
-  bottom: 18px;
-  left: 14px;
-  display: flex;
-  gap: 10px;
-  padding: 3px 6px;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10px);
-  pointer-events: none;
-  user-select: none;
+  right: 16px;
+  bottom: 16px;
+}
+
+.workspace-timeline-toggle.ghost-icon-button {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  --glass-rim: 10px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
 }
 
 .desktop-sidebar-panel-host {
@@ -464,4 +652,270 @@
 
 .database-recovery__exit {
   margin-left: auto;
+}
+
+/* A sidebar's seam toward the paper bleeds glass while the slab slides or is
+   dragged wider (lib/glass-flow.ts sets --flow/--flowa on the shell). */
+.sidebar-shell--left > .sidebar-shell__edge-flow {
+  right: 0;
+  --flow-gx: -40px;
+}
+
+.sidebar-shell--right > .sidebar-shell__edge-flow {
+  left: 0;
+  --flow-gx: -90px;
+}
+
+.sidebar-pane-divider__flow {
+  left: 3px;
+  --flow-gx: -55px;
+}
+
+/* The split button fades in as it arrives with its half's tab row. */
+.sidebar-split-button {
+  animation: sidebar-split-button-in 0.24s ease-out backwards;
+}
+
+@keyframes sidebar-split-button-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A pane's body. Switching its tab pushes the pane's strip of panels like a
+   heavy block of ice, slow to start and then fast; DesktopSidebarLayout moves
+   the strip (`planSidebarPush`, Web Animations), so a switch made mid-push
+   carries on from where every panel is. While it arrives, the new panel is
+   outlined on all four sides — one of them the edge it shares with the panel
+   it pushes — by lines that bleed glass with the push, fading out whole
+   after. */
+.sidebar-pane__slides {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-pane__slide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebar-pane__slide--out,
+.sidebar-pane__slide--in {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.sidebar-pane__slide--out {
+  pointer-events: none;
+}
+
+.sidebar-pane__outline {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.sidebar-pane__outline-top { top: 0; }
+.sidebar-pane__outline-bottom { bottom: 0; --flow-gx: -96px; --flow-gy: -60px; }
+.sidebar-pane__outline-start { left: 0; --flow-gx: -40px; --flow-gy: -110px; }
+.sidebar-pane__outline-end { right: 0; --flow-gx: -120px; --flow-gy: -24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-pane__slide--out {
+    display: none;
+  }
+}
+
+/* Splitting a sidebar pushes the divider in from the side of the arriving
+   pane; merging folds the closed pane's place away under it. The lines bleed
+   glass while the divider moves (DesktopSidebarLayout). */
+.sidebar-pane--entering {
+  animation: sidebar-pane-in 420ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+@keyframes sidebar-pane-in {
+  from {
+    flex-grow: 0;
+    min-width: 0;
+  }
+}
+
+.sidebar-pane-ghost {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--workspace-ui-bg);
+  animation: sidebar-pane-out 420ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.sidebar-pane-ghost__head {
+  height: var(--window-titlebar-height);
+  border-bottom: 0.5px solid var(--workspace-local-border);
+}
+
+@keyframes sidebar-pane-out {
+  to {
+    flex-grow: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-pane--entering,
+  .sidebar-pane-ghost {
+    animation: none;
+  }
+
+  .sidebar-pane-ghost {
+    display: none;
+  }
+}
+
+.sidebar-account-cell__flow {
+  top: 0;
+  --flow-gx: -70px;
+  --flow-gy: -110px;
+}
+
+/* Between a split's two halves: a short I-shaped hairline. The split's own
+   operations live on the editors' seam, not on the pill. */
+.app-tab__split-divider {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 12px;
+  margin: 0 4px;
+  background: hsl(var(--ink-1) / 0.18);
+}
+
+/* The seam between two split editors (EditorMainArea's PaneDivider): drag it
+   to resize. A small I-shaped grip sits in its middle; resting on it unfolds
+   the split's own operations on either side of it (swap on the left, unsplit
+   on the right) while the grip stays as the drag handle, and leaving folds
+   them back. */
+.editor-split-seam {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  width: 5px;
+  background: hsl(var(--rule));
+  cursor: col-resize;
+  transition: background 0.15s ease;
+}
+
+.editor-split-seam:hover {
+  background: hsl(var(--accent) / 0.25);
+}
+
+/* Exactly the grip's box, centred on the seam; the options hang off it. */
+.editor-split-seam__grip-group {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-6px, -50%);
+}
+
+/* A 12px-wide target around a 4px bar. */
+.editor-split-seam__grip {
+  position: relative;
+  flex: none;
+  width: 12px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.editor-split-seam__grip::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 4px;
+  width: 4px;
+  border-radius: 2px;
+  background: hsl(var(--ink-3));
+  transition: background 0.15s ease, top 0.15s ease, bottom 0.15s ease;
+}
+
+.editor-split-seam__grip-group[data-open='true'] .editor-split-seam__grip::before {
+  top: 2px;
+  bottom: 2px;
+  background: hsl(var(--ink-1));
+}
+
+.editor-split-seam__options {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  padding: 3px;
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  white-space: nowrap;
+  opacity: 0;
+  filter: blur(2px);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease,
+    filter 110ms ease,
+    visibility 0s linear 110ms;
+}
+
+/* Each folds in toward the grip. */
+.editor-split-seam__options--start {
+  right: calc(100% + 4px);
+  transform: translate(6px, -50%);
+}
+
+.editor-split-seam__options--end {
+  left: calc(100% + 4px);
+  transform: translate(-6px, -50%);
+}
+
+.editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(-50%);
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease,
+    visibility 0s;
+}
+
+.editor-split-seam__option {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 12.5px);
+  cursor: pointer;
+}
+
+.editor-split-seam__option:hover,
+.editor-split-seam__option:focus-visible {
+  color: hsl(var(--ink-1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-split-seam__options,
+  .editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {
+    transition: none;
+    transform: translateY(-50%);
+    filter: none;
+  }
 }

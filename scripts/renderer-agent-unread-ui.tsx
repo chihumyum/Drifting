@@ -14,6 +14,7 @@ import { useUiStore } from '../src/renderer/store/ui-store';
 import { useAuthStore } from '../src/renderer/store/auth';
 import { i18next as i18n } from '../src/renderer/lib/i18n';
 import '../src/styles/index.css';
+import '../src/styles/materials.css';
 import '../src/styles/ui-controls.css';
 import '../src/styles/agent-activity.css';
 import '../src/styles/entity-editors.css';
@@ -105,12 +106,20 @@ const api = {
     if (mode === 'compact') {
       const legend = header.querySelector<HTMLElement>('.left-sb-group-header__legend')!;
       assert(!header.querySelector('.left-sb-group-header__count'), 'Grid category still shows an ordinary total');
+      // The category's sand frame is the section's nine-sliced ::before; its
+      // stroke runs through the middle of the frame's 12px top band, and the
+      // legend's plate cuts it where the heading sits.
+      const section = header.parentElement!;
       const add = header.querySelector<HTMLElement>('.left-sb-group-add')!.getBoundingClientRect();
       const slab = legend.getBoundingClientRect();
-      const lineY = header.getBoundingClientRect().top + parseFloat(getComputedStyle(header, '::before').top);
+      const lineY = section.getBoundingClientRect().top + parseFloat(getComputedStyle(section, '::before').top) + 6;
       assert(slab.top <= lineY && slab.bottom >= lineY && slab.left <= rect.left && slab.right >= add.right, 'Legend does not mask count and action gaps');
-      assert(getComputedStyle(legend).backgroundColor === getComputedStyle(header).backgroundColor && !['transparent', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(legend).backgroundColor), 'Legend background is not opaque chrome');
-      assert(getComputedStyle(header, '::before').pointerEvents === 'none', 'Frame line intercepts pointer events');
+      const probe = section.appendChild(document.createElement('i'));
+      probe.style.background = 'var(--workspace-ui-bg)';
+      const chrome = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      assert(getComputedStyle(legend).backgroundColor === chrome && !['transparent', 'rgba(0, 0, 0, 0)'].includes(chrome), 'Legend background is not opaque chrome');
+      assert(getComputedStyle(section, '::before').pointerEvents === 'none', 'Frame line intercepts pointer events');
     }
     if (mode === 'list') assert(header.querySelector('.left-sb-group-header__count')?.textContent?.trim() === '· 2', 'List category lost its ordinary total');
     const frame = header.parentElement!.getBoundingClientRect();

@@ -36,7 +36,7 @@ import { runGraphGeometryScenarios } from './graph-geometry-scenarios';
 import { runGraphOverlayScenarios } from './graph-overlay-scenarios';
 import { runTimelineScenarios } from './timeline-scenarios';
 import { runWorkspaceProjectionScenarios } from './workspace-projection-scenarios';
-import { runEditorContextMenuScenarios } from './editor-context-menu-scenarios';
+import { runEditorContextMenuScenarios } from './editor-selection-bar-scenarios';
 import { runEditorImeScenarios } from './editor-ime-scenarios';
 import { imeSelectionProbe } from './editor-ime-selection-scenarios';
 import { runCopilotTodoScenarios } from './copilot-todo-scenarios';

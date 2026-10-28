@@ -1,6 +1,7 @@
 import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FolderPlus, ListTodo, Plus } from 'lucide-react';
+import { BrushIcon } from '../../components/ui/BrushIcon';
+import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
@@ -10,7 +11,9 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import type { LibraryItem } from '../../domain/library-item';
 import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
 import type { EntityKind } from '../../lib/extensions/entity-link';
-import { FilterChip } from '../../components/ui/FilterChip';
+import { ScopeToggle } from '../../components/ui/ScopeToggle';
+import { scopeToggleSubject } from '../../components/ui/scope-toggle';
+import { isDrift } from '../../domain/book-node';
 import { ComposeLibraryItemDialog } from './LibraryDialogs';
 import { openLibraryItemInSystem } from './open-library-item';
 import { MaterialFolderTree, type MaterialTreeSelection } from './MaterialFolderTree';
@@ -80,6 +83,11 @@ export function LibraryPanel({
   const [moveRequest, setMoveRequest] = useState<{ selection: MaterialTreeSelection; current: string | null } | null>(null);
   const [newFolderRequest, setNewFolderRequest] = useState(0);
   const materialFolders = useDataStore((s) => s.materialFolders);
+  const focusedIsDrift = useDataStore((s) => {
+    if (focused.kind !== 'node' || !focused.id) return false;
+    const node = s.bookNodes.find((candidate) => candidate.id === focused.id);
+    return node ? isDrift(node) : false;
+  });
   const folderUsecases = useMaterialFolder(projectId);
 
   // Index entityRelations by from-entity so cards can render their relation
@@ -141,6 +149,7 @@ export function LibraryPanel({
         filter={filter}
         onFilterChange={setFilter}
         focusedKind={focused.kind}
+        focusedIsDrift={focusedIsDrift}
         onCompose={() => setComposeOpen(true)}
         libraryItemTotal={libraryItems.length}
         onNewFolder={presentation === 'desktop' ? () => setNewFolderRequest((count) => count + 1) : undefined}
@@ -230,6 +239,7 @@ function Toolbar({
   filter,
   onFilterChange,
   focusedKind,
+  focusedIsDrift,
   onCompose,
   libraryItemTotal,
   onNewFolder,
@@ -242,23 +252,20 @@ function Toolbar({
   filter: ViewFilter;
   onFilterChange: (f: ViewFilter) => void;
   focusedKind: EntityKind | null;
+  focusedIsDrift: boolean;
   onCompose: () => void;
   libraryItemTotal: number;
 }) {
   const { t } = useTranslation();
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  // Two-step compaction:
-  //   showCount goes off first (~ 230px) — least informational signal.
-  //   compact (short pill labels) flips a bit later (~ 200px).
+  // In a narrow pane the material count goes first (~ 230px); the scope
+  // toggle's one word needs no shorter form.
   const [showCount, setShowCount] = useState(true);
-  const [compact, setCompact] = useState(false);
   useEffect(() => {
     const node = toolbarRef.current;
     if (!node) return;
     const update = () => {
-      const w = node.clientWidth;
-      setShowCount(w >= 230);
-      setCompact(w < 200);
+      setShowCount(node.clientWidth >= 230);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -284,18 +291,14 @@ function Toolbar({
         background: 'var(--workspace-ui-bg)',
       }}
     >
-      <div style={{ display: 'flex', gap: 4 }}>
-        <FilterPill active={filter === 'all'} onClick={() => onFilterChange('all')}>
-          {compact ? t('memoMaterial.toolbar.allShort') : t('memoMaterial.toolbar.all')}
-        </FilterPill>
-        <FilterPill
-          active={filter === 'related'}
-          disabled={!focusedKind}
-          onClick={() => onFilterChange('related')}
-        >
-          {compact ? t('memoMaterial.toolbar.currentShort') : t('memoMaterial.toolbar.current')}
-        </FilterPill>
-      </div>
+      {/* Two states, so one toggle: off shows every material, on only those
+          related to the focused chapter, element or material. */}
+      <ScopeToggle
+        subject={scopeToggleSubject(focusedKind, focusedIsDrift)}
+        pressed={filter === 'related' && Boolean(focusedKind)}
+        disabled={!focusedKind}
+        onToggle={() => onFilterChange(filter === 'related' ? 'all' : 'related')}
+      />
       <div
         style={{
           display: 'flex',
@@ -309,13 +312,18 @@ function Toolbar({
       >
         {showCount && <span>{t('memoMaterial.toolbar.count', { count: libraryItemTotal })}</span>}
         {onOpenWorkbench && (
-          <ToolbarIconButton title={t('bottomStatusBar.todoLibrary')} onClick={onOpenWorkbench}>
-            <ListTodo size={12} strokeWidth={1.6} />
-          </ToolbarIconButton>
+          <GhostIconButton
+            glass="round"
+            className="workspace-super-view-entry"
+            title={t('bottomStatusBar.todoLibrary')}
+            aria-label={t('bottomStatusBar.todoLibrary')}
+            onClick={onOpenWorkbench}
+            icon={<BrushIcon name="lib-curio" size={15} />}
+          />
         )}
         {onNewFolder && (
           <ToolbarIconButton title={t('materialFolders.menu.newFolder')} onClick={onNewFolder}>
-            <FolderPlus size={12} strokeWidth={1.6} />
+            <BrushIcon name="folder-plus" size={12} />
           </ToolbarIconButton>
         )}
         <button
@@ -344,33 +352,10 @@ function Toolbar({
             e.currentTarget.style.color = 'hsl(var(--ink-4))';
           }}
         >
-          <Plus size={12} strokeWidth={1.6} />
+          <BrushIcon name="plus" size={12} />
         </button>
       </div>
     </div>
-  );
-}
-
-export function FilterPill({
-  active,
-  disabled,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <FilterChip
-      size="sm"
-      active={active}
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-    >
-      {children}
-    </FilterChip>
   );
 }
 

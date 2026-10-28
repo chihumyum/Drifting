@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../domain/comment';
 import { extractTextFromCommentBody } from '../../domain/comment';
@@ -11,6 +10,7 @@ import { CommentBodyEditor } from '../comments/CommentBodyEditor';
 import { TodoStatusToggle } from '../comments/TodoStatusToggle';
 import { CommentSourceHoverCard } from '../comments/CommentSourceHoverCard';
 import { useCommentSourceHover } from '../comments/use-comment-source-hover';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 export function TodoCard({
   todo,
@@ -57,9 +57,9 @@ export function TodoCard({
     <div
       className="workspace-list-row"
       aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
-      onPointerDownCapture={sourceHover.onLeave}
-      onKeyDownCapture={sourceHover.onLeave}
-      onContextMenuCapture={sourceHover.onLeave}
+      onPointerDownCapture={sourceHover.dismiss}
+      onKeyDownCapture={sourceHover.dismiss}
+      onContextMenuCapture={sourceHover.dismiss}
       onMouseEnter={(event) => { setHover(true); sourceHover.onEnter(event.currentTarget); }}
       onMouseLeave={() => { setHover(false); sourceHover.onLeave(); }}
       style={{
@@ -92,7 +92,7 @@ export function TodoCard({
             title={t('reviewPanel.jumpToText')}
             aria-label={t('reviewPanel.jumpToText')}
           >
-            <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
+            <BrushIcon name="arrow-back" size={10} />
           </button>
         )}
         <span style={{ flex: 1 }} />
@@ -122,7 +122,7 @@ export function TodoCard({
           className="todo-card__body"
           onDoubleClick={(event) => {
             event.stopPropagation();
-            sourceHover.onLeave();
+            sourceHover.dismiss();
             setEditing(true);
           }}
           style={{

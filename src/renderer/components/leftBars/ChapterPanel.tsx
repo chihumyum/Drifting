@@ -3,14 +3,16 @@ import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
 import { canonicalWordCount, CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
-import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { entityHoverActions } from './entity-hover-actions';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { KindMark } from '../ui/KindMark';
+import { CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import {
   useHoverPreview,
@@ -98,6 +100,7 @@ export function ChapterPanel({
       : nodeUi.selectedId;
   const [selection] = useSidebarSelection(fallbackSelectedId ? { entityType: 'node', id: fallbackSelectedId } : null);
   const selectedNodeId = selection?.entityType === 'node' ? selection.id : null;
+  const selectedStorylineId = selection?.entityType === 'storyline' ? selection.id : null;
   const scroll = useSidebarPanelScroll();
   const activateTarget = useCallback(
     (target: WorkspaceTarget, options?: { preview?: boolean }) => {
@@ -224,27 +227,34 @@ export function ChapterPanel({
         .sort(buildChapterComparator(storylineInnerSortMode)),
     [bookNodes, primaryStorylineByNode, storylineInnerSortMode, buildChapterComparator],
   );
-  // Per-cell context menu — reuses the editor top-bar three-dot menu items
-  // via EntityCellContextMenu so the two surfaces stay in lockstep.
+  // Hover card: the summary, and along its bottom the same actions as the
+  // editor's ⋯ menu (entityHoverActions). There are no right-click menus.
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    nodeStatusKind: 'chapter' | 'drift';
-    nodeWritingStatus: BookNode['writingStatus'];
-  } | null>(null);
-  const [storylineContextMenu, setStorylineContextMenu] = useState<{
-    x: number;
-    y: number;
-    storylineId: string;
-  } | null>(null);
-  // Hover summary card (same affordance as the element panel's).
   const {
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
+    dismiss: hoverDismiss,
+    card: hoverCard,
   } = useHoverPreview<EntityHoverTarget>();
+  const hoverActionsFor = (target: EntityHoverTarget) => {
+    if (target.kind === 'storyline') {
+      return entityHoverActions({
+        editorType: 'storyline',
+        onAction: (action) => void dispatchEntityAction({ entityType: 'storyline', id: target.id, action }),
+        t,
+      });
+    }
+    const node = target.kind === 'node' ? nodeById.get(target.id) : undefined;
+    if (!node) return undefined;
+    return entityHoverActions({
+      editorType: 'node',
+      nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
+      nodeWritingStatus: node.writingStatus,
+      onAction: (action) => void dispatchEntityAction({ entityType: 'node', id: node.id, action }),
+      t,
+    });
+  };
 
   const nodesByStoryline = useMemo(() => {
     const grouped: Record<string, BookNode[]> = {};
@@ -296,9 +306,9 @@ export function ChapterPanel({
     [activateTarget, bookNodes, createNode],
   );
 
-  // Cell layout: [storyline color stripe] [title] [date]. The stripe slot is
-  // always rendered so titles align; unaffiliated chapters use a quiet neutral
-  // gray instead of disappearing into a transparent slot.
+  // Cell layout: [chapter seal] [title] [date]. The seal is pressed in the
+  // primary storyline's colour; unaffiliated chapters use a quiet neutral
+  // gray instead of disappearing.
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
@@ -310,68 +320,47 @@ export function ChapterPanel({
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;
-    // Agent status rides the leading stripe while working — accent (lit) and
-    // blinking. Once the run is done the stripe is swapped for a plain "M"
-    // marker (below); at rest it keeps the storyline color.
-    const stripeBg = agentBusy ? 'hsl(var(--accent))' : stripeColor;
     const exactWordCount = canonicalWordCount(node);
     const wordCountLabel =
       exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
 
     return (
-      <div
+      <SandCell
         key={node.id}
+        selected={selected}
+        color={stripeColor}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '5px 14px 5px 22px',
+          gap: 9,
+          margin: '0 6px',
+          padding: `5px 10px 5px ${CELL_PAD_LEFT}px`,
+          borderRadius: 3,
           cursor: 'pointer',
-          position: 'relative',
-          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
           fontSize: 'var(--ui-font-body, 12.5px)',
           lineHeight: 'var(--ui-line-body, 1.35)',
           minHeight: 'var(--ui-row-height, 0px)',
-          transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
-          }
           hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
-        onMouseLeave={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'transparent';
-          }
+        onMouseLeave={() => {
           hoverLeave();
         }}
         onClick={() => {
-          hoverLeave();
+          hoverDismiss();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
           activateTarget({ entityType: 'node', id: node.id });
         }}
         onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          hoverLeave();
-          setContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            nodeId: node.id,
-            nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
-            nodeWritingStatus: node.writingStatus,
-          });
-        }}
       >
         {agentAdded || agentChanged ? (
           <AgentChangeIndicator
             onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
             title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
             style={{
-              width: 12,
+              width: 14,
               flexShrink: 0,
               textAlign: 'center',
               fontFamily: 'var(--font-mono)',
@@ -384,17 +373,13 @@ export function ChapterPanel({
             {agentAdded ? 'A' : 'M'}
           </AgentChangeIndicator>
         ) : (
-          <span
-            aria-hidden
-            className={agentBusy ? 'agent-glyph-busy' : undefined}
+          // Agent status rides the seal while working: accent and pulsing.
+          <KindMark
+            kind="chapter"
+            seed={node.id}
+            color={stripeColor}
+            busy={agentBusy}
             title={agentBusy ? t('agentActivity.working') : undefined}
-            style={{
-              width: 12,
-              height: 3,
-              borderRadius: 1,
-              background: stripeBg,
-              flexShrink: 0,
-            }}
           />
         )}
 
@@ -403,7 +388,6 @@ export function ChapterPanel({
             flex: 1,
             minWidth: 0,
             color: 'inherit',
-            fontWeight: selected ? 500 : 400,
             letterSpacing: '-0.005em',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -430,7 +414,7 @@ export function ChapterPanel({
                 : formatShortDate(node.updatedAt)}
           </span>
         )}
-      </div>
+      </SandCell>
     );
   };
 
@@ -514,9 +498,12 @@ export function ChapterPanel({
               return (
                 <div key={storyline.id} className="left-sb-group" style={{ marginBottom: 10 }}>
                   <GroupHeaderCell
+                    variant="cell"
                     name={storyline.name}
                     count={sNodes.length}
                     color={color}
+                    mark={<KindMark kind="storyline" color={color} busy={activity.busy || agentSelfBusy} />}
+                    selected={storyline.id === selectedStorylineId}
                     collapsed={collapsed}
                     onToggleCollapsed={() => toggleGroupCollapsed(storyline.id)}
                     onClick={() => {
@@ -528,15 +515,8 @@ export function ChapterPanel({
                     onDoubleClick={
                       presentation === 'desktop' ? () => promoteCurrentTab() : undefined
                     }
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setStorylineContextMenu({
-                        x: event.clientX,
-                        y: event.clientY,
-                        storylineId: storyline.id,
-                      });
-                    }}
+                    onPreviewEnter={(anchor) => hoverEnter({ kind: 'storyline', id: storyline.id }, anchor)}
+                    onPreviewLeave={hoverLeave}
                     addButtonTitle={t('leftSidebar.groups.newChapterInStoryline')}
                     onAdd={() => void handleCreateNode(storyline.id)}
                     agentBusy={activity.busy || agentSelfBusy}
@@ -558,9 +538,11 @@ export function ChapterPanel({
               footer surface. */}
             <div key={UNAFFILIATED_GROUP_ID} className="left-sb-group" style={{ marginBottom: 10 }}>
               <GroupHeaderCell
+                variant="cell"
                 name={t('leftSidebar.groups.unaffiliated')}
                 count={unaffiliatedChapters.length}
                 color="hsl(var(--ink-4))"
+                mark={<KindMark kind="storyline" color="hsl(var(--ink-4))" busy={unaffiliatedActivity.busy} />}
                 collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}
                 onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}
                 addButtonTitle={t('leftSidebar.actions.newChapter')}
@@ -597,40 +579,9 @@ export function ChapterPanel({
           target={hoverPreview.data}
           anchor={hoverPreview.anchor}
           placement="right-start"
-        />
-      )}
-
-      {contextMenu && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType="node"
-          nodeStatusKind={contextMenu.nodeStatusKind}
-          nodeWritingStatus={contextMenu.nodeWritingStatus}
-          onAction={(action) => {
-            void dispatchEntityAction({
-              entityType: 'node',
-              id: contextMenu.nodeId,
-              action,
-            });
-          }}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-
-      {storylineContextMenu && (
-        <EntityCellContextMenu
-          x={storylineContextMenu.x}
-          y={storylineContextMenu.y}
-          editorType="storyline"
-          onAction={(action) => {
-            void dispatchEntityAction({
-              entityType: 'storyline',
-              id: storylineContextMenu.storylineId,
-              action,
-            });
-          }}
-          onClose={() => setStorylineContextMenu(null)}
+          pointer={hoverCard}
+          onDismiss={hoverDismiss}
+          actions={hoverActionsFor(hoverPreview.data)}
         />
       )}
     </div>

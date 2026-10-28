@@ -27,6 +27,59 @@ export function tabDragScrollSpeed(x: number, width: number) {
   return 0;
 }
 
+// Tabs move with the weight of the bottom timeline's glass clips: a
+// critically damped spring of the same stiffness (chapter-lane-drag.ts).
+const SPRING_K = 150;
+const SPRING_W = Math.sqrt(SPRING_K);
+const SPRING_MS = 520;
+
+/** Progress of the spring at `t` seconds, normalised to land exactly on 1. */
+function springProgress(t: number) {
+  const settle = 1 - (1 + SPRING_W * SPRING_MS / 1000) * Math.exp(-SPRING_W * SPRING_MS / 1000);
+  return (1 - (1 + SPRING_W * t) * Math.exp(-SPRING_W * t)) / settle;
+}
+
+/** The spring as a CSS `linear()` easing over SPRING_MS, where supported. */
+export function springEasing() {
+  const points = Array.from({ length: 25 }, (_, index) =>
+    Number(springProgress((index / 24) * SPRING_MS / 1000).toFixed(4)));
+  return `linear(${points.join(', ')})`;
+}
+
+let easing: string | null = null;
+function weightedEasing() {
+  if (easing === null) {
+    const linear = springEasing();
+    easing = typeof CSS !== 'undefined' && CSS.supports?.('animation-timing-function', linear)
+      ? linear
+      : 'cubic-bezier(0.25, 1, 0.5, 1)';
+  }
+  return easing;
+}
+
+// A blank drag image: the pill itself follows the pointer instead (`Ghost`).
+let blankImage: HTMLImageElement | null = null;
+function blankDragImage() {
+  if (!blankImage && typeof Image !== 'undefined') {
+    blankImage = new Image(1, 1);
+    blankImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  }
+  return blankImage;
+}
+
+type Ghost = {
+  element: HTMLElement;
+  // Where the pill was picked up and where it is now, in client px.
+  originX: number;
+  originY: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  frame: number;
+  time: number;
+};
+
 type Session = {
   slots: HTMLElement[];
   widths: number[];
@@ -34,11 +87,13 @@ type Session = {
   from: number;
   to: number;
   grabX: number;
+  grabY: number;
   x: number;
   y: number;
   inside: boolean;
   frame: number;
   time: number;
+  ghost: Ghost | null;
 };
 
 /** Retain HTML drag data for editor split drops and the native cursor image.
@@ -47,7 +102,7 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
   let session: Session | null = null;
   const animations = new Map<HTMLElement, Animation>();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const duration = () => reducedMotion.matches ? 0 : 160;
+  const duration = () => reducedMotion.matches ? 0 : SPRING_MS;
   const slots = () => Array.from(container.querySelectorAll<HTMLElement>(':scope > [data-tab-key][draggable="true"]'));
 
   function animate(element: HTMLElement, from: string, to: string) {
@@ -55,7 +110,7 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     animations.delete(element);
     if (!duration() || from === to) return;
     const animation = element.animate([{ transform: from }, { transform: to }], {
-      duration: duration(), easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      duration: duration(), easing: weightedEasing(),
     });
     animations.set(element, animation);
     animation.onfinish = () => { if (animations.get(element) === animation) animations.delete(element); };
@@ -67,6 +122,54 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     const current = getComputedStyle(element).transform;
     element.style.transform = target;
     animate(element, current, target || 'none');
+  }
+
+  // The picked-up pill follows the pointer on the spring rather than the
+  // native drag image, so it lags a little and settles like a heavy block.
+  function lift(source: HTMLElement): Ghost | null {
+    const host = container.parentElement;
+    if (!host || reducedMotion.matches) return null;
+    const rect = source.getBoundingClientRect();
+    const element = source.cloneNode(true) as HTMLElement;
+    for (const name of ['data-tab-key', 'draggable', 'role', 'aria-selected']) element.removeAttribute(name);
+    element.setAttribute('aria-hidden', 'true');
+    element.classList.add('app-tab--drag-ghost');
+    // The tab's own inline `position: relative` would win over the class.
+    element.style.position = 'absolute';
+    element.style.width = `${rect.width}px`;
+    element.style.height = `${rect.height}px`;
+    host.append(element);
+    const parent = (element.offsetParent ?? document.body).getBoundingClientRect();
+    element.style.left = `${rect.left - parent.left}px`;
+    element.style.top = `${rect.top - parent.top}px`;
+    const ghost: Ghost = { element, originX: rect.left, originY: rect.top, x: rect.left, y: rect.top,
+      vx: 0, vy: 0, frame: 0, time: 0 };
+    return ghost;
+  }
+
+  function follow(time: number) {
+    const drag = session;
+    const ghost = drag?.ghost;
+    if (!drag || !ghost) return;
+    const dt = ghost.time ? Math.min(32, time - ghost.time) / 1000 : 0;
+    ghost.time = time;
+    const targetX = drag.x - drag.grabX;
+    const targetY = drag.y - drag.grabY;
+    for (const axis of ['x', 'y'] as const) {
+      const v = axis === 'x' ? 'vx' : 'vy';
+      const target = axis === 'x' ? targetX : targetY;
+      ghost[v] += (-SPRING_K * (ghost[axis] - target) - 2 * SPRING_W * ghost[v]) * dt;
+      ghost[axis] += ghost[v] * dt;
+    }
+    ghost.element.style.transform = `translate(${ghost.x - ghost.originX}px, ${ghost.y - ghost.originY}px)`;
+    ghost.frame = requestAnimationFrame(follow);
+  }
+
+  function land(ghost: Ghost | null) {
+    if (!ghost) return null;
+    cancelAnimationFrame(ghost.frame);
+    ghost.element.remove();
+    return { x: ghost.x, y: ghost.y };
   }
 
   function isInside(drag: Session) {
@@ -119,6 +222,9 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     document.removeEventListener('keydown', keydown, true);
     window.removeEventListener('blur', blur);
     delete container.dataset.tabReordering;
+    // The lifted pill hands its place back to the tab, which springs on from
+    // wherever the pill had got to: into its new slot, or home on a cancel.
+    const landed = land(drag.ghost);
     const before = drag.slots.map(element => element.getBoundingClientRect().left);
     for (const element of drag.slots) {
       animations.get(element)?.cancel();
@@ -130,8 +236,15 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     if (!motion) return;
     drag.slots.forEach((element, index) => {
       if (!element.isConnected) return;
+      const rect = element.getBoundingClientRect();
+      if (index === drag.from && landed) {
+        const dx = landed.x - rect.left;
+        const dy = landed.y - rect.top;
+        if (dx || dy) animate(element, `translate(${dx}px, ${dy}px)`, 'none');
+        return;
+      }
       const from = index === drag.from && drag.inside ? drag.x - drag.grabX : before[index];
-      const delta = from - element.getBoundingClientRect().left;
+      const delta = from - rect.left;
       if (delta) animate(element, `translateX(${delta}px)`, 'none');
     });
   }
@@ -178,10 +291,16 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', key);
     event.dataTransfer.setData('application/x-drifting-tab', key);
-    event.dataTransfer.setDragImage(source, event.clientX - rect.left, event.clientY - rect.top);
+    const grabX = event.clientX - rect.left;
+    const grabY = event.clientY - rect.top;
+    const ghost = lift(source);
+    const image = ghost ? blankDragImage() : null;
+    if (image) event.dataTransfer.setDragImage(image, 0, 0);
+    else event.dataTransfer.setDragImage(source, grabX, grabY);
     session = { slots: elements, widths: elements.map(element => element.getBoundingClientRect().width),
-      source, from, to: from, grabX: event.clientX - rect.left, x: event.clientX, y: event.clientY,
-      inside: true, frame: requestAnimationFrame(paint), time: 0 };
+      source, from, to: from, grabX, grabY, x: event.clientX, y: event.clientY,
+      inside: true, frame: requestAnimationFrame(paint), time: 0, ghost };
+    if (ghost) ghost.frame = requestAnimationFrame(follow);
     container.dataset.tabReordering = 'true';
     document.addEventListener('dragover', over);
     // Fast native gestures can enter successive label/close descendants without

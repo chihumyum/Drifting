@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
-import { Home } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { isProjectHomePathname } from '../../features/workspace/navigation/workspace-route';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useUiStore } from '../../store/ui-store';
+import { BrushIcon } from '../ui/BrushIcon';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { useAuthStore } from '../../store/auth';
 import { NotificationPill } from '../notifications/NotificationPill';
@@ -45,6 +45,7 @@ export function WorkspaceAccountCell() {
         <span className="sidebar-account-cell__name">{displayName}</span>
       </button>
       <GhostIconButton
+        glass="round"
         aria-pressed={homeActive}
         title={t('bottomStatusBar.projectHome')}
         aria-label={t('bottomStatusBar.projectHome')}
@@ -52,10 +53,11 @@ export function WorkspaceAccountCell() {
           setActiveSuperView('none');
           navigateToHome();
         }}
-        icon={<Home size={15} strokeWidth={1.6} />}
+        icon={<BrushIcon name="torii" />}
       />
       <NotificationPill opens="up" />
       <UserMenu triggerRef={triggerRef} open={menuOpen} onClose={() => setMenuOpen(false)} placement="top-start" />
+      <span className="flow-line flow-line--h sidebar-account-cell__flow" aria-hidden="true" />
     </div>
   );
 }

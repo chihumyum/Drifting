@@ -736,7 +736,7 @@
       "byokModelDesc": "当前 provider 下要用的模型（留空 = 使用 Drifting 在本地配置的该 provider 默认模型；列表外的可选「自定义…」手填 id）。",
       "switchesTitle": "开关",
       "autoTrigger": "自动触发",
-      "autoTriggerDesc": "编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 右键）时运行。",
+      "autoTriggerDesc": "编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 选中文本后的「Copilot 修改」）时运行。",
       "enableInDrift": "在构想编辑器中启用",
       "enableInDriftDesc": "构想用于自由记录创作草稿，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后构想编辑器也会执行同样的任务。",
       "summaryTitle": "段落概要",
@@ -2151,6 +2151,8 @@
       "newSubGroup": "新建子分组",
       "clickCollapseRename": "单击折叠 · 双击重命名",
       "moveDriftToRoot": "根层级（移出分组）",
+      "driftCount_one": "{{count}} 条构想",
+      "driftCount_other": "{{count}} 条构想",
       "moveGroupToRoot": "根层级（移到顶层）",
       "rename": "重命名",
       "moveToGroup": "移动到分组…",
@@ -2362,8 +2364,11 @@
     },
     "newEntity": "新建实体",
     "newTab": "新建…",
+    "splitControls": "分屏",
     "closeTab": "关闭标签页",
-    "closePane": "关闭分屏"
+    "closePane": "关闭分屏",
+    "dockLock": "保持展开",
+    "dockUnlock": "收回小点"
   },
   "universalCreate": {
     "eyebrow": "新建实体",
@@ -2474,13 +2479,13 @@
       "dragTitle": "拖动调整位置"
     },
     "axis": {
-      "title": "叙事时间标记：点击 + 添加可拖动的时间 pin",
+      "title": "叙事时间标记：点击 + 或双击轴上空白处添加可拖动的时间 pin",
       "needChapter": "需要至少一个章节才能添加 pin",
       "addPin": "添加时间 pin",
       "time": "时间"
     },
     "empty": {
-      "noChaptersInStoryline": "这条故事线还没有章节"
+      "noChaptersInStoryline": "这条故事线还没有章节 · 双击新建"
     },
     "view": {
       "toggleTitle": "视图：书序 / 叙事时",
@@ -2532,7 +2537,7 @@
       "railLabel": "幕",
       "needChapter": "需要至少一个章节才能分幕",
       "newAct": "新建幕",
-      "emptyTrackTitle": "右键此处新建幕，或点头部 ＋",
+      "emptyTrackTitle": "双击此处新建幕，或点头部 ＋",
       "chapterCount": "{{count}}章",
       "actNote": "幕笔记",
       "openActNoteTitle": "打开幕笔记（已绑定构想）",
@@ -2551,7 +2556,8 @@
     "spread": "打散",
     "spreadAria": "打散节点",
     "axis": {
-      "time": "时间"
+      "time": "时间",
+      "addMarkerHint": "双击空白处在此新建标记"
     },
     "lane": {
       "chapterCount": "{{count}} 章"
@@ -2900,7 +2906,7 @@
   },
   "patchesSection": {
     "add": "＋ 新建",
-    "empty": "— 尚无补丁。在章节里选中文本 → 右键「新建补丁」可锚定到此要素 —"
+    "empty": "— 尚无补丁。在章节里选中文本，点浮条上的「新建补丁」可锚定到此要素 —"
   },
   "edgeKindManager": {
     "title": "全部关联类型",
@@ -3489,7 +3495,7 @@
     "untitled": "新文件夹",
     "tree": "素材文件夹",
     "breadcrumb": "文件夹路径",
-    "empty": "还没有素材。右键可新建文件夹。",
+    "empty": "还没有素材。可用上方的新建文件夹按钮整理素材。",
     "deleteConfirm": "删除文件夹「{{name}}」？里面的素材和子文件夹会移到上一级，不会删除任何素材。",
     "menu": {
       "newFolder": "新建文件夹",
@@ -3511,5 +3517,18 @@
       "createAndMove": "新建并移入"
     },
     "deleteSelectionConfirm": "删除所选的 {{count}} 项？素材会被删除；删除的文件夹里的内容会移到上一级。"
+  },
+  "scopeToggle": {
+    "subject": {
+      "chapter": "本章",
+      "drift": "本构想",
+      "element": "本要素",
+      "storyline": "本故事线",
+      "category": "本类目",
+      "material": "本素材",
+      "current": "当前"
+    },
+    "hintOff": "只看{{subject}}的内容",
+    "hintOn": "正在只看{{subject}}；再点一下看整个项目"
   }
 }

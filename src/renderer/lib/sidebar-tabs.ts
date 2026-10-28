@@ -10,11 +10,19 @@ export interface SidebarPane<T extends string> {
   id: SidebarPaneId;
   tab: T;
 }
+// Which end of the tab row offers the split, and where the second pane
+// arrives: the side of the half the author last closed (default: the end).
+export type SidebarSplitEdge = 'start' | 'end';
 export interface SidebarTabs<T extends string> {
   panes: SidebarPane<T>[];
   focusedPane: SidebarPaneId;
   // Reopening a deliberately single wide sidebar must not undo that choice.
   canSplit: boolean;
+  splitEdge?: SidebarSplitEdge;
+  // The author went back to one column while two fitted: crossing the width
+  // threshold again keeps that choice instead of splitting automatically.
+  // Cleared when they split by hand.
+  keepSingle?: boolean;
 }
 
 export function singleSidebarTab<T extends string>(tab: T): SidebarTabs<T> {
@@ -32,10 +40,13 @@ export function splitSidebarTabs<T extends string>(
   if (!state.canSplit || state.panes.length === 2) return state;
   const current = state.panes[0];
   const next = order[(order.indexOf(current.tab) + 1) % order.length];
-  return {
+  const added = { id: current.id === 'primary' ? 'secondary' : 'primary', tab: next } as const;
+  const split: SidebarTabs<T> = {
     ...state,
-    panes: [current, { id: current.id === 'primary' ? 'secondary' : 'primary', tab: next }],
+    panes: state.splitEdge === 'start' ? [added, current] : [current, added],
   };
+  delete split.keepSingle;
+  return split;
 }
 
 export function resizeSidebarTabs<T extends string>(
@@ -44,9 +55,9 @@ export function resizeSidebarTabs<T extends string>(
   order: readonly T[],
 ): SidebarTabs<T> {
   if (state.canSplit === canSplit) return state;
-  if (canSplit) return splitSidebarTabs({ ...state, canSplit }, order);
+  if (canSplit) return state.keepSingle ? { ...state, canSplit } : splitSidebarTabs({ ...state, canSplit }, order);
   const pane = state.panes.find((item) => item.id === state.focusedPane) ?? state.panes[0];
-  return { panes: [pane], focusedPane: pane.id, canSplit };
+  return { ...state, panes: [pane], focusedPane: pane.id, canSplit };
 }
 
 /** null closes the sidebar; its last pane is retained for reopening. */
@@ -59,7 +70,11 @@ export function toggleSidebarTab<T extends string>(
   if (!current) return state;
   if (current.tab === tab) {
     const panes = state.panes.filter((pane) => pane.id !== paneId);
-    return panes.length ? { ...state, panes, focusedPane: panes[0].id } : null;
+    if (!panes.length) return null;
+    // Splitting again brings the closed half back on the same side; until
+    // then a wide sidebar stays single.
+    const splitEdge = state.panes.indexOf(current) === 0 ? 'start' : 'end';
+    return { ...state, panes, focusedPane: panes[0].id, splitEdge, keepSingle: true };
   }
   return {
     ...state,
@@ -107,5 +122,8 @@ export function restoreSidebarTabs<T extends string>(
   if (!panes.length) return singleSidebarTab(fallback);
   const focused = panes.find((pane) => pane.id === saved.focusedPane)
     ?? panes.find((pane) => pane.tab === saved.focused) ?? panes[0];
-  return { panes, focusedPane: focused.id, canSplit };
+  const restored: SidebarTabs<T> = { panes, focusedPane: focused.id, canSplit };
+  if (saved.splitEdge === 'start' || saved.splitEdge === 'end') restored.splitEdge = saved.splitEdge;
+  if (saved.keepSingle === true) restored.keepSingle = true;
+  return restored;
 }

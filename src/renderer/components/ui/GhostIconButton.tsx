@@ -1,6 +1,8 @@
 /**
- * GhostIconButton — flat ghost button for icon-only actions in toolbars,
- * section headers, etc. Pairs with the Drifting design system tokens.
+ * GhostIconButton — icon-only button. Plain by default (panel-header sort,
+ * new, filters): hovering only darkens it. Workspace controls (sidebar
+ * toggles, the split button, Project Home, entries to whole-book views) are
+ * made of glass: `glass` gives them the flowing rim, round or square.
  */
 import {
   forwardRef,
@@ -12,9 +14,11 @@ import {
 interface GhostIconButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'style'> {
   icon: ReactNode;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
   /** Visual emphasis. `accent` = active toggled state. */
   variant?: 'default' | 'accent' | 'destructive';
+  /** Glass control instead of a plain one; see materials.css. */
+  glass?: 'round' | 'square';
   style?: CSSProperties;
 }
 
@@ -24,6 +28,7 @@ export const GhostIconButton = forwardRef<HTMLButtonElement, GhostIconButtonProp
       icon,
       size = 'md',
       variant = 'default',
+      glass,
       style,
       disabled = false,
       className = '',
@@ -41,6 +46,8 @@ export const GhostIconButton = forwardRef<HTMLButtonElement, GhostIconButtonProp
           'ghost-icon-button',
           `ghost-icon-button--${size}`,
           variant !== 'default' ? `ghost-icon-button--${variant}` : '',
+          glass ? 'ghost-icon-button--glass glass' : '',
+          glass === 'round' ? 'glass--round' : '',
           className,
         ]
           .filter(Boolean)

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2 } from 'lucide-react';
 import { createPlainCommentDoc } from '../../domain/comment';
 import type { LibraryItemKind } from '../../domain/library-item';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
@@ -9,8 +8,10 @@ import { Button } from '../../components/ui/Button';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { platform } from '../../platform';
 import type { CreateLibraryItemInput } from '../../usecase/useLibraryItem';
-import { FilterPill, type FocusedEntity } from './LibraryPanel';
+import { type FocusedEntity } from './LibraryPanel';
+import { GlassSlider } from '../../components/ui/GlassSlider';
 import { useEscapeToClose } from './library-item-media';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compose dialogs
@@ -317,12 +318,16 @@ export function ComposeLibraryItemDialog({
 
   return (
     <DialogShell title={t('memoMaterial.dialog.newMaterial')} onCancel={() => void cancel()}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        {(['text', 'image', 'pdf'] as LibraryItemKind[]).map((k) => (
-          <FilterPill key={k} active={kind === k} onClick={() => void selectKind(k)}>
-            {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
-          </FilterPill>
-        ))}
+      <div style={{ marginBottom: 10 }}>
+        <GlassSlider
+          ariaLabel={t('memoMaterial.dialog.newMaterial')}
+          value={kind}
+          onChange={(k) => void selectKind(k)}
+          options={(['text', 'image', 'pdf'] as const).map((k) => ({
+            value: k,
+            label: t(`memoMaterial.kind.${k}`, { defaultValue: k }),
+          }))}
+        />
       </div>
 
       <input
@@ -349,7 +354,7 @@ export function ComposeLibraryItemDialog({
               cursor: 'pointer',
             }}
           >
-            {picking && <Loader2 className="control-spinner" aria-hidden />}
+            {picking && <BrushIcon name="loader" size={13} className="control-spinner" />}
             {picking
               ? t('memoMaterial.dialog.openingPicker')
               : t('memoMaterial.dialog.chooseFile')}
@@ -375,7 +380,7 @@ export function ComposeLibraryItemDialog({
 
       {submitting && (kind === 'image' || kind === 'pdf') && (
         <div className="material-import-feedback" role="status" aria-live="polite">
-          <Loader2 className="control-spinner" aria-hidden />
+          <BrushIcon name="loader" size={13} className="control-spinner" />
           <div>
             <div className="material-import-feedback__title">
               {t(
@@ -504,7 +509,7 @@ function DialogActions({
         disabled={confirmDisabled}
         aria-busy={confirmBusy}
       >
-        {confirmBusy && <Loader2 className="control-spinner" aria-hidden />}
+        {confirmBusy && <BrushIcon name="loader" size={13} className="control-spinner" />}
         {confirmLabel ?? t('memoMaterial.dialog.create')}
       </Button>
     </div>

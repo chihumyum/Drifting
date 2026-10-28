@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   useProjectCheckinStore,
@@ -13,6 +12,7 @@ import {
   useProjectCheckin,
 } from '../../usecase/useProjectCheckin';
 import '../../../styles/project-agent-home.css';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /**
  * The Project Home Agent entry: a composer that opens a General Agent
@@ -212,7 +212,7 @@ export function ProjectAgentHomeView({
                 title={t('projectAgent.dismiss')}
                 onClick={() => useProjectCheckinStore.getState().dismissCard(projectId, card.id)}
               >
-                <X size={14} aria-hidden="true" />
+                <BrushIcon name="close" size={14} />
               </button>
             </article>
           ))}

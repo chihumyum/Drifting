@@ -385,6 +385,9 @@
   border-radius: 4px;
   background: var(--btl-lane-bg);
   cursor: default;
+  /* Double-clicking an empty spot creates a chapter there; it must not also
+     select the clip titles around it. */
+  user-select: none;
 }
 
 /* ---------------- Time axis row (narrative view only) ---------------- */
@@ -444,6 +447,7 @@
   flex: 1;
   height: 100%;
   cursor: default;
+  user-select: none;
   /* Carry the row's surface at FULL content width. The track cell is the
      element sized to the scroll content (flex:1 + minWidth:timelineWidth);
      the parent `.btl-axis` is only as wide as the container, so relying on its
@@ -690,6 +694,66 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* Desktop: each chapter is a weighted glass slab filling its lane, square-
+   cornered, its rim in the storyline's colour (materials.css `.glass`; only
+   the desktop presentation adds it, and the dragged ghost keeps it). It rests
+   on the page colour; held, it is the same glass, denser and still. Writing
+   status reads in the text: drafts lighter, discarded faded and struck out. */
+.btl-clip.glass,
+.btl-clip.glass.is-draft,
+.btl-clip.glass.is-discarded,
+.btl-clip.glass.is-selected {
+  top: 0;
+  bottom: 1px;
+  --glass-edge: 40%;
+  --glass-rim: 9px;
+  border: 0;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  color: hsl(var(--ink-1));
+  filter: none;
+  outline: none;
+}
+
+.btl-clip.glass.is-draft {
+  color: hsl(var(--ink-2));
+}
+
+.btl-clip.glass.is-discarded {
+  opacity: 0.55;
+}
+
+.btl-clip.glass .btl-clip__content {
+  justify-content: center;
+  padding: 0 10px;
+}
+
+.btl-clip.glass .btl-clip__title {
+  color: inherit;
+  font-weight: 400;
+  font-size: var(--ui-font-secondary, 12px);
+}
+
+.chapter-lane-pointer-ghost.btl-clip.glass {
+  --glass-g: 1.7;
+  --glass-sp: 1.3;
+}
+
+.chapter-lane-pointer-ghost.btl-clip.glass::before {
+  opacity: 1;
+  animation-play-state: paused;
+}
+
+.btl--desktop .btl-rail__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btl--desktop .btl-rail__name .kind-mark {
+  margin-left: -2px;
+}
+
 /* ---------------- Empty + loading ---------------- */
 .btl-empty {
   position: absolute;
@@ -727,8 +791,10 @@
 /* Minimap removed: the ActRail (act-rail.css) + storyline rows serve the
    "overview" role. */
 
-/* ---------------- Context menu (right-click on timeline) ----------------
-   Sharp grouped surface with hairline dividers. */
+/* ---------------- Rich menu surface ----------------
+   Sharp grouped surface with hairline dividers. The timeline itself has no
+   right-click menus any more (its clips, rails, acts and pins carry hover
+   cards); library cards still reuse these rules. */
 .btl-cmenu {
   position: fixed;
   z-index: var(--z-context-menu);

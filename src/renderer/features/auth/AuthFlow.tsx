@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { finishHostedSignIn } from '../../sync/hosted/sign-in';
 import { authClient } from '../../lib/auth-client';
 import { setSessionToken } from '../../lib/session-token';
@@ -21,6 +20,7 @@ import { APP_CONFIG } from '../../lib/config';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import type { AuthEntryMode } from './auth-dialog-store';
 import '../../../styles/auth.css';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 // Social sign-in is OFF for the BYOK-only beta: Google OAuth still injects a
 // cookie that the bearer-token flow does not use. The block stays behind this
@@ -197,7 +197,7 @@ export function AuthFlow({
       </div>
     ) : (
       <div className="auth-flow__body auth-flow__progress" role="status" aria-live="polite">
-        <Loader2 className="control-spinner" aria-hidden />
+        <BrushIcon name="loader" size={13} className="control-spinner" />
         <p className="auth-flow__lead">{t('auth.sync.detail')}</p>
       </div>
     );
@@ -321,7 +321,7 @@ export function AuthFlow({
         {back && (
           <GhostIconButton
             className="auth-flow__back"
-            icon={<ArrowLeft size={16} strokeWidth={1.6} />}
+            icon={<BrushIcon name="arrow-back" size={16} />}
             onClick={back}
             title={t('auth.back')}
             aria-label={t('auth.back')}
@@ -331,7 +331,7 @@ export function AuthFlow({
         {onClose && !locked && (
           <GhostIconButton
             className="auth-flow__close"
-            icon={<X size={16} strokeWidth={1.6} />}
+            icon={<BrushIcon name="close" size={16} />}
             onClick={onClose}
             title={t('common.close')}
             aria-label={t('common.close')}
