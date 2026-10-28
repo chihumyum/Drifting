@@ -80,8 +80,13 @@ export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
 
 export function sanitizeSentryLog(log: Log): Log | null {
   if (!(DIAGNOSTIC_LOG_EVENTS as readonly string[]).includes(log.message)) return null;
-  const attributes = Object.fromEntries(Object.entries(log.attributes ?? {}).filter(([key, value]) =>
-    ['durationMs', 'bytes'].includes(key) ? typeof value === 'number' && Number.isFinite(value) && value >= 0
-      : ['appVersion', 'platform'].includes(key) && typeof value === 'string' && /^[a-zA-Z0-9._+-]{1,80}$/.test(value)));
+  const attributes = Object.fromEntries(Object.entries(log.attributes ?? {}).filter(([key, value]) => {
+    if (['durationMs', 'bytes'].includes(key)) return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+    if (typeof value !== 'string') return false;
+    if (['appVersion', 'platform'].includes(key)) return /^[a-zA-Z0-9._+-]{1,80}$/.test(value);
+    if (key === 'sentry.release') return /^[a-zA-Z0-9@+._-]{1,160}$/.test(value);
+    if (key === 'sentry.environment') return /^[a-zA-Z0-9._-]{1,40}$/.test(value);
+    return false;
+  }));
   return { ...log, attributes };
 }

@@ -30,9 +30,14 @@ it('drops ambient scope, request, prose, credentials and untrusted stack locatio
   }
 });
 
-it('accepts machine log messages and numeric runtime attributes only', () => {
+it('accepts machine log messages and bounded runtime and deployment attributes only', () => {
   expect(sanitizeSentryLog({ level: 'info', message: 'a private manuscript' })).toBeNull();
   expect(sanitizeSentryLog({ level: 'warn', message: 'sync-cycle-failed', attributes: {
     bytes: 3, durationMs: Infinity, appVersion: '0.1.0', platform: 'macos', token: 'secret', projectId: 'private',
-  } })?.attributes).toEqual({ bytes: 3, appVersion: '0.1.0', platform: 'macos' });
+    'sentry.environment': 'acceptance', 'sentry.release': 'drifting@0.1.0+synthetic', 'user.email': 'writer@example.test',
+  } })?.attributes).toEqual({ bytes: 3, appVersion: '0.1.0', platform: 'macos',
+    'sentry.environment': 'acceptance', 'sentry.release': 'drifting@0.1.0+synthetic' });
+  expect(sanitizeSentryLog({ level: 'info', message: 'update-check-completed', attributes: {
+    'sentry.environment': '/synthetic/private-location', 'sentry.release': 'https://private.example.test/token',
+  } })?.attributes).toEqual({});
 });

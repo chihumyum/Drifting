@@ -16,6 +16,7 @@ const sourceFiles = [
   'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.env.example', 'PRIVACY.md',
   'scripts/generate-sentry-observability.ts', 'scripts/sentry-environment.mjs',
   'scripts/run-sentry-browser.mjs', 'scripts/renderer-sentry-acceptance.ts',
+  'scripts/verify-sentry-cloud.mjs', 'docs/acceptance/sentry-cloud.json',
   'scripts/renderer-sentry-acceptance.html', 'scripts/renderer-headless-browser.mjs',
   'scripts/run-desktop-tauri.mjs', 'scripts/run-worktree-dev.mjs', 'scripts/run-hosted-client.mjs',
   'vite.renderer.config.ts', 'docs/crash-reports.md', 'docs/sentry-observability.md',
@@ -35,10 +36,16 @@ const sourceFiles = [
   'src/renderer/sync/production-runtime.ts', 'src/renderer/vite-env.d.ts',
   'src/renderer/locales/en.json', 'src/renderer/locales/zh-CN.json',
 ].sort();
+const cloud = JSON.parse(readFileSync('docs/acceptance/sentry-cloud.json', 'utf8'));
+const cloudSourcesCurrent = Object.entries(cloud.build.clientSourceSha256 as Record<string, string>)
+  .every(([file, hash]) => hash === `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`);
 const contract = {
   milestone: 'sentry-client-operational-diagnostics',
   delivery: 'optional-direct-sentry-with-existing-hosted-fallback-when-unconfigured',
   automatedTransport: 'real-sdk-unit-and-minified-browser-loopback-https',
+  liveCloudEvidence: { report: 'docs/acceptance/sentry-cloud.json',
+    status: cloud.status, diagnosticSourcesMatch: cloudSourcesCurrent,
+    emailDelivery: cloud.alert.emailDelivery },
   sourceSha256: Object.fromEntries(sourceFiles.map(file => [file,
     `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`])),
 };
@@ -49,7 +56,7 @@ if (process.argv.includes('--check')) {
   }
   const browser = spawnSync(process.execPath, ['scripts/run-sentry-browser.mjs', '--check'], { encoding: 'utf8' });
   if (browser.status !== 0) throw new Error(`Sentry browser evidence is stale\n${browser.stdout}\n${browser.stderr}`);
-  console.log('Sentry unit/browser evidence is current; real-account, cloud source-map upload and packaged Mac gates remain open.');
+  console.log(`Sentry unit/browser evidence is current; cloud diagnostic sources match: ${cloudSourcesCurrent}. Packaged production gates remain open.`);
 } else {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-sentry-evidence-'));
   try {
@@ -69,10 +76,11 @@ if (process.argv.includes('--check')) {
       passed: result.numPassedTests, failed: result.numFailedTests, skipped: result.numPendingTests, cases,
       browser: { status: browserReport.status, report: 'docs/acceptance/sentry-browser.json', checks: browserReport.checks.length } },
     openGates: [
-      'Sentry account/project and public DSN provisioned',
-      'exact packaged Mac build resolves synthetic JS error to original TypeScript line',
-      'real source maps upload and absence from distributed artifacts verified',
-      'real Web dashboard, production email, opt-out and retry acceptance',
+      ...(!cloudSourcesCurrent ? ['repeat live cloud acceptance for changed diagnostic sources'] : []),
+      ...(cloud.alert.emailDelivery !== 'confirmed-by-owner' ? ['real alert mailbox receipt'] : []),
+      'packaged production Mac build, tauri scheme and distributed-artifact source-map absence',
+      'production CI upload credentials and controlled distribution',
+      'real-cloud opt-out and retry acceptance',
       'Mac writing/restart preservation acceptance',
       'separate private-service instrumentation and external availability monitoring',
     ] };

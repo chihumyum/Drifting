@@ -72,6 +72,10 @@ it('sends bounded structured logs through the real SDK and rechecks consent befo
   const packet = packets().find(packet => packet[1].type === 'log');
   expect(packet).toBeDefined();
   expect(JSON.stringify(packet)).toContain('update-download-completed');
+  expect(packet?.[2].items[0].attributes).toMatchObject({
+    'sentry.environment': { value: env.VITE_SENTRY_ENVIRONMENT },
+    'sentry.release': { value: env.VITE_SENTRY_RELEASE },
+  });
   expect(await sendSentryReport(report, gate)).toBe(true);
   const error = packets().find(packet => packet[1].type === 'event')?.[2];
   expect(error.breadcrumbs).toEqual([{ category: 'drifting.operation', message: 'update-download-completed',

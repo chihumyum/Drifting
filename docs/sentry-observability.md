@@ -1,7 +1,8 @@
 # Sentry operational diagnostics
 
-Status: client integration and minified-browser HTTPS acceptance implemented;
-account/project setup and live Mac/cloud acceptance remain open.
+Status: client integration, minified-browser HTTPS checks and live Sentry
+error/log/source-map acceptance completed on 2026-10-29. The owner confirmed
+receipt of the test alert email. Packaged release and production rollout remain open.
 This milestone changes no service deployment, subscription or paused
 Alpha release gate. See generated [acceptance](acceptance/sentry-observability.json).
 
@@ -60,7 +61,9 @@ rate; no session denominator is collected in this milestone.
 
 Operational logs are best effort, capped at 100 per application session. Only
 update check/download/install and sync-cycle failure machine events are allowed,
-with version/platform and optional byte/duration counts. The last 20 operations
+with version/platform, bounded release/environment identifiers and optional
+byte/duration counts. Deployment identifiers survive privacy filtering so logs
+can be filtered by environment and release. The last 20 operations
 also provide sanitized error breadcrumbs. Logs do not persist offline. Neither
 diagnostic delivery nor failure blocks local writing or installation safety.
 
@@ -88,6 +91,33 @@ diagnostic delivery nor failure blocks local writing or installation safety.
    and regressions, with throttling. Decide retention, quotas and optional paid
    spend limits in the Sentry account; no subscription is enabled by this code.
 
+## Connected operator project
+
+The `drifting/drifting-client` React project is provisioned. Its active public DSN
+and project identifiers are configured in this worktree's ignored `.env.local`;
+the OAuth/upload token stays in the Sentry CLI credential store. Other checkouts
+and CI still need their own operator configuration. No token or DSN is recorded
+in this document or the generated evidence.
+
+The [test issue](https://drifting.sentry.io/issues/7816942043/) is
+`DRIFTING-CLIENT-1`, `DriftingSentrySetupError: Drifting Sentry setup verification 20261029`.
+The [email alert](https://drifting.sentry.io/monitors/alerts/6249230/) covers new
+issues and regressions at `error` or higher, sends only to the account owner and
+throttles each issue to 30 minutes. It currently covers all environments,
+including the explicitly named `sentry-acceptance` canary environment. Development
+reporting still requires the separate opt-in described above. The owner confirmed
+the email arrived after the initial receipt check.
+
+For a local operator build, the logged-in CLI can supply a short-lived token
+directly to the child build process without saving it in `.env.local`:
+
+```sh
+SENTRY_AUTH_TOKEN="$(pnpm exec sentry auth token)" pnpm tauri:build --online
+```
+
+This is a build command, not a release deployment. CI needs a separately managed
+upload credential. Neither CI secrets, distribution nor a paid plan was enabled.
+
 ## Acceptance
 
 `pnpm diagnostics:sentry:evidence` runs unit tests and the minified-browser
@@ -114,13 +144,43 @@ DSN. Hidden maps are never served by the fixture. This verifies a production-mod
 minified diagnostic fixture in Chromium, not the full app's packaged Mac WebView,
 Sentry cloud symbolication, source-map upload/deletion or email delivery.
 
-Before calling the hosted integration operational, create the project and verify
-an actual packaged Mac build: throw a synthetic JS error from app code, resolve
-its exact TypeScript source line in Sentry, inspect safe logs, receive one email,
-test opt-out and failed/retried delivery, and confirm writing/restart preservation.
-Upload success, real dashboard access, email delivery and Mac WebView acceptance
-remain separate open gates. Backend errors/availability and broader server log
-collection are the next milestone in the private service repository.
+Before production rollout, verify an actual packaged Mac build: throw a synthetic
+JS error from app code, resolve its exact TypeScript source line in Sentry,
+inspect safe logs, test opt-out and failed/retried delivery, and confirm
+writing/restart preservation. The live Debug acceptance below closes the cloud
+connection and email checks while leaving the packaged-release checks open.
+
+The live [cloud evidence](acceptance/sentry-cloud.json) records a freshly compiled,
+isolated Tauri Debug host launched with `pnpm dev:worktree --online --no-watch
+--instance sentry-cloud`. A temporary local Vite middleware served the full
+production-minified renderer over that profile's loopback HTTP URL. A temporary
+app bootstrap canary, guarded by the native Tauri runtime, threw an uncaught error
+after initialization. Sentry resolved the exact TypeScript source and line from
+the uploaded maps, reported no event-processing errors, received the synthetic
+operation log and evaluated the email rule. No `.map` files remained in the local
+frontend artifacts after upload. A second run fixed and verified environment
+filtering for logs. Both temporary source modifications were restored afterwards.
+The build evidence records the baseline commit, changed diagnostic-source hashes
+and temporary-canary hashes; a commit alone does not describe this test build.
+Logs use the search attributes `sentry.environment` and `sentry.release`; for
+example, `sentry.environment:sentry-acceptance` selects the canary logs.
+
+`pnpm diagnostics:sentry:cloud --org <org> --project <project> --issue <id>
+--alert <id> --manifest <ignored-canary-manifest.json> --artifacts dist` re-queries
+the authenticated API and logs, verifies the exact source line, active DSN and
+artifact hashes, then generates allowlisted evidence. `--email-received` records
+the separate human confirmation; the API cannot prove mailbox receipt. The
+ignored manifest is produced during an operator's temporary app canary and records
+its release, environment, exact source line, Git revision and source/artifact hashes.
+The command does not create an error or deploy an app. Historical cloud evidence
+is not a substitute for repeating acceptance on a later release.
+
+This live run establishes the Mac WebView diagnostic pipeline over loopback HTTP;
+it does not establish a packaged `tauri://` release, production CI, writing/restart
+preservation or real-cloud opt-out/retry behavior. Unit and loopback-browser checks
+cover opt-out and retries separately. These remain open release gates. Backend
+errors/availability and broader server log collection are the next milestone in
+the private service repository.
 
 References: [Browser SDK](https://docs.sentry.io/platforms/javascript/),
 [Vite maps](https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/),

@@ -51,6 +51,7 @@
     "diagnostics:sentry:evidence": "tsx scripts/generate-sentry-observability.ts",
     "diagnostics:sentry:check": "tsx scripts/generate-sentry-observability.ts --check",
     "diagnostics:sentry:browser": "node scripts/run-sentry-browser.mjs",
+    "diagnostics:sentry:cloud": "node scripts/verify-sentry-cloud.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
