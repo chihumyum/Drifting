@@ -9,30 +9,41 @@
       "diagnosticSourcesMatch": true,
       "emailDelivery": "confirmed-by-owner"
     },
+    "packagedEvidence": {
+      "report": "docs/acceptance/sentry-packaged.json",
+      "status": "passed",
+      "sourcesMatch": true,
+      "artifact": "isolated-signed-debug-app-with-production-renderer"
+    },
     "sourceSha256": {
       ".env.example": "sha256:c0ad19d240fdaa5106a43fd69d813b97b4b8c97db76bf49e4ccc00073330cdc7",
       "PRIVACY.md": "sha256:39ad5fc82ca1176400141b023b1c78eaaa45e1200fd37aef857779fe7a359e24",
       "docs/acceptance/sentry-cloud.json": "sha256:06f5ed0d0186a8c69850583ac2ddc2f46b1638d3abd144e7ce07cee8306502c3",
+      "docs/acceptance/sentry-packaged.json": "sha256:b53fe1a1bd6697290542a1b532fb522fea1c36e06cb92a3701e27251f0546f77",
       "docs/crash-reports.md": "sha256:f94c06085579e6c6eadcf80cb4f2810d6ec960dcdff8032ac440587493602196",
-      "docs/sentry-observability.md": "sha256:6f95f7ca36a6d1ca9ac5f244ab4afe38a7ee0d665b49108facd00686a7519c31",
-      "package.json": "sha256:6c64d774bafb9a3894a713e51a6147546f17c815891655307ce8c97bc1ee1911",
+      "docs/sentry-observability.md": "sha256:dd9590ffeba6e597bc67e28d49ce3ffc5688be66fef9bcb543703022e7897963",
+      "docs/worktree-development.md": "sha256:f950b36052577ca109b00b498f3d9870760568e08259fd80bec14077882e7bec",
+      "package.json": "sha256:fcbb8eb718d5e30b107ba218fb876105d142b9c4d54f31cb1a5b036ea8699e93",
       "pnpm-lock.yaml": "sha256:d91503b1becdc429dc5d559d83d6388430b731ae8218272ddf3ca2addb16a548",
       "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
-      "scripts/generate-sentry-observability.ts": "sha256:2acf0a66352192bfae940d43f10c5795ada194e6251ff5c57debc5c5dd27e079",
+      "scripts/check-frontend-debug-release.mjs": "sha256:d46c9515dedfdaba9a4cbb11656d51066a895ac382296430353ce8fddeea5735",
+      "scripts/generate-sentry-observability.ts": "sha256:fb0005e37f79624446d03c41c77e8e9191d4f58fa6ebebadecced9ef0ec81914",
       "scripts/renderer-headless-browser.mjs": "sha256:4b16c348700d3ae57ccc13e679f557c116a84c6d688992e11a8dd6114290510f",
       "scripts/renderer-sentry-acceptance.html": "sha256:4b0b7d85dcd7a7ede09538f81942f9adc44a27f7aaaf5abf1ff0842dab8d7e95",
       "scripts/renderer-sentry-acceptance.ts": "sha256:8207c0bb4401ed9026553cf76fbb49c87504bc6234871b301a92a6c5de7ed8ca",
       "scripts/run-desktop-tauri.mjs": "sha256:6b9d6ab46cabcf054af7b46da35805150d4d49505a33d3ca5c99f1e24dd41398",
       "scripts/run-hosted-client.mjs": "sha256:5f13a8ce5c7d5de2f0837aa5d35e9d521ff2604236a6b642eb6dfba6abe08b04",
       "scripts/run-sentry-browser.mjs": "sha256:1eb97d4faae9b5d4389c2453cc2b78388376e947493c682921f80405b686a02b",
-      "scripts/run-worktree-dev.mjs": "sha256:99b1dbf69ae067b0175bac514dd279693005cfcfeaa56821d9fd4f8afca71de4",
+      "scripts/run-worktree-dev.mjs": "sha256:dc8d6207ec1c9c14bb9ee804867a8add63f956705fea3eec85e587516dab8d26",
       "scripts/sentry-environment.mjs": "sha256:59ff67241cde61d8f37bbdb393e6060cd3914450e5d3d9bce8a050d8f2b67242",
+      "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
       "scripts/verify-sentry-cloud.mjs": "sha256:8a74bf919a4a6cc99a8317bdc8d303ab6b377697c009257d9f1fea7161e73367",
-      "src/renderer/locales/en.json": "sha256:3100c6fdf967680838e04d9f2c2abb04f473b828fe3528901c9b49ea54d8fdf9",
-      "src/renderer/locales/zh-CN.json": "sha256:354bdeb3367b6e97f89bcabf3f6bb1b76b1a17f7b38f23a2a5e8b75d132fb8b7",
+      "scripts/verify-sentry-packaged.mjs": "sha256:b583b3d71d0b9c1d93073caa1921bf5795de6e72f76b29077ca829ddf7fb963c",
+      "src/renderer/locales/en.json": "sha256:4f75bee9dc3e858bdf1db65039718d914a6faeb5573b65b90cd42973456ad811",
+      "src/renderer/locales/zh-CN.json": "sha256:0333c042645bccf9a34d9e723a2d58e69f5a197a2e27907937a72095ca2b7e98",
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:7a5aec6ed207438dfc8107102fe068f1423e48df036b47bce89e7aa1cae73245",
-      "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:30413aa86384e0415337e74412fd69591d2a5b36a5443b61251a7cbaccb7ba25",
-      "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:67fedb6cc8234f869a9eda5e4083c23ca0c3186b49599da31c21bee9e6bd65c5",
+      "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
+      "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:284a154046e910d9642a1f7b6b5c59d3844b9f0d076405e00da36f7bd8c4437f",
       "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:b133058229d96f6e95f36e2833b28ed6dcb40a5dc907f6a64ea98de56099729d",
       "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:4ee2f6ffcef802da1f905701027b4aa55b1d83344b1ea600d98b44118f0703a4",
       "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:90341c3c212a627371ddb95344c9634d01c8ef267e5524af1110f478491f9789",
@@ -45,13 +56,13 @@
       "src/renderer/services/update/update-service.ts": "sha256:457af1db0a4466a6f8edcd69f9136ff82c20d25df633b78ab84262a92c83a119",
       "src/renderer/sync/production-runtime.ts": "sha256:01beeab28db8b735ed886c584756d116736444c8c6d1b9efffe7ec7ab9763fcc",
       "src/renderer/vite-env.d.ts": "sha256:51fda5f0e41483b63fb2a555533f4771b057e21185caab5be07e76715615d1c2",
-      "vite.renderer.config.ts": "sha256:06f376f6f223a64c4233a19763c8b3ef86b07ac0a1400cf9eea0202f7e7fd5d4"
+      "vite.renderer.config.ts": "sha256:d46bf306eb1f68b3a2729b8d7462b5f4d66bfc75731d3cfd78b5c4518c44512f"
     }
   },
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 69,
+    "passed": 71,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -157,6 +168,10 @@
       },
       {
         "name": "isolated worktree development binds frontend URL, port, CSP and a separate WebView store to the same profile",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development builds a distinct signed macOS package with embedded assets and a persistent private WebView",
         "status": "passed"
       },
       {
@@ -288,6 +303,10 @@
         "status": "passed"
       },
       {
+        "name": "requires a separate acceptance build for the packaged controls and leaves normal entries untouched",
+        "status": "passed"
+      },
+      {
         "name": "retains native panic identity and bounded backtrace without claiming native crash symbolication",
         "status": "passed"
       },
@@ -339,10 +358,8 @@
     }
   },
   "openGates": [
-    "packaged production Mac build, tauri scheme and distributed-artifact source-map absence",
+    "notarized production distribution and final release variant acceptance",
     "production CI upload credentials and controlled distribution",
-    "real-cloud opt-out and retry acceptance",
-    "Mac writing/restart preservation acceptance",
     "separate private-service instrumentation and external availability monitoring"
   ]
 }

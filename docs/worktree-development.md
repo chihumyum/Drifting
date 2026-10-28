@@ -75,6 +75,26 @@ Keep one running launcher per profile. To get fresh state, choose a new
 On macOS/Linux, stop the launcher with SIGINT or SIGTERM to stop its owned
 process group. Release build commands are unchanged.
 
+## Isolated macOS Debug packages
+
+```bash
+pnpm dev:worktree --build-app --instance package --print-config
+pnpm dev:worktree --build-app --instance package --no-watch
+```
+
+`--build-app` builds and signs a Debug `.app` with embedded, production-minified
+frontend assets, without starting Vite or launching the app. It uses a separate
+profile key from the development-server mode. The manifest includes the bundle
+and frontend paths; native databases use the generated identifier's Application
+Support directory. Launch the returned `.app` in Finder or through computer use.
+Its persistent WebView allows settings/restart checks while its distinct app
+identity keeps that storage separate from daily use. Quit a running copy before
+rebuilding the same instance; choose a new instance for fresh acceptance data.
+The package uses the existing Apple Development signing preflight, produces no
+updater artifacts and does not notarize or publish a release. `--online` remains
+an explicit opt-in; see [Sentry acceptance](sentry-observability.md#isolated-mac-test-package)
+for the separate diagnostic acceptance entry and evidence.
+
 ## `pnpm dev` in a linked worktree
 
 The shared profile (identity `cc.drifting.client`, port 5173, its application

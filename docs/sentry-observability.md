@@ -1,8 +1,9 @@
 # Sentry operational diagnostics
 
 Status: client integration, minified-browser HTTPS checks and live Sentry
-error/log/source-map acceptance completed on 2026-10-29. The owner confirmed
-receipt of the test alert email. Packaged release and production rollout remain open.
+error/log/source-map acceptance and isolated signed Mac Debug package acceptance
+completed on 2026-10-29. The owner confirmed receipt of the test alert email.
+Notarized production distribution and CI rollout remain open.
 This milestone changes no service deployment, subscription or paused
 Alpha release gate. See generated [acceptance](acceptance/sentry-observability.json).
 
@@ -175,12 +176,53 @@ its release, environment, exact source line, Git revision and source/artifact ha
 The command does not create an error or deploy an app. Historical cloud evidence
 is not a substitute for repeating acceptance on a later release.
 
-This live run establishes the Mac WebView diagnostic pipeline over loopback HTTP;
-it does not establish a packaged `tauri://` release, production CI, writing/restart
-preservation or real-cloud opt-out/retry behavior. Unit and loopback-browser checks
-cover opt-out and retries separately. These remain open release gates. Backend
-errors/availability and broader server log collection are the next milestone in
-the private service repository.
+The original live run establishes the Mac WebView pipeline over loopback HTTP.
+The separate packaged acceptance below adds the embedded `tauri://` path;
+neither run establishes a notarized public release or production CI.
+
+## Isolated Mac test package
+
+`pnpm dev:worktree --build-app --online --no-watch --instance <name>` builds a
+signed Debug `.app` with the production-minified renderer embedded. It uses a
+different profile from the equivalent development launcher, including a separate
+application identifier, native database, Keychain service and Cargo target.
+The package uses its identifier's normal Application Support database location,
+so launching it from Finder requires no environment variables. Its WebView is
+persistent to permit preference/restart acceptance; the daily-use application
+identity and data remain separate. `--print-config` reports the local artifact
+and database paths without creating files. `--build-app` currently supports macOS.
+
+An explicit `DRIFTING_SENTRY_PACKAGED_ACCEPTANCE=1` build, together with the
+`sentry-acceptance` environment and a configured DSN, injects an operator-only
+entry from `scripts/sentry-packaged-acceptance.ts`. It refuses to run outside a
+packaged `tauri://` window with a worktree application data identity. Normal
+builds contain none of its controls; `pnpm frontend:debug:check` verifies the
+acceptance marker is absent. No global debug bridge is added to distributed code.
+
+The [packaged evidence](acceptance/sentry-packaged.json) records the main snapshot,
+changed build/runtime source hashes and exact executable/frontend hashes. A
+synthetic library was seeded before launch. Native UI actions opened a chapter,
+typed a synthetic marker through the editor, flushed the ordinary persistence
+barrier, exited normally and relaunched the same bundle. The marker remained
+visible in the reopened editor and in the canonical Yjs read. The crash-report
+preference also remained disabled across relaunch.
+
+The package's initial JS error and operation log reached Sentry. Its
+[cloud issue](https://drifting.sentry.io/issues/7816992193/) has original TypeScript
+frames resolved from the uploaded maps. With reporting off, the error/log probe
+made no Sentry request. A connection failure injected only for the Sentry
+destination retained one error; restoring the real HTTPS connection sent the
+same event ID and emptied the queue. The system's network was not disconnected.
+No source maps remained in either the frontend directory or app bundle.
+
+`pnpm diagnostics:sentry:packaged --manifest <ignored-packaged-manifest.json>`
+checks the signed app, source/artifact hashes, app-generated observations in its
+own WebKit SQLite storage, and both cloud event IDs plus the operational log.
+It writes only allowlisted results; no storage dump, document text, token or
+personal filesystem path enters the report. The test bundle uses local Apple
+Development signing and is not notarized. Normal exit/relaunch is distinct from
+process termination or power-loss durability. Production CI, public distribution,
+private-service instrumentation and external availability monitoring remain open.
 
 References: [Browser SDK](https://docs.sentry.io/platforms/javascript/),
 [Vite maps](https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/),

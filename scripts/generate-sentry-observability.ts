@@ -17,9 +17,12 @@ const sourceFiles = [
   'scripts/generate-sentry-observability.ts', 'scripts/sentry-environment.mjs',
   'scripts/run-sentry-browser.mjs', 'scripts/renderer-sentry-acceptance.ts',
   'scripts/verify-sentry-cloud.mjs', 'docs/acceptance/sentry-cloud.json',
+  'scripts/sentry-packaged-acceptance.ts', 'scripts/verify-sentry-packaged.mjs',
+  'scripts/check-frontend-debug-release.mjs', 'docs/acceptance/sentry-packaged.json',
   'scripts/renderer-sentry-acceptance.html', 'scripts/renderer-headless-browser.mjs',
   'scripts/run-desktop-tauri.mjs', 'scripts/run-worktree-dev.mjs', 'scripts/run-hosted-client.mjs',
   'vite.renderer.config.ts', 'docs/crash-reports.md', 'docs/sentry-observability.md',
+  'docs/worktree-development.md',
   'src/renderer/services/diagnostics/crash-reporter.ts',
   'src/renderer/services/diagnostics/crash-reporter.test.ts',
   'src/renderer/services/diagnostics/crash-sanitize.ts',
@@ -39,6 +42,9 @@ const sourceFiles = [
 const cloud = JSON.parse(readFileSync('docs/acceptance/sentry-cloud.json', 'utf8'));
 const cloudSourcesCurrent = Object.entries(cloud.build.clientSourceSha256 as Record<string, string>)
   .every(([file, hash]) => hash === `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`);
+const packaged = JSON.parse(readFileSync('docs/acceptance/sentry-packaged.json', 'utf8'));
+const packagedSourcesCurrent = Object.entries(packaged.sourceSha256 as Record<string, string>)
+  .every(([file, hash]) => hash === `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`);
 const contract = {
   milestone: 'sentry-client-operational-diagnostics',
   delivery: 'optional-direct-sentry-with-existing-hosted-fallback-when-unconfigured',
@@ -46,6 +52,8 @@ const contract = {
   liveCloudEvidence: { report: 'docs/acceptance/sentry-cloud.json',
     status: cloud.status, diagnosticSourcesMatch: cloudSourcesCurrent,
     emailDelivery: cloud.alert.emailDelivery },
+  packagedEvidence: { report: 'docs/acceptance/sentry-packaged.json', status: packaged.status,
+    sourcesMatch: packagedSourcesCurrent, artifact: 'isolated-signed-debug-app-with-production-renderer' },
   sourceSha256: Object.fromEntries(sourceFiles.map(file => [file,
     `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`])),
 };
@@ -56,7 +64,7 @@ if (process.argv.includes('--check')) {
   }
   const browser = spawnSync(process.execPath, ['scripts/run-sentry-browser.mjs', '--check'], { encoding: 'utf8' });
   if (browser.status !== 0) throw new Error(`Sentry browser evidence is stale\n${browser.stdout}\n${browser.stderr}`);
-  console.log(`Sentry unit/browser evidence is current; cloud diagnostic sources match: ${cloudSourcesCurrent}. Packaged production gates remain open.`);
+  console.log(`Sentry unit/browser evidence is current; cloud diagnostic sources match: ${cloudSourcesCurrent}; packaged sources match: ${packagedSourcesCurrent}. Production distribution remains paused.`);
 } else {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-sentry-evidence-'));
   try {
@@ -78,10 +86,9 @@ if (process.argv.includes('--check')) {
     openGates: [
       ...(!cloudSourcesCurrent ? ['repeat live cloud acceptance for changed diagnostic sources'] : []),
       ...(cloud.alert.emailDelivery !== 'confirmed-by-owner' ? ['real alert mailbox receipt'] : []),
-      'packaged production Mac build, tauri scheme and distributed-artifact source-map absence',
+      ...(!packagedSourcesCurrent || packaged.status !== 'passed' ? ['repeat isolated packaged Mac acceptance'] : []),
+      'notarized production distribution and final release variant acceptance',
       'production CI upload credentials and controlled distribution',
-      'real-cloud opt-out and retry acceptance',
-      'Mac writing/restart preservation acceptance',
       'separate private-service instrumentation and external availability monitoring',
     ] };
     mkdirSync(path.dirname(output), { recursive: true });

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-28T17:20:25.947Z",
+  "status": "passed",
+  "mainRevision": "08481771ca8647f1e318f9fa0c17731094db345d",
+  "buildRevision": "35c58f8dc0ae434c7ab9577f6eeb1f6d3ae63ac2",
+  "release": "drifting@0.1.0-alpha.1+35c58f8dc0ae434c7ab9577f6eeb1f6d3ae63ac2.pkg1",
+  "environment": "sentry-acceptance",
+  "sourceSha256": {
+    "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
+    "scripts/run-worktree-dev.mjs": "sha256:dc8d6207ec1c9c14bb9ee804867a8add63f956705fea3eec85e587516dab8d26",
+    "vite.renderer.config.ts": "sha256:d46bf306eb1f68b3a2729b8d7462b5f4d66bfc75731d3cfd78b5c4518c44512f",
+    "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:4ee2f6ffcef802da1f905701027b4aa55b1d83344b1ea600d98b44118f0703a4",
+    "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e2cc6d6c0ed369a0ada8c979420ce9a7f76f381c1f9ab83b9f95595f5105d704",
+    "src/renderer/services/diagnostics/sentry-policy.ts": "sha256:a4b16e18ea94733be5b934197ab0cfce92a33ae976bb4ccf660a0c7289531429",
+    "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e"
+  },
+  "artifact": {
+    "name": "Drifting Test 2a468ff87e56.app",
+    "identifier": "cc.drifting.wt.w2a468ff87e56",
+    "nativeBuild": "debug",
+    "rendererBuild": "production-minified",
+    "signature": "verified-local-apple-development",
+    "executableSha256": "sha256:329c7701042eeb7a277ddcbaeb5acca008c050adbdefabed7857d7b03cfe1a3c",
+    "frontendIndexSha256": "sha256:8a26309bbb1032c8844c7c0b18d999725568260960858d583b25fa73e9390b9e",
+    "scheme": "tauri://localhost",
+    "sourceMapFiles": 0,
+    "notarized": false
+  },
+  "cloud": {
+    "project": "drifting/drifting-client",
+    "firstEvent": {
+      "id": "a4d9d1468f2a5c96def46d2093be9e4a",
+      "issueId": "7816992193",
+      "title": "DriftingSentryPackagedError: Drifting Sentry packaged verification initial",
+      "file": "scripts/sentry-packaged-acceptance.ts",
+      "line": 66,
+      "column": 21
+    },
+    "retryEvent": {
+      "id": "0867cd1f2a77d015314d2c6eb23ab791",
+      "issueId": "7816992193",
+      "title": "DriftingSentryPackagedError: Drifting Sentry packaged verification retry",
+      "file": "scripts/sentry-packaged-acceptance.ts",
+      "line": 66,
+      "column": 21
+    },
+    "issueUrl": "https://drifting.sentry.io/issues/7816992193/",
+    "operationalLogFound": true
+  },
+  "checks": {
+    "packagedTauriScheme": true,
+    "isolatedDataPath": true,
+    "initialErrorDelivered": true,
+    "canonicalWritingFound": true,
+    "optOutSilent": true,
+    "writingFoundAfterRelaunch": true,
+    "failedDeliveryQueued": true,
+    "sameEventIdRetried": true
+  },
+  "restart": {
+    "launches": 2,
+    "optOutPreferencePreserved": true,
+    "canonicalWritingPreserved": true
+  },
+  "delivery": {
+    "optOutRequests": 0,
+    "finalQueueLength": 0,
+    "stableRetryEventId": "0867cd1f2a77d015314d2c6eb23ab791",
+    "outageMethod": "destination-specific-fetch-fault-injection",
+    "recovery": "real-sentry-https-delivery"
+  },
+  "limitations": [
+    "local-debug-package-not-notarized-distribution",
+    "network-outage-injected-no-system-network-change",
+    "normal-exit-and-relaunch-not-power-loss",
+    "production-ci-and-publishing-remain-paused"
+  ]
+}

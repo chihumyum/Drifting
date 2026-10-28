@@ -15,6 +15,12 @@ const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
 // https://vitejs.dev/config
 export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
+  const outDir = process.env.DRIFTING_RENDERER_OUT_DIR || 'dist';
+  const packagedAcceptance = process.env.DRIFTING_SENTRY_PACKAGED_ACCEPTANCE === '1';
+  if (packagedAcceptance && (!isBuild || process.env.VITE_SENTRY_ENVIRONMENT !== 'sentry-acceptance'
+    || process.env.VITE_LOCAL_ONLY_MODE !== 'false' || !process.env.VITE_SENTRY_DSN)) {
+    throw new Error('Packaged Sentry acceptance requires an explicit Hosted-capable sentry-acceptance build and DSN');
+  }
   const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
   const sentry = sentryBuildConfiguration(process.env, { command, version,
     revision: process.env.DRIFTING_BUILD_REVISION || (process.env.VITE_LOCAL_ONLY_MODE === 'false' && process.env.VITE_SENTRY_DSN
@@ -48,11 +54,13 @@ export default defineConfig(({ command }) => {
     // Release builds accept only explicit process variables. This prevents ignored
     // developer .env files (including BYOK keys) from leaking into a bundle.
     envDir: isBuild ? false : undefined,
-    plugins: [react(), deferredSettingsPlugin(), ...deferredProjectSettingsPlugins(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins(),
+    plugins: [react(), ...(packagedAcceptance ? [{ name: 'sentry-packaged-acceptance',
+      transformIndexHtml: { order: 'pre' as const, handler: () => [{ tag: 'script', attrs: { type: 'module', src: '/scripts/sentry-packaged-acceptance.ts' }, injectTo: 'body' as const }] },
+    }] : []), deferredSettingsPlugin(), ...deferredProjectSettingsPlugins(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins(),
       ...(isBuild && sentry ? [sentryVitePlugin({
         org: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT, authToken: process.env.SENTRY_AUTH_TOKEN,
         release: { name: sentry.release }, telemetry: false,
-        sourcemaps: { filesToDeleteAfterUpload: ['dist/**/*.map'] },
+        sourcemaps: { filesToDeleteAfterUpload: [path.join(outDir, '**/*.map')] },
       })] : [])],
     define: sentry ? {
       'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(sentry.release),
@@ -92,6 +100,7 @@ export default defineConfig(({ command }) => {
           : true,
     },
     build: {
+      outDir,
       sourcemap: sentry && isBuild ? 'hidden' : false,
       rollupOptions: {
         output: {

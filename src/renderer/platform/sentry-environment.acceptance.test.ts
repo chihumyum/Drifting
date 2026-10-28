@@ -13,6 +13,14 @@ const environment = { VITE_LOCAL_ONLY_MODE: 'false', DRIFTING_HOSTED_ORIGIN: 'ht
 const build = { command: 'build', version: '0.1.0', revision: 'synthetic' };
 afterEach(() => vi.unstubAllEnvs());
 
+it('requires a separate acceptance build for the packaged controls and leaves normal entries untouched', () => {
+  vi.stubEnv('DRIFTING_SENTRY_PACKAGED_ACCEPTANCE', '1');
+  expect(() => viteConfiguration({ command: 'serve', mode: 'development' })).toThrow(/explicit Hosted-capable/);
+  vi.stubEnv('DRIFTING_SENTRY_PACKAGED_ACCEPTANCE', '');
+  const config = viteConfiguration({ command: 'serve', mode: 'development' });
+  expect(JSON.stringify(config.plugins)).not.toContain('sentry-packaged-acceptance');
+});
+
 it('keeps the local-only network boundary even when a DSN was inherited', () => {
   const local = { ...environment, VITE_LOCAL_ONLY_MODE: 'true' };
   expect(sentryOrigin(local)).toBeNull();
