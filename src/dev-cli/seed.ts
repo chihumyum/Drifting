@@ -10,9 +10,11 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { installHeadlessRendererGlobals } from './headless-globals';
 import { OfflineProductDatabase } from './offline-database';
-import { createAtomicRunner, executeOfflineWorkspaceTool } from './offline-workspace';
+import { createAtomicRunner } from './offline-workspace';
 import { loadScenario, parseScenario, runScenario } from './scenario';
 import { createDefaultProjectScenario } from './seeds/default-project';
+import { seedPreset, type SeedPresetName } from './seeds/presets';
+import { auditDevelopmentSeed, type SeedAuditReport } from './seeds/audit';
 import { seedConversations } from './seeds/conversations';
 import { loadSeedAssets, seedMaterials } from './seeds/materials';
 import { ProjectTable } from '../renderer/schema/drizzle';
@@ -27,6 +29,7 @@ export interface SeedResult {
   seeded: boolean;
   databasePath: string;
   projectId: string | null;
+  statistics?: SeedAuditReport;
 }
 
 /**
@@ -39,11 +42,13 @@ export async function seedDevelopmentDatabase(input: {
   databasePath: string;
   projectName?: string;
   scenarioPath?: string;
+  preset?: SeedPresetName;
   /** Native app_local_data_dir for this isolated profile; never the daily app. */
   appLocalDataDirectory?: string;
   onProgress?: (message: string) => void;
 }): Promise<SeedResult> {
   installHeadlessRendererGlobals();
+  const preset = seedPreset(input.preset);
   await mkdir(dirname(input.databasePath), { recursive: true, mode: 0o700 });
   const original = new OfflineProductDatabase(input.databasePath, { migrate: true });
   await original.open();
@@ -68,7 +73,7 @@ export async function seedDevelopmentDatabase(input: {
   try {
     await database.open();
     opened = true;
-    const document = input.scenarioPath ? await loadScenario(input.scenarioPath) : parseScenario(createDefaultProjectScenario());
+    const document = input.scenarioPath ? await loadScenario(input.scenarioPath) : parseScenario(createDefaultProjectScenario(preset));
     const fixtures = await loadSeedAssets();
     const appLocalDataDirectory = input.appLocalDataDirectory ?? join(dirname(input.databasePath), 'app-local-data');
     const runAtomic = createAtomicRunner(database.client);
@@ -78,7 +83,7 @@ export async function seedDevelopmentDatabase(input: {
       createProjectInTransaction(tx, sync, changes, {
         projectId,
         userId: LOCAL_LIBRARY_USER_ID,
-        name: input.projectName ?? '潮汐灯塔（示例）',
+        name: input.projectName ?? (preset.name === 'stress' ? '潮汐灯塔（重型性能样本）' : '潮汐灯塔（轻量功能样本）'),
         now,
       }),
     );
@@ -89,25 +94,31 @@ export async function seedDevelopmentDatabase(input: {
       projectId,
       requestId: `dev-seed-${uuidv7()}`,
     });
-    // Include both open and completed review work, through the normal tool.
+    // Same repository + authored transaction as useComment.resolve. A bulk
+    // fixture must not page the entire growing comment list into one Agent
+    // result-artifact session for every completed task.
     const comments = await createCommentRepository(projectId, database.client).findAll();
-    for (const [index, comment] of comments.entries()) {
-      if (index % 4 !== 0) continue;
-      const result = await executeOfflineWorkspaceTool({
-        database: database.client, projectId, toolName: 'update_comment',
-        arguments: { commentId: comment.id, status: 'resolved' }, requestId: `dev-seed-resolve-${comment.id}`,
-      });
-      if (!result.result.ok) throw new Error(`Could not seed comment state: ${result.result.error}`);
-    }
+    if (comments.length) await runAtomic(projectId, async (tx, sync) => {
+      const repository = createCommentRepository(projectId, tx);
+      const resolvedAt = new Date().toISOString();
+      for (const [index, comment] of comments.entries()) {
+        if (index % 4 !== 0) continue;
+        const persisted = await repository.update(comment.id, { status: 'resolved', resolvedAt, updatedAt: resolvedAt });
+        if (!persisted) throw new Error('Seed comment disappeared during resolution');
+        await sync('comment', 'update', comment.id, projectId, { status: persisted.status, resolvedAt: persisted.resolvedAt });
+      }
+    });
     input.onProgress?.('Seeding material notes, verified images and PDFs…');
-    abandonAssets = await seedMaterials(database.client, projectId, appLocalDataDirectory, fixtures);
+    abandonAssets = await seedMaterials(database.client, projectId, appLocalDataDirectory, fixtures, preset);
     input.onProgress?.('Seeding offline Agent conversations and recovery checkpoints…');
-    await seedConversations(database.client, projectId);
+    await seedConversations(database.client, projectId, preset, input.onProgress);
+    const statistics = input.scenarioPath ? undefined : auditDevelopmentSeed(database.gateway.database, projectId, preset);
+    input.onProgress?.(`Validated ${preset.name} seed word budgets and canonical data.`);
     await database.close();
     opened = false;
     await rename(stagingPath, input.databasePath);
     published = true;
-    return { seeded: true, databasePath: input.databasePath, projectId };
+    return { seeded: true, databasePath: input.databasePath, projectId, ...(statistics ? { statistics } : {}) };
   } finally {
     if (opened) await database.close();
     if (!published) await abandonAssets?.();

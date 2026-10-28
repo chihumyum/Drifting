@@ -1,5 +1,5 @@
 // `pnpm dev:seed` runs this before launching the isolated profile:
-//   tsx --conditions=import src/dev-cli/seed-main.ts --db <library.db> [--scenario <file>]
+//   tsx --conditions=import src/dev-cli/seed-main.ts --db <library.db> [--preset stress|lite] [--scenario <file>]
 // It prints one JSON result line.
 
 import { installHeadlessRendererGlobals } from './headless-globals';
@@ -15,12 +15,13 @@ function option(args: readonly string[], name: string): string | undefined {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const databasePath = option(args, '--db');
-  if (!databasePath) throw new Error('Usage: seed-main.ts --db <library.db> [--scenario <file>]');
+  if (!databasePath) throw new Error('Usage: seed-main.ts --db <library.db> [--preset stress|lite] [--scenario <file>]');
   // Renderer stores read browser storage when their modules load.
   installHeadlessRendererGlobals();
   const { seedDevelopmentDatabase } = await import('./seed');
+  const { seedPreset } = await import('./seeds/presets');
   const result = await seedDevelopmentDatabase({
-    databasePath, scenarioPath: option(args, '--scenario'), appLocalDataDirectory: option(args, '--app-local-data'),
+    databasePath, scenarioPath: option(args, '--scenario'), preset: seedPreset(option(args, '--preset')).name, appLocalDataDirectory: option(args, '--app-local-data'),
     onProgress: message => console.error(message),
   });
   console.log(JSON.stringify(result));

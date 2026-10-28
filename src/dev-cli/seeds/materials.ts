@@ -16,7 +16,8 @@ import { appendPlannedAuthoredOrderInTransaction, appendProjectAssetBindMutation
 import { createLocalObjectRef, sha256Bytes } from '../../renderer/sync/protocol';
 import { libraryMutationPayload } from '../../renderer/usecase/library-item-payload';
 import { createAtomicRunner } from '../offline-workspace';
-import { DEVELOPMENT_SEED_COUNTS, SEED_STORYLINES } from './default-project';
+import { allocateSeedLengths, type SeedPreset } from './presets';
+import { createSeedProse, seedProsePlainText } from './prose';
 import manifest from './assets/manifest.json';
 
 const folderNames = ['调研', '地图与潮汐', '人物访谈', '场景速写', '航海档案', '修订计划', '对白摘记', '时间线', '参考图', '参考文档', '已整理', '待核实'];
@@ -105,47 +106,35 @@ async function importFixture(
   }
 }
 
-function noteBody(index: number): string {
-  const topic = folderNames[index % folderNames.length];
-  return JSON.stringify({ type: 'doc', content: [
-    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: `${topic} / 第${index + 1}次整理` }] },
-    { type: 'paragraph', content: [{ type: 'text', text: `围绕“${SEED_STORYLINES[index % 3]}”整理的合成研究笔记。记录第${index + 1}天的观察、待核实的时间差与备选对白。` }] },
-    { type: 'bulletList', content: ['已知：灯光每九秒扫过一次窗户。', `待核实：第${index % 100 + 1}章的证词与值班记录是否一致。`, '写作提醒：把结论留给读者，先呈现细节。'].map(text => ({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })) },
-    { type: 'taskList', content: ['核对值班记录', '补充环境细节', '与章节摘要交叉检查'].map((text, i) => ({
-      type: 'taskItem', attrs: { checked: (index + i) % 3 === 0 },
-      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-    })) },
-  ] });
-}
-
 export async function seedMaterials(
   database: DbClient, projectId: string, appLocalDataDirectory: string,
-  fixtures: Awaited<ReturnType<typeof loadSeedAssets>>,
+  fixtures: Awaited<ReturnType<typeof loadSeedAssets>>, preset: SeedPreset,
 ): Promise<() => Promise<void>> {
   const now = new Date().toISOString();
   const folders: MaterialFolder[] = [];
-  for (const [i, name] of folderNames.entries()) folders.push({
+  for (const [i, name] of folderNames.slice(0, preset.name === 'lite' ? 6 : 12).entries()) folders.push({
     id: uuidv7(), projectId, name, parentFolderId: i === 1 || i === 2 ? folders[0].id : i === 10 ? folders[4].id : null,
     createdAt: now, updatedAt: now,
   });
-  const items: LibraryItem[] = Array.from({ length: DEVELOPMENT_SEED_COUNTS.materialNotes }, (_, i) => ({
+  const noteLengths = allocateSeedLengths(preset.materialNotes, 108);
+  const items: LibraryItem[] = noteLengths.map((length, i) => ({
     id: uuidv7(), projectId, title: `笔记${String(i + 1).padStart(2, '0')} · ${folderNames[i % folderNames.length]}`,
     kind: 'text', assetId: null, externalUrl: null, previewImageUrl: null,
-    bodyJson: noteBody(i), notesJson: null, provenanceJson: null, orderKey: i,
+    bodyJson: JSON.stringify(createSeedProse(length, 8_000 + i, true)), notesJson: null, provenanceJson: null, orderKey: i,
     folderId: i % 7 === 0 ? null : folders[i % folders.length].id, taskTodos: i % 4 !== 0,
     createdAt: now, updatedAt: now,
   }));
   const prepared: Awaited<ReturnType<typeof importFixture>>[] = [];
   let committed = false;
   try {
-    for (const fixture of fixtures) {
+    for (let copy = 0; copy < preset.assetCopies; copy++) for (const fixture of fixtures) {
       const imported = await importFixture(database, appLocalDataDirectory, projectId, fixture);
       prepared.push(imported);
       items.push({
-        id: uuidv7(), projectId, title: fixture.fixture.title, kind: imported.asset.kind,
+        id: uuidv7(), projectId, title: `${fixture.fixture.title}${copy ? ` / ${copy + 1}` : ''}`, kind: imported.asset.kind,
         assetId: imported.asset.id, externalUrl: null, previewImageUrl: null, bodyJson: null,
-        notesJson: createPlainCommentDoc('仓库自带的原创合成样本，供预览、缩放、PDF 翻页与素材批注测试。'),
-        provenanceJson: null, orderKey: items.length, folderId: folders[imported.asset.kind === 'image' ? 8 : 9].id,
+        notesJson: createPlainCommentDoc(seedProsePlainText(createSeedProse(preset.name === 'stress' ? 500 + copy * 100 : 100, 9_000 + items.length))),
+        provenanceJson: null, orderKey: items.length, folderId: folders[preset.name === 'lite' ? (imported.asset.kind === 'image' ? 1 : 4) : (imported.asset.kind === 'image' ? 8 : 9)].id,
         taskTodos: false, createdAt: now, updatedAt: now,
       });
     }

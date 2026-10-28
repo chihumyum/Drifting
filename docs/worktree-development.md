@@ -108,66 +108,76 @@ the shared profile deliberately.
 
 ## Seeded profiles
 
-```bash
-pnpm dev:seed                      # large dataset, instance "seed-large"
-pnpm dev:seed --instance demo --no-watch
-```
-
-`pnpm dev:seed` takes the same options as `pnpm dev:worktree` (local-only; no
-`--online`) and defaults to its own instance, `seed-large`. Before launching it checks
-that the profile is not running, then seeds the profile's library
-(`databases/drifting-library.db`) if it has no project yet. The synthetic
-**潮汐灯塔（示例）** project includes:
-
-| Data | Quantity / coverage |
-| --- | --- |
-| Storylines | 3, interwoven through 121 chapter memberships |
-| Chapters | 100, with summaries and durable Yjs prose |
-| Element categories / elements | 16 / 300, with aliases, facts and bodies |
-| Inspirations | 200, with summaries and durable Yjs prose |
-| Relations | At least 363, including chapter appearances and symmetric links |
-| TODOs / comments | 60 / 40; floating, entity and text anchors; 25 resolved |
-| Material notes / folders | 60 / 12; nested folders, headings, lists and checked/unchecked tasks |
-| Image / PDF materials | 4 original diagrams / 2 three-page documents, with local preview variants |
-| Agent conversations | 12 discussions of 6 rounds each, plus the CLI workspace audit conversation |
-
-The [large scenario builder](../src/dev-cli/seeds/default-project.ts) is the sole
-default seed. The old small JSON scenario has been removed. All domain
-writes use the same journaled app/General Agent paths. Fresh material-note
-`bodyJson` values are editor seeds; book, inspiration and element prose already
-has Yjs state. Agent discussions use the renderer-owned runtime persistence,
-event journal and recovery checkpoints. They are explicitly synthetic, require
-no provider credentials or model calls, and report zero token use and cost.
-
-The [checked-in asset fixtures](../src/dev-cli/seeds/assets/README.md) are shared
-source bytes, not links to external services. Seeding verifies source/variant
-hashes, writes each asset into the profile's native app-local-data directory,
-and records source metadata, verified blob receipts and the owner binding.
-The manifest's `appLocalDataDirectory` resolves this native root separately from
-`databaseDirectory`; on macOS it is the generated app identifier's Application
-Support directory. The offline importer uses Node file IO with the same native
-asset and opaque sync-object layouts; it does not run the native picker/codecs.
-No absolute asset paths are stored in the authored domain rows.
-
-Initial creation executes over 1,200 authored operations and can take about a
-minute, depending on the machine. Progress is printed between workspace,
-material and conversation phases. A complete seed is published from an adjacent
-staging database; failure leaves no partial project and can be retried. An
-existing empty library's settings are preserved. Later launches reuse the
-library, including any edits made in it. The default instance changed from
-`seed` to `seed-large`, so a plain launch gets the new dataset. Existing profile
-databases are not overwritten. Use `--instance` only when another independent
-copy is needed:
+**The lite seed is for fast functional verification. The default stress seed is
+for validating performance and stability changes.** Both use isolated local-only
+worktree profiles and the ordinary current-format application data model.
 
 ```bash
-pnpm dev:seed --no-watch
-pnpm dev:seed --instance another-large-copy --no-watch
+pnpm dev:seed --no-watch            # stress, instance "seed-stress-v2"
+pnpm dev:seed:lite --no-watch       # lite, instance "seed-lite-v2"
+pnpm dev:seed --lite --no-watch     # same lite preset
+pnpm dev:seed --print-config        # non-mutating profile + preset manifest
 ```
 
-The lower-level `seed-main.ts --db <library.db> --app-local-data <directory>`
-entry accepts an explicit **isolated** native app-data root. Without that option
-it uses an `app-local-data` directory beside the database, for disposable
-headless fixtures. It must not be pointed at the daily-use library.
+| Data | Stress (default) | Lite (functional checks) |
+| --- | --- | --- |
+| Chapters | 100; **1,500,000 words**, 2,000–20,000 each | 20; **150,000 words**, 2,000–20,000 each |
+| Elements | 300; **500,000 words**, 100–10,000 each | 30; **50,000 words**, 100–10,000 each |
+| Inspirations | 200; **1,000,000 words**, 1,000–50,000 each | 10; **20,000 words**, 1,000–5,000 each |
+| Material notes | 60; **500,000 words**, 500–10,000 each | 12; **20,000 words**, 500–4,000 each |
+| Storylines / categories | 3 / 16; 60,000 / 16,000 body words | 2 / 6; 8,000 / 1,800 body words |
+| TODOs / comments | 120 / 80; 30,000 / 40,000 body words | 12 / 8; 1,200 / 1,200 body words |
+| Material folders | 12, including nested folders | 6, including nested folders |
+| Image / PDF owners | 24 / 12, using shared source fixtures | 4 / 2 |
+| Agent discussions | 24; **1,800 rounds**, 6–600 per discussion | 3; **24 rounds**, 4–12 per discussion |
+
+The counts use Drifting's `@drifting/prose-metrics` contract: Han characters are
+counted individually and Latin/digit tokens as words. Body budgets exclude
+titles, summaries, aliases, KV attributes and duplicate storage/journal copies.
+Length distributions are deterministic, include both documented endpoints and
+sum exactly to their budgets. Markdown writes are remeasured after reconstructing
+the persisted Yjs documents; `book_node.word_count` must match that content.
+Material notes begin as rich-text JSON seeds with headings and checklists, as
+ordinary fresh app notes do.
+
+All names and prose are original synthetic fixtures. The
+[scenario builder](../src/dev-cli/seeds/default-project.ts) uses the existing
+journaled app/General Agent paths. The old tiny JSON seed is removed. Agent
+history uses canonical runtime acceptance, event, tool-ledger and commit
+repositories, with a verified final V4 checkpoint for each conversation. Large
+replies and explicitly synthetic read-tool results exercise history rendering
+and recovery. Seeding calls no model or external tool and records zero cost.
+The developer CLI also retains its separate workspace audit conversation.
+
+The [asset fixtures](../src/dev-cli/seeds/assets/README.md) are repository-owned
+bytes with source/preview hashes. Stress creates six independent owners per
+source; lite creates one. Originals remain shared while each profile has its
+own native asset files and opaque sync objects. Metadata and owner bindings
+commit together. These small attachments cover owner lists and preview paths;
+they are not a large-PDF decoding benchmark.
+
+Before launch the wrapper verifies that the selected profile's port is free,
+then seeds only an empty library. Initial creation takes longer for stress;
+progress is printed during the import. A completed seed is published from an
+adjacent staging database. Failure preserves the original empty library and
+can be retried. Later launches preserve edits and reuse the library. The v2
+instance names avoid reusing the earlier short-prose `seed-large` library.
+Explicit custom instances should be different for stress and lite:
+
+```bash
+pnpm dev:seed --instance perf-before --no-watch
+pnpm dev:seed:lite --instance feature-smoke --no-watch
+```
+
+The manifest includes `seedPreset`, `seedRecipeVersion`, `databaseDirectory`
+and `appLocalDataDirectory`. The latter resolves native asset storage, separately
+from SQLite (on macOS, the generated identifier's Application Support folder).
+`--print-config` creates no database, assets or window. The lower-level
+`seed-main.ts --db <library.db> --preset stress|lite --app-local-data <directory>`
+entry is for explicitly isolated libraries; never use a daily-use database.
+
+See [seed workloads and performance/stability validation](development-seed-workloads.md)
+for the required development workflow, measurements and acceptance boundaries.
 
 ## Machine-checkable contract
 
@@ -181,8 +191,18 @@ conflicts, real SQLite separation, generated Vite configuration, non-mutating
 JSON inspection, launcher argument/environment delivery, linked-worktree
 detection for `pnpm dev`, and the seeded launcher's order (port check, seed,
 launch). `src/dev-cli/seed.integration.test.ts` seeds a real library and checks
-exact quantities, graph integrity, every chapter/inspiration Yjs document,
+the lite preset's exact word totals, graph integrity, every chapter/inspiration Yjs document,
 source/preview/object hashes, completed/open and text-anchored review work,
 canonical Agent transcript and checkpoint recovery after reopening,
 once-only preservation of edits, and failed-seed retry. It uses disposable
 synthetic fixtures; it does not open a daily-use library.
+
+```bash
+pnpm exec vitest run src/dev-cli/seeds/presets.test.ts src/dev-cli/seed.integration.test.ts
+pnpm seed:acceptance                # generate both real SQLite/Yjs workloads and evidence
+pnpm seed:acceptance --check        # validate source-matched generated evidence
+```
+
+The generated [preset evidence](dev-cli/acceptance/seed-presets.json) records exact
+word totals/ranges and canonical Agent/asset counts. It proves corpus integrity;
+it does not report UI latency, FPS, native memory or endurance performance.

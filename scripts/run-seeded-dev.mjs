@@ -19,26 +19,34 @@ const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(scriptPath), '..');
 
 /** A fresh default instance for the large seed; separate from retired small seeds. */
-export const SEED_INSTANCE = 'seed-large';
+export const SEED_INSTANCE = 'seed-stress-v2';
+export const LITE_SEED_INSTANCE = 'seed-lite-v2';
 /** The local-only library file (`store/auth`'s LOCAL_USER_ID). */
 export const LOCAL_LIBRARY_DATABASE = 'drifting-library.db';
 
-const usage = 'Usage: pnpm dev:seed [--instance <name>] [--port <number>] [--no-watch] [--print-config]\n'
-  + 'Starts an isolated local-only profile (default instance "seed-large") whose library begins with a synthetic\n'
+const usage = 'Usage: pnpm dev:seed [--lite] [--instance <name>] [--port <number>] [--no-watch] [--print-config]\n'
+  + 'Starts an isolated local-only profile (default instance "seed-stress-v2"; --lite uses "seed-lite-v2") whose library begins with a synthetic\n'
   + 'project. The first launch of an instance seeds it; choose a new --instance for fresh data.';
 
 /** The launcher arguments: the seed instance unless one is named; local-only. */
-export function seededArguments(args) {
+export function parseSeededArguments(args) {
   const forwarded = args[0] === '--' ? args.slice(1) : args;
-  const options = parseWorktreeArguments(forwarded);
+  const preset = forwarded.includes('--lite') ? 'lite' : 'stress';
+  const launchArguments = forwarded.filter(argument => argument !== '--lite');
+  const options = parseWorktreeArguments(launchArguments);
   if (options.online) throw new Error('pnpm dev:seed seeds a local-only profile; --online is not supported.');
-  return forwarded.includes('--instance') ? forwarded : [...forwarded, '--instance', SEED_INSTANCE];
+  if (!launchArguments.includes('--instance')) launchArguments.push('--instance', preset === 'lite' ? LITE_SEED_INSTANCE : SEED_INSTANCE);
+  return { preset, launchArguments };
 }
 
-function runSeedProcess({ root, databasePath, appLocalDataDirectory }) {
+export function seededArguments(args) {
+  return parseSeededArguments(args).launchArguments;
+}
+
+function runSeedProcess({ root, databasePath, appLocalDataDirectory, preset }) {
   const result = spawnSync(
     process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-    ['exec', 'tsx', '--conditions=import', 'src/dev-cli/seed-main.ts', '--db', databasePath, '--app-local-data', appLocalDataDirectory],
+    ['exec', 'tsx', '--conditions=import', 'src/dev-cli/seed-main.ts', '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--preset', preset],
     {
       cwd: root,
       stdio: ['ignore', 'pipe', 'inherit'],
@@ -54,19 +62,24 @@ export async function runSeededDev(args = process.argv.slice(2), {
   root = defaultRoot, baseEnvironment = process.env, seed = runSeedProcess,
   checkPort = assertWorktreePortAvailable, launch = runWorktreeDev, output = console.log,
 } = {}) {
-  const launchArguments = seededArguments(args);
+  const { preset, launchArguments } = parseSeededArguments(args);
   const options = parseWorktreeArguments(launchArguments);
   if (options.help) {
     output(usage);
     return;
   }
-  if (!options.printConfig) {
+  if (options.printConfig) {
+    const plan = createWorktreePlan({ root, baseEnvironment, ...options });
+    output(JSON.stringify({ ...plan.manifest, seedPreset: preset, seedRecipeVersion: 2 }, null, 2));
+    return;
+  }
+  {
     const plan = createWorktreePlan({ root, baseEnvironment, ...options });
     // A running profile owns its database; never seed underneath it.
     await checkPort(plan.manifest.port);
     const result = seed({
       root, databasePath: path.join(plan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE),
-      appLocalDataDirectory: plan.manifest.appLocalDataDirectory,
+      appLocalDataDirectory: plan.manifest.appLocalDataDirectory, preset,
     });
     output(result.seeded
       ? `Seeded a synthetic project into instance "${options.instance}".`
