@@ -109,25 +109,65 @@ the shared profile deliberately.
 ## Seeded profiles
 
 ```bash
-pnpm dev:seed                      # instance "seed"
+pnpm dev:seed                      # large dataset, instance "seed-large"
 pnpm dev:seed --instance demo --no-watch
 ```
 
 `pnpm dev:seed` takes the same options as `pnpm dev:worktree` (local-only; no
-`--online`) and defaults to its own instance, `seed`. Before launching it checks
+`--online`) and defaults to its own instance, `seed-large`. Before launching it checks
 that the profile is not running, then seeds the profile's library
-(`databases/drifting-library.db`) if it has no project yet: one project as the
-app creates it (default facts and the built-in relation type), then the
-[default seed scenario](../src/dev-cli/seeds/default-project.json) — storylines,
-chapters with prose, inspirations, element categories and elements, relation
-types and relations, comments and TODOs, project facts and Project Memory —
-and a few material notes in nested folders. Every write is a journaled authored
-change set through the same paths as the app and the General Agent tools
-(`src/dev-cli/seed.ts`), so the seeded library behaves like one built by hand.
-Later launches reuse it; choose a new `--instance` for a fresh copy. Images and
-PDFs are not seeded (their import runs through the native asset pipeline). The
-seed's tool calls leave one "Developer CLI workspace" Agent conversation, as any
-`pnpm drifting workspace call` does.
+(`databases/drifting-library.db`) if it has no project yet. The synthetic
+**潮汐灯塔（示例）** project includes:
+
+| Data | Quantity / coverage |
+| --- | --- |
+| Storylines | 3, interwoven through 121 chapter memberships |
+| Chapters | 100, with summaries and durable Yjs prose |
+| Element categories / elements | 16 / 300, with aliases, facts and bodies |
+| Inspirations | 200, with summaries and durable Yjs prose |
+| Relations | At least 363, including chapter appearances and symmetric links |
+| TODOs / comments | 60 / 40; floating, entity and text anchors; 25 resolved |
+| Material notes / folders | 60 / 12; nested folders, headings, lists and checked/unchecked tasks |
+| Image / PDF materials | 4 original diagrams / 2 three-page documents, with local preview variants |
+| Agent conversations | 12 discussions of 6 rounds each, plus the CLI workspace audit conversation |
+
+The [large scenario builder](../src/dev-cli/seeds/default-project.ts) is the sole
+default seed. The old small JSON scenario has been removed. All domain
+writes use the same journaled app/General Agent paths. Fresh material-note
+`bodyJson` values are editor seeds; book, inspiration and element prose already
+has Yjs state. Agent discussions use the renderer-owned runtime persistence,
+event journal and recovery checkpoints. They are explicitly synthetic, require
+no provider credentials or model calls, and report zero token use and cost.
+
+The [checked-in asset fixtures](../src/dev-cli/seeds/assets/README.md) are shared
+source bytes, not links to external services. Seeding verifies source/variant
+hashes, writes each asset into the profile's native app-local-data directory,
+and records source metadata, verified blob receipts and the owner binding.
+The manifest's `appLocalDataDirectory` resolves this native root separately from
+`databaseDirectory`; on macOS it is the generated app identifier's Application
+Support directory. The offline importer uses Node file IO with the same native
+asset and opaque sync-object layouts; it does not run the native picker/codecs.
+No absolute asset paths are stored in the authored domain rows.
+
+Initial creation executes over 1,200 authored operations and can take about a
+minute, depending on the machine. Progress is printed between workspace,
+material and conversation phases. A complete seed is published from an adjacent
+staging database; failure leaves no partial project and can be retried. An
+existing empty library's settings are preserved. Later launches reuse the
+library, including any edits made in it. The default instance changed from
+`seed` to `seed-large`, so a plain launch gets the new dataset. Existing profile
+databases are not overwritten. Use `--instance` only when another independent
+copy is needed:
+
+```bash
+pnpm dev:seed --no-watch
+pnpm dev:seed --instance another-large-copy --no-watch
+```
+
+The lower-level `seed-main.ts --db <library.db> --app-local-data <directory>`
+entry accepts an explicit **isolated** native app-data root. Without that option
+it uses an `app-local-data` directory beside the database, for disposable
+headless fixtures. It must not be pointed at the daily-use library.
 
 ## Machine-checkable contract
 
@@ -141,5 +181,8 @@ conflicts, real SQLite separation, generated Vite configuration, non-mutating
 JSON inspection, launcher argument/environment delivery, linked-worktree
 detection for `pnpm dev`, and the seeded launcher's order (port check, seed,
 launch). `src/dev-cli/seed.integration.test.ts` seeds a real library and checks
-its entities, journal and once-only behaviour. It uses disposable
+exact quantities, graph integrity, every chapter/inspiration Yjs document,
+source/preview/object hashes, completed/open and text-anchored review work,
+canonical Agent transcript and checkpoint recovery after reopening,
+once-only preservation of edits, and failed-seed retry. It uses disposable
 synthetic fixtures; it does not open a daily-use library.

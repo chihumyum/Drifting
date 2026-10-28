@@ -18,13 +18,13 @@ import {
 const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(scriptPath), '..');
 
-/** Seeded profiles default to their own instance, apart from `pnpm dev:worktree`'s. */
-export const SEED_INSTANCE = 'seed';
+/** A fresh default instance for the large seed; separate from retired small seeds. */
+export const SEED_INSTANCE = 'seed-large';
 /** The local-only library file (`store/auth`'s LOCAL_USER_ID). */
 export const LOCAL_LIBRARY_DATABASE = 'drifting-library.db';
 
 const usage = 'Usage: pnpm dev:seed [--instance <name>] [--port <number>] [--no-watch] [--print-config]\n'
-  + 'Starts an isolated local-only profile (default instance "seed") whose library begins with a synthetic\n'
+  + 'Starts an isolated local-only profile (default instance "seed-large") whose library begins with a synthetic\n'
   + 'project. The first launch of an instance seeds it; choose a new --instance for fresh data.';
 
 /** The launcher arguments: the seed instance unless one is named; local-only. */
@@ -35,10 +35,10 @@ export function seededArguments(args) {
   return forwarded.includes('--instance') ? forwarded : [...forwarded, '--instance', SEED_INSTANCE];
 }
 
-function runSeedProcess({ root, databasePath }) {
+function runSeedProcess({ root, databasePath, appLocalDataDirectory }) {
   const result = spawnSync(
     process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-    ['exec', 'tsx', '--conditions=import', 'src/dev-cli/seed-main.ts', '--db', databasePath],
+    ['exec', 'tsx', '--conditions=import', 'src/dev-cli/seed-main.ts', '--db', databasePath, '--app-local-data', appLocalDataDirectory],
     {
       cwd: root,
       stdio: ['ignore', 'pipe', 'inherit'],
@@ -64,7 +64,10 @@ export async function runSeededDev(args = process.argv.slice(2), {
     const plan = createWorktreePlan({ root, baseEnvironment, ...options });
     // A running profile owns its database; never seed underneath it.
     await checkPort(plan.manifest.port);
-    const result = seed({ root, databasePath: path.join(plan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE) });
+    const result = seed({
+      root, databasePath: path.join(plan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE),
+      appLocalDataDirectory: plan.manifest.appLocalDataDirectory,
+    });
     output(result.seeded
       ? `Seeded a synthetic project into instance "${options.instance}".`
       : `Instance "${options.instance}" already has a library; launching it as it is.`);

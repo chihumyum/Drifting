@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfigFromFile } from 'vite';
 
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
-import { createWorktreePlan, parseWorktreeArguments, runWorktreeDev, assertWorktreePortAvailable } from '../../../scripts/run-worktree-dev.mjs';
+import { createWorktreePlan, parseWorktreeArguments, runWorktreeDev, assertWorktreePortAvailable, worktreeAppLocalDataRoot } from '../../../scripts/run-worktree-dev.mjs';
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
 import { isLinkedGitWorktree, shouldIsolateDevelopment } from '../../../scripts/run-desktop-tauri.mjs';
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
@@ -260,8 +260,10 @@ describe('isolated worktree development', () => {
 
   it('seeds the seed instance once its port is free, then launches that same profile', async () => {
     const root = fixture();
+    expect(SEED_INSTANCE).toBe('seed-large');
+    expect(existsSync(path.join(repoRoot, 'src/dev-cli/seeds/default-project.json'))).toBe(false);
     const calls: string[] = [];
-    const seed = vi.fn(({ databasePath }: { databasePath: string }) => {
+    const seed = vi.fn(({ databasePath }: { databasePath: string; appLocalDataDirectory: string }) => {
       calls.push('seed');
       return { seeded: true, databasePath, projectId: 'synthetic-project' };
     });
@@ -273,6 +275,8 @@ describe('isolated worktree development', () => {
     expect(calls).toEqual(['port', 'seed', 'launch']);
     expect(checkPort).toHaveBeenCalledWith(plan.manifest.port);
     expect(seed.mock.calls[0][0].databasePath).toBe(path.join(plan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE));
+    expect(seed.mock.calls[0][0].appLocalDataDirectory).toBe(plan.manifest.appLocalDataDirectory);
+    expect(plan.manifest.appLocalDataDirectory).toBe(path.join(worktreeAppLocalDataRoot(), plan.manifest.identifier));
     expect(launch.mock.calls[0][0]).toEqual(['--no-watch', '--instance', SEED_INSTANCE]);
 
     expect(seededArguments(['--instance', 'demo'])).toEqual(['--instance', 'demo']);
@@ -281,5 +285,15 @@ describe('isolated worktree development', () => {
     await runSeededDev(['--print-config'], { root, baseEnvironment: {}, seed, checkPort, launch: printed, output: () => undefined });
     expect(seed).toHaveBeenCalledTimes(1);
     expect(printed).toHaveBeenCalledWith(['--print-config', '--instance', SEED_INSTANCE], expect.anything());
+  });
+
+  it('resolves native asset roots per platform and keeps instances separate', () => {
+    const root = fixture();
+    const first = createWorktreePlan({ root, instance: 'seed-a', platform: 'linux', baseEnvironment: { XDG_DATA_HOME: path.join(root, 'xdg') } });
+    const second = createWorktreePlan({ root, instance: 'seed-b', platform: 'linux', baseEnvironment: { XDG_DATA_HOME: path.join(root, 'xdg') } });
+    expect(first.manifest.appLocalDataDirectory).toBe(path.join(root, 'xdg', first.manifest.identifier));
+    expect(first.manifest.appLocalDataDirectory).not.toBe(second.manifest.appLocalDataDirectory);
+    expect(worktreeAppLocalDataRoot({ platform: 'win32', environment: { LOCALAPPDATA: path.join(root, 'windows') } })).toBe(path.join(root, 'windows'));
+    expect(worktreeAppLocalDataRoot({ platform: 'linux', environment: { XDG_DATA_HOME: 'relative' } })).toBe(worktreeAppLocalDataRoot({ platform: 'linux', environment: {} }));
   });
 });

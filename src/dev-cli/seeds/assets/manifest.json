@@ -1,0 +1,114 @@
+[
+  {
+    "name": "island-map",
+    "title": "NORTH CAPE / ISLAND ATLAS",
+    "kind": "image",
+    "source": "island-map.png",
+    "sha256": "a5336e164a64b28152fb5ac0db65e8c201b5d7242429501306c12c80b60dcdc4",
+    "sizeBytes": 24093,
+    "width": 960,
+    "height": 640,
+    "variants": {
+      "display": {
+        "file": "island-map.display.jpg",
+        "sha256": "c2cfee81ee3d4900645ee030864f8dbd0fbe6eae644eb2effaabea342c4a4fdb"
+      },
+      "thumbnail": {
+        "file": "island-map.thumbnail.jpg",
+        "sha256": "d250f120770660066929e5f127eb347cbaa08f10696c4627489881a0ed8d130b"
+      }
+    }
+  },
+  {
+    "name": "lighthouse",
+    "title": "LIGHTHOUSE / LIGHT STUDY",
+    "kind": "image",
+    "source": "lighthouse.png",
+    "sha256": "f23ee3e1db45b66985399c2f328a36a576f3b9254722ab933fc3efe46f11feaf",
+    "sizeBytes": 19060,
+    "width": 960,
+    "height": 640,
+    "variants": {
+      "display": {
+        "file": "lighthouse.display.jpg",
+        "sha256": "6c368d5c6f5eb39940e2a55616513b62ef7a8b0bb1dd8ced18cd87ab2a1d3cd5"
+      },
+      "thumbnail": {
+        "file": "lighthouse.thumbnail.jpg",
+        "sha256": "637d52ca0d1d0c627443f40233231bbde395ddb22846fe8344a119b503dc44b1"
+      }
+    }
+  },
+  {
+    "name": "tide-chart",
+    "title": "TIDE / OBSERVATION STUDY",
+    "kind": "image",
+    "source": "tide-chart.png",
+    "sha256": "6603f4d7b9b54dd0883e99ede7a9271838cf0581f4b29637e1b8b42b2f26376e",
+    "sizeBytes": 23271,
+    "width": 960,
+    "height": 640,
+    "variants": {
+      "display": {
+        "file": "tide-chart.display.jpg",
+        "sha256": "ed59230d7f0a79c9471ab30352cee3745139cea574376430476c50605cc0b879"
+      },
+      "thumbnail": {
+        "file": "tide-chart.thumbnail.jpg",
+        "sha256": "0901916678c24fcf6c1df4d93834cedbf4b85acac7242d019b24579e9f30e9fd"
+      }
+    }
+  },
+  {
+    "name": "ship-log",
+    "title": "SHIP LOG / FIVE DAYS",
+    "kind": "image",
+    "source": "ship-log.png",
+    "sha256": "5e2ef2d77744685c55caf864c2bb6967a9e8271dd081dda04b88496af7c1516d",
+    "sizeBytes": 38207,
+    "width": 960,
+    "height": 640,
+    "variants": {
+      "display": {
+        "file": "ship-log.display.jpg",
+        "sha256": "4b276010b8eacff18c797eb3af15aca9017a6c23292781ac096941699ec0a576"
+      },
+      "thumbnail": {
+        "file": "ship-log.thumbnail.jpg",
+        "sha256": "396b9d61d1784d191631e0180b1f356f466d9f65ab8afb4888949a46d5667026"
+      }
+    }
+  },
+  {
+    "name": "field-guide",
+    "title": "North Cape Field Guide",
+    "kind": "pdf",
+    "source": "field-guide.pdf",
+    "sha256": "e06a924a3a8ca1a4859a78160cf15053200d7987bcce79fed0a34d13b3de4e38",
+    "sizeBytes": 32172,
+    "width": null,
+    "height": null,
+    "variants": {
+      "thumbnail": {
+        "file": "field-guide.thumbnail.jpg",
+        "sha256": "ff57e803b542f8721115593f2a8e01b91f1d75a31f42b949efb3af6378189152"
+      }
+    }
+  },
+  {
+    "name": "tide-notebook",
+    "title": "Tide Observation Notebook",
+    "kind": "pdf",
+    "source": "tide-notebook.pdf",
+    "sha256": "dcc96438d8ce81f9700badd5f8141e098b8191f2321b67ad9117d461410d757a",
+    "sizeBytes": 27873,
+    "width": null,
+    "height": null,
+    "variants": {
+      "thumbnail": {
+        "file": "tide-notebook.thumbnail.jpg",
+        "sha256": "b9f7e304af28361b4a0ff4b86f3a3374e754800731f52ec1567d9da76e45b41f"
+      }
+    }
+  }
+]
