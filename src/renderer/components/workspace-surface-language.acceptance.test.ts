@@ -386,6 +386,22 @@ describe('workspace surface language acceptance', () => {
     expect(layout).toContain('flex: `${grow * GROW_SCALE} 1 0`,');
     expect(block(shell, '@keyframes sidebar-pane-in {', '}')).toContain('flex-grow: 0;');
     expect(block(shell, '@keyframes sidebar-pane-out {', '}')).toContain('flex-grow: 0;');
+    // While a half folds away only the split button waits in its final place;
+    // the remaining tabs still move across, their own copy hidden till then.
+    expect(layout).toContain("<SidebarSplitButton side={side} edge={leaving.index === 0 ? 'start' : 'end'} />");
+    expect(shell).toContain('[data-split-leaving] [data-sidebar-pane] .sidebar-split-button {\n  visibility: hidden;');
+    // The split button sits at the end of the tab row where the next half
+    // arrives: the side of the half last closed.
+    for (const [header, side] of [
+      [source('src/renderer/components/leftBars/LeftSidebarHeader.tsx'), 'left'],
+      [source('src/renderer/components/rightBars/RightSidebarHeader.tsx'), 'right'],
+    ] as const) {
+      expect(header).toContain(`<SidebarSplitButton side="${side}" edge="start" />`);
+      expect(header).toContain(`<SidebarSplitButton side="${side}" edge="end" />`);
+    }
+    expect(source('src/renderer/components/SidebarSplitButton.tsx')).toContain(
+      "(layout.splitEdge ?? 'end') === edge",
+    );
   });
 
   it('shows only the chapter count until the first storyline exists', () => {

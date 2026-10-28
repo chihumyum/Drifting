@@ -91,6 +91,7 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
       }}
     >
       {windowChrome && <SidebarHeaderChrome side="left"><SidebarToggleSlot /></SidebarHeaderChrome>}
+      <SidebarSplitButton side="left" edge="start" />
       <PanelTabTray ref={tabTrayRef} className="leftbar-tab-tray">
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}
@@ -114,7 +115,7 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
           onClick={() => toggleTab(paneId, 'drift')}
         />
       </PanelTabTray>
-      <SidebarSplitButton side="left" />
+      <SidebarSplitButton side="left" edge="end" />
       <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
     </div>
   );

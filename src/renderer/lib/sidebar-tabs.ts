@@ -10,11 +10,15 @@ export interface SidebarPane<T extends string> {
   id: SidebarPaneId;
   tab: T;
 }
+// Which end of the tab row offers the split, and where the second pane
+// arrives: the side of the half the author last closed (default: the end).
+export type SidebarSplitEdge = 'start' | 'end';
 export interface SidebarTabs<T extends string> {
   panes: SidebarPane<T>[];
   focusedPane: SidebarPaneId;
   // Reopening a deliberately single wide sidebar must not undo that choice.
   canSplit: boolean;
+  splitEdge?: SidebarSplitEdge;
 }
 
 export function singleSidebarTab<T extends string>(tab: T): SidebarTabs<T> {
@@ -32,9 +36,10 @@ export function splitSidebarTabs<T extends string>(
   if (!state.canSplit || state.panes.length === 2) return state;
   const current = state.panes[0];
   const next = order[(order.indexOf(current.tab) + 1) % order.length];
+  const added = { id: current.id === 'primary' ? 'secondary' : 'primary', tab: next } as const;
   return {
     ...state,
-    panes: [current, { id: current.id === 'primary' ? 'secondary' : 'primary', tab: next }],
+    panes: state.splitEdge === 'start' ? [added, current] : [current, added],
   };
 }
 
@@ -59,7 +64,10 @@ export function toggleSidebarTab<T extends string>(
   if (!current) return state;
   if (current.tab === tab) {
     const panes = state.panes.filter((pane) => pane.id !== paneId);
-    return panes.length ? { ...state, panes, focusedPane: panes[0].id } : null;
+    if (!panes.length) return null;
+    // Splitting again brings the closed half back on the same side.
+    const splitEdge = state.panes.indexOf(current) === 0 ? 'start' : 'end';
+    return { ...state, panes, focusedPane: panes[0].id, splitEdge };
   }
   return {
     ...state,
@@ -107,5 +115,7 @@ export function restoreSidebarTabs<T extends string>(
   if (!panes.length) return singleSidebarTab(fallback);
   const focused = panes.find((pane) => pane.id === saved.focusedPane)
     ?? panes.find((pane) => pane.tab === saved.focused) ?? panes[0];
-  return { panes, focusedPane: focused.id, canSplit };
+  const restored: SidebarTabs<T> = { panes, focusedPane: focused.id, canSplit };
+  if (saved.splitEdge === 'start' || saved.splitEdge === 'end') restored.splitEdge = saved.splitEdge;
+  return restored;
 }

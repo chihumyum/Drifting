@@ -34,16 +34,22 @@ describe.each([
     expect(toggleSidebarTab(survivor, 'secondary', order[0])).toBeNull();
   });
 
-  it('switches a single wide pane without splitting and explicitly restores a second pane', () => {
+  it('switches a single wide pane without splitting and restores the closed half on its own side', () => {
     const wide = resizeSidebarTabs(singleSidebarTab(order[0]), true, order);
+    // Closing the start half: the split button and the next half sit at the start.
     const single = toggleSidebarTab(wide, 'primary', order[0])!;
+    expect(single.splitEdge).toBe('start');
     const switched = toggleSidebarTab(single, 'secondary', order[2])!;
     expect(switched.panes).toEqual([{ id: 'secondary', tab: order[2] }]);
     expect(resizeSidebarTabs(switched, true, order)).toBe(switched);
     const split = splitSidebarTabs(switched, order);
-    expect(split.panes[0]).toBe(switched.panes[0]);
-    expect(split.panes[1].id).toBe('primary');
-    expect(split.panes[1].tab).toBe(order[(2 + 1) % order.length]);
+    expect(split.panes[1]).toBe(switched.panes[0]);
+    expect(split.panes[0].id).toBe('primary');
+    expect(split.panes[0].tab).toBe(order[(2 + 1) % order.length]);
+    // Closing the end half brings the next one back at the end.
+    const end = toggleSidebarTab(split, 'secondary', order[2])!;
+    expect(end.splitEdge).toBe('end');
+    expect(splitSidebarTabs(end, order).panes[0]).toBe(end.panes[0]);
   });
 
   it('retains the focused pane when narrowed, then automatically splits only on crossing back', () => {
@@ -77,5 +83,8 @@ describe.each([
       .toEqual({ panes: [{ id: 'primary', tab: order[2] }, { id: 'secondary', tab: order[0] }], focusedPane: 'secondary', canSplit: true });
     expect(restoreSidebarTabs({ panes: [{ id: 'invalid', tab: 'invalid' }] }, order[0], order))
       .toEqual(singleSidebarTab(order[0]));
+    expect(restoreSidebarTabs({ ...duplicate, canSplit: false, splitEdge: 'start' }, order[0], order).splitEdge)
+      .toBe('start');
+    expect(restoreSidebarTabs({ ...duplicate, splitEdge: 'sideways' }, order[0], order)).not.toHaveProperty('splitEdge');
   });
 });

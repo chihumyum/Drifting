@@ -47,9 +47,11 @@ describe('desktop sidebar store acceptance', () => {
     const options = useUiStore.persist.getOptions();
     const restored = options.merge!(options.partialize!(state()), useUiStore.getInitialState());
     expect(restored.desktopSidebarTabs.right).toEqual(state().desktopSidebarTabs.right);
+    // The start half was closed first, so the next half comes back there.
+    expect(restored.desktopSidebarTabs.right.splitEdge).toBe('start');
     state().splitSidebar('right');
-    expect(tabs('right')).toEqual(['stats', 'companion']);
-    expect(state().desktopSidebarTabs.right.panes.map((pane) => pane.id)).toEqual(['secondary', 'primary']);
+    expect(tabs('right')).toEqual(['companion', 'stats']);
+    expect(state().desktopSidebarTabs.right.panes.map((pane) => pane.id)).toEqual(['primary', 'secondary']);
   });
 
   it('switches both sidebars independently, permits duplicates and narrows to the focused pane', () => {

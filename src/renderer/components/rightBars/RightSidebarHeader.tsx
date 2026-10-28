@@ -30,6 +30,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
         position: 'relative',
       }}
     >
+      <SidebarSplitButton side="right" edge="start" />
       <PanelTabTray ref={tabTrayRef} className="rightbar-tab-tray">
         {RIGHT_SIDEBAR_TABS.map((tab) => {
           const label = tab === 'companion' ? 'Agent' : t(`rightSidebar.tabs.${tab}`);
@@ -41,7 +42,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
           );
         })}
       </PanelTabTray>
-      <SidebarSplitButton side="right" />
+      <SidebarSplitButton side="right" edge="end" />
       {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleSlot /></SidebarHeaderChrome>}
       <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
     </div>
