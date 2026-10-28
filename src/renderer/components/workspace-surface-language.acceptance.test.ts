@@ -403,6 +403,17 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
+  it('pushes a pane body away like heavy ice when its tab changes', () => {
+    const layout = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
+    const shell = source('src/styles/desktop-shell.css');
+
+    expect(layout).toContain('dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1');
+    expect(layout).toContain("aria-hidden={slide.role === 'out' ? true : undefined}");
+    expect(block(shell, '.sidebar-pane__slides {', '}')).toContain('--ice-push: cubic-bezier(0.8, 0, 0.66, 1);');
+    expect(block(shell, '@keyframes sidebar-push-out {', '}\n}')).toContain('translateX(calc(var(--push-dir, 1) * 100%))');
+    expect(block(shell, '@keyframes sidebar-push-in {', '}\n}')).toContain('translateX(calc(var(--push-dir, 1) * -100%))');
+  });
+
   it('shows only the chapter count until the first storyline exists', () => {
     const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const controls = source('src/styles/ui-controls.css');

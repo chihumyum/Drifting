@@ -48,7 +48,9 @@ describe('shared menu surface style', () => {
     expect(surface).toContain('line-height: var(--ui-line-body, 18px);');
     expect(surface).toContain('backdrop-filter: blur(1.6px);');
     expect(controls).not.toContain('.menu-surface::before {');
-    expect(controls).toContain('animation: glass-flow 9s linear infinite;');
+    // The hovered row is one whole ring, no open sides.
+    expect(controls).not.toContain(".menu-surface__item::after {");
+    expect(controls).toContain('inset: 1px 4px;');
     expect(item).toContain('min-height: var(--ui-row-height, 30px);');
     expect(item).toContain('padding: 6px 14px;');
     expect(item).toContain('border-radius: 0;');

@@ -1,8 +1,8 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-28T07:55:03.078Z",
-  "sourceSha256": "4947591b336d19c60c2b8607b3a8e429d40c8ab94ec6deefb89014b2cbc0ddf3",
+  "generatedAt": "2026-10-28T08:16:21.492Z",
+  "sourceSha256": "ff2be9b652642ab0b77eb8a0118cdf7ed36e05ac65e1b8acc6e3a3a14c6c0d3a",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",

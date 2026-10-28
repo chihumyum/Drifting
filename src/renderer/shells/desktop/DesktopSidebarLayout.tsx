@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useUiStore, type SidebarType } from '../../store/ui-store';
-import type { SidebarPaneId } from '../../lib/sidebar-tabs';
+import { LEFT_SIDEBAR_TABS, RIGHT_SIDEBAR_TABS, type SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarPanelStateContext } from '../../hooks/useSidebarPanelState';
 import { sidebarPanelKey } from '../../store/sidebar-panel-store';
 import type { SidebarPanelScope } from '../../store/sidebar-panel-store';
@@ -16,6 +16,8 @@ import { trackGlassFlow } from '../../lib/glass-flow';
 // side of the pane that arrives or leaves; matches `.sidebar-pane--entering`
 // and `.sidebar-pane-ghost` in desktop-shell.css.
 const SPLIT_ANIM_MS = 420;
+// Matches `sidebar-push-*` in desktop-shell.css.
+const PUSH_MS = 560;
 // Flex grow factors are scaled up so they never sum below 1 while a pane
 // grows from or folds to zero: below 1 flexbox leaves the rest empty.
 const GROW_SCALE = 100;
@@ -42,6 +44,8 @@ export function DesktopSidebarLayout({
   const setSplitAvailable = useUiStore((s) => s.setSidebarSplitAvailable);
   const focusPane = useUiStore((s) => s.focusSidebarPane);
   const stopDragging = useRef<() => void>(() => {});
+  const panelStateKey = (paneId: SidebarPaneId, tab: SidebarPanelScope['tab']) =>
+    projectId ? sidebarPanelKey({ projectId, side, paneId, tab }) : null;
 
   // The arriving pane grows from nothing; a closed pane leaves a blank ghost
   // in its place that folds away, so the divider slides rather than jumps.
@@ -147,12 +151,16 @@ export function DesktopSidebarLayout({
                 minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
               }}>
                 <SidebarPaneContext.Provider value={panel.id}>
-                  <SidebarPanelStateContext.Provider
-                    key={`${projectId}:${panel.tab}`}
-                    value={projectId ? sidebarPanelKey({ projectId, side, paneId: panel.id, tab: panel.tab }) : null}>
+                  <SidebarPanelStateContext.Provider value={panelStateKey(panel.id, panel.tab)}>
                     {panel.header}
-                    {panel.content}
                   </SidebarPanelStateContext.Provider>
+                  <SidebarPaneSlides
+                    order={side === 'left' ? LEFT_SIDEBAR_TABS : RIGHT_SIDEBAR_TABS}
+                    tab={panel.tab}
+                    content={panel.content}
+                    slideKey={(tab) => `${projectId}:${tab}`}
+                    stateKey={(tab) => panelStateKey(panel.id, tab)}
+                  />
                 </SidebarPaneContext.Provider>
               </div>
               {leaving?.index === 1 && divider}
@@ -161,6 +169,52 @@ export function DesktopSidebarLayout({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A pane's body. Switching its tab pushes the whole panel away like a heavy
+ * block of ice: toward the right when the new tab lies to the left in the
+ * tab row (and the reverse), the new panel arriving behind it from the other
+ * side; slow to start, then fast (`.sidebar-pane__slide--out/--in`). The
+ * outgoing panel stays mounted, as it was, until it has gone.
+ */
+function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
+  order: readonly string[];
+  tab: SidebarPanelScope['tab'];
+  content: ReactNode;
+  slideKey: (tab: SidebarPanelScope['tab']) => string;
+  stateKey: (tab: SidebarPanelScope['tab']) => string | null;
+}) {
+  const [shown, setShown] = useState({ tab, content });
+  const [outgoing, setOutgoing] = useState<{ tab: SidebarPanelScope['tab']; content: ReactNode; dir: 1 | -1 } | null>(null);
+  if (tab !== shown.tab) {
+    setOutgoing({ tab: shown.tab, content: shown.content, dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1 });
+    setShown({ tab, content });
+  } else if (content !== shown.content) {
+    setShown({ tab, content });
+  }
+  useEffect(() => {
+    if (!outgoing) return undefined;
+    const timer = window.setTimeout(() => setOutgoing(null), PUSH_MS);
+    return () => window.clearTimeout(timer);
+  }, [outgoing]);
+  const slides = outgoing && outgoing.tab !== tab
+    ? [{ tab: outgoing.tab, content: outgoing.content, role: 'out' }, { tab, content, role: 'in' }]
+    : [{ tab, content, role: 'still' }];
+  return (
+    <div className="sidebar-pane__slides"
+      style={outgoing ? { '--push-dir': outgoing.dir } as CSSProperties : undefined}>
+      {slides.map((slide) => (
+        <div key={slideKey(slide.tab)}
+          className={`sidebar-pane__slide${slide.role === 'still' ? '' : ` sidebar-pane__slide--${slide.role}`}`}
+          aria-hidden={slide.role === 'out' ? true : undefined}>
+          <SidebarPanelStateContext.Provider value={stateKey(slide.tab)}>
+            {slide.content}
+          </SidebarPanelStateContext.Provider>
+        </div>
+      ))}
     </div>
   );
 }

@@ -331,10 +331,10 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
    The shell is floating glass without a rim of its own: the shared
    translucent fill, lightly softened underneath, square corners. Only the
-   row under the pointer carries glass: its top and bottom edges become
-   hairlines of flowing glass across the whole menu. Moving between rows
-   only fades one row's lines out and the next row's in. Rows are full-bleed
-   and carry no fill; groups are separated by space, not rules. */
+   row under the pointer carries glass: one whole ring of flowing hairline
+   glass around it. Moving between rows only fades one row's ring out and
+   the next row's in. Rows carry no fill; groups are separated by space,
+   not rules. */
 :where(.menu-surface) {
   position: relative;
 }
@@ -413,52 +413,37 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   color: hsl(var(--ink-1));
 }
 
-/* Desktop only: mobile menus keep their own row pseudo-elements. */
-html:not([data-shell-mode='mobile']) .menu-surface__item::before,
-html:not([data-shell-mode='mobile']) .menu-surface__item::after {
+/* Desktop only: mobile menus keep their own row pseudo-elements.
+   The row under the pointer becomes one whole ring of flowing hairline glass,
+   all four sides cut from one texture, like a sidebar cell's hover ring. */
+html:not([data-shell-mode='mobile']) .menu-surface__item::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
   content: '';
   position: absolute;
-  right: 0;
-  left: 0;
-  height: 3px;
+  inset: 1px 4px;
+  border-radius: 3px;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--menu-line) 18%, transparent) 0 1px,
-    color-mix(in srgb, var(--menu-line) 80%, transparent) 1px 2px,
-    color-mix(in srgb, var(--menu-line) 18%, transparent) 2px 3px
-  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--menu-line) 82%, transparent),
+    inset 0 0 3px 0.5px color-mix(in srgb, var(--menu-line) 28%, transparent);
   -webkit-mask-image: var(--glass-texture);
   mask-image: var(--glass-texture);
   -webkit-mask-size: 150px 150px;
   mask-size: 150px 150px;
+  --glass-gx: -30px;
+  --glass-gy: -64px;
   opacity: 0;
-  animation: glass-flow 9s linear infinite;
+  animation: glass-flow 15s linear infinite paused;
   transition: opacity 0.18s ease-out;
 }
 
-html:not([data-shell-mode='mobile']) .menu-surface__item::before {
-  top: -1px;
-  --glass-gx: -40px;
-  --glass-gy: -12px;
-}
-
-html:not([data-shell-mode='mobile']) .menu-surface__item::after {
-  bottom: -2px;
-  --glass-gx: -40px;
-  --glass-gy: -44px;
-}
-
 html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,
-html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::after,
-html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::before,
-html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::after {
+html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::before {
   opacity: 1;
+  animation-play-state: running;
 }
 
-html:not([data-shell-mode='mobile']) .menu-surface__item:active::before,
-html:not([data-shell-mode='mobile']) .menu-surface__item:active::after {
+html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%);
 }
 

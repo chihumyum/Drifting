@@ -639,6 +639,65 @@
   }
 }
 
+/* A pane's body. Switching its tab pushes the whole panel away like a heavy
+   block of ice, slow to start and then fast; the new panel arrives behind it
+   from the other side on the same curve, so the two move as one strip.
+   --push-dir: 1 pushes right (the new tab lies to the left), -1 left. */
+.sidebar-pane__slides {
+  --ice-push: cubic-bezier(0.8, 0, 0.66, 1);
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-pane__slide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebar-pane__slide--out,
+.sidebar-pane__slide--in {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.sidebar-pane__slide--out {
+  pointer-events: none;
+  animation: sidebar-push-out 560ms var(--ice-push) forwards;
+}
+
+.sidebar-pane__slide--in {
+  animation: sidebar-push-in 560ms var(--ice-push) backwards;
+}
+
+@keyframes sidebar-push-out {
+  to {
+    transform: translateX(calc(var(--push-dir, 1) * 100%));
+  }
+}
+
+@keyframes sidebar-push-in {
+  from {
+    transform: translateX(calc(var(--push-dir, 1) * -100%));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-pane__slide--out {
+    display: none;
+  }
+
+  .sidebar-pane__slide--in {
+    animation: none;
+  }
+}
+
 /* Splitting a sidebar pushes the divider in from the side of the arriving
    pane; merging folds the closed pane's place away under it. The lines bleed
    glass while the divider moves (DesktopSidebarLayout). */

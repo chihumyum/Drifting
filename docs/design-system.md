@@ -83,7 +83,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 右键坐标、三点按钮、排序按钮与窗口控件只决定菜单如何定位，不决定菜单长什么样。按钮锚定面继续由 `AnchoredPopover` portal 到 `body` 并使用 `position: fixed`；React 内的坐标锚定菜单优先使用 `ContextMenuSurface`。编辑器 selection menu、ActRail 与资料卡保留各自已有的生命周期 owner，但同样必须 portal 到 `body`、固定定位并使用共享视觉 primitive。
 - 所有动作菜单使用 `.menu-surface`。外壳唯一来源是 `--menu-surface-bg`、`--menu-surface-border`、`--menu-surface-radius` 与 `--menu-surface-shadow`；宽度只能从 compact / standard / wide / panel / settings 五档中选择，对应 `180 / 220 / 280 / 360 / 420px`，窄视口再由浮层 primitive 的 viewport max-width 收缩，不为单个入口另写任意宽度。
 - 菜单是浮起的半透明面：共享 `--glass-fill`（`--menu-surface-bg`）、`1.6px` 模糊、直角（`--menu-surface-radius: 0`）、无实线边框，菜单整体没有自己的玻璃边，也不扭曲底下的文字；流动玻璃只出现在被悬停的那一行。
-- 普通行使用 `.menu-surface__item`，桌面采用 `14px / 20px`（较大档 `16px / 22px`）UI 字体，共享移动 fallback 为 `12.5px / 18px`，`6px 14px` padding、直角，左右贴齐菜单边缘。桌面单行内容至少为 `32px`；文本超过一行时允许正常换行，由所选档位的行高自然撑高，不截断为单行，也不把富表单强制压进固定 cell。行不填色：悬停时该行的上下边各出现一条横贯整个菜单的 hairline 流动玻璃；在行之间移动只淡出旧行、淡入新行的线。
+- 普通行使用 `.menu-surface__item`，桌面采用 `14px / 20px`（较大档 `16px / 22px`）UI 字体，共享移动 fallback 为 `12.5px / 18px`，`6px 14px` padding、直角，左右贴齐菜单边缘。桌面单行内容至少为 `32px`；文本超过一行时允许正常换行，由所选档位的行高自然撑高，不截断为单行，也不把富表单强制压进固定 cell。行不填色：悬停时该行四边一整圈变成 hairline 流动玻璃（与侧栏 cell 的悬停环同一做法，同一张纹理切出，四边粗细一致）；在行之间移动只淡出旧行、淡入新行的环。
 - section label、header 与 accelerator 分别使用共享的小型层级；分组之间用 `8px` 空白代替分隔线（divider 保留为空白）。当前项只以字重显示，不绘制 inset-left accent bar。
 - 账户、Agent 配置/历史、关系类型管理、资料卡摘要和“未放置”内容不是普通动作列表。它们使用 `.menu-surface--rich` 保留表单、摘要、chip 或多列布局，但外壳 token、基础字号、hover wash、圆角阶梯与浮层层级仍与简单菜单一致；不为了视觉整齐把富交互压成 30px 动作行。
 - App 自绘菜单受上述约束；可编辑器在没有非空 selection 或只读时回退的浏览器/系统原生 context menu 不属于 renderer 可定制范围。静态测试能证明 token、class 与 portal/fixed 路径已收敛，不能证明不同平台上的字体栅格化、阴影观感或系统原生菜单外观；这些仍由用户在实际窗口中目测验收。
@@ -103,6 +103,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 桌面完整 Settings 左侧 Section 点击后直接定位到目标内容，不播放纵向滚动动画，避免 scroll-spy 沿途快速切换左栏选中态；用户手动滚动右侧内容时仍由 scroll-spy 同步当前 Section。这个即时定位约束只属于桌面完整 Settings，不改变移动设置页及其他共享滚动面的行为。
 - 桌面完整 Settings 的分类下增加二级目录，始终全部展开，不提供折叠操作；搜索匹配一级分类、二级标题及已显示的设置项名称、说明和提示正文，忽略大小写并归一化空白；正文命中保留所属分类与分组，点击结果即时定位。没有二级标题的面板及面板开头的说明也可命中一级分类；隐藏内容和输入框的值不参与搜索。子项直接取自已挂载、可见的设置分区标题，随语言与条件内容更新，不复制一份分区文案或显示未提供的功能。点击子项即时定位，手动滚动同步两级当前项；选中态通过背景与字重表达，不绘制左侧强调竖线。键盘可逐项聚焦、激活，当前项提供 `aria-current`。`desktop-settings-section-navigation.acceptance.test.ts` 覆盖搜索、索引更新与定位行为；`node scripts/run-settings-search.mjs` 生成真实浏览器中的正文搜索、动态内容与跳转证据，`--check` 校验证据与源码一致；实际 Tauri 窗口观感另行验收。
 - 侧栏开合、侧栏单双栏切换与 Bottom Timeline 开合是工作区保留的结构性动效，时长均为 `420ms`，移动中各自的线条流出玻璃。分成双栏时，中线从新半栏那一侧推入；合成单栏时，被关掉的半栏留下一块空白占位向外收起，中线随之推出（`DesktopSidebarLayout`），不会一帧跳变；`prefers-reduced-motion: reduce` 时禁用滑动与玻璃流动。
+- 切换侧栏 Tab 时，半栏的内容像一块被用力推开的大冰块整体移走：新 Tab 在左就向右推，在右就向左推，新内容从另一侧跟着进来；两者走同一条先慢后快的曲线（`--ice-push`，`560ms`），像一条连在一起的带子（`DesktopSidebarLayout` 的 `SidebarPaneSlides`）。Tab 行本身不动。
 - Bottom Timeline 的章节是有重量的玻璃块：静止时是稿纸底色加故事线颜色的玻璃边，占满泳道高度；拖动时只有手里这一块移动，横向是临界阻尼的弹簧（略落后于手、不回弹），跨泳道时停在原泳道，直到指针越过下一泳道的中线才一次吸附过去并带极轻微的回弹，放下的位置就是它所在的泳道（`chapter-lane-drag.ts` 的 `weighted`）。泳道名前是故事线的砂笔短横；时间线上不再画砂笔笔记。
 
 ## Dense content and semantic controls
