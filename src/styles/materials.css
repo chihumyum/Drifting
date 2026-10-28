@@ -324,6 +324,10 @@
 .brush-icon--knots { -webkit-mask-image: url('../assets/design/icons/knots.png'); mask-image: url('../assets/design/icons/knots.png'); }
 .brush-icon--case-rise { -webkit-mask-image: url('../assets/design/icons/case-rise.png'); mask-image: url('../assets/design/icons/case-rise.png'); }
 .brush-icon--tea { -webkit-mask-image: url('../assets/design/icons/tea.png'); mask-image: url('../assets/design/icons/tea.png'); }
+.brush-icon--spread { -webkit-mask-image: url('../assets/design/icons/spread.png'); mask-image: url('../assets/design/icons/spread.png'); }
+.brush-icon--locate { -webkit-mask-image: url('../assets/design/icons/locate.png'); mask-image: url('../assets/design/icons/locate.png'); }
+.brush-icon--new-storyline { -webkit-mask-image: url('../assets/design/icons/new-storyline.png'); mask-image: url('../assets/design/icons/new-storyline.png'); }
+.brush-icon--new-category { -webkit-mask-image: url('../assets/design/icons/new-category.png'); mask-image: url('../assets/design/icons/new-category.png'); }
 
 /* ── Cells ──────────────────────────────────────────────────────────
  * A list cell (`.sand-cell`) has no hover wash. Under the pointer its

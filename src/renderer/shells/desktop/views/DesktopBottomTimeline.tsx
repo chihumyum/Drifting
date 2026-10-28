@@ -1372,21 +1372,7 @@ export function DesktopBottomTimeline({
               void handleSpread();
             }}
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            >
-              <line x1="3" y1="8" x2="1.5" y2="8" />
-              <line x1="14.5" y1="8" x2="13" y2="8" />
-              <path d="M4 5l-2 3 2 3" />
-              <path d="M12 5l2 3-2 3" />
-              <line x1="7" y1="8" x2="9" y2="8" />
-            </svg>
+            <BrushIcon name="spread" size={12} />
           </button>
           <button
             className="btl__head-btn"
@@ -1404,20 +1390,7 @@ export function DesktopBottomTimeline({
               scrollContainerRef.current.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
             }}
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <circle cx="8" cy="8" r="3" />
-              <line x1="8" y1="1" x2="8" y2="4" />
-              <line x1="8" y1="12" x2="8" y2="15" />
-              <line x1="1" y1="8" x2="4" y2="8" />
-              <line x1="12" y1="8" x2="15" y2="8" />
-            </svg>
+            <BrushIcon name="locate" size={12} />
           </button>
           {/* Heavier structural work — act boundaries, storyline relations —
               continues in the full-window story graph over the same timeline. */}

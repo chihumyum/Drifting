@@ -923,7 +923,8 @@ describe('workspace surface language acceptance', () => {
       // Objects and states.
       'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
       'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
-      'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea',
+      'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'spread', 'locate', 'new-storyline',
+      'new-category',
       // A closed sidebar's crescent, cleared from the committed solid one.
       'moon-left-hollow', 'moon-right-hollow',
     ];
@@ -938,6 +939,18 @@ describe('workspace surface language acceptance', () => {
     }
     expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)');
     expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
+
+    // The last hand-drawn SVG icons are brush icons too.
+    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).toContain('<BrushIcon name="spread" size={11} />');
+    const bottomTimeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
+    expect(bottomTimeline).toContain('<BrushIcon name="spread" size={12} />');
+    expect(bottomTimeline).toContain('<BrushIcon name="locate" size={12} />');
+    const subHeader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    expect(subHeader).toContain('icon = <BrushIcon name="new-storyline" size={12} />;');
+    expect(subHeader).toContain('icon = <BrushIcon name="new-category" size={12} />;');
+    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={11} />');
+    expect(source('src/renderer/features/agent/AgentComposerConfig.tsx')).toContain('<BrushIcon name="dharma-wheel" size={16} />');
+    expect(source('src/renderer/components/leftBars/AgentChangeIndicator.tsx')).toContain('<BrushIcon name="check" size={10} />');
   });
 
   it('keeps lucide out of the desktop renderer outside the paused mobile shell', () => {

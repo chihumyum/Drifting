@@ -56,6 +56,10 @@ open-book.png               two pages open, two lines on each
 knots.png                   a cord with knots tied along it (结绳记事)
 
 tea.png                     a cup just set down, still steaming (Project Home "recent")
+spread.png                  two heads turned outward, a dot left between them
+locate.png                  a drop-shaped pin standing on its point, a white eye in it
+new-storyline.png           a lane drawn as one level stroke, a plus above it
+new-category.png            the element category's own sand corner, a plus beside it
 
 moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
                             inside cleared, the rim as thin, light and sandy as
@@ -179,6 +183,7 @@ def read_png_alpha(path):
     return out.reshape(h, w, ch)[..., ch - 1] / 255.0
 
 ICON_DIR = Path(__file__).resolve().parents[2] / "src/assets/design/icons"
+SAND_DIR = ICON_DIR.parent / "sand"
 
 # ── Paths ──
 
@@ -790,6 +795,48 @@ def tea(rng):
         brush(a, curve([(x0, 44), (x0 - 5, 34), (x0 + 3, 24), (x0 - 2, 10)], 12), T * 0.6, rng, load0=0.85, dry=0.6, taper=(0.1, 0.6))
     return a
 
+def spread(rng):
+    """推开: two heads turned outward, a dot left between them."""
+    a = new()
+    brush(a, poly((30, 26), (8, 48), (30, 70), n=20), T, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    brush(a, poly((66, 26), (88, 48), (66, 70), n=20), T, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    disc(a, 48, 48, 6.5, rng)
+    return a
+
+def locate(rng):
+    """墨钉: a drop-shaped pin standing on its point, a white eye in it."""
+    a = new()
+    fill_poly(a, arc(48, 36, 24, 24, 150, 390, 50) + [(48, 90)], rng, rough=0.6)
+    hole = new(); disc(hole, 48, 36, 8.5, np.random.default_rng(41), wob=0.03)
+    erase(a, np.clip(hole * 1.3, 0, 1))
+    return a
+
+def new_storyline(rng):
+    """A lane drawn as one level stroke, a plus above it."""
+    a = new()
+    brush(a, line((8, 72), (88, 70)), T * 1.05, rng, load0=1.0, dry=0.35, taper=(0.06, 0.15))
+    plus_at(a, rng, 48, 32, 15, th=T * 0.95)
+    return a
+
+def place(mark, x0, y0, w):
+    """A committed sand mark pasted into the 96 canvas at (x0, y0), scaled to width w."""
+    m = read_png_alpha(SAND_DIR / mark)
+    h0, w0 = m.shape
+    sc = w / w0; h = int(round(h0 * sc))
+    out = new()
+    ys, xs = np.mgrid[0:h, 0:int(w)].astype(float)
+    sx = np.clip(xs / sc, 0, w0 - 1.001); sy = np.clip(ys / sc, 0, h0 - 1.001)
+    ix = sx.astype(int); iy = sy.astype(int); fx = sx - ix; fy = sy - iy
+    v = (m[iy, ix] * (1 - fx) * (1 - fy) + m[iy, ix + 1] * fx * (1 - fy) + m[iy + 1, ix] * (1 - fx) * fy + m[iy + 1, ix + 1] * fx * fy)
+    out[y0:y0 + h, x0:x0 + int(w)] = v[:S - y0, :S - x0]
+    return out
+
+def new_category(rng):
+    """折角＋十: the element category's sand corner, a plus beside it."""
+    a = place("mark-corner.png", 4, 26, 64)
+    p = new(); plus_at(p, rng, 74, 26, 14, th=T * 0.95)
+    return a, p
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -812,6 +859,8 @@ OBJECTS = {
     "sticky-note": (sticky_note, 2022), "mic": (mic, 2025), "image": (image, 2027), "image-plus": (image_plus, 2028),
     "eraser": (eraser, 2033), "share": (share, 2035), "layers": (layers, 2039), "branch": (branch, 2041),
     "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104),
+    "spread": (spread, 3001), "locate": (locate, 3004), "new-storyline": (new_storyline, 3007),
+    "new-category": (new_category, 3008),
 }
 masks = {}
 for name, (draw, seed) in ICONS.items():

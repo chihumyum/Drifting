@@ -397,17 +397,7 @@ function SetHead({
       </div>
 
       <div className="set-head__search">
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <circle cx="7" cy="7" r="4.5" />
-          <path d="M10.5 10.5 L14 14" />
-        </svg>
+        <BrushIcon name="search" size={11} />
         <input
           ref={searchInputRef}
           placeholder={t('settings.search_placeholder')}
