@@ -3,7 +3,7 @@ import { useUiStore } from '../../store/ui-store';
 import type { RightSidebarTab, SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarSplitButton } from '../SidebarSplitButton';
 import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
-import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
+import { PanelTab, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
@@ -45,6 +45,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
       <SidebarSplitButton side="right" edge="end" />
       {windowChrome && <SidebarHeaderChrome side="right"><SidebarToggleSlot /></SidebarHeaderChrome>}
       <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
+      <PanelTabRowEdges />
     </div>
   );
 }

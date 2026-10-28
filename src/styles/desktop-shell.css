@@ -142,6 +142,96 @@
   --flow-gy: -60px;
 }
 
+/* A pane's tab header is the rail its tabs sit in: over any of its tabs,
+   chosen or not, the region's four edges bleed glass that drifts slowly —
+   the window's top, the line under the tabs, and the sides it shares with
+   the window, the other pane or the paper. The tabs stay plain words. */
+.panel-tab-row__edges {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.panel-tab-row__edge {
+  position: absolute;
+}
+
+.panel-tab-row__edge::after {
+  --edge-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 38%);
+  content: '';
+  position: absolute;
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: var(--edge-gx, 0px) var(--edge-gy, 0px);
+  mask-position: var(--edge-gx, 0px) var(--edge-gy, 0px);
+  opacity: 0;
+  animation: panel-tab-edge-drift 15s linear infinite paused;
+  transition: opacity 0.32s ease-out;
+}
+
+.panel-tab-row__edge--top,
+.panel-tab-row__edge--bottom {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.panel-tab-row__edge--top::after,
+.panel-tab-row__edge--bottom::after {
+  --edge-dx: 150px;
+  --edge-dy: 0px;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 3px;
+  background: linear-gradient(to bottom, transparent, var(--edge-glass), transparent);
+}
+
+.panel-tab-row__edge--start,
+.panel-tab-row__edge--end {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.panel-tab-row__edge--start::after,
+.panel-tab-row__edge--end::after {
+  --edge-dx: 0px;
+  --edge-dy: 150px;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 3px;
+  background: linear-gradient(to right, transparent, var(--edge-glass), transparent);
+}
+
+.panel-tab-row__edge--top { top: 0; }
+.panel-tab-row__edge--bottom { bottom: 0; --edge-gx: -96px; --edge-gy: -60px; }
+.panel-tab-row__edge--start { left: 0; --edge-gx: -40px; --edge-gy: -110px; }
+.panel-tab-row__edge--end { right: 0; --edge-gx: -120px; --edge-gy: -24px; }
+
+.workspace-panel-tab-row:has(.app-panel-tab:hover) .panel-tab-row__edge::after {
+  opacity: 0.8;
+  animation-play-state: running;
+  transition-duration: 0.24s;
+}
+
+@keyframes panel-tab-edge-drift {
+  to {
+    -webkit-mask-position: calc(var(--edge-gx, 0px) + var(--edge-dx)) calc(var(--edge-gy, 0px) + var(--edge-dy));
+    mask-position: calc(var(--edge-gx, 0px) + var(--edge-dx)) calc(var(--edge-gy, 0px) + var(--edge-dy));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-tab-row__edge::after {
+    animation: none;
+  }
+}
+
 .desktop-left-sidebar {
   display: flex;
   flex: 1;

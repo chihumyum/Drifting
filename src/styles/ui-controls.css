@@ -49,12 +49,32 @@
 .panel-tab-tray {
   display: flex;
   flex: 1;
+  align-self: stretch;
   min-width: 0;
   gap: 0;
   padding: 0;
   position: relative;
   border-radius: 0;
   background: transparent;
+}
+
+/* The glass block under the chosen panel tab (PanelTabTray): square, the
+   floating fill with the still selected glass, as wide as the tab's share of
+   the row and 2px short of its top and bottom. It slides on the pane's push;
+   its glass runs with the distance it travels (--flow) and never stirs
+   under the pointer. */
+.panel-tab-tray > .panel-tab-tray__block.glass {
+  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);
+  --glass-gy: -132px;
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  z-index: 0;
+  width: 0;
+  border-radius: 0;
+  background: var(--glass-fill);
+  pointer-events: none;
 }
 
 .app-panel-tab {

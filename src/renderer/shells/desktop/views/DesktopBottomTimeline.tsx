@@ -42,6 +42,7 @@ import {
 import type { TimelineNode } from '../../../components/BottomTimeline/types';
 import { useUiStore, usePromoteCurrentTab } from '../../../store/ui-store';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
+import { useGlassWave } from '../../../hooks/useGlassWave';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import {
@@ -290,6 +291,11 @@ export function DesktopBottomTimeline({
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Choosing another chapter in the same lane flows the selected glass along
+  // the lane; one in another lane fades the old slab and lights the new one
+  // in place.
+  useGlassWave(scrollContainerRef, isMobilePresentation ? null : (selectedNodeUiId ?? nodeId ?? null),
+    !isMobilePresentation, '.btl-track');
   const [mobileTimelineHeight, setMobileTimelineHeight] = useState(0);
   const timelineHeightBounds = useCallback(() => {
     const appMid = timelineRef.current?.closest('.app-mid');
@@ -822,6 +828,7 @@ export function DesktopBottomTimeline({
           } as React.CSSProperties
         }
       >
+        {!isMobilePresentation && <span className="glass-wave" data-wave-key={node.id} aria-hidden="true" />}
         <div className="btl-clip__content">
           <div className="btl-clip__title">{node.title || t('common.untitled')}</div>
         </div>

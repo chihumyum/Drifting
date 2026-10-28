@@ -321,6 +321,33 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
+  it('lays one glass block under the chosen panel tab that rides the pane push', () => {
+    const tabs = source('src/renderer/components/ui/PanelTabs.tsx');
+    const layout = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
+    const controls = source('src/styles/ui-controls.css');
+    const shell = source('src/styles/desktop-shell.css');
+    const block_ = block(controls, '.panel-tab-tray > .panel-tab-tray__block.glass {', '}');
+
+    // The block and the panel share one push, so they land together.
+    expect(tabs).toContain('className="panel-tab-tray__block glass is-on"');
+    expect(tabs).toContain('${SIDEBAR_PUSH_MS}ms ${SIDEBAR_PUSH_EASING}');
+    expect(tabs).toContain('trackGlassFlow(tray');
+    expect(layout).toContain('const PUSH_MS = SIDEBAR_PUSH_MS;');
+    expect(layout).toContain('const ICE_PUSH = SIDEBAR_PUSH_EASING;');
+    // Square, the tab's whole share of the row, 2px short of top and bottom;
+    // its glass runs only with its own travel.
+    expect(block_).toContain('border-radius: 0;');
+    expect(block_).toMatch(/top: 2px;[\s\S]*bottom: 2px;/);
+    expect(block_).toContain('--glass-gx: calc(var(--flow, 0) * 1.2px - 96px);');
+    expect(block_).toContain('pointer-events: none;');
+    // The tabs stay words; hovering any tab stirs the header region's edges.
+    expect(source('src/renderer/components/leftBars/LeftSidebarHeader.tsx')).toContain('<PanelTabRowEdges />');
+    expect(source('src/renderer/components/rightBars/RightSidebarHeader.tsx')).toContain('<PanelTabRowEdges />');
+    expect(shell).toContain('.workspace-panel-tab-row:has(.app-panel-tab:hover) .panel-tab-row__edge::after {');
+    expect(block(shell, '.workspace-panel-tab-row:has(.app-panel-tab:hover)', '}')).toContain('animation-play-state: running;');
+    expect(controls).not.toMatch(/\.app-panel-tab[^{]*\{[^}]*\bglass\b/);
+  });
+
   it('keeps sidebar chrome compact and rules only below the tab strips', () => {
     const controls = source('src/styles/ui-controls.css');
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
@@ -412,8 +439,11 @@ describe('workspace surface language acceptance', () => {
     expect(layout).toContain("aria-hidden={slide.role === 'out' ? true : undefined}");
     // One strip of panels, moved from where each panel is right now
     // (planSidebarPush), 265 ms on the slow-then-fast ice curve.
-    expect(layout).toContain('const PUSH_MS = 265;');
-    expect(layout).toContain("const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';");
+    const push = source('src/renderer/lib/sidebar-push.ts');
+    expect(push).toContain('export const SIDEBAR_PUSH_MS = 265;');
+    expect(push).toContain("export const SIDEBAR_PUSH_EASING = 'cubic-bezier(0.8, 0, 0.66, 1)';");
+    expect(layout).toContain('const PUSH_MS = SIDEBAR_PUSH_MS;');
+    expect(layout).toContain('const ICE_PUSH = SIDEBAR_PUSH_EASING;');
     expect(layout).toContain('const moves = planSidebarPush(now, target, strip.clientWidth, push.dir);');
     expect(layout).toContain("{ duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' }");
     expect(shell).not.toContain('@keyframes sidebar-push-');
@@ -886,7 +916,8 @@ describe('workspace surface language acceptance', () => {
       '侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline',
     );
     expect(doc).toContain('panel header 直接衔接 content，不再重复画第二条线');
-    expect(doc).toContain('只用暗淡文字与黑色文字的切换');
+    expect(doc).toContain('Tab 本身只是文字，没有玻璃框，也没有按压态');
+    expect(doc).toContain('两者同一刻落地');
     expect(doc).toContain('三栏从窗口顶边贯通到底边');
     expect(doc).toContain('**侧栏开关常驻两角**');
     expect(doc).toContain('**账户在左栏底部**');
