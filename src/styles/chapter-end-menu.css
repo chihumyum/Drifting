@@ -8,7 +8,8 @@
 
    The morph is one simultaneous cross-zoom: ⁂ shrinks, blurs and fades while
    the actions unblur and unfold a row up and down from it, so neither state
-   ever reads as an empty gap. Rules on the resting state time the return
+   ever reads as an empty gap. Under the pointer an action's outline becomes
+   the faint flowing-glass ring of a sidebar cell. Rules on the resting state time the return
    (110 ms); rules under [data-open] time the opening (150 ms). */
 
 /* Doubled class: index.css's .page__ornament spaces the bare glyph and may
@@ -98,7 +99,8 @@
   align-items: center;
   gap: 6px;
   height: var(--chapter-end-row);
-  padding: 2px 0;
+  padding: 2px 8px;
+  border-radius: 3px;
   border: 0;
   background: transparent;
   color: hsl(var(--ink-3));
@@ -147,6 +149,11 @@
   color: hsl(var(--ink-4));
   cursor: default;
 }
+/* Each action is a sand cell (materials.css): its ring of flowing glass
+   comes in under the pointer, and under keyboard focus too; a disabled
+   action has none. */
+.chapter-end-menu__item:focus-visible > .cell-ring { opacity: 1; animation-play-state: running; }
+.chapter-end-menu__item:disabled > .cell-ring { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .page__ornament-glyph,

@@ -1,8 +1,8 @@
 {
   "kind": "chapter-end-menu",
   "status": "passed",
-  "generatedAt": "2026-10-28T16:05:09.541Z",
-  "sourceSha256": "5b35a53edb0aa0696a557022c9816d2799245e1a260ccfec46f21911c2b77e64",
+  "generatedAt": "2026-10-28T16:10:04.060Z",
+  "sourceSha256": "9208919eae81eb7fcfe65b7c0031796b5ab69cc9cda469e0800f6ae8fcad2821",
   "inputs": [
     "scripts/run-chapter-end-menu-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -40,12 +40,12 @@
       "filter": "none"
     },
     "opening": {
-      "flipped": 80.39999985694885,
+      "flipped": 80.20000004768372,
       "markBackground": "rgba(0, 0, 0, 0)",
       "mid": {
-        "mark": 0.424423,
-        "action": 0.575577,
-        "actionFilter": "blur(0.848846px)"
+        "mark": 0.423805,
+        "action": 0.576195,
+        "actionFilter": "blur(0.84761px)"
       },
       "end": {
         "mark": 0,
@@ -70,21 +70,22 @@
       "chapterId": "chapter-b",
       "top": 416.890625,
       "bottom": 482.890625,
-      "left": 524.3125,
-      "right": 675.6875,
+      "left": 516.3125,
+      "right": 683.6875,
       "items": [
         {
           "action": "finish",
           "label": "Mark finished",
           "x": 600,
           "y": 427.890625,
-          "left": 524.3125,
+          "left": 516.3125,
           "icon": "brush-icon brush-icon--brush-laid",
           "disabled": false,
           "focused": false,
           "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
           "border": "0px",
           "background": "rgba(0, 0, 0, 0)",
+          "ring": 0,
           "inViewport": true,
           "hitTarget": true
         },
@@ -93,13 +94,14 @@
           "label": "New chapter after",
           "x": 600,
           "y": 449.890625,
-          "left": 524.3125,
+          "left": 516.3125,
           "icon": "brush-icon brush-icon--sprout",
           "disabled": false,
           "focused": false,
           "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
           "border": "0px",
           "background": "rgba(0, 0, 0, 0)",
+          "ring": 0,
           "inViewport": true,
           "hitTarget": true
         },
@@ -108,13 +110,71 @@
           "label": "Agent review",
           "x": 600,
           "y": 471.890625,
-          "left": 524.3125,
+          "left": 516.3125,
           "icon": "brush-icon brush-icon--shikigami",
           "disabled": false,
           "focused": false,
           "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
           "border": "0px",
           "background": "rgba(0, 0, 0, 0)",
+          "ring": 1,
+          "inViewport": true,
+          "hitTarget": true
+        }
+      ]
+    },
+    "roamed": {
+      "chapterId": "chapter-b",
+      "top": 416.890625,
+      "bottom": 482.890625,
+      "left": 516.3125,
+      "right": 683.6875,
+      "items": [
+        {
+          "action": "finish",
+          "label": "Mark finished",
+          "x": 600,
+          "y": 427.890625,
+          "left": 516.3125,
+          "icon": "brush-icon brush-icon--brush-laid",
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "ring": 1,
+          "inViewport": true,
+          "hitTarget": true
+        },
+        {
+          "action": "insert",
+          "label": "New chapter after",
+          "x": 600,
+          "y": 449.890625,
+          "left": 516.3125,
+          "icon": "brush-icon brush-icon--sprout",
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "ring": 0,
+          "inViewport": true,
+          "hitTarget": true
+        },
+        {
+          "action": "review",
+          "label": "Agent review",
+          "x": 600,
+          "y": 471.890625,
+          "left": 516.3125,
+          "icon": "brush-icon brush-icon--shikigami",
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "ring": 0,
           "inViewport": true,
           "hitTarget": true
         }
@@ -127,12 +187,12 @@
       "right": true
     },
     "closed": {
-      "flipped": 0,
+      "flipped": 0.09999990463256836,
       "markBackground": "rgba(0, 0, 0, 0)",
       "mid": {
-        "mark": 0.51863,
-        "action": 0.48137,
-        "actionFilter": "blur(1.03726px)"
+        "mark": 0.519269,
+        "action": 0.480731,
+        "actionFilter": "blur(1.03854px)"
       },
       "end": {
         "mark": 1,
@@ -177,6 +237,7 @@
     "verticalListCentredOnMark": true,
     "primaryOnTheMarkLine": true,
     "iconsLeadEachAction": true,
+    "hoveredActionShowsGlassRing": true,
     "monospacePlainText": true,
     "opensPromptly": true,
     "simultaneousCrossZoomMorph": true,

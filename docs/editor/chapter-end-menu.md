@@ -35,7 +35,7 @@ a hover opening are ignored. A click on `⁂` opens the row at once. The keyboar
 opens on 新建下一章, arrows move along the list, Escape or Tab return to `⁂`, an
 outside click dismisses it, and pointer movement never closes a
 keyboard-opened row. The actions use the platform monospace stack
-(`--font-prose-mono`) with no border or background; each icon sits 6 px before its label.
+(`--font-prose-mono`) with no border or background; each icon sits 6 px before its label. Each action is a sand cell: under the pointer (or keyboard focus) its outline becomes the same faint ring of flowing glass as a sidebar cell's, cut from one texture so no side is heavier.
 
 ## Actions
 

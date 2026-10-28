@@ -60,6 +60,8 @@ type Opener = 'hover' | 'click' | 'keyboard';
 // three monospace actions, each led by its brush icon, in one column centred
 // on ⁂ with the primary one on ⁂'s line. Leaving the list in any direction
 // fades ⁂ straight back. A finished chapter's ⁂ takes the accent colour.
+// Each action is a sand cell: under the pointer or keyboard focus its outline
+// becomes the same faint ring of flowing glass as a sidebar cell's.
 export function ChapterEndMenu({
   finished,
   onInsert,
@@ -248,7 +250,7 @@ export function ChapterEndMenu({
             }}
             type="button"
             role="menuitem"
-            className="chapter-end-menu__item"
+            className="chapter-end-menu__item sand-cell"
             data-action={item.key}
             data-primary={index === PRIMARY_INDEX}
             disabled={item.disabled}
@@ -257,6 +259,7 @@ export function ChapterEndMenu({
           >
             <BrushIcon name={item.icon} size={14} />
             {item.label}
+            <i className="cell-ring" aria-hidden="true" />
           </button>
         ))}
       </div>

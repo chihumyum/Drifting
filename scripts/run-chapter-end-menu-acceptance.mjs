@@ -129,6 +129,7 @@ if (process.argv.includes('--check')) {
             icon: item.firstElementChild?.className ?? null,
             disabled: item.disabled, focused: document.activeElement === item,
             font: style.fontFamily, border: style.borderTopWidth, background: style.backgroundColor,
+            ring: Number(getComputedStyle(item.querySelector('.cell-ring')).opacity),
             inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
             hitTarget: document.elementsFromPoint(x, y).some(el => el === item || item.contains(el)) };
         }) };
@@ -209,6 +210,12 @@ if (process.argv.includes('--check')) {
     // Roaming along the list keeps the actions; leaving it upward, downward or
     // past either side brings ⁂ straight back.
     await mouse('mouseMoved', left.x, left.y);
+    await delay(350);
+    // Like a sidebar cell, the hovered action alone shows its glass ring.
+    const roamed = await menu();
+    assert(roamed, 'Moving along the list keeps the actions.');
+    assert.deepEqual(roamed.items.map(entry => entry.ring > 0.95 ? 1 : entry.ring < 0.05 ? 0 : entry.ring), [1, 0, 0],
+      `Only the hovered action shows its glass ring: ${JSON.stringify(roamed.items.map(entry => entry.ring))}`);
     await mouse('mouseMoved', right.x, right.y);
     await delay(50);
     assert(await menu(), 'Moving along the list keeps the actions.');
@@ -351,10 +358,10 @@ if (process.argv.includes('--check')) {
     writeFileSync(output, JSON.stringify({ kind: 'chapter-end-menu', status: 'passed',
       generatedAt: new Date().toISOString(), sourceSha256: before, inputs,
       browser: (await client.Browser.getVersion()).product,
-      samples: { resting, opening, faded, row, exits, closed, inserts: [middle], finishedTrigger, monoFont,
+      samples: { resting, opening, faded, row, roamed, exits, closed, inserts: [middle], finishedTrigger, monoFont,
         labels: { finishLabel, draftLabel, reviewIdle: reviewIdle.label, reviewStarting: starting.label, reviewRunning: running.label } },
       checks: { hoverIntentDelay: true, noPressedWash: true, markCrossFadesIntoActions: true,
-        verticalListCentredOnMark: true, primaryOnTheMarkLine: true, iconsLeadEachAction: true, monospacePlainText: true,
+        verticalListCentredOnMark: true, primaryOnTheMarkLine: true, iconsLeadEachAction: true, hoveredActionShowsGlassRing: true, monospacePlainText: true,
         opensPromptly: true, simultaneousCrossZoomMorph: true, roamingAlongListKeepsOpen: true,
         leavingListClosesAtOnce: true, markReturnsSmoothly: true, scrollUnderStillPointerDoesNotOpen: true,
         earlyClickGuard: true, insertsDirectlyAfterChapter: true, staysInsideAct: true,
