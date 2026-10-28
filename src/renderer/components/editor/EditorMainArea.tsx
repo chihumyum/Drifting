@@ -535,9 +535,9 @@ const SEAM_OPTIONS_GRACE_MS = 140;
 /**
  * The seam between two split editors. Dragging anywhere on it resizes the
  * panes. Its middle carries a small I-shaped grip: resting on it (or focusing
- * it) unfolds the split's own operations to its right — swap the panes, undo
- * the split — while the grip stays put as the drag handle; leaving them folds
- * the options back.
+ * it) unfolds the split's own operations on either side of it — swap the
+ * panes on the left, undo the split on the right — while the grip stays put
+ * as the drag handle; leaving them folds the options back.
  */
 function PaneDivider({ onMouseDown, onSwap, onUnsplit }: {
   onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
@@ -587,13 +587,12 @@ function PaneDivider({ onMouseDown, onSwap, onUnsplit }: {
           aria-label={t('topTimeline.splitControls')}
           aria-expanded={open}
         />
-        <div className="editor-split-seam__options" role="toolbar" aria-orientation="horizontal">
-          {([
-            ['swap', t('topTimeline.menu.swapPanes'), onSwap],
-            ['unsplit', t('topTimeline.menu.unsplit'), onUnsplit],
-          ] as const).map(([key, label, action]) => (
+        {([
+          ['start', 'swap', t('topTimeline.menu.swapPanes'), onSwap],
+          ['end', 'unsplit', t('topTimeline.menu.unsplit'), onUnsplit],
+        ] as const).map(([side, key, label, action]) => (
+          <div key={key} className={`editor-split-seam__options editor-split-seam__options--${side}`}>
             <button
-              key={key}
               type="button"
               className="editor-split-seam__option glass glass--surface"
               tabIndex={open ? 0 : -1}
@@ -603,8 +602,8 @@ function PaneDivider({ onMouseDown, onSwap, onUnsplit }: {
             >
               {label}
             </button>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );

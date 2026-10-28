@@ -753,8 +753,9 @@
 
 /* The seam between two split editors (EditorMainArea's PaneDivider): drag it
    to resize. A small I-shaped grip sits in its middle; resting on it unfolds
-   the split's own operations to its right (swap, unsplit) while the grip stays
-   as the drag handle, and leaving folds them back. */
+   the split's own operations on either side of it (swap on the left, unsplit
+   on the right) while the grip stays as the drag handle, and leaving folds
+   them back. */
 .editor-split-seam {
   position: relative;
   z-index: 6;
@@ -769,13 +770,11 @@
   background: hsl(var(--accent) / 0.25);
 }
 
+/* Exactly the grip's box, centred on the seam; the options hang off it. */
 .editor-split-seam__grip-group {
   position: absolute;
   top: 50%;
   left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   transform: translate(-6px, -50%);
 }
 
@@ -810,15 +809,15 @@
 }
 
 .editor-split-seam__options {
+  position: absolute;
+  top: 50%;
   display: flex;
-  gap: 2px;
   padding: 3px;
   background: var(--menu-surface-bg);
   box-shadow: var(--menu-surface-shadow);
   white-space: nowrap;
   opacity: 0;
   filter: blur(2px);
-  transform: translateX(-6px);
   visibility: hidden;
   pointer-events: none;
   transition:
@@ -828,10 +827,21 @@
     visibility 0s linear 110ms;
 }
 
+/* Each folds in toward the grip. */
+.editor-split-seam__options--start {
+  right: calc(100% + 4px);
+  transform: translate(6px, -50%);
+}
+
+.editor-split-seam__options--end {
+  left: calc(100% + 4px);
+  transform: translate(-6px, -50%);
+}
+
 .editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {
   opacity: 1;
   filter: blur(0);
-  transform: none;
+  transform: translateY(-50%);
   visibility: visible;
   pointer-events: auto;
   transition:
@@ -862,7 +872,7 @@
   .editor-split-seam__options,
   .editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {
     transition: none;
-    transform: none;
+    transform: translateY(-50%);
     filter: none;
   }
 }
