@@ -80,7 +80,11 @@ describe('unified Review surface acceptance', () => {
     expect(panel).toContain('<FilterChip');
     expect(panel).toContain('<GhostIconButton');
     expect(card).toContain("presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''");
-    expect(card).toContain('<ContextMenuSurface');
+    // No right-click menu: the item's actions ride on its source hover card.
+    expect(card).not.toContain('<ContextMenuSurface');
+    expect(card).not.toContain('onContextMenu=');
+    expect(card).toContain('actions={actions}');
+    expect(card).toContain('sourceHover.open(articleRef.current)');
     expect(card).not.toContain('<footer className="review-card__actions">');
     expect(rail).toContain('<GhostIconButton');
 

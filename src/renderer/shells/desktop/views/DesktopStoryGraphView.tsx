@@ -17,6 +17,7 @@ import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useBookNode } from '../../../usecase/useBookNode';
 import { useStoryline } from '../../../usecase/useStoryline';
+import { useDriftGroup } from '../../../usecase/useDriftGroup';
 import { useEntityRelations } from '../../../usecase/useEntityRelations';
 import { useEntityRelationTypes } from '../../../usecase/useEntityRelationTypes';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
@@ -32,10 +33,13 @@ import { useBookAct } from '../../../usecase/useBookAct';
 import { actBoundDriftIds } from '../../../domain/book-act';
 import { events } from '../../../lib/events';
 import type { AnchorRect } from '../../../components/graph/NodeCardPopover';
-import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellContextMenu';
+import { entityHoverActions } from '../../../components/leftBars/entity-hover-actions';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { TimelinePin } from '../../../components/timeline/TimelinePin';
-import { TimelineRailMenu } from '../../../components/graph/TimelineRailMenu';
+import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
+import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
+import type { EntityHoverCardPlacement } from '../../../components/ui/entity-hover-card-position';
+import { useCanvasHoverCard, withDriftGroupChoices } from '../../../features/graph/canvas-hover-card';
 import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
@@ -98,6 +102,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     entityRelations,
     entityRelationTypes,
     primaryStorylineByNode,
+    driftGroups,
   } = useDataStoreFields(
     'bookNodes',
     'storylines',
@@ -105,6 +110,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     'entityRelations',
     'entityRelationTypes',
     'primaryStorylineByNode',
+    'driftGroups',
   );
   const bookActs = useDataStore((s) => s.bookActs);
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
@@ -130,6 +136,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
+  const { moveDriftToGroup } = useDriftGroup({ projectId: projectId ?? '' });
   const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
     useTimelineMarkers(projectId);
   const { splitAtOrder, updateAct, moveBoundary, unbindDrift, deleteAct, remapAfterSpread } =
@@ -197,17 +204,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   // this; the next plain click on a different tile opens the new-edge dialog.
   const [mobileLinkMode, setMobileLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
-  // Drift card right-click — mirrors SuperElementView's drift cmenu: same
-  // unified EntityCellContextMenu, with `startEdgeFrom` appended so users
-  // can wire a drift into a chapter from the bottom drawer.
-  const [driftContextMenu, setDriftContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    nodeTitle?: string;
-    nodeSummary?: string;
-    writingStatus: BookNode['writingStatus'];
-  } | null>(null);
   const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
   const [newEdgeTypeId, setNewEdgeTypeId] = useState<string | null>(null);
   const [newEdgeReversed, setNewEdgeReversed] = useState(false);
@@ -235,28 +231,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
   // the moment of click — the popover positions itself relative to it.
   const [popover, setPopover] = useState<{ nodeId: string; anchor: AnchorRect } | null>(null);
-  // Two kinds of right-click menu live here: per-chapter (node) and per-row
-  // (storyline). Discriminated by `kind` so the render branch can pick the
-  // correct EntityCellContextMenu shape.
-  type GraphCmenuState =
-    | {
-        kind: 'node';
-        x: number;
-        y: number;
-        nodeId: string;
-        nodeTitle?: string | null;
-        nodeSummary?: string | null;
-        nodeStorylines?: Storyline[];
-        hasNarrativeOrder: boolean;
-        mainStorylineId: string | null;
-      }
-    | {
-        kind: 'storyline';
-        x: number;
-        y: number;
-        storylineId: string;
-      };
-  const [contextMenu, setContextMenu] = useState<GraphCmenuState | null>(null);
   const dispatchEntityAction = useEntityCellAction();
   // Click-to-select edge. While selected, the edge and endpoint cards
   // highlight and a body-portaled detail popover opens at the click point.
@@ -272,6 +246,24 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     setSelectedEdgeId(id);
     setSelectedEdgeAnchor({ x: clientX, y: clientY });
   }, []);
+
+  // Hover cards on tiles, storyline rail cells and drift cards carry what
+  // their right-click menus used to (there are none). They keep out of the
+  // way of the click popovers, link picking and the new-edge dialog; clicks
+  // and drags close a showing card.
+  const {
+    preview: hoverPreview,
+    onEnter: hoverEnter,
+    onLeave: hoverLeave,
+    dismiss: hoverDismiss,
+    card: hoverCard,
+  } = useCanvasHoverCard(
+    popover !== null ||
+      linkSource !== null ||
+      mobileLinkMode ||
+      newEdgePair !== null ||
+      selectedEdgeId !== null,
+  );
 
   // Dismiss the edge selection on any click that doesn't land on an edge or
   // its portaled detail surface. Escape is routed through the shared stack.
@@ -351,9 +343,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
-
-  // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
-  // itself, so no separate effect is needed for the graph cmenu state.
 
   // ---- Node positioning ----
   const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
@@ -666,8 +655,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   // chapters. The visible grid is presentation only, never a write policy.
   const [dragPreview] = useState(() => createTimelineDragPreview());
   const [newlyAddedPinId, setNewlyAddedPinId] = useState<string | null>(null);
-  // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
-  const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
   // "打散" — keeps relative ordering, reassigns the active order field
   // (bookOrder or narrativeOrder) with the same stride that new chapters
   // use (CHAPTER_ORDER_STRIDE = tile width + 1), so scatter spacing matches
@@ -707,8 +694,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     if (created) setNewlyAddedPinId(created.id);
   }, [isNarrative, addMarker, positionToOrder, t]);
 
-  // Drop a marker at a specific order (the rail right-click target), as opposed
-  // to handleAddPin's viewport-center pick.
+  // Drop a marker at a specific order (a double-click on the empty axis), as
+  // opposed to handleAddPin's viewport-center pick.
   const handleAddPinAtOrder = useCallback(
     (order: number) => {
       if (!isNarrative) return;
@@ -718,22 +705,14 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     [isNarrative, addMarker, t],
   );
 
-  const openTimelineRailMenu = (track: HTMLElement, clientX: number, clientY: number) => {
-    const rect = track.getBoundingClientRect();
-    const px = clientX - rect.left;
-    setRailMenu({
-      x: clientX + 2,
-      y: clientY - 2,
-      order: positionToOrder(px),
-    });
-  };
-
   // ---- Drag / drop ----
   // Chapter tiles in this full graph and the compact Bottom Timeline share
   // one pointer lifecycle. The drag visual is an imperative compositor layer,
   // so moving a chapter never re-renders every lane on every pointer event.
   const canvasRef = useRef<HTMLDivElement>(null);
   const suppressChapterClickRef = useRef(false);
+  // No hover cards while a chapter is being carried across lanes.
+  const chapterDraggingRef = useRef(false);
 
   // Refs into every rendered tile / drift card so the fixed-position drift
   // edge SVG can read live viewport rects via getBoundingClientRect. Tiles
@@ -749,6 +728,14 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
 
   const [driftDrag] = useState(createStoryGraphDriftDrag);
   useLayoutEffect(() => () => driftDrag.cancel(), [driftDrag, projectId]);
+  // Picking a drift card up closes its hover card.
+  useEffect(
+    () =>
+      driftDrag.subscribe(() => {
+        if (driftDrag.getSnapshot().dragged) hoverDismiss();
+      }),
+    [driftDrag, hoverDismiss],
+  );
 
   // Wrap the shared close-panel callback so it ALSO clears the drag-reorder
   // state when the panel slides out. The base close (from useDriftPanelAnim)
@@ -765,25 +752,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         id: `node-popover:${popover?.nodeId ?? ''}`,
         active: popover !== null,
         onEscape: () => setPopover(null),
-      },
-      {
-        id: contextMenu
-          ? contextMenu.kind === 'node'
-            ? `entity-menu:node:${contextMenu.nodeId}`
-            : `entity-menu:storyline:${contextMenu.storylineId}`
-          : 'entity-menu',
-        active: contextMenu !== null,
-        onEscape: () => setContextMenu(null),
-      },
-      {
-        id: `drift-menu:${driftContextMenu?.nodeId ?? ''}`,
-        active: driftContextMenu !== null,
-        onEscape: () => setDriftContextMenu(null),
-      },
-      {
-        id: `rail-menu:${railMenu?.order ?? ''}`,
-        active: railMenu !== null,
-        onEscape: () => setRailMenu(null),
       },
       {
         id: newEdgePair ? `new-edge:${newEdgePair.source}:${newEdgePair.target}` : 'new-edge',
@@ -863,8 +831,9 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       },
       onDragStart: () => {
         suppressChapterClickRef.current = true;
+        chapterDraggingRef.current = true;
         setPopover(null);
-        setContextMenu(null);
+        hoverDismiss();
       },
       onDrop: async (target) => {
         try {
@@ -880,13 +849,14 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         }
       },
       onDragEnd: () => {
+        chapterDraggingRef.current = false;
         if (fromDrawer) setDrawerOpen(false);
         window.setTimeout(() => {
           suppressChapterClickRef.current = false;
         }, 0);
       },
     });
-  }, [positionToOrder, primaryStorylineId, orderField, moveChapterOnTimeline]);
+  }, [positionToOrder, primaryStorylineId, orderField, moveChapterOnTimeline, hoverDismiss]);
 
   const toggleUnplacedChapters = useCallback(() => setDrawerOpen(value => !value), []);
   const closeUnplacedChapters = useCallback(() => setDrawerOpen(false), []);
@@ -898,22 +868,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   const handleChapterPointerDown = useCallback<StoryGraphLaneRowProps['onNodePointerDown']>((event, node) => {
     if (!mobileLinkMode) startGraphChapterPointerDrag(event, node);
   }, [mobileLinkMode, startGraphChapterPointerDrag]);
-  const handleChapterContextMenu = useCallback<StoryGraphLaneRowProps['onNodeContextMenu']>((e, node) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({
-      kind: 'node',
-      x: e.clientX + 2,
-      y: e.clientY - 2,
-      nodeId: node.id,
-      nodeTitle: node.title,
-      nodeSummary: node.summary,
-      nodeStorylines: node.storylines,
-      hasNarrativeOrder: typeof node.narrativeOrder === 'number',
-      mainStorylineId: node.storyline?.id ?? null,
-    });
-  }, []);
   const handleChapterClick = useCallback<StoryGraphLaneRowProps['onNodeClick']>((e, node) => {
+    hoverDismiss();
     if (suppressChapterClickRef.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -955,32 +911,22 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         height: rect.height,
       },
     });
-  }, [mobileLinkMode, linkSource]);
+  }, [mobileLinkMode, linkSource, hoverDismiss]);
   const handleChapterDoubleClick = useCallback<StoryGraphLaneRowProps['onNodeDoubleClick']>((node) => {
     openEntity({ entityType: 'node', id: node.id }, { preview: false });
     close();
   }, [openEntity, close]);
-  const handleLaneContextMenu = useCallback<StoryGraphLaneRowProps['onLaneContextMenu']>((event, storylineId) => {
-    setContextMenu({ kind: 'storyline', x: event.clientX + 2, y: event.clientY - 2, storylineId });
-  }, []);
-
-  // Map a mouse Y (in scroll-content coordinates) to the lane whose row
-  // contains it. Returns null when above the axis or below the last row.
-  // Synthetic lane ids (DEFAULT_LANE_ID / UNAFFILIATED_LANE_ID) are valid
-  // drop targets and resolve like any other lane.
-  const storylineAtY = useCallback(
-    (yInContent: number): string | null => {
-      const offset = isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight;
-      const relative = yInContent - offset;
-      if (relative < 0) return null;
-      const idx = Math.floor(relative / GRAPH_CONFIG.TRACK_HEIGHT);
-      if (idx < 0 || idx >= lanesToRender.length) return null;
-      return lanesToRender[idx]?.id ?? null;
-    },
-    [isNarrative, actRailHeight, lanesToRender],
-  );
+  const handleChapterPreviewEnter = useCallback<StoryGraphLaneRowProps['onNodePreviewEnter']>((event, node) => {
+    if (chapterDraggingRef.current) return;
+    hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
+  }, [hoverEnter]);
+  const handleLanePreviewEnter = useCallback<StoryGraphLaneRowProps['onLanePreviewEnter']>((event, storylineId) => {
+    if (chapterDraggingRef.current) return;
+    hoverEnter({ kind: 'storyline', id: storylineId }, event.currentTarget);
+  }, [hoverEnter]);
 
   const handleDriftClick = useCallback<StoryGraphDriftCardsProps['onClick']>((e, node) => {
+    hoverDismiss();
     if (e.shiftKey) {
       setLinkSource((prev) => (prev === node.id ? null : node.id));
       return;
@@ -1016,23 +962,125 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         height: rect.height,
       },
     });
-  }, [mobileLinkMode, linkSource]);
-  const handleDriftContextMenu = useCallback<StoryGraphDriftCardsProps['onContextMenu']>((e, node) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDriftContextMenu({
-      x: e.clientX + 2,
-      y: e.clientY - 2,
-      nodeId: node.id,
-      nodeTitle: node.title ?? undefined,
-      nodeSummary: node.summary ?? undefined,
-      writingStatus: node.writingStatus,
-    });
-  }, []);
+  }, [mobileLinkMode, linkSource, hoverDismiss]);
+  const handleDriftPreviewEnter = useCallback<StoryGraphDriftCardsProps['onPreviewEnter']>((event, node) => {
+    if (driftDrag.getSnapshot().dragged) return;
+    hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
+  }, [driftDrag, hoverEnter]);
   const handleDriftDoubleClick = useCallback<StoryGraphDriftCardsProps['onDoubleClick']>((node) => {
     openEntity({ entityType: 'node', id: node.id }, { preview: false });
     close();
   }, [openEntity, close]);
+
+  // What a chapter tile's right-click menu used to offer: status, storylines
+  // and delete as everywhere else, then the graph's own placement and
+  // relation actions.
+  const runChapterHoverAction = async (nid: string, action: string) => {
+    try {
+      switch (action) {
+        case 'moveToUnaffiliated':
+          await updateNode(nid, { mainStorylineId: null });
+          await setNodeStorylines(nid, []);
+          return;
+        case 'detachFromNarrative':
+          await updateNode(nid, { narrativeOrder: null });
+          return;
+        case 'startEdgeFrom':
+          setLinkSource(nid);
+          return;
+        case 'deleteAllEdges': {
+          const related = nodeEdges.filter((e) => e.sourceNodeId === nid || e.targetNodeId === nid);
+          for (const e of related) {
+            await deleteEdge(e.id);
+          }
+          return;
+        }
+        default:
+          // Shared per-entity actions (status / edit storylines / delete)
+          // flow through the canonical dispatcher.
+          await dispatchEntityAction({ entityType: 'node', id: nid, action });
+      }
+    } catch (err) {
+      log.error('Graph hover card action failed', err);
+    }
+  };
+  const chapterHoverActions = (node: BookNode) => {
+    const edgeCount = nodeEdges.filter(
+      (e) => e.sourceNodeId === node.id || e.targetNodeId === node.id,
+    ).length;
+    return entityHoverActions({
+      editorType: 'node',
+      nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
+      nodeWritingStatus: node.writingStatus,
+      extraGroups: [
+        [
+          ...(nodeStorylines(node.id).length > 0
+            ? [{ action: 'moveToUnaffiliated', label: t('bottomTimeline.menu.moveToUnaffiliated') }]
+            : []),
+          ...(isNarrative && typeof node.narrativeOrder === 'number'
+            ? [{ action: 'detachFromNarrative', label: t('bottomTimeline.menu.detachFromNarrative') }]
+            : []),
+        ],
+        [
+          { action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromNode') },
+          {
+            action: 'deleteAllEdges',
+            label: t('storyGraph.menu.deleteAllEdges', { count: edgeCount }),
+            danger: true,
+            disabled: edgeCount === 0,
+          },
+        ],
+      ],
+      onAction: (action) => void runChapterHoverAction(node.id, action),
+      t,
+    });
+  };
+  const driftHoverActions = (node: BookNode) =>
+    withDriftGroupChoices(
+      entityHoverActions({
+        editorType: 'node',
+        nodeStatusKind: 'drift',
+        nodeWritingStatus: node.writingStatus,
+        extraGroups: [[{ action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromDrift') }]],
+        onAction: (action) => {
+          if (action === 'startEdgeFrom') {
+            setLinkSource(node.id);
+            return;
+          }
+          void dispatchEntityAction({ entityType: 'node', id: node.id, action });
+        },
+        t,
+      }),
+      {
+        node,
+        driftGroups,
+        onMove: (groupId) => {
+          moveDriftToGroup(node.id, groupId).catch((err) => {
+            log.error('Failed to move drift to group', err);
+          });
+        },
+        t,
+      },
+    );
+  const hoverActionsFor = (target: EntityHoverTarget) => {
+    if (target.kind === 'storyline') {
+      return entityHoverActions({
+        editorType: 'storyline',
+        onAction: (action) => void dispatchEntityAction({ entityType: 'storyline', id: target.id, action }),
+        t,
+      });
+    }
+    const node = target.kind === 'node' ? nodeById.get(target.id) : undefined;
+    if (!node) return undefined;
+    return isDrift(node) ? driftHoverActions(node) : chapterHoverActions(node);
+  };
+  // Rail cells sit at the left edge, tiles at the bottom of their lane (the
+  // next lane's upper half is empty), drift cards in the bottom drawer.
+  const hoverPlacementFor = (target: EntityHoverTarget): EntityHoverCardPlacement => {
+    if (target.kind === 'storyline') return 'right-start';
+    const node = nodeById.get(target.id);
+    return node && isDrift(node) ? 'top-center' : 'bottom-start';
+  };
 
   const totalsLabel = t('storyGraph.meta', {
     storylines: storylines.length,
@@ -1153,31 +1201,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
             with their tracks at all scroll positions. The narrative
             axis row stickies to the top. No JS sync; no height-spacer
             hacks — the layout is genuinely one surface. */}
-        <div
-          ref={canvasRef}
-          className="graph-scroll"
-          onContextMenu={(e) => {
-            // Tile/rail handlers stopPropagation, so this only fires
-            // on empty track area. Map cursor → lane and open the
-            // same storyline cmenu the rail uses (synthetic lanes
-            // have no entity behind them, so silently skip).
-            const scroll = canvasRef.current;
-            if (!scroll) return;
-            const rect = scroll.getBoundingClientRect();
-            const yInContent = e.clientY - rect.top + scroll.scrollTop;
-            const sid = storylineAtY(yInContent);
-            if (!sid || sid === DEFAULT_LANE_ID || sid === UNAFFILIATED_LANE_ID) {
-              return;
-            }
-            e.preventDefault();
-            setContextMenu({
-              kind: 'storyline',
-              x: e.clientX + 2,
-              y: e.clientY - 2,
-              storylineId: sid,
-            });
-          }}
-        >
+        <div ref={canvasRef} className="graph-scroll">
           {/* Act rail (幕) — book mode, only when acts exist. In-flow row
               inside the scroll container (track coordinate space, replaced
               the old FullBookLane sibling) so act bands align with chapter
@@ -1227,22 +1251,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               Rail cell is sticky-left + sticky-top (the corner); the
               track cell carries the draggable pin heads/labels. */}
           {isNarrative && (
-            <div
-              className="graph-axis-row"
-              style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}
-              onContextMenuCapture={
-                markers.length === 0
-                  ? (event) => {
-                      const track =
-                        event.currentTarget.querySelector<HTMLElement>('.graph-axis-track-cell');
-                      if (!track) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      openTimelineRailMenu(track, event.clientX, event.clientY);
-                    }
-                  : undefined
-              }
-            >
+            <div className="graph-axis-row" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
               <div
                 className="graph-axis-rail-cell"
                 style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
@@ -1264,13 +1273,14 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               <div
                 className="graph-axis-track-cell"
                 style={{ width: canvasContentWidth }}
-                onContextMenu={(e) => {
-                  // Empty-rail right-click → 新建标记. Right-clicking a pin is
-                  // caught by the pin (it stops propagation), so this only fires
-                  // on blank space.
-                  e.preventDefault();
-                  e.stopPropagation();
-                  openTimelineRailMenu(e.currentTarget, e.clientX, e.clientY);
+                title={t('storyGraph.axis.addMarkerHint')}
+                onDoubleClick={(e) => {
+                  // Double-clicking blank axis drops a marker at that spot.
+                  // Pins are the track's only children and own their own
+                  // double-click (rename), so only the track itself counts.
+                  if (e.target !== e.currentTarget) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  handleAddPinAtOrder(positionToOrder(e.clientX - rect.left));
                 }}
                 onDragOver={(e) => {
                   // Drift card hovering the axis — accept: dropping anchors
@@ -1343,15 +1353,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
             </div>
           )}
 
-          {railMenu && (
-            <TimelineRailMenu
-              x={railMenu.x}
-              y={railMenu.y}
-              onAddMarker={() => handleAddPinAtOrder(railMenu.order)}
-              onClose={() => setRailMenu(null)}
-            />
-          )}
-
           {/* Vertical pin lines spanning every lane row (narrative only).
               Absolute children of the scroll container; left is in scroll
               content coords (so we add RAIL_WIDTH to the track-relative
@@ -1411,10 +1412,11 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               linkSource={linkSource}
               isNodeEdgeSelected={isNodeEdgeSelected}
               onNodePointerDown={handleChapterPointerDown}
-              onNodeContextMenu={handleChapterContextMenu}
               onNodeClick={handleChapterClick}
               onNodeDoubleClick={handleChapterDoubleClick}
-              onLaneContextMenu={handleLaneContextMenu}
+              onNodePreviewEnter={handleChapterPreviewEnter}
+              onLanePreviewEnter={handleLanePreviewEnter}
+              onPreviewLeave={hoverLeave}
             />
           ))}
 
@@ -1538,7 +1540,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       >
         <StoryGraphDriftCards nodes={visibleDriftNodes} totalDrifts={driftNodes.length} drag={driftDrag}
           cardRefs={driftCardRefs} linkSourceId={linkSource} isNodeEdgeSelected={isNodeEdgeSelected}
-          onClick={handleDriftClick} onContextMenu={handleDriftContextMenu} onDoubleClick={handleDriftDoubleClick} />
+          onClick={handleDriftClick} onDoubleClick={handleDriftDoubleClick}
+          onPreviewEnter={handleDriftPreviewEnter} onPreviewLeave={hoverLeave} />
       </DriftPanel>
 
       {/* Fixed-position SVG overlay for drift edges. Endpoints are in
@@ -1676,143 +1679,14 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         </div>
       )}
 
-      {contextMenu &&
-        contextMenu.kind === 'node' &&
-        (() => {
-          const node = bookNodes.find((n) => n.id === contextMenu.nodeId);
-          if (!node) return null;
-          const edgeCount = nodeEdges.filter(
-            (e) => e.sourceNodeId === contextMenu.nodeId || e.targetNodeId === contextMenu.nodeId,
-          ).length;
-          const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
-          return (
-            <EntityCellContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              editorType="node"
-              nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
-              nodeWritingStatus={node.writingStatus}
-              header={{
-                title: contextMenu.nodeTitle ?? undefined,
-                subtitle: contextMenu.nodeSummary ?? undefined,
-                tags: contextMenu.nodeStorylines?.map((sl) => ({
-                  id: sl.id,
-                  name: sl.name,
-                  color: sl.color,
-                })),
-              }}
-              extraGroups={[
-                [
-                  ...(hasAnyStoryline
-                    ? [
-                        {
-                          action: 'moveToUnaffiliated',
-                          label: t('bottomTimeline.menu.moveToUnaffiliated'),
-                        },
-                      ]
-                    : []),
-                  ...(isNarrative && contextMenu.hasNarrativeOrder
-                    ? [
-                        {
-                          action: 'detachFromNarrative',
-                          label: t('bottomTimeline.menu.detachFromNarrative'),
-                        },
-                      ]
-                    : []),
-                ],
-                [
-                  { action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromNode') },
-                  {
-                    action: 'deleteAllEdges',
-                    label: t('storyGraph.menu.deleteAllEdges', { count: edgeCount }),
-                    danger: true,
-                    disabled: edgeCount === 0,
-                  },
-                ],
-              ]}
-              onAction={async (action) => {
-                const nid = contextMenu.nodeId;
-                try {
-                  switch (action) {
-                    case 'moveToUnaffiliated':
-                      await updateNode(nid, { mainStorylineId: null });
-                      await setNodeStorylines(nid, []);
-                      return;
-                    case 'detachFromNarrative':
-                      await updateNode(nid, { narrativeOrder: null });
-                      return;
-                    case 'startEdgeFrom':
-                      setLinkSource(nid);
-                      return;
-                    case 'deleteAllEdges': {
-                      const related = nodeEdges.filter(
-                        (e) => e.sourceNodeId === nid || e.targetNodeId === nid,
-                      );
-                      for (const e of related) {
-                        await deleteEdge(e.id);
-                      }
-                      return;
-                    }
-                    default:
-                      // Shared per-entity actions (status / edit storylines /
-                      // delete) flow through the canonical dispatcher.
-                      void dispatchEntityAction({
-                        entityType: 'node',
-                        id: nid,
-                        action,
-                      });
-                  }
-                } catch (err) {
-                  log.error('Graph context menu action failed', err);
-                }
-              }}
-              onClose={() => setContextMenu(null)}
-            />
-          );
-        })()}
-
-      {contextMenu &&
-        contextMenu.kind === 'storyline' &&
-        contextMenu.storylineId !== DEFAULT_LANE_ID &&
-        contextMenu.storylineId !== UNAFFILIATED_LANE_ID && (
-          <EntityCellContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            editorType="storyline"
-            onAction={(action) => {
-              void dispatchEntityAction({
-                entityType: 'storyline',
-                id: contextMenu.storylineId,
-                action,
-              });
-            }}
-            onClose={() => setContextMenu(null)}
-          />
-        )}
-
-      {driftContextMenu && (
-        <EntityCellContextMenu
-          x={driftContextMenu.x}
-          y={driftContextMenu.y}
-          editorType="node"
-          nodeStatusKind="drift"
-          nodeWritingStatus={driftContextMenu.writingStatus}
-          header={{
-            title: driftContextMenu.nodeTitle,
-            subtitle: driftContextMenu.nodeSummary,
-          }}
-          extraGroups={[
-            [{ action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromDrift') }],
-          ]}
-          onAction={(action) => {
-            const nid = driftContextMenu.nodeId;
-            if (action === 'startEdgeFrom') {
-              setLinkSource(nid);
-              return;
-            }
-            void dispatchEntityAction({ entityType: 'node', id: nid, action });
-          }}
-          onClose={() => setDriftContextMenu(null)}
+      {hoverPreview && (
+        <EntityHoverCard
+          target={hoverPreview.data}
+          anchor={hoverPreview.anchor}
+          placement={hoverPlacementFor(hoverPreview.data)}
+          pointer={hoverCard}
+          onDismiss={hoverDismiss}
+          actions={hoverActionsFor(hoverPreview.data)}
         />
       )}
 

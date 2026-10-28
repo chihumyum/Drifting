@@ -47,7 +47,6 @@ export interface GroupHeaderCellProps {
   // Whole-row click — typically "open this group's entity editor".
   onClick?: () => void;
   onDoubleClick?: () => void;
-  onContextMenu?: (event: React.MouseEvent) => void;
   onPreviewEnter?: (anchor: HTMLElement) => void;
   onPreviewLeave?: () => void;
   // Title shown as the + button tooltip. When omitted, the + button is
@@ -98,7 +97,6 @@ export function GroupHeaderCell({
   collapseChrome = 'chevron',
   onClick,
   onDoubleClick,
-  onContextMenu,
   onPreviewEnter,
   onPreviewLeave,
   addButtonTitle,
@@ -185,7 +183,9 @@ export function GroupHeaderCell({
         className="left-sb-group-header left-sb-group-header--cell"
         onClick={onClick ?? (collapseDisabled ? undefined : onToggleCollapsed)}
         onDoubleClick={onDoubleClick}
-        onContextMenu={onContextMenu}
+        // The whole row anchors its hover card, whose actions the pointer can reach.
+        onMouseEnter={(event) => onPreviewEnter?.(event.currentTarget)}
+        onMouseLeave={onPreviewLeave}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -203,8 +203,6 @@ export function GroupHeaderCell({
         <span style={{ display: 'flex', width: 14, flexShrink: 0, justifyContent: 'center' }}>{leading}</span>
         <span
           className="left-sb-group-header__name"
-          onMouseEnter={(event) => onPreviewEnter?.(event.currentTarget)}
-          onMouseLeave={onPreviewLeave}
           style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {name}
@@ -255,7 +253,6 @@ export function GroupHeaderCell({
       }`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      onContextMenu={onContextMenu}
       style={{
         display: 'flex',
         alignItems: 'center',

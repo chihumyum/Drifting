@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useSyncExternalStore, type DragEvent, type MouseEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { canonicalWordCount, type BookNode } from '../../domain/book-node';
+import type { BookNode } from '../../domain/book-node';
 import type { StoryGraphDriftDrag } from './story-graph-drift-drag';
 
 export interface StoryGraphDriftCardsProps {
@@ -11,11 +11,14 @@ export interface StoryGraphDriftCardsProps {
   linkSourceId: string | null;
   isNodeEdgeSelected(id: string): boolean;
   onClick(event: MouseEvent<HTMLDivElement>, node: BookNode): void;
-  onContextMenu(event: MouseEvent<HTMLDivElement>, node: BookNode): void;
   onDoubleClick(node: BookNode): void;
+  /** Resting on a card shows its hover card. */
+  onPreviewEnter(event: MouseEvent<HTMLDivElement>, node: BookNode): void;
+  onPreviewLeave(): void;
 }
 
-interface DriftCardProps extends Pick<StoryGraphDriftCardsProps, 'cardRefs' | 'onClick' | 'onContextMenu' | 'onDoubleClick'> {
+interface DriftCardProps extends Pick<StoryGraphDriftCardsProps,
+  'cardRefs' | 'onClick' | 'onDoubleClick' | 'onPreviewEnter' | 'onPreviewLeave'> {
   node: BookNode;
   index: number;
   drag: StoryGraphDriftDrag;
@@ -28,7 +31,7 @@ interface DriftCardProps extends Pick<StoryGraphDriftCardsProps, 'cardRefs' | 'o
 }
 
 function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
-  onClick, onContextMenu, onDoubleClick, onDragStart, onDragOver, onDrop, onDragEnd,
+  onClick, onDoubleClick, onPreviewEnter, onPreviewLeave, onDragStart, onDragOver, onDrop, onDragEnd,
 }: DriftCardProps) {
   const subscribe = useCallback((listener: () => void) => drag.subscribeCard(index, listener), [drag, index]);
   const getSnapshot = useCallback(() => drag.getCardSnapshot(index), [drag, index]);
@@ -66,18 +69,9 @@ function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
       onDragOver={(event) => onDragOver(event, index)}
       onDrop={onDrop}
       onClick={(event) => onClick(event, node)}
-      onContextMenu={(event) => onContextMenu(event, node)}
       onDoubleClick={() => onDoubleClick(node)}
-      title={
-        canonicalWordCount(node) == null
-          ? t('storyGraph.drift.cardTitleCounting', {
-              title: node.title || t('common.untitled'),
-            })
-          : t('storyGraph.drift.cardTitle', {
-              title: node.title || t('common.untitled'),
-              count: canonicalWordCount(node),
-            })
-      }
+      onMouseEnter={(event) => onPreviewEnter(event, node)}
+      onMouseLeave={onPreviewLeave}
     >
       <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
       <div className="drift-card__title">{node.title || t('common.untitled')}</div>
@@ -88,7 +82,7 @@ function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
 const MemoDriftCard = memo(DriftCard);
 
 function DriftCards({ nodes, totalDrifts, drag, cardRefs, linkSourceId, isNodeEdgeSelected,
-  onClick, onContextMenu, onDoubleClick,
+  onClick, onDoubleClick, onPreviewEnter, onPreviewLeave,
 }: StoryGraphDriftCardsProps) {
   const { t } = useTranslation();
   useEffect(() => () => drag.cancel(), [drag]);
@@ -121,7 +115,8 @@ function DriftCards({ nodes, totalDrifts, drag, cardRefs, linkSourceId, isNodeEd
   return <>{nodes.map((node, index) => {
     return <MemoDriftCard key={node.id} node={node} index={index} drag={drag} cardRefs={cardRefs}
       isLinkSource={linkSourceId === node.id} isEdgeSelected={isNodeEdgeSelected(node.id)}
-      onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick}
+      onClick={onClick} onDoubleClick={onDoubleClick}
+      onPreviewEnter={onPreviewEnter} onPreviewLeave={onPreviewLeave}
       onDragStart={start} onDragOver={over} onDrop={drop} onDragEnd={drag.cancel} />;
   })}</>;
 }

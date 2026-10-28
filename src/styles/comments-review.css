@@ -1157,40 +1157,66 @@
   color: hsl(var(--ink-4));
   font-style: italic;
 }
-.editor-comment-menu {
+/* The editing actions for a text selection: one horizontal bar floating over
+   the selected text (EditorSelectionBar; right-clicking is left to the system
+   menu). 「格式」 unfolds its block and inline formats as a second row on the
+   far side of the bar. Same lifted-desk surface as menus; only the button
+   under the pointer carries flowing glass. */
+.editor-selection-bar {
   position: fixed;
   z-index: var(--z-context-menu);
-}
-/* 「格式」row carries a right-aligned chevron hinting at its hover flyout. */
-.editor-comment-menu button.has-flyout {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 2px;
+  padding: 3px;
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 12.5px);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.editor-selection-bar__formats {
+  z-index: calc(var(--z-context-menu) + 1);
+  flex-wrap: wrap;
+  max-width: min(560px, calc(100vw - 12px));
+}
+.editor-selection-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.editor-selection-bar__item:hover,
+.editor-selection-bar__item:focus-visible {
+  color: hsl(var(--ink-1));
+}
+/* Active format (mark/block already applied to the selection), snapshotted
+   when the bar opens. */
+.editor-selection-bar__item.is-active {
+  color: hsl(var(--ink-1));
+  font-weight: 600;
 }
 .editor-comment-menu__chevron {
   opacity: 0.45;
-  font-size: 13px;
+  font-size: 10px;
   line-height: 1;
 }
-/* The 「格式」 flyout — a child .editor-comment-menu repositioned beside the
-   parent via position:fixed (see appendFormatFlyout). Stacks above the menu so
-   it never tucks behind it; column layout matches the slash menu's list. */
-.editor-comment-menu__flyout {
-  flex-direction: column;
-  z-index: calc(var(--z-context-menu) + 1);
-}
-/* Active format (mark/block already applied to the selection), snapshotted at
-   open time. */
-.editor-comment-menu button.is-active {
-  color: hsl(var(--ink-1));
-  background: var(--menu-item-hover-bg);
-  font-weight: 500;
-}
-/* Divider between block transforms and inline marks. flex:none so the 1px row
-   isn't collapsed by the flyout's flex column. */
-.editor-comment-menu__sep {
-  flex: none;
+/* Between block transforms and inline marks. */
+.editor-selection-bar__sep {
+  align-self: stretch;
+  width: 0.5px;
+  margin: 4px 3px;
+  background: hsl(var(--ink-1) / 0.16);
 }
 
 /* ============================================================
@@ -2349,22 +2375,6 @@
   margin-top: 5px;
 }
 
-.review-card-menu {
-  padding: 4px 0;
-}
-
-.review-card-menu .menu-surface__item {
-  width: 100%;
-}
-
-.review-card-menu__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  flex: 0 0 14px;
-}
-
 .review-card__editor textarea,
 .sticky-note-composer textarea {
   box-sizing: border-box;
@@ -2496,11 +2506,15 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* Where a review item comes from, beside its card. On a review card it also
+   takes the pointer and carries the item's actions (.hover-card__actions)
+   along its bottom; on a TODO card it stays a passive preview. */
 .comment-source-hover {
   position: fixed;
   width: 320px;
   max-width: calc(100vw - 24px);
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   pointer-events: none;
   z-index: var(--z-popover);
@@ -2513,6 +2527,16 @@
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.comment-source-hover--interactive {
+  pointer-events: auto;
+}
+
+/* No hover on touch: the ⋯ button opens the card, so its actions are taps. */
+html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .comment-source-hover__content {

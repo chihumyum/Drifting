@@ -29,13 +29,11 @@ export interface CategoryBoxProps {
    * itself on unmount.
    */
   elementCardRefs?: React.MutableRefObject<Map<string, HTMLDivElement>>;
-  // Per-card right-click. The parent owns the menu state so SuperElementView
-  // can render a single EntityCellContextMenu at the canvas root.
-  onElementContextMenu?: (
-    event: React.MouseEvent,
-    element: { id: string; categoryId: string | null; groupName: string | null; name: string },
-  ) => void;
-  onCategoryContextMenu?: (event: React.MouseEvent, categoryId: string) => void;
+  // Resting on a card or the legend shows its hover card. The parent owns the
+  // hover state so SuperElementView renders a single card for the canvas.
+  onElementPreviewEnter?: (element: BookElement, anchor: HTMLElement) => void;
+  onCategoryPreviewEnter?: (categoryId: string, anchor: HTMLElement) => void;
+  onPreviewLeave?: () => void;
 }
 
 function CategoryBox({
@@ -47,8 +45,9 @@ function CategoryBox({
   focusedElementId,
   connectedElementIds,
   elementCardRefs,
-  onElementContextMenu,
-  onCategoryContextMenu,
+  onElementPreviewEnter,
+  onCategoryPreviewEnter,
+  onPreviewLeave,
 }: CategoryBoxProps) {
   const { t } = useTranslation();
   const { category, groups, widthCells, heightCells, totalElements } = model;
@@ -86,13 +85,9 @@ function CategoryBox({
           e.stopPropagation();
           onCategoryClick(model.categoryId);
         }}
-        onContextMenu={(e) => {
-          if (!onCategoryContextMenu) return;
-          e.preventDefault();
-          e.stopPropagation();
-          onCategoryContextMenu(e, model.categoryId);
-        }}
-        title={category?.name ?? model.categoryId}
+        // The uncategorized bucket has no category to describe.
+        onMouseEnter={category ? (e) => onCategoryPreviewEnter?.(model.categoryId, e.currentTarget) : undefined}
+        onMouseLeave={category ? onPreviewLeave : undefined}
         style={{
           position: 'absolute',
           left: 10,
@@ -218,12 +213,6 @@ function CategoryBox({
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 onElementClick(element, rect, { shiftKey: e.shiftKey });
               }}
-              onContextMenu={(e) => {
-                if (!onElementContextMenu) return;
-                e.preventDefault();
-                e.stopPropagation();
-                onElementContextMenu(e, element);
-              }}
               style={{
                 position: 'absolute',
                 left: left + 3,
@@ -248,11 +237,13 @@ function CategoryBox({
                 overflow: 'hidden',
               }}
               onMouseEnter={(e) => {
+                onElementPreviewEnter?.(element, e.currentTarget);
                 if (isLinkSource || isFocusLit) return;
                 e.currentTarget.style.background = 'hsl(var(--paper-deep))';
                 e.currentTarget.style.borderColor = accent;
               }}
               onMouseLeave={(e) => {
+                onPreviewLeave?.();
                 if (isLinkSource || isFocusLit) return;
                 e.currentTarget.style.background = 'hsl(var(--paper))';
                 e.currentTarget.style.borderColor = 'hsl(var(--rule))';
@@ -270,7 +261,6 @@ function CategoryBox({
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
                 }}
-                title={element.name}
               >
                 <span aria-hidden style={{ color: accent, marginRight: 4, fontStyle: 'italic' }}>
                   ◆
@@ -279,7 +269,6 @@ function CategoryBox({
               </div>
               {element.summary && (
                 <div
-                  title={element.summary}
                   style={{
                     fontSize: 9.5,
                     lineHeight: 1.3,

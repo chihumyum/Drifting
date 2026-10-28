@@ -19,7 +19,8 @@ import {
   type SplitTab,
   type TabEntityType,
 } from '../../../store/ui-store';
-import { TabContextMenu, type TabMenuItem } from './TabContextMenu';
+import { HoverCardHeading, HoverCardShell, type HoverActionGroup } from '../../ui/HoverCard';
+import { useHoverPreview } from '../../../features/entities/hover/entity-hover-card-model';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
 
@@ -94,7 +95,7 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
  */
 export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   expanded?: boolean;
-  /** Keeps the dock open while a tab menu is showing. */
+  /** Keeps the dock open while a tab's hover card is showing. */
   onHoldExpanded?: (held: boolean) => void;
   /** Rendered before the pills while expanded, outside their overflow. */
   leading?: ReactNode;
@@ -124,11 +125,16 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [labelFontSize, setLabelFontSize] = useState(14);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    items: TabMenuItem[];
-  } | null>(null);
+  // A tab's hover card holds what its right-click menu used to: closing,
+  // splitting and the per-side split operations. A split remembers the side
+  // under the pointer, since those operations act on one pane.
+  const {
+    preview: tabHover,
+    onEnter: hoverTab,
+    onLeave: leaveTab,
+    dismiss: dismissTabCard,
+    card: tabCard,
+  } = useHoverPreview<{ key: string; side?: 'left' | 'right' }>();
 
   // The strip hugs its tabs so it can sit centred under the paper; the dock
   // around it owns the width the tabs may share.
@@ -143,8 +149,15 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   }, [containerRef]);
 
   useEffect(() => {
-    onHoldExpanded?.(contextMenu !== null);
-  }, [contextMenu, onHoldExpanded]);
+    onHoldExpanded?.(tabHover !== null);
+  }, [tabHover, onHoldExpanded]);
+
+  // A tab closed or reshaped under its card (⌘W, unsplit) never sends the
+  // mouseleave that would close it, and would hold the dock open.
+  const hoveredTabIndex = tabHover ? openTabs.findIndex((tab) => tabKey(tab) === tabHover.data.key) : -1;
+  useEffect(() => {
+    if (tabHover && hoveredTabIndex < 0) dismissTabCard();
+  }, [tabHover, hoveredTabIndex, dismissTabCard]);
 
   // The portaled probe inherits the same desktop token as visible tabs.
   // Recalculate after a text-size preference change even
@@ -297,15 +310,14 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
     [projectId, promoteTab],
   );
 
-  // Build the menu items for right-clicking a top-level tab. Per the
-  // requirement that there be no distinction between "sub-tab menu" and
-  // "outer menu" inside a split, each side of a split surfaces all the same
-  // operations — both per-side (close this side / extract / swap) and
-  // whole-tab (close, close others, close all, unsplit).
-  const buildMenuItems = useCallback(
-    (tab: AnyTab, tabIndex: number, sideHint?: 'left' | 'right'): TabMenuItem[] => {
+  // The actions along a tab's hover card. Per the requirement that there be
+  // no distinction between a split's own operations and its sides', each
+  // side of a split offers all of them — per-side (close this side / extract
+  // / swap) and whole-tab (close, close others, close all, unsplit).
+  const tabActions = useCallback(
+    (tab: AnyTab, tabIndex: number, sideHint?: 'left' | 'right'): HoverActionGroup[] => {
       if (!projectId) return [];
-      const items: TabMenuItem[] = [];
+      const groups: HoverActionGroup[] = [];
 
       // "Open in left/right pane" is only meaningful for a non-active leaf —
       // splitting the active tab against itself produces no useful pane, and
@@ -326,97 +338,118 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
       // and EditorShell re-adds it as a fresh preview tab.
       if (tab.kind === 'split') {
         const side = sideHint ?? tab.focused;
-        items.push(
+        groups.push(
           {
-            label: t('topTimeline.menu.closePane'),
-            onClick: () => {
-              const { nextActive } = closeSplitSide(projectId, tab.id, side);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
+            key: 'pane',
+            actions: [
+              {
+                key: 'closePane',
+                label: t('topTimeline.menu.closePane'),
+                onSelect: () => {
+                  const { nextActive } = closeSplitSide(projectId, tab.id, side);
+                  if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+                },
+              },
+              {
+                key: 'extractTab',
+                label: t('topTimeline.menu.extractTab'),
+                onSelect: () => {
+                  const { nextActive } = extractFromSplit(projectId, tab.id, side);
+                  if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+                },
+              },
+              {
+                key: 'swapPanes',
+                label: t('topTimeline.menu.swapPanes'),
+                onSelect: () => swapSplitPanes(projectId, tab.id),
+              },
+            ],
           },
           {
-            label: t('topTimeline.menu.extractTab'),
-            onClick: () => {
-              const { nextActive } = extractFromSplit(projectId, tab.id, side);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
+            key: 'unsplit',
+            actions: [
+              {
+                key: 'unsplit',
+                label: t('topTimeline.menu.unsplit'),
+                onSelect: () => {
+                  const { nextActive } = unsplitTab(projectId, tab.id);
+                  if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+                },
+              },
+            ],
           },
-          {
-            label: t('topTimeline.menu.swapPanes'),
-            onClick: () => swapSplitPanes(projectId, tab.id),
-          },
-          { separator: true },
-          {
-            label: t('topTimeline.menu.unsplit'),
-            onClick: () => {
-              const { nextActive } = unsplitTab(projectId, tab.id);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
-          },
-          { separator: true },
         );
       }
 
-      // Whole-tab close / split operations, applicable to both leaves and
-      // splits.
+      // Whole-tab close; split-create options only on leaves — splitting an
+      // already-split tab doesn't add a third pane.
       const tabKeyStr = tabKey(tab);
-      items.push({
-        label: t('topTimeline.menu.close'),
-        accelerator: 'Cmd+W',
-        onClick: () => handleCloseTab(tab),
-        disabled: tab.kind === 'create' && tab.draft.status === 'creating',
+      groups.push({
+        key: 'close',
+        actions: [
+          {
+            key: 'close',
+            label: t('topTimeline.menu.close'),
+            onSelect: () => handleCloseTab(tab),
+            disabled: tab.kind === 'create' && tab.draft.status === 'creating',
+          },
+          ...(tab.kind === 'leaf'
+            ? [
+                {
+                  key: 'openRight',
+                  label: t('topTimeline.menu.openRight'),
+                  onSelect: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
+                  disabled: !allowSplitOpen,
+                },
+                {
+                  key: 'openLeft',
+                  label: t('topTimeline.menu.openLeft'),
+                  onSelect: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
+                  disabled: !allowSplitOpen,
+                },
+              ]
+            : []),
+        ],
       });
 
-      // Split-create options only on leaves — splitting an already-split tab
-      // doesn't add a third pane.
-      if (tab.kind === 'leaf') {
-        items.push(
+      groups.push({
+        key: 'closeMany',
+        actions: [
           {
-            label: t('topTimeline.menu.openRight'),
-            onClick: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
-            disabled: !allowSplitOpen,
+            key: 'closeOthers',
+            label: t('topTimeline.menu.closeOthers'),
+            onSelect: () => {
+              const { nextActive } = closeOtherTabs(projectId, tabKeyStr);
+              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+              else navigate(`/project/${projectId}`, { replace: true });
+            },
+            disabled: openTabs.length <= 1,
           },
           {
-            label: t('topTimeline.menu.openLeft'),
-            onClick: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
-            disabled: !allowSplitOpen,
+            key: 'closeRight',
+            label: t('topTimeline.menu.closeRight'),
+            onSelect: () => {
+              const { nextActive } = closeTabsToRight(projectId, tabKeyStr);
+              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+            },
+            disabled: tabIndex >= openTabs.length - 1,
           },
-        );
-      }
+          {
+            key: 'closeAll',
+            label: t('topTimeline.menu.closeAll'),
+            onSelect: () => {
+              closeAllTabs(projectId);
+              // Land on the bare project URL so the Layout URL → tab sync
+              // doesn't reopen whatever the URL had been pointing at, and
+              // Project Home renders without creating another tab.
+              navigate(`/project/${projectId}`, { replace: true });
+            },
+            disabled: openTabs.length === 0,
+          },
+        ],
+      });
 
-      items.push(
-        { separator: true },
-        {
-          label: t('topTimeline.menu.closeOthers'),
-          onClick: () => {
-            const { nextActive } = closeOtherTabs(projectId, tabKeyStr);
-            if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            else navigate(`/project/${projectId}`, { replace: true });
-          },
-          disabled: openTabs.length <= 1,
-        },
-        {
-          label: t('topTimeline.menu.closeRight'),
-          onClick: () => {
-            const { nextActive } = closeTabsToRight(projectId, tabKeyStr);
-            if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-          },
-          disabled: tabIndex >= openTabs.length - 1,
-        },
-        {
-          label: t('topTimeline.menu.closeAll'),
-          onClick: () => {
-            closeAllTabs(projectId);
-            // Land on the bare project URL so the Layout URL → tab sync
-            // doesn't reopen whatever the URL had been pointing at, and
-            // Project Home renders without creating another tab.
-            navigate(`/project/${projectId}`, { replace: true });
-          },
-          disabled: openTabs.length === 0,
-        },
-      );
-
-      return items;
+      return groups;
     },
     [
       projectId,
@@ -436,6 +469,22 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
       t,
     ],
   );
+
+  const hoveredTab = hoveredTabIndex >= 0 ? openTabs[hoveredTabIndex] : null;
+  const hoveredTabTitle = !hoveredTab
+    ? ''
+    : hoveredTab.kind === 'leaf'
+      ? labelOfLeaf(hoveredTab)
+      : hoveredTab.kind === 'create'
+        ? t('topTimeline.newTab')
+        : labelOfLeaf(hoveredTab[tabHover?.data.side ?? hoveredTab.focused]);
+  // Every tab element reports the pointer the same way; a press (select,
+  // drag, close) puts the card away at once.
+  const tabPointer = (key: string, side?: 'left' | 'right') => ({
+    onMouseEnter: (event: React.MouseEvent<HTMLElement>) => hoverTab({ key, side }, event.currentTarget),
+    onMouseLeave: leaveTab,
+    onPointerDown: dismissTabCard,
+  });
 
   return (
     <div
@@ -464,8 +513,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
         const isActive = key === activeTabKey;
         const width = tabWidths[index] ?? TAB_MIN_WIDTH;
         if (!expanded) {
-          const openMenu = (x: number, y: number, side?: 'left' | 'right') =>
-            setContextMenu({ x, y, items: buildMenuItems(tab, index, side) });
           const clusterBreak = index > 0 && clusterOf(openTabs[index - 1]) !== clusterOf(tab);
           if (tab.kind === 'split') {
             return (
@@ -481,7 +528,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
                     isActive={isActive && tab.focused === side}
                     isPreview={tab[side].isPreview}
                     onSelect={() => activateLeafTab(tab[side])}
-                    onContextMenu={(x, y) => openMenu(x, y, side)} />
+                    pointer={tabPointer(key, side)} />
                 ))}
               </span>
             );
@@ -496,7 +543,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               isPreview={tab.isPreview}
               clusterBreak={clusterBreak}
               onSelect={() => handleSelectTab(tab)}
-              onContextMenu={(x, y) => openMenu(x, y)} />
+              pointer={tabPointer(key)} />
           );
         }
         if (tab.kind === 'create') {
@@ -510,7 +557,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
+              pointer={tabPointer(key)}
             />
           );
         }
@@ -528,7 +575,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
+              pointer={tabPointer(key)}
             />
           );
         }
@@ -557,9 +604,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               const { nextActive } = closeSplitSide(projectId, tab.id, side);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             }}
-            onContextMenu={(x, y, side) =>
-              setContextMenu({ x, y, items: buildMenuItems(tab, index, side) })
-            }
+            pointerOf={(side) => tabPointer(key, side)}
           />
         );
       })}
@@ -581,16 +626,27 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
         <Plus size={16} strokeWidth={1.8} aria-hidden />
       </button>}
 
-      {contextMenu && (
-        <TabContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={contextMenu.items}
-          onClose={() => setContextMenu(null)}
-        />
+      {tabHover && hoveredTab && (
+        <HoverCardShell
+          anchor={tabHover.anchor}
+          placement="bottom-start"
+          label={hoveredTabTitle}
+          pointer={tabCard}
+          actions={tabActions(hoveredTab, hoveredTabIndex, tabHover.data.side)}
+          onDismiss={dismissTabCard}
+        >
+          <HoverCardHeading title={hoveredTabTitle} />
+        </HoverCardShell>
       )}
     </div>
   );
+}
+
+/** How a tab element reports the pointer to the strip's hover card. */
+interface TabPointerProps {
+  onMouseEnter: (event: React.MouseEvent<HTMLElement>) => void;
+  onMouseLeave: () => void;
+  onPointerDown: () => void;
 }
 
 function CreateTabSlot({
@@ -601,7 +657,7 @@ function CreateTabSlot({
   onSelect,
   onPromote,
   onClose,
-  onContextMenu,
+  pointer,
 }: {
   tab: CreateTab;
   isActive: boolean;
@@ -610,7 +666,7 @@ function CreateTabSlot({
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
-  onContextMenu: (x: number, y: number) => void;
+  pointer: TabPointerProps;
 }) {
   const { t } = useTranslation();
   const isCreating = tab.draft.status === 'creating';
@@ -622,10 +678,7 @@ function CreateTabSlot({
       className={`app-tab app-tab--create glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       onClick={onSelect}
       onDoubleClick={onPromote}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
-      }}
+      {...pointer}
       style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
     >
       <Plus size={14} strokeWidth={1.8} aria-hidden />
@@ -657,7 +710,7 @@ interface LeafSlotProps {
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
-  onContextMenu: (x: number, y: number) => void;
+  pointer: TabPointerProps;
 }
 
 function LeafTabSlot({
@@ -670,7 +723,7 @@ function LeafTabSlot({
   onSelect,
   onPromote,
   onClose,
-  onContextMenu,
+  pointer,
 }: LeafSlotProps) {
   const { t } = useTranslation();
   const accent = color || 'hsl(var(--ink-3))';
@@ -683,10 +736,7 @@ function LeafTabSlot({
       draggable
       onClick={onSelect}
       onDoubleClick={onPromote}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
-      }}
+      {...pointer}
       onMouseDown={(event) => {
         if (event.button === 1) {
           event.preventDefault();
@@ -802,7 +852,8 @@ interface SplitSlotProps {
   onSelectSide: (side: 'left' | 'right') => void;
   onPromoteSide: (side: 'left' | 'right') => void;
   onCloseSide: (side: 'left' | 'right') => void;
-  onContextMenu: (x: number, y: number, side: 'left' | 'right') => void;
+  /** Each side reports the pointer on its own: the card acts on that pane. */
+  pointerOf: (side: 'left' | 'right') => TabPointerProps;
 }
 
 function SplitTabSlot({
@@ -818,7 +869,7 @@ function SplitTabSlot({
   onSelectSide,
   onPromoteSide,
   onCloseSide,
-  onContextMenu,
+  pointerOf,
 }: SplitSlotProps) {
   return (
     <div
@@ -852,7 +903,7 @@ function SplitTabSlot({
         onClick={() => onSelectSide('left')}
         onPromote={() => onPromoteSide('left')}
         onClose={() => onCloseSide('left')}
-        onContextMenu={(x, y) => onContextMenu(x, y, 'left')}
+        pointer={pointerOf('left')}
       />
       <div
         aria-hidden
@@ -875,7 +926,7 @@ function SplitTabSlot({
         onClick={() => onSelectSide('right')}
         onPromote={() => onPromoteSide('right')}
         onClose={() => onCloseSide('right')}
-        onContextMenu={(x, y) => onContextMenu(x, y, 'right')}
+        pointer={pointerOf('right')}
       />
     </div>
   );
@@ -892,7 +943,7 @@ function SplitSubLabel({
   onClick,
   onPromote,
   onClose,
-  onContextMenu,
+  pointer,
 }: {
   entityType: TabEntityType;
   entityId: string;
@@ -904,11 +955,12 @@ function SplitSubLabel({
   onClick: () => void;
   onPromote: () => void;
   onClose: () => void;
-  onContextMenu: (x: number, y: number) => void;
+  pointer: TabPointerProps;
 }) {
   const { t } = useTranslation();
   return (
     <div
+      {...pointer}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
@@ -916,11 +968,6 @@ function SplitSubLabel({
       onDoubleClick={(event) => {
         event.stopPropagation();
         onPromote();
-      }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onContextMenu(event.clientX, event.clientY);
       }}
       onMouseDown={(event) => {
         if (event.button === 1) {
@@ -1023,7 +1070,7 @@ function TabDot({
   isPreview,
   clusterBreak = false,
   onSelect,
-  onContextMenu,
+  pointer,
 }: {
   tabKeyValue?: string;
   kind: KindMarkKind;
@@ -1034,7 +1081,7 @@ function TabDot({
   isPreview: boolean;
   clusterBreak?: boolean;
   onSelect: () => void;
-  onContextMenu: (x: number, y: number) => void;
+  pointer: TabPointerProps;
 }) {
   return (
     <button
@@ -1048,10 +1095,7 @@ function TabDot({
       data-preview={isPreview ? 'true' : undefined}
       className={`app-tab-dot${isActive ? ' is-active' : ''}`}
       onClick={onSelect}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
-      }}
+      {...pointer}
     >
       <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} hollow={isPreview} />
     </button>

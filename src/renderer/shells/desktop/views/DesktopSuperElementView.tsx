@@ -20,10 +20,13 @@ import { useRelationTypePresentation } from '../../../hooks/useRelationTypePrese
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { actBoundDriftIds } from '../../../domain/book-act';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
-import type { BookNode } from '../../../domain/book-node';
 import { isChapter, isDrift } from '../../../domain/book-node';
-import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellContextMenu';
+import { entityHoverActions } from '../../../components/leftBars/entity-hover-actions';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
+import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
+import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
+import { useCanvasHoverCard, withDriftGroupChoices } from '../../../features/graph/canvas-hover-card';
+import { useDriftGroup } from '../../../usecase/useDriftGroup';
 import { findById } from '../../../lib/immutable-id-index';
 import {
   solveSuperElementLayout,
@@ -105,6 +108,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     entityRelations,
     entityRelationTypes,
     primaryStorylineByNode,
+    driftGroups,
   } = useDataStoreFields(
     'bookElements',
     'bookElementCategories',
@@ -114,6 +118,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     'entityRelations',
     'entityRelationTypes',
     'primaryStorylineByNode',
+    'driftGroups',
   );
   const relationTypeById = useMemo(
     () => new Map(entityRelationTypes.map((type) => [type.id, type])),
@@ -187,38 +192,12 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const [linkSource, setLinkSource] = useState<{ kind: 'element' | 'node'; id: string } | null>(
     null,
   );
-  // Element / category card right-click menu — reuses EntityCellContextMenu
-  // so the same per-entity options surface in left panel, editor top bar,
-  // and here. SuperElementView-specific actions (start edge from this
-  // card) come in as extras.
+  // Element, category and drift cards offer the same per-entity actions as
+  // the left panels and the editor's ⋯ menu, on their hover cards (there
+  // are no right-click menus). Starting a relation from the card is this
+  // view's own extra.
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<
-    | {
-        kind: 'element';
-        x: number;
-        y: number;
-        elementId: string;
-        elementName: string;
-      }
-    | {
-        kind: 'category';
-        x: number;
-        y: number;
-        categoryId: string;
-      }
-    | null
-  >(null);
-  // Drift card right-click — same EntityCellContextMenu surface as the
-  // 构想 left panel, with `startEdgeFrom` appended so users can wire a
-  // drift card into an element / node from the bottom drawer.
-  const [driftContextMenu, setDriftContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    nodeTitle?: string;
-    nodeSummary?: string;
-    writingStatus: BookNode['writingStatus'];
-  } | null>(null);
+  const { moveDriftToGroup } = useDriftGroup({ projectId: projectId ?? '' });
   const [pendingLink, setPendingLink] = useState<{
     source: { kind: 'element' | 'node'; id: string };
     target: { kind: 'element' | 'node'; id: string };
@@ -278,6 +257,22 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     nodeId: string;
     anchor: AnchorRect;
   } | null>(null);
+  // No hover card opens while a card popover, link picking or the relation
+  // dialog is up; presses, pans and zooms close a showing one.
+  const {
+    preview: hoverPreview,
+    onEnter: hoverEnter,
+    onLeave: hoverLeave,
+    dismiss: hoverDismiss,
+    card: hoverCard,
+  } = useCanvasHoverCard(
+    activePopover !== null ||
+      activeDriftPopover !== null ||
+      linkSource !== null ||
+      mobileLinkMode ||
+      pendingLink !== null ||
+      selectedEdgeId !== null,
+  );
   useSuperViewEscapeStack(
     [
       {
@@ -289,20 +284,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         id: `drift-popover:${activeDriftPopover?.nodeId ?? ''}`,
         active: activeDriftPopover !== null,
         onEscape: () => setActiveDriftPopover(null),
-      },
-      {
-        id: contextMenu
-          ? contextMenu.kind === 'element'
-            ? `entity-menu:element:${contextMenu.elementId}`
-            : `entity-menu:category:${contextMenu.categoryId}`
-          : 'entity-menu',
-        active: contextMenu !== null,
-        onEscape: () => setContextMenu(null),
-      },
-      {
-        id: `drift-menu:${driftContextMenu?.nodeId ?? ''}`,
-        active: driftContextMenu !== null,
-        onEscape: () => setDriftContextMenu(null),
       },
       {
         id: pendingLink
@@ -815,13 +796,15 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   // because element positions are mid-transform.
   const setPanningVisual = useCallback((panning: boolean) => {
     edgePanningRef.current = panning;
+    // A card would be left behind by the moving canvas.
+    if (panning) hoverDismiss();
     // Each layer reveals itself only after fresh geometry reaches the DOM.
     const layers = [driftEdgeLayerRef.current, viewportEdgeLayerRef.current];
     for (const layer of layers) {
       if (!layer) continue;
       if (panning) layer.setAttribute('data-panning', '1');
     }
-  }, []);
+  }, [hoverDismiss]);
 
   // Wheel: same gesture-ref pattern. Commit state after a brief idle so
   // persistence + drift-edge recompute don't fire on every tick.
@@ -1079,6 +1062,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   // and node cards share the same state machine.
   const handleEntityClick = useCallback(
     (kind: 'element' | 'node', id: string, rect: DOMRect, opts: { shiftKey: boolean }) => {
+      hoverDismiss();
       if (opts.shiftKey) {
         setLinkSource((prev) => {
           if (prev && prev.kind === kind && prev.id === id) return null; // toggle off
@@ -1141,7 +1125,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         });
       }
     },
-    [driftIds, linkSource, mobileLinkMode],
+    [driftIds, linkSource, mobileLinkMode, hoverDismiss],
   );
 
   const handleNodeClick = useCallback<ChapterBandProps['onNodeClick']>((node, rect, opts) => {
@@ -1154,31 +1138,75 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     openEntity({ entityType: 'category', id });
     close();
   }, [openEntity, close]);
-  const handleElementContextMenu = useCallback<NonNullable<CategoryBoxProps['onElementContextMenu']>>((event, element) => {
-    setContextMenu({ kind: 'element', x: event.clientX + 2, y: event.clientY - 2,
-      elementId: element.id, elementName: element.name });
-  }, []);
-  const handleCategoryContextMenu = useCallback<NonNullable<CategoryBoxProps['onCategoryContextMenu']>>((event, categoryId) => {
-    setContextMenu({ kind: 'category', x: event.clientX + 2, y: event.clientY - 2, categoryId });
-  }, []);
+  const handleElementPreviewEnter = useCallback<NonNullable<CategoryBoxProps['onElementPreviewEnter']>>((element, anchor) => {
+    if (isPanningRef.current || pinchRef.current) return;
+    hoverEnter({ kind: 'element', id: element.id }, anchor);
+  }, [hoverEnter]);
+  const handleCategoryPreviewEnter = useCallback<NonNullable<CategoryBoxProps['onCategoryPreviewEnter']>>((categoryId, anchor) => {
+    if (isPanningRef.current || pinchRef.current) return;
+    hoverEnter({ kind: 'category', id: categoryId }, anchor);
+  }, [hoverEnter]);
 
   const handleDriftClick = useCallback<SuperElementDriftCardsProps['onClick']>((e, node) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     handleEntityClick('node', node.id, rect, { shiftKey: e.shiftKey });
   }, [handleEntityClick]);
-  const handleDriftContextMenu = useCallback<SuperElementDriftCardsProps['onContextMenu']>((e, node) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDriftContextMenu({
-      x: e.clientX + 2,
-      y: e.clientY - 2,
-      nodeId: node.id,
-      nodeTitle: node.title ?? undefined,
-      nodeSummary: node.summary ?? undefined,
-      writingStatus: node.writingStatus,
-    });
-  }, []);
+  const handleDriftPreviewEnter = useCallback<SuperElementDriftCardsProps['onPreviewEnter']>((event, node) => {
+    hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
+  }, [hoverEnter]);
+
+  const hoverActionsFor = (target: EntityHoverTarget) => {
+    if (target.kind === 'element') {
+      return entityHoverActions({
+        editorType: 'element',
+        extraGroups: [[{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromElement') }]],
+        onAction: (action) => {
+          if (action === 'startEdgeFrom') {
+            setLinkSource({ kind: 'element', id: target.id });
+            return;
+          }
+          void dispatchEntityAction({ entityType: 'element', id: target.id, action });
+        },
+        t,
+      });
+    }
+    if (target.kind === 'category') {
+      return entityHoverActions({
+        editorType: 'category',
+        onAction: (action) => void dispatchEntityAction({ entityType: 'category', id: target.id, action }),
+        t,
+      });
+    }
+    const node = target.kind === 'node' ? findById(bookNodes, target.id) : undefined;
+    if (!node) return undefined;
+    return withDriftGroupChoices(
+      entityHoverActions({
+        editorType: 'node',
+        nodeStatusKind: 'drift',
+        nodeWritingStatus: node.writingStatus,
+        extraGroups: [[{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromDrift') }]],
+        onAction: (action) => {
+          if (action === 'startEdgeFrom') {
+            setLinkSource({ kind: 'node', id: node.id });
+            return;
+          }
+          void dispatchEntityAction({ entityType: 'node', id: node.id, action });
+        },
+        t,
+      }),
+      {
+        node,
+        driftGroups,
+        onMove: (groupId) => {
+          moveDriftToGroup(node.id, groupId).catch(() => {
+            /* the store keeps the old group; nothing to undo here */
+          });
+        },
+        t,
+      },
+    );
+  };
 
   // Commit a typed entity relation for the pending pair. The modal either
   // selects an existing compatible definition or creates one in place; every
@@ -1388,8 +1416,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 elementCardRefs={elementCardRefs}
                 onElementClick={handleElementClick}
                 onCategoryClick={handleCategoryClick}
-                onElementContextMenu={handleElementContextMenu}
-                onCategoryContextMenu={handleCategoryContextMenu}
+                onElementPreviewEnter={handleElementPreviewEnter}
+                onCategoryPreviewEnter={handleCategoryPreviewEnter}
+                onPreviewLeave={hoverLeave}
               />
             );
           })}
@@ -1737,7 +1766,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           onClose={closeDriftPanel}
         >
           <SuperElementDriftCards nodes={driftNodes} linkSourceId={linkSource?.kind === 'node' ? linkSource.id : null}
-            cardRefs={driftCardRefs} onClick={handleDriftClick} onContextMenu={handleDriftContextMenu} />
+            cardRefs={driftCardRefs} onClick={handleDriftClick}
+            onPreviewEnter={handleDriftPreviewEnter} onPreviewLeave={hoverLeave} />
         </DriftPanel>
       )}
 
@@ -1800,92 +1830,16 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           );
         })()}
 
-      {contextMenu?.kind === 'element' &&
-        (() => {
-          const el = bookElements.find((e) => e.id === contextMenu.elementId);
-          const category =
-            el?.categoryId != null
-              ? (bookElementCategories.find((c) => c.id === el.categoryId) ?? null)
-              : null;
-          const tags: Array<{ id: string; name: string; color?: string | null }> = [];
-          if (category) {
-            tags.push({
-              id: `cat-${category.id}`,
-              name: category.name || t('superElement.unnamedCategory'),
-              color: category.color,
-            });
-          } else if (el && el.categoryId == null) {
-            tags.push({
-              id: 'cat-none',
-              name: t('superElement.uncategorized'),
-              color: 'hsl(var(--ink-4))',
-            });
-          }
-          const groupName = el?.groupName?.trim();
-          if (groupName) {
-            tags.push({ id: `grp-${groupName}`, name: groupName, color: 'hsl(var(--ink-4))' });
-          }
-          return (
-            <EntityCellContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              editorType="element"
-              header={{
-                title: contextMenu.elementName,
-                subtitle: el?.summary ?? undefined,
-                tags,
-              }}
-              extraGroups={[
-                [{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromElement') }],
-              ]}
-              onAction={(action) => {
-                const eid = contextMenu.elementId;
-                if (action === 'startEdgeFrom') {
-                  setLinkSource({ kind: 'element', id: eid });
-                  return;
-                }
-                void dispatchEntityAction({ entityType: 'element', id: eid, action });
-              }}
-              onClose={() => setContextMenu(null)}
-            />
-          );
-        })()}
-      {contextMenu?.kind === 'category' && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType="category"
-          onAction={(action) => {
-            void dispatchEntityAction({
-              entityType: 'category',
-              id: contextMenu.categoryId,
-              action,
-            });
-          }}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-      {driftContextMenu && (
-        <EntityCellContextMenu
-          x={driftContextMenu.x}
-          y={driftContextMenu.y}
-          editorType="node"
-          nodeStatusKind="drift"
-          nodeWritingStatus={driftContextMenu.writingStatus}
-          header={{
-            title: driftContextMenu.nodeTitle,
-            subtitle: driftContextMenu.nodeSummary,
-          }}
-          extraGroups={[[{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromDrift') }]]}
-          onAction={(action) => {
-            const nid = driftContextMenu.nodeId;
-            if (action === 'startEdgeFrom') {
-              setLinkSource({ kind: 'node', id: nid });
-              return;
-            }
-            void dispatchEntityAction({ entityType: 'node', id: nid, action });
-          }}
-          onClose={() => setDriftContextMenu(null)}
+      {/* Elements show their card beside them, a category's above its
+          legend, a drift's above the bottom drawer. */}
+      {hoverPreview && (
+        <EntityHoverCard
+          target={hoverPreview.data}
+          anchor={hoverPreview.anchor}
+          placement={hoverPreview.data.kind === 'element' ? 'right-start' : 'top-center'}
+          pointer={hoverCard}
+          onDismiss={hoverDismiss}
+          actions={hoverActionsFor(hoverPreview.data)}
         />
       )}
     </SuperViewShell>

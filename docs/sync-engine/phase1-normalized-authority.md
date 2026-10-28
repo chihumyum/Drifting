@@ -57,9 +57,10 @@ boundaries all use the host axis's affine pixel-to-coordinate inverse; grid
 lines are presentation only and never become an insertion-slot or rounding
 policy.
 
-Empty marker and act tracks retain the same right-click creation menus as
-populated tracks. The act-rail head `+` creates exactly one first act at the
-book-axis head; a bare-track context-menu action creates it at the clicked
+Empty marker and act tracks keep the same coordinate-specific creation as
+populated tracks (a double-click on the bare track; there are no right-click
+menus). The act-rail head `+` creates exactly one first act at the
+book-axis head; a double-click on the bare track creates it at that
 coordinate. A book-head anchored act (`startOrder = null`) is optional and
 movable, not a permanent opener. Moving it writes a finite coordinate, after
 which chapters to its left intentionally belong to no act. New first acts are
@@ -135,8 +136,8 @@ identity and merge behavior.
    entities, then compare canonical semantic state before and after restore.
 7. The old lossy-projection capture guard has been removed only after the
    normalized capture/restore test passed.
-8. Empty chapter axes still expose marker/act context menus and accept
-   coordinate-specific creation. The act-head `+` creates one first act at the
+8. Empty chapter axes still accept coordinate-specific marker/act creation
+   (double-click on the bare track). The act-head `+` creates one first act at the
    left edge, and that first act remains movable so a no-act prefix is legal.
 9. Bottom Timeline and
    Storyline Graph share one compositor-backed pointer drag for placed and

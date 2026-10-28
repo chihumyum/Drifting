@@ -884,7 +884,7 @@ editor surface intact.
 
 `Escape` unwinds one layer per key press:
 
-1. a focused editor or transient modal/popover/context menu consumes it first;
+1. a focused editor or transient modal/popover/hover card consumes it first;
 2. otherwise the most recently opened view-local layer closes;
 3. when no child layer is open, the Super View closes.
 
@@ -907,7 +907,6 @@ its own back/navigation behavior through the same view-level close actions.
 | `src/styles/bottom-status-bar.css`        | full-width footer status line                                                   |
 | `src/styles/bottom-timeline.css`          | bottom timeline dock                                                            |
 | `src/styles/act-rail.css`                 | ActRail act strip in track coordinate space                                     |
-| `src/styles/timeline-pin-menu.css`        | timeline pin context menu (Bottom Timeline and Story Graph)                     |
 | `src/styles/super-view-header.css`        | shared fullscreen Super View header                                             |
 | `src/styles/graph-view.css`               | Story Graph narrative-structure overlay                                         |
 | `src/styles/relation-edge-popover.css`    | relation edge popover                                                           |

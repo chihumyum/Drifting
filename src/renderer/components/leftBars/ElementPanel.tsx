@@ -19,7 +19,7 @@ import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
-import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { entityHoverActions } from './entity-hover-actions';
 import { ElementCategoryCreateMenu } from './ElementCategoryCreateMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
@@ -34,7 +34,6 @@ import {
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
-import type { EditorType } from '../editor/EditorTopBar';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('ElementPanel');
@@ -117,16 +116,9 @@ export function ElementPanel({
   });
 
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useSidebarPanelState<Set<string>>('collapsed', () => new Set());
-  // Per-cell context menu — reuses the editor top-bar three-dot menu items
-  // via EntityCellContextMenu so element & category context options stay in
-  // lockstep with what the editor exposes.
+  // Hover card actions — the editor's ⋯ menu items for elements and
+  // categories (entityHoverActions); there are no right-click menus.
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    entityType: EditorType;
-    id: string;
-  } | null>(null);
   // In-place "change group" picker (replaces the old jump-to-editor modal).
   const [groupPicker, setGroupPicker] = useState<{
     x: number;
@@ -139,7 +131,26 @@ export function ElementPanel({
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
+    dismiss: hoverDismiss,
+    card: hoverCard,
   } = useHoverPreview<EntityHoverTarget>();
+  const hoverActionsFor = (target: EntityHoverTarget, anchor: HTMLElement) => {
+    if (target.kind !== 'element' && target.kind !== 'category') return undefined;
+    return entityHoverActions({
+      editorType: target.kind,
+      onAction: (action) => {
+        // "Change Group" opens an in-place combobox beside the row instead of
+        // routing to the editor + modal (parallels the drift move-to-group flow).
+        if (target.kind === 'element' && action === 'groupPicker') {
+          const rect = anchor.getBoundingClientRect();
+          setGroupPicker({ x: rect.right + 8, y: rect.top, elementId: target.id });
+          return;
+        }
+        void dispatchEntityAction({ entityType: target.kind === 'element' ? 'element' : 'category', id: target.id, action });
+      },
+      t,
+    });
+  };
 
   const toggleCategoryCollapsed = useCallback((id: string) => {
     setCollapsedCategoryIds((prev) => {
@@ -400,20 +411,11 @@ export function ElementPanel({
           hoverLeave();
         }}
         onClick={() => {
+          hoverDismiss();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
           activateTarget({ entityType: 'element', id: element.id });
         }}
         onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            entityType: 'element',
-            id: element.id,
-          });
-        }}
       >
         {/* Element mark — a square seal in its category's colour. Done
             swaps it for a plain Agent file marker; working keeps the seal,
@@ -507,20 +509,11 @@ export function ElementPanel({
         agentStateLabel={agentStateLabel}
         onAgentSeen={() => useAgentActivityStore.getState().markSeen([entityKey('element', element.id)])}
         onActivate={() => {
+          hoverDismiss();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
           activateTarget({ entityType: 'element', id: element.id });
         }}
         onPromote={presentation === 'desktop' ? promoteCurrentTab : () => undefined}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            entityType: 'element',
-            id: element.id,
-          });
-        }}
         onPreviewEnter={(anchor) => hoverEnter({ kind: 'element', id: element.id }, anchor)}
         onPreviewLeave={hoverLeave}
       />
@@ -605,7 +598,7 @@ export function ElementPanel({
                     isUncategorized
                       ? undefined
                       : () => {
-                          hoverLeave();
+                          hoverDismiss();
                           if (agentSelfChanged) {
                             useAgentActivityStore.getState().clearTouched('category', categoryId);
                           }
@@ -620,20 +613,6 @@ export function ElementPanel({
                             activateTarget({ entityType: 'category', id: categoryId });
                           }
                           promoteCurrentTab();
-                        }
-                  }
-                  onContextMenu={
-                    isUncategorized
-                      ? undefined
-                      : (event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setContextMenu({
-                            x: event.clientX,
-                            y: event.clientY,
-                            entityType: 'category',
-                            id: categoryId,
-                          });
                         }
                   }
                   addButtonTitle={
@@ -747,28 +726,9 @@ export function ElementPanel({
           target={hoverPreview.data}
           anchor={hoverPreview.anchor}
           placement="right-start"
-        />
-      )}
-
-      {contextMenu && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType={contextMenu.entityType}
-          onAction={(action) => {
-            // "Change Group" opens an in-place combobox here instead of routing
-            // to the editor + modal (parallels the drift move-to-group flow).
-            if (contextMenu.entityType === 'element' && action === 'groupPicker') {
-              setGroupPicker({ x: contextMenu.x, y: contextMenu.y, elementId: contextMenu.id });
-              return;
-            }
-            void dispatchEntityAction({
-              entityType: contextMenu.entityType === 'element' ? 'element' : 'category',
-              id: contextMenu.id,
-              action,
-            });
-          }}
-          onClose={() => setContextMenu(null)}
+          pointer={hoverCard}
+          onDismiss={hoverDismiss}
+          actions={hoverActionsFor(hoverPreview.data, hoverPreview.anchor)}
         />
       )}
 

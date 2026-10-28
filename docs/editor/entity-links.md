@@ -81,7 +81,8 @@ chapter/idea changes refresh existing marks as well.
 - Bottom Timeline items.
 
 The card is portaled to `body`, positioned with `position: fixed`, and flips or
-clamps to stay inside the viewport. It intentionally has no entity-name header.
+clamps to stay inside the viewport. It leads with the entity's name, since the
+same card also stands alone over truncated timeline tiles and graph cards.
 It displays the summary first, followed by metadata already available from the
 renderer store. Its maximum height is `min(720px, viewport - 24px)` so summaries
 can expand substantially before the card scrolls.

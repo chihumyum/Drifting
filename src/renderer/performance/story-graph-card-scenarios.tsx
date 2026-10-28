@@ -14,7 +14,8 @@ import { storyGraphCardWork } from './agent-panel-counters';
 
 const resetWork = () => { storyGraphCardWork.lanes = 0; storyGraphCardWork.tiles = 0; storyGraphCardWork.groupingVisits = 0; };
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+// Cancelable like a real key press, so a surface can claim it.
+const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
 
 /** Full product lanes and pointer lifecycle, with synthetic workspace data.
  * Cancels drops and relation dialogs before persistence; no SQLite writes. */
@@ -114,11 +115,17 @@ export async function runStoryGraphCardScenarios() {
         checks.reassignedPrimaryLane = moved.length === 1 && !first.isConnected
           && moved[0].closest('[data-storyline-row]')?.getAttribute('data-storyline-row') === targetLane
           && moved[0].style.left === first.style.left && host.querySelectorAll('.graph-tile').length === chapters;
-        flushSync(() => moved[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 240, clientY: 180 })));
-        const menu = document.querySelector<HTMLElement>('.context-menu-surface');
-        checks.contextMenuUsesCurrentNode = !!menu && menu.parentElement === document.body && getComputedStyle(menu).position === 'fixed'
-          && menu.textContent?.includes('Synthetic renamed chapter') === true && menu.textContent?.includes(`Synthetic storyline ${storylines - 1}`) === true;
-        escape(); checks.contextMenuUsesCurrentNode &&= !document.querySelector('.context-menu-surface');
+        // There are no right-click menus: the tile's hover card carries its
+        // actions. (The check keeps its recorded evidence name.)
+        const rightClick = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 240, clientY: 180 });
+        flushSync(() => moved[0].dispatchEvent(rightClick));
+        flushSync(() => moved[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+        await pause(300);
+        const card = document.querySelector<HTMLElement>('.hover-card');
+        checks.contextMenuUsesCurrentNode = !rightClick.defaultPrevented && !document.querySelector('.context-menu-surface')
+          && !!card && card.parentElement === document.body && !!card.querySelector('.hover-card__actions')
+          && card.textContent?.includes(`Synthetic storyline ${storylines - 1}`) === true;
+        escape(); checks.contextMenuUsesCurrentNode &&= !document.querySelector('.hover-card') && closed === 0;
         flushSync(() => moved[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
         checks.doubleClickNavigation = opened.length === 1 && opened[0].entityType === 'node' && opened[0].id === fixture.bookNodes[0].id && closed === 1;
         if (Object.values(checks).some(value => !value)) throw new Error(`Story Graph card behavior failed: ${JSON.stringify(checks)}`);

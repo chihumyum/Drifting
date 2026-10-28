@@ -1146,10 +1146,6 @@
   min-height: 44px;
 }
 
-html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
-  min-height: 44px;
-}
-
 .m-unified-bar {
   position: fixed;
   z-index: 32;

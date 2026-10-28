@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -26,7 +27,7 @@ describe('shared menu surface style', () => {
     const controls = source('src/styles/ui-controls.css');
     const surface = block(controls, '.menu-surface {', '.menu-surface--rich {');
     const item = block(controls, '.menu-surface__item {', '.menu-surface__item:hover');
-    const separator = block(controls, '.menu-surface__divider,', '.tab-context-menu__item {');
+    const separator = block(controls, '.menu-surface__divider,', '.user-menu__group {');
 
     // Menus are a lifted piece of the desk: the sidebar's opaque colour,
     // square, a half-pixel hairline and the floating shadow, with no glass
@@ -83,37 +84,68 @@ describe('shared menu surface style', () => {
     expect(contextSurface).toContain('createPortal(');
   });
 
-  it('covers every cursor-triggered app menu, including custom lifecycle owners', () => {
-    const contextMenuFiles = [
+  it('has no right-click menus: right-click is the system menu and actions live in hover cards', () => {
+    // Every desktop renderer source (the paused touch shell, tests and
+    // performance fixtures aside) leaves contextmenu alone; a capture-phase
+    // handler may only dismiss a hover card so the native menu is not covered.
+    const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', 'src/renderer'], { encoding: 'utf8' })
+      .split('\n')
+      .filter((path) => /\.(tsx?|mjs)$/.test(path) && existsSync(path))
+      .filter((path) => !path.includes('/shells/mobile/') && !path.includes('/performance/') && !/\.test\.tsx?$/.test(path));
+    const offenders: string[] = [];
+    for (const path of files) {
+      source(path).split('\n').forEach((line, index) => {
+        if (/onContextMenu(?!Capture)\b|addEventListener\(\s*['"]contextmenu['"]/.test(line)) offenders.push(`${path}:${index + 1}`);
+        if (/onContextMenuCapture=/.test(line) && !/\.dismiss\b/.test(line)) offenders.push(`${path}:${index + 1}`);
+      });
+    }
+    expect(offenders).toEqual([]);
+
+    for (const removed of [
       'src/renderer/components/leftBars/EntityCellContextMenu.tsx',
       'src/renderer/components/leftBars/SimpleContextMenu.tsx',
-      'src/renderer/components/leftBars/ElementGroupPicker.tsx',
+      'src/renderer/components/topBars/TopTimeline/TabContextMenu.tsx',
       'src/renderer/components/graph/TimelinePinMenu.tsx',
       'src/renderer/components/graph/TimelineRailMenu.tsx',
-      'src/renderer/components/topBars/TopTimeline/TabContextMenu.tsx',
-    ];
-    for (const path of contextMenuFiles) {
-      expect(source(path), path).toContain('<ContextMenuSurface');
+      'src/renderer/features/editor/editor-context-menu.ts',
+    ]) {
+      expect(existsSync(resolve(process.cwd(), removed)), removed).toBe(false);
     }
 
-    const actRail = source('src/renderer/components/BottomTimeline/ActRail.tsx');
-    const material = source('src/renderer/features/library/LibraryItemCard.tsx');
-    const editor = source('src/renderer/features/editor/editor-context-menu.ts');
-    expect(
-      actRail.match(/className="menu-surface menu-surface--compact actrail__menu"/g),
-    ).toHaveLength(2);
-    expect(actRail).toContain('menu-surface__item--danger');
-    expect(material).toContain(
-      'className="menu-surface menu-surface--rich menu-surface--wide btl-cmenu"',
-    );
-    expect(material).toContain("' menu-surface__item--danger is-danger'");
-    expect(editor).toContain(
-      '`${MENU_CLASS} menu-surface menu-surface--compact`',
-    );
-    expect(editor).toContain(
-      '`${MENU_CLASS} menu-surface menu-surface--compact editor-comment-menu__flyout`',
-    );
-    expect(editor).toContain(".className = 'menu-surface__item';");
+    // The shared card: interactive, with its actions along the bottom.
+    const card = source('src/renderer/components/ui/HoverCard.tsx');
+    const controls = source('src/styles/ui-controls.css');
+    expect(card).toContain('export function HoverCardShell(');
+    expect(card).toContain('<HoverCardActions groups={groups} onDone={onDismiss} />');
+    expect(rule(controls, '.hover-card--interactive {')).toContain('pointer-events: auto;');
+    expect(source('src/renderer/features/entities/hover/entity-hover-card-model.ts')).toContain('const HOVER_CARD_GRACE_MS = 220;');
+    for (const owner of [
+      'src/renderer/components/leftBars/ChapterPanel.tsx',
+      'src/renderer/components/leftBars/ElementPanel.tsx',
+      'src/renderer/components/leftBars/DriftPanel.tsx',
+      'src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx',
+      'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
+      'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx',
+    ]) {
+      expect(source(owner), owner).toMatch(/entityHoverActions\(|withDriftGroupChoices\(/);
+    }
+    for (const owner of [
+      'src/renderer/components/BottomTimeline/ActRail.tsx',
+      'src/renderer/components/timeline/TimelinePin.tsx',
+      'src/renderer/components/topBars/TopTimeline/TopTimeline.tsx',
+      'src/renderer/features/library/LibraryItemCard.tsx',
+      'src/renderer/features/library/MaterialFolderTree.tsx',
+    ]) {
+      expect(source(owner), owner).toContain('<HoverCardShell');
+    }
+    expect(source('src/renderer/features/comments/CommentSourceHoverCard.tsx')).toContain('<HoverCardActions');
+
+    // The editor's selection actions float over the selection as one bar.
+    const bar = source('src/renderer/features/editor/editor-selection-bar.ts');
+    expect(bar).toContain("bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-orientation', 'horizontal');");
+    expect(bar).toContain('const SETTLE_MS = 180;');
+    expect(source('src/renderer/hooks/useEntityEditor.ts')).not.toContain('contextmenu:');
+    expect(rule(source('src/styles/comments-review.css'), '.editor-selection-bar {')).toContain('flex-direction: row;');
   });
 
   it('aligns button dropdowns and keeps rich popovers on the same shell tokens', () => {
@@ -142,12 +174,7 @@ describe('shared menu surface style', () => {
 
   it('assigns every menu owner to the shared width scale instead of local widths', () => {
     const compact = [
-      'src/renderer/components/BottomTimeline/ActRail.tsx',
-      'src/renderer/components/graph/TimelinePinMenu.tsx',
-      'src/renderer/components/graph/TimelineRailMenu.tsx',
       'src/renderer/components/leftBars/SortMenu.tsx',
-      'src/renderer/components/topBars/TopTimeline/TabContextMenu.tsx',
-      'src/renderer/features/editor/editor-context-menu.ts',
     ];
     for (const path of compact) {
       expect(source(path), path).toContain('menu-surface--compact');
@@ -157,8 +184,6 @@ describe('shared menu surface style', () => {
       'src/renderer/components/editor/EditorTopBar.tsx',
       'src/renderer/components/leftBars/ElementCategoryCreateMenu.tsx',
       'src/renderer/components/leftBars/ElementGroupPicker.tsx',
-      'src/renderer/components/leftBars/EntityCellContextMenu.tsx',
-      'src/renderer/components/leftBars/SimpleContextMenu.tsx',
     ];
     for (const path of standard) {
       expect(source(path), path).toContain('menu-surface--standard');
@@ -181,8 +206,6 @@ describe('shared menu surface style', () => {
     );
 
     const legacyOuterRules = [
-      ['src/styles/act-rail.css', '.actrail__menu {'],
-      ['src/styles/timeline-pin-menu.css', '.tlpin-menu {'],
       ['src/styles/agent-panel.css', '.agt-menu {'],
       ['src/styles/bottom-timeline.css', '.btl__unplaced-popover {'],
       ['src/styles/bottom-timeline.css', '.btl-cmenu {'],
@@ -203,8 +226,9 @@ describe('shared menu surface style', () => {
 
     expect(css).not.toContain('.crumb-dropdown');
     expect(css).not.toContain('.editor-crumb');
-    expect(doc).toContain('右键坐标、三点按钮、排序按钮与窗口控件');
-    expect(doc).toContain('浏览器/系统原生 context menu 不属于 renderer 可定制范围');
+    expect(doc).toContain('## No right-click menus');
+    expect(doc).toContain('三点按钮、排序按钮与窗口控件');
+    expect(doc).toContain('系统原生右键菜单不属于 renderer 可定制范围');
     expect(doc).toContain('180 / 220 / 280 / 360 / 420px');
     expect(doc).toContain('桌面单行内容至少为 `32px`');
     expect(doc).toContain('不能证明不同平台上的字体栅格化、阴影观感');

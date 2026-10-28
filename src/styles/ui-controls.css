@@ -588,17 +588,6 @@ html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
   background: transparent;
 }
 
-.tab-context-menu__item {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.tab-context-menu__accelerator {
-  flex-shrink: 0;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-size: var(--ui-font-caption, 10px);
-}
-
 .user-menu__group {
   padding: 4px;
 }
@@ -1662,4 +1651,136 @@ svg.super-viewport-edges[data-panning='1'] {
     color: var(--ui-text-muted, hsl(var(--ink-4)));
     transform: scale(1);
   }
+}
+
+/* -------------------------------------------------------------------------
+   Hover cards (HoverCardShell)
+
+   Drifting has no right-click menus. Resting the pointer on a thing shows its
+   card — the menus' lifted piece of desk — and what a menu used to offer is
+   the card's bottom row of plain actions. The pointer may cross into the
+   card; only the action under it carries flowing glass. A passive preview
+   (inline links) never takes the pointer. */
+.hover-card {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  background: var(--menu-surface-bg);
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+
+.hover-card--interactive {
+  pointer-events: auto;
+}
+
+.hover-card__body {
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 10px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--rule-strong)) transparent;
+}
+
+.hover-card__actions {
+  flex: none;
+  padding: 4px 6px 5px;
+}
+
+.hover-card__body + .hover-card__actions {
+  box-shadow: inset 0 0.5px 0 hsl(var(--ink-1) / 0.12);
+}
+
+.hover-card__action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.hover-card__action-row--choices {
+  margin-top: 3px;
+  padding-top: 3px;
+  box-shadow: inset 0 0.5px 0 hsl(var(--ink-1) / 0.08);
+}
+
+.hover-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: inherit;
+  font-size: var(--ui-font-secondary, 12px);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hover-card__action:hover:not(:disabled),
+.hover-card__action:focus-visible {
+  color: hsl(var(--ink-1));
+}
+
+.hover-card__action.is-active {
+  color: hsl(var(--ink-1));
+  font-weight: 600;
+}
+
+.hover-card__action--danger,
+.hover-card__action--danger:hover:not(:disabled) {
+  color: hsl(var(--destructive));
+}
+
+.hover-card__action:disabled {
+  color: hsl(var(--ink-4));
+  cursor: default;
+}
+
+.hover-card__action-label {
+  padding: 0 3px 0 5px;
+  color: hsl(var(--ink-4));
+  font: 500 9.5px/24px var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
+}
+
+.hover-card__action-gap {
+  width: 0.5px;
+  height: 14px;
+  margin: 0 4px;
+  background: hsl(var(--ink-1) / 0.14);
+}
+
+.hover-card__action-chevron {
+  font-size: 9px;
+  opacity: 0.5;
+}
+
+.hover-card__title {
+  color: hsl(var(--ink-1));
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__detail {
+  margin-top: 4px;
+  color: hsl(var(--ink-3));
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__action-break {
+  flex-basis: 100%;
+  height: 0;
 }

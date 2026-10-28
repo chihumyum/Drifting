@@ -3,13 +3,13 @@ import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
 import { canonicalWordCount, CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
-import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { entityHoverActions } from './entity-hover-actions';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { KindMark } from '../ui/KindMark';
 import { CELL_MARK_CENTER, CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
@@ -227,27 +227,34 @@ export function ChapterPanel({
         .sort(buildChapterComparator(storylineInnerSortMode)),
     [bookNodes, primaryStorylineByNode, storylineInnerSortMode, buildChapterComparator],
   );
-  // Per-cell context menu — reuses the editor top-bar three-dot menu items
-  // via EntityCellContextMenu so the two surfaces stay in lockstep.
+  // Hover card: the summary, and along its bottom the same actions as the
+  // editor's ⋯ menu (entityHoverActions). There are no right-click menus.
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    nodeStatusKind: 'chapter' | 'drift';
-    nodeWritingStatus: BookNode['writingStatus'];
-  } | null>(null);
-  const [storylineContextMenu, setStorylineContextMenu] = useState<{
-    x: number;
-    y: number;
-    storylineId: string;
-  } | null>(null);
-  // Hover summary card (same affordance as the element panel's).
   const {
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
+    dismiss: hoverDismiss,
+    card: hoverCard,
   } = useHoverPreview<EntityHoverTarget>();
+  const hoverActionsFor = (target: EntityHoverTarget) => {
+    if (target.kind === 'storyline') {
+      return entityHoverActions({
+        editorType: 'storyline',
+        onAction: (action) => void dispatchEntityAction({ entityType: 'storyline', id: target.id, action }),
+        t,
+      });
+    }
+    const node = target.kind === 'node' ? nodeById.get(target.id) : undefined;
+    if (!node) return undefined;
+    return entityHoverActions({
+      editorType: 'node',
+      nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
+      nodeWritingStatus: node.writingStatus,
+      onAction: (action) => void dispatchEntityAction({ entityType: 'node', id: node.id, action }),
+      t,
+    });
+  };
 
   const nodesByStoryline = useMemo(() => {
     const grouped: Record<string, BookNode[]> = {};
@@ -343,23 +350,11 @@ export function ChapterPanel({
           hoverLeave();
         }}
         onClick={() => {
-          hoverLeave();
+          hoverDismiss();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
           activateTarget({ entityType: 'node', id: node.id });
         }}
         onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          hoverLeave();
-          setContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            nodeId: node.id,
-            nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
-            nodeWritingStatus: node.writingStatus,
-          });
-        }}
       >
         {agentAdded || agentChanged ? (
           <AgentChangeIndicator
@@ -521,15 +516,8 @@ export function ChapterPanel({
                     onDoubleClick={
                       presentation === 'desktop' ? () => promoteCurrentTab() : undefined
                     }
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setStorylineContextMenu({
-                        x: event.clientX,
-                        y: event.clientY,
-                        storylineId: storyline.id,
-                      });
-                    }}
+                    onPreviewEnter={(anchor) => hoverEnter({ kind: 'storyline', id: storyline.id }, anchor)}
+                    onPreviewLeave={hoverLeave}
                     addButtonTitle={t('leftSidebar.groups.newChapterInStoryline')}
                     onAdd={() => void handleCreateNode(storyline.id)}
                     agentBusy={activity.busy || agentSelfBusy}
@@ -592,40 +580,9 @@ export function ChapterPanel({
           target={hoverPreview.data}
           anchor={hoverPreview.anchor}
           placement="right-start"
-        />
-      )}
-
-      {contextMenu && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType="node"
-          nodeStatusKind={contextMenu.nodeStatusKind}
-          nodeWritingStatus={contextMenu.nodeWritingStatus}
-          onAction={(action) => {
-            void dispatchEntityAction({
-              entityType: 'node',
-              id: contextMenu.nodeId,
-              action,
-            });
-          }}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-
-      {storylineContextMenu && (
-        <EntityCellContextMenu
-          x={storylineContextMenu.x}
-          y={storylineContextMenu.y}
-          editorType="storyline"
-          onAction={(action) => {
-            void dispatchEntityAction({
-              entityType: 'storyline',
-              id: storylineContextMenu.storylineId,
-              action,
-            });
-          }}
-          onClose={() => setStorylineContextMenu(null)}
+          pointer={hoverCard}
+          onDismiss={hoverDismiss}
+          actions={hoverActionsFor(hoverPreview.data)}
         />
       )}
     </div>

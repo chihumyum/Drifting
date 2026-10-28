@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
+import type { CSSProperties } from 'react';
 
 import type { BookElement } from '../../domain/book-element';
 import { AgentChangeIndicator } from '../leftBars/AgentChangeIndicator';
@@ -20,7 +20,6 @@ interface ElementIdentityTileProps {
   onAgentSeen?: () => void;
   onActivate: () => void;
   onPromote: () => void;
-  onContextMenu: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onPreviewEnter: (anchor: HTMLElement) => void;
   onPreviewLeave: () => void;
 }
@@ -54,7 +53,6 @@ export function ElementIdentityTile({
   onAgentSeen,
   onActivate,
   onPromote,
-  onContextMenu,
   onPreviewEnter,
   onPreviewLeave,
 }: ElementIdentityTileProps) {
@@ -74,7 +72,6 @@ export function ElementIdentityTile({
       style={style}
       onClick={onActivate}
       onDoubleClick={onPromote}
-      onContextMenu={onContextMenu}
       onMouseEnter={(event) => onPreviewEnter(event.currentTarget)}
       onMouseLeave={onPreviewLeave}
       onFocus={(event) => onPreviewEnter(event.currentTarget)}

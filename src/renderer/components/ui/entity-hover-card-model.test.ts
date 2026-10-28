@@ -56,6 +56,7 @@ describe('buildEntityHoverCardContent', () => {
     );
 
     expect(content).toEqual({
+      title: 'common.untitled',
       summary: 'A chapter summary',
       meta: [
         { text: 'Draft' },
@@ -159,6 +160,7 @@ describe('buildEntityHoverCardContent', () => {
     );
 
     expect(content).toEqual({
+      title: 'common.untitled',
       summary: 'A storyline summary',
       meta: [{ text: '2 chapters' }, { text: '2.0k words' }, { text: 'Tone：Suspenseful' }],
     });

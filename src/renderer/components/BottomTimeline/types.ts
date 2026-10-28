@@ -11,28 +11,10 @@ import type { Storyline } from '../../domain/storyline';
 // the upstream filter).
 export type TimelineNode = BookNode & { storylines: Storyline[] };
 
-export type BottomTimelineContextMenuType = 'storyline' | 'node';
-
-export interface BottomTimelineContextMenuState {
-  x: number;
-  y: number;
-  type: BottomTimelineContextMenuType;
-  storylineId?: string;
-  nodeId?: string;
-  position?: number;
-  nodeTitle?: string;
-  nodeSummary?: string | null;
-  nodeStorylines?: Storyline[];
-}
-
-// BottomTimeline-local action set. The shared per-entity menu options
-// (delete, edit storylines, status flips, ...) come from EditorTopBar's
-// getMenuItems via EntityCellContextMenu — only the actions unique to the
-// timeline live here.
-export type BottomTimelineContextMenuAction =
-  // Create a chapter at the cursor's bookOrder slot on the right-clicked
-  // storyline row. Only present when the click landed on empty track.
-  | 'createChapterHere'
+// What only a timeline clip's hover card offers. The shared per-entity
+// actions (delete, edit storylines, status flips, ...) come from
+// EditorTopBar's getMenuItems via entityHoverActions.
+export type BottomTimelineNodeAction =
   // Clears all storyline memberships → chapter becomes 未归属.
   | 'moveToUnaffiliated'
   // Narrative-view only: clears node.narrativeOrder, which moves the

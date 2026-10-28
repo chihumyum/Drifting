@@ -2305,6 +2305,8 @@
       "newSubGroup": "New subgroup",
       "clickCollapseRename": "Click to collapse · double-click to rename",
       "moveDriftToRoot": "Root level (move out of group)",
+      "driftCount_one": "{{count}} idea",
+      "driftCount_other": "{{count}} ideas",
       "moveGroupToRoot": "Root level (move to top level)",
       "rename": "Rename",
       "moveToGroup": "Move to group…",
@@ -2630,13 +2632,13 @@
       "dragTitle": "Drag to adjust position"
     },
     "axis": {
-      "title": "Narrative time markers: click + to add a draggable time pin",
+      "title": "Narrative time markers: click + or double-click the empty axis to add a draggable time pin",
       "needChapter": "At least one chapter is required to add a pin",
       "addPin": "Add time pin",
       "time": "Time"
     },
     "empty": {
-      "noChaptersInStoryline": "No chapters in this storyline"
+      "noChaptersInStoryline": "No chapters in this storyline · double-click to create one"
     },
     "view": {
       "toggleTitle": "View: book order / narrative time",
@@ -2688,7 +2690,7 @@
       "railLabel": "Act",
       "needChapter": "At least one chapter is required to split acts",
       "newAct": "New act",
-      "emptyTrackTitle": "Right-click here to create an act, or click + in the head",
+      "emptyTrackTitle": "Double-click here to create an act, or click + in the head",
       "chapterCount": "{{count}} chapters",
       "actNote": "Act note",
       "openActNoteTitle": "Open act note (bound idea)",
@@ -2707,7 +2709,8 @@
     "spread": "Spread",
     "spreadAria": "Spread nodes",
     "axis": {
-      "time": "Time"
+      "time": "Time",
+      "addMarkerHint": "Double-click an empty spot to add a marker here"
     },
     "lane": {
       "chapterCount": "{{count}} chapters"
@@ -3056,7 +3059,7 @@
   },
   "patchesSection": {
     "add": "+ New",
-    "empty": "- No patches yet. Select text in a chapter and right-click \"New patch\" to anchor one to this element -"
+    "empty": "- No patches yet. Select text in a chapter and choose \"New patch\" on the bar above it to anchor one to this element -"
   },
   "edgeKindManager": {
     "title": "All relation types",
@@ -3645,7 +3648,7 @@
     "untitled": "New folder",
     "tree": "Material folders",
     "breadcrumb": "Folder path",
-    "empty": "No materials yet. Right-click to create a folder.",
+    "empty": "No materials yet. Use the New folder button above to organize them.",
     "deleteConfirm": "Delete the folder “{{name}}”? Everything in it moves up one level; no material is deleted.",
     "menu": {
       "newFolder": "New folder",

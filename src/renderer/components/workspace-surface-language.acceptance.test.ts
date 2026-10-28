@@ -410,8 +410,8 @@ describe('workspace surface language acceptance', () => {
     expect(layout).toContain('dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1');
     expect(layout).toContain("aria-hidden={slide.role === 'out' ? true : undefined}");
     // One strip of panels, moved from where each panel is right now
-    // (planSidebarPush), 370 ms on the slow-then-fast ice curve.
-    expect(layout).toContain('const PUSH_MS = 370;');
+    // (planSidebarPush), 265 ms on the slow-then-fast ice curve.
+    expect(layout).toContain('const PUSH_MS = 265;');
     expect(layout).toContain("const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';");
     expect(layout).toContain('const moves = planSidebarPush(now, target, strip.clientWidth, push.dir);');
     expect(layout).toContain("{ duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' }");
@@ -554,10 +554,13 @@ describe('workspace surface language acceptance', () => {
 
     const sourceCard = block(source('src/styles/comments-review.css'), '.comment-source-hover {', '.comment-source-hover__content {');
 
+    const shell = block(source('src/styles/ui-controls.css'), '.hover-card {', '}');
+
     expect(css).not.toContain('--entity-hover-card-shadow');
-    expect(hoverCard).toContain("background: 'var(--menu-surface-bg)'");
-    expect(hoverCard).toContain("boxShadow: 'var(--menu-surface-shadow)'");
-    expect(hoverCard).toContain("borderRadius: 'var(--menu-surface-radius)'");
+    expect(hoverCard).toContain('<HoverCardShell');
+    expect(shell).toContain('background: var(--menu-surface-bg);');
+    expect(shell).toContain('box-shadow: var(--menu-surface-shadow);');
+    expect(shell).toContain('border-radius: var(--menu-surface-radius);');
     expect(hoverCard).not.toContain("border: '1px solid");
     expect(sourceCard).toContain('background: var(--menu-surface-bg);');
     expect(sourceCard).toContain('box-shadow: var(--menu-surface-shadow);');

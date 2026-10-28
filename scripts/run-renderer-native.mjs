@@ -295,10 +295,10 @@ export default (env) => mergeConfig(base(env), {
       }
       return code;
     }
-    if (${contextMenus} && id.endsWith('/features/editor/editor-context-menu.ts')) {
+    if (${contextMenus} && id.endsWith('/features/editor/editor-selection-bar.ts')) {
       for (const [anchor, event] of [
-        ['this.menu = menu; activeMenuSlot.owner = this;', 'open'],
-        ['this.menu.remove(); this.menu = null;', 'close'],
+        ['this.bar = bar; activeBarSlot.owner = this;', 'open'],
+        ['this.bar.remove(); this.bar = null;', 'close'],
         ["this.editor.on('destroy', this.close);", 'bind'],
         ["this.editor.off('destroy', this.close);", 'unbind'],
         ['this.disposed = true; this.enabled = false; this.close();', 'dispose'],

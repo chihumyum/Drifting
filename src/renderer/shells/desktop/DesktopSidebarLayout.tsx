@@ -19,7 +19,7 @@ import { planSidebarPush } from '../../lib/sidebar-push';
 const SPLIT_ANIM_MS = 420;
 // A tab switch pushes the pane's strip of panels like heavy ice: slow to
 // start, then fast.
-const PUSH_MS = 370;
+const PUSH_MS = 265;
 const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';
 // The arriving panel's glass outline fades out whole after the push
 // (`.flow-line::after`'s opacity transition); they stay mounted until then.

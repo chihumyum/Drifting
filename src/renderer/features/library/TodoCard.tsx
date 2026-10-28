@@ -57,9 +57,9 @@ export function TodoCard({
     <div
       className="workspace-list-row"
       aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
-      onPointerDownCapture={sourceHover.onLeave}
-      onKeyDownCapture={sourceHover.onLeave}
-      onContextMenuCapture={sourceHover.onLeave}
+      onPointerDownCapture={sourceHover.dismiss}
+      onKeyDownCapture={sourceHover.dismiss}
+      onContextMenuCapture={sourceHover.dismiss}
       onMouseEnter={(event) => { setHover(true); sourceHover.onEnter(event.currentTarget); }}
       onMouseLeave={() => { setHover(false); sourceHover.onLeave(); }}
       style={{
@@ -122,7 +122,7 @@ export function TodoCard({
           className="todo-card__body"
           onDoubleClick={(event) => {
             event.stopPropagation();
-            sourceHover.onLeave();
+            sourceHover.dismiss();
             setEditing(true);
           }}
           style={{

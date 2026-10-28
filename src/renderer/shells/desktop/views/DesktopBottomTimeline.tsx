@@ -9,16 +9,22 @@ import { resolvePrimaryStorylineId } from '../../../domain/node-storyline-state'
 import { spreadTimelineNodes } from '../../../domain/timeline-spread';
 import { useAuthStore } from '../../../store/auth';
 import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
+import {
+  useHoverPreview,
+  type EntityHoverTarget,
+} from '../../../features/entities/hover/entity-hover-card-model';
 import { useDataStore } from '../../../store/data-store';
 import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useTimelineExpandedScale } from '../../../components/BottomTimeline/useTimelineExpandedScale';
-import { useBottomTimelineContextMenuActions } from '../../../components/BottomTimeline/useBottomTimelineContextMenuActions';
+import { useBottomTimelineActions } from '../../../components/BottomTimeline/useBottomTimelineActions';
 import { useBottomTimelineSelectors } from '../../../components/BottomTimeline/useBottomTimelineSelectors';
-import { useBottomTimelineInteractionState } from '../../../components/BottomTimeline/useBottomTimelineInteractionState';
-import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellContextMenu';
+import {
+  entityHoverActions,
+  type EntityHoverExtraAction,
+} from '../../../components/leftBars/entity-hover-actions';
+import type { HoverActionGroup } from '../../../components/ui/HoverCard';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
-import { TimelineRailMenu } from '../../../components/graph/TimelineRailMenu';
 import { TimelinePin as SharedTimelinePin } from '../../../components/timeline/TimelinePin';
 import { ActRail } from '../../../components/BottomTimeline/ActRail';
 import {
@@ -229,20 +235,23 @@ export function DesktopBottomTimeline({
     localStorage.setItem(TIMELINE_VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
+  // A clip's or a storyline rail's hover card: the summary, and along its
+  // bottom what used to be its right-click menu. Right-click itself falls
+  // through to the native menu.
   const {
-    contextMenu,
-    hoveredNodeId,
-    hoverAnchor,
-    setContextMenu,
-    clearContextMenu,
-    setHoverPreview,
-    clearHoverPreview,
-  } = useBottomTimelineInteractionState();
+    preview: hoverPreview,
+    onEnter: hoverEnter,
+    onLeave: hoverLeave,
+    dismiss: hoverDismiss,
+    open: hoverOpen,
+    card: hoverCard,
+  } = useHoverPreview<EntityHoverTarget>();
   const touchMenuCleanupRef = useRef<(() => void) | null>(null);
   const suppressPointerClickRef = useRef(false);
 
   useEffect(() => () => touchMenuCleanupRef.current?.(), []);
 
+  // Mobile presentation: touch has no hover, so holding a rail opens its card.
   const beginTouchMenu = (event: React.PointerEvent, open: () => void) => {
     if (!isMobilePresentation || event.pointerType !== 'touch') return;
     touchMenuCleanupRef.current?.();
@@ -426,7 +435,6 @@ export function DesktopBottomTimeline({
     orderOf,
     minOrder,
     maxOrder,
-    scaleFactor,
     timelineWidth,
     nodeWidth,
     orderToPosition,
@@ -466,8 +474,7 @@ export function DesktopBottomTimeline({
     );
 
   const dispatchEntityAction = useEntityCellAction();
-  const { handleContextMenuAction } = useBottomTimelineContextMenuActions({
-    contextMenu,
+  const { createChapterAt, runNodeAction } = useBottomTimelineActions({
     projectId,
     orderField,
     nextBookOrder,
@@ -478,12 +485,69 @@ export function DesktopBottomTimeline({
       await updateNode(id, updates);
     },
     navigateToNode,
-    onCloseMenu: clearContextMenu,
     onError: (message, error) => log.error(message, error),
   });
 
-  // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
-  // itself, so no separate effect is needed for the timeline cmenu state.
+  // The storyline card's 新建章节: just past the last chapter on the active axis.
+  const appendChapter = (storylineId: string) => {
+    const orders = placedNodes.map(orderOf).filter((order): order is number => order !== null);
+    const order = orders.length > 0 ? Math.max(...orders) + CHAPTER_ORDER_STRIDE : minOrder;
+    void createChapterAt(storylineId, order);
+  };
+
+  const hoverActionsFor = (target: EntityHoverTarget): HoverActionGroup[] | undefined => {
+    if (target.kind === 'storyline') {
+      return [
+        {
+          key: 'create',
+          actions: [
+            {
+              key: 'append-chapter',
+              label: t('leftSidebar.groups.newChapterInStoryline'),
+              onSelect: () => appendChapter(target.id),
+            },
+          ],
+        },
+        ...entityHoverActions({
+          editorType: 'storyline',
+          onAction: (action) =>
+            void dispatchEntityAction({ entityType: 'storyline', id: target.id, action }),
+          t,
+        }),
+      ];
+    }
+    const node = target.kind === 'node' ? nodeById.get(target.id) : undefined;
+    if (!node) return undefined;
+    const timelineActions: EntityHoverExtraAction[] = [];
+    if (node.storylines.length > 0) {
+      timelineActions.push({
+        action: 'moveToUnaffiliated',
+        label: t('bottomTimeline.menu.moveToUnaffiliated'),
+      });
+    }
+    if (isNarrative && typeof node.narrativeOrder === 'number') {
+      timelineActions.push({
+        action: 'detachFromNarrative',
+        label: t('bottomTimeline.menu.detachFromNarrative'),
+      });
+    }
+    return entityHoverActions({
+      editorType: 'node',
+      nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
+      nodeWritingStatus: node.writingStatus,
+      extraGroups: [timelineActions],
+      onAction: (action) => {
+        // Timeline-local actions stay here; the rest (delete, edit
+        // storylines, status flips) route through the shared dispatcher.
+        if (action === 'moveToUnaffiliated' || action === 'detachFromNarrative') {
+          void runNodeAction(action, node.id);
+          return;
+        }
+        void dispatchEntityAction({ entityType: 'node', id: node.id, action });
+      },
+      t,
+    });
+  };
 
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -503,7 +567,6 @@ export function DesktopBottomTimeline({
       return;
     }
     const sourceElement = event.currentTarget;
-    const touchMenuPoint = { x: event.clientX + 2, y: event.clientY - 2 };
     if (isMobilePresentation && event.pointerType === 'touch') event.stopPropagation();
     const grabOffsetX = chapterLaneGrabOffsetX(
       event.clientX,
@@ -546,8 +609,7 @@ export function DesktopBottomTimeline({
       onDragStart: () => {
         touchMenuCleanupRef.current?.();
         suppressPointerClickRef.current = true;
-        clearContextMenu();
-        clearHoverPreview();
+        hoverDismiss();
       },
       onDrop: async (target) => {
         try {
@@ -563,7 +625,7 @@ export function DesktopBottomTimeline({
         }
       },
       onDragEnd: () => {
-        clearHoverPreview();
+        hoverDismiss();
         if (fromDrawer) setUnplacedPopoverOpen(false);
         window.setTimeout(() => {
           suppressPointerClickRef.current = false;
@@ -573,18 +635,10 @@ export function DesktopBottomTimeline({
         isMobilePresentation && event.pointerType === 'touch'
           ? {
               scrollContainer: scrollContainerRef.current,
+              // Touch has no hover: holding a clip opens its card.
               onMenu: () => {
                 suppressPointerClickRef.current = true;
-                clearHoverPreview();
-                setContextMenu({
-                  ...touchMenuPoint,
-                  type: 'node',
-                  nodeId: node.id,
-                  storylineId: storylineId || undefined,
-                  nodeTitle: node.title,
-                  nodeSummary: node.summary,
-                  nodeStorylines: node.storylines,
-                });
+                hoverOpen({ kind: 'node', id: node.id }, sourceElement);
               },
             }
           : undefined,
@@ -598,7 +652,7 @@ export function DesktopBottomTimeline({
       e.preventDefault();
       return;
     }
-    clearContextMenu();
+    hoverDismiss();
     if (isMobilePresentation) {
       openEntity({ entityType: 'node', id: clickedNodeId });
       return;
@@ -607,23 +661,16 @@ export function DesktopBottomTimeline({
   };
 
   const handleNodeMouseEnter = (node: TimelineNode, e: React.MouseEvent<HTMLElement>) => {
-    setHoverPreview({
-      nodeId: node.id,
-      anchor: e.currentTarget,
-    });
-  };
-
-  const handleNodeMouseLeave = () => {
-    clearHoverPreview();
+    // A held button means something is being carried over the clip.
+    if (e.buttons !== 0) return;
+    hoverEnter({ kind: 'node', id: node.id }, e.currentTarget);
   };
 
   const handleTimelineClick = (event: React.MouseEvent) => {
     if (suppressPointerClickRef.current) {
       suppressPointerClickRef.current = false;
       event.preventDefault();
-      return;
     }
-    clearContextMenu();
   };
 
   const isPrimaryStorylineForNode = (node: TimelineNode, storylineId: string): boolean => {
@@ -744,12 +791,6 @@ export function DesktopBottomTimeline({
     const stateClass =
       status === 'finished' ? 'is-finished' : status === 'discarded' ? 'is-discarded' : 'is-draft';
 
-    const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
-      if (hoveredNodeId !== node.id) {
-        handleNodeMouseEnter(node, e);
-      }
-    };
-
     // On desktop a chapter is a weighted glass slab: rim in its storyline's
     // colour at rest, flowing under the pointer, pressed while selected.
     const className = [
@@ -768,8 +809,8 @@ export function DesktopBottomTimeline({
         data-node-card
         className={className}
         onPointerDown={(event) => startNodePointerDrag(event, node, storylineId)}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleNodeMouseLeave}
+        onMouseEnter={(e) => handleNodeMouseEnter(node, e)}
+        onMouseLeave={hoverLeave}
         onClick={(e) => handleNodeClick(node.id, e)}
         style={
           {
@@ -799,46 +840,6 @@ export function DesktopBottomTimeline({
     const isRouteActive = !isSynthetic && storylineId === storyline.id;
     const railColor = storyline.color || 'hsl(var(--story-4))';
 
-    const openRowContextMenu = (row: HTMLElement, clientX: number, clientY: number) => {
-      // Synthetic lanes don't expose storyline actions, but their chapter
-      // cards still use the shared node menu.
-      const container = row.querySelector('[data-node-container]') as HTMLElement | null;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const clickedNode = nodesInStoryline.find((node) => {
-        if (!isSynthetic && !isPrimaryStorylineForNode(node, storyline.id)) return false;
-        const ord = orderOf(node);
-        if (ord === null) return false;
-        const nl = orderToPosition(ord);
-        return x >= nl && x <= nl + nodeWidth;
-      });
-      if (clickedNode) {
-        setContextMenu({
-          x: clientX + 2,
-          y: clientY - 2,
-          type: 'node',
-          nodeId: clickedNode.id,
-          storylineId: storyline.id,
-          nodeTitle: clickedNode.title,
-          nodeSummary: clickedNode.summary,
-          nodeStorylines: clickedNode.storylines,
-        });
-        return;
-      }
-      if (isSynthetic) return;
-      setContextMenu({
-        x: clientX + 2,
-        y: clientY - 2,
-        type: 'storyline',
-        storylineId: storyline.id,
-        position: Math.max(
-          minOrder,
-          x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor) + minOrder,
-        ),
-      });
-    };
-
     return (
       <div
         key={storyline.id}
@@ -849,19 +850,7 @@ export function DesktopBottomTimeline({
           if (suppressPointerClickRef.current) {
             suppressPointerClickRef.current = false;
             e.preventDefault();
-            return;
           }
-          clearContextMenu();
-        }}
-        onPointerDown={(event) => {
-          const row = event.currentTarget;
-          const clientX = event.clientX;
-          const clientY = event.clientY;
-          beginTouchMenu(event, () => openRowContextMenu(row, clientX, clientY));
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          openRowContextMenu(e.currentTarget, e.clientX, e.clientY);
         }}
       >
         <span className="flow-line flow-line--h btl-row__flow" aria-hidden="true" />
@@ -869,6 +858,12 @@ export function DesktopBottomTimeline({
           className={`btl-rail ${isRouteActive ? 'is-active' : ''}${
             isSynthetic ? '' : ' is-clickable'
           }`}
+          onMouseEnter={(event) => {
+            // Synthetic rails (本书 / 未归属) have no entity behind them.
+            if (isSynthetic || event.buttons !== 0) return;
+            hoverEnter({ kind: 'storyline', id: storyline.id }, event.currentTarget);
+          }}
+          onMouseLeave={isSynthetic ? undefined : hoverLeave}
           onClick={(e) => {
             e.stopPropagation();
             if (suppressPointerClickRef.current) {
@@ -880,6 +875,7 @@ export function DesktopBottomTimeline({
             // editor tab (mirrors ChapterPanel's storyline-group click).
             // Synthetic lanes have no entity behind them, so they no-op.
             if (!isSynthetic) {
+              hoverDismiss();
               openEntity({ entityType: 'storyline', id: storyline.id });
             }
           }}
@@ -889,45 +885,12 @@ export function DesktopBottomTimeline({
           onPointerDown={(event) => {
             if (!isMobilePresentation || isSynthetic) return;
             event.stopPropagation();
-            const clientX = event.clientX;
-            const clientY = event.clientY;
-            beginTouchMenu(event, () =>
-              setContextMenu({
-                x: clientX + 2,
-                y: clientY - 2,
-                type: 'storyline',
-                storylineId: storyline.id,
-              }),
-            );
+            const rail = event.currentTarget;
+            beginTouchMenu(event, () => hoverOpen({ kind: 'storyline', id: storyline.id }, rail));
           }}
-          onContextMenu={(e) => {
-            // Synthetic rails (本书 / 未归属) have no entity to operate on.
-            if (isSynthetic) {
-              e.preventDefault();
-              e.stopPropagation();
-              return;
-            }
-            // On a real storyline rail, expose the same cmenu the chapter
-            // panel storyline-cell uses — edit / delete / merge — so the
-            // rail is a discoverable surface for storyline-level actions.
-            e.preventDefault();
-            e.stopPropagation();
-            setContextMenu({
-              x: e.clientX + 2,
-              y: e.clientY - 2,
-              type: 'storyline',
-              storylineId: storyline.id,
-              // position omitted: rail click doesn't carry a bookOrder
-              // slot, so the createChapterHere extra is suppressed.
-            });
-          }}
-          title={
-            isSynthetic
-              ? storyline.name || ''
-              : t('bottomTimeline.storyline.openTitle', {
-                  name: storyline.name || t('topTimeline.untitled.storyline'),
-                })
-          }
+          // A real storyline's hover card names it; a native tooltip would
+          // stack on top of the card.
+          title={isSynthetic ? storyline.name || '' : undefined}
           style={
             {
               width: railWidth,
@@ -947,7 +910,19 @@ export function DesktopBottomTimeline({
           </div>
         </div>
 
-        <div data-node-container className="btl-track" style={{ minWidth: timelineWidth }}>
+        <div
+          data-node-container
+          className="btl-track"
+          style={{ minWidth: timelineWidth }}
+          onDoubleClick={(event) => {
+            // Double-clicking an empty spot creates a chapter there. Clips are
+            // children, so a double-click on one never targets the track; the
+            // guide lines and empty-lane label let the pointer through.
+            if (event.target !== event.currentTarget) return;
+            const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+            void createChapterAt(isSynthetic ? null : storyline.id, positionToOrder(x));
+          }}
+        >
           {isNarrative && (
             <TimelineMarkerLines preview={dragPreview} markers={markers}
               orderToPosition={orderToPosition} className="btl-pin-line" />
@@ -1074,8 +1049,6 @@ export function DesktopBottomTimeline({
   const railOffset = railWidth;
 
   const [newlyAddedMarkerId, setNewlyAddedMarkerId] = useState<string | null>(null);
-  // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
-  const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
   // Only guide layers subscribe to frame-coalesced preview motion.
   const [dragPreview] = useState(() => createTimelineDragPreview());
 
@@ -1098,7 +1071,7 @@ export function DesktopBottomTimeline({
 
   // "+幕" head button: bootstrap one first act at the book-axis head, then
   // retain viewport-center insertion once the project already has acts.
-  // Precise placement is also available from the track context menu.
+  // Precise placement is a double-click on the act rail.
   const handleAddActSplit = useCallback(() => {
     const container = scrollContainerRef.current;
     const centerX = container
@@ -1120,8 +1093,8 @@ export function DesktopBottomTimeline({
     if (created) setNewlyAddedMarkerId(created.id);
   }, [addMarker, positionToOrder, railWidth, t]);
 
-  // Drop a marker at a specific order (the rail right-click target), as opposed
-  // to handleAddPin's viewport-center pick.
+  // Drop a marker at a specific order (a double-click on the empty axis), as
+  // opposed to handleAddPin's viewport-center pick.
   const handleAddPinAtOrder = useCallback(
     (order: number) => {
       const created = addMarker(order, t('bottomTimeline.marker.defaultLabel'));
@@ -1130,29 +1103,10 @@ export function DesktopBottomTimeline({
     [addMarker, t],
   );
 
-  const openTimelineRailMenu = (track: HTMLElement, clientX: number, clientY: number) => {
-    const rect = track.getBoundingClientRect();
-    const px = clientX - rect.left;
-    setRailMenu({ x: clientX + 2, y: clientY - 2, order: positionToOrder(px) });
-  };
-
   const renderTimeAxis = () => {
     if (!isNarrative) return null;
     return (
-      <div
-        className="btl-axis"
-        onContextMenuCapture={
-          markers.length === 0
-            ? (event) => {
-                const track = event.currentTarget.querySelector<HTMLElement>('.btl-axis__track');
-                if (!track) return;
-                event.preventDefault();
-                event.stopPropagation();
-                openTimelineRailMenu(track, event.clientX, event.clientY);
-              }
-            : undefined
-        }
-      >
+      <div className="btl-axis">
         <div
           className="btl-axis__rail"
           style={{ width: railWidth }}
@@ -1174,19 +1128,12 @@ export function DesktopBottomTimeline({
         <div
           className="btl-axis__track"
           style={{ minWidth: timelineWidth }}
-          onPointerDown={(event) => {
-            const track = event.currentTarget;
-            const clientX = event.clientX;
-            const clientY = event.clientY;
-            beginTouchMenu(event, () => openTimelineRailMenu(track, clientX, clientY));
-          }}
-          onContextMenu={(e) => {
-            // Empty-rail right-click → 新建标记. Right-clicking a pin is caught
-            // by the pin itself (it stops propagation), so this only fires on
-            // blank space.
-            e.preventDefault();
-            e.stopPropagation();
-            openTimelineRailMenu(e.currentTarget, e.clientX, e.clientY);
+          onDoubleClick={(event) => {
+            // Double-clicking empty axis drops a marker there. Pins are drawn
+            // over the axis from the scroll layer, not inside this track.
+            if (event.target !== event.currentTarget) return;
+            const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+            handleAddPinAtOrder(positionToOrder(x));
           }}
         >
           {/* Rail half of the marker drop indicator — the pin's own line hides
@@ -1553,15 +1500,6 @@ export function DesktopBottomTimeline({
             />
           ))}
 
-        {railMenu && (
-          <TimelineRailMenu
-            x={railMenu.x}
-            y={railMenu.y}
-            onAddMarker={() => handleAddPinAtOrder(railMenu.order)}
-            onClose={() => setRailMenu(null)}
-          />
-        )}
-
         {crossStorylineLinks.length > 0 && storylines.length > 0 && rowHeight > 0 && (
           <svg
             className="btl-crosslinks"
@@ -1599,119 +1537,16 @@ export function DesktopBottomTimeline({
         )}
       </div>
 
-      {contextMenu?.type === 'node' &&
-        contextMenu.nodeId &&
-        (() => {
-          const node = nodeById.get(contextMenu.nodeId);
-          if (!node) return null;
-          const hasNarrativeOrder = typeof node.narrativeOrder === 'number';
-          const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
-          return (
-            <EntityCellContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              editorType="node"
-              nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
-              nodeWritingStatus={node.writingStatus}
-              header={{
-                title: contextMenu.nodeTitle,
-                subtitle: contextMenu.nodeSummary,
-                tags: contextMenu.nodeStorylines?.map((sl) => ({
-                  id: sl.id,
-                  name: sl.name,
-                  color: sl.color,
-                })),
-              }}
-              extraGroups={[
-                [
-                  ...(hasAnyStoryline
-                    ? [
-                        {
-                          action: 'moveToUnaffiliated',
-                          label: t('bottomTimeline.menu.moveToUnaffiliated'),
-                        },
-                      ]
-                    : []),
-                  ...(isNarrative && hasNarrativeOrder
-                    ? [
-                        {
-                          action: 'detachFromNarrative',
-                          label: t('bottomTimeline.menu.detachFromNarrative'),
-                        },
-                      ]
-                    : []),
-                ],
-              ]}
-              onAction={(action) => {
-                // Timeline-local actions stay in handleContextMenuAction; the
-                // rest (delete, edit storylines, status flips) route through
-                // the shared per-entity dispatcher.
-                if (action === 'moveToUnaffiliated' || action === 'detachFromNarrative') {
-                  void handleContextMenuAction(action);
-                  return;
-                }
-                const nid = contextMenu.nodeId;
-                if (!nid) return;
-                void dispatchEntityAction({ entityType: 'node', id: nid, action });
-              }}
-              onClose={clearContextMenu}
-            />
-          );
-        })()}
-
-      {contextMenu?.type === 'storyline' &&
-        contextMenu.storylineId &&
-        !(() => {
-          // Synthetic lanes don't have a real storyline behind them — no
-          // editor actions apply, and createChapterHere is suppressed for
-          // 未归属 / 本书 too since they don't own a primary storyline.
-          const sid = contextMenu.storylineId;
-          return sid === '__default__' || sid === '__unaffiliated__';
-        })() && (
-          <EntityCellContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            editorType="storyline"
-            extraGroups={[
-              contextMenu.position !== undefined
-                ? [
-                    {
-                      action: 'createChapterHere',
-                      label: t('bottomTimeline.menu.createChapterHere'),
-                    },
-                    // Acts live on the bookOrder axis only — narrative-mode
-                    // positions are narrativeOrder values, wrong axis.
-                    ...(!isNarrative
-                      ? [{ action: 'startActHere', label: t('bottomTimeline.menu.startActHere') }]
-                      : []),
-                  ]
-                : [],
-            ]}
-            onAction={(action) => {
-              if (action === 'createChapterHere') {
-                void handleContextMenuAction(action);
-                return;
-              }
-              if (action === 'startActHere') {
-                if (contextMenu.position !== undefined) {
-                  void splitAtOrder(contextMenu.position);
-                }
-                clearContextMenu();
-                return;
-              }
-              const sid = contextMenu.storylineId;
-              if (!sid) return;
-              void dispatchEntityAction({ entityType: 'storyline', id: sid, action });
-            }}
-            onClose={clearContextMenu}
-          />
-        )}
-
-      {hoveredNodeId && hoverAnchor && (
+      {hoverPreview && (
         <EntityHoverCard
-          target={{ kind: 'node', id: hoveredNodeId }}
-          anchor={hoverAnchor}
-          placement="top-center"
+          target={hoverPreview.data}
+          anchor={hoverPreview.anchor}
+          // A clip's card rises over the editor; a rail's opens beside it,
+          // over its own track, so the pointer crosses no other rail.
+          placement={hoverPreview.data.kind === 'storyline' ? 'right-start' : 'top-center'}
+          pointer={hoverCard}
+          onDismiss={hoverDismiss}
+          actions={hoverActionsFor(hoverPreview.data)}
         />
       )}
     </div>

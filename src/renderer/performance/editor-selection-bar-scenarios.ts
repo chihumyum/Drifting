@@ -7,7 +7,7 @@ import * as Y from 'yjs';
 import { EntityEditorSession } from '../features/editor/entity-editor-session';
 import { BlockId } from '../lib/extensions/block-id';
 import { closeHistory } from '@tiptap/pm/history';
-import { EditorContextMenu, type EditorContextMenuOptions } from '../features/editor/editor-context-menu';
+import { EditorSelectionBar, type EditorSelectionBarOptions } from '../features/editor/editor-selection-bar';
 
 function ensure(value: unknown, message: string): void { if (!value) throw new Error(message); }
 const labels = { format: 'Synthetic format', addComment: 'Synthetic comment', addPatch: 'Synthetic patch', copilot: 'Synthetic copilot' };
@@ -19,7 +19,7 @@ async function runCollaborativeFormats() {
   paragraph.insert(0, [text]); doc.getXmlFragment('default').insert(0, [paragraph]);
   const root = document.createElement('div'); document.body.appendChild(root);
   const editor = new Editor({ element: root, extensions: [StarterKit.configure({ undoRedo: false, underline: false }), Underline, Collaboration.configure({ document: doc }), BlockId] });
-  const owner = new EditorContextMenu(editor); owner.setEnabled(true);
+  const owner = new EditorSelectionBar(editor); owner.setEnabled(true);
   const checks: string[] = [];
   const check = (name: string, value: unknown) => { ensure(value, `Collaborative format: ${name}`); checks.push(name); };
   try {
@@ -27,7 +27,7 @@ async function runCollaborativeFormats() {
     const manager = yUndoPluginKey.getState(editor.state)!.undoManager; manager.clear();
     const initial = JSON.stringify(editor.getJSON());
     editor.commands.setTextSelection({ from: 2, to: 10 });
-    owner.open({ clientX: 100, clientY: 100, labels });
+    owner.open({ rect: { left: 100, top: 100, right: 140, bottom: 116 }, labels });
     [...document.querySelectorAll<HTMLButtonElement>('.editor-comment-menu button')].find(item => item.textContent === '一级标题')!.click();
     const formatted = JSON.stringify(editor.getJSON());
     check('heading and generated trailing block enter one Yjs undo item', manager.undoStack.length === 1 && editor.isActive('heading', { level: 1 }));
@@ -119,7 +119,7 @@ async function runBlurFocusHandoff() {
 export async function runEditorContextMenuScenarios() {
   const groups = [];
   for (const count of [1, 5, 20]) {
-    const editors: Editor[] = []; const owners: EditorContextMenu[] = []; const roots: HTMLElement[] = [];
+    const editors: Editor[] = []; const owners: EditorSelectionBar[] = []; const roots: HTMLElement[] = [];
     const listeners = new Set<EventListenerOrEventListenerObject>();
     const hideTimers = new Set<number>(); let maxListeners = 0; let additions = 0; let removals = 0;
     const originalAdd = document.addEventListener.bind(document); const originalRemove = document.removeEventListener.bind(document);
@@ -150,11 +150,11 @@ export async function runEditorContextMenuScenarios() {
       for (let index = 0; index < count; index++) {
         const root = document.createElement('div'); document.body.appendChild(root); roots.push(root);
         const editor = new Editor({ element: root, extensions: [StarterKit.configure({ underline: false }), Underline], content: '<p>Synthetic menu selection.</p>' });
-        editors.push(editor); owners.push(new EditorContextMenu(editor));
+        editors.push(editor); owners.push(new EditorSelectionBar(editor));
         editor.commands.setTextSelection({ from: 2, to: 10 });
       }
       const owner = owners[0]; const editor = editors[0]; let comments = 0;
-      const options: EditorContextMenuOptions = { clientX: 100, clientY: 100, labels, onAddComment: () => comments++ };
+      const options: EditorSelectionBarOptions = { rect: { left: 100, top: 100, right: 140, bottom: 116 }, labels, onAddComment: () => comments++ };
       check('inactive owners do not open or subscribe', owners.every(item => !item.open(options)) && listeners.size === 0);
       owner.setEnabled(true);
       for (let index = 0; index < 100; index++) {

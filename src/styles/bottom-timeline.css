@@ -385,6 +385,9 @@
   border-radius: 4px;
   background: var(--btl-lane-bg);
   cursor: default;
+  /* Double-clicking an empty spot creates a chapter there; it must not also
+     select the clip titles around it. */
+  user-select: none;
 }
 
 /* ---------------- Time axis row (narrative view only) ---------------- */
@@ -444,6 +447,7 @@
   flex: 1;
   height: 100%;
   cursor: default;
+  user-select: none;
   /* Carry the row's surface at FULL content width. The track cell is the
      element sized to the scroll content (flex:1 + minWidth:timelineWidth);
      the parent `.btl-axis` is only as wide as the container, so relying on its
@@ -787,8 +791,10 @@
 /* Minimap removed: the ActRail (act-rail.css) + storyline rows serve the
    "overview" role. */
 
-/* ---------------- Context menu (right-click on timeline) ----------------
-   Sharp grouped surface with hairline dividers. */
+/* ---------------- Rich menu surface ----------------
+   Sharp grouped surface with hairline dividers. The timeline itself has no
+   right-click menus any more (its clips, rails, acts and pins carry hover
+   cards); library cards still reuse these rules. */
 .btl-cmenu {
   position: fixed;
   z-index: var(--z-context-menu);
