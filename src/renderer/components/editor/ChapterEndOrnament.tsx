@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -10,9 +11,31 @@ import {
 import { useTranslation } from 'react-i18next';
 import '../../../styles/chapter-end-menu.css';
 
+// ⁂ drawn as three sand seals; on a chapter page each seal belongs to the
+// action it falls beside when the menu opens (chapter-end-menu.css).
+const SEALS = [
+  { action: 'finish', shape: 'blob-0' },
+  { action: 'insert', shape: 'blob-3' },
+  { action: 'review', shape: 'blob-1' },
+] as const;
+
+function AsterismSeals() {
+  return (
+    <span className="page__ornament-mark" aria-hidden="true">
+      {SEALS.map((seal) => (
+        <span key={seal.action} className={`sand sand--${seal.shape} page__ornament-seal`} data-seal={seal.action} />
+      ))}
+    </span>
+  );
+}
+
 /** The ⁂ that closes a page. Drift pages and the touch shell keep only this. */
 export function ChapterEndOrnament() {
-  return <div className="page__ornament" aria-hidden="true">⁂</div>;
+  return (
+    <div className="page__ornament" aria-hidden="true">
+      <AsterismSeals />
+    </div>
+  );
 }
 
 export type ChapterEndReviewState = 'idle' | 'starting' | 'running';
@@ -47,10 +70,10 @@ interface MenuItem {
 type Opener = 'hover' | 'click' | 'keyboard';
 
 // A chapter page's ⁂ doubles as its end-of-chapter menu. Moving onto it (after
-// a brief intent delay), a click or keyboard focus
-// cross-fades the mark into three plain monospace actions on the same line,
-// the primary one centred where ⁂ stood. Leaving that line in any direction
-// fades ⁂ straight back. A finished chapter's ⁂ takes the accent colour.
+// a brief intent delay), a click or keyboard focus lets its three seals fall
+// into a column, each beside one plain monospace action; the list is centred
+// on ⁂ with the primary action on ⁂'s line. Leaving the list in any direction
+// gathers the seals straight back. A finished chapter's ⁂ takes the accent.
 export function ChapterEndMenu({
   finished,
   onInsert,
@@ -60,6 +83,7 @@ export function ChapterEndMenu({
 }: ChapterEndMenuProps) {
   const { t } = useTranslation();
   const menuId = useId();
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -87,6 +111,20 @@ export function ChapterEndMenu({
   }, []);
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
+
+  // The seals drop to the list's left edge, so the CSS needs half its width;
+  // it changes with the language and the review action's label.
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    const row = rowRef.current;
+    if (!host || !row) return;
+    const measure = () => host.style.setProperty('--list-half', `${row.offsetWidth / 2}px`);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -201,7 +239,7 @@ export function ChapterEndMenu({
   };
 
   return (
-    <div className="page__ornament page__ornament--menu" data-open={open}>
+    <div ref={hostRef} className="page__ornament page__ornament--menu" data-open={open}>
       <button
         ref={triggerRef}
         type="button"
@@ -216,7 +254,7 @@ export function ChapterEndMenu({
         onClick={handleTriggerClick}
         onKeyDown={handleTriggerKeyDown}
       >
-        <span className="page__ornament-glyph" aria-hidden="true">⁂</span>
+        <AsterismSeals />
       </button>
       <div
         ref={rowRef}
@@ -241,7 +279,7 @@ export function ChapterEndMenu({
             tabIndex={-1}
             onClick={(event) => select(item, event.timeStamp)}
           >
-            {item.label}
+            <span className="chapter-end-menu__label">{item.label}</span>
           </button>
         ))}
       </div>

@@ -57,13 +57,16 @@
 
     /* Shared menu chrome. Cursor context menus and button-anchored dropdowns
        keep separate positioning/interaction owners, but resolve their visual
-       shell and rows through this one token family. Menus are floating
-       glass (materials.css): translucent, square, a flowing rim. */
-    --menu-surface-bg: var(--glass-fill);
+       shell and rows through this one token family. Menus and hover cards
+       are a piece of the desk lifted out: the sidebar's own opaque colour,
+       square, a half-pixel hairline edge and the floating shadow. */
+    --menu-surface-bg: var(--workspace-ui-bg);
     --menu-surface-border: transparent;
     --menu-surface-radius: 0;
-    --menu-surface-shadow: 0 16px 30px -16px hsl(var(--ink-1) / 0.38);
-    --menu-item-hover-bg: hsl(var(--paper-deep));
+    --menu-surface-shadow:
+      0 0 0 0.5px hsl(var(--ink-1) / 0.16),
+      0 16px 30px -16px hsl(var(--ink-1) / 0.38);
+    --menu-item-hover-bg: hsl(var(--ink-1) / 0.05);
     --menu-item-danger: hsl(var(--destructive));
     --menu-item-danger-hover-bg: hsl(var(--destructive) / 0.1);
     --menu-width-compact: 180px;
@@ -147,7 +150,6 @@
       hsl(var(--page)) 70%,
       var(--workspace-ui-bg)
     );
-    --entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);
 
     /* Mobile V2 semantic color roles. Components consume roles rather than
        fixed light colors so phone and compact-tablet surfaces can switch

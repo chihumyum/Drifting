@@ -1,8 +1,8 @@
 {
   "kind": "chapter-end-menu",
   "status": "passed",
-  "generatedAt": "2026-10-22T18:59:59.799Z",
-  "sourceSha256": "4d019b66afb8571abbd255814d4c6fbd092dc86d51baf3678ef3965bbdf5d6f4",
+  "generatedAt": "2026-10-28T09:07:51.281Z",
+  "sourceSha256": "9041c26e4aeed8dc90a8ce16f57f92b90d53814ec710ae55bdc4671cc6fa5088",
   "inputs": [
     "scripts/run-chapter-end-menu-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -21,9 +21,10 @@
     "src/renderer/views/AllChaptersEditorView.tsx",
     "src/renderer/views/NodeEditorView.tsx",
     "src/styles/chapter-end-menu.css",
-    "src/styles/index.css"
+    "src/styles/index.css",
+    "src/styles/materials.css"
   ],
-  "browser": "Chrome/155.0.8059.85",
+  "browser": "Chrome/156.0.8078.48",
   "samples": {
     "resting": {
       "x": 600,
@@ -34,49 +35,84 @@
       "finished": "false",
       "color": "rgb(166, 163, 160)",
       "background": "rgba(0, 0, 0, 0)",
-      "opacity": 1,
-      "transform": "none",
-      "filter": "none"
-    },
-    "opening": {
-      "flipped": 77.79999995231628,
-      "markBackground": "rgba(0, 0, 0, 0)",
-      "mid": {
-        "mark": 0.424697,
-        "action": 0.575303,
-        "actionFilter": "blur(0.849393px)"
-      },
-      "end": {
-        "mark": 0,
-        "action": 1,
-        "actionFilter": "blur(0px)"
+      "text": "",
+      "seals": {
+        "finish": {
+          "x": 600,
+          "y": 444.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        },
+        "insert": {
+          "x": 594,
+          "y": 454.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        },
+        "review": {
+          "x": 606,
+          "y": 454.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        }
       }
     },
-    "faded": {
-      "x": 600,
-      "y": 449.890625,
-      "label": "Chapter end actions",
-      "popup": "menu",
-      "expanded": "true",
-      "finished": "false",
-      "color": "rgb(166, 163, 160)",
-      "background": "rgba(0, 0, 0, 0)",
-      "opacity": 0,
-      "transform": "matrix(0.6, 0, 0, 0.6, 0, 0)",
-      "filter": "blur(2px)"
+    "restSeal": {
+      "finish": {
+        "dx": 0,
+        "dy": -5
+      },
+      "insert": {
+        "dx": -6,
+        "dy": 5
+      },
+      "review": {
+        "dx": 6,
+        "dy": 5
+      }
+    },
+    "opening": {
+      "flipped": 76.40000009536743,
+      "markBackground": "rgba(0, 0, 0, 0)",
+      "mid": {
+        "sealX": 542.9149169921875,
+        "sealY": 450.8681640625,
+        "label": 0.151865,
+        "labelFilter": "blur(1.69627px)"
+      },
+      "end": {
+        "sealX": 530.5,
+        "sealY": 449.890625,
+        "label": 1,
+        "labelFilter": "blur(0px)"
+      }
     },
     "row": {
       "chapterId": "chapter-b",
-      "top": 434.890625,
-      "bottom": 464.890625,
-      "left": 401.859375,
-      "right": 798.140625,
+      "top": 416.890625,
+      "bottom": 482.890625,
+      "left": 527.3125,
+      "right": 672.6875,
+      "seals": {
+        "finish": {
+          "x": 530.5,
+          "y": 427.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        },
+        "insert": {
+          "x": 530.5,
+          "y": 449.890625,
+          "color": "color(srgb 0.4144 0.49184 0.6256)"
+        },
+        "review": {
+          "x": 530.5,
+          "y": 471.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        }
+      },
       "items": [
         {
           "action": "finish",
           "label": "Mark finished",
-          "x": 452.0859375,
-          "y": 449.890625,
+          "x": 600,
+          "y": 427.890625,
           "disabled": false,
           "focused": false,
           "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
@@ -101,8 +137,73 @@
         {
           "action": "review",
           "label": "Agent review",
-          "x": 744.0546875,
+          "x": 600,
+          "y": 471.890625,
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "inViewport": true,
+          "hitTarget": true
+        }
+      ]
+    },
+    "roamed": {
+      "chapterId": "chapter-b",
+      "top": 416.890625,
+      "bottom": 482.890625,
+      "left": 527.3125,
+      "right": 672.6875,
+      "seals": {
+        "finish": {
+          "x": 530.5,
+          "y": 427.890625,
+          "color": "color(srgb 0.4144 0.49184 0.6256)"
+        },
+        "insert": {
+          "x": 530.5,
           "y": 449.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        },
+        "review": {
+          "x": 530.5,
+          "y": 471.890625,
+          "color": "color(srgb 0.4944 0.48 0.4656)"
+        }
+      },
+      "items": [
+        {
+          "action": "finish",
+          "label": "Mark finished",
+          "x": 600,
+          "y": 427.890625,
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "inViewport": true,
+          "hitTarget": true
+        },
+        {
+          "action": "insert",
+          "label": "New chapter after",
+          "x": 600,
+          "y": 449.890625,
+          "disabled": false,
+          "focused": false,
+          "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
+          "border": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "inViewport": true,
+          "hitTarget": true
+        },
+        {
+          "action": "review",
+          "label": "Agent review",
+          "x": 600,
+          "y": 471.890625,
           "disabled": false,
           "focused": false,
           "font": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
@@ -120,17 +221,19 @@
       "right": true
     },
     "closed": {
-      "flipped": 0,
+      "flipped": 0.09999990463256836,
       "markBackground": "rgba(0, 0, 0, 0)",
       "mid": {
-        "mark": 0.519536,
-        "action": 0.480464,
-        "actionFilter": "blur(1.03907px)"
+        "sealX": 543.7605590820312,
+        "sealY": 450.93475341796875,
+        "label": 0.480908,
+        "labelFilter": "blur(1.03818px)"
       },
       "end": {
-        "mark": 1,
-        "action": 0,
-        "actionFilter": "blur(2px)"
+        "sealX": 594,
+        "sealY": 454.890625,
+        "label": 0,
+        "labelFilter": "blur(2px)"
       }
     },
     "inserts": [
@@ -150,9 +253,24 @@
       "finished": "true",
       "color": "rgb(106, 125, 160)",
       "background": "rgba(0, 0, 0, 0)",
-      "opacity": 1,
-      "transform": "none",
-      "filter": "none"
+      "text": "",
+      "seals": {
+        "finish": {
+          "x": 600,
+          "y": 444.890625,
+          "color": "color(srgb 0.4144 0.49184 0.6256)"
+        },
+        "insert": {
+          "x": 594,
+          "y": 454.890625,
+          "color": "color(srgb 0.4144 0.49184 0.6256)"
+        },
+        "review": {
+          "x": 606,
+          "y": 454.890625,
+          "color": "color(srgb 0.4144 0.49184 0.6256)"
+        }
+      }
     },
     "monoFont": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Monaco, Consolas, \"Liberation Mono\", \"PingFang SC\", \"Hiragino Sans GB\", monospace",
     "labels": {
@@ -164,17 +282,19 @@
     }
   },
   "checks": {
+    "markIsThreeSealAsterism": true,
     "hoverIntentDelay": true,
     "noPressedWash": true,
-    "markCrossFadesIntoActions": true,
-    "actionsOnTheMarkLine": true,
-    "primaryCentredOnMark": true,
+    "sealsFallBesideActions": true,
+    "verticalListCentredOnMark": true,
+    "primaryOnTheMarkLine": true,
+    "hoveredSealTakesAccent": true,
     "monospacePlainText": true,
     "opensPromptly": true,
-    "simultaneousCrossZoomMorph": true,
-    "roamingAlongLineKeepsOpen": true,
-    "leavingLineClosesAtOnce": true,
-    "markReturnsSmoothly": true,
+    "sealsTravelWhileWordsArrive": true,
+    "roamingAlongListKeepsOpen": true,
+    "leavingListClosesAtOnce": true,
+    "sealsGatherBackSmoothly": true,
     "scrollUnderStillPointerDoesNotOpen": true,
     "earlyClickGuard": true,
     "insertsDirectlyAfterChapter": true,

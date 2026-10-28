@@ -28,13 +28,15 @@ describe('shared menu surface style', () => {
     const item = block(controls, '.menu-surface__item {', '.menu-surface__item:hover');
     const separator = block(controls, '.menu-surface__divider,', '.tab-context-menu__item {');
 
-    // Menus are translucent and square with no glass rim of their own; only
-    // the row under the pointer shows hairline glass along its edges; rows
-    // carry no fill; groups are separated by space, not rules.
-    expect(tokens).toContain('--menu-surface-bg: var(--glass-fill);');
+    // Menus are a lifted piece of the desk: the sidebar's opaque colour,
+    // square, a half-pixel hairline and the floating shadow, with no glass
+    // of their own; only the row under the pointer shows hairline glass
+    // along its edges; rows carry no fill; groups are separated by space.
+    expect(tokens).toContain('--menu-surface-bg: var(--workspace-ui-bg);');
     expect(tokens).toContain('--menu-surface-border: transparent;');
     expect(tokens).toContain('--menu-surface-radius: 0;');
-    expect(tokens).toContain('--menu-item-hover-bg: hsl(var(--paper-deep));');
+    expect(tokens).toContain('0 0 0 0.5px hsl(var(--ink-1) / 0.16),');
+    expect(tokens).toContain('--menu-item-hover-bg: hsl(var(--ink-1) / 0.05);');
     expect(tokens).toContain('--menu-item-danger: hsl(var(--destructive));');
     expect(tokens).toContain('--menu-width-compact: 180px;');
     expect(tokens).toContain('--menu-width-standard: 220px;');
@@ -46,7 +48,7 @@ describe('shared menu surface style', () => {
     expect(surface).toContain('width: var(--menu-width-compact);');
     expect(surface).toContain('font-size: var(--ui-font-body, 12.5px);');
     expect(surface).toContain('line-height: var(--ui-line-body, 18px);');
-    expect(surface).toContain('backdrop-filter: blur(1.6px);');
+    expect(surface).not.toContain('backdrop-filter');
     expect(controls).not.toContain('.menu-surface::before {');
     // The hovered row is one whole ring, no open sides.
     expect(controls).not.toContain(".menu-surface__item::after {");

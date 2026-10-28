@@ -2504,10 +2504,11 @@
   overflow: hidden;
   pointer-events: none;
   z-index: var(--z-popover);
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: var(--radius-sm);
-  box-shadow: var(--entity-hover-card-shadow);
+  /* The same lifted piece of desk as menus and entity hover cards. */
+  background: var(--menu-surface-bg);
+  border: 0;
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
   font-family: var(--font-sans);
   font-size: 12px;
   line-height: 1.5;

@@ -113,3 +113,39 @@ describe('lines that bleed glass while their panel moves', () => {
     expect(values.has('--flow')).toBe(false);
   });
 });
+
+describe('resting glass and switches', () => {
+  const css = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
+
+  it('rests on the thin line alone and brings the bleed in under the pointer', () => {
+    const materials = css('src/styles/materials.css');
+    expect(materials).toContain('.glass--rest { --glass-g: 0.85; --glass-sp: 0; }');
+    expect(materials).toContain('.glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }');
+    // Pressed or on still thickens, declared after rest so it wins.
+    expect(materials.indexOf('.glass.is-on { --glass-g: 1.7; --glass-sp: 1.3; }'))
+      .toBeGreaterThan(materials.indexOf('.glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }'));
+  });
+
+  it('draws a switch as a glass track with a still accent bleed and a clean thumb', async () => {
+    const { Switch } = await import('./Switch');
+    const on = renderToStaticMarkup(createElement(Switch, { checked: true, onCheckedChange: () => {} }));
+    expect(on).toContain('class="ui-switch ui-switch--md is-on"');
+    expect(on).toContain('<span class="ui-switch__tint" aria-hidden="true"></span>');
+    const controls = css('src/styles/ui-controls.css');
+    expect(controls).toContain('.ui-switch.is-on .ui-switch__tint {\n  opacity: 1;\n}');
+    expect(controls).toContain('background: var(--switch-thumb-bg);');
+    // Only the clear rim flows; the accent tint never animates.
+    expect(controls).toContain('animation: switch-rim-flow 15s linear infinite paused;');
+    expect(controls.slice(controls.indexOf('.ui-switch__tint {\n  --switch-tint'), controls.indexOf('.ui-switch.is-on .ui-switch__tint'))).not.toContain('animation');
+  });
+});
+
+describe('chapter-end seals', () => {
+  it('draws the decorative ⁂ as three seals, one per chapter-end action', async () => {
+    const { ChapterEndOrnament } = await import('../editor/ChapterEndOrnament');
+    const mark = renderToStaticMarkup(createElement(ChapterEndOrnament));
+    expect(mark).not.toContain('⁂');
+    expect(mark.match(/class="sand sand--blob-\d page__ornament-seal"/g)).toHaveLength(3);
+    for (const action of ['finish', 'insert', 'review']) expect(mark).toContain(`data-seal="${action}"`);
+  });
+});

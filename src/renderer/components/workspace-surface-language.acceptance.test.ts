@@ -531,7 +531,7 @@ describe('workspace surface language acceptance', () => {
     expect(designSystem).toContain('左侧 label 使用与组头一致的 `--ink-4` 中性灰');
   });
 
-  it('keeps the shared entity hover preview shadow clear of its hovered cell', () => {
+  it('gives entity and comment-source hover cards the menus\' surface', () => {
     const css = source('src/styles/index.css');
     const hoverCard = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
     const consumers = [
@@ -541,9 +541,15 @@ describe('workspace surface language acceptance', () => {
       source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
-    expect(css).toContain('--entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);');
-    expect(hoverCard).toContain("boxShadow: 'var(--entity-hover-card-shadow)'");
-    expect(hoverCard).not.toContain('0 12px 28px -14px');
+    const sourceCard = block(source('src/styles/comments-review.css'), '.comment-source-hover {', '.comment-source-hover__content {');
+
+    expect(css).not.toContain('--entity-hover-card-shadow');
+    expect(hoverCard).toContain("background: 'var(--menu-surface-bg)'");
+    expect(hoverCard).toContain("boxShadow: 'var(--menu-surface-shadow)'");
+    expect(hoverCard).toContain("borderRadius: 'var(--menu-surface-radius)'");
+    expect(hoverCard).not.toContain("border: '1px solid");
+    expect(sourceCard).toContain('background: var(--menu-surface-bg);');
+    expect(sourceCard).toContain('box-shadow: var(--menu-surface-shadow);');
     for (const consumer of consumers) {
       expect(consumer).toContain('<EntityHoverCard');
     }

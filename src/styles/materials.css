@@ -27,9 +27,10 @@
 
 /* ── Glass ──────────────────────────────────────────────────────────
  * A control made of glass shows only a rim, cut from one uneven texture.
- * At rest the rim is hidden (or shown for `.glass--rest`); under the pointer
- * it flows slowly; pressed or switched on it thickens and stops. It never
- * sinks, inverts or fills. Corners follow the control's own radius. */
+ * At rest the rim is hidden, or for `.glass--rest` only its thin uneven line
+ * shows, without the inner bleed; under the pointer the bleed comes in and
+ * the rim flows slowly; pressed or switched on it thickens and stops. It
+ * never sinks, inverts or fills. Corners follow the control's own radius. */
 .glass {
   --glass-cc: var(--glass-clear);
   --glass-edge: 33%;
@@ -73,7 +74,14 @@
 .glass:nth-of-type(4n + 3) { --glass-gx: -168px; --glass-gy: -18px; }
 .glass:nth-of-type(4n + 4) { --glass-gx: -58px; --glass-gy: -186px; }
 
+/* Resting glass keeps only the line (no bleed, a little fainter); hovering
+   or focusing brings the bleed in over the same 0.24s as the flow starts. */
+.glass--rest { --glass-g: 0.85; --glass-sp: 0; }
 .glass--rest::before { opacity: 1; }
+.glass--rest:hover,
+.glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }
+.glass--rest:hover::before,
+.glass--rest:focus-visible::before { transition: opacity 0.24s ease-out, box-shadow 0.24s ease-out; }
 .glass:hover::before,
 .glass:focus-visible::before { opacity: 1; animation-play-state: running; }
 .glass:active,
@@ -83,7 +91,11 @@
 .glass:active::before,
 .glass[aria-pressed='true']::before,
 .glass[aria-expanded='true']::before,
-.glass.is-on::before { opacity: 1; animation-play-state: paused; }
+.glass.is-on::before {
+  opacity: 1;
+  animation-play-state: paused;
+  transition: opacity 0.24s ease-out, box-shadow 0.04s ease-out;
+}
 .glass.glass--round { border-radius: 50%; }
 
 /* A surface that is not a button (a card) only borrows the rim: it flows

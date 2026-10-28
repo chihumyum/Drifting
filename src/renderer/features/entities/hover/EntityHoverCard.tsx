@@ -114,9 +114,10 @@ export function EntityHoverCard({
         maxWidth: 'calc(100vw - 24px)',
         maxHeight: position?.maxHeight ?? 720,
         visibility: position ? 'visible' : 'hidden',
-        background: 'hsl(var(--surface))',
-        border: '1px solid hsl(var(--rule-strong))',
-        boxShadow: 'var(--entity-hover-card-shadow)',
+        // The menus' lifted piece of desk: sidebar colour, hairline, shadow.
+        background: 'var(--menu-surface-bg)',
+        borderRadius: 'var(--menu-surface-radius)',
+        boxShadow: 'var(--menu-surface-shadow)',
         zIndex: 'var(--z-popover)',
         pointerEvents: 'none',
         display: 'flex',

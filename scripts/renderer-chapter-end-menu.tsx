@@ -12,6 +12,7 @@ import { chapterOrderAfter } from '../src/renderer/domain/chapter-insert';
 import type { NodeContent } from '../src/renderer/domain/node-content';
 import '../src/renderer/lib/i18n';
 import '../src/styles/index.css';
+import '../src/styles/materials.css';
 
 const noop = () => {};
 const noColor = () => null;

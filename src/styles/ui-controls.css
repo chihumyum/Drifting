@@ -193,27 +193,87 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   cursor: default;
 }
 
+/* A switch is a glass track with a clean white thumb. Off, the track is
+   resting glass: only the thin uneven line (materials.css `.glass--rest`).
+   On, the whole track holds a still accent-coloured glass bleed cut by the
+   same texture; it never flows, and the thumb sits on top of it untouched.
+   Hovering lets only the clear rim bleed and flow. */
 .ui-switch {
   --switch-width: 32px;
   --switch-height: 18px;
   --switch-thumb: 14px;
   --switch-inset: 2px;
+  --switch-thumb-bg: hsl(var(--page));
   position: relative;
+  isolation: isolate;
   width: var(--switch-width);
   height: var(--switch-height);
   flex-shrink: 0;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: hsl(var(--rule-strong));
+  background: var(--glass-fill);
   cursor: pointer;
-  transition: background 0.15s;
+}
+
+.dark .ui-switch {
+  --switch-thumb-bg: hsl(var(--ink-2));
 }
 
 .ui-switch--sm {
   --switch-width: 22px;
   --switch-height: 12px;
   --switch-thumb: 8px;
+}
+
+.ui-switch::before,
+.ui-switch__tint {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+}
+
+.ui-switch::before {
+  --switch-rim: color-mix(in srgb, var(--glass-clear) 50%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--switch-rim),
+    inset 0 0 0 0 var(--switch-rim);
+  -webkit-mask-position: -14px -46px;
+  mask-position: -14px -46px;
+  animation: switch-rim-flow 15s linear infinite paused;
+  transition: box-shadow 0.24s ease-out;
+}
+
+.ui-switch:hover:not(:disabled)::before,
+.ui-switch:focus-visible::before {
+  --switch-rim: color-mix(in srgb, var(--glass-clear) 59%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--switch-rim),
+    inset 0 0 calc(var(--switch-height) / 2) 1px var(--switch-rim);
+  animation-play-state: running;
+}
+
+.ui-switch__tint {
+  --switch-tint: hsl(var(--accent));
+  opacity: 0;
+  background: color-mix(in srgb, var(--switch-tint) 12%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--switch-tint) 62%, transparent),
+    inset 0 0 calc(var(--switch-height) * 0.4) calc(var(--switch-height) * 0.1)
+      color-mix(in srgb, var(--switch-tint) 55%, transparent);
+  -webkit-mask-position: -96px -132px;
+  mask-position: -96px -132px;
+  transition: opacity 0.22s ease-out;
+}
+
+.ui-switch.is-on .ui-switch__tint {
+  opacity: 1;
 }
 
 .ui-switch::after {
@@ -224,23 +284,40 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   width: var(--switch-thumb);
   height: var(--switch-thumb);
   border-radius: 50%;
-  background: hsl(var(--page));
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+  background: var(--switch-thumb-bg);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.18),
+    0 0 0 0.5px hsl(var(--ink-1) / 0.06);
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ui-switch.is-on {
-  background: hsl(var(--accent));
 }
 
 .ui-switch.is-on::after {
   transform: translateX(calc(var(--switch-width) - var(--switch-thumb) - var(--switch-inset) * 2));
-  background: hsl(var(--paper));
 }
 
 .ui-switch:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+@keyframes switch-rim-flow {
+  from {
+    -webkit-mask-position: -14px -46px;
+    mask-position: -14px -46px;
+  }
+  to {
+    -webkit-mask-position: 136px 104px;
+    mask-position: 136px 104px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-switch::before,
+  .ui-switch__tint,
+  .ui-switch::after {
+    transition: none;
+    animation: none;
+  }
 }
 
 .ghost-icon-button {
@@ -329,10 +406,10 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
    Rich menus may opt into `menu-surface--rich` and own their inner layout while
    retaining the same outer shell.
 
-   The shell is floating glass without a rim of its own: the shared
-   translucent fill, lightly softened underneath, square corners. Only the
-   row under the pointer carries glass: one whole ring of flowing hairline
-   glass around it. Moving between rows only fades one row's ring out and
+   The shell is a piece of the desk lifted out: the sidebar's opaque colour,
+   square corners, a half-pixel hairline and the floating shadow, with no
+   glass of its own. Only the row under the pointer carries glass: one whole
+   ring of flowing hairline glass around it. Moving between rows only fades one row's ring out and
    the next row's in. Rows carry no fill; groups are separated by space,
    not rules. */
 :where(.menu-surface) {
@@ -349,8 +426,6 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   border: 1px solid var(--menu-surface-border);
   border-radius: var(--menu-surface-radius);
   background: var(--menu-surface-bg);
-  -webkit-backdrop-filter: blur(1.6px);
-  backdrop-filter: blur(1.6px);
   box-shadow: var(--menu-surface-shadow);
   color: hsl(var(--ink-2));
   font-family: var(--font-sans);
