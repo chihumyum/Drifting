@@ -14,7 +14,7 @@ import { WorkspaceAccountCell } from '../../components/workspaceChrome/Workspace
 
 export function DesktopLeftSidebar() {
   const { projectId } = useProjectNavigation();
-  const { panes, focusedPane } = useUiStore((s) => s.desktopSidebarTabs.left);
+  const { panes } = useUiStore((s) => s.desktopSidebarTabs.left);
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
   const { bookNodes } = useDataStoreFields('bookNodes');
   const activeTab = openTabs.find(tab => tabKey(tab) === activeTabKey);
@@ -26,10 +26,9 @@ export function DesktopLeftSidebar() {
     const node = bookNodes.find(node => node.id === singleTarget.id);
     if (node) targetTab = isDrift(node) ? 'drift' : 'nodes';
   }
-  // A single visible editor owns one highlight, even with duplicate sidebar
-  // tabs. Historical pane selections remain available for split editors.
-  const selectedPane = panes.find(pane => pane.tab === targetTab && pane.id === focusedPane)
-    ?? panes.find(pane => pane.tab === targetTab);
+  // The open document is highlighted in every pane showing its panel, so two
+  // panes with the same panel both frame it. Split editors keep each pane's
+  // own remembered selection.
   // The account cell spans the whole sidebar foot, below any split panes.
   return (
     <div className="desktop-left-sidebar">
@@ -38,7 +37,7 @@ export function DesktopLeftSidebar() {
         tab,
         header: <LeftSidebarHeader paneId={id} activeTab={tab} windowChrome={index === 0} />,
         content: <SidebarEditorSelectionContext.Provider value={activeTab?.kind === 'split'
-          ? undefined : selectedPane?.id === id ? singleTarget : null}>
+          ? undefined : tab === targetTab ? singleTarget : null}>
           <LeftSidebarSubHeader panel={tab} />
           <div className="desktop-sidebar-panel-host">
             {tab === 'elements' ? <ElementPanel /> : tab === 'drift' ? <DriftPanel /> : <ChapterPanel />}

@@ -215,16 +215,18 @@ describe('desktop sidebar rendered acceptance', () => {
     expect(highlights()).toEqual(['data-highlight="chapter-b"']);
   });
 
-  it('uses just one matching pane when both sidebar panes show the same entity type', () => {
+  it('highlights the open document in both panes when they show the same panel', () => {
     showPanels('nodes', 'nodes');
     remember('primary', 'nodes', { entityType: 'node', id: 'chapter-b' });
     remember('secondary', 'nodes', { entityType: 'node', id: 'chapter-b' });
     state().openEntityTab(projectId, { entityType: 'node', id: 'chapter-a' });
-    expect(highlights()).toEqual(['data-highlight="chapter-a"']);
+    expect(highlights()).toEqual(['data-highlight="chapter-a"', 'data-highlight="chapter-a"']);
+    // Focus moves between panes without taking the frame from either.
     state().focusSidebarPane('left', 'secondary');
-    expect(highlights()).toEqual(['data-highlight="chapter-a"']);
+    expect(highlights()).toEqual(['data-highlight="chapter-a"', 'data-highlight="chapter-a"']);
     const html = renderToStaticMarkup(createElement(DesktopLeftSidebar));
-    expect(html.indexOf('data-highlight="chapter-a"')).toBeGreaterThan(html.indexOf('data-sidebar-pane="secondary"'));
+    expect(html.indexOf('data-highlight="chapter-a"')).toBeLessThan(html.indexOf('data-sidebar-pane="secondary"'));
+    expect(html.lastIndexOf('data-highlight="chapter-a"')).toBeGreaterThan(html.indexOf('data-sidebar-pane="secondary"'));
   });
 
   it('clears entity highlights on project home and when no matching entity row exists', () => {
