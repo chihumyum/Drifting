@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { Maximize2, MessageSquarePlus, Minus, Plus } from 'lucide-react';
+import { Maximize2, MessageSquarePlus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
@@ -45,6 +45,7 @@ import { useZoomPanSurface } from '../features/library/use-zoom-pan-surface';
 import { openLibraryItemInSystem } from '../features/library/open-library-item';
 import { LibraryItemFullscreenPreview } from '../features/library/LibraryItemPreview';
 import { MaterialNotePage } from './MaterialNotePage';
+import { BrushIcon } from '../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('MaterialEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -511,7 +512,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
               <MessageSquarePlus size={13} />
             </button>
             <button type="button" title={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
-              <Minus size={13} />
+              <BrushIcon name="minus" size={13} />
             </button>
             <button type="button" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
               {Math.round(zoomPan.viewport.scale * 100)}%

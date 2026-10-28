@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { X, Database, Server, RefreshCw, Copy, Check } from 'lucide-react';
+import { Database, Server, RefreshCw } from 'lucide-react';
 import { debugApi, type DebugData } from '../../services/api/debug-api';
 import { useAuthStore } from '../../store/auth';
 import loglevel from 'loglevel';
@@ -19,6 +19,7 @@ import {
   BookElementTable,
   ElementCategoryTable,
 } from '../../schema/drizzle';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface DebugModalProps {
   isOpen: boolean;
@@ -118,7 +119,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
             onClick={() => copyToClipboard(data)}
             className="flex items-center gap-1 rounded-[1px] bg-gray-100 px-2 py-1 text-xs transition-colors hover:bg-gray-200"
           >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? <BrushIcon name="check" size={14} /> : <BrushIcon name="copy" size={14} />}
             {copied ? '已复制' : '复制'}
           </button>
         </div>
@@ -284,7 +285,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               {loading ? '加载中...' : '刷新数据'}
             </button>
             <button onClick={onClose} className="rounded-[1px] p-1 transition-colors hover:bg-gray-100">
-              <X size={20} />
+              <BrushIcon name="close" size={20} />
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, FileText, Folder, FolderOpen, FolderPlus, MoreHorizontal } from 'lucide-react';
+import { FileText, MoreHorizontal } from 'lucide-react';
 
 import type { LibraryItem } from '../../domain/library-item';
 import { extractTextFromCommentBody } from '../../domain/comment';
@@ -22,6 +22,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { NoteExcerpt } from './NoteExcerpt';
 import { useStoredLibraryItemVariant } from './library-item-media';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 const MATERIAL_DRAG = 'application/x-drifting-material';
 const FOLDER_DRAG = 'application/x-drifting-material-folder';
@@ -325,16 +326,15 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         onContextMenu={(event) => openMenu(event, entry)}
       >
         {disclosure ? (
-          <ChevronRight
+          <BrushIcon
+            name="chevron-right"
             size={11}
-            strokeWidth={1.8}
             className={`material-tree__chevron${open ? ' material-tree__chevron--open' : ''}`}
-            aria-hidden
           />
         ) : (
           <span className="material-tree__chevron-space" aria-hidden />
         )}
-        {open && disclosure ? <FolderOpen size={13} strokeWidth={1.6} aria-hidden /> : <Folder size={13} strokeWidth={1.6} aria-hidden />}
+        {open && disclosure ? <BrushIcon name="folder-open" size={13} /> : <BrushIcon name="folder" size={13} />}
         {renamingKey === entry.key ? (
           <NameInput
             initial={folder.name}
@@ -495,7 +495,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
           </button>
           {breadcrumb.map((folder) => (
             <span key={folder.id}>
-              <ChevronRight size={10} strokeWidth={1.8} aria-hidden />
+              <BrushIcon name="chevron-right" size={10} />
               <button type="button" onClick={() => onCurrentFolderChange(folder.id)}>
                 {folder.name}
               </button>
@@ -508,7 +508,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
             aria-label={t('materialFolders.menu.newFolder')}
             onClick={() => void newFolder(mobileKey === ROOT_FOLDER_KEY ? null : mobileKey)}
           >
-            <FolderPlus size={13} strokeWidth={1.6} />
+            <BrushIcon name="folder-plus" size={13} />
           </button>
         </nav>
       )}
@@ -637,7 +637,7 @@ function MaterialCell({
             onTogglePreview();
           }}
         >
-          <ChevronRight size={12} strokeWidth={1.8} aria-hidden />
+          <BrushIcon name="chevron-right" size={12} />
         </button>
       </div>
       {previewOpen && (

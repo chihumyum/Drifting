@@ -8,16 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  AlertTriangle,
-  Ban,
-  CheckCircle2,
-  Cloud,
-  Loader2,
-  Sparkles,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Cloud, Sparkles } from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { BrushIcon } from '../ui/BrushIcon';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
@@ -66,11 +57,7 @@ function sourceLabel(
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
   if (n.state === 'running') {
     return (
-      <Loader2
-        size={size}
-        strokeWidth={2}
-        style={{ animation: 'drift-spin 0.9s linear infinite' }}
-      />
+      <BrushIcon name="loader" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />
     );
   }
   if (n.state === 'stopped') return <Ban size={size} strokeWidth={2} />;
@@ -327,7 +314,7 @@ function NotificationCenter({
               borderRadius: 4,
             }}
           >
-            <Trash2 size={12} /> {t('notifications.clear')}
+            <BrushIcon name="trash" size={12} /> {t('notifications.clear')}
           </button>
         )}
       </div>
@@ -453,7 +440,7 @@ function NotificationCenter({
                   alignSelf: 'flex-start',
                 }}
               >
-                <X size={13} />
+                <BrushIcon name="close" size={13} />
               </button>
             </div>
           ))}

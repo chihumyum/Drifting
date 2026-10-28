@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, LoaderCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -22,6 +21,7 @@ import {
   createUniversalSubmissionGate,
 } from './desktop-universal-create';
 import '../../../../styles/desktop-universal-create.css';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('DesktopUniversalCreateView');
 
@@ -189,7 +189,7 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
               })
             }
           >
-            <ArrowLeft size={15} aria-hidden />
+            <BrushIcon name="arrow-back" size={15} />
             {t('universalCreate.back')}
           </button>
         )}
@@ -228,7 +228,7 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
                     <span>{t(`universalCreate.kinds.${kind}.description`)}</span>
                   </span>
                   {isCreating && tab.draft.entityKind === kind ? (
-                    <LoaderCircle className="universal-create__spinner" size={16} aria-hidden />
+                    <BrushIcon name="loader" size={16} className="universal-create__spinner" />
                   ) : (
                     <span className="universal-create__kind-action">
                       {t(
@@ -344,7 +344,7 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
               disabled={!canSubmit}
               onClick={() => selectedKind && void commit(selectedKind)}
             >
-              {isCreating && <LoaderCircle className="universal-create__spinner" size={16} />}
+              {isCreating && <BrushIcon name="loader" size={16} className="universal-create__spinner" />}
               {isCreating ? t('universalCreate.creating') : t('universalCreate.submit')}
             </button>
           </section>

@@ -17,6 +17,21 @@ movable-type.png            keyboard shortcuts: rows of type blocks
 case-dew.png                import: a 垂露 stroke let down into an open case
 books.png                   bookshelf: three volumes, the last one leaning
 gate-in / gate-out          sign in / sign out: a stroke through a door frame
+
+Small glyphs, 9–16px, drawn a little heavier and finished with fine grain
+(solid ink, a light dither only at the edges, no loose grains):
+
+close.png                   two even diagonal strokes
+arrow-back / arrow-forward  a 「く」 head and a shaft; forward is its mirror
+chevron-down/right/up/left  one even stroke down and up, turned four ways
+check.png                   a short press, then a long flick drying out
+minus.png                   one level stroke
+loader.png                  an ensō a quarter short (spun in CSS)
+trash.png                   a waste-paper basket (字纸篓) with a cross inside
+search.png                  an ensō and a short heavy handle
+copy.png                    one sheet over another, a little offset
+stop.png                    a square seal pressed solid
+folder / folder-open / folder-plus   a cloth book case (书帙) shut, opened, and with a plus
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -100,6 +115,13 @@ def grain(alpha, rng, loose=0.006):
             near |= np.roll(np.roll(from_edge, dy, 0), dx, 1)
     toss = (rng.random((h, w)) < loose) & near & (alpha < 0.02)
     return np.where(toss, 0.35 + 0.3 * rng.random((h, w)), out)
+
+def grain_fine(alpha, rng):
+    """Finer sand for small glyphs: most of the stroke stays solid."""
+    h, w = alpha.shape
+    g = rng.random((h, w))
+    dither = (g < alpha * 1.2).astype(float) * (0.75 + 0.25 * rng.random((h, w)))
+    return np.clip(alpha * 0.7 + dither * 0.3, 0, 1)
 
 # ── Paths ──
 
@@ -211,14 +233,18 @@ def sprout(rng):
     return a
 
 def shikigami(rng):
-    """式神: a paper doll cut flat, an eye drawn where its head would be."""
+    """式神: a paper doll cut flat, an eye where its head would be — the eye
+    inked solid, its pupil left white."""
     a = new()
     pts = [(36, 35), (12, 37), (12, 48), (36, 47), (38, 65), (31, 90), (44, 90), (48, 73),
            (52, 90), (65, 90), (58, 65), (60, 47), (84, 48), (84, 37), (60, 35)]
     fill_poly(a, pts, rng, rough=0.9)
-    brush(a, curve([(22, 17), (34, 6), (62, 5), (74, 16)]), 3.4, rng, load0=1.0, dry=0.3, taper=(0.1, 0.15))
-    brush(a, curve([(23, 18), (36, 28), (60, 28), (73, 17)]), 3.1, rng, load0=0.9, dry=0.35, taper=(0.1, 0.15))
-    disc(a, 48, 17, 6.8, rng, wob=0.06)
+    upper = curve([(20, 18), (32, 5), (64, 4), (76, 17)], 12)
+    lower = curve([(76, 17), (62, 30), (34, 30), (20, 18)], 12)
+    fill_poly(a, upper + lower, rng, rough=0.7)
+    pupil = new()
+    disc(pupil, 48, 17, 6.6, np.random.default_rng(17), wob=0.05)
+    erase(a, np.clip(pupil * 1.3, 0, 1))
     return a
 
 # ── Dock ──
@@ -352,6 +378,95 @@ def gate_out(rng):
     """Sign out: the stroke led back out."""
     a = new(); door_frame(a, rng, 10, 60); arrow(a, rng, 32, 92); return a
 
+# ── Small glyphs ──
+
+G = 4.0   # glyph stroke radius
+
+def close(rng):
+    a = new()
+    brush(a, line((20, 20), (76, 76)), G, rng, load0=1.0, dry=0.25, taper=(0.08, 0.12))
+    brush(a, line((76, 20), (20, 76)), G, rng, load0=1.0, dry=0.25, taper=(0.08, 0.12))
+    return a
+
+def arrow_back(rng):
+    a = new()
+    brush(a, poly((44, 22), (16, 48), (44, 74), n=24), G, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    brush(a, line((18, 48), (84, 48)), G, rng, load0=1.0, dry=0.35, taper=(0.04, 0.15))
+    return a
+
+def chevron_down(rng):
+    a = new()
+    brush(a, poly((20, 34), (48, 64), (76, 34), n=24), G * 1.1, rng, load0=1.0, dry=0.2, taper=(0.08, 0.08))
+    return a
+
+def check(rng):
+    a = new()
+    brush(a, line((16, 50), (38, 74), 16), G * 1.1, rng, load0=1.0, dry=0.0, taper=(0.3, 0.0))
+    brush(a, curve([(38, 74), (58, 48), (84, 18)]), G * 1.15, rng, load0=1.0, dry=0.4, taper=(0.0, 0.6))
+    return a
+
+def minus(rng):
+    a = new(); brush(a, line((18, 49), (78, 47)), G * 1.05, rng, load0=1.0, dry=0.3, taper=(0.08, 0.15)); return a
+
+def loader(rng):
+    a = new(); brush(a, arc(48, 48, 30, 30, -90, 190, 120), G * 1.05, rng, load0=1.0, dry=0.6, taper=(0.04, 0.35)); return a
+
+def trash(rng):
+    a = new()
+    brush(a, poly((14, 34), (24, 86), (72, 86), (82, 34), n=24), G * 0.9, rng, load0=1.0, dry=0.2, taper=(0.03, 0.05))
+    brush(a, line((10, 34), (86, 34)), G, rng, load0=1.0, dry=0.15, taper=(0.04, 0.05))
+    brush(a, line((34, 46), (62, 76), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
+    brush(a, line((62, 46), (34, 76), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
+    return a
+
+def search(rng):
+    a = new()
+    brush(a, arc(40, 40, 24, 24, -120, 250, 120), G, rng, load0=1.0, dry=0.3, taper=(0.04, 0.12))
+    brush(a, line((58, 58), (84, 84)), G * 1.45, rng, load0=1.0, dry=0.15, taper=(0.05, 0.15))
+    return a
+
+def copy(rng):
+    a = new()
+    brush(a, poly((14, 64), (14, 12), (62, 12), n=22), G * 0.8, rng, load0=0.9, dry=0.2, taper=(0.03, 0.08))
+    brush(a, poly((32, 30), (82, 30), (82, 84), (32, 84), (32, 30), n=22), G * 0.8, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    return a
+
+def stop(rng):
+    a = new()
+    c, s = np.cos(0.05), np.sin(0.05)
+    R = lambda x, y: (48 + (x - 48) * c - (y - 48) * s, 48 + (x - 48) * s + (y - 48) * c)
+    fill_poly(a, [R(22, 22), R(74, 22), R(74, 74), R(22, 74)], rng, rough=0.9)
+    return a
+
+def folder(rng):
+    """书帙: the case closed round its sheets, a bone clasp holding it."""
+    a = new()
+    brush(a, poly((12, 30), (84, 30), (84, 82), (12, 82), (12, 30), n=26), G * 0.85, rng, load0=1.0, dry=0.2, taper=(0.02, 0.02))
+    brush(a, line((12, 44), (84, 44), 24), G * 0.55, rng, load0=0.85, dry=0.2, taper=(0.03, 0.03))
+    brush(a, line((76, 56), (94, 56), 10), G * 0.8, rng, load0=1.0, dry=0.1, taper=(0.02, 0.02))
+    disc(a, 92, 56, 3.8, rng)
+    return a
+
+def folder_open(rng):
+    """The case's flap folded back, the sheets showing."""
+    a = new()
+    brush(a, poly((12, 44), (12, 82), (84, 82), (84, 44), n=24), G * 0.85, rng, load0=1.0, dry=0.2, taper=(0.02, 0.02))
+    brush(a, poly((12, 44), (26, 14), (94, 14), (84, 44), n=22), G * 0.75, rng, load0=0.95, dry=0.25, taper=(0.03, 0.05))
+    for y in (56, 68):
+        brush(a, line((24, y), (70, y), 16), G * 0.5, rng, load0=0.85, dry=0.3, taper=(0.05, 0.1))
+    return a
+
+def folder_plus(rng):
+    """The closed case, a plus at its lower right."""
+    a = new()
+    brush(a, poly((12, 30), (66, 30), n=24), G * 0.85, rng, load0=1.0, dry=0.2, taper=(0.02, 0.02))
+    brush(a, poly((84, 46), (84, 30), (66, 30), n=12), G * 0.85, rng, load0=1.0, dry=0.2, taper=(0.02, 0.02))
+    brush(a, poly((12, 30), (12, 82), (56, 82), n=24), G * 0.85, rng, load0=1.0, dry=0.2, taper=(0.02, 0.02))
+    brush(a, line((12, 44), (60, 44), 18), G * 0.55, rng, load0=0.85, dry=0.2, taper=(0.03, 0.03))
+    brush(a, line((62, 64), (88, 64), 14), G * 0.85, rng, load0=1.0, dry=0.1, taper=(0.05, 0.05))
+    brush(a, line((75, 51), (75, 77), 14), G * 0.85, rng, load0=1.0, dry=0.1, taper=(0.05, 0.05))
+    return a
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -361,7 +476,23 @@ ICONS = {
     "dharma-wheel": (dharma_wheel, 639), "movable-type": (movable_type, 640), "case-dew": (case_dew, 902),
     "books": (books, 646), "gate-in": (gate_in, 904), "gate-out": (gate_out, 905),
 }
+GLYPHS = {
+    "close": (close, 1002), "arrow-back": (arrow_back, 1004), "chevron-down": (chevron_down, 1010),
+    "check": (check, 1016), "minus": (minus, 1019), "loader": (loader, 1021), "trash": (trash, 1099),
+    "search": (search, 1032), "copy": (copy, 1033), "stop": (stop, 1036),
+    "folder": (folder, 1038), "folder-open": (folder_open, 1039), "folder-plus": (folder_plus, 1040),
+}
+masks = {}
 for name, (draw, seed) in ICONS.items():
     rng = np.random.default_rng(seed)
-    write_png(OUT / f"{name}.png", grain(draw(rng), rng))
-print(sorted(ICONS))
+    masks[name] = grain(draw(rng), rng)
+for name, (draw, seed) in GLYPHS.items():
+    rng = np.random.default_rng(seed)
+    masks[name] = grain_fine(draw(rng), rng)
+# One stroke turned or mirrored, so every direction carries the same grain.
+masks["arrow-forward"] = masks["arrow-back"][:, ::-1]
+for k, name in ((1, "chevron-right"), (2, "chevron-up"), (3, "chevron-left")):
+    masks[name] = np.rot90(masks["chevron-down"], k)
+for name, a in masks.items():
+    write_png(OUT / f"{name}.png", np.ascontiguousarray(a))
+print(sorted(masks))

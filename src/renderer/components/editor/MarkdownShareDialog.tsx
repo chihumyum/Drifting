@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Copy, Download, FileText, RotateCcw } from 'lucide-react';
+import { Download, FileText, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { platform } from '../../platform';
 import type { MarkdownShareDocument, MarkdownShareTarget } from '../../services/export/markdown-share';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 import '../../../styles/markdown-share.css';
+import { BrushIcon } from '../ui/BrushIcon';
 
 export function MarkdownShareDialog({ target, onClose }: {
   target: MarkdownShareTarget;
@@ -123,7 +124,7 @@ export function MarkdownShareDialog({ target, onClose }: {
               <Download size={14} />{t(action === 'save' ? 'markdownShare.saving' : 'markdownShare.save')}
             </Button>
             <Button variant="primary" disabled={!document || action !== null} onClick={() => void run('copy')}>
-              <Copy size={14} />{t(action === 'copy' ? 'markdownShare.copying' : 'markdownShare.copy')}
+              <BrushIcon name="copy" size={14} />{t(action === 'copy' ? 'markdownShare.copying' : 'markdownShare.copy')}
             </Button>
           </ModalActions>
         </div>

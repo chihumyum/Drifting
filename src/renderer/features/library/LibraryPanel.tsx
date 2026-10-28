@@ -1,6 +1,6 @@
 import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FolderPlus, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { useTranslation } from 'react-i18next';
@@ -322,7 +322,7 @@ function Toolbar({
         )}
         {onNewFolder && (
           <ToolbarIconButton title={t('materialFolders.menu.newFolder')} onClick={onNewFolder}>
-            <FolderPlus size={12} strokeWidth={1.6} />
+            <BrushIcon name="folder-plus" size={12} />
           </ToolbarIconButton>
         )}
         <button

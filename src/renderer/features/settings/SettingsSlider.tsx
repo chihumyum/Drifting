@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   adjustSettingsSliderValue,
@@ -8,6 +7,7 @@ import {
   parseSettingsSliderValue,
   type SettingsSliderBounds,
 } from './settings-slider-value';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 export function SettingsSlider({
   label,
@@ -107,7 +107,7 @@ export function SettingsSlider({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => adjust(1)}
             >
-              <ChevronUp size={12} aria-hidden="true" />
+              <BrushIcon name="chevron-up" size={12} />
             </button>
             <button
               type="button"
@@ -117,7 +117,7 @@ export function SettingsSlider({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => adjust(-1)}
             >
-              <ChevronDown size={12} aria-hidden="true" />
+              <BrushIcon name="chevron-down" size={12} />
             </button>
           </span>
         </span>

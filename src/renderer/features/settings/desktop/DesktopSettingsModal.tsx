@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { matchesAccelerator } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
@@ -21,6 +20,7 @@ import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
 } from '../hosted-settings-policy';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 interface DesktopSettingsModalProps {
   isOpen: boolean;
@@ -391,7 +391,7 @@ function SetHead({
           title={t('navigation.back')}
           aria-label={t('navigation.back')}
         >
-          <ArrowLeft size={16} strokeWidth={1.7} aria-hidden="true" />
+          <BrushIcon name="arrow-back" size={16} />
         </button>
         <div className="set-head__title">{t('settings.title')}</div>
       </div>

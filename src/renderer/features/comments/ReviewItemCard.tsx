@@ -1,18 +1,6 @@
 import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  ArrowLeft,
-  Check,
-  ListTodo,
-  MessageSquare,
-  MoreHorizontal,
-  Pencil,
-  RotateCcw,
-  Sparkles,
-  StickyNote,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ListTodo, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Sparkles, StickyNote } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -49,6 +37,7 @@ import { TodoStatusToggle } from './TodoStatusToggle';
 import { CommentSourceHoverCard } from './CommentSourceHoverCard';
 import { useCommentSourceHover } from './use-comment-source-hover';
 import { buildTodoAgentTask } from './todo-agent-task';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 const launchingTodoTasks = new Set<string>();
 
@@ -341,7 +330,7 @@ export function ReviewItemCard({
             title={t('reviewPanel.jumpToText')}
             aria-label={t('reviewPanel.jumpToText')}
           >
-            <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
+            <BrushIcon name="arrow-back" size={10} />
           </button>
         )}
         <span className="review-card__status">
@@ -370,7 +359,7 @@ export function ReviewItemCard({
           <GhostIconButton
             size="sm"
             className="review-card__close-button"
-            icon={<X size={13} />}
+            icon={<BrushIcon name="close" size={13} />}
             onClick={onRemoveFromStickyRail}
             title={t('reviewPanel.removeSticky')}
             aria-label={t('reviewPanel.removeSticky')}
@@ -450,7 +439,7 @@ export function ReviewItemCard({
         >
           {presentation === 'panel' && onToggleStickyRail && (
             <ReviewActionMenuItem
-              icon={mountedInStickyRail ? <X size={12} /> : <StickyNote size={12} />}
+              icon={mountedInStickyRail ? <BrushIcon name="close" size={12} /> : <StickyNote size={12} />}
               label={mountedInStickyRail ? t('reviewPanel.removeSticky') : t('reviewPanel.addSticky')}
               checked={mountedInStickyRail}
               onSelect={() => selectMenuAction(onToggleStickyRail)}
@@ -478,13 +467,13 @@ export function ReviewItemCard({
             <>
               <div className="menu-surface__divider" />
               <ReviewActionMenuItem
-                icon={<Check size={12} />}
+                icon={<BrushIcon name="check" size={12} />}
                 label={summary?.actionLabel ?? t('commentRail.actions.accept')}
                 disabled={busy}
                 onSelect={() => selectMenuAction(() => void run(acceptSuggestion))}
               />
               <ReviewActionMenuItem
-                icon={<X size={12} />}
+                icon={<BrushIcon name="close" size={12} />}
                 label={t('commentRail.actions.reject')}
                 disabled={busy}
                 onSelect={() =>
@@ -499,7 +488,7 @@ export function ReviewItemCard({
             <>
               <div className="menu-surface__divider" />
               <ReviewActionMenuItem
-                icon={isResolved ? <RotateCcw size={12} /> : <Check size={12} />}
+                icon={isResolved ? <RotateCcw size={12} /> : <BrushIcon name="check" size={12} />}
                 label={
                   isResolved ? t('commentRail.actions.reopen') : t('commentRail.actions.resolve')
                 }
@@ -532,7 +521,7 @@ export function ReviewItemCard({
           )}
           <div className="menu-surface__divider" />
           <ReviewActionMenuItem
-            icon={<Trash2 size={12} />}
+            icon={<BrushIcon name="trash" size={12} />}
             label={t('common.delete')}
             danger
             disabled={busy}

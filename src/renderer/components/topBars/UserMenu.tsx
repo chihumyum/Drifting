@@ -1,6 +1,5 @@
 import { useSettingsPreloadIntent } from '../../features/settings/useSettingsPanels';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
@@ -159,7 +158,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 cursor: 'pointer',
               }}
             >
-              <ChevronLeft size={15} strokeWidth={1.6} />
+              <BrushIcon name="chevron-left" size={15} />
             </button>
             <span
               style={{
@@ -223,7 +222,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             <MenuItem
               icon={<BrushIcon name="jizo" size={13} />}
               label="Copilot"
-              tail={<ChevronRight size={13} strokeWidth={1.6} />}
+              tail={<BrushIcon name="chevron-right" size={13} />}
               onClick={() => setActiveSettingsPage('copilot')}
             />
           </MenuGroup>

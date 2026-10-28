@@ -16,7 +16,7 @@
  * inferred title, then commits the whole batch on click.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Folder, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
@@ -27,6 +27,7 @@ import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { inferFormat, orderImportFiles, parseFile, type ImportTarget, type ParsedDoc } from '../../services/import';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface ImportDialogProps {
   open: boolean;
@@ -343,7 +344,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
               <FileText size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
             </button>
             <button type="button" className="set-btn" onClick={onPickFolder} disabled={running}>
-              <Folder size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFolder')}
+              <BrushIcon name="folder" size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFolder')}
             </button>
             <span style={{ flex: 1 }} />
             {items.length > 0 && (
@@ -470,7 +471,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                     }}
                     title={t('common.delete')}
                   >
-                    <Trash2 size={12} />
+                    <BrushIcon name="trash" size={12} />
                   </button>
                 </div>
               );

@@ -10,7 +10,7 @@ import { FilterChip } from '../components/ui/FilterChip';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
-import { BookOpen, Grid2X2, List, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Grid2X2, List, Pencil, Plus } from 'lucide-react';
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
@@ -23,6 +23,7 @@ import { events } from '../lib/events';
 import { canUseHostedService } from '../lib/config';
 import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
+import { BrushIcon } from '../components/ui/BrushIcon';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -495,7 +496,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         {/* ─── Toolbar ─── */}
         <div className="pp-toolbar">
           <label className="pp-toolbar__search">
-            <Search size={17} aria-hidden="true" />
+            <BrushIcon name="search" size={17} />
             <input
               type="search"
               value={query}
@@ -567,7 +568,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                   className="pp-section__trash"
                   onClick={() => setTrashOpen(true)}
                 >
-                  <Trash2 size={13} aria-hidden="true" />
+                  <BrushIcon name="trash" size={13} />
                   {t('projectPicker.trash.entry', { count: trashed.length })}
                 </button>
               )}
@@ -747,7 +748,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
               title={t('common.delete')}
               aria-label={t('common.delete')}
             >
-              <Trash2 size={15} aria-hidden="true" />
+              <BrushIcon name="trash" size={15} />
             </button>
           </div>
         </div>
@@ -858,7 +859,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
           title={t('common.delete')}
           aria-label={t('common.delete')}
         >
-          <Trash2 size={15} aria-hidden="true" />
+          <BrushIcon name="trash" size={15} />
         </button>
       </div>
       <button

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { useDataStoreFields } from '../../../store/use-data-store-fields';
@@ -33,6 +32,7 @@ import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item'
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { openLibraryItemInSystem as openInSystemApp } from '../../../features/library/open-library-item';
 import { getPlatformRuntime } from '../../../platform/runtime';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 const KIND_ORDER: LibraryItemKind[] = ['text', 'image', 'pdf'];
 
@@ -505,12 +505,12 @@ function EntityFilterButton({
           >
             {label}
           </span>
-          {!entityFilter.kind && <ChevronDown size={12} aria-hidden="true" />}
+          {!entityFilter.kind && <BrushIcon name="chevron-down" size={12} />}
         </button>
         {entityFilter.kind && (
           <GhostIconButton
             size="sm"
-            icon={<X size={13} aria-hidden="true" />}
+            icon={<BrushIcon name="close" size={13} />}
             aria-label={t('memoMaterial.super.clearEntityFilter')}
             title={t('memoMaterial.super.clearEntityFilter')}
             onClick={() => {
@@ -1141,7 +1141,8 @@ function BottomDrawer({
             <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedTodos.length}</span>
           </span>
         </span>
-        <ChevronUp
+        <BrushIcon
+          name="chevron-up"
           size={12}
           style={{
             transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',

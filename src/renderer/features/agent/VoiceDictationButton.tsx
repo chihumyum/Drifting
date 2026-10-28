@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Mic, Square } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   buildVoiceContextPackFromStores,
@@ -7,6 +7,7 @@ import {
 } from '../../lib/speech/voice-context-pack';
 import { useProjectStore } from '../../store/project-store';
 import { useVoiceCaptureStore } from '../../store/voice-capture-store';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /** How long the "restored N proper nouns" note stays beside an idle mic. */
 const CORRECTION_NOTE_MS = 8000;
@@ -101,9 +102,9 @@ export function VoiceDictationButton({
         aria-pressed={phase === 'recording'}
       >
         {phase === 'recording' ? (
-          <Square size={14} aria-hidden="true" />
+          <BrushIcon name="stop" size={14} />
         ) : phase === 'transcribing' ? (
-          <Loader2 size={15} aria-hidden="true" className="agt-mic__spin" />
+          <BrushIcon name="loader" size={15} className="agt-mic__spin" />
         ) : (
           <Mic size={15} aria-hidden="true" />
         )}

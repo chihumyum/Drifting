@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
@@ -642,7 +642,7 @@ function CreateTabSlot({
           onClose();
         }}
       >
-        <X size={12} strokeWidth={2} />
+        <BrushIcon name="close" size={12} />
       </button>
     </div>
   );
@@ -784,7 +784,7 @@ function LeafTabSlot({
           event.currentTarget.style.color = 'hsl(var(--ink-3))';
         }}
       >
-        <X size={12} strokeWidth={2} />
+        <BrushIcon name="close" size={12} />
       </button>
     </div>
   );
@@ -1008,7 +1008,7 @@ function SplitSubLabel({
           event.currentTarget.style.color = 'hsl(var(--ink-4))';
         }}
       >
-        <X size={10} strokeWidth={2} />
+        <BrushIcon name="close" size={10} />
       </button>
     </div>
   );

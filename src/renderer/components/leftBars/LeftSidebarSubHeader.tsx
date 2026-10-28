@@ -1,6 +1,6 @@
 import { useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Minus, ArrowDownUp, Plus, FolderPlus } from 'lucide-react';
+import { ArrowDownUp, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -423,7 +423,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
           title={t('leftSidebar.actions.newDriftGroup')}
           onClick={() => void handleCreateDriftGroup()}
         >
-          <FolderPlus size={12} strokeWidth={1.6} />
+          <BrushIcon name="folder-plus" size={12} />
         </SubIconBtn>
       );
     }
@@ -499,7 +499,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
             toggles its storyline lanes individually, so it's excluded. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
           <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>
-            <Minus size={11} strokeWidth={1.6} />
+            <BrushIcon name="minus" size={11} />
           </SubIconBtn>
         )}
         <SubIconBtn

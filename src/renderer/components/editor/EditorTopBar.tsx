@@ -1,4 +1,4 @@
-import { Check, Share2 } from 'lucide-react';
+import { Share2 } from 'lucide-react';
 import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -325,7 +325,7 @@ function EditorBarMenu({
                     }}
                   >
                     <span>{getWritingStatusLabel(status, translate)}</span>
-                    {active && <Check size={12} />}
+                    {active && <BrushIcon name="check" size={12} />}
                   </button>
                 );
               })}

@@ -960,7 +960,8 @@
   color: hsl(var(--ink-1));
 }
 
-.material-tree__row svg {
+.material-tree__row svg,
+.material-tree__row .brush-icon {
   flex-shrink: 0;
   color: hsl(var(--ink-4));
 }
@@ -1140,11 +1141,11 @@
   color: hsl(var(--ink-1));
 }
 
-.material-tree__preview-toggle svg {
+.material-tree__preview-toggle .brush-icon {
   transition: transform 120ms ease;
 }
 
-.material-tree__preview-toggle--open svg {
+.material-tree__preview-toggle--open .brush-icon {
   transform: rotate(90deg);
 }
 
@@ -1247,7 +1248,7 @@
   color: hsl(var(--ink-1));
 }
 
-.material-folder-picker__row svg {
+.material-folder-picker__row .brush-icon {
   flex-shrink: 0;
   color: hsl(var(--ink-4));
 }

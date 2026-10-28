@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image as ImageIcon, ImagePlus, Loader2, Maximize2, Sparkles, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, ImagePlus, Maximize2, Sparkles } from 'lucide-react';
 import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import type { ImageInboxEntry } from '../../platform';
 import { ElementImageCandidates } from './ElementImageCandidates';
 import { ElementImageGenerateForm } from './ElementImageGenerateForm';
 import type { useElementImageWorkflow } from './useElementImageWorkflow';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 interface ElementImageEntryProps {
   /** Loaded display URL of the element image, when there is one. */
@@ -72,7 +73,7 @@ export function ElementImageEntry({
         )}
         {generating ? (
           <span className="editor-bar__spinner" aria-hidden>
-            <Loader2 size={10} />
+            <BrushIcon name="loader" size={10} />
           </span>
         ) : candidateCount > 0 ? (
           <span className="editor-bar__badge">{candidateCount}</span>
@@ -158,7 +159,7 @@ export function ElementImageEntry({
                   disabled={busy}
                   onClick={closeThen(onRemove)}
                 >
-                  <Trash2 size={14} aria-hidden />
+                  <BrushIcon name="trash" size={14} />
                   {t('elementEditor.imageEntry.remove')}
                 </button>
               )}

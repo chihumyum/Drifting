@@ -5,7 +5,7 @@ import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Folder, FolderPlus, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { canonicalWordCount, isDrift, type BookNode } from '../../domain/book-node';
@@ -42,6 +42,7 @@ import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('DriftPanel');
 log.setLevel(loglevel.levels.WARN);
@@ -429,7 +430,7 @@ export function DriftPanel({
             name={group.name}
             count={descIds.length}
             color={group.color || 'hsl(var(--ink-4))'}
-            glyph={<Folder size={11} strokeWidth={1.8} />}
+            glyph={<BrushIcon name="folder" size={11} />}
             collapsed={collapsed}
             onToggleCollapsed={() => toggleCollapsed(group.id)}
             onClick={() => toggleCollapsed(group.id)}
@@ -457,7 +458,7 @@ export function DriftPanel({
                     height: 18,
                   }}
                 >
-                  <FolderPlus size={12} strokeWidth={1.6} />
+                  <BrushIcon name="folder-plus" size={12} />
                 </button>
               ) : undefined
             }
@@ -494,9 +495,9 @@ export function DriftPanel({
           }}
         >
           {collapsed ? (
-            <ChevronRight size={9} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <BrushIcon name="chevron-right" size={9} style={{ flexShrink: 0 }} />
           ) : (
-            <ChevronDown size={9} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <BrushIcon name="chevron-down" size={9} style={{ flexShrink: 0 }} />
           )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {group.name}

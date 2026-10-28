@@ -1,6 +1,6 @@
 import { useSidebarPreference, useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, ChevronRight, ListPlus, MessageSquarePlus } from 'lucide-react';
+import { ArrowDownUp, ListPlus, MessageSquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -40,6 +40,7 @@ import { FilterChip } from '../ui/FilterChip';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
+import { BrushIcon } from '../ui/BrushIcon';
 
 type ReviewTypeFilter = 'all' | 'comment' | 'todo';
 type ComposeKind = 'note' | 'todo';
@@ -287,7 +288,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
             aria-label={t(collapsed ? 'reviewPanel.groups.expand' : 'reviewPanel.groups.collapse', { name: title })}
             onClick={toggle}
           >
-            <ChevronRight size={11} strokeWidth={1.8} />
+            <BrushIcon name="chevron-right" size={11} />
           </button>
           <button
             type="button"

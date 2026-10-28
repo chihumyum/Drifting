@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Folder, FolderOpen } from 'lucide-react';
 
 import { flattenMaterialFolders } from '../../domain/material-folder';
 import { useDataStore } from '../../store/data-store';
 import { useMaterialFolder } from '../../usecase/useMaterialFolder';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/ui/Modal';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /** Chooses a material folder (or the root) to move materials and folders into. */
 export function MaterialFolderPicker({
@@ -53,7 +53,7 @@ export function MaterialFolderPicker({
               className={`material-folder-picker__row${currentFolderId === null ? ' material-folder-picker__row--current' : ''}`}
               onClick={() => onPick(null)}
             >
-              <FolderOpen size={13} strokeWidth={1.6} aria-hidden />
+              <BrushIcon name="folder-open" size={13} />
               <span>{t('materialFolders.root')}</span>
             </button>
             {rows.map(({ folder, depth }) => (
@@ -68,7 +68,7 @@ export function MaterialFolderPicker({
                 style={{ paddingLeft: 10 + (depth + 1) * 14 }}
                 onClick={() => onPick(folder.id)}
               >
-                <Folder size={13} strokeWidth={1.6} aria-hidden />
+                <BrushIcon name="folder" size={13} />
                 <span>{folder.name}</span>
               </button>
             ))}
