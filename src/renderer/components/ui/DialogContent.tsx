@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { X } from 'lucide-react';
 import { GhostIconButton } from './GhostIconButton';
+import { BrushIcon } from './BrushIcon';
 
 export interface DialogHeaderProps {
   title: ReactNode;
@@ -29,7 +29,7 @@ export function DialogHeader({
       </div>
       {onClose && (
         <GhostIconButton
-          icon={<X size={16} strokeWidth={1.6} />}
+          icon={<BrushIcon name="close" size={16} />}
           onClick={onClose}
           title={closeLabel}
           aria-label={closeLabel}

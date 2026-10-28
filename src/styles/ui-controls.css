@@ -193,27 +193,87 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   cursor: default;
 }
 
+/* A switch is a glass track with a clean white thumb. Off, the track is
+   resting glass: only the thin uneven line (materials.css `.glass--rest`).
+   On, the whole track holds a still accent-coloured glass bleed cut by the
+   same texture; it never flows, and the thumb sits on top of it untouched.
+   Hovering lets only the clear rim bleed and flow. */
 .ui-switch {
   --switch-width: 32px;
   --switch-height: 18px;
   --switch-thumb: 14px;
   --switch-inset: 2px;
+  --switch-thumb-bg: hsl(var(--page));
   position: relative;
+  isolation: isolate;
   width: var(--switch-width);
   height: var(--switch-height);
   flex-shrink: 0;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: hsl(var(--rule-strong));
+  background: var(--glass-fill);
   cursor: pointer;
-  transition: background 0.15s;
+}
+
+.dark .ui-switch {
+  --switch-thumb-bg: hsl(var(--ink-2));
 }
 
 .ui-switch--sm {
   --switch-width: 22px;
   --switch-height: 12px;
   --switch-thumb: 8px;
+}
+
+.ui-switch::before,
+.ui-switch__tint {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+}
+
+.ui-switch::before {
+  --switch-rim: color-mix(in srgb, var(--glass-clear) 50%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--switch-rim),
+    inset 0 0 0 0 var(--switch-rim);
+  -webkit-mask-position: -14px -46px;
+  mask-position: -14px -46px;
+  animation: switch-rim-flow 15s linear infinite paused;
+  transition: box-shadow 0.24s ease-out;
+}
+
+.ui-switch:hover:not(:disabled)::before,
+.ui-switch:focus-visible::before {
+  --switch-rim: color-mix(in srgb, var(--glass-clear) 59%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--switch-rim),
+    inset 0 0 calc(var(--switch-height) / 2) 1px var(--switch-rim);
+  animation-play-state: running;
+}
+
+.ui-switch__tint {
+  --switch-tint: hsl(var(--accent));
+  opacity: 0;
+  background: color-mix(in srgb, var(--switch-tint) 12%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--switch-tint) 62%, transparent),
+    inset 0 0 calc(var(--switch-height) * 0.4) calc(var(--switch-height) * 0.1)
+      color-mix(in srgb, var(--switch-tint) 55%, transparent);
+  -webkit-mask-position: -96px -132px;
+  mask-position: -96px -132px;
+  transition: opacity 0.22s ease-out;
+}
+
+.ui-switch.is-on .ui-switch__tint {
+  opacity: 1;
 }
 
 .ui-switch::after {
@@ -224,23 +284,40 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   width: var(--switch-thumb);
   height: var(--switch-thumb);
   border-radius: 50%;
-  background: hsl(var(--page));
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+  background: var(--switch-thumb-bg);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.18),
+    0 0 0 0.5px hsl(var(--ink-1) / 0.06);
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ui-switch.is-on {
-  background: hsl(var(--accent));
 }
 
 .ui-switch.is-on::after {
   transform: translateX(calc(var(--switch-width) - var(--switch-thumb) - var(--switch-inset) * 2));
-  background: hsl(var(--paper));
 }
 
 .ui-switch:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+@keyframes switch-rim-flow {
+  from {
+    -webkit-mask-position: -14px -46px;
+    mask-position: -14px -46px;
+  }
+  to {
+    -webkit-mask-position: 136px 104px;
+    mask-position: 136px 104px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-switch::before,
+  .ui-switch__tint,
+  .ui-switch::after {
+    transition: none;
+    animation: none;
+  }
 }
 
 .ghost-icon-button {
@@ -267,6 +344,11 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 .ghost-icon-button--md {
   width: 26px;
   height: 26px;
+}
+
+.ghost-icon-button--lg {
+  width: 28px;
+  height: 28px;
 }
 
 .ghost-icon-button:hover:not(:disabled) {
@@ -298,6 +380,16 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   cursor: default;
 }
 
+/* Glass never fills: the rim answers hover and press (materials.css). */
+.ghost-icon-button--glass,
+.ghost-icon-button--glass:hover:not(:disabled) {
+  background: transparent;
+}
+
+.ghost-icon-button--glass[aria-pressed='true'] {
+  color: hsl(var(--ink-1));
+}
+
 .context-menu-surface {
   z-index: var(--z-context-menu);
   margin: 0;
@@ -312,13 +404,25 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
    Every action menu uses these classes so trigger type no longer changes its
    typography, chrome, row rhythm, hover, focus, active, or danger treatment.
    Rich menus may opt into `menu-surface--rich` and own their inner layout while
-   retaining the same outer shell. */
+   retaining the same outer shell.
+
+   The shell is a piece of the desk lifted out: the sidebar's opaque colour,
+   square corners, a half-pixel hairline and the floating shadow, with no
+   glass of its own. Only the row under the pointer carries glass: one whole
+   ring of flowing hairline glass around it. Moving between rows only fades one row's ring out and
+   the next row's in. Rows carry no fill; groups are separated by space,
+   not rules. */
+:where(.menu-surface) {
+  position: relative;
+}
+
 .menu-surface {
   box-sizing: border-box;
   width: var(--menu-width-compact);
   max-width: calc(100vw - 16px);
-  padding: 4px;
+  padding: 4px 0;
   overflow: hidden auto;
+  isolation: isolate;
   border: 1px solid var(--menu-surface-border);
   border-radius: var(--menu-surface-radius);
   background: var(--menu-surface-bg);
@@ -357,15 +461,15 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 }
 
 .menu-surface__item {
+  position: relative;
   display: flex;
   align-items: center;
   box-sizing: border-box;
   width: 100%;
   min-height: var(--ui-row-height, 30px);
-  padding: 6px 8px;
-  overflow: hidden;
+  padding: 6px 14px;
   border: 0;
-  border-radius: var(--radius-xs);
+  border-radius: 0;
   background: transparent;
   color: hsl(var(--ink-2));
   font: inherit;
@@ -380,13 +484,46 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__item:hover:not(:disabled),
 .menu-surface__item:focus-visible {
-  background: var(--menu-item-hover-bg);
+  background: transparent;
   color: hsl(var(--ink-1));
 }
 
+/* Desktop only: mobile menus keep their own row pseudo-elements.
+   The row under the pointer becomes one whole ring of flowing hairline glass,
+   all four sides cut from one texture, like a sidebar cell's hover ring. */
+html:not([data-shell-mode='mobile']) .menu-surface__item::before {
+  --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
+  content: '';
+  position: absolute;
+  inset: 1px 4px;
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--menu-line) 82%, transparent),
+    inset 0 0 3px 0.5px color-mix(in srgb, var(--menu-line) 28%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  --glass-gx: -30px;
+  --glass-gy: -64px;
+  opacity: 0;
+  animation: glass-flow 15s linear infinite paused;
+  transition: opacity 0.18s ease-out;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,
+html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
+  --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%);
+}
+
 .menu-surface__item:focus-visible {
-  outline: 2px solid hsl(var(--accent) / 0.55);
-  outline-offset: -2px;
+  outline: none;
 }
 
 .menu-surface__item:disabled,
@@ -413,7 +550,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__item--danger:hover:not(:disabled),
 .menu-surface__item--danger:focus-visible {
-  background: var(--menu-item-danger-hover-bg);
+  background: transparent;
   color: var(--menu-item-danger);
 }
 
@@ -423,7 +560,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 }
 
 .menu-surface__section-label {
-  padding: 6px 8px 3px;
+  padding: 8px 14px 3px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-size: var(--ui-font-caption, 9.5px);
   font-weight: 500;
@@ -434,7 +571,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__header {
   max-width: 280px;
-  padding: 6px 8px;
+  padding: 6px 14px;
   overflow: hidden;
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-secondary, 11.5px);
@@ -445,20 +582,10 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .menu-surface__divider,
 .menu-surface__separator {
-  height: 1px;
-  margin: 4px 2px;
-  background: hsl(var(--rule));
-}
-
-.tab-context-menu__item {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.tab-context-menu__accelerator {
-  flex-shrink: 0;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-size: var(--ui-font-caption, 10px);
+  height: 8px;
+  margin: 0;
+  border: 0;
+  background: transparent;
 }
 
 .user-menu__group {
@@ -1225,7 +1352,8 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 
 .left-sb-inline-add-button--frame,
 .left-sb-group-header--frame .left-sb-inline-actions {
-  background: var(--chrome-bg);
+  /* Inside the legend plate, which already cuts the sand frame. */
+  background: transparent;
 }
 
 .left-sb-group-header--frame .left-sb-inline-actions {
@@ -1246,28 +1374,35 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   --element-category-color: hsl(var(--rule));
   position: relative;
   box-sizing: border-box;
-  margin: 0 6px 10px 4px;
-  padding-bottom: 7px;
+  margin: 2px 12px 12px;
+  padding-bottom: 8px;
   background: transparent;
   transition:
     padding-bottom 120ms ease,
     margin-bottom 120ms ease;
 }
 
+/* Each category is boxed in a dry sand frame of its colour, its heading set
+   into the top edge. The frame is nine-sliced so the stroke keeps one weight
+   at any size; collapsing lets it fade out whole. */
 .element-category-section--compact::before {
   content: '';
   position: absolute;
-  inset: 13px 0 0;
-  border: 1px solid var(--element-category-color);
-  border-top: 0;
-  border-radius: 0 0 3px 3px;
-  opacity: 1;
+  top: 7px;
+  right: -6px;
+  bottom: -6px;
+  left: -6px;
+  background: color-mix(in srgb, var(--element-category-color), #ffffff var(--pigment-lift));
+  -webkit-mask-box-image: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mask-border: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: calc(0.75 * var(--pigment));
   pointer-events: none;
-  transition: opacity 120ms ease;
+  transition: opacity 0.3s ease-out;
 }
 
 .element-category-section--compact.is-collapsed {
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   padding-bottom: 0;
 }
 
@@ -1275,11 +1410,9 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   opacity: 0;
 }
 
-/* The synthetic top edge runs through the sticky header, then the label's
-   chrome background masks its middle. The ::after side connectors live in the
-   same sticky layer, so its opaque background cannot cut a gap at the corners. */
 .left-sb-group-header--frame {
   position: relative;
+  z-index: 1;
   min-height: 26px;
   box-sizing: border-box;
 }
@@ -1288,11 +1421,15 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   display: contents;
 }
 
+/* The heading's own plate cuts the frame's top edge where it sits. */
 .left-sb-group-header--frame .left-sb-group-header__legend {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  height: 22px;
+  padding: 0 7px 0 5px;
+  background: var(--workspace-ui-bg);
 }
 
 .left-sb-group-header__frame-disclosure {
@@ -1304,51 +1441,46 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   flex-shrink: 0;
   padding: 0;
   border: 0;
-  border-radius: 2px;
-  background: var(--chrome-bg);
+  background: transparent;
+  color: hsl(var(--ink-4));
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.left-sb-group-header--frame:hover .left-sb-group-header__frame-disclosure,
+.left-sb-group-header--frame.is-collapsed .left-sb-group-header__frame-disclosure,
+.left-sb-group-header__frame-disclosure:focus-visible {
+  opacity: 1;
 }
 
 .left-sb-group-header__frame-disclosure:disabled {
   cursor: default;
+  opacity: 0;
+}
+
+/* A storyline heading is a cell: its chevron shows on hover or collapsed. */
+.left-sb-group-header__chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-right: -2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.left-sb-group-header--cell:hover .left-sb-group-header__chevron,
+.left-sb-group-header__chevron[aria-expanded='false'],
+.left-sb-group-header__chevron:focus-visible {
   opacity: 1;
-}
-
-.left-sb-group-header__frame-color-square {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: currentColor;
-}
-
-.left-sb-group-header--frame.is-expanded::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: var(--element-category-color);
-  pointer-events: none;
-}
-
-.left-sb-group-header--frame.is-expanded::after {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  border-right: 1px solid var(--element-category-color);
-  border-left: 1px solid var(--element-category-color);
-  pointer-events: none;
-}
-
-.left-sb-group-header--frame.is-expanded > * {
-  position: relative;
-  z-index: 1;
 }
 
 .element-identity-flow {
@@ -1378,7 +1510,7 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   content: '';
   position: absolute;
   inset: 0 4px;
-  border: 1px solid hsl(var(--rule) / 0.55);
+  border: 1px solid var(--workspace-local-border);
   border-radius: 3px;
   pointer-events: none;
 }
@@ -1391,11 +1523,6 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   letter-spacing: -0.005em;
 }
 
-.element-panel-item-label.is-selected,
-.element-identity-tile.is-selected .element-panel-item-label {
-  font-weight: 500;
-}
-
 .element-identity-tile {
   --element-identity-basis: 78px;
   position: relative;
@@ -1404,22 +1531,28 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  min-height: 30px;
-  padding: 5px 7px;
-  color: hsl(var(--ink-1));
+  min-height: 28px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 3px;
+  color: hsl(var(--ink-2));
   font-family: var(--font-sans);
   text-align: left;
   cursor: pointer;
 }
 
-.element-identity-tile:hover {
+.element-identity-tile:hover,
+.element-identity-tile.is-selected {
   color: hsl(var(--ink-1));
 }
 
-.element-identity-tile.is-selected {
-  background: hsl(var(--surface));
-  box-shadow: none;
-  color: hsl(var(--ink-1));
+.element-identity-tile .kind-mark {
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+}
+
+.element-identity-tile .kind-mark--element > .sand {
+  inset: 0.5px;
 }
 
 .element-identity-tile:focus-visible {
@@ -1466,14 +1599,6 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   font-size: 8px;
   font-weight: 600;
   line-height: 1;
-}
-
-.element-identity-tile__agent--busy {
-  width: 7px;
-  height: 7px;
-  border: 0;
-  border-radius: 50%;
-  background: hsl(var(--accent));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1525,5 +1650,247 @@ svg.super-viewport-edges[data-panning='1'] {
   100% {
     color: var(--ui-text-muted, hsl(var(--ink-4)));
     transform: scale(1);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Hover cards (HoverCardShell)
+
+   Drifting has no right-click menus. Resting the pointer on a thing shows its
+   card — the menus' lifted piece of desk — and what a menu used to offer is
+   the card's bottom row of plain actions. The pointer may cross into the
+   card; only the action under it carries flowing glass. A passive preview
+   (inline links) never takes the pointer. */
+.hover-card {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  background: var(--menu-surface-bg);
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+
+.hover-card--interactive {
+  pointer-events: auto;
+}
+
+.hover-card__body {
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 10px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--rule-strong)) transparent;
+}
+
+.hover-card__actions {
+  flex: none;
+  padding: 4px 6px 5px;
+}
+
+.hover-card__body + .hover-card__actions {
+  box-shadow: inset 0 0.5px 0 hsl(var(--ink-1) / 0.12);
+}
+
+.hover-card__action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.hover-card__action-row--choices {
+  margin-top: 3px;
+  padding-top: 3px;
+  box-shadow: inset 0 0.5px 0 hsl(var(--ink-1) / 0.08);
+}
+
+.hover-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: inherit;
+  font-size: var(--ui-font-secondary, 12px);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hover-card__action:hover:not(:disabled),
+.hover-card__action:focus-visible {
+  color: hsl(var(--ink-1));
+}
+
+.hover-card__action.is-active {
+  color: hsl(var(--ink-1));
+  font-weight: 600;
+}
+
+.hover-card__action--danger,
+.hover-card__action--danger:hover:not(:disabled) {
+  color: hsl(var(--destructive));
+}
+
+.hover-card__action:disabled {
+  color: hsl(var(--ink-4));
+  cursor: default;
+}
+
+.hover-card__action-label {
+  padding: 0 3px 0 5px;
+  color: hsl(var(--ink-4));
+  font: 500 9.5px/24px var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
+}
+
+.hover-card__action-gap {
+  width: 0.5px;
+  height: 14px;
+  margin: 0 4px;
+  background: hsl(var(--ink-1) / 0.14);
+}
+
+.hover-card__action-chevron {
+  font-size: 9px;
+  opacity: 0.5;
+}
+
+.hover-card__title {
+  color: hsl(var(--ink-1));
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__detail {
+  margin-top: 4px;
+  color: hsl(var(--ink-3));
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__action-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+/* ── Glass slider: one choice out of several ─────────────────────────
+ * The options sit side by side on a flat, faint track. One glass slider —
+ * a slab of the floating fill with the selected glass rim, standing still —
+ * lies under the chosen option and slides to the next on the dock's
+ * critically damped spring (GlassSlider sets --slider-ms/--slider-ease).
+ * Only the slider is glass; the options are plain words. */
+.glass-slider {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  padding: 1px;
+  border-radius: var(--radius-lg);
+  background: hsl(var(--ink-1) / 0.035);
+}
+
+.glass-slider__thumb {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  width: var(--slider-w);
+  border-radius: var(--radius-sm);
+  background: var(--glass-fill);
+  transform: translateX(var(--slider-x));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.glass-slider__thumb[data-visible='true'] {
+  opacity: 1;
+}
+
+.glass-slider[data-placed='true'] .glass-slider__thumb {
+  transition:
+    transform var(--slider-ms) var(--slider-ease),
+    width var(--slider-ms) var(--slider-ease);
+}
+
+.glass-slider__option {
+  position: relative;
+  z-index: 1;
+  min-height: 20px;
+  padding: 2px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 9.5px)/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.glass-slider__option:hover {
+  color: hsl(var(--ink-2));
+}
+
+.glass-slider__option[aria-checked='true'] {
+  color: hsl(var(--ink-1));
+}
+
+.glass-slider__option:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Scope toggle: just this one, or the whole project ──────────────
+ * Two states only, so one word that never changes, shaped like the dock's
+ * lock: the resting glass line while off (the whole project), the still
+ * selected glass on the floating fill while on (only the current one). */
+.scope-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 20px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 9.5px)/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s, background-color 0.24s ease-out;
+}
+
+.scope-toggle:hover:not(:disabled) {
+  color: hsl(var(--ink-2));
+}
+
+.scope-toggle[aria-pressed='true'] {
+  background: var(--glass-fill);
+  color: hsl(var(--ink-1));
+}
+
+.scope-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-slider[data-placed='true'] .glass-slider__thumb {
+    transition: none;
   }
 }

@@ -52,11 +52,10 @@ describe('unified Review surface acceptance', () => {
     const zh = source('src/renderer/locales/zh-CN.json');
     const en = source('src/renderer/locales/en.json');
 
-    expect(card).toContain('ArrowLeft,');
     expect(card).toContain('{canJump && (');
     expect(card).toContain('className="review-card__text-link-button"');
     expect(card).toContain('onClick={jumpToAnchor}');
-    expect(card).toContain('<ArrowLeft size={10} strokeWidth={1.8} aria-hidden />');
+    expect(card).toContain('<BrushIcon name="arrow-back" size={10} />');
     expect(card).not.toContain('review-card__body--link');
     expect(css).toMatch(
       /\.review-card__text-link-button \{[\s\S]*?width: 14px;[\s\S]*?height: 14px;[\s\S]*?background: transparent;/,
@@ -74,21 +73,26 @@ describe('unified Review surface acceptance', () => {
     const unifiedSurface = css.slice(css.indexOf('Unified Review panel + explicit sticky-note rail'));
 
     expect(panel).toContain('className="review-panel__toolbar workspace-panel-header-row"');
-    expect(panel).toContain('className="review-panel__scope-toggle"');
-    expect(panel).not.toContain('left-panel-view-mode-text review-panel__scope-toggle');
+    // One of several types slides a single glass slider; this-one-or-the-project
+    // is a lock-like toggle whose word never changes.
+    expect(panel).toContain('<GlassSlider\n          className="review-panel__type-filters"');
+    expect(panel).toContain('<ScopeToggle\n          className="review-panel__scope-toggle"');
+    expect(panel).not.toContain("t(`reviewPanel.scopes.${effectiveScope}`)");
     expect(panel).toContain('className="review-panel__list scroll-no-bar workspace-list"');
-    expect(panel).toContain('<FilterChip');
+    expect(panel).not.toContain('<FilterChip');
     expect(panel).toContain('<GhostIconButton');
-    expect(card).toContain("presentation === 'panel' ? ' workspace-list-row' : ''");
-    expect(card).toContain('<ContextMenuSurface');
+    expect(card).toContain("presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''");
+    // No right-click menu: the item's actions ride on its source hover card.
+    expect(card).not.toContain('<ContextMenuSurface');
+    expect(card).not.toContain('onContextMenu=');
+    expect(card).toContain('actions={actions}');
+    expect(card).toContain('sourceHover.open(articleRef.current)');
     expect(card).not.toContain('<footer className="review-card__actions">');
     expect(rail).toContain('<GhostIconButton');
 
     expect(unifiedSurface).toContain('.review-card--sticky {');
     expect(unifiedSurface).toContain('.sticky-note-stack {');
-    expect(unifiedSurface).toMatch(
-      /\.review-panel__scope-toggle \{[\s\S]*?min-height: 20px;[\s\S]*?padding: 2px 4px;[\s\S]*?font: var\(--ui-font-secondary, 9\.5px\)\/1 var\(--font-mono\);/,
-    );
+    expect(unifiedSurface).not.toContain('.review-panel__scope-toggle {');
     expect(unifiedSurface.match(/border-radius: var\(--radius-sm\);/g)?.length).toBeGreaterThanOrEqual(4);
     expect(unifiedSurface).not.toContain('border-radius: 5px;');
     expect(unifiedSurface).not.toContain('border-radius: 7px;');

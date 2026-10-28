@@ -960,7 +960,8 @@
   color: hsl(var(--ink-1));
 }
 
-.material-tree__row svg {
+.material-tree__row svg,
+.material-tree__row .brush-icon {
   flex-shrink: 0;
   color: hsl(var(--ink-4));
 }
@@ -974,8 +975,18 @@
 }
 
 .material-tree__chevron-space {
-  width: 11px;
+  display: grid;
+  width: 14px;
   flex-shrink: 0;
+  place-items: center;
+}
+
+/* Material rows are sand cells (materials.css): no wash under the pointer,
+   a hairline glass ring instead; the open one has its frame drawn from the
+   slip mark. */
+.material-tree__row--item.sand-cell:hover,
+.material-tree__row--item.sand-cell.material-tree__row--active {
+  background: transparent;
 }
 
 .material-tree__name {
@@ -1130,11 +1141,11 @@
   color: hsl(var(--ink-1));
 }
 
-.material-tree__preview-toggle svg {
+.material-tree__preview-toggle .brush-icon {
   transition: transform 120ms ease;
 }
 
-.material-tree__preview-toggle--open svg {
+.material-tree__preview-toggle--open .brush-icon {
   transform: rotate(90deg);
 }
 
@@ -1237,7 +1248,7 @@
   color: hsl(var(--ink-1));
 }
 
-.material-folder-picker__row svg {
+.material-folder-picker__row .brush-icon {
   flex-shrink: 0;
   color: hsl(var(--ink-4));
 }

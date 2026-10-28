@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X } from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useGlobalSearchResults } from './use-global-search-results';
 import type { SearchableEntityType, Field, Occurrence, EntityGroup } from './global-search-model';
 import '../../../styles/search.css';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface GlobalSearchModalProps { isOpen: boolean; onClose(): void }
 
@@ -156,7 +156,7 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
     <div className="gsearch-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
       <div className="gsearch-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gsearch-header">
-          <Search size={15} />
+          <BrushIcon name="search" size={15} />
           <input
             ref={inputRef}
             className="gsearch-input"
@@ -178,7 +178,7 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
             onClick={onClose}
             title={t('globalSearch.closeTitle')}
           >
-            <X size={13} />
+            <BrushIcon name="close" size={13} />
           </button>
         </div>
 

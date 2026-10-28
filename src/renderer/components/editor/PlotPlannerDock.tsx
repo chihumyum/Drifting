@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Maximize2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import { requestConfirmation } from '../../store/confirmation-store';
@@ -17,6 +16,7 @@ import {
   writeLocalPlotGridCellRatio,
 } from './plot-grid/plot-grid-cell-ratio-store';
 import '../../../styles/plot-planner.css';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const DEFAULT_HEIGHT = 280;
 const MIN_DOCK_HEIGHT = 140;
@@ -204,7 +204,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
           title={t('plotGrid.addRow')}
           onClick={() => gridApiRef.current?.addVisual('row')}
         >
-          <Plus aria-hidden="true" />
+          <BrushIcon name="plus" size={13} />
           {t('plotGrid.addRowShort')}
         </button>
         <button
@@ -213,7 +213,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
           title={t('plotGrid.addColumn')}
           onClick={() => gridApiRef.current?.addVisual('col')}
         >
-          <Plus aria-hidden="true" />
+          <BrushIcon name="plus" size={13} />
           {t('plotGrid.addColumnShort')}
         </button>
         <button
@@ -222,7 +222,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
           title={t('plotGrid.fitTitle')}
           onClick={() => gridApiRef.current?.fit()}
         >
-          <Maximize2 aria-hidden="true" />
+          <BrushIcon name="fullscreen" size={13} />
           {t('plotGrid.fit')}
         </button>
         <button
@@ -232,7 +232,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
           disabled={isClearPending}
           onClick={() => void handleClear()}
         >
-          <Eraser aria-hidden="true" />
+          <BrushIcon name="eraser" size={13} />
           {t('plotGrid.clear')}
         </button>
       </div>

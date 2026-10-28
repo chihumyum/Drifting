@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
-import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useDataStore } from '../../store/data-store';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
@@ -11,6 +10,7 @@ import { createElementPatchWithSync } from '../../usecase/synced-entity-commands
 import { createPlainCommentDoc } from '../../domain/comment';
 import { eventBus } from '../../lib/events';
 import type { PatchCreateRequest } from './patch-create-request';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('PatchCreateModal');
 log.setLevel(loglevel.levels.ERROR);
@@ -157,7 +157,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
             className="-mr-1 rounded-[1px] p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label={t('common.close')}
           >
-            <X size={15} />
+            <BrushIcon name="close" size={15} />
           </button>
         </div>
 

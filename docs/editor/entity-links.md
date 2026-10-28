@@ -81,15 +81,16 @@ chapter/idea changes refresh existing marks as well.
 - Bottom Timeline items.
 
 The card is portaled to `body`, positioned with `position: fixed`, and flips or
-clamps to stay inside the viewport. It intentionally has no entity-name header.
+clamps to stay inside the viewport. It leads with the entity's name, since the
+same card also stands alone over truncated timeline tiles and graph cards.
 It displays the summary first, followed by metadata already available from the
 renderer store. Its maximum height is `min(720px, viewport - 24px)` so summaries
 can expand substantially before the card scrolls.
 
-The same card keeps its existing border but uses the restrained
-`--entity-hover-card-shadow` token (`0 1px 4px -3px` at low opacity). Its shadow
-therefore stays inside the card's 8px anchor gap instead of darkening a newly
-lightened sidebar or Bottom Timeline cell after the preview appears.
+The card shares the menus' surface tokens (`--menu-surface-bg`,
+`--menu-surface-radius`, `--menu-surface-shadow`): the sidebar's opaque colour,
+square corners, a half-pixel hairline and the floating shadow, so menus and
+hover cards read as one lifted piece of the desk.
 
 The metadata model performs no database query. It can show chapter status, word
 count and storyline membership; Idea status, word count and group path; Element

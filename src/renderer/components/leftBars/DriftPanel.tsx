@@ -5,7 +5,6 @@ import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Folder, FolderPlus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { canonicalWordCount, isDrift, type BookNode } from '../../domain/book-node';
@@ -26,10 +25,12 @@ import { useAuthStore } from '../../store/auth';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useDriftGroup } from '../../usecase/useDriftGroup';
-import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { entityHoverActions } from './entity-hover-actions';
 import { DRIFT_MOVE_TO_GROUP_ACTION } from '../editor/EditorTopBar';
-import { SimpleContextMenu, type SimpleMenuItem } from './SimpleContextMenu';
+import { HoverCardHeading, HoverCardShell, type HoverAction, type HoverActionGroup } from '../ui/HoverCard';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { KindMark } from '../ui/KindMark';
+import { CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import {
   useHoverPreview,
@@ -40,6 +41,7 @@ import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('DriftPanel');
 log.setLevel(loglevel.levels.WARN);
@@ -69,8 +71,9 @@ const formatWordCount = (n: number) => {
   return `${Math.round(n / 1000)}k`;
 };
 
-type GroupMenu = { x: number; y: number; groupId: string; depth: number };
-type MovePicker = { x: number; y: number; kind: 'drift' | 'group'; id: string };
+// A drift row shows its entity card; a group header shows a small card of
+// its own. Both carry what the right-click menus used to.
+type DriftHoverTarget = EntityHoverTarget | { kind: 'drift-group'; id: string; depth: number };
 
 interface DriftPanelProps {
   presentation?: 'desktop' | 'mobile';
@@ -86,6 +89,7 @@ export function DriftPanel({
   const { t } = useTranslation();
   const { bookNodes } = useDataStoreFields('bookNodes');
   const driftGroups = useDataStore((s) => s.driftGroups);
+  const driftGroupById = useMemo(() => new Map(driftGroups.map((group) => [group.id, group])), [driftGroups]);
   const { nodeUi } = useUiStore();
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
@@ -218,20 +222,13 @@ export function DriftPanel({
   }, [groupChildren]);
 
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    writingStatus: BookNode['writingStatus'];
-  } | null>(null);
-  const [groupMenu, setGroupMenu] = useState<GroupMenu | null>(null);
-  const [movePicker, setMovePicker] = useState<MovePicker | null>(null);
-
   const {
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
-  } = useHoverPreview<EntityHoverTarget>();
+    dismiss: hoverDismiss,
+    card: hoverCard,
+  } = useHoverPreview<DriftHoverTarget>();
 
   const createDriftInGroup = useCallback(
     async (groupId: string) => {
@@ -275,94 +272,78 @@ export function DriftPanel({
     const exactWordCount = canonicalWordCount(node);
     const wordCountLabel =
       exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
+    // A drift is a small eddy, still turning, not yet pressed into a seal:
+    // in its group's colour when the group has one, fainter when it floats
+    // free of any group.
+    const group = node.driftGroupId ? driftGroupById.get(node.driftGroupId) : undefined;
+    const markColor = group?.color || 'hsl(var(--ink-3))';
+    const padLeft = CELL_PAD_LEFT + depth * INDENT_STEP;
     return (
-      <div
+      <SandCell
         key={node.id}
+        selected={selected}
+        color={markColor}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: `5px 14px 5px ${DRIFT_BASE_PAD_LEFT + depth * INDENT_STEP}px`,
+          gap: 9,
+          margin: '0 6px',
+          padding: `5px 10px 5px ${padLeft}px`,
+          borderRadius: 3,
           cursor: 'pointer',
-          position: 'relative',
-          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : muted ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))',
           fontSize: 'var(--ui-font-body, 12.5px)',
           lineHeight: 'var(--ui-line-body, 1.35)',
           minHeight: 'var(--ui-row-height, 0px)',
           opacity: muted && !selected ? 0.7 : 1,
-          transition: 'background 0.1s, opacity 0.1s',
+          transition: 'opacity 0.1s',
         }}
         onMouseEnter={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
-          }
           hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
-        onMouseLeave={(event) => {
-          if (!selected) {
-            event.currentTarget.style.background = 'transparent';
-          }
+        onMouseLeave={() => {
           hoverLeave();
         }}
         onClick={() => {
-          hoverLeave();
+          hoverDismiss();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
           activateTarget({ entityType: 'node', id: node.id });
         }}
         onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          hoverLeave();
-          setContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            nodeId: node.id,
-            writingStatus: node.writingStatus,
-          });
-        }}
       >
-        {/* Drift mark — ❦ glyph, or Agent file status (A/M). */}
-        <AgentChangeIndicator
-          disabled={agentBusy || !(agentAdded || agentChanged)}
-          aria-hidden={agentBusy || !(agentAdded || agentChanged) ? true : undefined}
-          onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
-          className={agentBusy ? 'agent-glyph-busy' : undefined}
-          title={
-            agentBusy
-              ? t('agentActivity.working')
-              : agentAdded || agentChanged
-                ? t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')
-                : undefined
-          }
-          style={{
-            fontFamily: agentAdded || agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
-            fontStyle: agentAdded || agentChanged ? 'normal' : 'italic',
-            fontSize: agentAdded || agentChanged ? 10 : 11,
-            fontWeight: agentAdded || agentChanged ? 600 : undefined,
-            color: agentBusy
-              ? 'hsl(var(--accent))'
-              : agentAdded || agentChanged
-                ? 'hsl(var(--ink-2))'
-                : muted
-                  ? 'hsl(var(--ink-4))'
-                  : 'hsl(var(--ink-3))',
-            flexShrink: 0,
-            lineHeight: 1,
-            width: 12,
-            textAlign: 'center',
-          }}
-        >
-          {agentAdded ? 'A' : agentChanged ? 'M' : '❦'}
-        </AgentChangeIndicator>
+        {/* Drift mark — the eddy, or Agent file status (A/M). */}
+        {agentAdded || agentChanged ? (
+          <AgentChangeIndicator
+            onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
+            title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 600,
+              color: 'hsl(var(--ink-2))',
+              flexShrink: 0,
+              lineHeight: 1,
+              width: 14,
+              textAlign: 'center',
+            }}
+          >
+            {agentAdded ? 'A' : 'M'}
+          </AgentChangeIndicator>
+        ) : (
+          <KindMark
+            kind="drift"
+            color={markColor}
+            loose={!group}
+            busy={agentBusy}
+            title={agentBusy ? t('agentActivity.working') : undefined}
+          />
+        )}
 
         <div
           style={{
             flex: 1,
             minWidth: 0,
             color: 'inherit',
-            fontWeight: selected ? 500 : 400,
             letterSpacing: '-0.005em',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -389,7 +370,7 @@ export function DriftPanel({
                 : formatShortDate(node.updatedAt)}
           </span>
         )}
-      </div>
+      </SandCell>
     );
   };
 
@@ -397,10 +378,11 @@ export function DriftPanel({
     const collapsed = collapsedGroupIds.has(group.id);
     const descIds = descendantDriftIds.get(group.id) ?? [];
     const indentPad = depth * INDENT_STEP;
-    const openGroupMenu = (event: React.MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setGroupMenu({ x: event.clientX, y: event.clientY, groupId: group.id, depth });
+    // The whole header row anchors the group's card.
+    const groupHover = {
+      onMouseEnter: (event: React.MouseEvent<HTMLElement>) =>
+        hoverEnter({ kind: 'drift-group', id: group.id, depth }, event.currentTarget),
+      onMouseLeave: hoverLeave,
     };
 
     let header: React.ReactNode;
@@ -425,17 +407,19 @@ export function DriftPanel({
         descIds.map((id) => entityKey('node', id)),
       );
       header = (
-        <div style={{ paddingLeft: indentPad }}>
+        <div style={{ paddingLeft: indentPad }} {...groupHover}>
           <GroupHeaderCell
             name={group.name}
             count={descIds.length}
             color={group.color || 'hsl(var(--ink-4))'}
-            glyph={<Folder size={11} strokeWidth={1.8} />}
+            glyph={<BrushIcon name="folder" size={11} />}
             collapsed={collapsed}
             onToggleCollapsed={() => toggleCollapsed(group.id)}
-            onClick={() => toggleCollapsed(group.id)}
+            onClick={() => {
+              hoverDismiss();
+              toggleCollapsed(group.id);
+            }}
             onDoubleClick={() => setRenamingGroupId(group.id)}
-            onContextMenu={openGroupMenu}
             addButtonTitle={t('leftSidebar.groups.newDriftInGroup')}
             onAdd={() => void createDriftInGroup(group.id)}
             rightExtra={
@@ -458,7 +442,7 @@ export function DriftPanel({
                     height: 18,
                   }}
                 >
-                  <FolderPlus size={12} strokeWidth={1.6} />
+                  <BrushIcon name="folder-plus" size={12} />
                 </button>
               ) : undefined
             }
@@ -472,13 +456,16 @@ export function DriftPanel({
       // Sub-group (level 2): compact, understated row in the same spirit as the
       // element panel's secondary group header — a small caret + mono label +
       // count, with a hover-revealed "+ drift" button. Click toggles collapse,
-      // double-click renames, right-click opens the group menu.
+      // double-click renames, resting on it shows the group's card.
       header = (
         <div
           className="left-sb-inline-group-header"
-          onClick={() => toggleCollapsed(group.id)}
+          {...groupHover}
+          onClick={() => {
+            hoverDismiss();
+            toggleCollapsed(group.id);
+          }}
           onDoubleClick={() => setRenamingGroupId(group.id)}
-          onContextMenu={openGroupMenu}
           title={t('leftSidebar.groups.clickCollapseRename')}
           style={{
             display: 'flex',
@@ -495,9 +482,9 @@ export function DriftPanel({
           }}
         >
           {collapsed ? (
-            <ChevronRight size={9} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <BrushIcon name="chevron-right" size={9} style={{ flexShrink: 0 }} />
           ) : (
-            <ChevronDown size={9} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <BrushIcon name="chevron-down" size={9} style={{ flexShrink: 0 }} />
           )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {group.name}
@@ -520,7 +507,7 @@ export function DriftPanel({
               flexShrink: 0,
             }}
           >
-            <Plus size={11} strokeWidth={1.8} />
+            <BrushIcon name="plus" size={11} />
           </button>
         </div>
       );
@@ -551,61 +538,112 @@ export function DriftPanel({
   const totalDrift = bookNodes.filter(isDrift).length;
   const isEmpty = totalDrift === 0 && driftGroups.length === 0;
 
-  // ---- Move-to-group picker items ----
-  const buildMoveItems = (picker: MovePicker): SimpleMenuItem[] => {
-    const items: SimpleMenuItem[] = [];
-    if (picker.kind === 'drift') {
-      const node = bookNodes.find((n) => n.id === picker.id);
-      const current = node?.driftGroupId ?? null;
-      items.push({
-        key: 'root',
-        label: t('leftSidebar.groups.moveDriftToRoot'),
-        disabled: current == null,
-        trailing: current == null ? <span aria-hidden>✓</span> : undefined,
-        onClick: () => void moveDriftToGroup(picker.id, null),
-      });
-      flatGroups.forEach(({ group, depth }, idx) => {
-        items.push({
+  // ---- Move-to-group choices, unfolded inside a card ----
+  // Root first; sub-groups read as "parent / child" in the flat row.
+  const groupPath = (group: DriftGroup) => {
+    const parent = group.parentGroupId ? driftGroupById.get(group.parentGroupId) : undefined;
+    return parent ? `${parent.name} / ${group.name}` : group.name;
+  };
+  const moveChoices = (kind: 'drift' | 'group', id: string): HoverAction[] => {
+    if (kind === 'drift') {
+      const current = bookNodes.find((n) => n.id === id)?.driftGroupId ?? null;
+      return [
+        {
+          key: 'root',
+          label: t('leftSidebar.groups.moveDriftToRoot'),
+          active: current == null,
+          disabled: current == null,
+          onSelect: () => void moveDriftToGroup(id, null),
+        },
+        ...flatGroups.map(({ group }) => ({
           key: group.id,
-          label: group.name,
-          indent: (depth + 1) * 12,
-          dividerBefore: idx === 0,
+          label: groupPath(group),
+          active: group.id === current,
           disabled: group.id === current,
-          trailing: group.id === current ? <span aria-hidden>✓</span> : undefined,
-          onClick: () => void moveDriftToGroup(picker.id, group.id),
-        });
-      });
-    } else {
-      const group = driftGroups.find((g) => g.id === picker.id);
-      const currentParent = group?.parentGroupId ?? null;
-      // Can't move a group into itself or its own subtree.
-      const blocked = new Set([picker.id, ...collectDescendantGroupIds(driftGroups, picker.id)]);
-      items.push({
+          onSelect: () => void moveDriftToGroup(id, group.id),
+        })),
+      ];
+    }
+    const group = driftGroups.find((g) => g.id === id);
+    const currentParent = group?.parentGroupId ?? null;
+    // Can't move a group into itself or its own subtree.
+    const blocked = new Set([id, ...collectDescendantGroupIds(driftGroups, id)]);
+    return [
+      {
         key: 'root',
         label: t('leftSidebar.groups.moveGroupToRoot'),
-        disabled: currentParent == null || !canMoveGroupUnder(driftGroups, picker.id, null),
-        trailing: currentParent == null ? <span aria-hidden>✓</span> : undefined,
-        onClick: () => void moveGroup(picker.id, null),
-      });
-      flatGroups.forEach(({ group: g, depth }, idx) => {
-        // Disable self/subtree, the current parent, and any target that would
-        // push this group's subtree past the 2-level cap.
-        const disabled =
-          blocked.has(g.id) ||
-          g.id === currentParent ||
-          !canMoveGroupUnder(driftGroups, picker.id, g.id);
-        items.push({
-          key: g.id,
-          label: g.name,
-          indent: (depth + 1) * 12,
-          dividerBefore: idx === 0,
-          disabled,
-          trailing: g.id === currentParent ? <span aria-hidden>✓</span> : undefined,
-          onClick: () => void moveGroup(picker.id, g.id),
-        });
-      });
+        active: currentParent == null,
+        disabled: currentParent == null || !canMoveGroupUnder(driftGroups, id, null),
+        onSelect: () => void moveGroup(id, null),
+      },
+      // Disable self/subtree, the current parent, and any target that would
+      // push this group's subtree past the 2-level cap.
+      ...flatGroups.map(({ group: g }) => ({
+        key: g.id,
+        label: groupPath(g),
+        active: g.id === currentParent,
+        disabled: blocked.has(g.id) || g.id === currentParent || !canMoveGroupUnder(driftGroups, id, g.id),
+        onSelect: () => void moveGroup(id, g.id),
+      })),
+    ];
+  };
+
+  const driftActions = (node: BookNode): HoverActionGroup[] =>
+    entityHoverActions({
+      editorType: 'node',
+      nodeStatusKind: 'drift',
+      nodeWritingStatus: node.writingStatus,
+      onAction: (action) => void dispatchEntityAction({ entityType: 'node', id: node.id, action }),
+      t,
+    }).map((group) => ({
+      ...group,
+      // "移动到分组…" is a shared getMenuItems entry; here it unfolds the
+      // groups to choose from instead of routing to the entity dispatcher.
+      actions: group.actions.map((action) => action.key === DRIFT_MOVE_TO_GROUP_ACTION
+        ? { key: action.key, label: action.label, choices: moveChoices('drift', node.id) }
+        : action),
+    }));
+
+  const groupActions = (groupId: string, depth: number): HoverActionGroup[] => [
+    {
+      key: 'create',
+      actions: [
+        // "新建子分组" gated by the 2-level nesting cap.
+        ...(depth < MAX_DRIFT_GROUP_DEPTH - 1
+          ? [{ key: 'new-sub', label: t('leftSidebar.groups.newSubGroup'), onSelect: () => void createSubGroup(groupId) }]
+          : []),
+        { key: 'new-drift', label: t('leftSidebar.groups.newDriftInGroup'), onSelect: () => void createDriftInGroup(groupId) },
+      ],
+    },
+    {
+      key: 'edit',
+      actions: [
+        { key: 'rename', label: t('leftSidebar.groups.rename'), onSelect: () => setRenamingGroupId(groupId) },
+        { key: 'move', label: t('leftSidebar.groups.moveToGroup'), choices: moveChoices('group', groupId) },
+        { key: 'delete', label: t('leftSidebar.groups.deleteGroup'), danger: true, onSelect: () => void deleteGroup(groupId) },
+      ],
+    },
+  ];
+
+  const renderHoverCard = () => {
+    if (!hoverPreview) return null;
+    const { data, anchor } = hoverPreview;
+    if (data.kind === 'drift-group') {
+      const group = driftGroupById.get(data.id);
+      if (!group) return null;
+      return (
+        <HoverCardShell anchor={anchor} placement="right-start" label={group.name}
+          pointer={hoverCard} onDismiss={hoverDismiss} actions={groupActions(group.id, data.depth)}>
+          <HoverCardHeading title={group.name}
+            detail={t('leftSidebar.groups.driftCount', { count: (descendantDriftIds.get(group.id) ?? []).length })} />
+        </HoverCardShell>
+      );
     }
-    return items;
+    const node = data.kind === 'node' ? bookNodes.find((n) => n.id === data.id) : undefined;
+    return (
+      <EntityHoverCard target={data} anchor={anchor} placement="right-start"
+        pointer={hoverCard} onDismiss={hoverDismiss} actions={node ? driftActions(node) : undefined} />
+    );
   };
 
   return (
@@ -644,104 +682,7 @@ export function DriftPanel({
         )}
       </div>
 
-      {hoverPreview && (
-        <EntityHoverCard
-          target={hoverPreview.data}
-          anchor={hoverPreview.anchor}
-          placement="right-start"
-        />
-      )}
-
-      {contextMenu && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType="node"
-          nodeStatusKind="drift"
-          nodeWritingStatus={contextMenu.writingStatus}
-          onAction={(action) => {
-            // "移动到分组…" is a shared getMenuItems entry — intercept it here to
-            // open the group picker instead of routing to the entity dispatcher.
-            if (action === DRIFT_MOVE_TO_GROUP_ACTION) {
-              setMovePicker({
-                x: contextMenu.x,
-                y: contextMenu.y,
-                kind: 'drift',
-                id: contextMenu.nodeId,
-              });
-              return;
-            }
-            void dispatchEntityAction({
-              entityType: 'node',
-              id: contextMenu.nodeId,
-              action,
-            });
-          }}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-
-      {groupMenu && (
-        <SimpleContextMenu
-          x={groupMenu.x}
-          y={groupMenu.y}
-          onClose={() => setGroupMenu(null)}
-          items={[
-            // "新建子分组" gated by the 2-level nesting cap.
-            ...(groupMenu.depth < MAX_DRIFT_GROUP_DEPTH - 1
-              ? [
-                  {
-                    key: 'new-sub',
-                    label: t('leftSidebar.groups.newSubGroup'),
-                    onClick: () => void createSubGroup(groupMenu.groupId),
-                  },
-                ]
-              : []),
-            {
-              key: 'new-drift',
-              label: t('leftSidebar.groups.newDriftInGroup'),
-              onClick: () => void createDriftInGroup(groupMenu.groupId),
-            },
-            {
-              key: 'rename',
-              label: t('leftSidebar.groups.rename'),
-              onClick: () => setRenamingGroupId(groupMenu.groupId),
-            },
-            {
-              key: 'move',
-              label: t('leftSidebar.groups.moveToGroup'),
-              onClick: () =>
-                setMovePicker({
-                  x: groupMenu.x,
-                  y: groupMenu.y,
-                  kind: 'group',
-                  id: groupMenu.groupId,
-                }),
-            },
-            {
-              key: 'delete',
-              label: t('leftSidebar.groups.deleteGroup'),
-              danger: true,
-              dividerBefore: true,
-              onClick: () => void deleteGroup(groupMenu.groupId),
-            },
-          ]}
-        />
-      )}
-
-      {movePicker && (
-        <SimpleContextMenu
-          x={movePicker.x}
-          y={movePicker.y}
-          title={
-            movePicker.kind === 'drift'
-              ? t('leftSidebar.groups.moveDriftTitle')
-              : t('leftSidebar.groups.moveGroupTitle')
-          }
-          onClose={() => setMovePicker(null)}
-          items={buildMoveItems(movePicker)}
-        />
-      )}
+      {renderHoverCard()}
     </div>
   );
 }

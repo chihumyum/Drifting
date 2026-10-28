@@ -4,76 +4,47 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { NoteExcerpt } from './NoteExcerpt';
-// The card menu reuses the `.btl-cmenu` rich-menu rules, which the workspace no
-// longer loads through a mounted Bottom Timeline.
+// The mobile ⋯ menu reuses the `.btl-cmenu` rich-menu rules, which the
+// workspace no longer loads through a mounted Bottom Timeline.
 import '../../../styles/bottom-timeline.css';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
+import { HoverCardHeading, HoverCardShell, type HoverActionGroup } from '../../components/ui/HoverCard';
+import { useHoverPreview } from '../entities/hover/entity-hover-card-model';
 import {
   libraryItemSubtitle,
   useStoredLibraryItemVariant,
 } from './library-item-media';
 
-type LibraryItemContextMenuAction = 'addRelation' | 'moveToFolder' | 'openInSystem' | 'delete';
+const MOBILE_MENU_GLYPHS: Record<string, string> = {
+  addRelation: '＋',
+  moveToFolder: '→',
+  openInSystem: '↗',
+  delete: '×',
+};
 
-function LibraryItemContextMenuItem({
-  glyph,
-  label,
-  action,
-  onAction,
-  variant = 'default',
-}: {
-  glyph: string;
-  label: string;
-  action: LibraryItemContextMenuAction;
-  onAction: (action: LibraryItemContextMenuAction) => void;
-  variant?: 'default' | 'danger';
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      className={`menu-surface__item btl-cmenu__item${
-        variant === 'danger' ? ' menu-surface__item--danger is-danger' : ''
-      }`}
-      onClick={() => onAction(action)}
-    >
-      <span className="btl-cmenu__glyph" aria-hidden>
-        {glyph}
-      </span>
-      <span className="btl-cmenu__label">{label}</span>
-    </button>
-  );
-}
-
-function LibraryItemContextMenu({
-  material,
+/**
+ * The material's actions for a touch screen, which has no hover card: a
+ * menu under the ⋯ button with the card's heading and the same actions.
+ */
+function LibraryItemMobileMenu({
+  title,
+  details,
+  actions,
   mobileActions,
-  relationCount,
   x,
   y,
-  onOpenInSystem,
-  onAddRelation,
-  onMoveToFolder,
-  onDelete,
   onClose,
 }: {
-  material: LibraryItem;
+  title: string;
+  details: string[];
+  actions: HoverActionGroup[];
   mobileActions: boolean;
-  relationCount: number;
   x: number;
   y: number;
-  onOpenInSystem: () => void;
-  onAddRelation: () => void;
-  onMoveToFolder?: () => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: x, top: y });
-  const isTextSnippet = material.kind === 'text';
-  const kindLabel = t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind });
-  const subtitle = libraryItemSubtitle(material);
 
   useLayoutEffect(() => {
     const node = menuRef.current;
@@ -104,26 +75,16 @@ function LibraryItemContextMenu({
     };
     const onScrollOrResize = () => onClose();
     document.addEventListener('mousedown', onDocPointer, true);
-    document.addEventListener('contextmenu', onDocPointer, true);
     document.addEventListener('keydown', onKey);
     window.addEventListener('resize', onScrollOrResize);
     window.addEventListener('scroll', onScrollOrResize, true);
     return () => {
       document.removeEventListener('mousedown', onDocPointer, true);
-      document.removeEventListener('contextmenu', onDocPointer, true);
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onScrollOrResize);
       window.removeEventListener('scroll', onScrollOrResize, true);
     };
   }, [onClose]);
-
-  const handleAction = (action: LibraryItemContextMenuAction) => {
-    if (action === 'addRelation') onAddRelation();
-    if (action === 'moveToFolder') onMoveToFolder?.();
-    if (action === 'openInSystem') onOpenInSystem();
-    if (action === 'delete') onDelete();
-    onClose();
-  };
 
   return createPortal(
     <div
@@ -132,56 +93,37 @@ function LibraryItemContextMenu({
       className="menu-surface menu-surface--rich menu-surface--wide btl-cmenu"
       data-library-mobile-actions={mobileActions ? 'true' : undefined}
       onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
       style={{ left: pos.left, top: pos.top, zIndex: 'var(--z-context-menu)' }}
     >
       <div className="btl-cmenu__head">
-        <div className="btl-cmenu__title">{material.title || subtitle || t('common.untitled')}</div>
-        <div className="btl-cmenu__summary">{t('memoMaterial.menu.type', { type: kindLabel })}</div>
-        <div className="btl-cmenu__summary">
-          {relationCount > 0
-            ? t('memoMaterial.menu.relationCount', { count: relationCount })
-            : t('memoMaterial.menu.noRelations')}
+        <div className="btl-cmenu__title">{title}</div>
+        {details.map((detail) => (
+          <div key={detail} className="btl-cmenu__summary">{detail}</div>
+        ))}
+      </div>
+      {actions.map((group) => (
+        <div key={group.key} className="btl-cmenu__group">
+          {group.actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              role="menuitem"
+              className={`menu-surface__item btl-cmenu__item${
+                action.danger ? ' menu-surface__item--danger is-danger' : ''
+              }`}
+              onClick={() => {
+                action.onSelect?.();
+                onClose();
+              }}
+            >
+              <span className="btl-cmenu__glyph" aria-hidden>
+                {MOBILE_MENU_GLYPHS[action.key]}
+              </span>
+              <span className="btl-cmenu__label">{action.label}</span>
+            </button>
+          ))}
         </div>
-      </div>
-
-      <div className="btl-cmenu__group">
-        <LibraryItemContextMenuItem
-          glyph="＋"
-          label={t('memoMaterial.menu.addRelation')}
-          action="addRelation"
-          onAction={handleAction}
-        />
-        {onMoveToFolder && (
-          <LibraryItemContextMenuItem
-            glyph="→"
-            label={t('editorTopBar.menu.moveMaterialToFolder')}
-            action="moveToFolder"
-            onAction={handleAction}
-          />
-        )}
-      </div>
-
-      {!isTextSnippet && (
-        <div className="btl-cmenu__group">
-          <LibraryItemContextMenuItem
-            glyph="↗"
-            label={t('memoMaterial.menu.openInSystem')}
-            action="openInSystem"
-            onAction={handleAction}
-          />
-        </div>
-      )}
-
-      <div className="btl-cmenu__group">
-        <LibraryItemContextMenuItem
-          glyph="×"
-          label={t('memoMaterial.menu.deleteMaterial')}
-          action="delete"
-          onAction={handleAction}
-          variant="danger"
-        />
-      </div>
+      ))}
     </div>,
     document.body,
   );
@@ -213,7 +155,7 @@ export function LibraryItemCard({
   /** When false, hide the relation chips/picker entirely even if relations
    *  exist. Controlled from the panel toolbar's link toggle. */
   showRelations?: boolean;
-  /** Exposes an ordinary tap target for actions that desktop keeps in a context menu. */
+  /** Exposes an ordinary tap target for actions that desktop keeps in the hover card. */
   mobileActions?: boolean;
   onSetEditing: (on: boolean) => void;
   onOpenInSystem: () => void;
@@ -236,7 +178,7 @@ export function LibraryItemCard({
   const { t } = useTranslation();
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(material.title);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [mobileMenu, setMobileMenu] = useState<{ x: number; y: number } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageExpanded, setImageExpanded] = useState(defaultExpanded);
   const [textExpanded, setTextExpanded] = useState(defaultExpanded);
@@ -244,9 +186,9 @@ export function LibraryItemCard({
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
   );
-  // Picker is mounted when: user explicitly opened it from the context menu,
+  // Picker is mounted when: user explicitly opened it from the card's actions,
   // OR relations exist AND the panel-wide toggle is on. Collapsing the toggle
-  // hides existing relations on every card; opening via context menu still
+  // hides existing relations on every card; opening via the actions still
   // works even when collapsed (lasts until the user closes the picker).
   const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
   const accent = 'hsl(var(--story-4))';
@@ -265,20 +207,49 @@ export function LibraryItemCard({
   const handleOpenInSystem = useCallback(() => onOpenInSystem(), [onOpenInSystem]);
   const handleOpenInApp = useCallback(() => onOpenInApp(), [onOpenInApp]);
 
-  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  // Resting the pointer on the card shows its heading and actions (there is
+  // no right-click menu); a touch screen gets them from the ⋯ button instead.
+  const { preview: hoverPreview, onEnter: hoverEnter, onLeave: hoverLeave, dismiss: hoverDismiss, card: hoverCard } =
+    useHoverPreview<null>();
+  const hoverEnabled = !mobileActions && !editing && !pickerOpen;
+  useEffect(() => {
+    if (!hoverEnabled) hoverDismiss();
+  }, [hoverEnabled, hoverDismiss]);
+  const cardTitle = material.title || subtitle || t('common.untitled');
+  const cardDetails = [
+    t('memoMaterial.menu.type', { type: kindLabel }),
+    relations.length > 0
+      ? t('memoMaterial.menu.relationCount', { count: relations.length })
+      : t('memoMaterial.menu.noRelations'),
+  ];
+  const actions: HoverActionGroup[] = [
+    {
+      key: 'organize',
+      actions: [
+        { key: 'addRelation', label: t('memoMaterial.menu.addRelation'), onSelect: () => setPickerOpen(true) },
+        ...(onMoveToFolder
+          ? [{ key: 'moveToFolder', label: t('editorTopBar.menu.moveMaterialToFolder'), onSelect: onMoveToFolder }]
+          : []),
+      ],
+    },
+    {
+      key: 'system',
+      actions: isTextSnippet
+        ? []
+        : [{ key: 'openInSystem', label: t('memoMaterial.menu.openInSystem'), onSelect: handleOpenInSystem }],
+    },
+    {
+      key: 'delete',
+      actions: [{ key: 'delete', label: t('memoMaterial.menu.deleteMaterial'), danger: true, onSelect: onDelete }],
+    },
+  ].filter((group) => group.actions.length > 0);
+
+  const closeMobileMenu = useCallback(() => setMobileMenu(null), []);
 
   const openMobileActionMenu = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
-    setContextMenu({ x: rect.right, y: rect.bottom + 4 });
-  }, []);
-
-  const openContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('input, textarea, [contenteditable="true"]')) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setContextMenu({ x: event.clientX, y: event.clientY });
+    setMobileMenu({ x: rect.right, y: rect.bottom + 4 });
   }, []);
 
   return (
@@ -286,9 +257,15 @@ export function LibraryItemCard({
       <div
         className={`workspace-list-row${active ? ' workspace-list-row--active' : ''}`}
         aria-current={active ? 'page' : undefined}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        onContextMenu={openContextMenu}
+        onMouseEnter={(event) => {
+          setHover(true);
+          if (hoverEnabled) hoverEnter(null, event.currentTarget);
+        }}
+        onMouseLeave={() => {
+          setHover(false);
+          hoverLeave();
+        }}
+        onPointerDownCapture={hoverDismiss}
         onDoubleClick={(event) => {
           const target = event.target as HTMLElement | null;
           if (!onPin || target?.closest('input, textarea, button, [contenteditable="true"]')) return;
@@ -648,18 +625,26 @@ export function LibraryItemCard({
           </div>
         )}
       </div>
-      {contextMenu && (
-        <LibraryItemContextMenu
-          material={material}
+      {hoverPreview && (
+        <HoverCardShell
+          anchor={hoverPreview.anchor}
+          label={cardTitle}
+          pointer={hoverCard}
+          actions={actions}
+          onDismiss={hoverDismiss}
+        >
+          <HoverCardHeading title={cardTitle} detail={cardDetails.join(' · ')} />
+        </HoverCardShell>
+      )}
+      {mobileMenu && (
+        <LibraryItemMobileMenu
+          title={cardTitle}
+          details={cardDetails}
+          actions={actions}
           mobileActions={mobileActions}
-          relationCount={relations.length}
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onOpenInSystem={handleOpenInSystem}
-          onAddRelation={() => setPickerOpen(true)}
-          onMoveToFolder={onMoveToFolder}
-          onDelete={onDelete}
-          onClose={closeContextMenu}
+          x={mobileMenu.x}
+          y={mobileMenu.y}
+          onClose={closeMobileMenu}
         />
       )}
     </>

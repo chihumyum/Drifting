@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
-import { workspaceTargetGlyph } from '../../../features/workspace/navigation/workspace-target';
+import { BrushIcon } from '../../ui/BrushIcon';
+import { KindMark } from '../../ui/KindMark';
+import { kindMarkOfTarget, type KindMarkKind } from '../../ui/kind-mark';
 import { useTabReorder } from './useTabReorder';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import {
@@ -18,9 +19,9 @@ import {
   type SplitTab,
   type TabEntityType,
 } from '../../../store/ui-store';
-import { TabContextMenu, type TabMenuItem } from './TabContextMenu';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
+import { useGlassWave } from '../../../hooks/useGlassWave';
 
 // Floor: absolute survival width — chrome (icon + close) just fits, label
 // area collapses. Tabs may dip below this only if their idealW is naturally
@@ -33,11 +34,13 @@ const TAB_FLOOR_WIDTH = 56;
 const TAB_MIN_WIDTH = 120;
 // Max: per-tab cap so a runaway title doesn't dominate the bar in Phase A.
 const TAB_MAX_WIDTH = 320;
-// 0: reorder geometry treats slots as contiguous. Expanded chips draw their
-// own inset frame, so the visible seam lives inside each slot.
+// 0: reorder geometry treats slots as contiguous. Expanded pills draw their
+// glass inset inside the slot, so the visible gap lives inside each slot.
 const TAB_GAP = 0;
-// Only the strip end keeps breathing room for the trailing create action.
-const TAB_STRIP_END_PADDING = 16;
+// The lock before the pills and the create button after them stay put while
+// the pills scroll; each takes a 30px round button and a 5px gap.
+const TAB_STRIP_START_PADDING = 35;
+const TAB_STRIP_END_PADDING = 35;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
 const SPLIT_WEIGHT = 1.6;
 
@@ -71,25 +74,31 @@ function measureLabelWidth(text: string, fontSize: number): number {
 }
 
 // Chrome layout on a leaf tab:
-//   paddingL 10 + icon 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
-// (the flex container has gap:6 between *every* adjacent pair — there are
-// two gaps with three children, both must be counted.)
+//   paddingL 10 + mark 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
+// The kind mark leads the title in the flow; the dot's sand that spreads
+// away under the glass sits out of the flow on the same spot.
 const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
-// Split tab = two SplitSubLabel slots around a 1px divider. Each sub-label:
-//   paddingL 8 + icon 12 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 50 + label
-// Total chrome = 50 + 50 + 1 (divider) = 101.
-const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
+// The new-document tab keeps its + in the flow:
+//   paddingL 10 + icon 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
+const CREATE_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
+// Split tab = two SplitSubLabel slots around a short I-shaped divider. Each sub-label:
+//   paddingL 8 + mark 14 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 52 + label
+// Total chrome = 52 + 52 + 9 (divider 1 + its margins) = 113.
+const SPLIT_CHROME_WIDTH = 52 + 52 + 9;
 
 
 /**
- * The workspace's open documents, docked under the paper. At rest every tab is
- * a dot in its entity colour (hollow while still a preview); the dock expands
- * the same strip into labelled chips while hovered or focused.
+ * The workspace's open documents, docked along the paper's top. At rest every
+ * tab is the sand mark of its kind in its entity colour (hollow while still a
+ * preview); while hovered or focused glass lands on the marks: each grows
+ * into a pill whose rim takes the mark's colour, its sand spreading away
+ * under the glass. The lock (`leading`) and the create button stay put while
+ * the pills scroll.
  */
-export function TopTimeline({ expanded = true, onHoldExpanded }: {
+export function TopTimeline({ expanded = true, leading }: {
   expanded?: boolean;
-  /** Keeps the dock open while a tab menu is showing. */
-  onHoldExpanded?: (held: boolean) => void;
+  /** Rendered before the pills while expanded, outside their overflow. */
+  leading?: ReactNode;
 } = {}) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -99,14 +108,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const openCreateTab = useUiStore((s) => s.openCreateTab);
   const closeWorkspaceTab = useDesktopTabClose();
-  const closeOtherTabs = useUiStore((s) => s.closeOtherTabs);
-  const closeTabsToRight = useUiStore((s) => s.closeTabsToRight);
-  const closeAllTabs = useUiStore((s) => s.closeAllTabs);
   const closeSplitSide = useUiStore((s) => s.closeSplitSide);
-  const splitActiveWith = useUiStore((s) => s.splitActiveWith);
-  const unsplitTab = useUiStore((s) => s.unsplitTab);
-  const swapSplitPanes = useUiStore((s) => s.swapSplitPanes);
-  const extractFromSplit = useUiStore((s) => s.extractFromSplit);
   const promoteTab = useUiStore((s) => s.promoteTab);
   const selectPresentation = useMemo(() => createTopTabPresentationSelector(projectId, openTabs), [projectId, openTabs]);
   const presentation = useDataStore(selectPresentation);
@@ -116,11 +118,9 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [labelFontSize, setLabelFontSize] = useState(14);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    items: TabMenuItem[];
-  } | null>(null);
+  // Pills have no hover card: a tab is split by dragging it onto the left or
+  // right half of the paper; the split's own operations live on the editors'
+  // seam (EditorMainArea).
 
   // The strip hugs its tabs so it can sit centred under the paper; the dock
   // around it owns the width the tabs may share.
@@ -134,9 +134,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
     return () => ro.disconnect();
   }, [containerRef]);
 
-  useEffect(() => {
-    onHoldExpanded?.(contextMenu !== null);
-  }, [contextMenu, onHoldExpanded]);
 
   // The portaled probe inherits the same desktop token as visible tabs.
   // Recalculate after a text-size preference change even
@@ -197,7 +194,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
         tab.kind === 'leaf'
           ? measureLabelWidth(labelOfLeaf(tab), labelFontSize) + TAB_CHROME_WIDTH
           : tab.kind === 'create'
-            ? measureLabelWidth(t('topTimeline.newTab'), labelFontSize) + TAB_CHROME_WIDTH
+            ? measureLabelWidth(t('topTimeline.newTab'), labelFontSize) + CREATE_CHROME_WIDTH
             : measureLabelWidth(labelOfLeaf(tab.left), labelFontSize) +
               measureLabelWidth(labelOfLeaf(tab.right), labelFontSize) +
               SPLIT_CHROME_WIDTH;
@@ -207,7 +204,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
     // Preserve the document-tab sizing contract. The adjacent `+` is a
     // separate strip item and may extend the scrollable content; it must not
     // make every existing tab enter proportional shrink earlier.
-    const availableW = Math.max(0, containerWidth - TAB_STRIP_END_PADDING - totalGaps);
+    const availableW = Math.max(0, containerWidth - TAB_STRIP_START_PADDING - TAB_STRIP_END_PADDING - totalGaps);
     const idealTotal = ideals.reduce((a, b) => a + b, 0);
 
     // Phase A — or initial render before ResizeObserver fires.
@@ -230,6 +227,8 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
   }, [openTabs, labelOfLeaf, containerWidth, labelFontSize, t]);
 
   useTabReorder(containerRef, projectId, openTabs, tabWidths);
+  // Choosing another pill sends the selected glass across like water.
+  useGlassWave(containerRef, activeTabKey, expanded);
 
   // When the active tab changes (or the layout shifts enough to push it out of
   // view), scroll the bar so the active tab is fully visible. Without this,
@@ -289,146 +288,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
     [projectId, promoteTab],
   );
 
-  // Build the menu items for right-clicking a top-level tab. Per the
-  // requirement that there be no distinction between "sub-tab menu" and
-  // "outer menu" inside a split, each side of a split surfaces all the same
-  // operations — both per-side (close this side / extract / swap) and
-  // whole-tab (close, close others, close all, unsplit).
-  const buildMenuItems = useCallback(
-    (tab: AnyTab, tabIndex: number, sideHint?: 'left' | 'right'): TabMenuItem[] => {
-      if (!projectId) return [];
-      const items: TabMenuItem[] = [];
-
-      // "Open in left/right pane" is only meaningful for a non-active leaf —
-      // splitting the active tab against itself produces no useful pane, and
-      // a split tab can't be folded into another tab.
-      const activeTabRef = openTabs.find((t) => tabKey(t) === activeTabKey);
-      const activeFocused = activeTabRef ? focusedLeafOf(activeTabRef) : null;
-      const isLeafSameAsActiveFocused =
-        tab.kind === 'leaf' &&
-        activeFocused !== null &&
-        activeFocused.entityType === tab.entityType &&
-        activeFocused.id === tab.id;
-      const allowSplitOpen =
-        tab.kind === 'leaf' && activeTabRef !== undefined && !isLeafSameAsActiveFocused;
-      // Per-side operations only make sense inside a split. Each operation
-      // that can change the active tab follows up with an openEntity() call
-      // so the URL races EditorShell's own URL→tab sync — without this,
-      // closing a side leaves the URL pointing at the just-closed entity
-      // and EditorShell re-adds it as a fresh preview tab.
-      if (tab.kind === 'split') {
-        const side = sideHint ?? tab.focused;
-        items.push(
-          {
-            label: t('topTimeline.menu.closePane'),
-            onClick: () => {
-              const { nextActive } = closeSplitSide(projectId, tab.id, side);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
-          },
-          {
-            label: t('topTimeline.menu.extractTab'),
-            onClick: () => {
-              const { nextActive } = extractFromSplit(projectId, tab.id, side);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
-          },
-          {
-            label: t('topTimeline.menu.swapPanes'),
-            onClick: () => swapSplitPanes(projectId, tab.id),
-          },
-          { separator: true },
-          {
-            label: t('topTimeline.menu.unsplit'),
-            onClick: () => {
-              const { nextActive } = unsplitTab(projectId, tab.id);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
-          },
-          { separator: true },
-        );
-      }
-
-      // Whole-tab close / split operations, applicable to both leaves and
-      // splits.
-      const tabKeyStr = tabKey(tab);
-      items.push({
-        label: t('topTimeline.menu.close'),
-        accelerator: 'Cmd+W',
-        onClick: () => handleCloseTab(tab),
-        disabled: tab.kind === 'create' && tab.draft.status === 'creating',
-      });
-
-      // Split-create options only on leaves — splitting an already-split tab
-      // doesn't add a third pane.
-      if (tab.kind === 'leaf') {
-        items.push(
-          {
-            label: t('topTimeline.menu.openRight'),
-            onClick: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
-            disabled: !allowSplitOpen,
-          },
-          {
-            label: t('topTimeline.menu.openLeft'),
-            onClick: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
-            disabled: !allowSplitOpen,
-          },
-        );
-      }
-
-      items.push(
-        { separator: true },
-        {
-          label: t('topTimeline.menu.closeOthers'),
-          onClick: () => {
-            const { nextActive } = closeOtherTabs(projectId, tabKeyStr);
-            if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            else navigate(`/project/${projectId}`, { replace: true });
-          },
-          disabled: openTabs.length <= 1,
-        },
-        {
-          label: t('topTimeline.menu.closeRight'),
-          onClick: () => {
-            const { nextActive } = closeTabsToRight(projectId, tabKeyStr);
-            if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-          },
-          disabled: tabIndex >= openTabs.length - 1,
-        },
-        {
-          label: t('topTimeline.menu.closeAll'),
-          onClick: () => {
-            closeAllTabs(projectId);
-            // Land on the bare project URL so the Layout URL → tab sync
-            // doesn't reopen whatever the URL had been pointing at, and
-            // Project Home renders without creating another tab.
-            navigate(`/project/${projectId}`, { replace: true });
-          },
-          disabled: openTabs.length === 0,
-        },
-      );
-
-      return items;
-    },
-    [
-      projectId,
-      openTabs,
-      activeTabKey,
-      handleCloseTab,
-      openEntity,
-      navigate,
-      closeOtherTabs,
-      closeTabsToRight,
-      closeAllTabs,
-      closeSplitSide,
-      extractFromSplit,
-      swapSplitPanes,
-      unsplitTab,
-      splitActiveWith,
-      t,
-    ],
-  );
-
   return (
     <div
       ref={containerRef}
@@ -443,20 +302,19 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
         width: 'fit-content',
         maxWidth: '100%',
         paddingLeft: 0,
-        paddingRight: expanded ? TAB_STRIP_END_PADDING : 0,
+        paddingRight: 0,
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
       }}
     >
+      {expanded && leading}
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
         const width = tabWidths[index] ?? TAB_MIN_WIDTH;
         if (!expanded) {
-          const openMenu = (x: number, y: number, side?: 'left' | 'right') =>
-            setContextMenu({ x, y, items: buildMenuItems(tab, index, side) });
           const clusterBreak = index > 0 && clusterOf(openTabs[index - 1]) !== clusterOf(tab);
           if (tab.kind === 'split') {
             return (
@@ -465,25 +323,29 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
                 data-cluster-break={clusterBreak ? 'true' : undefined}>
                 {(['left', 'right'] as const).map((side) => (
                   <TabDot key={side}
+                    kind={kindMarkOfTarget(tab[side].entityType, isDriftLeaf(tab[side]))}
+                    seed={tab[side].id}
                     label={labelOfLeaf(tab[side])}
                     color={colorOfLeaf(tab[side])}
                     isActive={isActive && tab.focused === side}
                     isPreview={tab[side].isPreview}
                     onSelect={() => activateLeafTab(tab[side])}
-                    onContextMenu={(x, y) => openMenu(x, y, side)} />
+ />
                 ))}
               </span>
             );
           }
           return (
             <TabDot key={key} tabKeyValue={key}
+              kind={tab.kind === 'leaf' ? kindMarkOfTarget(tab.entityType, isDriftLeaf(tab)) : 'chapter'}
+              seed={tab.id}
               label={tab.kind === 'leaf' ? labelOfLeaf(tab) : t('topTimeline.newTab')}
               color={tab.kind === 'leaf' ? colorOfLeaf(tab) : undefined}
               isActive={isActive}
               isPreview={tab.isPreview}
               clusterBreak={clusterBreak}
               onSelect={() => handleSelectTab(tab)}
-              onContextMenu={(x, y) => openMenu(x, y)} />
+ />
           );
         }
         if (tab.kind === 'create') {
@@ -497,7 +359,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
             />
           );
         }
@@ -515,7 +376,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
             />
           );
         }
@@ -544,16 +404,13 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
               const { nextActive } = closeSplitSide(projectId, tab.id, side);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             }}
-            onContextMenu={(x, y, side) =>
-              setContextMenu({ x, y, items: buildMenuItems(tab, index, side) })
-            }
           />
         );
       })}
 
       {expanded && <button
         type="button"
-        className="top-timeline-create-button"
+        className="top-timeline-create-button glass glass--rest glass--round"
         aria-label={t('topTimeline.newEntity')}
         title={t('topTimeline.newEntity')}
         onClick={() => {
@@ -565,17 +422,9 @@ export function TopTimeline({ expanded = true, onHoldExpanded }: {
           navigate(`/project/${projectId}/new`);
         }}
       >
-        <Plus size={16} strokeWidth={1.8} aria-hidden />
+        <BrushIcon name="plus" />
       </button>}
 
-      {contextMenu && (
-        <TabContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={contextMenu.items}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
     </div>
   );
 }
@@ -588,7 +437,6 @@ function CreateTabSlot({
   onSelect,
   onPromote,
   onClose,
-  onContextMenu,
 }: {
   tab: CreateTab;
   isActive: boolean;
@@ -597,7 +445,6 @@ function CreateTabSlot({
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
-  onContextMenu: (x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
   const isCreating = tab.draft.status === 'creating';
@@ -606,16 +453,12 @@ function CreateTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab app-tab--create${isActive ? ' is-active' : ''}`}
+      className={`app-tab app-tab--create glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       onClick={onSelect}
       onDoubleClick={onPromote}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
-      }}
       style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
     >
-      <Plus size={14} strokeWidth={1.8} aria-hidden />
+      <BrushIcon name="plus" size={14} />
       <span className="app-tab--create__label">{label}</span>
       <button
         type="button"
@@ -628,8 +471,9 @@ function CreateTabSlot({
           onClose();
         }}
       >
-        <X size={12} strokeWidth={2} />
+        <BrushIcon name="close" size={12} />
       </button>
+      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
   );
 }
@@ -644,7 +488,6 @@ interface LeafSlotProps {
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
-  onContextMenu: (x: number, y: number) => void;
 }
 
 function LeafTabSlot({
@@ -657,7 +500,6 @@ function LeafTabSlot({
   onSelect,
   onPromote,
   onClose,
-  onContextMenu,
 }: LeafSlotProps) {
   const { t } = useTranslation();
   const accent = color || 'hsl(var(--ink-3))';
@@ -666,14 +508,10 @@ function LeafTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab${isActive ? ' is-active' : ''}`}
+      className={`app-tab glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       draggable
       onClick={onSelect}
       onDoubleClick={onPromote}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
-      }}
       onMouseDown={(event) => {
         if (event.button === 1) {
           event.preventDefault();
@@ -693,7 +531,9 @@ function LeafTabSlot({
           cursor: 'pointer',
           fontFamily: 'var(--font-sans)',
           fontSize: 'var(--ui-font-body, 12.5px)',
-          color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+          color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+          // A pill's glass takes the colour of the mark it grew from.
+          '--glass-cc': accent,
           // Constant weight: bolding the active tab widens its glyphs, so at
           // the same fixed tab width the SELECTED label ellipsized earlier
           // than unselected ones. Emphasis comes from a metric-neutral
@@ -709,19 +549,13 @@ function LeafTabSlot({
         } as React.CSSProperties
       }
     >
-      <span
-        aria-hidden
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontStyle: 'italic',
-          fontSize: 'var(--ui-font-body, 13px)',
-          color: accent,
-          flexShrink: 0,
-          lineHeight: 1,
-        }}
-      >
-        {workspaceTargetGlyph(tab.entityType, { isDrift })}
+      {/* The dot's sand spreads out and thins away under the glass, and the
+          kind mark settles in its place before the title. */}
+      <span className="app-tab__sand" aria-hidden>
+        <KindMark kind={kindMarkOfTarget(tab.entityType, isDrift)} seed={tab.id} color={color} />
       </span>
+      <KindMark className="app-tab__mark" kind={kindMarkOfTarget(tab.entityType, isDrift)}
+        seed={tab.id} color={color} hollow={tab.isPreview} />
       <span
         style={{
           overflow: 'hidden',
@@ -777,8 +611,9 @@ function LeafTabSlot({
           event.currentTarget.style.color = 'hsl(var(--ink-3))';
         }}
       >
-        <X size={12} strokeWidth={2} />
+        <BrushIcon name="close" size={12} />
       </button>
+      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
   );
 }
@@ -796,7 +631,6 @@ interface SplitSlotProps {
   onSelectSide: (side: 'left' | 'right') => void;
   onPromoteSide: (side: 'left' | 'right') => void;
   onCloseSide: (side: 'left' | 'right') => void;
-  onContextMenu: (x: number, y: number, side: 'left' | 'right') => void;
 }
 
 function SplitTabSlot({
@@ -812,16 +646,16 @@ function SplitTabSlot({
   onSelectSide,
   onPromoteSide,
   onCloseSide,
-  onContextMenu,
 }: SplitSlotProps) {
   return (
     <div
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab app-tab--split${isActive ? ' is-active' : ''}`}
+      className={`app-tab app-tab--split glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       draggable
       style={{
+        '--glass-cc': (tab.focused === 'right' ? rightColor : leftColor) || 'hsl(var(--ink-3))',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'stretch',
@@ -832,10 +666,11 @@ function SplitTabSlot({
         overflow: 'hidden',
         height: '100%',
         userSelect: 'none',
-      }}
+      } as React.CSSProperties}
     >
       <SplitSubLabel
         entityType={tab.left.entityType}
+        entityId={tab.left.id}
         label={leftLabel}
         color={leftColor}
         isDrift={leftIsDrift}
@@ -844,20 +679,11 @@ function SplitTabSlot({
         onClick={() => onSelectSide('left')}
         onPromote={() => onPromoteSide('left')}
         onClose={() => onCloseSide('left')}
-        onContextMenu={(x, y) => onContextMenu(x, y, 'left')}
       />
-      <div
-        aria-hidden
-        className="app-tab__split-divider"
-        style={{
-          width: 1,
-          alignSelf: 'stretch',
-          background: 'hsl(var(--rule))',
-          margin: '6px 0',
-        }}
-      />
+      <span aria-hidden className="app-tab__split-divider" />
       <SplitSubLabel
         entityType={tab.right.entityType}
+        entityId={tab.right.id}
         label={rightLabel}
         color={rightColor}
         isDrift={rightIsDrift}
@@ -866,14 +692,15 @@ function SplitTabSlot({
         onClick={() => onSelectSide('right')}
         onPromote={() => onPromoteSide('right')}
         onClose={() => onCloseSide('right')}
-        onContextMenu={(x, y) => onContextMenu(x, y, 'right')}
       />
+      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
   );
 }
 
 function SplitSubLabel({
   entityType,
+  entityId,
   label,
   color,
   isDrift,
@@ -882,9 +709,9 @@ function SplitSubLabel({
   onClick,
   onPromote,
   onClose,
-  onContextMenu,
 }: {
   entityType: TabEntityType;
+  entityId: string;
   label: string;
   color: string | undefined;
   isDrift: boolean;
@@ -893,10 +720,8 @@ function SplitSubLabel({
   onClick: () => void;
   onPromote: () => void;
   onClose: () => void;
-  onContextMenu: (x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
-  const accent = color || 'hsl(var(--ink-3))';
   return (
     <div
       onClick={(event) => {
@@ -907,11 +732,6 @@ function SplitSubLabel({
         event.stopPropagation();
         onPromote();
       }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onContextMenu(event.clientX, event.clientY);
-      }}
       onMouseDown={(event) => {
         if (event.button === 1) {
           event.preventDefault();
@@ -920,6 +740,7 @@ function SplitSubLabel({
         }
       }}
       style={{
+        position: 'relative',
         flex: 1,
         minWidth: 0,
         display: 'flex',
@@ -929,7 +750,7 @@ function SplitSubLabel({
         cursor: 'pointer',
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--ui-font-body, 12px)',
-        color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+        color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
         // Metric-neutral emphasis (see LeafTabSlot): real bold widens the
         // focused label and truncates it earlier than the unfocused side.
         fontWeight: 400,
@@ -943,19 +764,11 @@ function SplitSubLabel({
         transition: 'none',
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontStyle: 'italic',
-          fontSize: 'var(--ui-font-body, 12px)',
-          color: accent,
-          flexShrink: 0,
-          lineHeight: 1,
-        }}
-      >
-        {workspaceTargetGlyph(entityType, { isDrift })}
+      <span className="app-tab__sand" aria-hidden>
+        <KindMark kind={kindMarkOfTarget(entityType, isDrift)} seed={entityId} color={color} />
       </span>
+      <KindMark className="app-tab__mark" kind={kindMarkOfTarget(entityType, isDrift)}
+        seed={entityId} color={color} hollow={isPreview} />
       <span
         style={{
           overflow: 'hidden',
@@ -1007,7 +820,7 @@ function SplitSubLabel({
           event.currentTarget.style.color = 'hsl(var(--ink-4))';
         }}
       >
-        <X size={10} strokeWidth={2} />
+        <BrushIcon name="close" size={10} />
       </button>
     </div>
   );
@@ -1015,22 +828,24 @@ function SplitSubLabel({
 
 function TabDot({
   tabKeyValue,
+  kind,
+  seed,
   label,
   color,
   isActive,
   isPreview,
   clusterBreak = false,
   onSelect,
-  onContextMenu,
 }: {
   tabKeyValue?: string;
+  kind: KindMarkKind;
+  seed: string;
   label: string;
   color: string | undefined;
   isActive: boolean;
   isPreview: boolean;
   clusterBreak?: boolean;
   onSelect: () => void;
-  onContextMenu: (x: number, y: number) => void;
 }) {
   return (
     <button
@@ -1043,12 +858,9 @@ function TabDot({
       data-cluster-break={clusterBreak ? 'true' : undefined}
       data-preview={isPreview ? 'true' : undefined}
       className={`app-tab-dot${isActive ? ' is-active' : ''}`}
-      style={{ '--tab-dot-color': color || 'hsl(var(--ink-3))' } as React.CSSProperties}
       onClick={onSelect}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
-      }}
-    />
+    >
+      <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} hollow={isPreview} />
+    </button>
   );
 }

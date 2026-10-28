@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { matchesAccelerator } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
@@ -21,6 +20,7 @@ import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
 } from '../hosted-settings-policy';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 interface DesktopSettingsModalProps {
   isOpen: boolean;
@@ -391,23 +391,13 @@ function SetHead({
           title={t('navigation.back')}
           aria-label={t('navigation.back')}
         >
-          <ArrowLeft size={16} strokeWidth={1.7} aria-hidden="true" />
+          <BrushIcon name="arrow-back" size={16} />
         </button>
         <div className="set-head__title">{t('settings.title')}</div>
       </div>
 
       <div className="set-head__search">
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <circle cx="7" cy="7" r="4.5" />
-          <path d="M10.5 10.5 L14 14" />
-        </svg>
+        <BrushIcon name="search" size={11} />
         <input
           ref={searchInputRef}
           placeholder={t('settings.search_placeholder')}

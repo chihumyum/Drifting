@@ -89,7 +89,7 @@ describe('continuous Bottom Timeline authority', () => {
     expect(actRail).not.toContain('Math.round(xToOrder');
   });
 
-  it('keeps empty marker and act rails context-menu actionable', () => {
+  it('keeps empty marker and act rails actionable by double-click', () => {
     const bottomTimeline = source(
       'src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx',
     );
@@ -98,12 +98,21 @@ describe('continuous Bottom Timeline authority', () => {
     );
     const actRail = source('src/renderer/components/BottomTimeline/ActRail.tsx');
 
-    expect(bottomTimeline).toContain('onContextMenuCapture={');
-    expect(bottomTimeline).toContain('markers.length === 0');
-    expect(storyGraph).toContain('markers.length === 0');
+    // The bottom timeline has no right-click menus: double-clicking an empty
+    // spot on the axis, a storyline track or the act rail creates there.
+    expect(bottomTimeline).toContain('handleAddPinAtOrder(positionToOrder(x))');
+    expect(bottomTimeline).toContain(
+      'createChapterAt(isSynthetic ? null : storyline.id, positionToOrder(x))',
+    );
+    expect(bottomTimeline).not.toMatch(/onContextMenu|ContextMenu\b|TimelineRailMenu/);
+    // The story graph has no right-click menus: double-clicking the empty
+    // axis drops a marker at that spot.
+    expect(storyGraph).toContain('handleAddPinAtOrder(positionToOrder(e.clientX - rect.left))');
+    expect(storyGraph).not.toMatch(/onContextMenu|TimelineRailMenu/);
     expect(actRail).toContain("segments.length === 0 ? ' actrail--empty' : ''");
     expect(actRail).not.toContain('if (segments.length === 0) {');
-    expect(actRail).toContain("if (menu.kind === 'rail')");
+    expect(actRail).toContain('onSplitAt(orderAtClientX(event.clientX))');
+    expect(actRail).not.toMatch(/onContextMenu|createPortal/);
   });
 
   it('makes the first act a movable boundary and preserves a no-act book head', () => {

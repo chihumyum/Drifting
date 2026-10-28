@@ -1,6 +1,5 @@
 import { useSidebarPreference } from '../../hooks/useSidebarPanelState';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Minus, ArrowDownUp, Plus, FolderPlus, Shapes } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -25,7 +24,8 @@ import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
-import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip';
+import { BrushIcon } from '../ui/BrushIcon';
+import { GhostIconButton } from '../ui/GhostIconButton';
 import { useSuperViewPreloadIntent } from '../../features/graph/deferred-graph-modules';
 import { useUiStore } from '../../store/ui-store';
 
@@ -306,7 +306,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   const renderPrimaryCreate = () => {
     let onClick: () => void;
     let title: string;
-    let icon: React.ReactNode = <Plus size={11} strokeWidth={2} />;
+    let icon: React.ReactNode = <BrushIcon name="plus" size={11} />;
     if (activeLeftPanel === 'nodes') {
       // Mirror ChapterPanel: when there are no storylines the view collapses to
       // 'global', so the primary CTA must be "+ 新章节" regardless of the
@@ -320,24 +320,9 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
         ? t('leftSidebar.actions.newStoryline')
         : t('leftSidebar.actions.newChapter');
       if (isStorylineMode) {
-        // Reuse the BottomTimeline "+ storyline" glyph (horizontal lane +
-        // plus above) so this button reads as a sibling of the timeline's
-        // affordance. The two are the same action, surfaced from two places.
-        icon = (
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          >
-            <line x1="2" y1="11" x2="14" y2="11" />
-            <line x1="8" y1="3" x2="8" y2="8" />
-            <line x1="5.5" y1="5.5" x2="10.5" y2="5.5" />
-          </svg>
-        );
+        // A lane with a plus above it, so this reads as "+ storyline" rather
+        // than the bare plus the chapter list uses.
+        icon = <BrushIcon name="new-storyline" size={12} />;
       }
     } else if (activeLeftPanel === 'elements') {
       // Elements panel header only exposes "new category" — each category
@@ -346,26 +331,10 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
       // creates an element under whichever category sorts first.
       onClick = () => void handleCreateCategory();
       title = t('leftSidebar.actions.newCategory');
-      // Mirror the storyline glyph's "shape + plus above" structure with two
-      // stacked lines (a "group/list" of items) so the affordance reads as
-      // "+ category" rather than the ambiguous bare plus that users would
-      // otherwise mistake for "+ element".
-      icon = (
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        >
-          <line x1="4" y1="10" x2="12" y2="10" />
-          <line x1="4" y1="13" x2="12" y2="13" />
-          <line x1="8" y1="3" x2="8" y2="7" />
-          <line x1="6" y1="5" x2="10" y2="5" />
-        </svg>
-      );
+      // The category's own sand corner with a plus beside it, so the
+      // affordance reads as "+ category" rather than the ambiguous bare plus
+      // that users would otherwise mistake for "+ element".
+      icon = <BrushIcon name="new-category" size={12} />;
     } else {
       onClick = () => void handleCreateDrift();
       title = t('leftSidebar.actions.newDrift');
@@ -378,30 +347,35 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   };
 
   // Each panel opens its whole-book view from here: All Chapters beside the
-  // chapters, the element overview beside the elements.
+  // chapters, the element overview beside the elements. These entries are
+  // round glass; the panel's ordinary buttons (sort, new) stay plain.
   const renderOverview = () => {
     if (activeLeftPanel === 'nodes') {
       return (
-        <SubIconBtn
+        <GhostIconButton
+          glass="round"
+          className="workspace-super-view-entry"
           title={t('bottomStatusBar.allChapters')}
+          aria-label={t('bottomStatusBar.allChapters')}
           onClick={() => {
             setActiveSuperView('none');
             navigateToAllChapters();
           }}
-        >
-          <IconoirPageFlip width={12} height={12} strokeWidth={1.5} aria-hidden="true" />
-        </SubIconBtn>
+          icon={<BrushIcon name="ov-folding" size={15} />}
+        />
       );
     }
     if (activeLeftPanel === 'elements') {
       return (
-        <SubIconBtn
+        <GhostIconButton
+          {...elementOverviewIntent}
+          glass="round"
+          className="workspace-super-view-entry"
           title={t('bottomStatusBar.elements')}
-          intent={elementOverviewIntent}
+          aria-label={t('bottomStatusBar.elements')}
           onClick={() => setActiveSuperView('element')}
-        >
-          <Shapes size={12} strokeWidth={1.6} />
-        </SubIconBtn>
+          icon={<BrushIcon name="ov-iceberg" size={15} />}
+        />
       );
     }
     return null;
@@ -417,7 +391,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
           title={t('leftSidebar.actions.newDriftGroup')}
           onClick={() => void handleCreateDriftGroup()}
         >
-          <FolderPlus size={12} strokeWidth={1.6} />
+          <BrushIcon name="folder-plus" size={12} />
         </SubIconBtn>
       );
     }
@@ -493,7 +467,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
             toggles its storyline lanes individually, so it's excluded. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
           <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>
-            <Minus size={11} strokeWidth={1.6} />
+            <BrushIcon name="minus" size={11} />
           </SubIconBtn>
         )}
         <SubIconBtn
@@ -502,7 +476,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
           buttonRef={sortBtnRef}
           expanded={sortMenuOpen}
         >
-          <ArrowDownUp size={11} strokeWidth={1.6} />
+          <BrushIcon name="sort" size={11} />
         </SubIconBtn>
         {renderSecondaryCreate()}
         {renderPrimaryCreate()}

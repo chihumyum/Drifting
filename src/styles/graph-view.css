@@ -298,6 +298,9 @@
      The parent `.graph-axis-row` is only container-wide, so its background
      stopped at the pre-scroll right edge — scrolling revealed bare --page. */
   background: hsl(var(--paper));
+  /* Double-clicking blank axis adds a marker; it must not also select the
+     nearest pin label. Labels being renamed are editable and still select. */
+  user-select: none;
 }
 
 /* ---------------- Lane row (rail + track) ----------------

@@ -31,6 +31,9 @@ export function Switch({
         .join(' ')}
       onClick={() => onCheckedChange(!checked)}
       {...props}
-    />
+    >
+      {/* The accent glass that fills the track while on (ui-controls.css). */}
+      <span className="ui-switch__tint" aria-hidden="true" />
+    </button>
   );
 }

@@ -227,8 +227,10 @@ folder; relations to chapters and elements stay the cross-cutting link.
 - On desktop it works like Finder: click opens a material (a folder toggles),
   ⌘-click and ⇧-click select several materials and folders, ⌥-click a folder
   opens or closes everything inside it, drag a selection onto a folder (or the
-  empty area for the root), right-click to create, rename, move or delete one
-  item or the selection. On mobile it shows one folder at a time under a
+  empty area for the root). Resting the pointer on a row shows its hover card,
+  whose bottom row creates, renames, moves or deletes that item — or the whole
+  selection when the row is part of one; new folders also come from the
+  toolbar button. On mobile it shows one folder at a time under a
   breadcrumb. New materials go into the folder last selected.
 - **移动到文件夹…** is on tree rows, TODO & 素材库 cards and the material tab
   menu; the picker disables a moving folder and everything below it.

@@ -24,7 +24,7 @@ const inputs = [
   'src/renderer/domain/chapter-insert.ts', 'src/renderer/domain/chapter-insert.test.ts',
   'src/renderer/components/editor/ChapterEditor.tsx',
   'src/renderer/views/AllChaptersEditorView.tsx', 'src/renderer/views/NodeEditorView.tsx',
-  'src/styles/chapter-end-menu.css', 'src/styles/index.css',
+  'src/styles/chapter-end-menu.css', 'src/styles/index.css', 'src/styles/materials.css',
 ];
 const fingerprint = () => {
   const hash = createHash('sha256');
@@ -125,9 +125,11 @@ if (process.argv.includes('--check')) {
         items: [...row.querySelectorAll('[role=menuitem]')].map(item => {
           const rect = item.getBoundingClientRect(); const style = getComputedStyle(item);
           const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
-          return { action: item.dataset.action, label: item.textContent, x, y,
+          return { action: item.dataset.action, label: item.textContent, x, y, left: rect.left,
+            icon: item.firstElementChild?.className ?? null,
             disabled: item.disabled, focused: document.activeElement === item,
             font: style.fontFamily, border: style.borderTopWidth, background: style.backgroundColor,
+            ring: Number(getComputedStyle(item.querySelector('.cell-ring')).opacity),
             inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
             hitTarget: document.elementsFromPoint(x, y).some(el => el === item || item.contains(el)) };
         }) };
@@ -167,7 +169,7 @@ if (process.argv.includes('--check')) {
       'Hidden actions must not take the pointer.');
 
     // Hover intent: passing over ⁂ does nothing and never presses it; resting
-    // on it cross-fades ⁂ into the actions on the same line.
+    // on it cross-fades ⁂ into a column of actions centred on it.
     await away();
     await mouse('mouseMoved', resting.x, resting.y);
     await mouse('mouseMoved', 5, 5);
@@ -190,20 +192,33 @@ if (process.argv.includes('--check')) {
     assert.equal(faded.transform, 'matrix(0.6, 0, 0, 0.6, 0, 0)', 'Fading out, ⁂ shrinks toward its centre.');
     assert.equal(faded.filter, 'blur(2px)');
     assert.deepEqual(row.items.map(entry => entry.action), ['finish', 'insert', 'review']);
+    // Each action leads with its brush icon: 搁笔, a sprout, the shikigami.
+    assert.deepEqual(row.items.map(entry => entry.icon),
+      ['brush-icon brush-icon--brush-laid', 'brush-icon brush-icon--sprout', 'brush-icon brush-icon--shikigami']);
+    // One column centred on ⁂, top to bottom, the primary on ⁂'s line, the
+    // icons lined up down its left edge.
     const [left, centre, right] = row.items;
-    assert(left.x < centre.x && centre.x < right.x, JSON.stringify(row.items));
-    assert(row.items.every(entry => Math.abs(entry.y - resting.y) < 2), 'All actions sit on ⁂’s line.');
-    assert(Math.abs(centre.x - resting.x) < 1.5, 'The primary action is centred where ⁂ stood.');
+    const near = (a, b, tolerance = 1.5) => Math.abs(a - b) <= tolerance;
+    assert(left.y < centre.y && centre.y < right.y, JSON.stringify(row.items));
+    assert(near((row.left + row.right) / 2, resting.x), 'The list is centred where ⁂ stood.');
+    assert(near(centre.y, resting.y), 'The primary action sits on ⁂’s line.');
+    assert(row.items.every(entry => near(entry.left, row.left, 0.5)), 'The actions and their icons line up down the left edge.');
     assert(row.items.every(entry => entry.font === monoFont), `Actions use the monospace stack: ${row.items[0].font}`);
     assert(row.items.every(entry => entry.border === '0px' && entry.background === transparent), 'Actions are plain text.');
     assert(row.items.every(entry => entry.inViewport && entry.hitTarget && !entry.disabled), JSON.stringify(row.items));
 
-    // Roaming along the line keeps the actions; leaving it upward, downward or
-    // past either end brings ⁂ straight back.
+    // Roaming along the list keeps the actions; leaving it upward, downward or
+    // past either side brings ⁂ straight back.
     await mouse('mouseMoved', left.x, left.y);
+    await delay(350);
+    // Like a sidebar cell, the hovered action alone shows its glass ring.
+    const roamed = await menu();
+    assert(roamed, 'Moving along the list keeps the actions.');
+    assert.deepEqual(roamed.items.map(entry => entry.ring > 0.95 ? 1 : entry.ring < 0.05 ? 0 : entry.ring), [1, 0, 0],
+      `Only the hovered action shows its glass ring: ${JSON.stringify(roamed.items.map(entry => entry.ring))}`);
     await mouse('mouseMoved', right.x, right.y);
     await delay(50);
-    assert(await menu(), 'Moving along the line keeps the actions.');
+    assert(await menu(), 'Moving along the list keeps the actions.');
     const exits = {};
     for (const [name, x, y] of [
       ['above', centre.x, row.top - 20], ['below', centre.x, row.bottom + 20],
@@ -291,7 +306,7 @@ if (process.argv.includes('--check')) {
     await away();
     assert.equal(await menu(), null);
 
-    // Keyboard: Enter opens on the primary action, arrows move along the row,
+    // Keyboard: Enter opens on the primary action, arrows move along the list,
     // the pointer does not close it, an outside click or Escape does.
     await trigger('chapter-c');
     await evaluate(`${triggerOf('chapter-c')}.focus()`);
@@ -299,10 +314,10 @@ if (process.argv.includes('--check')) {
     await delay(100);
     const keyboard = await menu();
     assert(keyboard && item(keyboard, 'insert').focused, JSON.stringify(keyboard));
-    await key('ArrowLeft', 'ArrowLeft', 37);
+    await key('ArrowUp', 'ArrowUp', 38);
     assert(item(await menu(), 'finish').focused);
-    await key('ArrowRight', 'ArrowRight', 39);
-    await key('ArrowRight', 'ArrowRight', 39);
+    await key('ArrowDown', 'ArrowDown', 40);
+    await key('ArrowDown', 'ArrowDown', 40);
     assert(item(await menu(), 'review').focused);
     await mouse('mouseMoved', 900, 120);
     assert(await menu(), 'Pointer movement does not close a keyboard-opened row.');
@@ -327,9 +342,11 @@ if (process.argv.includes('--check')) {
     const decorative = await evaluate(`(() => {
       const ornament = document.querySelector('[data-testid=decorative] .page__ornament');
       return { hidden: ornament.getAttribute('aria-hidden'), text: ornament.textContent,
+        stones: ornament.querySelectorAll('.brush-icon--stones-triad').length,
         controls: ornament.querySelectorAll('button').length };
     })()`);
-    assert.deepEqual(decorative, { hidden: 'true', text: '⁂', controls: 0 });
+    // The decorative ⁂ is the brush-drawn triad of stones, with no text and no control.
+    assert.deepEqual(decorative, { hidden: 'true', text: '', stones: 1, controls: 0 });
     assert.deepEqual(errors, []);
 
     mkdirSync(path.join(root, '.qa'), { recursive: true });
@@ -341,19 +358,19 @@ if (process.argv.includes('--check')) {
     writeFileSync(output, JSON.stringify({ kind: 'chapter-end-menu', status: 'passed',
       generatedAt: new Date().toISOString(), sourceSha256: before, inputs,
       browser: (await client.Browser.getVersion()).product,
-      samples: { resting, opening, faded, row, exits, closed, inserts: [middle], finishedTrigger, monoFont,
+      samples: { resting, opening, faded, row, roamed, exits, closed, inserts: [middle], finishedTrigger, monoFont,
         labels: { finishLabel, draftLabel, reviewIdle: reviewIdle.label, reviewStarting: starting.label, reviewRunning: running.label } },
       checks: { hoverIntentDelay: true, noPressedWash: true, markCrossFadesIntoActions: true,
-        actionsOnTheMarkLine: true, primaryCentredOnMark: true, monospacePlainText: true,
-        opensPromptly: true, simultaneousCrossZoomMorph: true, roamingAlongLineKeepsOpen: true,
-        leavingLineClosesAtOnce: true, markReturnsSmoothly: true, scrollUnderStillPointerDoesNotOpen: true,
+        verticalListCentredOnMark: true, primaryOnTheMarkLine: true, iconsLeadEachAction: true, hoveredActionShowsGlassRing: true, monospacePlainText: true,
+        opensPromptly: true, simultaneousCrossZoomMorph: true, roamingAlongListKeepsOpen: true,
+        leavingListClosesAtOnce: true, markReturnsSmoothly: true, scrollUnderStillPointerDoesNotOpen: true,
         earlyClickGuard: true, insertsDirectlyAfterChapter: true, staysInsideAct: true,
         finishedToggleAndAccent: true, reviewDispatchStates: true, keyboardMenu: true,
         outsideClickDismisses: true, scrollClosesRow: true, decorativeVariantHasNoControl: true,
         noUncaughtExceptions: true },
       boundary: 'Chromium renderer with the real VirtualChapterRow, ChapterEndMenu, chapterOrderAfter and styles; insert, status and review handlers act on synthetic in-memory chapters with two acts. Database writes, the Agent runtime session, the live-editor title focus, tab opening and WKWebView pointer behaviour are outside this harness.',
     }, null, 2) + '\n');
-    console.log('Chapter-end menu: hover intent, same-line monospace actions, instant close off the line, click guard, insert, finish toggle, review states, keyboard and scroll passed.');
+    console.log('Chapter-end menu: triad-of-stones mark, hover intent, a vertical list of iconed monospace actions centred on the mark, instant close off the list, click guard, insert, finish toggle, review states, keyboard and scroll passed.');
   } finally {
     try { if (client) await client.close(); }
     finally {

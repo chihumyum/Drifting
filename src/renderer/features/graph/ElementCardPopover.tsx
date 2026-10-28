@@ -13,8 +13,8 @@ import {
 } from '../../components/ui/EntityCardPopoverShell';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { EditorDocumentLoadError } from '../../components/editor/EditorDocumentLoadError';
-import { X } from 'lucide-react';
 import loglevel from 'loglevel';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('ElementCardPopover');
 log.setLevel(loglevel.levels.WARN);
@@ -261,7 +261,7 @@ export function ElementCardPopover({
             title={t('common.close')}
             aria-label={t('common.close')}
             size="sm"
-            icon={<X size={14} aria-hidden="true" />}
+            icon={<BrushIcon name="close" size={14} />}
           />
         </div>
 

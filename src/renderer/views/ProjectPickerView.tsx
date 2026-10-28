@@ -10,7 +10,6 @@ import { FilterChip } from '../components/ui/FilterChip';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
-import { BookOpen, Grid2X2, List, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
@@ -23,6 +22,7 @@ import { events } from '../lib/events';
 import { canUseHostedService } from '../lib/config';
 import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
+import { BrushIcon } from '../components/ui/BrushIcon';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -495,7 +495,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         {/* ─── Toolbar ─── */}
         <div className="pp-toolbar">
           <label className="pp-toolbar__search">
-            <Search size={17} aria-hidden="true" />
+            <BrushIcon name="search" size={17} />
             <input
               type="search"
               value={query}
@@ -531,7 +531,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 aria-label={t('projectPicker.view.card')}
                 aria-pressed={view === 'grid'}
               >
-                <Grid2X2 size={16} aria-hidden="true" />
+                <BrushIcon name="view-grid" size={16} />
               </button>
               <button
                 type="button"
@@ -540,7 +540,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 aria-label={t('projectPicker.view.list')}
                 aria-pressed={view === 'list'}
               >
-                <List size={17} aria-hidden="true" />
+                <BrushIcon name="view-list" size={17} />
               </button>
             </div>
             <button
@@ -548,7 +548,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
               className="pp-toolbar__btn pp-toolbar__btn--accent"
               onClick={() => setCreateOpen(true)}
             >
-              <Plus size={17} aria-hidden="true" /> {t('projectPicker.newProject')}
+              <BrushIcon name="plus" size={17} /> {t('projectPicker.newProject')}
             </button>
           </div>
         </div>
@@ -557,7 +557,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         <section className="pp-section">
           <div className="pp-section__head">
             <div className="pp-section__title">
-              <BookOpen className="pp-section__title-mark" size={18} aria-hidden="true" />
+              <BrushIcon name="books" size={18} className="pp-section__title-mark" />
               <span className="pp-section__title-cn">{t('projectPicker.allProjectsCn')}</span>
             </div>
             <div className="pp-section__aside">
@@ -567,7 +567,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                   className="pp-section__trash"
                   onClick={() => setTrashOpen(true)}
                 >
-                  <Trash2 size={13} aria-hidden="true" />
+                  <BrushIcon name="trash" size={13} />
                   {t('projectPicker.trash.entry', { count: trashed.length })}
                 </button>
               )}
@@ -601,7 +601,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 tabIndex={0}
               >
                 <div className="pp-card--new__glyph">
-                  <Plus size={24} aria-hidden="true" />
+                  <BrushIcon name="plus" size={24} />
                 </div>
                 <div className="pp-card--new__label">{t('projectPicker.newBookInline')}</div>
                 <div className="pp-card--new__sub">{t('projectPicker.newBookSubtitle')}</div>
@@ -627,7 +627,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 tabIndex={0}
               >
                 <span className="pp-list__glyph">
-                  <Plus size={18} aria-hidden="true" />
+                  <BrushIcon name="plus" size={18} />
                 </span>
                 <div className="pp-list__title">
                   <span className="pp-list__title-main" style={{ color: 'hsl(var(--ink-4))' }}>
@@ -738,7 +738,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
               title={t('common.edit')}
               aria-label={t('common.edit')}
             >
-              <Pencil size={15} aria-hidden="true" />
+              <BrushIcon name="edit" size={15} />
             </button>
             <button
               type="button"
@@ -747,7 +747,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
               title={t('common.delete')}
               aria-label={t('common.delete')}
             >
-              <Trash2 size={15} aria-hidden="true" />
+              <BrushIcon name="trash" size={15} />
             </button>
           </div>
         </div>
@@ -849,7 +849,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
           title={t('common.edit')}
           aria-label={t('common.edit')}
         >
-          <Pencil size={15} aria-hidden="true" />
+          <BrushIcon name="edit" size={15} />
         </button>
         <button
           type="button"
@@ -858,7 +858,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
           title={t('common.delete')}
           aria-label={t('common.delete')}
         >
-          <Trash2 size={15} aria-hidden="true" />
+          <BrushIcon name="trash" size={15} />
         </button>
       </div>
       <button

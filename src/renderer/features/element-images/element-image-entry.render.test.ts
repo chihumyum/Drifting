@@ -56,7 +56,7 @@ describe('ElementImageEntry button', () => {
 
     const empty = render();
     expect(empty).not.toContain('editor-bar__thumb');
-    expect(empty).toContain('<svg');
+    expect(empty).toContain('brush-icon--image');
   });
 
   it('spins while generating and otherwise counts waiting candidates', () => {

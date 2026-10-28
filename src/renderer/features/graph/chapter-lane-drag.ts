@@ -82,6 +82,15 @@ interface StartChapterLanePointerDragInput {
   onDragStart: () => void;
   onDrop: (target: ChapterLanePointerTarget) => void | Promise<void>;
   onDragEnd: () => void;
+  /**
+   * A weighted slab: the ghost follows the hand on springs instead of being
+   * glued to it. Sideways it is heavy (critically damped, a little behind the
+   * hand, no bounce). Across rows it stays in its row until the pointer is
+   * past the middle of the next one, then goes over in one quick snap that
+   * settles with a barely visible give; the drop lands on the row the slab
+   * is in. `rows` returns the row boxes in window coordinates, top to bottom.
+   */
+  weighted?: { rows: () => DOMRect[] };
   mobileTouch?: {
     onMenu: () => void;
     scrollContainer: HTMLElement | null;
@@ -135,6 +144,7 @@ export function startChapterLanePointerDrag({
   onDragStart,
   onDrop,
   onDragEnd,
+  weighted,
   mobileTouch,
 }: StartChapterLanePointerDragInput): ChapterLanePointerDragHandle {
   const threshold = pointerType === 'touch' ? 6 : 3;
@@ -175,9 +185,82 @@ export function startChapterLanePointerDrag({
     menuTimer = 0;
   };
 
+  // Weighted slab state: the row it is in, and a spring body per axis.
+  const body = { x: sourceRect.left, y: sourceRect.top, vx: 0, vy: 0, tx: sourceRect.left, ty: sourceRect.top };
+  let row = -1;
+  let rowOffsetY = 0;
+  let snapUntil = 0;
+  let springFrame = 0;
+  let lastStep = 0;
+  const stepSpring = (now: number) => {
+    springFrame = 0;
+    if (!ghost) return;
+    const dt = Math.min(1 / 30, (now - (lastStep || now)) / 1000) || 1 / 60;
+    lastStep = now;
+    const kx = 150;
+    const snapping = now < snapUntil;
+    const ky = snapping ? 1100 : 700;
+    const dampX = 2 * Math.sqrt(kx);
+    const dampY = 2 * Math.sqrt(ky) * (snapping ? 0.6 : 1);
+    for (let substep = 0; substep < 4; substep += 1) {
+      const h = dt / 4;
+      body.vx += (kx * (body.tx - body.x) - dampX * body.vx) * h;
+      body.x += body.vx * h;
+      body.vy += (ky * (body.ty - body.y) - dampY * body.vy) * h;
+      body.y += body.vy * h;
+    }
+    const resting = Math.abs(body.tx - body.x) < 0.05 && Math.abs(body.vx) < 0.5
+      && Math.abs(body.ty - body.y) < 0.05 && Math.abs(body.vy) < 0.5;
+    if (resting) {
+      body.x = body.tx;
+      body.y = body.ty;
+      body.vx = 0;
+      body.vy = 0;
+      lastStep = 0;
+    }
+    ghost.style.transform = `translate3d(${body.x}px, ${body.y}px, 0)`;
+    if (!resting) springFrame = window.requestAnimationFrame(stepSpring);
+  };
+  // Where the weighted slab rests for a pointer position, and what it drops on.
+  const weightedTargetAt = (clientX: number, clientY: number) => {
+    const rows = weighted?.rows() ?? [];
+    if (rows.length === 0) return resolveTarget(clientX, clientY);
+    if (row < 0) {
+      row = Math.max(0, rows.findIndex((box) => startClientY >= box.top && startClientY < box.bottom));
+      rowOffsetY = sourceRect.top - rows[row].top;
+    }
+    const now = performance.now();
+    while (row < rows.length - 1 && clientY > rows[row + 1].top + rows[row + 1].height / 2) {
+      row += 1;
+      snapUntil = now + 260;
+    }
+    while (row > 0 && clientY < rows[row - 1].top + rows[row - 1].height / 2) {
+      row -= 1;
+      snapUntil = now + 260;
+    }
+    const box = rows[row];
+    body.tx = clientX - grabOffsetX;
+    // Carried well clear of the lanes (to the holding popover, say) the slab
+    // simply follows the hand.
+    if (clientY < rows[0].top - box.height / 2 || clientY > rows[rows.length - 1].bottom + box.height / 2) {
+      body.ty = clientY - grabOffsetY;
+      return resolveTarget(clientX, clientY);
+    }
+    const restTop = box.top + rowOffsetY;
+    body.ty = restTop + Math.max(-6, Math.min(6, (clientY - grabOffsetY - restTop) * 0.12));
+    return resolveTarget(clientX, box.top + box.height / 2);
+  };
+  const targetAt = (clientX: number, clientY: number) =>
+    weighted ? weightedTargetAt(clientX, clientY) : resolveTarget(clientX, clientY);
+
   const paintDrag = () => {
     frame = 0;
     if (!ghost) return;
+    if (weighted) {
+      target = targetAt(pendingClientX, pendingClientY);
+      if (!springFrame) springFrame = window.requestAnimationFrame(stepSpring);
+      return;
+    }
     ghost.style.transform = `translate3d(${pendingClientX - grabOffsetX}px, ${
       pendingClientY - grabOffsetY
     }px, 0)`;
@@ -222,6 +305,7 @@ export function startChapterLanePointerDrag({
     ghost.classList.add('chapter-lane-pointer-ghost', 'is-dragging');
     ghost.style.width = `${sourceRect.width}px`;
     ghost.style.height = `${sourceRect.height}px`;
+    ghost.style.transform = `translate3d(${sourceRect.left}px, ${sourceRect.top}px, 0)`;
     document.body.appendChild(ghost);
     sourceElement.style.visibility = 'hidden';
     schedulePaint(clientX, clientY);
@@ -240,6 +324,8 @@ export function startChapterLanePointerDrag({
   const cleanupVisuals = () => {
     if (frame) window.cancelAnimationFrame(frame);
     frame = 0;
+    if (springFrame) window.cancelAnimationFrame(springFrame);
+    springFrame = 0;
     ghost?.remove();
     ghost = null;
     sourceElement.style.visibility = previousVisibility;
@@ -280,7 +366,7 @@ export function startChapterLanePointerDrag({
     if (dragging) {
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;
-      target = resolveTarget(event.clientX, event.clientY);
+      target = targetAt(event.clientX, event.clientY);
     }
     stopListening();
     if (!dragging) {

@@ -7,10 +7,12 @@ export interface SuperElementDriftCardsProps {
   linkSourceId: string | null;
   cardRefs: RefObject<Map<string, HTMLDivElement>>;
   onClick(event: MouseEvent<HTMLDivElement>, node: BookNode): void;
-  onContextMenu(event: MouseEvent<HTMLDivElement>, node: BookNode): void;
+  /** Resting on a card shows its hover card. */
+  onPreviewEnter(event: MouseEvent<HTMLDivElement>, node: BookNode): void;
+  onPreviewLeave(): void;
 }
 
-function DriftCards({ nodes, linkSourceId, cardRefs, onClick, onContextMenu }: SuperElementDriftCardsProps) {
+function DriftCards({ nodes, linkSourceId, cardRefs, onClick, onPreviewEnter, onPreviewLeave }: SuperElementDriftCardsProps) {
   const { t } = useTranslation();
   return <>
     {nodes.map((node) => {
@@ -27,12 +29,8 @@ function DriftCards({ nodes, linkSourceId, cardRefs, onClick, onContextMenu }: S
             else cardRefs.current.delete(node.id);
           }}
           onClick={(event) => onClick(event, node)}
-          onContextMenu={(event) => onContextMenu(event, node)}
-          title={
-            node.summary
-              ? `${node.title || t('common.untitled')}\n\n${node.summary}`
-              : node.title || t('common.untitled')
-          }
+          onMouseEnter={(event) => onPreviewEnter(event, node)}
+          onMouseLeave={onPreviewLeave}
         >
           <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
           <div className="drift-card__title">{node.title || t('common.untitled')}</div>

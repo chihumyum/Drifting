@@ -1,11 +1,12 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
 import { clampSidebarWidth } from '../lib/layout-geometry';
 import { useSidebarMetricsStore } from '../store/sidebar-metrics-store';
+import { stepGlassFlow, trackGlassFlow } from '../lib/glass-flow';
 
 // Must match the `width` transition duration in index.css `.sidebar-shell`
 // so children stay mounted through the outgoing slide, then unmount cleanly.
-const COLLAPSE_ANIM_MS = 220;
+const COLLAPSE_ANIM_MS = 420;
 
 interface SidebarProps {
   sidebarType: SidebarType; // 指定侧边栏类型
@@ -32,6 +33,8 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     oppositeOpenWidth,
     minimumWidth,
   );
+
+  const shellRef = useRef<HTMLDivElement>(null);
 
   // Resize Logic
   const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
@@ -85,6 +88,15 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     return () => clearTimeout(t);
   }, [isExpanded]);
 
+  // While the slab slides, its lines bleed glass (see lib/glass-flow.ts).
+  const slidSince = useRef(isExpanded);
+  useEffect(() => {
+    if (slidSince.current === isExpanded) return;
+    slidSince.current = isExpanded;
+    const shell = shellRef.current;
+    if (shell) trackGlassFlow(shell, () => shell.getBoundingClientRect().width);
+  }, [isExpanded]);
+
   useEffect(() => {
     if (!isResizing) return;
 
@@ -111,7 +123,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         minimumWidth,
       );
 
+      const previousWidth = current.sidebars[sidebarType].width;
       setSidebarWidth(sidebarType, newWidth);
+      if (shellRef.current) stepGlassFlow(shellRef.current, Math.abs(newWidth - previousWidth));
     };
 
     const stopResizing = () => {
@@ -172,13 +186,15 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       : 0;
 
   // When collapsed without any collapsed-content slot the sidebar contributes
-  // 0 visible width. Mark that state so the shell can zero out the
-  // inside-facing seam (see `.sidebar-shell.is-fully-hidden` in index.css),
-  // letting the editor column reclaim the complete workspace width.
-  const isFullyHidden = !isExpanded && !collapsedContent;
+  // 0 visible width. Once the slide has finished, mark that state so the
+  // shell can zero out the inside-facing seam (see
+  // `.sidebar-shell.is-fully-hidden` in index.css), letting the editor column
+  // reclaim the complete workspace width. The seam rides the slab out.
+  const isFullyHidden = !isExpanded && !mountChildren && !collapsedContent;
 
   return (
     <div
+      ref={shellRef}
       className={`app-panel-plane sidebar-shell sidebar-shell--${sidebarType} ${
         isExpanded ? 'is-expanded' : 'is-collapsed'
       }${isFullyHidden ? ' is-fully-hidden' : ''}`}
@@ -241,6 +257,8 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
           </div>
         </div>
       )}
+
+      <span className="flow-line flow-line--v sidebar-shell__edge-flow" aria-hidden="true" />
 
       {isExpanded && (
         <div

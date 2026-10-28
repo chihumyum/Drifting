@@ -23,7 +23,6 @@ describe('workspace window-control row', () => {
     const desktopCss = source('src/styles/desktop-shell.css');
     const controlCss = source('src/styles/ui-controls.css');
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
-    const corners = source('src/renderer/components/workspaceChrome/WorkspaceCornerControls.tsx');
     const doc = source('docs/design-system.md');
     const baseConfig = JSON.parse(source('src-tauri/tauri.conf.json')) as {
       app: { windows: Array<{ trafficLightPosition?: { x: number; y: number } }> };
@@ -44,10 +43,15 @@ describe('workspace window-control row', () => {
     expect(
       cssBlock(desktopCss, '.workspace-panel-tab-row.workspace-panel-tab-row--window[data-leading-inset] {'),
     ).toContain('padding-left: var(--window-header-leading-inset);');
-    // Closed left sidebar: the corner controls start after them instead.
-    expect(corners).toContain("data-leading-inset={runtime.isMacDesktop ? 'true' : undefined}");
-    expect(cssBlock(desktopCss, '.workspace-corner-controls--left[data-leading-inset] {')).toContain(
-      'margin-left: calc(var(--window-header-leading-inset) - 8px);',
+    // The left sidebar toggle is fixed right after the traffic lights, on the
+    // same row as them, whether its sidebar is open or closed.
+    const toggles = source('src/renderer/components/workspaceChrome/WindowControlButtons.tsx');
+    expect(toggles).toContain("data-leading-inset={runtime.isMacDesktop ? 'true' : undefined}");
+    expect(
+      cssBlock(desktopCss, '.workspace-sidebar-toggles[data-leading-inset] .workspace-sidebar-toggle--left {'),
+    ).toContain('left: var(--window-header-leading-inset);');
+    expect(cssBlock(desktopCss, '.workspace-sidebar-toggle {')).toContain(
+      'top: calc((var(--window-titlebar-height) - 28px) / 2);',
     );
     expect(cssBlock(desktopCss, '.workspace-window-strip {')).toMatch(
       /height:\s*var\(--window-titlebar-height\);[\s\S]*align-items:\s*center;|align-items:\s*center;[\s\S]*height:\s*var\(--window-titlebar-height\);/,

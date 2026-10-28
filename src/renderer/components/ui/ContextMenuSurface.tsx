@@ -120,7 +120,6 @@ export function ContextMenuSurface({
       role={role}
       aria-label={ariaLabel}
       onClick={(event) => event.stopPropagation()}
-      onContextMenu={(event) => event.preventDefault()}
       onKeyDown={(event) => {
         if (
           event.key !== 'ArrowDown' &&

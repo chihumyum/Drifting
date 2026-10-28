@@ -9,7 +9,7 @@ import { ContextMenuSurface } from '../ui/ContextMenuSurface';
 // groupName is a free-text label (not an entity), so this is a combobox, not a
 // plain list: type to filter existing groups OR type a brand-new name and press
 // Enter to create-and-move. A "无分组" row clears the group. Portals to <body>
-// with position:fixed + viewport clamp, mirroring SimpleContextMenu.
+// with position:fixed + viewport clamp (ContextMenuSurface).
 export interface ElementGroupPickerProps {
   x: number;
   y: number;

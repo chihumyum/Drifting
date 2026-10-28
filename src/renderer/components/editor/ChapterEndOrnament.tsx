@@ -8,11 +8,19 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BrushIcon, type BrushIconName } from '../ui/BrushIcon';
 import '../../../styles/chapter-end-menu.css';
 
-/** The ⁂ that closes a page. Drift pages and the touch shell keep only this. */
+/**
+ * The ⁂ that closes a page, drawn as a dry garden's three stones. Drift pages
+ * and the touch shell keep only this.
+ */
 export function ChapterEndOrnament() {
-  return <div className="page__ornament" aria-hidden="true">⁂</div>;
+  return (
+    <div className="page__ornament" aria-hidden="true">
+      <BrushIcon name="stones-triad" size={20} />
+    </div>
+  );
 }
 
 export type ChapterEndReviewState = 'idle' | 'starting' | 'running';
@@ -28,8 +36,8 @@ export interface ChapterEndMenuProps {
 // Opening waits for the pointer to actually move on ⁂ this long, so a page
 // scrolling beneath a still pointer, or a sweep across the page, never opens it.
 const HOVER_OPEN_MS = 70;
-// The row is the band the pointer may roam: leaving it by more than this
-// (above, below or past either end) restores ⁂ at once.
+// The list is the area the pointer may roam: leaving it by more than this
+// (above, below or past either side) restores ⁂ at once.
 const BAND_SLOP_X = 6;
 const BAND_SLOP_Y = 2;
 // The primary action opens beneath a pointer resting on ⁂; a click this soon
@@ -39,6 +47,7 @@ const PRIMARY_INDEX = 1;
 
 interface MenuItem {
   key: string;
+  icon: BrushIconName;
   label: string;
   onSelect: () => void;
   disabled?: boolean;
@@ -47,10 +56,12 @@ interface MenuItem {
 type Opener = 'hover' | 'click' | 'keyboard';
 
 // A chapter page's ⁂ doubles as its end-of-chapter menu. Moving onto it (after
-// a brief intent delay), a click or keyboard focus
-// cross-fades the mark into three plain monospace actions on the same line,
-// the primary one centred where ⁂ stood. Leaving that line in any direction
+// a brief intent delay), a click or keyboard focus cross-fades the mark into
+// three monospace actions, each led by its brush icon, in one column centred
+// on ⁂ with the primary one on ⁂'s line. Leaving the list in any direction
 // fades ⁂ straight back. A finished chapter's ⁂ takes the accent colour.
+// Each action is a sand cell: under the pointer or keyboard focus its outline
+// becomes the same faint ring of flowing glass as a sidebar cell's.
 export function ChapterEndMenu({
   finished,
   onInsert,
@@ -163,12 +174,15 @@ export function ChapterEndMenu({
   const items: MenuItem[] = [
     {
       key: 'finish',
+      // 搁笔 lays the brush down; 提笔 picks it up again.
+      icon: finished ? 'brush-lifted' : 'brush-laid',
       label: finished ? t('chapterEnd.markDraft') : t('chapterEnd.markFinished'),
       onSelect: onToggleFinished,
     },
-    { key: 'insert', label: t('chapterEnd.insertAfter'), onSelect: onInsert },
+    { key: 'insert', icon: 'sprout', label: t('chapterEnd.insertAfter'), onSelect: onInsert },
     {
       key: 'review',
+      icon: 'shikigami',
       label: t(`chapterEnd.review.${reviewState}`),
       onSelect: onReview,
       disabled: reviewState === 'starting',
@@ -216,7 +230,9 @@ export function ChapterEndMenu({
         onClick={handleTriggerClick}
         onKeyDown={handleTriggerKeyDown}
       >
-        <span className="page__ornament-glyph" aria-hidden="true">⁂</span>
+        <span className="page__ornament-glyph" aria-hidden="true">
+          <BrushIcon name="stones-triad" size={20} />
+        </span>
       </button>
       <div
         ref={rowRef}
@@ -234,14 +250,16 @@ export function ChapterEndMenu({
             }}
             type="button"
             role="menuitem"
-            className="chapter-end-menu__item"
+            className="chapter-end-menu__item sand-cell"
             data-action={item.key}
             data-primary={index === PRIMARY_INDEX}
             disabled={item.disabled}
             tabIndex={-1}
             onClick={(event) => select(item, event.timeStamp)}
           >
+            <BrushIcon name={item.icon} size={14} />
             {item.label}
+            <i className="cell-ring" aria-hidden="true" />
           </button>
         ))}
       </div>

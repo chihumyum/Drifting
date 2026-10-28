@@ -12,7 +12,11 @@ import { useDataStore } from '../store/data-store';
 import { createWorkspaceSharingFixture } from './workspace-fixture';
 
 const wait = (ms = 40) => new Promise(resolve => setTimeout(resolve, ms));
+// Tabs land on a weighted spring (tab-reorder.ts, ~520ms) before styles clear.
+const SETTLE_MS = 700;
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+// The strip's height follows its pills; aim at the vertical middle of a box.
+const midY = (rect: DOMRect) => rect.top + rect.height / 2;
 const leaf = (id: string): LeafTab => ({ kind: 'leaf', entityType: 'node', id, isPreview: false });
 
 /** Real strip and UI-store, synthetic tabs/navigation. Browser event and
@@ -55,9 +59,9 @@ export async function runTabReorderScenario(manual = false) {
   async function start(key: string) {
     source = el(key); transfer = new DataTransfer();
     const rect = source.getBoundingClientRect(); writes = 0;
-    event(source, 'dragstart', rect.left + 20, rect.top + 20); await frame();
+    event(source, 'dragstart', rect.left + 20, midY(rect)); await frame();
   }
-  async function move(x: number, y = strip().getBoundingClientRect().top + 20) {
+  async function move(x: number, y = midY(strip().getBoundingClientRect())) {
     event(strip(), 'dragover', x, y); await frame();
   }
   const end = () => event(source, 'dragend', 0, 0);
@@ -100,10 +104,10 @@ export async function runTabReorderScenario(manual = false) {
     check('live-neighbours-move-before-drop', Math.abs(shiftOf('split:wide') + firstWidth) < 0.01 && Math.abs(shiftOf('node:c') + firstWidth) < 0.01);
     check('no-store-writes-during-preview', order() === initial && writes === 0);
     check('neighbour-animation-policy', reduced ? el('split:wide').getAnimations().length === 0 : el('split:wide').getAnimations().length > 0);
-    event(strip(), 'drop', last.right - 5, last.top + 20);
+    event(strip(), 'drop', last.right - 5, midY(last));
     check('drop-commits-once', order() === 'split:wide,node:b,node:c,node:a' && writes === 1);
     check('landing-animation-policy', reduced ? el('node:a').getAnimations().length === 0 : el('node:a').getAnimations().length > 0);
-    end(); await wait(200);
+    end(); await wait(SETTLE_MS);
     check('drop-cleans-transforms', clean() && host.getAnimations({ subtree: true }).length === 0);
     check('active-tab-preserved', useUiStore.getState().tabsByProject[projectId].activeTabKey === 'node:a');
 
@@ -111,21 +115,21 @@ export async function runTabReorderScenario(manual = false) {
     const left = strip().getBoundingClientRect();
     await move(left.left + 2);
     check('reverse-preview', Math.abs(shiftOf('split:wide') - firstWidth) < 0.01);
-    end(); await wait(200);
+    end(); await wait(SETTLE_MS);
     check('cancel-restores-order-and-styles', order() === 'split:wide,node:b,node:c,node:a' && writes === 0 && clean());
 
     await start('split:wide');
     const endRect = el('node:a').getBoundingClientRect();
-    const enterAccepted = !event(el('node:a'), 'dragenter', endRect.right - 5, endRect.top + 20);
+    const enterAccepted = !event(el('node:a'), 'dragenter', endRect.right - 5, midY(endRect));
     await frame();
     check('fast-dragenter-accepts-and-previews', enterAccepted && el('node:b').style.transform !== '');
     // Release must use its own coordinate, even if no final dragover arrived.
-    event(strip(), 'drop', endRect.right - 5, endRect.top + 20); end(); await wait(200);
+    event(strip(), 'drop', endRect.right - 5, midY(endRect)); end(); await wait(SETTLE_MS);
     check('wide-split-can-reach-last-slot', order() === 'node:b,node:c,node:a,split:wide' && writes === 1);
 
     await start('node:b'); await move(endRect.right - 5);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    end(); await wait(200);
+    end(); await wait(SETTLE_MS);
     check('escape-does-not-commit', order() === 'node:b,node:c,node:a,split:wide' && writes === 0 && clean());
 
     await start('node:b'); await move(left.left + 200, left.bottom + 100);
@@ -133,18 +137,18 @@ export async function runTabReorderScenario(manual = false) {
     let received = '';
     const receive = (e: DragEvent) => { received = e.dataTransfer?.getData('application/x-drifting-tab') ?? ''; };
     document.body.addEventListener('drop', receive, { once: true });
-    event(document.body, 'drop', left.left + 200, left.bottom + 100); end(); await wait(200);
+    event(document.body, 'drop', left.left + 200, left.bottom + 100); end(); await wait(SETTLE_MS);
     check('external-drop-retains-editor-payload', received === 'node:b' && writes === 0 && clean());
 
     flushSync(() => useUiStore.getState().openCreateTab(projectId)); await wait();
     const create = useUiStore.getState().tabsByProject[projectId].openTabs.slice(-1)[0]!;
     const createRect = el(tabKey(create)).getBoundingClientRect();
-    event(el(tabKey(create)), 'dragstart', createRect.left + 20, createRect.top + 20);
+    event(el(tabKey(create)), 'dragstart', createRect.left + 20, midY(createRect));
     check('create-cannot-start-drag', !strip().dataset.tabReordering);
     event(el('node:b').querySelector('button')!, 'dragstart', createRect.left, createRect.top);
     check('close-button-cannot-start-drag', !strip().dataset.tabReordering);
     await start('node:b');
-    event(strip(), 'drop', Math.min(createRect.right - 5, strip().getBoundingClientRect().right - 5), createRect.top + 20); end(); await wait(200);
+    event(strip(), 'drop', Math.min(createRect.right - 5, strip().getBoundingClientRect().right - 5), midY(createRect)); end(); await wait(SETTLE_MS);
     check('create-stays-last', useUiStore.getState().tabsByProject[projectId].openTabs.slice(-1)[0]?.kind === 'create');
 
     host.style.width = '300px'; setTabs(Array.from({ length: 12 }, (_, i) => leaf(`scroll-${i}`))); await wait();
@@ -159,13 +163,13 @@ export async function runTabReorderScenario(manual = false) {
     const scrolled = strip().scrollLeft;
     await move(narrow.right - 3, narrow.bottom + 80); await wait(100);
     check('outside-pointer-stops-scroll', strip().scrollLeft === scrolled);
-    end(); await wait(200);
+    end(); await wait(SETTLE_MS);
 
     strip().scrollLeft = 0;
     await start('node:scroll-0'); await move(narrow.right - 3);
     setTabs([a, b]); await wait();
     const replaced = order();
-    event(strip(), 'drop', narrow.right - 3, narrow.top + 20); end(); await wait();
+    event(strip(), 'drop', narrow.right - 3, midY(narrow)); end(); await wait();
     check('tab-change-cancels-stale-drag', order() === replaced && clean());
 
     await start('node:a'); await move(narrow.right - 3);
@@ -173,7 +177,7 @@ export async function runTabReorderScenario(manual = false) {
     check('blur-cleans-up', writes === 0 && clean());
     await start('node:a'); await move(narrow.right - 3);
     flushSync(() => root.unmount());
-    event(document.body, 'drop', narrow.right - 3, narrow.top + 20); end(); await wait(200);
+    event(document.body, 'drop', narrow.right - 3, midY(narrow)); end(); await wait(SETTLE_MS);
     check('unmount-disposes-drag-and-animations', !source.style.transform && !source.style.opacity && source.getAnimations().length === 0 && writes === 0);
     return { reducedMotion: reduced, checks };
   } finally {

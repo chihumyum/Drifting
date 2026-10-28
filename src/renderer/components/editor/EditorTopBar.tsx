@@ -1,4 +1,3 @@
-import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical, Share2 } from 'lucide-react';
 import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,6 +7,9 @@ import {
 } from '../../domain/book-node';
 import { useSettingsStore } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { BrushIcon } from '../ui/BrushIcon';
+import { TimelineToggle } from '../workspaceChrome/WorkspaceTabDock';
+import { useEditorCornerHostsTimelineToggle } from './editor-corner';
 import { MarkdownShareDialog } from './MarkdownShareDialog';
 import type { MarkdownShareTarget } from '../../services/export/markdown-share';
 
@@ -121,79 +123,86 @@ export function EditorTopBar({
   const { t } = useTranslation();
   const [shareRequest, setShareRequest] = useState<MarkdownShareTarget | null>(null);
   const showMenu = Boolean(editorType && onMenuAction);
+  const hostsTimelineToggle = useEditorCornerHostsTimelineToggle();
 
   return (
-    <div className="editor-bar" role="toolbar" aria-orientation="vertical">
-      {plotPlannerToggle && (
-        <button
-          type="button"
-          className={`editor-bar__icon editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-          title={
-            plotPlannerToggle.enabled
-              ? t('editorTopBar.actions.collapsePlotPlanner')
-              : t('editorTopBar.actions.expandPlotPlanner')
-          }
-          aria-pressed={plotPlannerToggle.enabled}
-          onClick={plotPlannerToggle.onToggle}
-        >
-          <LayoutGrid size={14} />
-        </button>
-      )}
-      {imageEntry}
-      {((editorType && outlineToggle) || referenceLinkToggle) && (
-        <div className="editor-bar__toggle-group">
-          {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
-          {referenceLinkToggle && (
-            <button
-              type="button"
-              className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-              title={
-                referenceLinkToggle.enabled
-                  ? t('editorTopBar.actions.hideReferenceLinks')
-                  : t('editorTopBar.actions.showReferenceLinks')
-              }
-              aria-pressed={referenceLinkToggle.enabled}
-              onClick={referenceLinkToggle.onToggle}
-            >
-              <Link2 size={14} />
-            </button>
-          )}
-        </div>
-      )}
-      {commentToggle && (
-        <button
-          type="button"
-          className={`editor-bar__icon editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-          title={
-            commentToggle.disabled
-              ? t('editorTopBar.actions.noComments')
-              : commentToggle.enabled
-                ? t('editorTopBar.actions.hideComments')
-                : t('editorTopBar.actions.showComments')
-          }
-          aria-pressed={commentToggle.enabled}
-          disabled={commentToggle.disabled}
-          onClick={commentToggle.onToggle}
-        >
-          <MessageSquare size={14} />
-          {commentToggle.count > 0 && (
-            <span className="editor-bar__badge">{commentToggle.count}</span>
-          )}
-        </button>
-      )}
-      {showMenu && editorType && onMenuAction && (
-        <EditorBarMenu
-          editorType={editorType}
-          onAction={onMenuAction}
-          nodeWritingStatus={nodeWritingStatus}
-          nodeStatusKind={nodeStatusKind}
-          menuHeader={menuHeader}
-          hiddenActions={hiddenMenuActions}
-          translate={t}
-          onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
-        />
-      )}
-      {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
+    // The paper's lower-right corner: the Bottom Timeline toggle (on the
+    // right-hand pane only), then the document's own controls as one
+    // horizontal glass pill, each control a round glass button inside it.
+    <div className="editor-corner">
+      {hostsTimelineToggle && <TimelineToggle />}
+      <div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">
+        {plotPlannerToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon glass glass--round editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={
+              plotPlannerToggle.enabled
+                ? t('editorTopBar.actions.collapsePlotPlanner')
+                : t('editorTopBar.actions.expandPlotPlanner')
+            }
+            aria-pressed={plotPlannerToggle.enabled}
+            onClick={plotPlannerToggle.onToggle}
+          >
+            <BrushIcon name="plan-go" />
+          </button>
+        )}
+        {imageEntry}
+        {((editorType && outlineToggle) || referenceLinkToggle) && (
+          <div className="editor-bar__toggle-group">
+            {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
+            {referenceLinkToggle && (
+              <button
+                type="button"
+                className={`editor-bar__icon glass glass--round editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+                title={
+                  referenceLinkToggle.enabled
+                    ? t('editorTopBar.actions.hideReferenceLinks')
+                    : t('editorTopBar.actions.showReferenceLinks')
+                }
+                aria-pressed={referenceLinkToggle.enabled}
+                onClick={referenceLinkToggle.onToggle}
+              >
+                <BrushIcon name="knot-links" />
+              </button>
+            )}
+          </div>
+        )}
+        {commentToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon glass glass--round editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={
+              commentToggle.disabled
+                ? t('editorTopBar.actions.noComments')
+                : commentToggle.enabled
+                  ? t('editorTopBar.actions.hideComments')
+                  : t('editorTopBar.actions.showComments')
+            }
+            aria-pressed={commentToggle.enabled}
+            disabled={commentToggle.disabled}
+            onClick={commentToggle.onToggle}
+          >
+            <BrushIcon name="comment" />
+            {commentToggle.count > 0 && (
+              <span className="editor-bar__badge">{commentToggle.count}</span>
+            )}
+          </button>
+        )}
+        {showMenu && editorType && onMenuAction && (
+          <EditorBarMenu
+            editorType={editorType}
+            onAction={onMenuAction}
+            nodeWritingStatus={nodeWritingStatus}
+            nodeStatusKind={nodeStatusKind}
+            menuHeader={menuHeader}
+            hiddenActions={hiddenMenuActions}
+            translate={t}
+            onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
+          />
+        )}
+        {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
+      </div>
     </div>
   );
 }
@@ -209,13 +218,13 @@ function OutlineRailToggle({ translate }: { translate: Translate }) {
   return (
     <button
       type="button"
-      className={`editor-bar__icon editor-bar__icon--outline${visible ? ' editor-bar__icon--active' : ''}`}
+      className={`editor-bar__icon glass glass--round editor-bar__icon--outline${visible ? ' editor-bar__icon--active' : ''}`}
       title={title}
       aria-label={title}
       aria-pressed={visible}
       onClick={() => setMode(visible ? 'hidden' : 'visible')}
     >
-      <ListTree size={14} />
+      <BrushIcon name="toc-raked" />
     </button>
   );
 }
@@ -261,14 +270,14 @@ function EditorBarMenu({
       <button
         ref={buttonRef}
         type="button"
-        className="editor-bar__icon"
+        className="editor-bar__icon glass glass--round"
         title={translate?.('editorTopBar.actions.more') ?? 'More actions'}
         aria-label={translate?.('editorTopBar.actions.more') ?? 'More actions'}
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
-        <MoreVertical size={14} />
+        <BrushIcon name="more" />
       </button>
 
       <AnchoredPopover
@@ -284,7 +293,7 @@ function EditorBarMenu({
               setIsOpen(false);
               onShare();
             }}>
-              <Share2 size={14} aria-hidden="true" />
+              <BrushIcon name="share" size={14} />
               {translate?.('markdownShare.menu') ?? 'Share'}
             </button>
             <div className="menu-surface__divider" />
@@ -315,7 +324,7 @@ function EditorBarMenu({
                     }}
                   >
                     <span>{getWritingStatusLabel(status, translate)}</span>
-                    {active && <Check size={12} />}
+                    {active && <BrushIcon name="check" size={12} />}
                   </button>
                 );
               })}

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -26,17 +26,22 @@ describe('workspace surface language acceptance', () => {
     expect(workspace).toContain('<Sidebar sidebarType="left">');
     expect(workspace).toContain('<Sidebar sidebarType="right">');
     expect(centerColumn).toContain('<WorkspaceCornerControls />');
-    // Dots, timeline toggle and word count rest on the paper's lower edge, so
-    // they ride above the optional Bottom Timeline dock.
+    // The dock runs along the paper's top; the timeline toggle rests in the
+    // paper's lower-right corner, so it rides above the optional Bottom
+    // Timeline, which slides in its own drawer. The word count is gone.
     const stage = block(centerColumn, 'className="workspace-stage desktop-workspace-stage"', '</div>');
-    expect(stage).toContain('<WorkspaceWordCount />');
     expect(stage).toContain('<WorkspaceTabDock />');
-    expect(centerColumn).toContain('{!bottomTimelineHidden && (');
+    expect(stage).toContain('<StageTimelineToggle />');
+    expect(workspace).not.toContain('WorkspaceWordCount');
+    expect(centerColumn).toContain('<TimelineDrawer open={!bottomTimelineHidden}>');
     expect(centerColumn).toContain('<DesktopBottomTimeline />');
+    // The sidebar toggles are fixed above all three columns.
+    expect(workspace).toContain('<WorkspaceSidebarToggles />');
     for (const removed of ['AppTopbar', 'BottomStatusBar']) {
       expect(workspace).not.toContain(removed);
     }
     for (const path of [
+      'src/renderer/components/workspaceChrome/WorkspaceWordCount.tsx',
       'src/renderer/views/AppTopbar.tsx',
       'src/renderer/components/topBars/MainTopBar.tsx',
       'src/renderer/components/topBars/LeftSidebarTopBar.tsx',
@@ -71,17 +76,20 @@ describe('workspace surface language acceptance', () => {
     const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
     const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
 
-    // Closed sidebar: its toggle rests in the desk corner, nothing else.
-    expect(corners).toContain('{!leftOpen && (');
-    expect(corners).toContain('<SidebarToggleButton side="left" />');
-    expect(corners).toContain('{!rightOpen && (');
-    expect(corners).toContain('<SidebarToggleButton side="right" />');
+    // Each toggle is one round glass button fixed in its window corner; the
+    // sidebar slides in and out underneath it. The desk strip only drags.
+    expect(buttons).toContain('<SidebarToggleButton side="left" />');
+    expect(buttons).toContain('<SidebarToggleButton side="right" />');
+    expect(buttons).toContain('glass="round"');
+    // The crescent is inked while its sidebar is open and hollow while it is closed.
+    expect(buttons).toContain("name={`moon-${side}${isOpen ? '' : '-hollow'}`}");
+    expect(corners).not.toContain('SidebarToggleButton');
     expect(corners).not.toContain('Account');
-    // Open sidebar: the same toggle sits at the outer end of its tab row.
+    // An open sidebar's tab row keeps an empty slot under its toggle.
     expect(leftSidebar).toContain('windowChrome={index === 0}');
     expect(rightSidebar).toContain('windowChrome={index === panes.length - 1}');
-    expect(leftHeader).toContain('<SidebarHeaderChrome side="left"><SidebarToggleButton side="left" /></SidebarHeaderChrome>');
-    expect(rightHeader).toContain('<SidebarHeaderChrome side="right"><SidebarToggleButton side="right" /></SidebarHeaderChrome>');
+    expect(leftHeader).toContain('<SidebarHeaderChrome side="left"><SidebarToggleSlot /></SidebarHeaderChrome>');
+    expect(rightHeader).toContain('<SidebarHeaderChrome side="right"><SidebarToggleSlot /></SidebarHeaderChrome>');
     expect(buttons).toContain('data-sidebar-header-chrome={side}');
     expect(buttons).toContain("`${side === 'left' ? 'leftSidebar' : 'rightSidebar'}.top.${isOpen ? 'close' : 'open'}`");
     expect(minimum).toContain(':scope > [data-sidebar-header-chrome]');
@@ -122,8 +130,15 @@ describe('workspace surface language acceptance', () => {
     const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
 
-    expect(dock).toContain('<TopTimeline expanded={hovered || focused || held}');
-    expect(dock).toContain('<TimelineToggle />');
+    expect(dock).toContain('expanded={hovered || focused || locked}');
+    expect(dock).toContain('export function TimelineToggle({ stage = false }: { stage?: boolean })');
+    // The toggle sits to the left of the right-hand pane's toolbar; the stage
+    // shows its own only while no visible editor corner carries it.
+    expect(dock).toContain('return hostedByEditor ? null : <TimelineToggle stage />;');
+    // A preview tab's mark is hollow.
+    expect(topTimeline).toContain("hollow={isPreview}");
+    expect(dock).toContain('className="workspace-tab-dock__lock glass glass--rest glass--round"');
+    expect(dock).toContain('aria-pressed={locked}');
     expect(dock).toContain('aria-pressed={!hidden}');
     expect(dock).toContain('onClick={toggle}');
     expect(dock).not.toContain('setActiveSuperView');
@@ -138,7 +153,9 @@ describe('workspace surface language acceptance', () => {
     expect(subheader).toContain('navigateToAllChapters();');
     expect(subheader).toContain("title={t('bottomStatusBar.elements')}");
     expect(subheader).toContain("onClick={() => setActiveSuperView('element')}");
-    expect(subheader).toContain("import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'");
+    // Entries to whole-book views are round glass with brush icons.
+    expect(subheader).toContain('<BrushIcon name="ov-folding" size={15} />');
+    expect(subheader).toContain('<BrushIcon name="ov-iceberg" size={15} />');
     expect(source('src/renderer/components/ui/icons/IconoirPageFlip.tsx')).toContain(
       'Iconoir `page-flip`, MIT licensed',
     );
@@ -170,26 +187,29 @@ describe('workspace surface language acceptance', () => {
     expect(sharedSuperHeader).not.toContain('super-view-head__title');
   });
 
-  it('keeps document actions on each paper and the word count in the desk corner', () => {
+  it('keeps document actions on each paper as one horizontal glass pill', () => {
     const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
     const indexCss = source('src/styles/index.css');
-    const wordCount = source('src/renderer/components/workspaceChrome/WorkspaceWordCount.tsx');
 
-    expect(topBar).toContain('<div className="editor-bar" role="toolbar" aria-orientation="vertical">');
+    expect(topBar).toContain('<div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">');
+    // The corner: the timeline toggle (right-hand pane only), then the pill.
+    const corner = block(topBar, '<div className="editor-corner">', '<div className="editor-bar');
+    expect(corner).toContain('{hostsTimelineToggle && <TimelineToggle />}');
+    expect(block(indexCss, '.editor-corner {', '}')).toContain('position: absolute;');
+    const mainArea = source('src/renderer/components/editor/EditorMainArea.tsx');
+    expect(mainArea.match(/<TrailingEditorPaneContext\.Provider value>/g)).toHaveLength(2);
     expect(topBar).not.toContain('EditorCrumb');
     expect(topBar).not.toContain('editor-crumbs');
     expect(topBar).toContain('placement="top-end"');
     const bar = block(indexCss, '.editor-bar {', '}');
-    expect(bar).toContain('position: absolute;');
-    expect(bar).toContain('flex-direction: column;');
+    expect(bar).toContain('position: relative;');
+    expect(bar).toContain('flex-direction: row;');
+    expect(bar).toContain('background: var(--glass-fill);');
     for (const view of ['NodeEditorView', 'ElementEditorView', 'CategoryEditorView', 'StorylineEditorView', 'AllChaptersEditorView', 'MaterialEditorView']) {
       const text = source(`src/renderer/views/${view}.tsx`);
       expect(text, view).not.toContain('EditorCrumb');
       expect(text, view).not.toContain('</EditorTopBar>');
     }
-    expect(wordCount).toContain('deriveWritingStats');
-    expect(wordCount).toContain('deriveStatusWordMetric');
-    expect(wordCount).not.toContain('<button');
   });
 
   it('keeps macOS and cross-platform workspace chrome on one opaque grey plane', () => {
@@ -356,6 +376,56 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
+  it('pushes the pane divider in and out with glass when a sidebar splits or merges', () => {
+    const layout = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
+    const shell = source('src/styles/desktop-shell.css');
+
+    expect(layout).toContain("className={panel.id === entering ? 'sidebar-pane--entering' : undefined}");
+    expect(layout).toContain('<SidebarPaneGhost grow={leaving.grow} />');
+    expect(layout).toContain('trackGlassFlow(shell, () => divider.getBoundingClientRect().left);');
+    // Grow factors never sum below 1 mid-animation, or flexbox leaves a gap.
+    expect(layout).toContain('flex: `${grow * GROW_SCALE} 1 0`,');
+    expect(block(shell, '@keyframes sidebar-pane-in {', '}')).toContain('flex-grow: 0;');
+    expect(block(shell, '@keyframes sidebar-pane-out {', '}')).toContain('flex-grow: 0;');
+    // The split button rides in with the remaining half's tab row.
+    expect(layout).not.toContain('SidebarSplitButton');
+    expect(shell).not.toContain('data-split-leaving');
+    // The split button sits at the end of the tab row where the next half
+    // arrives: the side of the half last closed.
+    for (const [header, side] of [
+      [source('src/renderer/components/leftBars/LeftSidebarHeader.tsx'), 'left'],
+      [source('src/renderer/components/rightBars/RightSidebarHeader.tsx'), 'right'],
+    ] as const) {
+      expect(header).toContain(`<SidebarSplitButton side="${side}" edge="start" />`);
+      expect(header).toContain(`<SidebarSplitButton side="${side}" edge="end" />`);
+    }
+    expect(source('src/renderer/components/SidebarSplitButton.tsx')).toContain(
+      "(layout.splitEdge ?? 'end') === edge",
+    );
+  });
+
+  it('pushes a pane body away like heavy ice when its tab changes', () => {
+    const layout = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
+    const shell = source('src/styles/desktop-shell.css');
+
+    expect(layout).toContain('dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1');
+    expect(layout).toContain("aria-hidden={slide.role === 'out' ? true : undefined}");
+    // One strip of panels, moved from where each panel is right now
+    // (planSidebarPush), 265 ms on the slow-then-fast ice curve.
+    expect(layout).toContain('const PUSH_MS = 265;');
+    expect(layout).toContain("const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';");
+    expect(layout).toContain('const moves = planSidebarPush(now, target, strip.clientWidth, push.dir);');
+    expect(layout).toContain("{ duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' }");
+    expect(shell).not.toContain('@keyframes sidebar-push-');
+    // The arriving panel alone is outlined on all four sides (its shared
+    // edge included) by lines that bleed glass with the push.
+    for (const edge of ['h sidebar-pane__outline-top', 'h sidebar-pane__outline-bottom', 'v sidebar-pane__outline-start', 'v sidebar-pane__outline-end']) {
+      expect(layout).toContain(`flow-line flow-line--${edge}`);
+    }
+    expect(layout).toContain("slide.role === 'in' && (");
+    expect(layout).toContain('trackGlassFlow(strip, () => panels.get(target)?.getBoundingClientRect().left ?? 0);');
+  });
+
   it('shows only the chapter count until the first storyline exists', () => {
     const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const controls = source('src/styles/ui-controls.css');
@@ -390,7 +460,7 @@ describe('workspace surface language acceptance', () => {
     expect(zh.leftSidebar.viewMode.globalSummary).toBeUndefined();
   });
 
-  it('uses the document-tab surface instead of an accent wash for left-panel selection', () => {
+  it('selects left-panel cells in sand, not with an accent or surface wash', () => {
     const css = source('src/styles/index.css');
     const controls = source('src/styles/ui-controls.css');
     const chapterPanel = source('src/renderer/components/leftBars/ChapterPanel.tsx');
@@ -405,9 +475,22 @@ describe('workspace surface language acceptance', () => {
     expect(block(controls, '.workspace-list-row:hover,', '.label-mono {')).toContain(
       'background: var(--workspace-cell-hover-bg);',
     );
+    // Every cell is a SandCell: its kind mark, a hairline glass ring under
+    // the pointer and a frame drawn beside the mark when selected.
+    const sandCell = source('src/renderer/components/ui/SandCell.tsx');
+    const materials = source('src/styles/materials.css');
+    expect(sandCell).toContain("selected ? 'is-selected' : ''");
+    expect(sandCell).toContain('<i className="cell-ring" aria-hidden="true" />');
+    expect(sandCell).toContain('<SandFrame selected={selected} />');
+    expect(materials).toContain('.sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }');
+    expect(materials).toContain('.sand-cell.is-selected > .cell-frame {');
+    expect(chapterPanel).toContain('<KindMark\n            kind="chapter"');
+    expect(elementPanel).toContain('<KindMark\n            kind="element"');
+    expect(driftPanel).toContain('<KindMark\n            kind="drift"');
     for (const panel of panels) {
-      expect(panel).toContain("background: selected ? 'hsl(var(--surface))' : 'transparent'");
-      expect(panel).toContain(
+      expect(panel).toContain('<SandCell');
+      expect(panel).not.toContain("background: selected ? 'hsl(var(--surface))' : 'transparent'");
+      expect(panel).not.toContain(
         "event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)'",
       );
       expect(panel).not.toContain(
@@ -460,7 +543,7 @@ describe('workspace surface language acceptance', () => {
     expect(designSystem).toContain('左侧 label 使用与组头一致的 `--ink-4` 中性灰');
   });
 
-  it('keeps the shared entity hover preview shadow clear of its hovered cell', () => {
+  it('gives entity and comment-source hover cards the menus\' surface', () => {
     const css = source('src/styles/index.css');
     const hoverCard = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
     const consumers = [
@@ -470,9 +553,18 @@ describe('workspace surface language acceptance', () => {
       source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
-    expect(css).toContain('--entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);');
-    expect(hoverCard).toContain("boxShadow: 'var(--entity-hover-card-shadow)'");
-    expect(hoverCard).not.toContain('0 12px 28px -14px');
+    const sourceCard = block(source('src/styles/comments-review.css'), '.comment-source-hover {', '.comment-source-hover__content {');
+
+    const shell = block(source('src/styles/ui-controls.css'), '.hover-card {', '}');
+
+    expect(css).not.toContain('--entity-hover-card-shadow');
+    expect(hoverCard).toContain('<HoverCardShell');
+    expect(shell).toContain('background: var(--menu-surface-bg);');
+    expect(shell).toContain('box-shadow: var(--menu-surface-shadow);');
+    expect(shell).toContain('border-radius: var(--menu-surface-radius);');
+    expect(hoverCard).not.toContain("border: '1px solid");
+    expect(sourceCard).toContain('background: var(--menu-surface-bg);');
+    expect(sourceCard).toContain('box-shadow: var(--menu-surface-shadow);');
     for (const consumer of consumers) {
       expect(consumer).toContain('<EntityHoverCard');
     }
@@ -484,7 +576,8 @@ describe('workspace surface language acceptance', () => {
     const defaults = block(store, 'sidebars: {', 'setTheme:');
 
     expect(defaults.match(/isOpen:\s*false/g)).toHaveLength(2);
-    expect(css).toContain('transition: width 220ms cubic-bezier(0.32, 0.72, 0, 1);');
+    expect(css).toContain('transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1);');
+    expect(source('src/renderer/components/Sidebar.tsx')).toContain('const COLLAPSE_ANIM_MS = 420;');
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.sidebar-shell\s*\{\s*transition:\s*none;/,
     );
@@ -636,13 +729,12 @@ describe('workspace surface language acceptance', () => {
     const edgePopoverCss = source('src/styles/relation-edge-popover.css');
     const libraryCard = source('src/renderer/features/library/LibraryItemCard.tsx');
 
-    expect(sharedHeader).toContain("import { ArrowLeft } from 'lucide-react'");
-    expect(sharedHeader).toContain('<ArrowLeft size={16}');
+    expect(sharedHeader).toContain('<BrushIcon name="arrow-back" size={16} />');
     expect(sharedHeader).not.toContain('super-view-head__back-glyph');
-    expect(settings).toContain('<ArrowLeft size={16}');
+    expect(settings).toContain('<BrushIcon name="arrow-back" size={16} />');
     expect(settings).not.toContain("t('settings.title_en')");
     expect(settings).not.toContain("t('settings.esc_close')");
-    expect(driftPanel).toContain('<X size={14}');
+    expect(driftPanel).toContain('<BrushIcon name="close" size={14} />');
     expect(driftPanel).not.toContain('>×<');
     expect(block(driftCss, '.drift-panel__close {', '.drift-panel.is-open')).toContain(
       'border-radius: 50%;',
@@ -798,15 +890,101 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('三栏从窗口顶边贯通到底边');
     expect(doc).toContain('**侧栏开关常驻两角**');
     expect(doc).toContain('**账户在左栏底部**');
-    expect(doc).toContain('**标签页在稿纸下方**');
-    expect(doc).toContain('**时间线开关在标签小点下方**');
+    expect(doc).toContain('**标签页在稿纸顶部**');
+    expect(doc).toContain('**时间线开关在稿纸右下角**');
     expect(doc).toContain('**全书视图在对应实体旁边**');
     expect(doc).toContain('**稿纸的操作留在稿纸上**');
-    expect(doc).toContain('**字数在左下角**');
+    expect(doc).toContain('**字数暂时移除**');
+    expect(doc).toContain('## Sand and glass');
+    expect(doc).toContain('**玻璃是手按的东西**');
+    expect(doc).toContain('**砂笔是作者留下的痕迹**');
     expect(doc).toContain('**红灯关闭项目**');
     expect(doc).toContain('不重新定义现有配色');
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');
     expect(doc).toContain('Plot Planner 是连续的 mini-Excel');
     expect(doc).toContain('不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收');
+  });
+
+  it('draws the chapter end, dock and user menu icons with the sand brush', () => {
+    const chapterEnd = source('src/renderer/components/editor/ChapterEndOrnament.tsx');
+    const dock = source('src/renderer/components/workspaceChrome/WorkspaceTabDock.tsx');
+    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
+    const brushIcon = source('src/renderer/components/ui/BrushIcon.tsx');
+    const materials = source('src/styles/materials.css');
+    const generator = source('scripts/design-assets/brushicons.py');
+
+    // ⁂ is three stones, on chapter pages and on drift pages alike; its three
+    // actions each lead with an icon.
+    expect(chapterEnd).not.toContain('>⁂<');
+    expect(chapterEnd.match(/<BrushIcon name="stones-triad" size=\{20\} \/>/g)).toHaveLength(2);
+    expect(chapterEnd).toContain("icon: finished ? 'brush-lifted' : 'brush-laid'");
+    expect(chapterEnd).toContain("icon: 'sprout'");
+    expect(chapterEnd).toContain("icon: 'shikigami'");
+    expect(chapterEnd).toContain('<BrushIcon name={item.icon} size={14} />');
+    expect(dock).toContain("<BrushIcon name={locked ? 'lock-shut' : 'lock-open'} size={14} />");
+    expect(dock).not.toContain('<svg');
+    expect(topTimeline).toContain('<BrushIcon name="plus" />');
+    expect(userMenu).not.toContain("from 'lucide-react'");
+    for (const name of ['jizo', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books']) {
+      expect(userMenu).toContain(`<BrushIcon name="${name}" size={13} />`);
+    }
+    expect(userMenu).toContain("name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}");
+    expect(userMenu).toContain("<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />");
+
+    // Every icon is registered, masked and generated from a fixed seed.
+    const names = [
+      'stones-triad', 'brush-laid', 'brush-lifted', 'sprout', 'shikigami', 'lock-open', 'lock-shut', 'plus',
+      'jizo', 'enso', 'ink-disc', 'taiji', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books',
+      'gate-in', 'gate-out',
+      // Small glyphs, finished with fine grain.
+      'close', 'arrow-back', 'arrow-forward', 'chevron-down', 'chevron-right', 'chevron-up', 'chevron-left',
+      'check', 'minus', 'loader', 'trash', 'edit', 'search', 'copy', 'stop', 'folder', 'folder-open', 'folder-plus',
+      // Objects and states.
+      'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
+      'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
+      'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'spread', 'locate', 'new-storyline',
+      'new-category',
+      // A closed sidebar's crescent, cleared from the committed solid one.
+      'moon-left-hollow', 'moon-right-hollow',
+    ];
+    for (const name of names) {
+      expect(brushIcon).toContain(`| '${name}'`);
+      expect(materials).toContain(`.brush-icon--${name} { -webkit-mask-image: url('../assets/design/icons/${name}.png');`);
+      expect(existsSync(resolve(process.cwd(), `src/assets/design/icons/${name}.png`))).toBe(true);
+      // Drawn from a fixed seed, turned/mirrored from one that is, or (the
+      // hollow moons) cleared out of a committed solid one.
+      if (name.endsWith('-hollow')) continue;
+      expect(generator).toMatch(new RegExp(`"${name}": \\(\\w+, \\d+\\)|masks\\["${name}"\\] =|\\(\\d, "${name}"\\)`));
+    }
+    expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)');
+    expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
+
+    // The last hand-drawn SVG icons are brush icons too.
+    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).toContain('<BrushIcon name="spread" size={11} />');
+    const bottomTimeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
+    expect(bottomTimeline).toContain('<BrushIcon name="spread" size={12} />');
+    expect(bottomTimeline).toContain('<BrushIcon name="locate" size={12} />');
+    const subHeader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    expect(subHeader).toContain('icon = <BrushIcon name="new-storyline" size={12} />;');
+    expect(subHeader).toContain('icon = <BrushIcon name="new-category" size={12} />;');
+    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={11} />');
+    expect(source('src/renderer/features/agent/AgentComposerConfig.tsx')).toContain('<BrushIcon name="dharma-wheel" size={16} />');
+    expect(source('src/renderer/components/leftBars/AgentChangeIndicator.tsx')).toContain('<BrushIcon name="check" size={10} />');
+  });
+
+  it('keeps lucide out of the desktop renderer outside the paused mobile shell', () => {
+    const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[])
+      .filter((file) => /\.tsx?$/.test(file) && !file.includes('.test.') && !file.startsWith('shells/mobile/'));
+    expect(files.length).toBeGreaterThan(100);
+    for (const file of files) {
+      expect(source(`src/renderer/${file}`), file).not.toContain("from 'lucide-react'");
+    }
+    // The shared generator draws them with fine grain; the spinner turns in CSS.
+    const generator = source('scripts/design-assets/brushicons.py');
+    expect(generator).toContain('masks[name] = grain_fine(draw(rng), rng)');
+    expect(source('src/renderer/components/notifications/NotificationPill.tsx')).toContain(
+      "<BrushIcon name=\"loader\" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />",
+    );
   });
 });

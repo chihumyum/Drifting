@@ -3,18 +3,32 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../domain/comment';
 import { computeEntityHoverCardPosition, type EntityHoverCardPosition } from '../../components/ui/entity-hover-card-position';
+import { HoverCardActions, type HoverActionGroup, type HoverCardPointerProps } from '../../components/ui/HoverCard';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { buildCommentSourcePreview, type CommentSourceRelation } from './comment-source-preview';
 
-export function CommentSourceHoverCard({ comment, relations, anchor, id }: {
+/**
+ * Where a review item or TODO comes from, beside its card. With `pointer` and
+ * `actions` the card takes the pointer and carries the item's actions along
+ * its bottom (there is no right-click menu); without them it is a passive
+ * preview.
+ */
+export function CommentSourceHoverCard({ comment, relations, anchor, id, pointer, actions, onDismiss, autoFocus = false }: {
   comment: Comment;
   relations: CommentSourceRelation[];
   anchor: HTMLElement;
   id: string;
+  pointer?: HoverCardPointerProps;
+  actions?: HoverActionGroup[];
+  onDismiss?: () => void;
+  /** Opened from the ⋯ button: focus the first action, and hand focus back on close. */
+  autoFocus?: boolean;
 }) {
   const { t } = useTranslation();
   const state = useDataStoreFields('bookNodes', 'bookElements', 'bookElementCategories', 'storylines');
   const source = useMemo(() => buildCommentSourcePreview(comment, relations, state, t), [comment, relations, state, t]);
+  const groups = (actions ?? []).filter((group) => group.actions.length > 0);
+  const interactive = Boolean(pointer);
   const cardRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<EntityHoverCardPosition | null>(null);
@@ -54,10 +68,31 @@ export function CommentSourceHoverCard({ comment, relations, anchor, id }: {
       window.removeEventListener('wheel', wheel, { capture: true });
     };
   }, [anchor, updatePosition]);
+
+  // The card is portaled to the end of the page, out of the tab order: asked
+  // for from the keyboard, it takes focus once it is placed (a hidden button
+  // cannot be focused) and gives it back when it closes.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!autoFocus || !position || !card || returnFocusRef.current) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+    card.querySelector<HTMLElement>('.hover-card__action:not(:disabled)')?.focus({ preventScroll: true });
+  }, [autoFocus, position]);
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    return () => {
+      const previous = returnFocusRef.current;
+      if (previous?.isConnected && card?.contains(document.activeElement)) previous.focus({ preventScroll: true });
+    };
+  }, []);
+
   return createPortal(
-    <div id={id} role="tooltip" className="comment-source-hover" ref={cardRef}
+    <div id={id} role={interactive ? 'group' : 'tooltip'} ref={cardRef}
+      className={`comment-source-hover${interactive ? ' comment-source-hover--interactive' : ''}`}
+      onMouseEnter={pointer?.onMouseEnter} onMouseLeave={pointer?.onMouseLeave}
       style={{ top: position?.top ?? 0, left: position?.left ?? 0, maxHeight: position?.maxHeight ?? 420, visibility: position ? 'visible' : 'hidden' }}>
-      <div ref={contentRef} className="comment-source-hover__content hover-preview-content">
+      <div ref={contentRef} className="comment-source-hover__content hover-card__body hover-preview-content">
         <div className="comment-source-hover__label">{t('reviewPanel.sourceInfo')}</div>
         {source.entities.length ? source.entities.map((entity) => (
           <div key={entity.key} className="comment-source-hover__entity">
@@ -69,6 +104,7 @@ export function CommentSourceHoverCard({ comment, relations, anchor, id }: {
           <div className="comment-source-hover__text">{source.text || t('reviewPanel.sourceTextUnavailable')}</div>
         </>}
       </div>
+      {groups.length > 0 && <HoverCardActions groups={groups} onDone={onDismiss} />}
     </div>, document.body,
   );
 }

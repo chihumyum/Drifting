@@ -13,7 +13,7 @@ import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
 import type { OutlineItem } from '../lib/outline';
-import { EditorContextMenu } from '../features/editor/editor-context-menu';
+import { EditorSelectionBar, selectionRectOf, type EditorSelectionBarOptions, type SelectionRect } from '../features/editor/editor-selection-bar';
 import { useRetroactiveEntityLinks } from '../features/editor/useRetroactiveEntityLinks';
 import { useEntityEditorSession } from '../features/editor/useEntityEditorSession';
 import type { EditorPersistDerived } from '../features/editor/entity-editor-session';
@@ -408,6 +408,172 @@ export interface UseEntityEditorResult {
 //   • the entity-link config sync (auto-detect map + enabled flag),
 //   • the @-picker (mentionable entities and "+ create element" affordance),
 //   • the active-editor registry hookup (Cmd+S, Cmd+F bindings).
+interface SelectionBarRefs {
+  source: { current: { projectId: string; sourceKind: string; sourceId: string } };
+  onAddCommentRequest: { current: ((request: EditorCommentRequest) => void) | undefined };
+  onAddPatchRequest: { current: ((request: EditorCommentRequest) => void) | undefined };
+  enableInlineCopilot: { current: boolean | undefined };
+  translate: { current: (key: string) => string };
+}
+
+/** The selection bar's actions for an editor's current selection, or null when it has none. */
+function resolveSelectionBar(view: EditorView, rect: SelectionRect, refs: SelectionBarRefs): EditorSelectionBarOptions | null {
+  // The「格式」entry is available in ANY editable editor, so the bar shows
+  // for any non-empty selection — not only commentable ones. The comment /
+  // patch / Copilot entries layer on top when their handlers and a
+  // commentable source are present (resolved below).
+  if (!view.editable) return null;
+  const { selection } = view.state;
+  if (selection.empty) return null;
+  const selectedText = view.state.doc
+    .textBetween(selection.from, selection.to, '\n')
+    .trim();
+  if (!selectedText) return null;
+
+  // --- Comment-family entries (require a commentable source) --------
+  // Resolve the selection into a comment anchor only when commentable.
+  // Any failure here just leaves these undefined (→「格式」-only menu);
+  // it never aborts the menu.
+  let onAddComment: (() => void) | undefined;
+  let onCopilot: (() => void) | undefined;
+  let onAddPatch: (() => void) | undefined;
+  const handler = refs.onAddCommentRequest.current;
+  const source = refs.source.current;
+  if (source.projectId && source.sourceId && isCommentTargetKind(source.sourceKind)) {
+    // Resolve the enclosing block once, so we can grab both its id
+    // and its plain-text snapshot in a single walk. The snapshot
+    // lets the card render the selection in context AND survives
+    // the block being edited or deleted (see sticky-note orphan
+    // handling).
+    const resolved = view.state.doc.resolve(selection.from);
+    let blockId: string | null = null;
+    let blockText = '';
+    let blockStartInDoc = 0;
+    for (let depth = resolved.depth; depth >= 0; depth--) {
+      const node = resolved.node(depth);
+      if (!isBlockType(node.type.name)) continue;
+      const id = node.attrs?.id as string | null | undefined;
+      if (!id) continue;
+      blockId = id;
+      blockText = node.textContent;
+      blockStartInDoc = resolved.before(depth) + 1;
+      break;
+    }
+    if (blockId) {
+      // All top-level blocks the selection spans (in order) — for a
+      // multi-block comment anchor. Capture each block's id, original
+      // plain text (so the card can show the source on demand even
+      // after edits/deletes), and doc-start position (char offsets).
+      const spanBlocks: { id: string; text: string; docStart: number }[] = [];
+      view.state.doc.forEach((node, offset) => {
+        if (offset + node.nodeSize > selection.from && offset < selection.to) {
+          const id = node.attrs?.id as string | null | undefined;
+          if (id) spanBlocks.push({ id, text: node.textContent, docStart: offset + 1 });
+        }
+      });
+      if (spanBlocks.length === 0) {
+        spanBlocks.push({ id: blockId, text: blockText, docStart: blockStartInDoc });
+      }
+      const spanBlockIds = spanBlocks.map((b) => b.id);
+
+      // Map doc-relative selection offsets into blockText-relative
+      // ones. Direct subtraction works for plain prose; inline atoms
+      // (entity links etc.) can shift positions, so we sanity-check
+      // against the actual slice and fall back to indexOf on mismatch.
+      let blockSelectionFrom = selection.from - blockStartInDoc;
+      let blockSelectionTo = selection.to - blockStartInDoc;
+      if (blockText.slice(blockSelectionFrom, blockSelectionTo) !== selectedText) {
+        const idx = blockText.indexOf(selectedText);
+        if (idx >= 0) {
+          blockSelectionFrom = idx;
+          blockSelectionTo = idx + selectedText.length;
+        } else {
+          blockSelectionFrom = -1;
+          blockSelectionTo = -1;
+        }
+      }
+
+      // Precise text anchor: start = first spanned block + its
+      // in-block offset (reuse the validated blockSelectionFrom),
+      // end = last spanned block + the selection-end offset within
+      // it. Drives the hover highlight + text-level change detection.
+      const firstSpan = spanBlocks[0]!;
+      const lastSpan = spanBlocks[spanBlocks.length - 1]!;
+      const startOffset =
+        blockSelectionFrom >= 0
+          ? blockSelectionFrom
+          : Math.max(
+              0,
+              Math.min(firstSpan.text.length, selection.from - firstSpan.docStart),
+            );
+      const endOffset =
+        spanBlocks.length === 1 && blockSelectionTo >= 0
+          ? blockSelectionTo
+          : Math.max(0, Math.min(lastSpan.text.length, selection.to - lastSpan.docStart));
+
+      const request: EditorCommentRequest = {
+        projectId: source.projectId,
+        sourceKind: source.sourceKind,
+        sourceId: source.sourceId,
+        targetBlockId: blockId,
+        targetBlockIds: spanBlockIds,
+        selectedText,
+        anchorJson: JSON.stringify({
+          selectedText,
+          selectionFrom: selection.from,
+          selectionTo: selection.to,
+          createdAt: new Date().toISOString(),
+          blockText,
+          blockSelectionFrom,
+          blockSelectionTo,
+          blockSnapshots: spanBlocks.map((b) => ({ blockId: b.id, blockText: b.text })),
+          textAnchor: {
+            startBlockId: firstSpan.id,
+            startOffset,
+            endBlockId: lastSpan.id,
+            endOffset,
+            text: selectedText,
+          },
+        }),
+        clientX: rect.left,
+        clientY: rect.bottom,
+      };
+      if (handler) onAddComment = () => handler(request);
+      // "Copilot 修改" — same entry as ⇧⌘I, run on the selection.
+      // Always manual (never gated by the auto switch). Chapter only.
+      onCopilot =
+        refs.enableInlineCopilot.current && source.sourceKind === 'node'
+          ? () => {
+              const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
+                clientX: rect.left,
+                clientY: rect.bottom,
+              });
+              if (ctx) useCopilotInlineStore.getState().open(ctx);
+            }
+          : undefined;
+      // "新建补丁" — chapter editors only (a patch's source is a chapter).
+      const patchHandler = refs.onAddPatchRequest.current;
+      onAddPatch =
+        patchHandler && source.sourceKind === 'node'
+          ? () => patchHandler(request)
+          : undefined;
+    }
+  }
+
+  return {
+    rect,
+    onAddComment,
+    onAddPatch,
+    onCopilot,
+    labels: {
+      format: refs.translate.current('entityEditor.contextMenu.format'),
+      addComment: refs.translate.current('entityEditor.contextMenu.addComment'),
+      addPatch: refs.translate.current('entityEditor.contextMenu.addPatch'),
+      copilot: refs.translate.current('entityEditor.contextMenu.copilot'),
+    },
+  };
+}
+
 export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorResult {
   const { t } = useTranslation();
   // Menu labels are read when invoked; locale changes must not recreate the
@@ -447,7 +613,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
   const { isCommandActive, isVisible, isPreparing } = useEditorSurfaceLifecycle();
   // The later DOM handler delegates to the current canonical editor's owner.
-  const contextMenuRef = useRef<EditorContextMenu | null>(null);
+  const selectionBarRef = useRef<EditorSelectionBar | null>(null);
   const suggestionGate = useMemo(() => new EditorSuggestionGate(), []);
 
   const userId = useAuthStore((state) => state.user?.id);
@@ -619,7 +785,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           // would let it fall through to TipTap's Mod-I italic alias, which is
           // exactly what ⇧⌘I must never do here.
           event.preventDefault();
-          const owner = contextMenuRef.current;
+          const owner = selectionBarRef.current;
           if (!owner?.isEnabled() || owner.editor.view !== view) return true;
           const c = view.coordsAtPos(view.state.selection.from);
           const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
@@ -628,170 +794,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           });
           if (ctx) useCopilotInlineStore.getState().open(ctx);
           return true;
-        },
-        handleDOMEvents: {
-          contextmenu: (view, event) => {
-            // The「格式」entry is available in ANY editable editor, so the menu
-            // opens on any non-empty selection — not only commentable ones. The
-            // comment / patch / Copilot entries layer on top when their handlers
-            // and a commentable source are present (resolved below). Read-only
-            // editors fall through to the native browser menu (copy etc.).
-            const menuOwner = contextMenuRef.current;
-            if (!view.editable || !menuOwner?.isEnabled() || menuOwner.editor.view !== view) return false;
-            const { selection } = view.state;
-            if (selection.empty) return false;
-            const selectedText = view.state.doc
-              .textBetween(selection.from, selection.to, '\n')
-              .trim();
-            if (!selectedText) return false;
-
-            // --- Comment-family entries (require a commentable source) --------
-            // Resolve the selection into a comment anchor only when commentable.
-            // Any failure here just leaves these undefined (→「格式」-only menu);
-            // it never aborts the menu.
-            let onAddComment: (() => void) | undefined;
-            let onCopilot: (() => void) | undefined;
-            let onAddPatch: (() => void) | undefined;
-            const handler = onAddCommentRequestRef.current;
-            const source = sourceRef.current;
-            if (source.projectId && source.sourceId && isCommentTargetKind(source.sourceKind)) {
-              // Resolve the enclosing block once, so we can grab both its id
-              // and its plain-text snapshot in a single walk. The snapshot
-              // lets the card render the selection in context AND survives
-              // the block being edited or deleted (see sticky-note orphan
-              // handling).
-              const resolved = view.state.doc.resolve(selection.from);
-              let blockId: string | null = null;
-              let blockText = '';
-              let blockStartInDoc = 0;
-              for (let depth = resolved.depth; depth >= 0; depth--) {
-                const node = resolved.node(depth);
-                if (!isBlockType(node.type.name)) continue;
-                const id = node.attrs?.id as string | null | undefined;
-                if (!id) continue;
-                blockId = id;
-                blockText = node.textContent;
-                blockStartInDoc = resolved.before(depth) + 1;
-                break;
-              }
-              if (blockId) {
-                // All top-level blocks the selection spans (in order) — for a
-                // multi-block comment anchor. Capture each block's id, original
-                // plain text (so the card can show the source on demand even
-                // after edits/deletes), and doc-start position (char offsets).
-                const spanBlocks: { id: string; text: string; docStart: number }[] = [];
-                view.state.doc.forEach((node, offset) => {
-                  if (offset + node.nodeSize > selection.from && offset < selection.to) {
-                    const id = node.attrs?.id as string | null | undefined;
-                    if (id) spanBlocks.push({ id, text: node.textContent, docStart: offset + 1 });
-                  }
-                });
-                if (spanBlocks.length === 0) {
-                  spanBlocks.push({ id: blockId, text: blockText, docStart: blockStartInDoc });
-                }
-                const spanBlockIds = spanBlocks.map((b) => b.id);
-
-                // Map doc-relative selection offsets into blockText-relative
-                // ones. Direct subtraction works for plain prose; inline atoms
-                // (entity links etc.) can shift positions, so we sanity-check
-                // against the actual slice and fall back to indexOf on mismatch.
-                let blockSelectionFrom = selection.from - blockStartInDoc;
-                let blockSelectionTo = selection.to - blockStartInDoc;
-                if (blockText.slice(blockSelectionFrom, blockSelectionTo) !== selectedText) {
-                  const idx = blockText.indexOf(selectedText);
-                  if (idx >= 0) {
-                    blockSelectionFrom = idx;
-                    blockSelectionTo = idx + selectedText.length;
-                  } else {
-                    blockSelectionFrom = -1;
-                    blockSelectionTo = -1;
-                  }
-                }
-
-                // Precise text anchor: start = first spanned block + its
-                // in-block offset (reuse the validated blockSelectionFrom),
-                // end = last spanned block + the selection-end offset within
-                // it. Drives the hover highlight + text-level change detection.
-                const firstSpan = spanBlocks[0]!;
-                const lastSpan = spanBlocks[spanBlocks.length - 1]!;
-                const startOffset =
-                  blockSelectionFrom >= 0
-                    ? blockSelectionFrom
-                    : Math.max(
-                        0,
-                        Math.min(firstSpan.text.length, selection.from - firstSpan.docStart),
-                      );
-                const endOffset =
-                  spanBlocks.length === 1 && blockSelectionTo >= 0
-                    ? blockSelectionTo
-                    : Math.max(0, Math.min(lastSpan.text.length, selection.to - lastSpan.docStart));
-
-                const request: EditorCommentRequest = {
-                  projectId: source.projectId,
-                  sourceKind: source.sourceKind,
-                  sourceId: source.sourceId,
-                  targetBlockId: blockId,
-                  targetBlockIds: spanBlockIds,
-                  selectedText,
-                  anchorJson: JSON.stringify({
-                    selectedText,
-                    selectionFrom: selection.from,
-                    selectionTo: selection.to,
-                    createdAt: new Date().toISOString(),
-                    blockText,
-                    blockSelectionFrom,
-                    blockSelectionTo,
-                    blockSnapshots: spanBlocks.map((b) => ({ blockId: b.id, blockText: b.text })),
-                    textAnchor: {
-                      startBlockId: firstSpan.id,
-                      startOffset,
-                      endBlockId: lastSpan.id,
-                      endOffset,
-                      text: selectedText,
-                    },
-                  }),
-                  clientX: event.clientX,
-                  clientY: event.clientY,
-                };
-                if (handler) onAddComment = () => handler(request);
-                // "Copilot 修改" — same entry as ⇧⌘I, run on the selection.
-                // Always manual (never gated by the auto switch). Chapter only.
-                onCopilot =
-                  enableInlineCopilotRef.current && source.sourceKind === 'node'
-                    ? () => {
-                        const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
-                          clientX: event.clientX,
-                          clientY: event.clientY,
-                        });
-                        if (ctx) useCopilotInlineStore.getState().open(ctx);
-                      }
-                    : undefined;
-                // "新建补丁" — chapter editors only (a patch's source is a chapter).
-                const patchHandler = onAddPatchRequestRef.current;
-                onAddPatch =
-                  patchHandler && source.sourceKind === 'node'
-                    ? () => patchHandler(request)
-                    : undefined;
-              }
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            menuOwner.open({
-              clientX: event.clientX,
-              clientY: event.clientY,
-              onAddComment,
-              onAddPatch,
-              onCopilot,
-              labels: {
-                format: translateRef.current('entityEditor.contextMenu.format'),
-                addComment: translateRef.current('entityEditor.contextMenu.addComment'),
-                addPatch: translateRef.current('entityEditor.contextMenu.addPatch'),
-                copilot: translateRef.current('entityEditor.contextMenu.copilot'),
-              },
-            });
-            return true;
-          },
         },
       },
     },
@@ -826,15 +828,23 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
 
   useLayoutEffect(() => {
     if (!editor || !canonicalReady) return;
-    const owner = new EditorContextMenu(editor);
-    contextMenuRef.current = owner;
+    // Right-clicking is left to the system menu; a settled text selection
+    // shows the editing actions as a bar floating over it instead.
+    const owner = new EditorSelectionBar(editor, () => resolveSelectionBar(editor.view, selectionRectOf(editor), {
+      source: sourceRef,
+      onAddCommentRequest: onAddCommentRequestRef,
+      onAddPatchRequest: onAddPatchRequestRef,
+      enableInlineCopilot: enableInlineCopilotRef,
+      translate: translateRef,
+    }));
+    selectionBarRef.current = owner;
     return () => {
-      if (contextMenuRef.current === owner) contextMenuRef.current = null;
+      if (selectionBarRef.current === owner) selectionBarRef.current = null;
       owner.dispose();
     };
-  }, [editor, canonicalReady, projectId, sourceKind, sourceId]);
+  }, [editor, canonicalReady, projectId, sourceKind, sourceId]); // eslint-disable-line react-hooks/exhaustive-deps -- refs are stable
   useLayoutEffect(() => {
-    contextMenuRef.current?.setEnabled(canonicalReady && editable && isVisible && isCommandActive);
+    selectionBarRef.current?.setEnabled(canonicalReady && editable && isVisible && isCommandActive);
   }, [editor, canonicalReady, editable, projectId, sourceKind, sourceId, isVisible, isCommandActive]);
 
   useLayoutEffect(() => {

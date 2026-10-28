@@ -15,7 +15,8 @@ import { graphDriftWork } from './agent-panel-counters';
 const resetWork = () => { for (const key of Object.keys(graphDriftWork) as (keyof typeof graphDriftWork)[]) graphDriftWork[key] = 0; };
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const frames = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+// Cancelable like a real key press, so a surface can claim it.
+const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
 
 /** Full graph shells and special drift edges. Synthetic DOM gestures; current
  * Story Graph card reordering is visual only. No marker/relation writes. */
@@ -137,11 +138,20 @@ export async function runGraphDriftCardScenarios() {
           flushSync(() => first.click());
           const pair = document.querySelector(view === 'graph' ? '.graph-newedge__pair' : '.relation-type-create-modal');
           checks.latestPair = !!pair && pair.textContent?.includes('Synthetic drift 1') === true && pair.textContent?.includes('Synthetic drift 0') === true; escape();
-          flushSync(() => useDataStore.setState({ bookNodes: fixture.bookNodes.map(node => node.id === 'synthetic-drift-0' ? { ...node, title: 'Synthetic renamed drift' } : node) }));
+          flushSync(() => useDataStore.setState({ bookNodes: fixture.bookNodes.map(node => node.id === 'synthetic-drift-0' ? { ...node, title: 'Synthetic renamed drift', summary: 'Synthetic renamed summary' } : node) }));
           checks.renamedCard = first.querySelector('.drift-card__title')?.textContent === 'Synthetic renamed drift';
-          flushSync(() => first.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })));
-          const menu = document.querySelector<HTMLElement>('.context-menu-surface');
-          checks.currentContextMenu = !!menu && menu.parentElement === document.body && getComputedStyle(menu).position === 'fixed' && menu.textContent?.includes('Synthetic renamed drift') === true; escape();
+          // There are no right-click menus: the card's hover card carries its
+          // actions and reads the current drift. (The check keeps its
+          // recorded evidence name.)
+          const rightClick = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 });
+          flushSync(() => first.dispatchEvent(rightClick));
+          flushSync(() => first.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+          await pause(300);
+          const card = document.querySelector<HTMLElement>('.hover-card');
+          checks.currentContextMenu = !rightClick.defaultPrevented && !document.querySelector('.context-menu-surface')
+            && !!card && card.parentElement === document.body && !!card.querySelector('.hover-card__actions')
+            && card.textContent?.includes('Synthetic renamed summary') === true;
+          escape(); checks.currentContextMenu &&= !document.querySelector('.hover-card');
           if (view === 'graph') flushSync(() => first.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: new DataTransfer() })));
           flushSync(() => host.querySelector<HTMLButtonElement>('.drift-panel__close')!.click()); await pause(400);
           checks.closeAndReopen = host.querySelectorAll('.drift-card').length === 0 && host.querySelectorAll(edgeSelector).length === 0;

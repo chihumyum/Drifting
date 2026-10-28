@@ -556,6 +556,10 @@ interface UiState {
   bottomTimelineHidden: boolean;
   setBottomTimelineHidden: (hidden: boolean) => void;
   toggleBottomTimelineHidden: () => void;
+  // The open-document dock keeps its glass pills out even when nobody points
+  // at it while this is on (its lock button).
+  tabDockLocked: boolean;
+  toggleTabDockLocked: () => void;
 
   // In-chapter plot planner dock (mini-Excel grid). Global visibility flag
   // like the outline toggle — each node editor renders its OWN node's grid.
@@ -990,6 +994,8 @@ export const useUiStore = create<UiState>()(
         set({ bottomTimelineUnaffiliatedVisible: visible }),
       toggleBottomTimelineHidden: () =>
         set((state) => ({ bottomTimelineHidden: !state.bottomTimelineHidden })),
+      tabDockLocked: false,
+      toggleTabDockLocked: () => set((state) => ({ tabDockLocked: !state.tabDockLocked })),
 
       plotPlannerOpen: false,
       setPlotPlannerOpen: (open) => set({ plotPlannerOpen: open }),
@@ -1881,6 +1887,7 @@ export const useUiStore = create<UiState>()(
         lastActiveSuperView: state.lastActiveSuperView,
         tabsByProject: persistableTabsByProject(state.tabsByProject),
         bottomTimelineHidden: state.bottomTimelineHidden,
+        tabDockLocked: state.tabDockLocked,
         plotPlannerOpen: state.plotPlannerOpen,
         plotPlannerHeight: state.plotPlannerHeight,
         bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,

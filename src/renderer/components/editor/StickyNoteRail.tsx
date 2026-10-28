@@ -1,6 +1,5 @@
 import { revealDesktopAgentView } from '../../store/desktop-agent-navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Layers3, MessageSquarePlus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { createPlainCommentDoc, extractTextFromCommentBody, type CommentTargetKind } from '../../domain/comment';
@@ -14,6 +13,7 @@ import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { Button } from '../ui/Button';
 import { GhostIconButton } from '../ui/GhostIconButton';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface StickyNoteRailProps {
   projectId: string;
@@ -58,13 +58,13 @@ function StickyNoteComposer({
     <div className="review-card review-card--sticky review-card--manual sticky-note-composer">
       <header className="review-card__header">
         <span className="review-card__kind">
-          <MessageSquarePlus size={12} />
+          <BrushIcon name="comment-plus" size={12} />
           {t('commentRail.composer.newComment')}
         </span>
         <GhostIconButton
           size="sm"
           className="review-card__close-button"
-          icon={<X size={13} />}
+          icon={<BrushIcon name="close" size={13} />}
           onClick={onCancel}
           aria-label={t('commentRail.actions.cancelComment')}
         />
@@ -183,7 +183,7 @@ export function StickyNoteRail({
         {items.length > 0 && (
           <GhostIconButton
             size="sm"
-            icon={rail.layout === 'stacked' ? <Layers3 size={13} /> : <ChevronDown size={13} />}
+            icon={rail.layout === 'stacked' ? <BrushIcon name="layers" size={13} /> : <BrushIcon name="chevron-down" size={13} />}
             onClick={() => rail.setLayout(rail.layout === 'stacked' ? 'expanded' : 'stacked')}
             aria-expanded={rail.layout === 'expanded'}
             title={
@@ -196,7 +196,7 @@ export function StickyNoteRail({
         {items.length > 0 && (
           <GhostIconButton
             size="sm"
-            icon={<X size={12} />}
+            icon={<BrushIcon name="close" size={12} />}
             onClick={rail.clear}
             title={t('reviewPanel.clearSticky')}
             aria-label={t('reviewPanel.clearSticky')}
