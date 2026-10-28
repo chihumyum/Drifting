@@ -36,12 +36,16 @@ describe('glass slider', () => {
     expect(markup).toContain('class="glass-slider__thumb glass is-on"');
   });
 
-  it('slides on the dock spring, flat track, and stays put under reduced motion', () => {
+  it('slides on the dock spring with no track, square like the panel-tab block, and stays put under reduced motion', () => {
     const controls = css('src/styles/ui-controls.css');
     expect(controls).toContain(
       'transform var(--slider-ms) var(--slider-ease),\n    width var(--slider-ms) var(--slider-ease);',
     );
-    expect(controls).toContain('background: hsl(var(--ink-1) / 0.035);');
+    const track = controls.slice(controls.indexOf('.glass-slider {'), controls.indexOf('.glass-slider__thumb {'));
+    expect(track).toContain('background: transparent;');
+    expect(track).toContain('border-radius: 0;');
+    const thumb = controls.slice(controls.indexOf('.glass-slider__thumb {'), controls.indexOf('.glass-slider__thumb[data-visible'));
+    expect(thumb).toContain('border-radius: 0;');
     expect(controls).toContain(".glass-slider[data-placed='true'] .glass-slider__thumb {\n    transition: none;");
     expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain("import { springEasing } from '../topBars/TopTimeline/tab-reorder';");
   });

@@ -16,6 +16,29 @@
   padding-block: 3px;
 }
 
+/* On desktop the panel header (filters, sort, new under the tabs) is a
+   quarter roomier than the base control size: its height and padding, the
+   icon buttons and the filter controls all grow by --panel-header-scale.
+   Words keep the interface text size. */
+html[data-shell-mode='desktop'] .workspace-panel-header-row {
+  --panel-header-scale: 1.25;
+  min-height: calc(var(--ui-control-height, 26px) * var(--panel-header-scale));
+  padding-block: calc(3px * var(--panel-header-scale));
+}
+
+html[data-shell-mode='desktop'] .workspace-panel-header-row .ghost-icon-button {
+  zoom: var(--panel-header-scale);
+}
+
+html[data-shell-mode='desktop'] .workspace-panel-header-row :is(.glass-slider__option, .scope-toggle) {
+  min-height: calc(20px * var(--panel-header-scale));
+  padding: calc(2px * var(--panel-header-scale)) calc(8px * var(--panel-header-scale));
+}
+
+html[data-shell-mode='desktop'] .workspace-panel-header-row .agt-toolbar-action {
+  min-height: calc(var(--ui-control-height) * var(--panel-header-scale));
+}
+
 .workspace-panel-title-block {
   padding: 6px 12px 5px;
 }
@@ -1806,9 +1829,10 @@ svg.super-viewport-edges[data-panning='1'] {
 }
 
 /* ── Glass slider: one choice out of several ─────────────────────────
- * The options sit side by side on a flat, faint track. One glass slider —
- * a slab of the floating fill with the selected glass rim, standing still —
- * lies under the chosen option and slides to the next on the dock's
+ * The options sit side by side straight on the panel, with no track under
+ * them. One glass slider — a square slab of the floating fill with the
+ * selected glass rim, standing still, like the block under the chosen panel
+ * tab — lies under the chosen option and slides to the next on the dock's
  * critically damped spring (GlassSlider sets --slider-ms/--slider-ease).
  * Only the slider is glass; the options are plain words. */
 .glass-slider {
@@ -1816,18 +1840,18 @@ svg.super-viewport-edges[data-panning='1'] {
   display: inline-flex;
   align-items: stretch;
   flex: 0 0 auto;
-  padding: 1px;
-  border-radius: var(--radius-lg);
-  background: hsl(var(--ink-1) / 0.035);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .glass-slider__thumb {
   position: absolute;
-  top: 1px;
-  bottom: 1px;
+  top: 0;
+  bottom: 0;
   left: 0;
   width: var(--slider-w);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   background: var(--glass-fill);
   transform: translateX(var(--slider-x));
   opacity: 0;
@@ -1885,7 +1909,7 @@ svg.super-viewport-edges[data-panning='1'] {
   min-height: 20px;
   padding: 2px 8px;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   background: transparent;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font: var(--ui-font-caption, 9.5px)/1 var(--font-mono);

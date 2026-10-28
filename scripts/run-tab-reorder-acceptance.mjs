@@ -26,7 +26,7 @@ function validate(report) {
   assert.equal(report.fingerprint, fingerprint(), 'Tab reorder evidence is stale.');
   assert.deepEqual(report.profiles.map(profile => profile.reducedMotion), [false, true]);
   for (const profile of report.profiles) {
-    assert.equal(Object.keys(profile.checks).length, 24);
+    assert.equal(Object.keys(profile.checks).length, 26);
     for (const [name, passed] of Object.entries(profile.checks)) assert.equal(passed, true, name);
   }
   assert.deepEqual(report.uncaughtErrors, []);

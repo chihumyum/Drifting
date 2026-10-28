@@ -132,8 +132,17 @@ export async function runTabReorderScenario(manual = false) {
     end(); await wait(SETTLE_MS);
     check('escape-does-not-commit', order() === 'node:b,node:c,node:a,split:wide' && writes === 0 && clean());
 
-    await start('node:b'); await move(left.left + 200, left.bottom + 100);
-    check('leaving-strip-removes-preview', el('node:c').style.transform === '' && source.style.opacity === '0.35');
+    await start('node:b');
+    const leftBWidth = el('node:b').getBoundingClientRect().width;
+    await move(left.left + 200, left.bottom + 4);
+    check('wobbling-off-the-strip-keeps-every-slot', el('node:c').style.transform === '' && source.style.opacity === '0');
+    await move(left.left + 200, left.bottom + 100);
+    // Far from the row the dragged pill's slot closes and its neighbours join up.
+    check('leaving-strip-closes-its-slot', ['node:c', 'node:a', 'split:wide']
+      .every(key => Math.abs(shiftOf(key) + leftBWidth) < 0.01) && source.style.opacity === '0');
+    await move(el('node:b').getBoundingClientRect().left + 20);
+    check('returning-to-strip-reopens-a-slot', el('node:c').style.transform === '');
+    await move(left.left + 200, left.bottom + 100);
     let received = '';
     const receive = (e: DragEvent) => { received = e.dataTransfer?.getData('application/x-drifting-tab') ?? ''; };
     document.body.addEventListener('drop', receive, { once: true });

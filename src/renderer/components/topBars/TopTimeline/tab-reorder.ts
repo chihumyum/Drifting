@@ -177,6 +177,21 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     return drag.x >= rect.left && drag.x <= rect.right && drag.y >= rect.top && drag.y <= rect.bottom;
   }
 
+  // Taken a row's height or more away from the row, the pill has left it:
+  // its slot closes so the pills either side join up. Nearer than that the
+  // row keeps its last preview, so a wobble off the row closes nothing.
+  function isFar(drag: Session) {
+    const rect = container.getBoundingClientRect();
+    const reach = rect.height;
+    return drag.x < rect.left - reach || drag.x > rect.right + reach
+      || drag.y < rect.top - reach || drag.y > rect.bottom + reach;
+  }
+
+  // Where every pill sits once the dragged one's slot has closed.
+  function closed(drag: Session) {
+    return drag.slots.map((_, index) => (index > drag.from ? -drag.widths[drag.from] : 0));
+  }
+
   function paint(time: number) {
     const drag = session;
     if (!drag) return;
@@ -191,9 +206,12 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     const { to, offsets } = projectTabReorder(drag.widths, drag.from,
       drag.x - rect.left + container.scrollLeft - drag.grabX);
     drag.to = drag.inside ? to : drag.from;
-    drag.slots.forEach((element, index) => shift(element, drag.inside ? offsets[index] : 0));
+    // Over the row the pills open a slot where the pill would land; far from
+    // it the pill's own slot closes; in between nothing moves.
+    if (drag.inside) drag.slots.forEach((element, index) => shift(element, offsets[index]));
+    else if (isFar(drag)) closed(drag).forEach((x, index) => shift(drag.slots[index], x));
     // Opacity preserves the native drag source and its layout/hit box.
-    drag.source.style.opacity = drag.inside ? '0' : '0.35';
+    drag.source.style.opacity = '0';
     if (speed && (elapsed === 0 || container.scrollLeft !== beforeScroll)) drag.frame = requestAnimationFrame(paint);
   }
 
@@ -267,14 +285,15 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     if (event.target !== document.documentElement && event.target !== document &&
       event.clientX > 0 && event.clientX < window.innerWidth &&
       event.clientY > 0 && event.clientY < window.innerHeight) return;
-    // A native drag can leave the entire window without another dragover.
+    // A native drag can leave the entire window without another dragover;
+    // the pill is as far from the row as it gets, so its slot closes.
     const drag = session;
     drag.inside = false;
     drag.to = drag.from;
     cancelAnimationFrame(drag.frame);
     drag.frame = 0;
-    drag.slots.forEach(element => shift(element, 0));
-    drag.source.style.opacity = '0.35';
+    closed(drag).forEach((x, index) => shift(drag.slots[index], x));
+    drag.source.style.opacity = '0';
   }
   function start(event: DragEvent) {
     if (event.defaultPrevented || !event.dataTransfer || !(event.target instanceof Element)) return;

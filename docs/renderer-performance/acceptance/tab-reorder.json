@@ -1,7 +1,7 @@
 {
   "kind": "animated-tab-reorder",
-  "generatedAt": "2026-10-28T16:16:24.104Z",
-  "fingerprint": "f46db4a9a3fbf584ecea37c3da714e204fd835d7f5fe1da13d03ec7b07916891",
+  "generatedAt": "2026-10-28T17:40:51.320Z",
+  "fingerprint": "98d6d3c1f9795faa9b88dbb9a28313a5f3c1b721c8f5a73a4892191d82bcc193",
   "profiles": [
     {
       "reducedMotion": false,
@@ -20,7 +20,9 @@
         "fast-dragenter-accepts-and-previews": true,
         "wide-split-can-reach-last-slot": true,
         "escape-does-not-commit": true,
-        "leaving-strip-removes-preview": true,
+        "wobbling-off-the-strip-keeps-every-slot": true,
+        "leaving-strip-closes-its-slot": true,
+        "returning-to-strip-reopens-a-slot": true,
         "external-drop-retains-editor-payload": true,
         "create-cannot-start-drag": true,
         "close-button-cannot-start-drag": true,
@@ -49,7 +51,9 @@
         "fast-dragenter-accepts-and-previews": true,
         "wide-split-can-reach-last-slot": true,
         "escape-does-not-commit": true,
-        "leaving-strip-removes-preview": true,
+        "wobbling-off-the-strip-keeps-every-slot": true,
+        "leaving-strip-closes-its-slot": true,
+        "returning-to-strip-reopens-a-slot": true,
         "external-drop-retains-editor-payload": true,
         "create-cannot-start-drag": true,
         "close-button-cannot-start-drag": true,

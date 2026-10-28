@@ -362,6 +362,10 @@ describe('workspace surface language acceptance', () => {
     expect(compactChrome).toContain('height: var(--ui-row-height, 28px);');
     expect(compactChrome).toContain('min-height: var(--ui-control-height, 26px);');
     expect(compactChrome).toContain('padding-block: 3px;');
+    // Desktop panel headers are a quarter roomier; words keep their size.
+    expect(compactChrome).toContain('--panel-header-scale: 1.25;');
+    expect(compactChrome).toContain('min-height: calc(var(--ui-control-height, 26px) * var(--panel-header-scale));');
+    expect(compactChrome).toContain('.workspace-panel-header-row .ghost-icon-button {\n  zoom: var(--panel-header-scale);');
     expect(leftHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(rightHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(leftSubheader).toContain('className="workspace-panel-header-row"');
