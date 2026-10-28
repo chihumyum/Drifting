@@ -7,6 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
+import { trackGlassFlow } from '../../lib/glass-flow';
 import { springEasing } from '../topBars/TopTimeline/tab-reorder';
 
 export interface GlassSliderOption<T extends string> {
@@ -75,6 +76,21 @@ export function GlassSlider<T extends string>({
     return () => window.cancelAnimationFrame(frame);
   }, [thumb, placed]);
 
+  // Like the block under the chosen panel tab, the slider's glass runs with
+  // the distance it slides (--flow, lib/glass-flow.ts) and stops when it lands.
+  const thumbRef = useRef<HTMLElement | null>(null);
+  const slidFrom = useRef<number | null>(null);
+  useEffect(() => {
+    const track = trackRef.current;
+    const element = thumbRef.current;
+    if (!thumb || !track || !element) return;
+    if (!track.style.getPropertyValue('--flow')) track.style.setProperty('--flow', '0');
+    if (placed && slidFrom.current !== null && slidFrom.current !== thumb.x) {
+      trackGlassFlow(track, () => element.getBoundingClientRect().left);
+    }
+    slidFrom.current = thumb.x;
+  }, [thumb, placed]);
+
   const choose = (index: number) => {
     const next = options[(index + options.length) % options.length];
     if (!next) return;
@@ -108,7 +124,7 @@ export function GlassSlider<T extends string>({
         } as CSSProperties
       }
     >
-      <i aria-hidden="true" className="glass-slider__thumb glass is-on" data-visible={thumb ? 'true' : undefined} />
+      <i ref={thumbRef} aria-hidden="true" className="glass-slider__thumb glass is-on" data-visible={thumb ? 'true' : undefined} />
       {options.map((option, index) => (
         <button
           key={option.value}

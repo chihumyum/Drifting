@@ -423,6 +423,11 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   cursor: default;
 }
 
+/* A panel header's "new" action keeps the accent ink until hovered. */
+.ghost-icon-button.panel-header-new {
+  color: hsl(var(--accent));
+}
+
 /* Glass never fills: the rim answers hover and press (materials.css). */
 .ghost-icon-button--glass,
 .ghost-icon-button--glass:hover:not(:disabled) {
@@ -1858,6 +1863,13 @@ svg.super-viewport-edges[data-panning='1'] {
   pointer-events: none;
 }
 
+/* Small slabs read their rim from the dense patch of the glass texture the
+   panel-tab block uses; elsewhere a slab this small shows almost none. */
+.glass-slider > .glass-slider__thumb.glass {
+  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);
+  --glass-gy: -132px;
+}
+
 .glass-slider__thumb[data-visible='true'] {
   opacity: 1;
 }
@@ -1921,6 +1933,11 @@ svg.super-viewport-edges[data-panning='1'] {
 
 .scope-toggle:hover:not(:disabled) {
   color: hsl(var(--ink-2));
+}
+
+.scope-toggle.glass.glass--rest {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
 }
 
 .scope-toggle[aria-pressed='true'] {

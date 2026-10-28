@@ -598,43 +598,18 @@ function SubIconBtn({
   intent?: ReturnType<typeof useSuperViewPreloadIntent>;
 }) {
   return (
-    <button
+    <GhostIconButton
       {...intent}
       ref={buttonRef}
-      type="button"
+      size="sm"
       title={title}
       aria-label={title}
       aria-expanded={expanded}
       aria-haspopup={expanded === undefined ? undefined : 'menu'}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 20,
-        minWidth: 22,
-        padding: '0 4px',
-        borderRadius: 3,
-        border: 'none',
-        background: 'transparent',
-        color: accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.55 : 1,
-        transition: 'background 0.12s, color 0.12s',
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-        e.currentTarget.style.color = 'hsl(var(--ink-1))';
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))';
-      }}
-    >
-      {children}
-    </button>
+      className={accent ? 'panel-header-new' : undefined}
+      icon={children}
+    />
   );
 }

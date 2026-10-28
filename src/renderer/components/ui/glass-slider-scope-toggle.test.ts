@@ -48,6 +48,11 @@ describe('glass slider', () => {
     expect(thumb).toContain('border-radius: 0;');
     expect(controls).toContain(".glass-slider[data-placed='true'] .glass-slider__thumb {\n    transition: none;");
     expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain("import { springEasing } from '../topBars/TopTimeline/tab-reorder';");
+    // Small slabs read their rim from the dense texture patch the panel-tab
+    // block uses, and the slider's glass runs with its travel like that block.
+    expect(controls).toContain('.glass-slider > .glass-slider__thumb.glass {\n  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);\n  --glass-gy: -132px;');
+    expect(controls).toContain('.scope-toggle.glass.glass--rest {\n  --glass-gx: -96px;\n  --glass-gy: -132px;');
+    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain('trackGlassFlow(track, () => element.getBoundingClientRect().left);');
   });
 });
 

@@ -32,6 +32,9 @@ export function tabDragScrollSpeed(x: number, width: number) {
 const SPRING_K = 150;
 const SPRING_W = Math.sqrt(SPRING_K);
 const SPRING_MS = 520;
+// How long a reported leave of the window waits for a dragover or drop that
+// proves the drag is still here.
+const LEAVE_GRACE_MS = 150;
 
 /** Progress of the spring at `t` seconds, normalised to land exactly on 1. */
 function springProgress(t: number) {
@@ -100,6 +103,7 @@ type Session = {
  * Only compositor transforms change during a gesture; commit once on drop. */
 export function installTabReorder(container: HTMLElement, commit: (from: number, to: number) => void) {
   let session: Session | null = null;
+  let leaving = 0;
   const animations = new Map<HTMLElement, Animation>();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const duration = () => reducedMotion.matches ? 0 : SPRING_MS;
@@ -218,6 +222,8 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
   function over(event: DragEvent) {
     const drag = session;
     if (!drag) return;
+    // Still over the window: a leave reported a moment ago was not one.
+    clearTimeout(leaving);
     drag.x = event.clientX;
     drag.y = event.clientY;
     if (isInside(drag)) {
@@ -231,6 +237,7 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     const drag = session;
     if (!drag) return;
     session = null;
+    clearTimeout(leaving);
     cancelAnimationFrame(drag.frame);
     document.removeEventListener('dragover', over);
     document.removeEventListener('dragenter', over);
@@ -269,7 +276,9 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
 
   function drop(event: DragEvent) {
     if (!session) return;
-    over(event);
+    // A release without a position keeps the last one the drag reported.
+    if (event.clientX || event.clientY) over(event);
+    else clearTimeout(leaving);
     cancelAnimationFrame(session.frame);
     paint(performance.now()); // Include the release coordinate even without a final dragover.
     const save = session.inside;
@@ -285,9 +294,16 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     if (event.target !== document.documentElement && event.target !== document &&
       event.clientX > 0 && event.clientX < window.innerWidth &&
       event.clientY > 0 && event.clientY < window.innerHeight) return;
-    // A native drag can leave the entire window without another dragover;
-    // the pill is as far from the row as it gets, so its slot closes.
+    // A native drag can leave the entire window without another dragover.
+    // WebKit sends the same kind of leave just before a drop, so wait: a
+    // drag still over the window keeps sending dragover (or drops) first.
+    clearTimeout(leaving);
+    leaving = window.setTimeout(leftWindow, LEAVE_GRACE_MS);
+  }
+  // The pill is as far from the row as it gets, so its slot closes.
+  function leftWindow() {
     const drag = session;
+    if (!drag) return;
     drag.inside = false;
     drag.to = drag.from;
     cancelAnimationFrame(drag.frame);

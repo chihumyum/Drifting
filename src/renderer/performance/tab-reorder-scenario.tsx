@@ -142,6 +142,13 @@ export async function runTabReorderScenario(manual = false) {
       .every(key => Math.abs(shiftOf(key) + leftBWidth) < 0.01) && source.style.opacity === '0');
     await move(el('node:b').getBoundingClientRect().left + 20);
     check('returning-to-strip-reopens-a-slot', el('node:c').style.transform === '');
+    // WebKit reports a leave of the window just before a drop; a drag that
+    // goes on over the strip does not close the slot for it.
+    event(document.documentElement, 'dragleave', 0, 0);
+    const heldThroughLeave = el('node:c').style.transform === '';
+    await move(el('node:b').getBoundingClientRect().left + 20);
+    await wait(250);
+    check('spurious-window-leave-keeps-the-slot', heldThroughLeave && el('node:c').style.transform === '');
     await move(left.left + 200, left.bottom + 100);
     let received = '';
     const receive = (e: DragEvent) => { received = e.dataTransfer?.getData('application/x-drifting-tab') ?? ''; };

@@ -322,61 +322,22 @@ function Toolbar({
           />
         )}
         {onNewFolder && (
-          <ToolbarIconButton title={t('materialFolders.menu.newFolder')} onClick={onNewFolder}>
-            <BrushIcon name="folder-plus" size={12} />
-          </ToolbarIconButton>
+          <GhostIconButton
+            size="sm"
+            title={t('materialFolders.menu.newFolder')}
+            aria-label={t('materialFolders.menu.newFolder')}
+            onClick={onNewFolder}
+            icon={<BrushIcon name="folder-plus" size={12} />}
+          />
         )}
-        <button
-          onClick={onCompose}
+        <GhostIconButton
+          size="sm"
           title={t('memoMaterial.toolbar.newMaterial')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 18,
-            height: 18,
-            borderRadius: 3,
-            border: 'none',
-            background: 'transparent',
-            color: 'hsl(var(--ink-4))',
-            cursor: 'pointer',
-            padding: 0,
-            transition: 'background 0.12s, color 0.12s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-            e.currentTarget.style.color = 'hsl(var(--ink-1))';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'hsl(var(--ink-4))';
-          }}
-        >
-          <BrushIcon name="plus" size={12} />
-        </button>
+          aria-label={t('memoMaterial.toolbar.newMaterial')}
+          onClick={onCompose}
+          icon={<BrushIcon name="plus" size={12} />}
+        />
       </div>
     </div>
-  );
-}
-
-function ToolbarIconButton({
-  title,
-  onClick,
-  children,
-}: {
-  title: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className="library-toolbar-icon"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   );
 }

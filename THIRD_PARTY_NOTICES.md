@@ -14,7 +14,6 @@ tao#1245 iOS scene lifetime backport; it is not relicensed under Drifting's AGPL
 | Component                                                | Use                                                        | License    | Copyright / source                                                              |
 | -------------------------------------------------------- | ---------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
 | Inter Tight variable font                                | Bundled UI font through `@fontsource-variable/inter-tight` | OFL-1.1    | Copyright 2022 The Inter Project Authors; <https://github.com/rsms/inter-tight> |
-| Iconoir `page-flip`                                      | Copied SVG path in `IconoirPageFlip.tsx`                   | MIT        | Copyright 2021 Luca Burgio; <https://github.com/iconoir-icons/iconoir>          |
 | Android Gradle wrapper scripts and vendored JAR (8.14.3) | Generated Android build wrapper                            | Apache-2.0 | Gradle authors; source: <https://github.com/gradle/gradle/tree/v8.14.3>         |
 
 Major runtime dependency families include Tauri, React, Tiptap/ProseMirror,

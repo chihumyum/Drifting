@@ -156,9 +156,9 @@ describe('workspace surface language acceptance', () => {
     // Entries to whole-book views are round glass with brush icons.
     expect(subheader).toContain('<BrushIcon name="ov-folding" size={15} />');
     expect(subheader).toContain('<BrushIcon name="ov-iceberg" size={15} />');
-    expect(source('src/renderer/components/ui/icons/IconoirPageFlip.tsx')).toContain(
-      'Iconoir `page-flip`, MIT licensed',
-    );
+    // No icon from an outside set is left on the desktop: Iconoir's page-flip
+    // was the last, and nothing used it.
+    expect(existsSync(resolve(process.cwd(), 'src/renderer/components/ui/icons/IconoirPageFlip.tsx'))).toBe(false);
     // TODO & Materials from the material panel; the story graph from the timeline head.
     expect(source('src/renderer/shells/desktop/DesktopRightSidebar.tsx')).toContain(
       "setActiveSuperView('memo-material')",
@@ -363,6 +363,11 @@ describe('workspace surface language acceptance', () => {
     expect(compactChrome).toContain('min-height: var(--ui-control-height, 26px);');
     expect(compactChrome).toContain('padding-block: 3px;');
     // Desktop panel headers are a quarter roomier; words keep their size.
+    // Every icon button in a panel header is the shared GhostIconButton, so
+    // the header's scale reaches all of them.
+    expect(leftSubheader).toContain('    <GhostIconButton\n      {...intent}\n      ref={buttonRef}\n      size="sm"');
+    expect(library).not.toContain('ToolbarIconButton');
+    expect(library).not.toContain('onMouseEnter={(e) => {');
     expect(compactChrome).toContain('--panel-header-scale: 1.25;');
     expect(compactChrome).toContain('min-height: calc(var(--ui-control-height, 26px) * var(--panel-header-scale));');
     expect(compactChrome).toContain('.workspace-panel-header-row .ghost-icon-button {\n  zoom: var(--panel-header-scale);');

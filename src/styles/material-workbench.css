@@ -868,30 +868,6 @@
 
 /* ── Material folders (panel tree, picker) ────────────────────────────── */
 
-.library-toolbar-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: hsl(var(--ink-4));
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.library-toolbar-icon:hover {
-  background: hsl(var(--paper-deep));
-  color: hsl(var(--ink-2));
-}
-
-.library-toolbar-icon[aria-pressed='true'] {
-  color: hsl(var(--ink-1));
-}
-
 .library-item-card__folder {
   min-width: 0;
   overflow: hidden;

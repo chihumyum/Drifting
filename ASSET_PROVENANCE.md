@@ -33,8 +33,3 @@ The bundled Inter Tight variable font is supplied through
 relicensed as AGPL. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 `LICENSES/OFL-1.1.txt`.
 
-## Iconoir page-flip
-
-`src/renderer/components/ui/icons/IconoirPageFlip.tsx` contains an adapted SVG
-path from Iconoir. It remains under MIT; its source notice is retained in the
-file and in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,7 +1,7 @@
 {
   "kind": "animated-tab-reorder",
-  "generatedAt": "2026-10-28T17:40:51.320Z",
-  "fingerprint": "98d6d3c1f9795faa9b88dbb9a28313a5f3c1b721c8f5a73a4892191d82bcc193",
+  "generatedAt": "2026-10-28T18:01:07.701Z",
+  "fingerprint": "83751f3d94e7d071363939f84197ce43460713f5b99e8fcb18ce31bafec522ec",
   "profiles": [
     {
       "reducedMotion": false,
@@ -23,6 +23,7 @@
         "wobbling-off-the-strip-keeps-every-slot": true,
         "leaving-strip-closes-its-slot": true,
         "returning-to-strip-reopens-a-slot": true,
+        "spurious-window-leave-keeps-the-slot": true,
         "external-drop-retains-editor-payload": true,
         "create-cannot-start-drag": true,
         "close-button-cannot-start-drag": true,
@@ -54,6 +55,7 @@
         "wobbling-off-the-strip-keeps-every-slot": true,
         "leaving-strip-closes-its-slot": true,
         "returning-to-strip-reopens-a-slot": true,
+        "spurious-window-leave-keeps-the-slot": true,
         "external-drop-retains-editor-payload": true,
         "create-cannot-start-drag": true,
         "close-button-cannot-start-drag": true,
