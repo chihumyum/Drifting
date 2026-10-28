@@ -4,6 +4,7 @@ import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
+import { BrushIcon } from '../../ui/BrushIcon';
 import { KindMark } from '../../ui/KindMark';
 import { kindMarkOfTarget, type KindMarkKind } from '../../ui/kind-mark';
 import { useTabReorder } from './useTabReorder';
@@ -578,7 +579,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
           navigate(`/project/${projectId}/new`);
         }}
       >
-        <Plus size={16} strokeWidth={1.8} aria-hidden />
+        <BrushIcon name="plus" />
       </button>}
 
       {contextMenu && (

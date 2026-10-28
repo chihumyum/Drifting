@@ -45,6 +45,9 @@
 .page__ornament--menu[data-open="true"] .page__ornament-trigger {
   pointer-events: none;
 }
+.page__ornament > .brush-icon {
+  margin-inline: auto;
+}
 .page__ornament-glyph {
   display: inline-block;
   transition:
@@ -84,6 +87,9 @@
 }
 
 .chapter-end-menu__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 2px 0;
   border: 0;
   background: transparent;

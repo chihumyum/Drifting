@@ -884,4 +884,47 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('Plot Planner 是连续的 mini-Excel');
     expect(doc).toContain('不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收');
   });
+
+  it('draws the chapter end, dock and user menu icons with the sand brush', () => {
+    const chapterEnd = source('src/renderer/components/editor/ChapterEndOrnament.tsx');
+    const dock = source('src/renderer/components/workspaceChrome/WorkspaceTabDock.tsx');
+    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
+    const brushIcon = source('src/renderer/components/ui/BrushIcon.tsx');
+    const materials = source('src/styles/materials.css');
+    const generator = source('scripts/design-assets/brushicons.py');
+
+    // ⁂ is three stones, on chapter pages and on drift pages alike; its three
+    // actions each lead with an icon.
+    expect(chapterEnd).not.toContain('>⁂<');
+    expect(chapterEnd.match(/<BrushIcon name="stones-triad" size=\{20\} \/>/g)).toHaveLength(2);
+    expect(chapterEnd).toContain("icon: finished ? 'brush-lifted' : 'brush-laid'");
+    expect(chapterEnd).toContain("icon: 'sprout'");
+    expect(chapterEnd).toContain("icon: 'shikigami'");
+    expect(chapterEnd).toContain('<BrushIcon name={item.icon} size={14} />');
+    expect(dock).toContain("<BrushIcon name={locked ? 'lock-shut' : 'lock-open'} size={14} />");
+    expect(dock).not.toContain('<svg');
+    expect(topTimeline).toContain('<BrushIcon name="plus" />');
+    // Only the Copilot page's chevrons remain from lucide in the user menu.
+    expect(userMenu).toContain("import { ChevronLeft, ChevronRight } from 'lucide-react';");
+    for (const name of ['jizo', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books']) {
+      expect(userMenu).toContain(`<BrushIcon name="${name}" size={13} />`);
+    }
+    expect(userMenu).toContain("name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}");
+    expect(userMenu).toContain("<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />");
+
+    // Every icon is registered, masked and generated from a fixed seed.
+    const names = [
+      'stones-triad', 'brush-laid', 'brush-lifted', 'sprout', 'shikigami', 'lock-open', 'lock-shut', 'plus',
+      'jizo', 'enso', 'ink-disc', 'taiji', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books',
+      'gate-in', 'gate-out',
+    ];
+    for (const name of names) {
+      expect(brushIcon).toContain(`| '${name}'`);
+      expect(materials).toContain(`.brush-icon--${name} { -webkit-mask-image: url('../assets/design/icons/${name}.png');`);
+      expect(existsSync(resolve(process.cwd(), `src/assets/design/icons/${name}.png`))).toBe(true);
+      expect(generator).toMatch(new RegExp(`"${name}": \\(\\w+, \\d+\\)`));
+    }
+    expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
+  });
 });

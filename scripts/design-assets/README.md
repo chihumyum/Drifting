@@ -14,6 +14,7 @@ colour of their own, so one mask serves every theme and accent.
 | `sand/mark-*.png` | `glyphgen.py` | Kind marks: dash, square, corner, spiral, wave, slip, star. |
 | `sand/*-hollow.png` | `hollowgen.py` | Hollow kind marks for preview tabs, derived from the solid marks above (run it after them). |
 | `icons/split.png` | `glyphgen.py` `icon_split()` | Sidebar split button (a pair of hanging scrolls). |
+| `icons/stones-triad.png` … `icons/gate-out.png` | `brushicons.py` | Chapter end (⁂ and its three actions), dock lock and new, user menu. The docstring lists each icon; seeds are the ones the author picked. |
 | `icons/*.png` (others) | drawn with the same brush in a design session | Committed as source; regenerate by hand if changed. |
 
 Each script takes an output directory: `python3 glyphgen.py out/`. They need

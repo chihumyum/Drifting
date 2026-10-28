@@ -261,6 +261,25 @@
 .brush-icon--lib-curio { -webkit-mask-image: url('../assets/design/icons/lib-curio.png'); mask-image: url('../assets/design/icons/lib-curio.png'); }
 .brush-icon--fullscreen { -webkit-mask-image: url('../assets/design/icons/fullscreen.png'); mask-image: url('../assets/design/icons/fullscreen.png'); }
 .brush-icon--split { -webkit-mask-image: url('../assets/design/icons/split.png'); mask-image: url('../assets/design/icons/split.png'); }
+.brush-icon--stones-triad { -webkit-mask-image: url('../assets/design/icons/stones-triad.png'); mask-image: url('../assets/design/icons/stones-triad.png'); }
+.brush-icon--brush-laid { -webkit-mask-image: url('../assets/design/icons/brush-laid.png'); mask-image: url('../assets/design/icons/brush-laid.png'); }
+.brush-icon--brush-lifted { -webkit-mask-image: url('../assets/design/icons/brush-lifted.png'); mask-image: url('../assets/design/icons/brush-lifted.png'); }
+.brush-icon--sprout { -webkit-mask-image: url('../assets/design/icons/sprout.png'); mask-image: url('../assets/design/icons/sprout.png'); }
+.brush-icon--shikigami { -webkit-mask-image: url('../assets/design/icons/shikigami.png'); mask-image: url('../assets/design/icons/shikigami.png'); }
+.brush-icon--lock-open { -webkit-mask-image: url('../assets/design/icons/lock-open.png'); mask-image: url('../assets/design/icons/lock-open.png'); }
+.brush-icon--lock-shut { -webkit-mask-image: url('../assets/design/icons/lock-shut.png'); mask-image: url('../assets/design/icons/lock-shut.png'); }
+.brush-icon--plus { -webkit-mask-image: url('../assets/design/icons/plus.png'); mask-image: url('../assets/design/icons/plus.png'); }
+.brush-icon--jizo { -webkit-mask-image: url('../assets/design/icons/jizo.png'); mask-image: url('../assets/design/icons/jizo.png'); }
+.brush-icon--enso { -webkit-mask-image: url('../assets/design/icons/enso.png'); mask-image: url('../assets/design/icons/enso.png'); }
+.brush-icon--ink-disc { -webkit-mask-image: url('../assets/design/icons/ink-disc.png'); mask-image: url('../assets/design/icons/ink-disc.png'); }
+.brush-icon--taiji { -webkit-mask-image: url('../assets/design/icons/taiji.png'); mask-image: url('../assets/design/icons/taiji.png'); }
+.brush-icon--wen { -webkit-mask-image: url('../assets/design/icons/wen.png'); mask-image: url('../assets/design/icons/wen.png'); }
+.brush-icon--dharma-wheel { -webkit-mask-image: url('../assets/design/icons/dharma-wheel.png'); mask-image: url('../assets/design/icons/dharma-wheel.png'); }
+.brush-icon--movable-type { -webkit-mask-image: url('../assets/design/icons/movable-type.png'); mask-image: url('../assets/design/icons/movable-type.png'); }
+.brush-icon--case-dew { -webkit-mask-image: url('../assets/design/icons/case-dew.png'); mask-image: url('../assets/design/icons/case-dew.png'); }
+.brush-icon--books { -webkit-mask-image: url('../assets/design/icons/books.png'); mask-image: url('../assets/design/icons/books.png'); }
+.brush-icon--gate-in { -webkit-mask-image: url('../assets/design/icons/gate-in.png'); mask-image: url('../assets/design/icons/gate-in.png'); }
+.brush-icon--gate-out { -webkit-mask-image: url('../assets/design/icons/gate-out.png'); mask-image: url('../assets/design/icons/gate-out.png'); }
 
 /* ── Cells ──────────────────────────────────────────────────────────
  * A list cell (`.sand-cell`) has no hover wash. Under the pointer its
