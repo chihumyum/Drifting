@@ -29,8 +29,10 @@
  * A control made of glass shows only a rim, cut from one uneven texture.
  * At rest the rim is hidden, or for `.glass--rest` only its thin uneven line
  * shows, without the inner bleed; under the pointer the bleed comes in and
- * the rim flows slowly; pressed or switched on it thickens and stops. It
- * never sinks, inverts or fills. Corners follow the control's own radius. */
+ * the rim flows slowly. Selected (switched on, expanded, the current tab)
+ * it keeps that rim and bleed but stands still; only while held down does
+ * it thicken (strength 1.7, bleed 1.3), easing back over 0.28s when let go.
+ * It never sinks, inverts or fills. Corners follow the control's own radius. */
 .glass {
   --glass-cc: var(--glass-clear);
   --glass-edge: 33%;
@@ -84,14 +86,19 @@
 .glass--rest:focus-visible::before { transition: opacity 0.24s ease-out, box-shadow 0.24s ease-out; }
 .glass:hover::before,
 .glass:focus-visible::before { opacity: 1; animation-play-state: running; }
-.glass:active,
 .glass[aria-pressed='true'],
 .glass[aria-expanded='true'],
-.glass.is-on { --glass-g: 1.7; --glass-sp: 1.3; }
-.glass:active::before,
+.glass.is-on { --glass-g: 1; --glass-sp: 1; }
 .glass[aria-pressed='true']::before,
 .glass[aria-expanded='true']::before,
 .glass.is-on::before {
+  opacity: 1;
+  animation-play-state: paused;
+  transition: opacity 0.24s ease-out, box-shadow 0.28s ease-out;
+}
+/* Held down: after the selected rules so it wins over them too. */
+.glass:active { --glass-g: 1.7; --glass-sp: 1.3; }
+.glass:active::before {
   opacity: 1;
   animation-play-state: paused;
   transition: opacity 0.24s ease-out, box-shadow 0.04s ease-out;
@@ -114,6 +121,52 @@
     mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px);
   }
 }
+
+/* ── A selection that flows between siblings ─────────────────────────
+ * Selecting another item of one glass family (the dock's pills) sends the
+ * selected bleed across as one band of water (lib/glass-wave.ts). Every item
+ * has a `.glass-wave` layer drawn like its selected rim; the band cuts it
+ * with a soft window in the layer's own px (--wave-a0 … --wave-b1) and one
+ * sheet of texture slides under all of them (--wave-tx). While it travels
+ * the newly selected item keeps its resting line; when it lands the item's
+ * own bleed comes in as the band fades. */
+.glass-wave {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.glass-wave::before {
+  --wave-ring: color-mix(in srgb, var(--glass-cc) min(100%, calc(var(--glass-edge) * 1.8)), transparent);
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px var(--wave-ring),
+    inset 0 0 var(--glass-rim) 1px var(--wave-ring);
+  -webkit-mask-image:
+    var(--glass-texture),
+    linear-gradient(to right, transparent var(--wave-a0, 0px), #000 var(--wave-a1, 0px), #000 var(--wave-b0, 0px), transparent var(--wave-b1, 0px));
+  mask-image:
+    var(--glass-texture),
+    linear-gradient(to right, transparent var(--wave-a0, 0px), #000 var(--wave-a1, 0px), #000 var(--wave-b0, 0px), transparent var(--wave-b1, 0px));
+  -webkit-mask-size: 150px 150px, 100% 100%;
+  mask-size: 150px 150px, 100% 100%;
+  -webkit-mask-repeat: repeat, no-repeat;
+  mask-repeat: repeat, no-repeat;
+  -webkit-mask-position: var(--wave-tx, 0px) -46px, 0 0;
+  mask-position: var(--wave-tx, 0px) -46px, 0 0;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+[data-glass-waving='move'] .glass-wave { opacity: var(--wave-k, 0); }
+[data-glass-waving='settle'] .glass-wave { opacity: 0; transition: opacity 0.28s ease-out; }
+[data-glass-waving='move'] .glass.is-on { --glass-g: 0.85; --glass-sp: 0; }
 
 /* ── Lines that bleed glass while their panel moves ─────────────────
  * A hairline at rest. While its panel slides open, closes or is dragged

@@ -6,10 +6,12 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 界面只有两种材料，其余一律是平的：**玻璃是手按的东西**（控件、浮起的面板、移动中的面板边缘），**砂笔是作者留下的痕迹**（每类实体的记号、选中时画出的框、高亮与下划线）。两者都是 `src/assets/design/` 里的白色 alpha mask，在 CSS 中着色；生成脚本与来源见 `scripts/design-assets/` 与 `ASSET_PROVENANCE.md`。共享样式在 `src/styles/materials.css`。
 
-- **玻璃（方案 C）**：控件只有一圈由 `glass-thick.png` 纹理切出的边（`--glass-clear`，浅 `#B4B6AE` / 深 `#6B6D67`）。从不填色、不下沉、不反色。`.glass` 静止时隐藏边；`.glass--rest` 静止时只留纹理切出的那条细而不均匀的线（`--glass-sp: 0`，没有内晕，略淡），悬停或键盘聚焦时内晕在 `0.24s` 内晕开，纹理缓慢流动；按下或处于开启态（`aria-pressed` / `aria-expanded` / `.is-on`）时边变浓、变宽并停止流动。`.glass--surface` 用于卡片：只借用流动的边，按下不变浓。浮起的控件（Dock 药丸、工具栏、圆形按钮）使用共享半透明 `--glass-fill`（稿纸色 80%）加 `1.6px` 模糊，不扭曲底下的文字。
+- **玻璃（方案 C）**：控件只有一圈由 `glass-thick.png` 纹理切出的边（`--glass-clear`，浅 `#B4B6AE` / 深 `#6B6D67`）。从不填色、不下沉、不反色。`.glass` 静止时隐藏边；`.glass--rest` 静止时只留纹理切出的那条细而不均匀的线（`--glass-sp: 0`，没有内晕，略淡），悬停或键盘聚焦时内晕在 `0.24s` 内晕开，纹理缓慢流动；选中或开启（`aria-pressed` / `aria-expanded` / `.is-on`，例如当前标签）时保持悬停那样的边与内晕（强度 1、内晕 1 倍）但静止不流动；只有按住时边才变浓、变宽（强度 ×1.7、内晕 ×1.3），`40ms` 内出现，松开后 `0.28s` 退回。`.glass--surface` 用于卡片：只借用流动的边，按下不变浓。浮起的控件（Dock 药丸、工具栏、圆形按钮）使用共享半透明 `--glass-fill`（稿纸色 80%）加 `1.6px` 模糊，不扭曲底下的文字。
 - **浮层**：按钮弹出的动作菜单与悬停卡（章节、要素、构想、时间线节点的 `EntityHoverCard`，批注/TODO 的 `CommentSourceHoverCard`，以及其余 `HoverCardShell`）是从桌面掀起的一块：侧栏同色的不透明 `--workspace-ui-bg`、直角、`0.5px` 墨色 hairline 加浮起投影，共用 `--menu-surface-*` token。浮层整体没有玻璃；菜单里只有被悬停的行流出玻璃。
 - **Switch**：圆角药丸形状与干净的白色圆钮（深色主题为浅墨色），轨道是玻璃：关时只有静止态那条细玻璃线；开时整条轨道晕上静止的强调色玻璃（同一张纹理切出、不流动，`.ui-switch__tint`），圆钮压在上面不沾色；悬停只让无色的边晕开并流动。
 - **按钮层级**：工作区级控件是圆形玻璃——左右侧栏开关、双栏按钮、Project Home、通知、Dock 的锁与 `+`、时间线开关、稿纸工具栏里的每个按钮，以及进入全书视图的入口（通览全书、要素全景、TODO 与素材库、全屏故事图谱）。面板 header 里的普通低层按钮（排序、新建、折叠、显示模式）保持朴素：悬停只加深前景，不出现玻璃框。左右栏 Panel Tab 也只加深文字。
+- **同族切换（水波）**：同一组玻璃里换选中项时（目前是 Dock 药丸），选中的晕染像一道水波从旧项推到新项：途经的药丸按自己的颜色依次亮起又退去，中途略微摊开变淡，底下纹理随之滑动；相邻约 `0.3s`，越远越慢，最多约 `0.51s`。每颗药丸带一层 `.glass-wave`，由 `lib/glass-wave.ts` 在药丸自身坐标里开窗；行进中容器带 `data-glass-waving="move"`，新选中项先只留静止细线，落定后（`settle`）水波淡出、它自己的晕接上。减少动效时直接跳到新项。
+- **Dock 药丸文字**：展开后，药丸长出来的那颗砂印压在药丸起点下方、不占位置，标题从玻璃边内约 `10px` 开始；分栏药丸两半同理。
 - **会流动的线**：侧栏贴向稿纸的边、Tab 行下沿、账户 cell 上沿、双栏分隔线、Bottom Timeline 顶边与泳道分隔线静止时都是 hairline。面板滑开、收起或被拖宽时，这些线按面板实际移动的距离推动玻璃纹理（`--flow`），强度跟随速度（`--flowa`），停下后整体淡出（`lib/glass-flow.ts`，`.flow-line`）。
 - **砂笔记号**：凡是能出现在顶部 Dock 里的实体都有固定记号，在左栏、Dock、Review 分组与时间线泳道名里一致（`KindMark`）：章节＝圆印（按章节 id 固定取六枚之一），要素＝方印，故事线＝短横，要素类目＝折角，构想＝小漩涡（不在分组里的更淡），素材＝竖直纸条，通览全书＝强调色的粗钝星号。颜色取故事线或类目颜色；没有归属时用中性墨色。批注、TODO 与文件夹不进 Dock，因此没有记号。浅色主题以 `multiply` 叠色，深色主题提亮 14%。砂笔出现与消失都要过渡，不允许一帧切换。
 - **Cell 语法**（`SandCell`）：左栏的章节、要素、构想、故事线标题，以及素材库条目，记号始终显示；悬停时整圈轮廓变成一条故事线/类目颜色的 hairline 流动玻璃（同一张纹理切出的一个环，四边粗细一致）；单击打开预览 Tab 时，砂笔从记号出发绕 cell 画一圈框，离开时整框淡出后再复位；双击固定 Tab 不改变 cell 外观。面板构建时已选中的 cell 直接淡入框而不重画。
@@ -166,10 +168,10 @@ pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.
 pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/accent-color-preference.acceptance.test.ts
 pnpm test:renderer-architecture
 pnpm exec vitest run src/renderer/lib/sidebar-tabs.test.ts src/renderer/lib/sidebar-pane-events.test.ts src/renderer/store/ui-store.sidebar-tabs.test.ts src/renderer/lib/layout-geometry.test.ts src/renderer/shells/desktop/desktop-sidebar-tabs.acceptance.test.ts src/renderer/store/agent-chat-preparation.integration.test.ts
-pnpm exec vitest run src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts
+pnpm exec vitest run src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts
 ```
 
-砂笔与玻璃的行为证据：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动；`chapter-lane-drag.pointer.test.ts` 覆盖时间线玻璃块在越过下一泳道中线前不换道、越过后吸附并落在所在泳道、以及弹簧跟随。材质观感（纹理流动、砂笔画框、Dock 形变、模糊）只能在真实窗口中目测；开发期在合成数据的 layout harness 中以无头 Chrome 截图检查，但 Chrome 截图不等于 macOS WebKit 观感。
+砂笔与玻璃的行为证据：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动、选中态与按住态分开（按住在后、覆盖选中）以及水波层的样式约定；`lib/glass-wave.test.ts` 覆盖水波从旧项出发、准确落在新项、途经各项依次亮起、远近决定时长、落定后进入 settle 再撤掉，以及减少动效时直接跳过；`chapter-lane-drag.pointer.test.ts` 覆盖时间线玻璃块在越过下一泳道中线前不换道、越过后吸附并落在所在泳道、以及弹簧跟随。材质观感（纹理流动、砂笔画框、Dock 形变、模糊）只能在真实窗口中目测；开发期在合成数据的 layout harness 中以无头 Chrome 截图检查，但 Chrome 截图不等于 macOS WebKit 观感。
 
 测试覆盖三栏贯通的工作区组合（无顶栏、Tab 栏、editor top bar 与 footer，Bottom Timeline 可开关）、固定在两角的玻璃侧栏开关、左栏底部的账户 cell、顶部的砂笔记号 Dock 与锁、右下角的时间线开关、就近的全书视图入口、稿纸右下角的横排玻璃工具栏、已移除的字数、红灯回书架、砂笔 cell 与类目砂笔框、桌面色菜单与悬停卡、玻璃静止态与玻璃轨 switch、要素 panel 已移除的 category footer、紧凑索引的持久化模式/header 摘要切换入口与 sort menu 分离/纯文字内容/流式宽度/方印记号与无底色卡片/嵌入标题的九宫格砂笔框/空 category 禁止展开/砂笔画框选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首要素建组语义，以及章节、构想、element group 的 inline 动态按钮、章节/要素内外层排序解耦及末尾虚拟组约束、Super header 切换、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、左右栏与编辑器外侧的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收；红灯回书架、透明拖动条与侧栏 Tab 行的窗口拖动边界、开关与红绿灯的对齐、Dock 的悬停形变、砂笔画框与玻璃流动的观感仍需要在真实窗口中目测。
 

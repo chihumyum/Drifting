@@ -324,7 +324,8 @@
 }
 
 .workspace-tab-dock .app-tab.glass::before,
-.workspace-tab-dock .app-tab::after {
+.workspace-tab-dock .app-tab::after,
+.workspace-tab-dock .app-tab > .glass-wave {
   inset: 0 2.5px;
   border-radius: 999px;
 }
@@ -342,14 +343,24 @@
   animation: dock-pill-content 0.36s ease-out backwards;
 }
 
+/* The mark the pill grew from sits under the pill's start without taking
+   room, so the title begins where the glass does; it spreads out and thins
+   away under the glass. */
 .app-tab__sand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px;
   display: grid;
-  flex-shrink: 0;
   width: 14px;
   place-items: center;
+  pointer-events: none;
 }
 
-/* The mark the pill grew from spreads out and thins away under the glass. */
+.app-tab--split .app-tab__sand {
+  left: 8px;
+}
+
 .workspace-tab-dock .app-tab__sand {
   animation: none;
 }

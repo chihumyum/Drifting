@@ -121,9 +121,27 @@ describe('resting glass and switches', () => {
     const materials = css('src/styles/materials.css');
     expect(materials).toContain('.glass--rest { --glass-g: 0.85; --glass-sp: 0; }');
     expect(materials).toContain('.glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }');
-    // Pressed or on still thickens, declared after rest so it wins.
-    expect(materials.indexOf('.glass.is-on { --glass-g: 1.7; --glass-sp: 1.3; }'))
-      .toBeGreaterThan(materials.indexOf('.glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }'));
+    // Selected keeps the pointer's rim and bleed, still; only a held press
+    // thickens, declared after both so it wins over them.
+    const selected = materials.indexOf('.glass.is-on { --glass-g: 1; --glass-sp: 1; }');
+    const held = materials.indexOf('.glass:active { --glass-g: 1.7; --glass-sp: 1.3; }');
+    expect(selected).toBeGreaterThan(materials.indexOf('.glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }'));
+    expect(held).toBeGreaterThan(selected);
+    const selectedBefore = materials.slice(materials.indexOf('.glass.is-on::before {'), held);
+    expect(selectedBefore).toContain('animation-play-state: paused;');
+    expect(selectedBefore).toContain('box-shadow 0.28s ease-out');
+  });
+
+  it('flows the selected bleed to a new sibling and keeps the new one on its line meanwhile', () => {
+    const materials = css('src/styles/materials.css');
+    expect(materials).toContain("[data-glass-waving='move'] .glass-wave { opacity: var(--wave-k, 0); }");
+    expect(materials).toContain("[data-glass-waving='move'] .glass.is-on { --glass-g: 0.85; --glass-sp: 0; }");
+    expect(materials).toContain("[data-glass-waving='settle'] .glass-wave { opacity: 0; transition: opacity 0.28s ease-out; }");
+    // The band is drawn like the selected rim: strength 1, bleed 1, never flowing on its own.
+    const wave = materials.slice(materials.indexOf('.glass-wave::before {'), materials.indexOf("[data-glass-waving='move']"));
+    expect(wave).toContain('calc(var(--glass-edge) * 1.8)');
+    expect(wave).toContain('inset 0 0 var(--glass-rim) 1px var(--wave-ring)');
+    expect(wave).not.toContain('animation');
   });
 
   it('draws a switch as a glass track with a still accent bleed and a clean thumb', async () => {

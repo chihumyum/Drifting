@@ -21,6 +21,7 @@ import {
 } from '../../../store/ui-store';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
+import { useGlassWave } from '../../../hooks/useGlassWave';
 
 // Floor: absolute survival width — chrome (icon + close) just fits, label
 // area collapses. Tabs may dip below this only if their idealW is naturally
@@ -73,14 +74,17 @@ function measureLabelWidth(text: string, fontSize: number): number {
 }
 
 // Chrome layout on a leaf tab:
+//   paddingL 13 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
+// The sand mark the pill grew from sits under its start out of the flow
+// (desktop-shell.css), so the title begins where the glass does.
+const TAB_CHROME_WIDTH = 13 + 6 + 2 + 16 + 6;
+// The new-document tab keeps its + in the flow:
 //   paddingL 10 + icon 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
-// (the flex container has gap:6 between *every* adjacent pair — there are
-// two gaps with three children, both must be counted.)
-const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
+const CREATE_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
 // Split tab = two SplitSubLabel slots around a short I-shaped divider. Each sub-label:
-//   paddingL 8 + icon 12 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 50 + label
-// Total chrome = 50 + 50 + 9 (divider 1 + its margins) = 109.
-const SPLIT_CHROME_WIDTH = 50 + 50 + 9;
+//   paddingL 11 + label + gap 5 + close 14 + paddingR 6 = 36 + label
+// Total chrome = 36 + 36 + 9 (divider 1 + its margins) = 81.
+const SPLIT_CHROME_WIDTH = 36 + 36 + 9;
 
 
 /**
@@ -190,7 +194,7 @@ export function TopTimeline({ expanded = true, leading }: {
         tab.kind === 'leaf'
           ? measureLabelWidth(labelOfLeaf(tab), labelFontSize) + TAB_CHROME_WIDTH
           : tab.kind === 'create'
-            ? measureLabelWidth(t('topTimeline.newTab'), labelFontSize) + TAB_CHROME_WIDTH
+            ? measureLabelWidth(t('topTimeline.newTab'), labelFontSize) + CREATE_CHROME_WIDTH
             : measureLabelWidth(labelOfLeaf(tab.left), labelFontSize) +
               measureLabelWidth(labelOfLeaf(tab.right), labelFontSize) +
               SPLIT_CHROME_WIDTH;
@@ -223,6 +227,8 @@ export function TopTimeline({ expanded = true, leading }: {
   }, [openTabs, labelOfLeaf, containerWidth, labelFontSize, t]);
 
   useTabReorder(containerRef, projectId, openTabs, tabWidths);
+  // Choosing another pill sends the selected glass across like water.
+  useGlassWave(containerRef, activeTabKey, expanded);
 
   // When the active tab changes (or the layout shifts enough to push it out of
   // view), scroll the bar so the active tab is fully visible. Without this,
@@ -467,6 +473,7 @@ function CreateTabSlot({
       >
         <X size={12} strokeWidth={2} />
       </button>
+      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
   );
 }
@@ -517,7 +524,7 @@ function LeafTabSlot({
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          paddingLeft: 10,
+          paddingLeft: 13,
           paddingRight: 6,
           width,
           minWidth: TAB_FLOOR_WIDTH,
@@ -603,6 +610,7 @@ function LeafTabSlot({
       >
         <X size={12} strokeWidth={2} />
       </button>
+      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
   );
 }
@@ -682,6 +690,7 @@ function SplitTabSlot({
         onPromote={() => onPromoteSide('right')}
         onClose={() => onCloseSide('right')}
       />
+      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
   );
 }
@@ -728,12 +737,13 @@ function SplitSubLabel({
         }
       }}
       style={{
+        position: 'relative',
         flex: 1,
         minWidth: 0,
         display: 'flex',
         alignItems: 'center',
         gap: 5,
-        padding: '0 6px 0 8px',
+        padding: '0 6px 0 11px',
         cursor: 'pointer',
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--ui-font-body, 12px)',
