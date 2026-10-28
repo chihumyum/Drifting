@@ -18,6 +18,12 @@ const HOME_PATH = /\/(?:Users|home)\/[^/\s:)]+/g;
 
 export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
   const redacted = text
+    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [redacted]')
+    .replace(/\b(?:sk-|sk_)[A-Za-z0-9_-]{8,}/g, '[credential]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[credential]')
+    .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|authorization)\s*[:=]\s*)[^\s,;]+/gi, '$1[redacted]')
+    .replace(/[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
+    .replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]+/gi, '$1[redacted]')
     .replace(HOME_PATH, '~')
     .replace(CJK_RUN, '[text]')
     .replace(LONG_QUOTED, '$1[text]$2')

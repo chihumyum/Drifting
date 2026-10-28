@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createDesktopTauriEnvironment, prepareDesktopSigning } from './run-desktop-tauri.mjs';
 import { hostedSecurityOverride } from './hosted-environment.mjs';
+import { sentrySecurityOverride } from './sentry-environment.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(scriptPath), '..');
@@ -94,6 +95,10 @@ export function createWorktreePlan({
   if (online) Object.assign(environment, {
     VITE_LOCAL_ONLY_MODE: 'false', VITE_API_BASE_URL: origin, API_BASE_URL: origin,
     DRIFTING_HOSTED_ORIGIN: origin,
+    VITE_SENTRY_DSN: loaded.VITE_SENTRY_DSN || '',
+    VITE_SENTRY_RELEASE: loaded.VITE_SENTRY_RELEASE || '',
+    VITE_SENTRY_ENVIRONMENT: loaded.VITE_SENTRY_ENVIRONMENT || 'development',
+    VITE_DRIFTING_CRASH_REPORTS_IN_DEV: loaded.VITE_DRIFTING_CRASH_REPORTS_IN_DEV || '',
   });
   const base = JSON.parse(readFileSync(path.join(worktreeRoot, 'src-tauri/tauri.conf.json'), 'utf8'));
   // The installed Tauri code generator emits Vec<u8> for dataStoreIdentifier,
@@ -119,7 +124,7 @@ export function createWorktreePlan({
         incognito: ephemeralWebview,
       })),
       security: {
-        devCsp: (online ? hostedSecurityOverride(base, origin).devCsp : base.app.security.devCsp).replace(/\bconnect-src\b[^;]*/, directive =>
+        devCsp: (online ? sentrySecurityOverride(hostedSecurityOverride(base, origin), environment).devCsp : base.app.security.devCsp).replace(/\bconnect-src\b[^;]*/, directive =>
           `${directive} ${devUrl} ws://127.0.0.1:${selectedPort}`),
       },
     },

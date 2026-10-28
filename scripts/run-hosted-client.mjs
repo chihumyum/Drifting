@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
 import { createDesktopTauriEnvironment } from './run-desktop-tauri.mjs';
+import { sentrySecurityOverride } from './sentry-environment.mjs';
 import { createMobileEnvironment, writeIosGoogleOauthLocalConfig } from './run-mobile-dev.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [target = 'desktop', command = 'dev', ...args] = process.argv.slice(2);
@@ -25,10 +26,10 @@ const override = {
   identifier: labIdentifier,
   productName: labName,
   app: {
-    security: {
+    security: sentrySecurityOverride({
       csp: addOrigin(config.app.security.csp),
       devCsp: addOrigin(config.app.security.devCsp),
-    },
+    }, onlineEnvironment),
   },
   bundle: {
     createUpdaterArtifacts: false,
@@ -68,7 +69,7 @@ if (target === 'ios') {
   override.bundle.iOS = { infoPlist: infoFile };
 }
 const env = {
-  ...process.env,
+  ...onlineEnvironment,
   VITE_LOCAL_ONLY_MODE: 'false',
   VITE_REQUIRE_AUTH: 'false',
   VITE_AI_TRANSPORT: 'direct',

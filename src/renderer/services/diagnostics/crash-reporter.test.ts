@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ hosted: true, enabled: true, token: null as string | null }));
+const sentry = vi.hoisted(() => ({ send: vi.fn(), log: vi.fn(), env: { VITE_SENTRY_DSN: '' } }));
+vi.mock('../../lib/vite-runtime-env', () => ({ runtimeViteEnv: sentry.env }));
+vi.mock('./sentry-reporter', () => ({ sendSentryReport: sentry.send, sendSentryLog: sentry.log }));
 vi.mock('../../lib/config', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../lib/config')>(),
   APP_CONFIG: { API_BASE_URL: 'https://sync.example.test/' },
@@ -22,6 +25,7 @@ import {
   reportCrash,
   reportIntegrityEvent,
   reportNativeCrashes,
+  reportDiagnosticLog,
   resetCrashReporterForTests,
 } from './crash-reporter';
 
@@ -41,7 +45,49 @@ beforeEach(() => {
   mocks.hosted = true;
   mocks.enabled = true;
   mocks.token = null;
+  sentry.env.VITE_SENTRY_DSN = '';
+  sentry.send.mockReset().mockResolvedValue(true);
+  sentry.log.mockReset();
   resetCrashReporterForTests();
+});
+
+it('routes configured reports to Sentry once, retains failed delivery, and bounds operational logs', async () => {
+  sentry.env.VITE_SENTRY_DSN = 'https://0123456789abcdef0123456789abcdef@errors.example.test/42';
+  mocks.token = 'must-never-go-to-sentry';
+  sentry.send.mockResolvedValueOnce(false);
+  reportIntegrityEvent('local-flush-failed', new Error('disk full'));
+  await flushCrashReports();
+  expect(storage.has('drifting.diagnostics.queue.v1')).toBe(true);
+  await flushCrashReports();
+  expect(storage.has('drifting.diagnostics.queue.v1')).toBe(false);
+  expect(sentry.send).toHaveBeenCalledTimes(2);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(JSON.stringify(sentry.send.mock.calls)).not.toContain('must-never-go-to-sentry');
+  for (let index = 0; index < 110; index++) reportDiagnosticLog('sync-cycle-failed');
+  await vi.waitFor(() => expect(sentry.log).toHaveBeenCalledTimes(100));
+});
+
+it('stops an already draining queue from starting another upload after opt-out', async () => {
+  let release!: () => void;
+  fetchMock.mockImplementationOnce(() => new Promise(resolve => {
+    release = () => resolve({ ok: true, status: 202 });
+  }));
+  reportIntegrityEvent('first-before-opt-out');
+  reportIntegrityEvent('second-before-opt-out');
+  mocks.enabled = false;
+  release();
+  await flushCrashReports();
+  expect(fetchMock).toHaveBeenCalledOnce();
+});
+
+it('keeps different minified JS columns distinct in Sentry mode while suppressing an exact repeat', async () => {
+  sentry.env.VITE_SENTRY_DSN = 'https://0123456789abcdef0123456789abcdef@errors.example.test/42';
+  const input = { kind: 'renderer-error' as const, severity: 'error' as const, name: 'TypeError', message: 'Cannot read property' };
+  reportCrash({ ...input, stack: 'at render (tauri://localhost/assets/index-12345678.js:1:20)' });
+  reportCrash({ ...input, stack: 'at render (tauri://localhost/assets/index-12345678.js:1:30)' });
+  reportCrash({ ...input, stack: 'at render (tauri://localhost/assets/index-12345678.js:1:20)' });
+  await flushCrashReports();
+  expect(sentry.send).toHaveBeenCalledTimes(2);
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -86,13 +132,17 @@ it('keeps unsent reports for the next launch and drops rejected ones', async () 
 });
 
 it('sends nothing when the author turned reports off or there is no Hosted service', async () => {
+  sentry.env.VITE_SENTRY_DSN = 'https://0123456789abcdef0123456789abcdef@errors.example.test/42';
   mocks.enabled = false;
   reportIntegrityEvent('a');
   mocks.enabled = true;
   mocks.hosted = false;
   reportIntegrityEvent('b');
+  reportDiagnosticLog('sync-cycle-failed');
   await flushCrashReports();
   expect(fetchMock).not.toHaveBeenCalled();
+  expect(sentry.send).not.toHaveBeenCalled();
+  expect(sentry.log).not.toHaveBeenCalled();
   expect(storage.has('drifting.diagnostics.queue.v1')).toBe(false);
 });
 

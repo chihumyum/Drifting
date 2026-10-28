@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
 import { hostedEnvironment, normalizeHostedOrigin } from './hosted-environment.mjs';
+import { sentrySecurityOverride } from './sentry-environment.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoDir = path.resolve(path.dirname(scriptPath), '..');
@@ -114,10 +115,10 @@ export function createDesktopTauriConfigOverride({
     const config = JSON.parse(readFileSync(path.join(repoDir, 'src-tauri/tauri.conf.json'), 'utf8'));
     const addOrigin = (csp) => csp.replace(/\bconnect-src\b[^;]*/, (directive) =>
       directive.split(/\s+/).includes(origin) ? directive : `${directive} ${origin}`);
-    override.app = { security: {
+    override.app = { security: sentrySecurityOverride({
       csp: addOrigin(config.app.security.csp),
       devCsp: addOrigin(config.app.security.devCsp),
-    } };
+    }, environment) };
   }
   if (command !== 'build') return Object.keys(override).length ? override : null;
 

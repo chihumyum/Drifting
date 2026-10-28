@@ -38,7 +38,7 @@ import type { ObjectLogProvider } from './protocol';
 import { productionSyncDomainMaterializationKernel } from './reducer';
 import { SyncGenerationTable } from '../schema/drizzle';
 import { productSyncRuntimeControl } from './product-runtime-control';
-import { reportIntegrityEvent } from '../services/diagnostics/crash-reporter';
+import { reportDiagnosticLog, reportIntegrityEvent } from '../services/diagnostics/crash-reporter';
 
 const log = loglevel.getLogger('SyncEngineProductionRuntime');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -123,6 +123,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
   createCoordinator: () =>
     new SyncEngineCoordinator({
       onCycleError(syncGenerationId, error) {
+        reportDiagnosticLog('sync-cycle-failed');
         log.warn(`SyncEngine cycle failed for ${syncGenerationId}; local journal remains durable`, error);
         reportBlockedSync(error);
       },

@@ -6,6 +6,8 @@ dated run reports are evidence for one checkout, not product truth.
 
 ## Desktop public Alpha
 
+- [Sentry operational diagnostics and setup](sentry-observability.md)
+
 - [Frozen release contract](alpha-release-contract.md)
 - [Release runbook](desktop-alpha-release-runbook.md)
 - [`0.1.0-alpha.1` release notes](releases/0.1.0-alpha.1.md)

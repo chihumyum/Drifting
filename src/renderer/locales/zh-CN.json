@@ -63,7 +63,7 @@
     "intro": "无需账号也能开始写作。项目与正文会先保存在这台设备上。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
     "byok": "Copilot 与 General Agent 均为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
-    "crashReports": "应用出错时会自动发送不含正文的崩溃报告，方便尽快修复；可以在 设置 → 隐私 中关闭。",
+    "crashReports": "应用会自动发送不含正文的错误与关键操作诊断，方便排查故障；可以在 设置 → 隐私 中关闭。",
     "settingsHint": "继续本地模式即可创建第一个项目，开始写作。",
     "accountAction": "登录 / 注册并同步",
     "continueLocal": "继续本地模式"
@@ -710,15 +710,15 @@
       "improveModelsDesc": "为未来明确的选择加入政策保留；此构建不可用。",
       "usageStats": "发送匿名使用统计",
       "usageStatsDesc": "界面点击、错误、性能指标。不含稿件内容。",
-      "crashLogs": "自动发送崩溃报告",
-      "crashLogsDesc": "应用崩溃或数据出错时，把不含正文的错误信息（出错位置、版本、系统）发送给 Drifting 维护者。登录时会附上账号，方便联系你。",
+      "crashLogs": "自动发送故障诊断",
+      "crashLogsDesc": "发送脱敏的错误位置、版本、系统和关键操作日志，帮助维护者排查故障；不采集正文或原始控制台日志。由维护者配置的诊断服务处理，可随时关闭。",
       "diagnostics": "脱敏诊断摘要",
       "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与 updater 状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
       "copyDiagnostics": "复制摘要",
       "diagnosticsCopied": "已复制脱敏诊断摘要。",
       "diagnosticsCopyFailed": "无法写入剪贴板，可能没有剪贴板权限。",
       "fullPolicy": "查看完整隐私政策",
-      "lastUpdated": "最近更新 2026·08·20"
+      "lastUpdated": "最近更新 2026·10·28"
     },
     "about": {
       "kicker": "关于 · ABOUT",

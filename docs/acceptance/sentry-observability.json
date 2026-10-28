@@ -1,0 +1,348 @@
+{
+  "contract": {
+    "milestone": "sentry-client-operational-diagnostics",
+    "delivery": "optional-direct-sentry-with-existing-hosted-fallback-when-unconfigured",
+    "automatedTransport": "real-browser-sdk-with-synthetic-http-responses",
+    "sourceSha256": {
+      ".env.example": "sha256:6061449c472d534fb8d415cc09a9f1928bc1e2e4f2d871e2901ce08de5ac3a07",
+      "PRIVACY.md": "sha256:c8bd8fd5a9385417ae3fc165e96f24161fcc036223cafc1ac6cdc08e66d9b189",
+      "docs/crash-reports.md": "sha256:f94c06085579e6c6eadcf80cb4f2810d6ec960dcdff8032ac440587493602196",
+      "docs/sentry-observability.md": "sha256:b4d2e88846a231caa8671d5232089ae3640fe6244300d80f1c6e1f90a1fb8b88",
+      "package.json": "sha256:f78e9124abd116aec7e2a3e44f6dcad0f0ea7f5749dc2de34b5c5e7e0a2eb7f7",
+      "pnpm-lock.yaml": "sha256:7b9e10fd449940c378daa25310b3da2f3b0ceab15d45a88531dd957ca937eef8",
+      "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
+      "scripts/generate-sentry-observability.ts": "sha256:5c9ba71b5057629e60c3c092111a591f40379940d4721d9609dd0eaa351c2d4b",
+      "scripts/run-desktop-tauri.mjs": "sha256:3395eef646faac589c368d0b1bc7cf1346503c325f067d2592d115084e07c601",
+      "scripts/run-hosted-client.mjs": "sha256:25ff28420e499960f99e5fca0abee27050bf4833e0b7b54973409a48822548d7",
+      "scripts/run-worktree-dev.mjs": "sha256:99b1dbf69ae067b0175bac514dd279693005cfcfeaa56821d9fd4f8afca71de4",
+      "scripts/sentry-environment.mjs": "sha256:59ff67241cde61d8f37bbdb393e6060cd3914450e5d3d9bce8a050d8f2b67242",
+      "src/renderer/locales/en.json": "sha256:b279c0f0c07837a237a71fb6b8357ab0307ba8acf954ffe986be0045c772f2d1",
+      "src/renderer/locales/zh-CN.json": "sha256:9d870fbc554a52e3a7316d95a7a28b43986dfa89c102bf4c6b085839fb0e02ab",
+      "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:2641dc642e9ea71f6e6cb97e945275d9b5cde3a8a9561e66d8028394ea8ed099",
+      "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:30413aa86384e0415337e74412fd69591d2a5b36a5443b61251a7cbaccb7ba25",
+      "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:67fedb6cc8234f869a9eda5e4083c23ca0c3186b49599da31c21bee9e6bd65c5",
+      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:6836a5699cacc0d904f0b825ffd223caaae2600f2ad7fddcd40abf3d1146374e",
+      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:77a6e0b46cec70cf4ed9dc42d0a3abfd52c6715877089c002428469a546fb6e5",
+      "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:90341c3c212a627371ddb95344c9634d01c8ef267e5524af1110f478491f9789",
+      "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e2cc6d6c0ed369a0ada8c979420ce9a7f76f381c1f9ab83b9f95595f5105d704",
+      "src/renderer/services/diagnostics/sentry-policy.test.ts": "sha256:af6f4e17c474ba5e5d0e2d4117c1a1b5f7a9629f57dc5343ebe6dba5291a548d",
+      "src/renderer/services/diagnostics/sentry-policy.ts": "sha256:4f9d4e5ef3e545e50980ae0b16a96068be1963cf27c2f1508a1593742e9f31e8",
+      "src/renderer/services/diagnostics/sentry-reporter.test.ts": "sha256:d57ad46d9b99472e3d384ac884a8a88afcec759edb058cce672319cd1d561cb2",
+      "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e",
+      "src/renderer/services/update/update-service.test.ts": "sha256:86f2df75e83c7edd248f397a6db6d3a01ea2865615da2bad5b2761970b3d4799",
+      "src/renderer/services/update/update-service.ts": "sha256:457af1db0a4466a6f8edcd69f9136ff82c20d25df633b78ab84262a92c83a119",
+      "src/renderer/sync/production-runtime.ts": "sha256:e3096aabcb6a276466f27c38543e225241af68f8a33ab1c98eda7d9ce054c8f7",
+      "src/renderer/vite-env.d.ts": "sha256:51fda5f0e41483b63fb2a555533f4771b057e21185caab5be07e76715615d1c2",
+      "vite.renderer.config.ts": "sha256:06f376f6f223a64c4233a19763c8b3ef86b07ac0a1400cf9eea0202f7e7fd5d4"
+    }
+  },
+  "automated": {
+    "status": "passed",
+    "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
+    "passed": 73,
+    "failed": 0,
+    "skipped": 0,
+    "cases": [
+      {
+        "name": "accepts machine log messages and numeric runtime attributes only",
+        "status": "passed"
+      },
+      {
+        "name": "accepts only an explicit public HTTPS DSN, without upload credentials or query data",
+        "status": "passed"
+      },
+      {
+        "name": "configures hidden source maps and matching release metadata without exposing upload credentials",
+        "status": "passed"
+      },
+      {
+        "name": "crash report sanitizing groups the same failure across builds whose bundle hashes differ",
+        "status": "passed"
+      },
+      {
+        "name": "crash report sanitizing keeps only frames and drops the message line",
+        "status": "passed"
+      },
+      {
+        "name": "crash report sanitizing redacts prose, long quotes and home paths but keeps identifiers",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment checks and pins the selected development identity before starting the native toolchain",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment disables updater artifacts for local and debug bundles",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment does not require a development certificate for non-macOS, help or configured distribution builds",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment fails closed without configuration and never includes values in its summary",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment gives a new contributor actionable instructions while keeping signing failures closed",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment injects the protected updater public key only for configured release bundles",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment keeps explicit shell or CI values authoritative",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment keeps the default source launcher local-only even when a Hosted service is configured",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment lets a shell service override the file origin without changing the local library",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment loads native Google OAuth build values from the ignored root env file",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment rejects non-origin service configuration: file:///tmp/service",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment rejects non-origin service configuration: https://*.example.test",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment rejects non-origin service configuration: https://example.test?token=secret",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment rejects non-origin service configuration: https://example.test/#fragment",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment rejects non-origin service configuration: https://example.test/api",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment rejects non-origin service configuration: https://user:secret@example.test",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment still verifies local and debug bundles and honors an explicitly selected identity",
+        "status": "passed"
+      },
+      {
+        "name": "desktop Tauri environment uses one configured origin for renderer authentication, native sync and CSP while preserving HMR",
+        "status": "passed"
+      },
+      {
+        "name": "drops ambient scope, request, prose, credentials and untrusted stack locations",
+        "status": "passed"
+      },
+      {
+        "name": "fails configured production builds without source map upload credentials",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive operation trace persists a bounded call chain without an exported trace identifier",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive operation trace records only allowlisted native fields and drops arbitrary error text",
+        "status": "passed"
+      },
+      {
+        "name": "Google Drive operation trace rejects native diagnostic strings outside the token grammar",
+        "status": "passed"
+      },
+      {
+        "name": "honors opt-out both before initialization and after the SDK is initialized",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development binds frontend URL, port, CSP and a separate WebView store to the same profile",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development delivers isolated config and environment to Tauri and generates a loadable Vite config",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development does not let shell or dotenv settings escape isolation or expose secrets in its manifest",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development fails on an occupied port instead of attaching to another frontend",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development isolates pnpm dev in a linked Git worktree and keeps the main checkout on the shared profile",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development keeps JSON inspection read-only and does not launch or check signing",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development keeps stable profiles per canonical checkout and separates checkouts and instances",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development opts into Hosted with service-scoped isolation and matching renderer, native and CSP configuration",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development persists different synthetic SQLite contents without cross-checkout or peer writes",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development preserves HTML drag ownership in the darwin window override",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development preserves HTML drag ownership in the linux window override",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development preserves HTML drag ownership in the win32 window override",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development propagates a failed Tauri launch and removes signal handlers",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development refuses shared state aliases instead of following symlinked data directories",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development rejects invalid or isolation-breaking arguments \"--config\"",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development rejects invalid or isolation-breaking arguments \"--instance\"",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development rejects invalid or isolation-breaking arguments \"--instance\"",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development rejects invalid or isolation-breaking arguments \"--port\"",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development rejects invalid or isolation-breaking arguments \"--port\"",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development rejects invalid or isolation-breaking arguments \"--port\"",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development seeds the seed instance once its port is free, then launches that same profile",
+        "status": "passed"
+      },
+      {
+        "name": "isolated worktree development stops its owned process group when automation sends SIGTERM",
+        "status": "passed"
+      },
+      {
+        "name": "keeps different minified JS columns distinct in Sentry mode while suppressing an exact repeat",
+        "status": "passed"
+      },
+      {
+        "name": "keeps retries identifiable and distinguishes accepted, rejected and failed delivery",
+        "status": "passed"
+      },
+      {
+        "name": "keeps sending live after an empty flush and never loses a report added during a send",
+        "status": "passed"
+      },
+      {
+        "name": "keeps the local-only network boundary even when a DSN was inherited",
+        "status": "passed"
+      },
+      {
+        "name": "keeps the verified update ready and installs nothing when saving fails",
+        "status": "passed"
+      },
+      {
+        "name": "keeps unsent reports for the next launch and drops rejected ones",
+        "status": "passed"
+      },
+      {
+        "name": "parses a WebKit-style packaged Tauri stack without losing its source location",
+        "status": "passed"
+      },
+      {
+        "name": "passes only explicitly configured diagnostic values into isolated Hosted development",
+        "status": "passed"
+      },
+      {
+        "name": "preserves injected Debug IDs through privacy filtering for exact source-map lookup",
+        "status": "passed"
+      },
+      {
+        "name": "reports a native install failure after a successful save",
+        "status": "passed"
+      },
+      {
+        "name": "retains native panic identity and bounded backtrace without claiming native crash symbolication",
+        "status": "passed"
+      },
+      {
+        "name": "routes configured reports to Sentry once, retains failed delivery, and bounds operational logs",
+        "status": "passed"
+      },
+      {
+        "name": "sanitized diagnostic summary exports counts and safe codes without identifiers, content, paths, or raw errors",
+        "status": "passed"
+      },
+      {
+        "name": "saves every local write before the native install and relaunch",
+        "status": "passed"
+      },
+      {
+        "name": "sends a real SDK envelope with code frames, release and an anonymous installation, without app credentials",
+        "status": "passed"
+      },
+      {
+        "name": "sends bounded structured logs through the real SDK and rechecks consent before a buffered log leaves",
+        "status": "passed"
+      },
+      {
+        "name": "sends native panics from the previous launch as fatal reports, and clears them when off",
+        "status": "passed"
+      },
+      {
+        "name": "sends nothing when the author turned reports off or there is no Hosted service",
+        "status": "passed"
+      },
+      {
+        "name": "sends one content-free report per problem to the Hosted service",
+        "status": "passed"
+      },
+      {
+        "name": "stops an already draining queue from starting another upload after opt-out",
+        "status": "passed"
+      },
+      {
+        "name": "validates the same DSN in the renderer and build, and scopes CSP to its exact host",
+        "status": "passed"
+      }
+    ]
+  },
+  "openGates": [
+    "Sentry account/project and public DSN provisioned",
+    "exact packaged Mac build resolves synthetic JS error to original TypeScript line",
+    "real source maps upload and absence from distributed artifacts verified",
+    "real Web dashboard, production email, opt-out and retry acceptance",
+    "Mac writing/restart preservation acceptance",
+    "separate private-service instrumentation and external availability monitoring"
+  ]
+}

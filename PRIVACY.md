@@ -1,6 +1,6 @@
 # Drifting client privacy boundary
 
-Last updated: 2026-08-20
+Last updated: 2026-10-28
 
 This document describes the public-source client. It is not a privacy policy
 for every fork or independently operated service. A fork operator is
@@ -12,9 +12,10 @@ The default build is local-only. It stores projects in local SQLite/Yjs data,
 uses OS secure storage for provider credentials, keeps imported assets and
 caches in the application data directory, and does not require an account or
 connect a cloud provider by default. Google Drive sync starts only after the
-author explicitly connects a Google account. Usage-stat and crash-log
-preferences default to off; this repository currently contains no production
-analytics uploader.
+author explicitly connects a Google account. Usage statistics default to off;
+this repository currently contains no production product-analytics uploader.
+Automatic fault diagnostics default to on in Hosted-capable builds and remain
+disabled by the public local-only network boundary.
 
 User-imported fonts remain device-local. You are responsible for having the
 right to use any imported manuscript, image, PDF, or font.
@@ -80,6 +81,20 @@ privacy, retention, training, availability, and output risks are governed by
 the selected provider rather than Drifting.
 
 ## Recovery snapshots and diagnostics
+
+Hosted-capable operator builds may send sanitized fault diagnostics and a bounded
+set of operational logs when automatic fault reporting is enabled. An operator
+may configure Sentry as its diagnostic processor; otherwise reports use the
+operator's Hosted diagnostics endpoint. The Sentry path sends a random
+diagnostic installation identifier, version/platform, error kind, sanitized
+message and bundled code locations. It does not forward the Hosted account,
+bearer credentials, manuscript content or raw console logs. Sentry necessarily
+processes network metadata. Automatic user/IP inferral, request/DOM collection,
+session replay, model content and local variables are disabled. Error redaction
+does not authorize callers to place private content in errors. Settings → Privacy
+can stop new automatic diagnostic uploads and operational logs. See
+[`docs/sentry-observability.md`](docs/sentry-observability.md) for collection,
+limits and operator disclosure responsibilities.
 
 Before a new application version migrates SQLite, Drifting creates a native
 safety snapshot in the application data directory and retains only a bounded

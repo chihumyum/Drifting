@@ -5,6 +5,9 @@ import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { useSettingsStore } from '../../store/settings-store';
 import { reportFingerprint, reportToken, sanitizeReportText, sanitizeStack } from './crash-sanitize';
+import { runtimeViteEnv } from '../../lib/vite-runtime-env';
+import { configuredSentryDsn } from './sentry-policy';
+import type { DiagnosticLogAttributes, DiagnosticLogEvent } from './sentry-policy';
 
 /**
  * Content-free crash and integrity reports, sent to the Hosted service's
@@ -20,7 +23,7 @@ export type CrashReportKind =
   | 'integrity';
 export type CrashReportSeverity = 'fatal' | 'error' | 'warning';
 
-interface CrashReportPayload {
+export interface CrashReportPayload {
   format: 'drifting.crash-report';
   formatVersion: 1;
   kind: CrashReportKind;
@@ -45,6 +48,9 @@ const REPEAT_WINDOW_MS = 60 * 60 * 1000;
 const recent = new Map<string, number>();
 let sentThisSession = 0;
 let flushing: Promise<void> | null = null;
+let logsThisSession = 0;
+let sentryModule: Promise<typeof import('./sentry-reporter')> | undefined;
+const loadSentry = () => sentryModule ??= import('./sentry-reporter');
 
 function reportsEnabled(): boolean {
   if (import.meta.env.DEV && import.meta.env.VITE_DRIFTING_CRASH_REPORTS_IN_DEV !== '1') return false;
@@ -82,8 +88,13 @@ function writeQueue(queue: readonly CrashReportPayload[]): void {
 }
 
 async function send(report: CrashReportPayload): Promise<boolean> {
-  const token = getSessionToken();
   try {
+    if (!reportsEnabled()) return false;
+    if (configuredSentryDsn(runtimeViteEnv.VITE_SENTRY_DSN)) {
+      const { sendSentryReport } = await loadSentry();
+      return await sendSentryReport(report, reportsEnabled);
+    }
+    const token = getSessionToken();
     const response = await fetch(
       `${APP_CONFIG.API_BASE_URL.replace(/\/$/, '')}/api/diagnostics/v1/reports`,
       {
@@ -111,6 +122,7 @@ async function send(report: CrashReportPayload): Promise<boolean> {
  */
 async function drainQueue(): Promise<void> {
   for (;;) {
+    if (!reportsEnabled()) return;
     const [next] = readQueue();
     if (!next || !(await send(next))) return;
     const queue = readQueue();
@@ -120,6 +132,17 @@ async function drainQueue(): Promise<void> {
     if (index >= 0) queue.splice(index, 1);
     writeQueue(queue);
   }
+}
+
+/** Bounded machine events only; raw console output is never collected. */
+export function reportDiagnosticLog(event: DiagnosticLogEvent, attributes: DiagnosticLogAttributes = {}): void {
+  if (!reportsEnabled() || !configuredSentryDsn(runtimeViteEnv.VITE_SENTRY_DSN) || logsThisSession >= 100) return;
+  logsThisSession += 1;
+  const runtime = getPlatformRuntime();
+  void loadSentry().then(({ sendSentryLog }) => sendSentryLog(event, attributes, {
+    appVersion: reportToken(runtime.appInfo?.version ?? 'unknown'),
+    platform: reportToken(runtime.appInfo?.platform ?? runtime.nativePlatform ?? 'unknown'),
+  }, reportsEnabled)).catch(() => { /* Diagnostics never interrupt writing. */ });
 }
 
 /** Send queued reports; unsent ones stay queued for the next launch. */
@@ -151,9 +174,11 @@ export function reportCrash(input: CrashReportInput): void {
     ? reportToken(`${input.kind}:${input.code}`, 128)
     : reportFingerprint(input.kind, name, stack);
   const now = Date.now();
-  const previous = recent.get(fingerprint);
+  const repeatKey = configuredSentryDsn(runtimeViteEnv.VITE_SENTRY_DSN)
+    ? `${fingerprint}:${stack.split('\n')[0] ?? ''}` : fingerprint;
+  const previous = recent.get(repeatKey);
   if ((previous !== undefined && now - previous < REPEAT_WINDOW_MS) || sentThisSession >= MAX_PER_SESSION) return;
-  recent.set(fingerprint, now);
+  recent.set(repeatKey, now);
   sentThisSession += 1;
   const runtime = getPlatformRuntime();
   const context = Object.fromEntries(
@@ -249,10 +274,13 @@ export function installCrashReporting(): () => void {
   };
   window.addEventListener('error', onError);
   window.addEventListener('unhandledrejection', onRejection);
+  const onOnline = () => { void flushCrashReports(); };
+  window.addEventListener('online', onOnline);
   void reportNativeCrashes().finally(() => flushCrashReports());
   return () => {
     window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onRejection);
+    window.removeEventListener('online', onOnline);
   };
 }
 
@@ -261,4 +289,6 @@ export function resetCrashReporterForTests(): void {
   recent.clear();
   sentThisSession = 0;
   flushing = null;
+  logsThisSession = 0;
+  sentryModule = undefined;
 }

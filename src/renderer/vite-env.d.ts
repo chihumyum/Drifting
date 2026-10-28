@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  /** Public ingestion routing; never place an upload/auth token in a VITE_* variable. */
+  readonly VITE_SENTRY_DSN?: string;
+  readonly VITE_SENTRY_RELEASE?: string;
+  readonly VITE_SENTRY_ENVIRONMENT?: string;
   readonly VITE_API_BASE_URL: string;
   readonly VITE_API_URL: string;
   readonly VITE_LOCAL_ONLY_MODE?: string;
