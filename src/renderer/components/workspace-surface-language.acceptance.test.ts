@@ -81,7 +81,8 @@ describe('workspace surface language acceptance', () => {
     expect(buttons).toContain('<SidebarToggleButton side="left" />');
     expect(buttons).toContain('<SidebarToggleButton side="right" />');
     expect(buttons).toContain('glass="round"');
-    expect(buttons).toContain("name={side === 'left' ? 'moon-left' : 'moon-right'}");
+    // The crescent is inked while its sidebar is open and hollow while it is closed.
+    expect(buttons).toContain("name={`moon-${side}${isOpen ? '' : '-hollow'}`}");
     expect(corners).not.toContain('SidebarToggleButton');
     expect(corners).not.toContain('Account');
     // An open sidebar's tab row keeps an empty slot under its toggle.
@@ -923,14 +924,19 @@ describe('workspace surface language acceptance', () => {
       'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
       'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
       'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea',
+      // A closed sidebar's crescent, cleared from the committed solid one.
+      'moon-left-hollow', 'moon-right-hollow',
     ];
     for (const name of names) {
       expect(brushIcon).toContain(`| '${name}'`);
       expect(materials).toContain(`.brush-icon--${name} { -webkit-mask-image: url('../assets/design/icons/${name}.png');`);
       expect(existsSync(resolve(process.cwd(), `src/assets/design/icons/${name}.png`))).toBe(true);
-      // Drawn from a fixed seed, or turned/mirrored from one that is.
+      // Drawn from a fixed seed, turned/mirrored from one that is, or (the
+      // hollow moons) cleared out of a committed solid one.
+      if (name.endsWith('-hollow')) continue;
       expect(generator).toMatch(new RegExp(`"${name}": \\(\\w+, \\d+\\)|masks\\["${name}"\\] =|\\(\\d, "${name}"\\)`));
     }
+    expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(crescent > 0.5, rim * 0.5, rim)');
     expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
   });
 

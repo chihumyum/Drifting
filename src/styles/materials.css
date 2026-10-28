@@ -248,6 +248,8 @@
 
 .brush-icon--moon-left { -webkit-mask-image: url('../assets/design/icons/moon-left.png'); mask-image: url('../assets/design/icons/moon-left.png'); }
 .brush-icon--moon-right { -webkit-mask-image: url('../assets/design/icons/moon-right.png'); mask-image: url('../assets/design/icons/moon-right.png'); }
+.brush-icon--moon-left-hollow { -webkit-mask-image: url('../assets/design/icons/moon-left-hollow.png'); mask-image: url('../assets/design/icons/moon-left-hollow.png'); }
+.brush-icon--moon-right-hollow { -webkit-mask-image: url('../assets/design/icons/moon-right-hollow.png'); mask-image: url('../assets/design/icons/moon-right-hollow.png'); }
 .brush-icon--torii { -webkit-mask-image: url('../assets/design/icons/torii.png'); mask-image: url('../assets/design/icons/torii.png'); }
 .brush-icon--furin { -webkit-mask-image: url('../assets/design/icons/furin.png'); mask-image: url('../assets/design/icons/furin.png'); }
 .brush-icon--bamboo { -webkit-mask-image: url('../assets/design/icons/bamboo.png'); mask-image: url('../assets/design/icons/bamboo.png'); }

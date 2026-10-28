@@ -54,7 +54,13 @@ branch.png                  a twig that forks, a bud on each end
 view-grid / view-list       four square seals / three solid bars
 open-book.png               two pages open, two lines on each
 knots.png                   a cord with knots tied along it (结绳记事)
+
 tea.png                     a cup just set down, still steaming (Project Home "recent")
+
+moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
+                            inside cleared, the rim as thin and light as the
+                            moon's faint outer ring: shown while that sidebar
+                            is closed
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -822,6 +828,36 @@ for name, (draw, seed) in OBJECTS.items():
         masks[name] = np.maximum(base, grain_fine(extra, rng))
     else:
         masks[name] = grain_fine(out, rng)
+# A closed sidebar's crescent: the committed solid moon, its inside cleared.
+def _blur(a, r):
+    pad = np.pad(a, r, mode="edge"); h, w = a.shape; out = np.zeros_like(a)
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            out += pad[r + dy:r + dy + h, r + dx:r + dx + w]
+    return out / (2 * r + 1) ** 2
+
+def _erode(a, r):
+    h, w = a.shape; pad = np.pad(a, r); out = a.copy()
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            if dx * dx + dy * dy <= r * r: out = np.minimum(out, pad[r + dy:r + dy + h, r + dx:r + dx + w])
+    return out
+
+def _dilate(a, r):
+    h, w = a.shape; pad = np.pad(a, r); out = a.copy()
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            if dx * dx + dy * dy <= r * r: out = np.maximum(out, pad[r + dy:r + dy + h, r + dx:r + dx + w])
+    return out
+
+for side in ("left", "right"):
+    solid = read_png_alpha(ICON_DIR / f"moon-{side}.png")
+    # Keep a rim as thin and as light as the faint ring already drawn round
+    # the moon's dark side: about 3px of the stroke's own grain, half its ink.
+    inside = _blur(_erode((_blur(solid, 2) > 0.3).astype(float), 3), 1)
+    rim = solid * (1 - inside)
+    crescent = _blur(_dilate((_blur(solid, 2) > 0.55).astype(float), 1), 1)
+    masks[f"moon-{side}-hollow"] = np.where(crescent > 0.5, rim * 0.5, rim)
 # One stroke turned or mirrored, so every direction carries the same grain.
 masks["arrow-forward"] = masks["arrow-back"][:, ::-1]
 for k, name in ((1, "chevron-right"), (2, "chevron-up"), (3, "chevron-left")):

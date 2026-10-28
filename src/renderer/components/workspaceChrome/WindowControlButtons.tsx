@@ -8,7 +8,8 @@ import { GhostIconButton } from '../ui/GhostIconButton';
 // The workspace has no title bar. Each sidebar's toggle is a round glass
 // button fixed in its own top corner: it never moves, and the sidebar slides
 // in and out underneath it like a drawer. While the sidebar is open, its tab
-// row keeps an empty slot under the toggle. Global search is keyboard-only.
+// row keeps an empty slot under the toggle. Its crescent is inked while the
+// sidebar is open and hollow while it is closed. Global search is keyboard-only.
 
 export function SidebarToggleButton({ side }: { side: SidebarType }) {
   const { t } = useTranslation();
@@ -23,7 +24,7 @@ export function SidebarToggleButton({ side }: { side: SidebarType }) {
       onClick={() => toggleSidebar(side)}
       title={label}
       aria-label={label}
-      icon={<BrushIcon name={side === 'left' ? 'moon-left' : 'moon-right'} />}
+      icon={<BrushIcon name={`moon-${side}${isOpen ? '' : '-hollow'}`} />}
     />
   );
 }
