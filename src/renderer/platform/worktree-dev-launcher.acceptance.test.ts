@@ -15,7 +15,7 @@ import { createWorktreePlan, parseWorktreeArguments, runWorktreeDev, assertWorkt
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
 import { isLinkedGitWorktree, shouldIsolateDevelopment } from '../../../scripts/run-desktop-tauri.mjs';
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
-import { LOCAL_LIBRARY_DATABASE, runSeededDev, seededArguments, SEED_INSTANCE } from '../../../scripts/run-seeded-dev.mjs';
+import { LOCAL_LIBRARY_DATABASE, runSeededDev, seededArguments, SEED_INSTANCE, LITE_SEED_INSTANCE } from '../../../scripts/run-seeded-dev.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const baseConfig = readFileSync(path.join(repoRoot, 'src-tauri/tauri.conf.json'), 'utf8');
@@ -260,10 +260,10 @@ describe('isolated worktree development', () => {
 
   it('seeds the seed instance once its port is free, then launches that same profile', async () => {
     const root = fixture();
-    expect(SEED_INSTANCE).toBe('seed-large');
+    expect(SEED_INSTANCE).toBe('seed-stress-v2');
     expect(existsSync(path.join(repoRoot, 'src/dev-cli/seeds/default-project.json'))).toBe(false);
     const calls: string[] = [];
-    const seed = vi.fn(({ databasePath }: { databasePath: string; appLocalDataDirectory: string }) => {
+    const seed = vi.fn(({ databasePath }: { databasePath: string; appLocalDataDirectory: string; preset: string }) => {
       calls.push('seed');
       return { seeded: true, databasePath, projectId: 'synthetic-project' };
     });
@@ -276,15 +276,24 @@ describe('isolated worktree development', () => {
     expect(checkPort).toHaveBeenCalledWith(plan.manifest.port);
     expect(seed.mock.calls[0][0].databasePath).toBe(path.join(plan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE));
     expect(seed.mock.calls[0][0].appLocalDataDirectory).toBe(plan.manifest.appLocalDataDirectory);
+    expect(seed.mock.calls[0][0].preset).toBe('stress');
     expect(plan.manifest.appLocalDataDirectory).toBe(path.join(worktreeAppLocalDataRoot(), plan.manifest.identifier));
     expect(launch.mock.calls[0][0]).toEqual(['--no-watch', '--instance', SEED_INSTANCE]);
 
     expect(seededArguments(['--instance', 'demo'])).toEqual(['--instance', 'demo']);
     expect(() => seededArguments(['--online'])).toThrow(/local-only/);
     const printed = vi.fn();
-    await runSeededDev(['--print-config'], { root, baseEnvironment: {}, seed, checkPort, launch: printed, output: () => undefined });
+    const printOutput = vi.fn();
+    await runSeededDev(['--print-config'], { root, baseEnvironment: {}, seed, checkPort, launch: printed, output: printOutput });
     expect(seed).toHaveBeenCalledTimes(1);
-    expect(printed).toHaveBeenCalledWith(['--print-config', '--instance', SEED_INSTANCE], expect.anything());
+    expect(printed).not.toHaveBeenCalled();
+    expect(JSON.parse(printOutput.mock.calls[0][0])).toMatchObject({ seedPreset: 'stress', instance: SEED_INSTANCE });
+
+    await runSeededDev(['--lite', '--no-watch'], { root, baseEnvironment: {}, seed, checkPort, launch, output: () => undefined });
+    const litePlan = createWorktreePlan({ root, instance: LITE_SEED_INSTANCE, baseEnvironment: {} });
+    expect(seed.mock.calls[1][0]).toMatchObject({ preset: 'lite', databasePath: path.join(litePlan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE) });
+    expect(litePlan.manifest.profileId).not.toBe(plan.manifest.profileId);
+    expect(seededArguments(['--lite'])).toEqual(['--instance', LITE_SEED_INSTANCE]);
   });
 
   it('resolves native asset roots per platform and keeps instances separate', () => {

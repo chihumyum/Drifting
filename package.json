@@ -22,6 +22,8 @@
     "dev": "pnpm tauri:dev",
     "dev:worktree": "node scripts/run-worktree-dev.mjs",
     "dev:seed": "node scripts/run-seeded-dev.mjs",
+    "dev:seed:lite": "node scripts/run-seeded-dev.mjs --lite",
+    "seed:acceptance": "tsx --conditions=import scripts/check-development-seed.ts",
     "dev:check": "node scripts/check-macos-dev-signing.mjs",
     "dev:local": "pnpm tauri:dev",
     "dev:online": "node scripts/run-desktop-tauri.mjs dev --online",

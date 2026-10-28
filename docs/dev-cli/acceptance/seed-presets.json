@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "sourceFingerprint": "ff6da0bc79432d5389b7f6e3f94605636246ba8d3e7add4c8dfb37b42c0f8f95",
+  "validation": "Actual migrated SQLite, reconstructed Yjs, material initial JSON, verified local asset receipts and canonical Agent checkpoint recovery. No native UI latency, FPS, memory or stability measurement is claimed.",
+  "results": {
+    "stress": {
+      "preset": "stress",
+      "metric": "Drifting countWords on reconstructed Yjs or initial material JSON; excludes title, summary, attributes and storage duplicates",
+      "bodies": {
+        "chapters": {
+          "count": 100,
+          "totalWords": 1500000,
+          "minWords": 2000,
+          "maxWords": 20000,
+          "meanWords": 15000,
+          "medianWords": 19274,
+          "p95Words": 20000,
+          "yjsDocuments": 100,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "3893bed7094bb08856875e2006d9bf91e00984abda34dafa51f54b46d130745c"
+        },
+        "elements": {
+          "count": 300,
+          "totalWords": 500000,
+          "minWords": 100,
+          "maxWords": 10000,
+          "meanWords": 1666.6666666666667,
+          "medianWords": 896,
+          "p95Words": 5594,
+          "yjsDocuments": 300,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "ae6b1857f0eaa33e210facf0c87dcb1c94062bba547a7ae7d09e23f4dae0e3b5"
+        },
+        "inspirations": {
+          "count": 200,
+          "totalWords": 1000000,
+          "minWords": 1000,
+          "maxWords": 50000,
+          "meanWords": 5000,
+          "medianWords": 2899.5,
+          "p95Words": 13361,
+          "yjsDocuments": 200,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "2473c13b61f6989bce9d8bb0e6265faf00de5d25be23fdc1ec3e730883f8399e"
+        },
+        "materialNotes": {
+          "count": 60,
+          "totalWords": 500000,
+          "minWords": 500,
+          "maxWords": 10000,
+          "meanWords": 8333.333333333334,
+          "medianWords": 10000,
+          "p95Words": 10000,
+          "yjsDocuments": 0,
+          "initialJsonDocuments": 60,
+          "corpusSha256": "ddda5e8e8e5142b856b5885ad88aea5b76ee55e77198e6b4793e204091ba0865"
+        },
+        "storylines": {
+          "count": 3,
+          "totalWords": 60000,
+          "minWords": 5000,
+          "maxWords": 30000,
+          "meanWords": 20000,
+          "medianWords": 25000,
+          "p95Words": 30000,
+          "yjsDocuments": 3,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "fcecebf659fdb78b549a50fdf3e478b0995a4859826c6ca45b405f35b3b3a6ae"
+        },
+        "categories": {
+          "count": 16,
+          "totalWords": 16000,
+          "minWords": 100,
+          "maxWords": 3000,
+          "meanWords": 1000,
+          "medianWords": 842,
+          "p95Words": 3000,
+          "yjsDocuments": 16,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "595811ef38a0d1c3c34892ebd9d95d06d739460916cbc5abb2cf7f4a4f73db97"
+        },
+        "todos": {
+          "count": 120,
+          "totalWords": 30000,
+          "minWords": 50,
+          "maxWords": 1500,
+          "meanWords": 250,
+          "medianWords": 126,
+          "p95Words": 711,
+          "yjsDocuments": 0,
+          "initialJsonDocuments": 120,
+          "corpusSha256": "b8162eaba6e7ce874ab899c5a2ddb228565d086224450a2d6d6f9f51524510e0"
+        },
+        "comments": {
+          "count": 80,
+          "totalWords": 40000,
+          "minWords": 50,
+          "maxWords": 3000,
+          "meanWords": 500,
+          "medianWords": 281.5,
+          "p95Words": 1567,
+          "yjsDocuments": 0,
+          "initialJsonDocuments": 80,
+          "corpusSha256": "da896be5fd7736620b24045f635155f216966cb4c740a918b06b91a49c7b50d4"
+        }
+      },
+      "agent": {
+        "conversations": 24,
+        "rounds": 1800,
+        "minRounds": 6,
+        "maxRounds": 600,
+        "tools": 600,
+        "displayMessages": 7800,
+        "checkpoints": 24,
+        "visibleWords": 2696106,
+        "toolResultWords": 2674878
+      },
+      "assets": {
+        "images": 24,
+        "pdfs": 12,
+        "sourceBytes": 988056,
+        "verifiedBlobs": 6
+      },
+      "foreignKeyViolations": 0
+    },
+    "lite": {
+      "preset": "lite",
+      "metric": "Drifting countWords on reconstructed Yjs or initial material JSON; excludes title, summary, attributes and storage duplicates",
+      "bodies": {
+        "chapters": {
+          "count": 20,
+          "totalWords": 150000,
+          "minWords": 2000,
+          "maxWords": 20000,
+          "meanWords": 7500,
+          "medianWords": 6959,
+          "p95Words": 12099,
+          "yjsDocuments": 20,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "3c5e79f1b8cb02d71b5b8499d7f39bd9386908a7308b29b81fd0e4d0aba161b4"
+        },
+        "elements": {
+          "count": 30,
+          "totalWords": 50000,
+          "minWords": 100,
+          "maxWords": 10000,
+          "meanWords": 1666.6666666666667,
+          "medianWords": 440,
+          "p95Words": 5165,
+          "yjsDocuments": 30,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "6a32af8872c37f393372b6dbad3c0c960bdb511bc67b98b6e9fdea147b7a31f8"
+        },
+        "inspirations": {
+          "count": 10,
+          "totalWords": 20000,
+          "minWords": 1000,
+          "maxWords": 5000,
+          "meanWords": 2000,
+          "medianWords": 1611.5,
+          "p95Words": 5000,
+          "yjsDocuments": 10,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "75cd90d3e28514b8a5bd7ea84f6e00c139ad1913e7c72bd44d7865077922e124"
+        },
+        "materialNotes": {
+          "count": 12,
+          "totalWords": 20000,
+          "minWords": 500,
+          "maxWords": 4000,
+          "meanWords": 1666.6666666666667,
+          "medianWords": 1620,
+          "p95Words": 4000,
+          "yjsDocuments": 0,
+          "initialJsonDocuments": 12,
+          "corpusSha256": "1cb61324ea0a867a699a08d78610d2b0d7838065f62a862313bbd5b6738ac6a9"
+        },
+        "storylines": {
+          "count": 2,
+          "totalWords": 8000,
+          "minWords": 1500,
+          "maxWords": 6500,
+          "meanWords": 4000,
+          "medianWords": 4000,
+          "p95Words": 6500,
+          "yjsDocuments": 2,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "18b4c395c2894125d8ef1a757faa1c34bb75d5eb3365619c38ca352bd9b459e2"
+        },
+        "categories": {
+          "count": 6,
+          "totalWords": 1800,
+          "minWords": 100,
+          "maxWords": 600,
+          "meanWords": 300,
+          "medianWords": 282,
+          "p95Words": 600,
+          "yjsDocuments": 6,
+          "initialJsonDocuments": 0,
+          "corpusSha256": "0a17ff68f2c45f777cd17a91b14ee6c7808835107dc7a2d1c08eea3064cb86f6"
+        },
+        "todos": {
+          "count": 12,
+          "totalWords": 1200,
+          "minWords": 40,
+          "maxWords": 240,
+          "meanWords": 100,
+          "medianWords": 93,
+          "p95Words": 240,
+          "yjsDocuments": 0,
+          "initialJsonDocuments": 12,
+          "corpusSha256": "7df2ae89af81035173b4ceefe406b48f0b76d3c48a50e9b1ed42a06705676f54"
+        },
+        "comments": {
+          "count": 8,
+          "totalWords": 1200,
+          "minWords": 40,
+          "maxWords": 300,
+          "meanWords": 150,
+          "medianWords": 162.5,
+          "p95Words": 300,
+          "yjsDocuments": 0,
+          "initialJsonDocuments": 8,
+          "corpusSha256": "f89e70945521e169961c564422b800875cb7481bb76bb15be9ea6f1a0f82f4a6"
+        }
+      },
+      "agent": {
+        "conversations": 3,
+        "rounds": 24,
+        "minRounds": 4,
+        "maxRounds": 12,
+        "tools": 8,
+        "displayMessages": 104,
+        "checkpoints": 3,
+        "visibleWords": 4760,
+        "toolResultWords": 1165
+      },
+      "assets": {
+        "images": 4,
+        "pdfs": 2,
+        "sourceBytes": 164676,
+        "verifiedBlobs": 6
+      },
+      "foreignKeyViolations": 0
+    }
+  }
+}
