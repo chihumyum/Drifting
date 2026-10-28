@@ -17,7 +17,10 @@ import { trackGlassFlow } from '../../lib/glass-flow';
 // and `.sidebar-pane-ghost` in desktop-shell.css.
 const SPLIT_ANIM_MS = 420;
 // Matches `sidebar-push-*` in desktop-shell.css.
-const PUSH_MS = 560;
+const PUSH_MS = 370;
+// The arriving panel's glass outline fades out whole after the push
+// (`.flow-line::after`'s opacity transition); they stay mounted until then.
+const OUTLINE_FADE_MS = 340;
 // Flex grow factors are scaled up so they never sum below 1 while a pane
 // grows from or folds to zero: below 1 flexbox leaves the rest empty.
 const GROW_SCALE = 100;
@@ -178,7 +181,10 @@ export function DesktopSidebarLayout({
  * block of ice: toward the right when the new tab lies to the left in the
  * tab row (and the reverse), the new panel arriving behind it from the other
  * side; slow to start, then fast (`.sidebar-pane__slide--out/--in`). The
- * outgoing panel stays mounted, as it was, until it has gone.
+ * outgoing panel stays mounted, as it was, until it has gone. While it
+ * arrives, the new panel is outlined on all four sides (one of them the edge
+ * it shares with the outgoing panel) by lines that bleed glass like the
+ * sidebar's other edges, fading out whole once it rests.
  */
 function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
   order: readonly string[];
@@ -187,6 +193,8 @@ function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
   slideKey: (tab: SidebarPanelScope['tab']) => string;
   stateKey: (tab: SidebarPanelScope['tab']) => string | null;
 }) {
+  const slidesRef = useRef<HTMLDivElement | null>(null);
+  const incomingRef = useRef<HTMLDivElement | null>(null);
   const [shown, setShown] = useState({ tab, content });
   const [outgoing, setOutgoing] = useState<{ tab: SidebarPanelScope['tab']; content: ReactNode; dir: 1 | -1 } | null>(null);
   if (tab !== shown.tab) {
@@ -197,22 +205,32 @@ function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
   }
   useEffect(() => {
     if (!outgoing) return undefined;
-    const timer = window.setTimeout(() => setOutgoing(null), PUSH_MS);
+    const slidesEl = slidesRef.current;
+    if (slidesEl) trackGlassFlow(slidesEl, () => incomingRef.current?.getBoundingClientRect().left ?? 0);
+    const timer = window.setTimeout(() => setOutgoing(null), PUSH_MS + OUTLINE_FADE_MS);
     return () => window.clearTimeout(timer);
   }, [outgoing]);
   const slides = outgoing && outgoing.tab !== tab
     ? [{ tab: outgoing.tab, content: outgoing.content, role: 'out' }, { tab, content, role: 'in' }]
     : [{ tab, content, role: 'still' }];
   return (
-    <div className="sidebar-pane__slides"
+    <div ref={slidesRef} className="sidebar-pane__slides"
       style={outgoing ? { '--push-dir': outgoing.dir } as CSSProperties : undefined}>
       {slides.map((slide) => (
-        <div key={slideKey(slide.tab)}
+        <div key={slideKey(slide.tab)} ref={slide.role === 'in' ? incomingRef : undefined}
           className={`sidebar-pane__slide${slide.role === 'still' ? '' : ` sidebar-pane__slide--${slide.role}`}`}
           aria-hidden={slide.role === 'out' ? true : undefined}>
           <SidebarPanelStateContext.Provider value={stateKey(slide.tab)}>
             {slide.content}
           </SidebarPanelStateContext.Provider>
+          {slide.role === 'in' && (
+            <span className="sidebar-pane__outline" aria-hidden="true">
+              <span className="flow-line flow-line--h sidebar-pane__outline-top" />
+              <span className="flow-line flow-line--h sidebar-pane__outline-bottom" />
+              <span className="flow-line flow-line--v sidebar-pane__outline-start" />
+              <span className="flow-line flow-line--v sidebar-pane__outline-end" />
+            </span>
+          )}
         </div>
       ))}
     </div>

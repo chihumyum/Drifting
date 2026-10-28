@@ -412,6 +412,16 @@ describe('workspace surface language acceptance', () => {
     expect(block(shell, '.sidebar-pane__slides {', '}')).toContain('--ice-push: cubic-bezier(0.8, 0, 0.66, 1);');
     expect(block(shell, '@keyframes sidebar-push-out {', '}\n}')).toContain('translateX(calc(var(--push-dir, 1) * 100%))');
     expect(block(shell, '@keyframes sidebar-push-in {', '}\n}')).toContain('translateX(calc(var(--push-dir, 1) * -100%))');
+    // 370 ms in both the timer and the keyframes; the arriving panel alone is
+    // outlined on all four sides (its shared edge included) by bleeding lines.
+    expect(layout).toContain('const PUSH_MS = 370;');
+    expect(shell).toContain('animation: sidebar-push-out 370ms var(--ice-push) forwards;');
+    expect(shell).toContain('animation: sidebar-push-in 370ms var(--ice-push) backwards;');
+    for (const edge of ['h sidebar-pane__outline-top', 'h sidebar-pane__outline-bottom', 'v sidebar-pane__outline-start', 'v sidebar-pane__outline-end']) {
+      expect(layout).toContain(`flow-line flow-line--${edge}`);
+    }
+    expect(layout).toContain("slide.role === 'in' && (");
+    expect(layout).toContain('trackGlassFlow(slidesEl, () => incomingRef.current?.getBoundingClientRect().left ?? 0)');
   });
 
   it('shows only the chapter count until the first storyline exists', () => {

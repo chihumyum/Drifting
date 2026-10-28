@@ -642,7 +642,10 @@
 /* A pane's body. Switching its tab pushes the whole panel away like a heavy
    block of ice, slow to start and then fast; the new panel arrives behind it
    from the other side on the same curve, so the two move as one strip.
-   --push-dir: 1 pushes right (the new tab lies to the left), -1 left. */
+   --push-dir: 1 pushes right (the new tab lies to the left), -1 left.
+   While it arrives, the new panel is outlined on all four sides — one of
+   them the edge it shares with the outgoing panel — by lines that bleed
+   glass (DesktopSidebarLayout tracks the push), fading out whole after. */
 .sidebar-pane__slides {
   --ice-push: cubic-bezier(0.8, 0, 0.66, 1);
   position: relative;
@@ -669,12 +672,24 @@
 
 .sidebar-pane__slide--out {
   pointer-events: none;
-  animation: sidebar-push-out 560ms var(--ice-push) forwards;
+  animation: sidebar-push-out 370ms var(--ice-push) forwards;
 }
 
 .sidebar-pane__slide--in {
-  animation: sidebar-push-in 560ms var(--ice-push) backwards;
+  animation: sidebar-push-in 370ms var(--ice-push) backwards;
 }
+
+.sidebar-pane__outline {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.sidebar-pane__outline-top { top: 0; }
+.sidebar-pane__outline-bottom { bottom: 0; --flow-gx: -96px; --flow-gy: -60px; }
+.sidebar-pane__outline-start { left: 0; --flow-gx: -40px; --flow-gy: -110px; }
+.sidebar-pane__outline-end { right: 0; --flow-gx: -120px; --flow-gy: -24px; }
 
 @keyframes sidebar-push-out {
   to {
