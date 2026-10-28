@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useUiStore, type SidebarType } from '../../store/ui-store';
 import { LEFT_SIDEBAR_TABS, RIGHT_SIDEBAR_TABS, type SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarPanelStateContext } from '../../hooks/useSidebarPanelState';
@@ -11,13 +11,16 @@ import {
   sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
 import { trackGlassFlow } from '../../lib/glass-flow';
+import { planSidebarPush } from '../../lib/sidebar-push';
 
 // Splitting or merging a sidebar pushes the divider in from (or out to) the
 // side of the pane that arrives or leaves; matches `.sidebar-pane--entering`
 // and `.sidebar-pane-ghost` in desktop-shell.css.
 const SPLIT_ANIM_MS = 420;
-// Matches `sidebar-push-*` in desktop-shell.css.
+// A tab switch pushes the pane's strip of panels like heavy ice: slow to
+// start, then fast.
 const PUSH_MS = 370;
+const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';
 // The arriving panel's glass outline fades out whole after the push
 // (`.flow-line::after`'s opacity transition); they stay mounted until then.
 const OUTLINE_FADE_MS = 340;
@@ -180,11 +183,13 @@ export function DesktopSidebarLayout({
  * A pane's body. Switching its tab pushes the whole panel away like a heavy
  * block of ice: toward the right when the new tab lies to the left in the
  * tab row (and the reverse), the new panel arriving behind it from the other
- * side; slow to start, then fast (`.sidebar-pane__slide--out/--in`). The
- * outgoing panel stays mounted, as it was, until it has gone. While it
- * arrives, the new panel is outlined on all four sides (one of them the edge
- * it shares with the outgoing panel) by lines that bleed glass like the
- * sidebar's other edges, fading out whole once it rests.
+ * side; slow to start, then fast. The pane's panels form one strip that moves
+ * as a whole (`planSidebarPush`): a switch made mid-push carries on from where
+ * every panel is, so nothing vanishes or snaps back. Panels pushed away stay
+ * mounted, as they were, until the strip rests. While it arrives, the new
+ * panel is outlined on all four sides (one of them the edge it shares with
+ * the panel it pushes) by lines that bleed glass like the sidebar's other
+ * edges, fading out whole once it rests.
  */
 function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
   order: readonly string[];
@@ -193,46 +198,92 @@ function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
   slideKey: (tab: SidebarPanelScope['tab']) => string;
   stateKey: (tab: SidebarPanelScope['tab']) => string | null;
 }) {
-  const slidesRef = useRef<HTMLDivElement | null>(null);
-  const incomingRef = useRef<HTMLDivElement | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const panelRefs = useRef(new Map<string, HTMLDivElement>());
+  const placedRef = useRef(new Set<string>());
   const [shown, setShown] = useState({ tab, content });
-  const [outgoing, setOutgoing] = useState<{ tab: SidebarPanelScope['tab']; content: ReactNode; dir: 1 | -1 } | null>(null);
+  // Panels pushed away but still on the strip, as they were when left.
+  const [behind, setBehind] = useState<{ tab: SidebarPanelScope['tab']; content: ReactNode }[]>([]);
+  const [push, setPush] = useState<{ id: number; dir: 1 | -1 } | null>(null);
   if (tab !== shown.tab) {
-    setOutgoing({ tab: shown.tab, content: shown.content, dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1 });
+    setBehind([...behind.filter((panel) => panel.tab !== tab), shown]);
     setShown({ tab, content });
+    setPush({ id: (push?.id ?? 0) + 1, dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1 });
   } else if (content !== shown.content) {
     setShown({ tab, content });
   }
+
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    const panels = panelRefs.current;
+    if (!strip) return;
+    if (!push) {
+      for (const element of panels.values()) for (const animation of element.getAnimations()) animation.cancel();
+      return;
+    }
+    const target = slideKey(tab);
+    // Reduced motion: the pushed panels are hidden (desktop-shell.css).
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    // Read where every panel placed before this switch is right now, running
+    // pushes included, then move the strip on from there.
+    const left = strip.getBoundingClientRect().left;
+    const now = [...panels].filter(([key]) => placedRef.current.has(key))
+      .map(([key, element]) => ({ key, x: element.getBoundingClientRect().left - left }));
+    const moves = planSidebarPush(now, target, strip.clientWidth, push.dir);
+    for (const element of panels.values()) for (const animation of element.getAnimations()) animation.cancel();
+    for (const move of moves) {
+      panels.get(move.key)?.animate(
+        [{ transform: `translateX(${move.from}px)` }, { transform: `translateX(${move.to}px)` }],
+        { duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' },
+      );
+    }
+    const kept = new Set(moves.map((move) => move.key));
+    setBehind((panelsBehind) => panelsBehind.filter((panel) => kept.has(slideKey(panel.tab))));
+    trackGlassFlow(strip, () => panels.get(target)?.getBoundingClientRect().left ?? 0);
+  }, [push]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per switch
+  // After the push effect: the panels this commit placed, for the next switch.
+  useLayoutEffect(() => {
+    placedRef.current = new Set(panelRefs.current.keys());
+  });
   useEffect(() => {
-    if (!outgoing) return undefined;
-    const slidesEl = slidesRef.current;
-    if (slidesEl) trackGlassFlow(slidesEl, () => incomingRef.current?.getBoundingClientRect().left ?? 0);
-    const timer = window.setTimeout(() => setOutgoing(null), PUSH_MS + OUTLINE_FADE_MS);
+    if (!push) return undefined;
+    const timer = window.setTimeout(() => {
+      setBehind([]);
+      setPush(null);
+    }, PUSH_MS + OUTLINE_FADE_MS);
     return () => window.clearTimeout(timer);
-  }, [outgoing]);
-  const slides = outgoing && outgoing.tab !== tab
-    ? [{ tab: outgoing.tab, content: outgoing.content, role: 'out' }, { tab, content, role: 'in' }]
-    : [{ tab, content, role: 'still' }];
+  }, [push]);
+
+  const slides = [
+    ...behind.map((panel) => ({ ...panel, role: 'out' })),
+    { tab, content, role: push ? 'in' : 'still' },
+  ].sort((a, b) => order.indexOf(a.tab) - order.indexOf(b.tab));
   return (
-    <div ref={slidesRef} className="sidebar-pane__slides"
-      style={outgoing ? { '--push-dir': outgoing.dir } as CSSProperties : undefined}>
-      {slides.map((slide) => (
-        <div key={slideKey(slide.tab)} ref={slide.role === 'in' ? incomingRef : undefined}
-          className={`sidebar-pane__slide${slide.role === 'still' ? '' : ` sidebar-pane__slide--${slide.role}`}`}
-          aria-hidden={slide.role === 'out' ? true : undefined}>
-          <SidebarPanelStateContext.Provider value={stateKey(slide.tab)}>
-            {slide.content}
-          </SidebarPanelStateContext.Provider>
-          {slide.role === 'in' && (
-            <span className="sidebar-pane__outline" aria-hidden="true">
-              <span className="flow-line flow-line--h sidebar-pane__outline-top" />
-              <span className="flow-line flow-line--h sidebar-pane__outline-bottom" />
-              <span className="flow-line flow-line--v sidebar-pane__outline-start" />
-              <span className="flow-line flow-line--v sidebar-pane__outline-end" />
-            </span>
-          )}
-        </div>
-      ))}
+    <div ref={stripRef} className="sidebar-pane__slides">
+      {slides.map((slide) => {
+        const key = slideKey(slide.tab);
+        return (
+          <div key={key}
+            ref={(element) => {
+              if (element) panelRefs.current.set(key, element);
+              else panelRefs.current.delete(key);
+            }}
+            className={`sidebar-pane__slide${slide.role === 'still' ? '' : ` sidebar-pane__slide--${slide.role}`}`}
+            aria-hidden={slide.role === 'out' ? true : undefined}>
+            <SidebarPanelStateContext.Provider value={stateKey(slide.tab)}>
+              {slide.content}
+            </SidebarPanelStateContext.Provider>
+            {slide.role === 'in' && (
+              <span className="sidebar-pane__outline" aria-hidden="true">
+                <span className="flow-line flow-line--h sidebar-pane__outline-top" />
+                <span className="flow-line flow-line--h sidebar-pane__outline-bottom" />
+                <span className="flow-line flow-line--v sidebar-pane__outline-start" />
+                <span className="flow-line flow-line--v sidebar-pane__outline-end" />
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

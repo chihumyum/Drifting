@@ -409,19 +409,20 @@ describe('workspace surface language acceptance', () => {
 
     expect(layout).toContain('dir: order.indexOf(tab) < order.indexOf(shown.tab) ? 1 : -1');
     expect(layout).toContain("aria-hidden={slide.role === 'out' ? true : undefined}");
-    expect(block(shell, '.sidebar-pane__slides {', '}')).toContain('--ice-push: cubic-bezier(0.8, 0, 0.66, 1);');
-    expect(block(shell, '@keyframes sidebar-push-out {', '}\n}')).toContain('translateX(calc(var(--push-dir, 1) * 100%))');
-    expect(block(shell, '@keyframes sidebar-push-in {', '}\n}')).toContain('translateX(calc(var(--push-dir, 1) * -100%))');
-    // 370 ms in both the timer and the keyframes; the arriving panel alone is
-    // outlined on all four sides (its shared edge included) by bleeding lines.
+    // One strip of panels, moved from where each panel is right now
+    // (planSidebarPush), 370 ms on the slow-then-fast ice curve.
     expect(layout).toContain('const PUSH_MS = 370;');
-    expect(shell).toContain('animation: sidebar-push-out 370ms var(--ice-push) forwards;');
-    expect(shell).toContain('animation: sidebar-push-in 370ms var(--ice-push) backwards;');
+    expect(layout).toContain("const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';");
+    expect(layout).toContain('const moves = planSidebarPush(now, target, strip.clientWidth, push.dir);');
+    expect(layout).toContain("{ duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' }");
+    expect(shell).not.toContain('@keyframes sidebar-push-');
+    // The arriving panel alone is outlined on all four sides (its shared
+    // edge included) by lines that bleed glass with the push.
     for (const edge of ['h sidebar-pane__outline-top', 'h sidebar-pane__outline-bottom', 'v sidebar-pane__outline-start', 'v sidebar-pane__outline-end']) {
       expect(layout).toContain(`flow-line flow-line--${edge}`);
     }
     expect(layout).toContain("slide.role === 'in' && (");
-    expect(layout).toContain('trackGlassFlow(slidesEl, () => incomingRef.current?.getBoundingClientRect().left ?? 0)');
+    expect(layout).toContain('trackGlassFlow(strip, () => panels.get(target)?.getBoundingClientRect().left ?? 0);');
   });
 
   it('shows only the chapter count until the first storyline exists', () => {
