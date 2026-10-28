@@ -5,6 +5,8 @@ Guidance for coding agents working in this standalone Drifting client repository
 ## Working agreements
 
 - Use `pnpm` and preserve unrelated worktree changes.
+- Develop and validate in a separate Git worktree, then merge locally into
+  `main`. Do not open pull requests unless the author explicitly requests one.
 - Before meaningful edits, inspect the relevant code and follow existing
   patterns. Do not treat generated acceptance evidence as hand-edited prose.
 - Every completed feature milestone must update its durable documentation and
