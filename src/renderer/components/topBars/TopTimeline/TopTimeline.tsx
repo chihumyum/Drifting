@@ -74,17 +74,17 @@ function measureLabelWidth(text: string, fontSize: number): number {
 }
 
 // Chrome layout on a leaf tab:
-//   paddingL 13 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
-// The sand mark the pill grew from sits under its start out of the flow
-// (desktop-shell.css), so the title begins where the glass does.
-const TAB_CHROME_WIDTH = 13 + 6 + 2 + 16 + 6;
+//   paddingL 10 + mark 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
+// The kind mark leads the title in the flow; the dot's sand that spreads
+// away under the glass sits out of the flow on the same spot.
+const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
 // The new-document tab keeps its + in the flow:
 //   paddingL 10 + icon 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
 const CREATE_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
 // Split tab = two SplitSubLabel slots around a short I-shaped divider. Each sub-label:
-//   paddingL 11 + label + gap 5 + close 14 + paddingR 6 = 36 + label
-// Total chrome = 36 + 36 + 9 (divider 1 + its margins) = 81.
-const SPLIT_CHROME_WIDTH = 36 + 36 + 9;
+//   paddingL 8 + mark 14 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 52 + label
+// Total chrome = 52 + 52 + 9 (divider 1 + its margins) = 113.
+const SPLIT_CHROME_WIDTH = 52 + 52 + 9;
 
 
 /**
@@ -524,7 +524,7 @@ function LeafTabSlot({
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          paddingLeft: 13,
+          paddingLeft: 10,
           paddingRight: 6,
           width,
           minWidth: TAB_FLOOR_WIDTH,
@@ -549,10 +549,13 @@ function LeafTabSlot({
         } as React.CSSProperties
       }
     >
-      {/* The dot's sand spreads out and thins away under the glass. */}
+      {/* The dot's sand spreads out and thins away under the glass, and the
+          kind mark settles in its place before the title. */}
       <span className="app-tab__sand" aria-hidden>
         <KindMark kind={kindMarkOfTarget(tab.entityType, isDrift)} seed={tab.id} color={color} />
       </span>
+      <KindMark className="app-tab__mark" kind={kindMarkOfTarget(tab.entityType, isDrift)}
+        seed={tab.id} color={color} hollow={tab.isPreview} />
       <span
         style={{
           overflow: 'hidden',
@@ -743,7 +746,7 @@ function SplitSubLabel({
         display: 'flex',
         alignItems: 'center',
         gap: 5,
-        padding: '0 6px 0 11px',
+        padding: '0 6px 0 8px',
         cursor: 'pointer',
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--ui-font-body, 12px)',
@@ -764,6 +767,8 @@ function SplitSubLabel({
       <span className="app-tab__sand" aria-hidden>
         <KindMark kind={kindMarkOfTarget(entityType, isDrift)} seed={entityId} color={color} />
       </span>
+      <KindMark className="app-tab__mark" kind={kindMarkOfTarget(entityType, isDrift)}
+        seed={entityId} color={color} hollow={isPreview} />
       <span
         style={{
           overflow: 'hidden',

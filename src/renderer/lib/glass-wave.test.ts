@@ -101,6 +101,19 @@ describe('running the band', () => {
     vi.useRealTimers();
   });
 
+  it('lets a pill chosen by pressing it keep its own bleed while the band flows in', () => {
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const { container, layers, attributes } = dock();
+    const pill = new Map<string, string>();
+    Object.assign(layers[3], { parentElement: { setAttribute: (name: string, value: string) => pill.set(name, value) } });
+    flowGlassSelection(container, 'a', 'd', true);
+    expect(attributes.get('data-glass-waving')).toBe('move');
+    expect(pill.has('data-wave-landed')).toBe(true);
+    restGlassWave(container);
+  });
+
   it('jumps straight to the new pill for readers who reduce motion', () => {
     vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
     const { container, attributes } = dock();

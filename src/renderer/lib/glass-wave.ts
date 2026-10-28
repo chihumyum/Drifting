@@ -12,7 +12,9 @@
  * `--wave-k`, texture offset `--wave-tx`). The container holds
  * `data-glass-waving="move"` while the band travels, which keeps the newly
  * selected item on its resting line, then `"settle"` while the band fades and
- * the item's own bleed comes in.
+ * the item's own bleed comes in. An item chosen by pressing it skips the
+ * resting line (`data-wave-landed`): it eases straight from its held-down
+ * depth to the selected one while the band still flows in to meet it.
  */
 
 export interface WaveSpan {
@@ -139,13 +141,19 @@ export function restGlassWave(container: HTMLElement) {
   state.settle = undefined;
   state.span = null;
   container.removeAttribute('data-glass-waving');
+  clearLanded(container);
+}
+
+function clearLanded(container: HTMLElement) {
+  container.querySelectorAll('[data-wave-landed]').forEach((el) => el.removeAttribute?.('data-wave-landed'));
 }
 
 /**
  * Sends the selection's bleed from item `from` to item `to`. A band already
- * travelling carries on from where it is.
+ * travelling carries on from where it is. `pressed`: `to` was chosen by
+ * pressing it, so it keeps its own bleed instead of waiting for the band.
  */
-export function flowGlassSelection(container: HTMLElement, from: string, to: string) {
+export function flowGlassSelection(container: HTMLElement, from: string, to: string, pressed = false) {
   if (reducedMotion()) return;
   const state = stateOf(container);
   const items = itemsOf(container);
@@ -164,6 +172,8 @@ export function flowGlassSelection(container: HTMLElement, from: string, to: str
   const duration = waveDuration((end.left + end.right - source.left - source.right) / 2, pitch);
   const start = performance.now();
   let lead = (source.left + source.right) / 2;
+  clearLanded(container);
+  if (pressed) target.el.parentElement?.setAttribute('data-wave-landed', '');
   container.setAttribute('data-glass-waving', 'move');
   const tick = (now: number) => {
     const t = Math.min(1, (now - start) / duration);
@@ -183,6 +193,7 @@ export function flowGlassSelection(container: HTMLElement, from: string, to: str
     state.settle = setTimeout(() => {
       state.settle = undefined;
       container.removeAttribute('data-glass-waving');
+      clearLanded(container);
     }, SETTLE_MS);
   };
   state.raf = requestAnimationFrame(tick);

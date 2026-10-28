@@ -166,7 +166,7 @@
 
 [data-glass-waving='move'] .glass-wave { opacity: var(--wave-k, 0); }
 [data-glass-waving='settle'] .glass-wave { opacity: 0; transition: opacity 0.28s ease-out; }
-[data-glass-waving='move'] .glass.is-on { --glass-g: 0.85; --glass-sp: 0; }
+[data-glass-waving='move'] .glass.is-on:not([data-wave-landed]) { --glass-g: 0.85; --glass-sp: 0; }
 
 /* ── Lines that bleed glass while their panel moves ─────────────────
  * A hairline at rest. While its panel slides open, closes or is dragged

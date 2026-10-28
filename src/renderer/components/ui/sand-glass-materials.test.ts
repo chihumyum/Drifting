@@ -135,7 +135,9 @@ describe('resting glass and switches', () => {
   it('flows the selected bleed to a new sibling and keeps the new one on its line meanwhile', () => {
     const materials = css('src/styles/materials.css');
     expect(materials).toContain("[data-glass-waving='move'] .glass-wave { opacity: var(--wave-k, 0); }");
-    expect(materials).toContain("[data-glass-waving='move'] .glass.is-on { --glass-g: 0.85; --glass-sp: 0; }");
+    // …unless it was chosen by pressing it: then it eases straight from held
+    // down to selected while the band flows in to meet it.
+    expect(materials).toContain("[data-glass-waving='move'] .glass.is-on:not([data-wave-landed]) { --glass-g: 0.85; --glass-sp: 0; }");
     expect(materials).toContain("[data-glass-waving='settle'] .glass-wave { opacity: 0; transition: opacity 0.28s ease-out; }");
     // The band is drawn like the selected rim: strength 1, bleed 1, never flowing on its own.
     const wave = materials.slice(materials.indexOf('.glass-wave::before {'), materials.indexOf("[data-glass-waving='move']"));

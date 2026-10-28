@@ -343,9 +343,41 @@
   animation: dock-pill-content 0.36s ease-out backwards;
 }
 
-/* The mark the pill grew from sits under the pill's start without taking
-   room, so the title begins where the glass does; it spreads out and thins
-   away under the glass. */
+/* A press-and-drag on a pill drags the pill: its title never selects, and
+   WebKit still needs the prefixed property for that. */
+.workspace-tab-dock .top-timeline-container,
+.workspace-tab-dock .top-timeline-container * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.workspace-tab-dock .top-timeline-container > [draggable='true'] {
+  -webkit-user-drag: element;
+  cursor: pointer;
+}
+
+/* The kind of thing the tab holds, before its title (hollow while preview). */
+.app-tab__mark {
+  flex: none;
+}
+
+/* The pill that follows the pointer while a tab is dragged (tab-reorder.ts):
+   a still copy of the pill, lifted a little. */
+.app-tab--drag-ghost,
+.app-tab--drag-ghost * {
+  animation: none !important;
+}
+
+.app-tab--drag-ghost {
+  z-index: 50;
+  margin: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 12px hsl(var(--ink-1) / 0.14));
+}
+
+/* The dot the pill grew from sits out of the flow on the spot where the
+   pill's own kind mark leads its title; it spreads out and thins away under
+   the glass while the mark settles in. */
 .app-tab__sand {
   position: absolute;
   top: 0;
