@@ -50,6 +50,7 @@
     "drifting:check": "pnpm dev:cli:check",
     "diagnostics:sentry:evidence": "tsx scripts/generate-sentry-observability.ts",
     "diagnostics:sentry:check": "tsx scripts/generate-sentry-observability.ts --check",
+    "diagnostics:sentry:browser": "node scripts/run-sentry-browser.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
@@ -150,6 +151,7 @@
   "homepage": "https://github.com/chihumyum/Drifting#readme",
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "@sentry/vite-plugin": "^11.9.0",
     "@tailwindcss/postcss": "^4.3.3",

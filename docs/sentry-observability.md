@@ -1,7 +1,8 @@
 # Sentry operational diagnostics
 
-Status: client integration implemented; account/project setup and live acceptance
-remain open. This milestone changes no service deployment, subscription or paused
+Status: client integration and minified-browser HTTPS acceptance implemented;
+account/project setup and live Mac/cloud acceptance remain open.
+This milestone changes no service deployment, subscription or paused
 Alpha release gate. See generated [acceptance](acceptance/sentry-observability.json).
 
 The Sentry build-plugin dependency uses the patched `brace-expansion` 5.0.12
@@ -48,7 +49,9 @@ cookie, HTTP, GraphQL, AI/MCP and variable collection are explicitly disabled.
 Errors retain the existing 20-entry local queue, 30-report session limit and
 one-hour suppression per fingerprint (including the first frame/column in Sentry
 mode, so unrelated errors in a minified line are not collapsed). Network/5xx failures remain queued; 4xx
-rejections are terminal. A report's deterministic event ID survives retries.
+rejections are terminal. Collection checks consent and build capability separately
+from connectivity, so an error first observed offline is retained without loading
+the SDK. A report's deterministic event ID survives retries.
 Every new network request rechecks consent and Hosted/network availability,
 including SDK timer flushes. Reconnecting retries the queue. Reports disabled
 while a request is in flight do not start another request from that drain.
@@ -87,10 +90,29 @@ diagnostic delivery nor failure blocks local writing or installation safety.
 
 ## Acceptance
 
-`pnpm diagnostics:sentry:evidence` runs the real SDK against a synthetic mocked
-HTTP receiver, plus policy, queue, updater and launcher tests, and generates
-source-fingerprinted evidence. `pnpm diagnostics:sentry:check` verifies freshness.
-No account, project, real DSN or credential is needed for these tests.
+`pnpm diagnostics:sentry:evidence` runs unit tests and the minified-browser
+acceptance, generating source-fingerprinted reports. The unit suites cover SDK
+packets, privacy policy, queue, updater and launcher boundaries.
+`pnpm diagnostics:sentry:check` verifies both reports' freshness.
+
+`pnpm diagnostics:sentry:browser` runs the browser checks independently and
+generates [browser evidence](acceptance/sentry-browser.json). It builds a synthetic
+fixture importing the production reporter, settings and runtime modules; the
+official Vite plugin injects real Debug IDs with cloud upload explicitly disabled.
+A disposable Chromium profile sends actual fetch/CORS requests to an isolated
+loopback HTTPS receiver using a temporary certificate. Certificate exceptions and
+request interception exist only in that disposable browser target. All network
+destinations outside the fixture and receiver are blocked. No Sentry account,
+real DSN or credential is used; certificates, source maps and browser data are
+deleted when the run ends. OpenSSL and an installed Chromium are required.
+
+Checks cover uncaught JS errors and promise rejections, exact original TypeScript
+source-line resolution from emitted maps, log/breadcrumb privacy, opt-out after
+initialization, offline collection followed by automatic online-event retry,
+HTTP 503 retry with a stable event ID, and local-only silence with an inherited
+DSN. Hidden maps are never served by the fixture. This verifies a production-mode
+minified diagnostic fixture in Chromium, not the full app's packaged Mac WebView,
+Sentry cloud symbolication, source-map upload/deletion or email delivery.
 
 Before calling the hosted integration operational, create the project and verify
 an actual packaged Mac build: throw a synthetic JS error from app code, resolve

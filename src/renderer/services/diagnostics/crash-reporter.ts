@@ -52,10 +52,12 @@ let logsThisSession = 0;
 let sentryModule: Promise<typeof import('./sentry-reporter')> | undefined;
 const loadSentry = () => sentryModule ??= import('./sentry-reporter');
 
-function reportsEnabled(): boolean {
+function reportsPermitted(): boolean {
   if (import.meta.env.DEV && import.meta.env.VITE_DRIFTING_CRASH_REPORTS_IN_DEV !== '1') return false;
-  return canUseHostedService() && useSettingsStore.getState().sendCrashLogs;
+  return !APP_CONFIG.LOCAL_ONLY_MODE && useSettingsStore.getState().sendCrashLogs;
 }
+
+function reportsEnabled(): boolean { return reportsPermitted() && canUseHostedService(); }
 
 function installationId(): string {
   try {
@@ -167,7 +169,9 @@ export interface CrashReportInput {
 }
 
 export function reportCrash(input: CrashReportInput): void {
-  if (!reportsEnabled()) return;
+  // Collection consent is independent of connectivity; retain offline failures
+  // without loading the SDK until an online flush can actually deliver them.
+  if (!reportsPermitted()) return;
   const name = reportToken(input.name, 120);
   const stack = sanitizeStack(input.stack);
   const fingerprint = input.code

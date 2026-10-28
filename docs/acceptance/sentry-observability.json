@@ -2,18 +2,22 @@
   "contract": {
     "milestone": "sentry-client-operational-diagnostics",
     "delivery": "optional-direct-sentry-with-existing-hosted-fallback-when-unconfigured",
-    "automatedTransport": "real-browser-sdk-with-synthetic-http-responses",
+    "automatedTransport": "real-sdk-unit-and-minified-browser-loopback-https",
     "sourceSha256": {
       ".env.example": "sha256:c0ad19d240fdaa5106a43fd69d813b97b4b8c97db76bf49e4ccc00073330cdc7",
       "PRIVACY.md": "sha256:39ad5fc82ca1176400141b023b1c78eaaa45e1200fd37aef857779fe7a359e24",
       "docs/crash-reports.md": "sha256:f94c06085579e6c6eadcf80cb4f2810d6ec960dcdff8032ac440587493602196",
-      "docs/sentry-observability.md": "sha256:b4d2e88846a231caa8671d5232089ae3640fe6244300d80f1c6e1f90a1fb8b88",
-      "package.json": "sha256:33e28e645ab5b640987e6369b5b56abf53e48dd804b3cacf8c1e59766cbe6eda",
-      "pnpm-lock.yaml": "sha256:7b9e10fd449940c378daa25310b3da2f3b0ceab15d45a88531dd957ca937eef8",
+      "docs/sentry-observability.md": "sha256:b24534a97c094fd87af50e997815fd0f662d72a0a75c282d9024c9552fa8343b",
+      "package.json": "sha256:beab5eca1bc6f27bfca5e5a1d1c6d1252a802008ac5b6ea0fd307917346d2ac3",
+      "pnpm-lock.yaml": "sha256:d91503b1becdc429dc5d559d83d6388430b731ae8218272ddf3ca2addb16a548",
       "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
-      "scripts/generate-sentry-observability.ts": "sha256:5c9ba71b5057629e60c3c092111a591f40379940d4721d9609dd0eaa351c2d4b",
+      "scripts/generate-sentry-observability.ts": "sha256:8b61b6044a68c1e4c0601d195c7c1f8dc64f8b6dd836906d6f9657ad6d60537d",
+      "scripts/renderer-headless-browser.mjs": "sha256:4b16c348700d3ae57ccc13e679f557c116a84c6d688992e11a8dd6114290510f",
+      "scripts/renderer-sentry-acceptance.html": "sha256:4b0b7d85dcd7a7ede09538f81942f9adc44a27f7aaaf5abf1ff0842dab8d7e95",
+      "scripts/renderer-sentry-acceptance.ts": "sha256:8207c0bb4401ed9026553cf76fbb49c87504bc6234871b301a92a6c5de7ed8ca",
       "scripts/run-desktop-tauri.mjs": "sha256:6b9d6ab46cabcf054af7b46da35805150d4d49505a33d3ca5c99f1e24dd41398",
       "scripts/run-hosted-client.mjs": "sha256:5f13a8ce5c7d5de2f0837aa5d35e9d521ff2604236a6b642eb6dfba6abe08b04",
+      "scripts/run-sentry-browser.mjs": "sha256:1eb97d4faae9b5d4389c2453cc2b78388376e947493c682921f80405b686a02b",
       "scripts/run-worktree-dev.mjs": "sha256:99b1dbf69ae067b0175bac514dd279693005cfcfeaa56821d9fd4f8afca71de4",
       "scripts/sentry-environment.mjs": "sha256:59ff67241cde61d8f37bbdb393e6060cd3914450e5d3d9bce8a050d8f2b67242",
       "src/renderer/locales/en.json": "sha256:3100c6fdf967680838e04d9f2c2abb04f473b828fe3528901c9b49ea54d8fdf9",
@@ -21,8 +25,8 @@
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:7a5aec6ed207438dfc8107102fe068f1423e48df036b47bce89e7aa1cae73245",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:30413aa86384e0415337e74412fd69591d2a5b36a5443b61251a7cbaccb7ba25",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:67fedb6cc8234f869a9eda5e4083c23ca0c3186b49599da31c21bee9e6bd65c5",
-      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:6836a5699cacc0d904f0b825ffd223caaae2600f2ad7fddcd40abf3d1146374e",
-      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:77a6e0b46cec70cf4ed9dc42d0a3abfd52c6715877089c002428469a546fb6e5",
+      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:b133058229d96f6e95f36e2833b28ed6dcb40a5dc907f6a64ea98de56099729d",
+      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:4ee2f6ffcef802da1f905701027b4aa55b1d83344b1ea600d98b44118f0703a4",
       "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:90341c3c212a627371ddb95344c9634d01c8ef267e5524af1110f478491f9789",
       "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e2cc6d6c0ed369a0ada8c979420ce9a7f76f381c1f9ab83b9f95595f5105d704",
       "src/renderer/services/diagnostics/sentry-policy.test.ts": "sha256:af6f4e17c474ba5e5d0e2d4117c1a1b5f7a9629f57dc5343ebe6dba5291a548d",
@@ -39,7 +43,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 68,
+    "passed": 69,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -264,6 +268,10 @@
         "status": "passed"
       },
       {
+        "name": "persists an error first observed offline and sends it after reconnection",
+        "status": "passed"
+      },
+      {
         "name": "preserves injected Debug IDs through privacy filtering for exact source-map lookup",
         "status": "passed"
       },
@@ -315,7 +323,12 @@
         "name": "validates the same DSN in the renderer and build, and scopes CSP to its exact host",
         "status": "passed"
       }
-    ]
+    ],
+    "browser": {
+      "status": "passed",
+      "report": "docs/acceptance/sentry-browser.json",
+      "checks": 9
+    }
   },
   "openGates": [
     "Sentry account/project and public DSN provisioned",

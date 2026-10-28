@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ hosted: true, enabled: true, token: null as string | null }));
+const mocks = vi.hoisted(() => ({ hosted: true, online: true, enabled: true, token: null as string | null }));
 const sentry = vi.hoisted(() => ({ send: vi.fn(), log: vi.fn(), env: { VITE_SENTRY_DSN: '' } }));
 vi.mock('../../lib/vite-runtime-env', () => ({ runtimeViteEnv: sentry.env }));
 vi.mock('./sentry-reporter', () => ({ sendSentryReport: sentry.send, sendSentryLog: sentry.log }));
 vi.mock('../../lib/config', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../lib/config')>(),
-  APP_CONFIG: { API_BASE_URL: 'https://sync.example.test/' },
-  canUseHostedService: () => mocks.hosted,
+  APP_CONFIG: { API_BASE_URL: 'https://sync.example.test/', get LOCAL_ONLY_MODE() { return !mocks.hosted; } },
+  canUseHostedService: () => mocks.hosted && mocks.online,
 }));
 vi.mock('../../lib/session-token', () => ({ getSessionToken: () => mocks.token }));
 vi.mock('../../store/settings-store', () => ({
@@ -43,12 +43,26 @@ beforeEach(() => {
   vi.stubEnv('VITE_DRIFTING_CRASH_REPORTS_IN_DEV', '1');
   fetchMock.mockReset().mockResolvedValue({ ok: true, status: 202 });
   mocks.hosted = true;
+  mocks.online = true;
   mocks.enabled = true;
   mocks.token = null;
   sentry.env.VITE_SENTRY_DSN = '';
   sentry.send.mockReset().mockResolvedValue(true);
   sentry.log.mockReset();
   resetCrashReporterForTests();
+});
+
+it('persists an error first observed offline and sends it after reconnection', async () => {
+  sentry.env.VITE_SENTRY_DSN = 'https://0123456789abcdef0123456789abcdef@errors.example.test/42';
+  mocks.online = false;
+  reportIntegrityEvent('synthetic-offline-error');
+  await flushCrashReports();
+  expect(sentry.send).not.toHaveBeenCalled();
+  expect(JSON.parse(storage.get('drifting.diagnostics.queue.v1') ?? '[]')).toHaveLength(1);
+  mocks.online = true;
+  await flushCrashReports();
+  expect(sentry.send).toHaveBeenCalledOnce();
+  expect(storage.has('drifting.diagnostics.queue.v1')).toBe(false);
 });
 
 it('routes configured reports to Sentry once, retains failed delivery, and bounds operational logs', async () => {
