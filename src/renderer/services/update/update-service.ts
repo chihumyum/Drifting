@@ -2,7 +2,7 @@ import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import type { AppUpdateMetadata } from '../../platform/contracts';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
-import { reportIntegrityEvent } from '../diagnostics/crash-reporter';
+import { reportDiagnosticLog, reportIntegrityEvent } from '../diagnostics/crash-reporter';
 
 const AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 const LAST_CHECK_KEY = 'drifting.alpha-updater.last-check.v1';
@@ -80,6 +80,7 @@ async function check(options: { manual?: boolean } = {}): Promise<UpdateServiceS
     publish({ phase: 'checking', update: null, downloadedBytes: 0, totalBytes: null, error: null });
     try {
       const update = await platform.updater.check();
+      reportDiagnosticLog('update-check-completed', { durationMs: Date.now() - now });
       publish({
         phase: update ? 'available' : 'idle',
         update,
@@ -89,6 +90,7 @@ async function check(options: { manual?: boolean } = {}): Promise<UpdateServiceS
       });
       return state;
     } catch (error) {
+      reportDiagnosticLog('update-check-failed', { durationMs: Date.now() - now });
       publish({
         phase: 'error',
         update: null,
@@ -121,6 +123,7 @@ async function download(): Promise<UpdateServiceState> {
           publish({ ...state, downloadedBytes: state.downloadedBytes + event.data.chunkLength });
         }
       });
+      reportDiagnosticLog('update-download-completed', { bytes: verifiedSize });
       publish({
         phase: 'ready',
         update,
@@ -130,6 +133,7 @@ async function download(): Promise<UpdateServiceState> {
       });
       return state;
     } catch (error) {
+      reportDiagnosticLog('update-download-failed');
       publish({ ...state, phase: 'error', update, error: errorMessage(error) });
       return state;
     } finally {
@@ -159,6 +163,7 @@ async function install(): Promise<void> {
       }
       try {
         // Native installs, then relaunches through the ordinary quit flush.
+        reportDiagnosticLog('update-install-started');
         await platform.updater.install();
       } catch (error) {
         publish({ ...state, phase: 'error', error: errorMessage(error) });

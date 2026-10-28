@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-28T16:48:40.459Z",
+  "organization": "drifting",
+  "project": "drifting-client",
+  "status": "cloud-error-log-and-alert-verified",
+  "build": {
+    "revision": "2b35501633afb2cbcc364c30b1a0e98be7639ae1",
+    "release": "drifting@0.1.0-alpha.1+2b35501633afb2cbcc364c30b1a0e98be7639ae1.setup2",
+    "environment": "sentry-acceptance",
+    "runtime": "fresh-isolated-tauri-debug-host-serving-minified-full-renderer",
+    "temporarySyntheticCanary": true,
+    "sourceSha256": "sha256:c4999f23a19e10616e6e65e5de9092a5d49853a00635db5e8c2555885261bd48",
+    "temporaryPatchSha256": "sha256:d5819fca0e84508a201023e66a196a3e19410bd63935ae21f11c194205e1eed5",
+    "clientSourceSha256": {
+      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:4ee2f6ffcef802da1f905701027b4aa55b1d83344b1ea600d98b44118f0703a4",
+      "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e2cc6d6c0ed369a0ada8c979420ce9a7f76f381c1f9ab83b9f95595f5105d704",
+      "src/renderer/services/diagnostics/sentry-policy.ts": "sha256:a4b16e18ea94733be5b934197ab0cfce92a33ae976bb4ccf660a0c7289531429",
+      "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e"
+    },
+    "distIndexSha256": "sha256:b526d20688201f1cced58013d1015c6687076e19c3b06858b39b0afb0687b8ca"
+  },
+  "issue": {
+    "id": "7816942043",
+    "shortId": "DRIFTING-CLIENT-1",
+    "title": "DriftingSentrySetupError: Drifting Sentry setup verification 20261029",
+    "url": "https://drifting.sentry.io/issues/7816942043/",
+    "eventId": "b8de5c2972001172304cfded1141dc07"
+  },
+  "sourceMapping": {
+    "file": "src/renderer/main.tsx",
+    "line": 108,
+    "column": 27,
+    "exactSourceContextVerified": true,
+    "processingErrors": 0,
+    "localArtifactMapCount": 0
+  },
+  "log": {
+    "message": "update-check-completed",
+    "severity": "info",
+    "timestamp": "2026-10-28T16:47:07+00:00"
+  },
+  "alert": {
+    "id": "6249230",
+    "url": "https://drifting.sentry.io/monitors/alerts/6249230/",
+    "enabled": true,
+    "triggers": [
+      "first_seen_event",
+      "regression_event"
+    ],
+    "minimumLevel": "error",
+    "throttleMinutes": 30,
+    "recipients": "account-owner-only",
+    "lastTriggered": "2026-10-28T16:37:20.314803Z",
+    "emailDelivery": "confirmed-by-owner"
+  },
+  "checks": [
+    "active-public-dsn",
+    "real-mac-renderer-uncaught-error",
+    "exact-cloud-source-line",
+    "source-maps-absent-from-local-artifacts",
+    "real-cloud-operational-log",
+    "enabled-and-triggered-email-rule"
+  ],
+  "limitations": [
+    "debug-native-host-over-loopback-http-not-packaged-release",
+    "email-receipt-is-a-separate-human-check",
+    "production-ci-and-distribution-not-enabled",
+    "writing-restart-and-real-cloud-opt-out-retry-not-accepted"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "sourceSha256": "sha256:293b0819b821a7dbe805679a8c23df0272ebc6f076d17eb58ce5a43b53fae124",
+  "status": "passed",
+  "browser": "Chromium",
+  "build": "minified-production-fixture",
+  "transport": "real-loopback-https-with-ephemeral-certificate",
+  "sourceMap": {
+    "source": "scripts/renderer-sentry-acceptance.ts",
+    "line": 7,
+    "column": 8,
+    "matchingDebugId": true
+  },
+  "checks": [
+    "uncaught minified JS error reaches loopback HTTPS once through real SDK and CORS",
+    "emitted Debug ID and private source map resolve minified frame to exact original TypeScript line",
+    "real network envelopes omit manuscript, local state, console, cookie, bearer and referrer",
+    "structured operation log and safe error breadcrumbs survive minification",
+    "unhandled promise rejection is captured by the production listener",
+    "opt-out prevents new uploads and queue entries after SDK initialization",
+    "error first observed offline is retained and automatically sent on online event",
+    "HTTP 503 retains report and successful retry reuses its event ID",
+    "local-only production fixture ignores inherited DSN and never loads reporting SDK"
+  ],
+  "limitations": [
+    "synthetic receiver; no Sentry account or cloud upload",
+    "Chromium evidence does not establish packaged Mac WebView, native crash symbols or email delivery"
+  ]
+}

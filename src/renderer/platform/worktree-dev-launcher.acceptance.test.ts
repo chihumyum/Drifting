@@ -37,6 +37,27 @@ afterEach(() => {
 });
 
 describe('isolated worktree development', () => {
+  it('builds a distinct signed macOS package with embedded assets and a persistent private WebView', async () => {
+    const root = fixture();
+    const environment = { VITE_SENTRY_DSN: 'https://0123456789abcdef0123456789abcdef@errors.example.test/42',
+      DRIFTING_HOSTED_ORIGIN: 'https://service.example.test', DRIFTING_SENTRY_PACKAGED_ACCEPTANCE: '1' };
+    const plan = createWorktreePlan({ root, buildApp: true, online: true, platform: 'darwin', baseEnvironment: environment });
+    const dev = createWorktreePlan({ root, online: true, platform: 'darwin', baseEnvironment: environment });
+    expect(plan.manifest.identifier).not.toBe(dev.manifest.identifier);
+    expect(plan.manifest.databaseDirectory).toContain(plan.manifest.identifier);
+    expect(plan.manifest.appBundlePath).toMatch(/debug\/bundle\/macos\/Drifting Test [a-f0-9]+\.app$/);
+    expect(plan.tauriConfig.build).toMatchObject({ devUrl: null, beforeDevCommand: null,
+      frontendDist: plan.manifest.frontendDirectory });
+    expect(plan.tauriConfig.app.windows[0].incognito).toBe(false);
+    expect(plan.tauriConfig.app.security.csp).toContain('https://errors.example.test');
+    expect(plan.tauriConfig.bundle.createUpdaterArtifacts).toBe(false);
+    expect(plan.args).toEqual(['exec', 'tauri', 'build', '--debug', '--bundles', 'app', '--config', plan.manifest.configPath]);
+    expect(plan.environment.DRIFTING_SENTRY_PACKAGED_ACCEPTANCE).toBe('1');
+    expect(dev.environment.DRIFTING_SENTRY_PACKAGED_ACCEPTANCE).toBeUndefined();
+    expect(parseWorktreeArguments(['--build-app']).buildApp).toBe(true);
+    expect(() => createWorktreePlan({ root, buildApp: true, platform: 'linux' })).toThrow(/macOS only/);
+  });
+
   it.each(['darwin', 'win32', 'linux'])('preserves HTML drag ownership in the %s window override', platform => {
     const plan = createWorktreePlan({ root: fixture(), baseEnvironment: {}, platform });
     expect(plan.tauriConfig.app.windows.find((window: { label: string }) => window.label === 'main').dragDropEnabled).toBe(false);

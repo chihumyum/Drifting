@@ -11,6 +11,7 @@ const coreDir = path.resolve(path.dirname(scriptPath), '..');
 const outputDir = await mkdtemp(path.join(tmpdir(), 'drifting-frontend-release-'));
 const forbidden = [
   '__DRIFTING_FRONTEND_DEBUG_V1__',
+  '__DRIFTING_SENTRY_PACKAGED_ACCEPTANCE__',
   'VITE_DRIFTING_FRONTEND_DEBUG_TOKEN',
   '/renderer/next',
   '127.0.0.1:4318',

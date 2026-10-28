@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
+// @ts-expect-error Build scripts are native ESM, outside the renderer type graph.
+import { sentryBuildConfiguration } from './scripts/sentry-environment.mjs';
 import { deferredAIProvidersPlugins } from './vite-plugins/deferred-ai-providers';
 import { deferredSettingsPlugin, deferredProjectSettingsPlugins } from './vite-plugins/deferred-settings';
 import { deferredSuperViewsPlugins } from './vite-plugins/deferred-super-views';
@@ -10,6 +15,16 @@ const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
 // https://vitejs.dev/config
 export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
+  const outDir = process.env.DRIFTING_RENDERER_OUT_DIR || 'dist';
+  const packagedAcceptance = process.env.DRIFTING_SENTRY_PACKAGED_ACCEPTANCE === '1';
+  if (packagedAcceptance && (!isBuild || process.env.VITE_SENTRY_ENVIRONMENT !== 'sentry-acceptance'
+    || process.env.VITE_LOCAL_ONLY_MODE !== 'false' || !process.env.VITE_SENTRY_DSN)) {
+    throw new Error('Packaged Sentry acceptance requires an explicit Hosted-capable sentry-acceptance build and DSN');
+  }
+  const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+  const sentry = sentryBuildConfiguration(process.env, { command, version,
+    revision: process.env.DRIFTING_BUILD_REVISION || (process.env.VITE_LOCAL_ONLY_MODE === 'false' && process.env.VITE_SENTRY_DSN
+      ? execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() : 'unconfigured') });
   const tauriDevHost = process.env.TAURI_DEV_HOST;
   const configuredDevPort = Number(process.env.DRIFTING_VITE_PORT ?? '5173');
   const devPort = Number.isInteger(configuredDevPort) ? configuredDevPort : 5173;
@@ -39,7 +54,18 @@ export default defineConfig(({ command }) => {
     // Release builds accept only explicit process variables. This prevents ignored
     // developer .env files (including BYOK keys) from leaking into a bundle.
     envDir: isBuild ? false : undefined,
-    plugins: [react(), deferredSettingsPlugin(), ...deferredProjectSettingsPlugins(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins()],
+    plugins: [react(), ...(packagedAcceptance ? [{ name: 'sentry-packaged-acceptance',
+      transformIndexHtml: { order: 'pre' as const, handler: () => [{ tag: 'script', attrs: { type: 'module', src: '/scripts/sentry-packaged-acceptance.ts' }, injectTo: 'body' as const }] },
+    }] : []), deferredSettingsPlugin(), ...deferredProjectSettingsPlugins(), ...deferredSuperViewsPlugins(), ...deferredAIProvidersPlugins(),
+      ...(isBuild && sentry ? [sentryVitePlugin({
+        org: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT, authToken: process.env.SENTRY_AUTH_TOKEN,
+        release: { name: sentry.release }, telemetry: false,
+        sourcemaps: { filesToDeleteAfterUpload: [path.join(outDir, '**/*.map')] },
+      })] : [])],
+    define: sentry ? {
+      'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(sentry.release),
+      'import.meta.env.VITE_SENTRY_ENVIRONMENT': JSON.stringify(sentry.environment),
+    } : {},
     // Only the app is a dev entry. Saved acceptance bundles and design HTML in
     // this checkout must not seed dependency scanning with retired imports.
     optimizeDeps: { entries: ['index.html'] },
@@ -74,6 +100,8 @@ export default defineConfig(({ command }) => {
           : true,
     },
     build: {
+      outDir,
+      sourcemap: sentry && isBuild ? 'hidden' : false,
       rollupOptions: {
         output: {
           manualChunks: {

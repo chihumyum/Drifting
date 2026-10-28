@@ -1,5 +1,11 @@
 # Crash and integrity reports
 
+Optional Sentry routing, operational logs, privacy filtering, source maps and
+remaining deployment gates are documented in [Sentry diagnostics](sentry-observability.md).
+When `VITE_SENTRY_DSN` is configured, reports go to Sentry and do not carry the
+Hosted account bearer or email. Otherwise the endpoint described below remains
+the delivery path.
+
 Hosted-capable builds send content-free reports when Drifting fails, so the
 maintainer hears about problems without asking authors for logs. The service
 side (storage, operator email, retention) is specified in the Hosted service's

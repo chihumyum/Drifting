@@ -5,10 +5,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { createDesktopTauriEnvironment, prepareDesktopSigning } from './run-desktop-tauri.mjs';
 import { hostedSecurityOverride } from './hosted-environment.mjs';
+import { sentrySecurityOverride } from './sentry-environment.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(scriptPath), '..');
@@ -23,6 +25,7 @@ export function parseWorktreeArguments(args) {
     else if (argument === '--print-config') options.printConfig = true;
     else if (argument === '--no-watch') options.noWatch = true;
     else if (argument === '--online') options.online = true;
+    else if (argument === '--build-app') options.buildApp = true;
     else if (argument === '--instance' || argument === '--port') {
       const value = args[++index];
       if (!value || value.startsWith('-')) throw new Error(`${argument} requires a value`);
@@ -57,24 +60,27 @@ export function assertPrivateProfilePath(root, target) {
 }
 
 export function createWorktreePlan({
-  root = defaultRoot, instance = 'default', port, noWatch = false, online = false,
+  root = defaultRoot, instance = 'default', port, noWatch = false, online = false, buildApp = false,
   baseEnvironment = process.env, platform = process.platform,
 } = {}) {
   if (!instancePattern.test(instance)) throw new Error('Invalid worktree instance name');
+  if (buildApp && platform !== 'darwin') throw new Error('--build-app currently supports macOS only');
   const worktreeRoot = realpathSync(root);
   const loaded = createDesktopTauriEnvironment({ baseEnvironment, envFile: path.join(worktreeRoot, '.env.local'), mode: online ? 'online' : 'local' });
   const origin = online ? loaded.DRIFTING_HOSTED_ORIGIN : null;
-  const digest = createHash('sha256').update(`${worktreeRoot}\0${instance}${online ? `\0${origin}` : ''}`).digest();
+  const digest = createHash('sha256').update(`${worktreeRoot}\0${instance}${online ? `\0${origin}` : ''}${buildApp ? '\0packaged' : ''}`).digest();
   const profileId = digest.toString('hex').slice(0, 12);
   const profileDirectory = path.join(worktreeRoot, '.local-data', 'worktree-dev', profileId);
-  const databaseDirectory = path.join(profileDirectory, 'databases');
+  const identifier = `cc.drifting.wt.w${profileId}`;
+  const dataRoot = buildApp ? path.join(homedir(), 'Library', 'Application Support') : worktreeRoot;
+  const databaseDirectory = buildApp ? path.join(dataRoot, identifier, 'databases') : path.join(profileDirectory, 'databases');
+  assertPrivateProfilePath(dataRoot, databaseDirectory);
   const cargoTargetDirectory = path.join(profileDirectory, 'target');
   const configPath = path.join(profileDirectory, 'tauri.conf.json');
   const viteConfigPath = path.join(profileDirectory, 'vite.config.mjs');
-  for (const target of [databaseDirectory, cargoTargetDirectory, configPath, viteConfigPath]) assertPrivateProfilePath(worktreeRoot, target);
+  for (const target of [cargoTargetDirectory, configPath, viteConfigPath]) assertPrivateProfilePath(worktreeRoot, target);
   const selectedPort = port ?? (20000 + digest.readUInt32BE(0) % 20000);
   if (!Number.isInteger(selectedPort) || selectedPort < 1024 || selectedPort > 65535) throw new Error('Invalid worktree port');
-  const identifier = `cc.drifting.wt.w${profileId}`;
   const devUrl = `http://127.0.0.1:${selectedPort}`;
   // Keep the host toolchain and signing setup. Do not inherit app profiles,
   // hosted sessions, debug bridge endpoints, custom runners or Vite secrets.
@@ -94,12 +100,22 @@ export function createWorktreePlan({
   if (online) Object.assign(environment, {
     VITE_LOCAL_ONLY_MODE: 'false', VITE_API_BASE_URL: origin, API_BASE_URL: origin,
     DRIFTING_HOSTED_ORIGIN: origin,
+    VITE_SENTRY_DSN: loaded.VITE_SENTRY_DSN || '',
+    VITE_SENTRY_RELEASE: loaded.VITE_SENTRY_RELEASE || '',
+    VITE_SENTRY_ENVIRONMENT: loaded.VITE_SENTRY_ENVIRONMENT || 'development',
+    VITE_DRIFTING_CRASH_REPORTS_IN_DEV: loaded.VITE_DRIFTING_CRASH_REPORTS_IN_DEV || '',
+  });
+  const frontendDirectory = path.join(profileDirectory, 'frontend');
+  if (buildApp) Object.assign(environment, {
+    DRIFTING_RENDERER_OUT_DIR: frontendDirectory,
+    DRIFTING_SENTRY_PACKAGED_ACCEPTANCE: loaded.DRIFTING_SENTRY_PACKAGED_ACCEPTANCE || '',
+    VITE_SENTRY_ENVIRONMENT: loaded.VITE_SENTRY_ENVIRONMENT || 'sentry-acceptance',
   });
   const base = JSON.parse(readFileSync(path.join(worktreeRoot, 'src-tauri/tauri.conf.json'), 'utf8'));
   // The installed Tauri code generator emits Vec<u8> for dataStoreIdentifier,
   // while its runtime requires [u8; 16]. Ephemeral WKWebView stores work on all
   // supported macOS versions without changing the product's Rust code.
-  const ephemeralWebview = platform === 'darwin';
+  const ephemeralWebview = platform === 'darwin' && !buildApp;
   const tauriConfig = {
     identifier,
     productName: `Drifting Test ${profileId}`,
@@ -111,6 +127,8 @@ export function createWorktreePlan({
         script: `pnpm exec vite --config .local-data/worktree-dev/${profileId}/vite.config.mjs`,
         cwd: worktreeRoot,
       },
+      ...(buildApp ? { devUrl: null, beforeDevCommand: null, frontendDist: frontendDirectory,
+        beforeBuildCommand: { script: `pnpm exec vite build --config .local-data/worktree-dev/${profileId}/vite.config.mjs`, cwd: worktreeRoot } } : {}),
     },
     app: {
       windows: base.app.windows.map(window => ({
@@ -119,7 +137,8 @@ export function createWorktreePlan({
         incognito: ephemeralWebview,
       })),
       security: {
-        devCsp: (online ? hostedSecurityOverride(base, origin).devCsp : base.app.security.devCsp).replace(/\bconnect-src\b[^;]*/, directive =>
+        ...(buildApp ? sentrySecurityOverride(hostedSecurityOverride(base, online ? origin : 'http://localhost:3000'), environment) : {}),
+        devCsp: (online ? sentrySecurityOverride(hostedSecurityOverride(base, origin), environment).devCsp : base.app.security.devCsp).replace(/\bconnect-src\b[^;]*/, directive =>
           `${directive} ${devUrl} ws://127.0.0.1:${selectedPort}`),
       },
     },
@@ -140,11 +159,13 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
     profileDirectory, databaseDirectory, cargoTargetDirectory, devUrl, port: selectedPort,
     keychainService: `Drifting.${identifier}`, ephemeralWebview,
     mode: online ? 'hosted' : 'local-only', ...(online ? { serviceOrigin: origin } : {}), configPath,
+    ...(buildApp ? { buildApp: true, frontendDirectory,
+      appBundlePath: path.join(cargoTargetDirectory, 'debug', 'bundle', 'macos', `Drifting Test ${profileId}.app`) } : {}),
   };
   return {
     manifest, environment, tauriConfig, viteConfigSource, viteConfigPath,
     command: platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-    args: ['exec', 'tauri', 'dev', ...(noWatch ? ['--no-watch'] : []), '--config', configPath],
+    args: ['exec', 'tauri', ...(buildApp ? ['build', '--debug', '--bundles', 'app'] : ['dev', ...(noWatch ? ['--no-watch'] : [])]), '--config', configPath],
   };
 }
 
@@ -164,13 +185,16 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
 } = {}) {
   const options = parseWorktreeArguments(args);
   if (options.help) {
-    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--online] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --print-config emits JSON without launching or creating files.');
+    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
     return;
   }
   const plan = createWorktreePlan({ root, baseEnvironment, ...options });
   if (options.printConfig) { output(JSON.stringify(plan.manifest, null, 2)); return; }
-  await checkPort(plan.manifest.port);
-  prepareSigning({ command: 'dev', environment: plan.environment });
+  if (!options.buildApp) await checkPort(plan.manifest.port);
+  const signingIdentity = prepareSigning({ command: options.buildApp ? 'build' : 'dev',
+    arguments: options.buildApp ? ['--debug'] : [], environment: plan.environment });
+  if (options.buildApp && signingIdentity) plan.tauriConfig.bundle.macOS = { signingIdentity };
+  mkdirSync(plan.manifest.profileDirectory, { recursive: true, mode: 0o700 });
   mkdirSync(plan.manifest.databaseDirectory, { recursive: true, mode: 0o700 });
   for (const [file, contents] of [
     [plan.manifest.configPath, JSON.stringify(plan.tauriConfig, null, 2)],
