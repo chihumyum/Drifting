@@ -69,6 +69,9 @@ The optional [native heavy-seed audit collector](renderer-performance/stress-see
 adds bounded React, input/frame, DOM and IPC observations plus owned-process
 RSS/CPU sampling. Its coverage report must distinguish completed native
 journeys from unavailable or unmeasured surfaces.
+The [2026-10-29 diagnostic record](renderer-performance/stress-seed-audit-findings-2026-10-29.md)
+also provides a repeatable CPU/retention/persistence probe against the actual
+heavy library. Its Node results are separate from native UI acceptance.
 
 When implementing a potentially expensive operation, add bounded development
 activity labels (`beginDevActivity`) and, where needed, a focused timing/counter

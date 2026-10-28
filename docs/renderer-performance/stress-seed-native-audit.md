@@ -10,6 +10,14 @@ input. The launched WebView reported `visible: false`. No writing, navigation,
 relation, graph, material or Agent UI journey has yet been accepted. Hidden-page
 startup observations are not evidence of interactive performance or stability.
 
+The unattended continuation produced a [detailed diagnostic record](stress-seed-audit-findings-2026-10-29.md)
+and [source-matched Node evidence](acceptance/stress-seed-node-diagnostic.json)
+using a disposable backup of the real heavy library. It covers production
+projection, material conversion/search, 600-round Agent recovery, allocation/
+retention trends and authored prose/TODO/relation writes with SQLite reopen.
+A browser fallback reached the shelf, then its control channel timed out.
+These results do not close the pending native UI coverage below.
+
 The generated [observation report](acceptance/stress-seed-native-audit.json)
 records its source fingerprint, binary hash and available samples. Its status
 is deliberately `observations-only-coverage-must-be-reviewed`; a generated
