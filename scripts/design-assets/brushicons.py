@@ -15,6 +15,7 @@ jizo.png                    Copilot: a small roadside stone figure, staff at its
 dharma-wheel.png            settings: a wheel with eight handles
 movable-type.png            keyboard shortcuts: rows of type blocks
 case-dew.png                import: a 垂露 stroke let down into an open case
+case-rise.png               save as a file: the same drop turned over, rising out of the case
 books.png                   bookshelf: three volumes, the last one leaning
 gate-in / gate-out          sign in / sign out: a stroke through a door frame
 
@@ -41,7 +42,7 @@ comment-plus.png            the comment icon, a plus at its corner
 rotate.png                  a circle drawn backwards, arrowhead at its end
 sort.png                    counting rods (算筹) laid long to short
 status-done/-warning/-stopped  an inked round seal, a tick, 「！」 or a slash cut white
-cloud.png                   a scroll of cloud (祥云), its tail drawn off to the right
+cloud.png                   祥云: a curl coiled at the left, two lobes, the tail run out beneath
 checklist / checklist-plus  three rows, each after a small box; the first ticked
 sticky-note.png             a slip tucked in at a slant, its top corner folded
 mic.png                     a length of bamboo in a microphone holder
@@ -53,6 +54,7 @@ branch.png                  a twig that forks, a bud on each end
 view-grid / view-list       four square seals / three solid bars
 open-book.png               two pages open, two lines on each
 knots.png                   a cord with knots tied along it (结绳记事)
+tea.png                     a cup just set down, still steaming (Project Home "recent")
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -401,6 +403,16 @@ def case_dew(rng):
     fill_poly(a, side_l + arc(48, 57, 9.5, 9, 190, -10, 24) + side_r, rng, rough=0.6)
     return a
 
+def case_rise(rng):
+    """The import's drop turned over: full at the top, a hair where it leaves the case."""
+    a = new()
+    brush(a, poly((18, 44), (18, 84), (78, 84), (78, 44), n=24), 3.4, rng, load0=1.0, dry=0.25, taper=(0.04, 0.06))
+    flip = lambda pts: [(x, 70 - y) for x, y in pts]
+    side_l = curve([(48, 4), (45.5, 22), (41.5, 42), (38.5, 56)], 10)
+    side_r = curve([(57.5, 56), (54.5, 42), (50.5, 22), (48, 4)], 10)
+    fill_poly(a, flip(side_l + arc(48, 57, 9.5, 9, 190, -10, 24) + side_r), rng, rough=0.6)
+    return a
+
 def books(rng):
     """Three volumes standing on a shelf, the last one leaning."""
     a = new()
@@ -628,14 +640,18 @@ def status_warning(rng): a = new(); _seal(a, rng); _carve(a, _bang, T * 0.95); r
 def status_stopped(rng): a = new(); _seal(a, rng); _carve(a, _slash, T * 0.95); return a
 
 def cloud(rng):
-    """祥云: a scroll of cloud — a curl rolled in at the left, two lobes, a tail to the right."""
+    """祥云: one stroke coils out from the curl's eye, runs round under it and
+    trails off to the right as the tail; a second rises from the curl over
+    two lobes. Neither crosses the other."""
     a = new()
-    th = np.linspace(0, 2.3 * np.pi, 90)
-    spiral = [(30 + (17 - 13 * t / th[-1]) * np.cos(np.pi / 2 + t), 52 + (17 - 13 * t / th[-1]) * np.sin(np.pi / 2 + t)) for t in th][::-1]
-    lobes = arc(30, 52, 17, 17, 90 + 360 * 2.3 / 2 % 360, 270, 4)[:1]
-    body = arc(52, 42, 17, 17, 200, 335, 30) + arc(74, 52, 12, 12, 250, 400, 24)
-    brush(a, spiral + body, T * 0.95, rng, load0=1.0, dry=0.25, taper=(0.05, 0.05))
-    brush(a, curve([(30, 69), (50, 68), (72, 64), (92, 70)], 16), T * 0.9, rng, load0=1.0, dry=0.45, taper=(0.05, 0.4))
+    cx, cy = 30, 50
+    th = np.deg2rad(np.linspace(630, 90, 140))          # inner eye → outer ring, ending at the bottom
+    r = 4 + (16 - 4) * (630 - np.rad2deg(th)) / 540
+    coil = [(cx + rr * np.cos(t), cy + rr * np.sin(t)) for rr, t in zip(r, th)]
+    tail = curve([(cx, cy + 16), (48, 68), (66, 64), (80, 68), (92, 66)], 14)
+    brush(a, coil + tail[1:], T * 0.95, rng, load0=1.0, dry=0.5, taper=(0.05, 0.4))
+    lobes = [(cx + 2, cy - 12)] + arc(52, 40, 15, 15, 205, 335, 30) + arc(74, 54, 11, 11, 255, 395, 26)
+    brush(a, lobes, T * 0.95, rng, load0=1.0, dry=0.3, taper=(0.15, 0.2))
     return a
 
 def checklist(rng):
@@ -759,13 +775,22 @@ def knots(rng):
         brush(a, line((50, 82), (50 + dx, 94), 6), T * 0.5, rng, load0=0.9, dry=0.5, taper=(0, 0.5))
     return a
 
+def tea(rng):
+    """茶尚温: a cup just set down, still steaming."""
+    a = new()
+    fill_poly(a, curve([(20, 52), (24, 76), (36, 86), (60, 86), (72, 76), (76, 52), (20, 52)], 10), rng, rough=0.7)
+    brush(a, line((30, 90), (66, 90), 12), T * 0.7, rng, load0=1.0, dry=0.2, taper=(0.05, 0.05))
+    for x0 in (38, 56):
+        brush(a, curve([(x0, 44), (x0 - 5, 34), (x0 + 3, 24), (x0 - 2, 10)], 12), T * 0.6, rng, load0=0.85, dry=0.6, taper=(0.1, 0.6))
+    return a
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
     "sprout": (sprout, 610), "shikigami": (shikigami, 901),
     "lock-open": (lock_open, 616), "lock-shut": (lock_shut, 617), "plus": (plus, 622),
     "jizo": (jizo, 906), "enso": (enso, 628), "ink-disc": (ink_disc, 629), "taiji": (taiji, 630), "wen": (wen, 634),
-    "dharma-wheel": (dharma_wheel, 639), "movable-type": (movable_type, 640), "case-dew": (case_dew, 902),
+    "dharma-wheel": (dharma_wheel, 639), "movable-type": (movable_type, 640), "case-dew": (case_dew, 902), "case-rise": (case_rise, 910),
     "books": (books, 646), "gate-in": (gate_in, 904), "gate-out": (gate_out, 905),
 }
 GLYPHS = {
@@ -780,7 +805,7 @@ OBJECTS = {
     "cloud": (cloud, 2016), "checklist": (checklist, 2018), "checklist-plus": (checklist_plus, 2019),
     "sticky-note": (sticky_note, 2022), "mic": (mic, 2025), "image": (image, 2027), "image-plus": (image_plus, 2028),
     "eraser": (eraser, 2033), "share": (share, 2035), "layers": (layers, 2039), "branch": (branch, 2041),
-    "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050),
+    "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104),
 }
 masks = {}
 for name, (draw, seed) in ICONS.items():

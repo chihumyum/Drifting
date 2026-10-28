@@ -320,6 +320,8 @@
 .brush-icon--view-list { -webkit-mask-image: url('../assets/design/icons/view-list.png'); mask-image: url('../assets/design/icons/view-list.png'); }
 .brush-icon--open-book { -webkit-mask-image: url('../assets/design/icons/open-book.png'); mask-image: url('../assets/design/icons/open-book.png'); }
 .brush-icon--knots { -webkit-mask-image: url('../assets/design/icons/knots.png'); mask-image: url('../assets/design/icons/knots.png'); }
+.brush-icon--case-rise { -webkit-mask-image: url('../assets/design/icons/case-rise.png'); mask-image: url('../assets/design/icons/case-rise.png'); }
+.brush-icon--tea { -webkit-mask-image: url('../assets/design/icons/tea.png'); mask-image: url('../assets/design/icons/tea.png'); }
 
 /* ── Cells ──────────────────────────────────────────────────────────
  * A list cell (`.sand-cell`) has no hover wash. Under the pointer its

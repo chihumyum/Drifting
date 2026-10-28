@@ -23,7 +23,6 @@ import {
   type BookNode,
 } from '../domain/book-node';
 import { getPlatformRuntime } from '../platform/runtime';
-import { LayoutDashboard } from 'lucide-react';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 import { BrushIcon } from '../components/ui/BrushIcon';
@@ -932,11 +931,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               <section className="dash-section" style={{ marginBottom: 0 }}>
                 <div className="dash-section__head">
                   <div className="dash-section__title">
-                    <LayoutDashboard
-                      className="dash-section__title-mark"
-                      size={18}
-                      aria-hidden="true"
-                    />
+                    <BrushIcon name="tea" size={18} className="dash-section__title-mark" />
                     <span className="dash-section__title-cn">{t('dashboard.sections.recent')}</span>
                     <span className="dash-section__title-en">
                       {t('dashboard.sections.recentShort')}

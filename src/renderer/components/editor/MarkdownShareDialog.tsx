@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { platform } from '../../platform';
 import type { MarkdownShareDocument, MarkdownShareTarget } from '../../services/export/markdown-share';
@@ -121,7 +120,7 @@ export function MarkdownShareDialog({ target, onClose }: {
               {feedback && t(`markdownShare.${feedback}`)}
             </span>
             <Button disabled={!document || action !== null} onClick={() => void run('save')}>
-              <Download size={14} />{t(action === 'save' ? 'markdownShare.saving' : 'markdownShare.save')}
+              <BrushIcon name="case-rise" size={14} />{t(action === 'save' ? 'markdownShare.saving' : 'markdownShare.save')}
             </Button>
             <Button variant="primary" disabled={!document || action !== null} onClick={() => void run('copy')}>
               <BrushIcon name="copy" size={14} />{t(action === 'copy' ? 'markdownShare.copying' : 'markdownShare.copy')}
