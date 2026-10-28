@@ -250,13 +250,9 @@
     border-radius: 1px !important;
   }
 
-  /* Split tabs retain a static frame and internal divider. */
+  /* Split tabs retain a static frame. */
   .app-tab--split {
     border-radius: 0 !important;
-  }
-  .app-tab__split-divider {
-    margin-top: 6px !important;
-    margin-bottom: 6px !important;
   }
 
   /* Smooth light/dark transitions on the stable shell surfaces. */

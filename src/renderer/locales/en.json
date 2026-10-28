@@ -2507,6 +2507,8 @@
     "menu": {
       "closePane": "Close pane",
       "extractTab": "Extract as tab",
+      "extractLeft": "Extract left",
+      "extractRight": "Extract right",
       "swapPanes": "Swap panes",
       "unsplit": "Unsplit",
       "close": "Close",
@@ -2518,6 +2520,7 @@
     },
     "newEntity": "Create entity",
     "newTab": "New…",
+    "splitControls": "Split",
     "closeTab": "Close tab",
     "closePane": "Close pane",
     "dockLock": "Keep open",

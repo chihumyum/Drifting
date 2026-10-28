@@ -19,7 +19,8 @@ import {
   type SplitTab,
   type TabEntityType,
 } from '../../../store/ui-store';
-import { HoverCardHeading, HoverCardShell, type HoverActionGroup } from '../../ui/HoverCard';
+import { HoverCardShell, type HoverActionGroup } from '../../ui/HoverCard';
+import { BrushIcon } from '../../ui/BrushIcon';
 import { useHoverPreview } from '../../../features/entities/hover/entity-hover-card-model';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
@@ -79,10 +80,10 @@ function measureLabelWidth(text: string, fontSize: number): number {
 // (the flex container has gap:6 between *every* adjacent pair — there are
 // two gaps with three children, both must be counted.)
 const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
-// Split tab = two SplitSubLabel slots around a 1px divider. Each sub-label:
+// Split tab = two SplitSubLabel slots around the split knob. Each sub-label:
 //   paddingL 8 + icon 12 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 50 + label
-// Total chrome = 50 + 50 + 1 (divider) = 101.
-const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
+// Total chrome = 50 + 50 + 20 (knob 18 + its margins) = 120.
+const SPLIT_CHROME_WIDTH = 50 + 50 + 20;
 
 
 /**
@@ -95,7 +96,7 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
  */
 export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   expanded?: boolean;
-  /** Keeps the dock open while a tab's hover card is showing. */
+  /** Keeps the dock open while a split's operations card is showing. */
   onHoldExpanded?: (held: boolean) => void;
   /** Rendered before the pills while expanded, outside their overflow. */
   leading?: ReactNode;
@@ -108,11 +109,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const openCreateTab = useUiStore((s) => s.openCreateTab);
   const closeWorkspaceTab = useDesktopTabClose();
-  const closeOtherTabs = useUiStore((s) => s.closeOtherTabs);
-  const closeTabsToRight = useUiStore((s) => s.closeTabsToRight);
-  const closeAllTabs = useUiStore((s) => s.closeAllTabs);
   const closeSplitSide = useUiStore((s) => s.closeSplitSide);
-  const splitActiveWith = useUiStore((s) => s.splitActiveWith);
   const unsplitTab = useUiStore((s) => s.unsplitTab);
   const swapSplitPanes = useUiStore((s) => s.swapSplitPanes);
   const extractFromSplit = useUiStore((s) => s.extractFromSplit);
@@ -125,16 +122,17 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [labelFontSize, setLabelFontSize] = useState(14);
-  // A tab's hover card holds what its right-click menu used to: closing,
-  // splitting and the per-side split operations. A split remembers the side
-  // under the pointer, since those operations act on one pane.
+  // Pills have no hover card: a tab is split by dragging it onto the left or
+  // right half of the paper. A split tab carries a small knob between its two
+  // halves whose card holds the split's own operations.
   const {
-    preview: tabHover,
-    onEnter: hoverTab,
-    onLeave: leaveTab,
-    dismiss: dismissTabCard,
-    card: tabCard,
-  } = useHoverPreview<{ key: string; side?: 'left' | 'right' }>();
+    preview: knobHover,
+    onEnter: hoverKnob,
+    onLeave: leaveKnob,
+    dismiss: dismissKnobCard,
+    open: openKnobCard,
+    card: knobCard,
+  } = useHoverPreview<string>();
 
   // The strip hugs its tabs so it can sit centred under the paper; the dock
   // around it owns the width the tabs may share.
@@ -149,15 +147,16 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   }, [containerRef]);
 
   useEffect(() => {
-    onHoldExpanded?.(tabHover !== null);
-  }, [tabHover, onHoldExpanded]);
+    onHoldExpanded?.(knobHover !== null);
+  }, [knobHover, onHoldExpanded]);
 
-  // A tab closed or reshaped under its card (⌘W, unsplit) never sends the
+  // A split closed or unsplit under its card (⌘W, an action) never sends the
   // mouseleave that would close it, and would hold the dock open.
-  const hoveredTabIndex = tabHover ? openTabs.findIndex((tab) => tabKey(tab) === tabHover.data.key) : -1;
+  const knobTab = knobHover ? openTabs.find((tab) => tabKey(tab) === knobHover.data) : undefined;
+  const knobSplit = knobTab?.kind === 'split' ? knobTab : null;
   useEffect(() => {
-    if (tabHover && hoveredTabIndex < 0) dismissTabCard();
-  }, [tabHover, hoveredTabIndex, dismissTabCard]);
+    if (knobHover && !knobSplit) dismissKnobCard();
+  }, [knobHover, knobSplit, dismissKnobCard]);
 
   // The portaled probe inherits the same desktop token as visible tabs.
   // Recalculate after a text-size preference change even
@@ -310,181 +309,41 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
     [projectId, promoteTab],
   );
 
-  // The actions along a tab's hover card. Per the requirement that there be
-  // no distinction between a split's own operations and its sides', each
-  // side of a split offers all of them — per-side (close this side / extract
-  // / swap) and whole-tab (close, close others, close all, unsplit).
-  const tabActions = useCallback(
-    (tab: AnyTab, tabIndex: number, sideHint?: 'left' | 'right'): HoverActionGroup[] => {
-      if (!projectId) return [];
-      const groups: HoverActionGroup[] = [];
-
-      // "Open in left/right pane" is only meaningful for a non-active leaf —
-      // splitting the active tab against itself produces no useful pane, and
-      // a split tab can't be folded into another tab.
-      const activeTabRef = openTabs.find((t) => tabKey(t) === activeTabKey);
-      const activeFocused = activeTabRef ? focusedLeafOf(activeTabRef) : null;
-      const isLeafSameAsActiveFocused =
-        tab.kind === 'leaf' &&
-        activeFocused !== null &&
-        activeFocused.entityType === tab.entityType &&
-        activeFocused.id === tab.id;
-      const allowSplitOpen =
-        tab.kind === 'leaf' && activeTabRef !== undefined && !isLeafSameAsActiveFocused;
-      // Per-side operations only make sense inside a split. Each operation
-      // that can change the active tab follows up with an openEntity() call
-      // so the URL races EditorShell's own URL→tab sync — without this,
-      // closing a side leaves the URL pointing at the just-closed entity
-      // and EditorShell re-adds it as a fresh preview tab.
-      if (tab.kind === 'split') {
-        const side = sideHint ?? tab.focused;
-        groups.push(
-          {
-            key: 'pane',
-            actions: [
-              {
-                key: 'closePane',
-                label: t('topTimeline.menu.closePane'),
-                onSelect: () => {
-                  const { nextActive } = closeSplitSide(projectId, tab.id, side);
-                  if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-                },
-              },
-              {
-                key: 'extractTab',
-                label: t('topTimeline.menu.extractTab'),
-                onSelect: () => {
-                  const { nextActive } = extractFromSplit(projectId, tab.id, side);
-                  if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-                },
-              },
-              {
-                key: 'swapPanes',
-                label: t('topTimeline.menu.swapPanes'),
-                onSelect: () => swapSplitPanes(projectId, tab.id),
-              },
-            ],
-          },
+  // The split knob's card: take either pane out as a tab of its own, swap
+  // them, or undo the split. Closing one pane stays on that pane's ×. Each
+  // operation that can change the active tab follows up with openEntity() so
+  // the URL races EditorShell's own URL→tab sync — without this the URL can
+  // keep pointing at a pane that just left and EditorShell re-adds it.
+  const splitActions = (tab: SplitTab): HoverActionGroup[] => {
+    if (!projectId) return [];
+    const extract = (side: 'left' | 'right') => {
+      const { nextActive } = extractFromSplit(projectId, tab.id, side);
+      if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+    };
+    return [
+      {
+        key: 'extract',
+        actions: [
+          { key: 'extractLeft', label: t('topTimeline.menu.extractLeft'), onSelect: () => extract('left') },
+          { key: 'extractRight', label: t('topTimeline.menu.extractRight'), onSelect: () => extract('right') },
+        ],
+      },
+      {
+        key: 'arrange',
+        actions: [
+          { key: 'swapPanes', label: t('topTimeline.menu.swapPanes'), onSelect: () => swapSplitPanes(projectId, tab.id) },
           {
             key: 'unsplit',
-            actions: [
-              {
-                key: 'unsplit',
-                label: t('topTimeline.menu.unsplit'),
-                onSelect: () => {
-                  const { nextActive } = unsplitTab(projectId, tab.id);
-                  if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-                },
-              },
-            ],
-          },
-        );
-      }
-
-      // Whole-tab close; split-create options only on leaves — splitting an
-      // already-split tab doesn't add a third pane.
-      const tabKeyStr = tabKey(tab);
-      groups.push({
-        key: 'close',
-        actions: [
-          {
-            key: 'close',
-            label: t('topTimeline.menu.close'),
-            onSelect: () => handleCloseTab(tab),
-            disabled: tab.kind === 'create' && tab.draft.status === 'creating',
-          },
-          ...(tab.kind === 'leaf'
-            ? [
-                {
-                  key: 'openRight',
-                  label: t('topTimeline.menu.openRight'),
-                  onSelect: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
-                  disabled: !allowSplitOpen,
-                },
-                {
-                  key: 'openLeft',
-                  label: t('topTimeline.menu.openLeft'),
-                  onSelect: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
-                  disabled: !allowSplitOpen,
-                },
-              ]
-            : []),
-        ],
-      });
-
-      groups.push({
-        key: 'closeMany',
-        actions: [
-          {
-            key: 'closeOthers',
-            label: t('topTimeline.menu.closeOthers'),
+            label: t('topTimeline.menu.unsplit'),
             onSelect: () => {
-              const { nextActive } = closeOtherTabs(projectId, tabKeyStr);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-              else navigate(`/project/${projectId}`, { replace: true });
-            },
-            disabled: openTabs.length <= 1,
-          },
-          {
-            key: 'closeRight',
-            label: t('topTimeline.menu.closeRight'),
-            onSelect: () => {
-              const { nextActive } = closeTabsToRight(projectId, tabKeyStr);
+              const { nextActive } = unsplitTab(projectId, tab.id);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             },
-            disabled: tabIndex >= openTabs.length - 1,
-          },
-          {
-            key: 'closeAll',
-            label: t('topTimeline.menu.closeAll'),
-            onSelect: () => {
-              closeAllTabs(projectId);
-              // Land on the bare project URL so the Layout URL → tab sync
-              // doesn't reopen whatever the URL had been pointing at, and
-              // Project Home renders without creating another tab.
-              navigate(`/project/${projectId}`, { replace: true });
-            },
-            disabled: openTabs.length === 0,
           },
         ],
-      });
-
-      return groups;
-    },
-    [
-      projectId,
-      openTabs,
-      activeTabKey,
-      handleCloseTab,
-      openEntity,
-      navigate,
-      closeOtherTabs,
-      closeTabsToRight,
-      closeAllTabs,
-      closeSplitSide,
-      extractFromSplit,
-      swapSplitPanes,
-      unsplitTab,
-      splitActiveWith,
-      t,
-    ],
-  );
-
-  const hoveredTab = hoveredTabIndex >= 0 ? openTabs[hoveredTabIndex] : null;
-  const hoveredTabTitle = !hoveredTab
-    ? ''
-    : hoveredTab.kind === 'leaf'
-      ? labelOfLeaf(hoveredTab)
-      : hoveredTab.kind === 'create'
-        ? t('topTimeline.newTab')
-        : labelOfLeaf(hoveredTab[tabHover?.data.side ?? hoveredTab.focused]);
-  // Every tab element reports the pointer the same way; a press (select,
-  // drag, close) puts the card away at once.
-  const tabPointer = (key: string, side?: 'left' | 'right') => ({
-    onMouseEnter: (event: React.MouseEvent<HTMLElement>) => hoverTab({ key, side }, event.currentTarget),
-    onMouseLeave: leaveTab,
-    onPointerDown: dismissTabCard,
-  });
+      },
+    ];
+  };
 
   return (
     <div
@@ -528,7 +387,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
                     isActive={isActive && tab.focused === side}
                     isPreview={tab[side].isPreview}
                     onSelect={() => activateLeafTab(tab[side])}
-                    pointer={tabPointer(key, side)} />
+ />
                 ))}
               </span>
             );
@@ -543,7 +402,7 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               isPreview={tab.isPreview}
               clusterBreak={clusterBreak}
               onSelect={() => handleSelectTab(tab)}
-              pointer={tabPointer(key)} />
+ />
           );
         }
         if (tab.kind === 'create') {
@@ -557,7 +416,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              pointer={tabPointer(key)}
             />
           );
         }
@@ -575,7 +433,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              pointer={tabPointer(key)}
             />
           );
         }
@@ -604,7 +461,11 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               const { nextActive } = closeSplitSide(projectId, tab.id, side);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             }}
-            pointerOf={(side) => tabPointer(key, side)}
+            knob={{
+              onMouseEnter: (event) => hoverKnob(key, event.currentTarget),
+              onMouseLeave: leaveKnob,
+              onClick: (event) => openKnobCard(key, event.currentTarget),
+            }}
           />
         );
       })}
@@ -626,27 +487,26 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
         <Plus size={16} strokeWidth={1.8} aria-hidden />
       </button>}
 
-      {tabHover && hoveredTab && (
+      {knobHover && knobSplit && (
         <HoverCardShell
-          anchor={tabHover.anchor}
-          placement="bottom-start"
-          label={hoveredTabTitle}
-          pointer={tabCard}
-          actions={tabActions(hoveredTab, hoveredTabIndex, tabHover.data.side)}
-          onDismiss={dismissTabCard}
-        >
-          <HoverCardHeading title={hoveredTabTitle} />
-        </HoverCardShell>
+          anchor={knobHover.anchor}
+          placement="top-center"
+          width={316}
+          label={t('topTimeline.splitControls')}
+          pointer={knobCard}
+          actions={splitActions(knobSplit)}
+          onDismiss={dismissKnobCard}
+        />
       )}
     </div>
   );
 }
 
-/** How a tab element reports the pointer to the strip's hover card. */
-interface TabPointerProps {
+/** The split knob reports the pointer, and a click, to the strip's split card. */
+interface SplitKnobProps {
   onMouseEnter: (event: React.MouseEvent<HTMLElement>) => void;
   onMouseLeave: () => void;
-  onPointerDown: () => void;
+  onClick: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 function CreateTabSlot({
@@ -657,7 +517,6 @@ function CreateTabSlot({
   onSelect,
   onPromote,
   onClose,
-  pointer,
 }: {
   tab: CreateTab;
   isActive: boolean;
@@ -666,7 +525,6 @@ function CreateTabSlot({
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
-  pointer: TabPointerProps;
 }) {
   const { t } = useTranslation();
   const isCreating = tab.draft.status === 'creating';
@@ -678,7 +536,6 @@ function CreateTabSlot({
       className={`app-tab app-tab--create glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       onClick={onSelect}
       onDoubleClick={onPromote}
-      {...pointer}
       style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
     >
       <Plus size={14} strokeWidth={1.8} aria-hidden />
@@ -710,7 +567,6 @@ interface LeafSlotProps {
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
-  pointer: TabPointerProps;
 }
 
 function LeafTabSlot({
@@ -723,7 +579,6 @@ function LeafTabSlot({
   onSelect,
   onPromote,
   onClose,
-  pointer,
 }: LeafSlotProps) {
   const { t } = useTranslation();
   const accent = color || 'hsl(var(--ink-3))';
@@ -736,7 +591,6 @@ function LeafTabSlot({
       draggable
       onClick={onSelect}
       onDoubleClick={onPromote}
-      {...pointer}
       onMouseDown={(event) => {
         if (event.button === 1) {
           event.preventDefault();
@@ -852,8 +706,8 @@ interface SplitSlotProps {
   onSelectSide: (side: 'left' | 'right') => void;
   onPromoteSide: (side: 'left' | 'right') => void;
   onCloseSide: (side: 'left' | 'right') => void;
-  /** Each side reports the pointer on its own: the card acts on that pane. */
-  pointerOf: (side: 'left' | 'right') => TabPointerProps;
+  /** Between the halves: its card holds the split's own operations. */
+  knob: SplitKnobProps;
 }
 
 function SplitTabSlot({
@@ -869,8 +723,9 @@ function SplitTabSlot({
   onSelectSide,
   onPromoteSide,
   onCloseSide,
-  pointerOf,
+  knob,
 }: SplitSlotProps) {
+  const { t } = useTranslation();
   return (
     <div
       role="tab"
@@ -903,18 +758,18 @@ function SplitTabSlot({
         onClick={() => onSelectSide('left')}
         onPromote={() => onPromoteSide('left')}
         onClose={() => onCloseSide('left')}
-        pointer={pointerOf('left')}
       />
-      <div
-        aria-hidden
-        className="app-tab__split-divider"
-        style={{
-          width: 1,
-          alignSelf: 'stretch',
-          background: 'hsl(var(--rule))',
-          margin: '6px 0',
-        }}
-      />
+      <button
+        type="button"
+        className="app-tab__split-knob glass glass--rest glass--round"
+        aria-label={t('topTimeline.splitControls')}
+        aria-haspopup="true"
+        onMouseEnter={knob.onMouseEnter}
+        onMouseLeave={knob.onMouseLeave}
+        onClick={knob.onClick}
+      >
+        <BrushIcon name="split" size={12} />
+      </button>
       <SplitSubLabel
         entityType={tab.right.entityType}
         entityId={tab.right.id}
@@ -926,7 +781,6 @@ function SplitTabSlot({
         onClick={() => onSelectSide('right')}
         onPromote={() => onPromoteSide('right')}
         onClose={() => onCloseSide('right')}
-        pointer={pointerOf('right')}
       />
     </div>
   );
@@ -943,7 +797,6 @@ function SplitSubLabel({
   onClick,
   onPromote,
   onClose,
-  pointer,
 }: {
   entityType: TabEntityType;
   entityId: string;
@@ -955,12 +808,10 @@ function SplitSubLabel({
   onClick: () => void;
   onPromote: () => void;
   onClose: () => void;
-  pointer: TabPointerProps;
 }) {
   const { t } = useTranslation();
   return (
     <div
-      {...pointer}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
@@ -1070,7 +921,6 @@ function TabDot({
   isPreview,
   clusterBreak = false,
   onSelect,
-  pointer,
 }: {
   tabKeyValue?: string;
   kind: KindMarkKind;
@@ -1081,7 +931,6 @@ function TabDot({
   isPreview: boolean;
   clusterBreak?: boolean;
   onSelect: () => void;
-  pointer: TabPointerProps;
 }) {
   return (
     <button
@@ -1095,7 +944,6 @@ function TabDot({
       data-preview={isPreview ? 'true' : undefined}
       className={`app-tab-dot${isActive ? ' is-active' : ''}`}
       onClick={onSelect}
-      {...pointer}
     >
       <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} hollow={isPreview} />
     </button>

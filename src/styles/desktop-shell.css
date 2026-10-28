@@ -739,3 +739,30 @@
   --flow-gx: -70px;
   --flow-gy: -110px;
 }
+
+/* Between a split's two halves: a small round glass knob. Resting the pointer
+   on it (or clicking it) shows the split's own operations — take a pane out,
+   swap them, undo the split. A plain pill has no hover card; a tab is split by
+   dragging it onto the left or right half of the paper. */
+.app-tab__split-knob {
+  --brush-icon-size: 12px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  margin: 0 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  cursor: pointer;
+}
+
+.app-tab__split-knob:hover,
+.app-tab__split-knob:focus-visible,
+.app-tab__split-knob[aria-expanded='true'] {
+  color: hsl(var(--ink-1));
+}

@@ -11,7 +11,7 @@ describe('desktop create-tab return ownership', () => {
     const timeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const createClick = timeline.slice(
       timeline.indexOf('aria-label={t(\'topTimeline.newEntity\')}'),
-      timeline.indexOf('{tabHover && hoveredTab &&'),
+      timeline.indexOf('{knobHover && knobSplit &&'),
     );
 
     expect(timeline).toContain('isProjectHomePathname(projectId, location.pathname)');
