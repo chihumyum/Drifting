@@ -5,7 +5,7 @@ import { EditorMainArea } from '../../components/editor/EditorMainArea';
 import { EditorFindPanel } from '../../components/search/EditorFindPanel';
 import { WorkspaceCornerControls } from '../../components/workspaceChrome/WorkspaceCornerControls';
 import { WorkspaceSidebarToggles } from '../../components/workspaceChrome/WindowControlButtons';
-import { TimelineToggle, WorkspaceTabDock } from '../../components/workspaceChrome/WorkspaceTabDock';
+import { StageTimelineToggle, WorkspaceTabDock } from '../../components/workspaceChrome/WorkspaceTabDock';
 import { DesktopBottomTimeline } from './views/DesktopBottomTimeline';
 import { TimelineDrawer } from './TimelineDrawer';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
@@ -23,8 +23,9 @@ interface DesktopWorkspaceProps {
  * the desk column keeps a transparent window-drag strip, and under the paper
  * the optional Bottom Timeline. The open-document dots run along the paper's
  * top on the traffic-light line; the timeline toggle rests in the paper's
- * lower-right corner beside the editor's toolbar, so it rides above the
- * timeline when it is open.
+ * lower-right corner to the left of the editor's toolbar (the stage keeps a
+ * fallback for when no editor is showing), so it rides above the timeline
+ * when it is open.
  */
 export const DesktopWorkspace = memo(function DesktopWorkspace({
   bottomTimelineHidden,
@@ -43,7 +44,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
           <div className="workspace-stage desktop-workspace-stage">
             <EditorMainArea />
             <WorkspaceTabDock />
-            <TimelineToggle />
+            <StageTimelineToggle />
           </div>
           <TimelineDrawer open={!bottomTimelineHidden}>
             <DesktopBottomTimeline />

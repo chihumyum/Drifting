@@ -186,6 +186,8 @@
   display: block;
   flex: none;
   background: color-mix(in srgb, var(--sand-c, hsl(var(--ink-3))), #ffffff var(--pigment-lift));
+  -webkit-mask-image: var(--sand-mask);
+  mask-image: var(--sand-mask);
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
@@ -195,21 +197,21 @@
   pointer-events: none;
 }
 
-.sand--blob-0 { -webkit-mask-image: url('../assets/design/sand/blob-0.png'); mask-image: url('../assets/design/sand/blob-0.png'); }
-.sand--blob-1 { -webkit-mask-image: url('../assets/design/sand/blob-1.png'); mask-image: url('../assets/design/sand/blob-1.png'); }
-.sand--blob-2 { -webkit-mask-image: url('../assets/design/sand/blob-2.png'); mask-image: url('../assets/design/sand/blob-2.png'); }
-.sand--blob-3 { -webkit-mask-image: url('../assets/design/sand/blob-3.png'); mask-image: url('../assets/design/sand/blob-3.png'); }
-.sand--blob-4 { -webkit-mask-image: url('../assets/design/sand/blob-4.png'); mask-image: url('../assets/design/sand/blob-4.png'); }
-.sand--blob-5 { -webkit-mask-image: url('../assets/design/sand/blob-5.png'); mask-image: url('../assets/design/sand/blob-5.png'); }
-.sand--dash { -webkit-mask-image: url('../assets/design/sand/mark-dash.png'); mask-image: url('../assets/design/sand/mark-dash.png'); }
-.sand--square { -webkit-mask-image: url('../assets/design/sand/mark-square.png'); mask-image: url('../assets/design/sand/mark-square.png'); }
-.sand--corner { -webkit-mask-image: url('../assets/design/sand/mark-corner.png'); mask-image: url('../assets/design/sand/mark-corner.png'); }
-.sand--spiral { -webkit-mask-image: url('../assets/design/sand/mark-spiral.png'); mask-image: url('../assets/design/sand/mark-spiral.png'); }
-.sand--wave { -webkit-mask-image: url('../assets/design/sand/mark-wave.png'); mask-image: url('../assets/design/sand/mark-wave.png'); }
-.sand--slip { -webkit-mask-image: url('../assets/design/sand/mark-slip.png'); mask-image: url('../assets/design/sand/mark-slip.png'); }
-.sand--star { -webkit-mask-image: url('../assets/design/sand/mark-star.png'); mask-image: url('../assets/design/sand/mark-star.png'); }
-.sand--hl { -webkit-mask-image: url('../assets/design/sand/hl.png'); mask-image: url('../assets/design/sand/hl.png'); }
-.sand--ul { -webkit-mask-image: url('../assets/design/sand/ul.png'); mask-image: url('../assets/design/sand/ul.png'); }
+.sand--blob-0 { --sand-mask: url('../assets/design/sand/blob-0.png'); }
+.sand--blob-1 { --sand-mask: url('../assets/design/sand/blob-1.png'); }
+.sand--blob-2 { --sand-mask: url('../assets/design/sand/blob-2.png'); }
+.sand--blob-3 { --sand-mask: url('../assets/design/sand/blob-3.png'); }
+.sand--blob-4 { --sand-mask: url('../assets/design/sand/blob-4.png'); }
+.sand--blob-5 { --sand-mask: url('../assets/design/sand/blob-5.png'); }
+.sand--dash { --sand-mask: url('../assets/design/sand/mark-dash.png'); }
+.sand--square { --sand-mask: url('../assets/design/sand/mark-square.png'); }
+.sand--corner { --sand-mask: url('../assets/design/sand/mark-corner.png'); }
+.sand--spiral { --sand-mask: url('../assets/design/sand/mark-spiral.png'); }
+.sand--wave { --sand-mask: url('../assets/design/sand/mark-wave.png'); }
+.sand--slip { --sand-mask: url('../assets/design/sand/mark-slip.png'); }
+.sand--star { --sand-mask: url('../assets/design/sand/mark-star.png'); }
+.sand--hl { --sand-mask: url('../assets/design/sand/hl.png'); }
+.sand--ul { --sand-mask: url('../assets/design/sand/ul.png'); }
 
 /* Sand that arrives fades in rather than appearing at once. */
 @keyframes sand-arrive { from { opacity: 0; transform: scale(0.8); filter: blur(1.6px); } }
@@ -241,6 +243,21 @@
 .kind-mark--loose > .sand { opacity: calc(0.55 * var(--pigment)); }
 .kind-mark--material > .sand { left: 4px; top: 0; width: 6px; height: 14px; }
 .kind-mark--all > .sand { inset: 0; opacity: 1; background: hsl(var(--accent)); }
+
+/* Hollow (a preview tab in the dock): only the sand along the mark's edge,
+   inside a seal's rim or around a stroke (scripts/design-assets/hollowgen.py). */
+.kind-mark--hollow > .sand--blob-0 { --sand-mask: url('../assets/design/sand/blob-0-hollow.png'); }
+.kind-mark--hollow > .sand--blob-1 { --sand-mask: url('../assets/design/sand/blob-1-hollow.png'); }
+.kind-mark--hollow > .sand--blob-2 { --sand-mask: url('../assets/design/sand/blob-2-hollow.png'); }
+.kind-mark--hollow > .sand--blob-3 { --sand-mask: url('../assets/design/sand/blob-3-hollow.png'); }
+.kind-mark--hollow > .sand--blob-4 { --sand-mask: url('../assets/design/sand/blob-4-hollow.png'); }
+.kind-mark--hollow > .sand--blob-5 { --sand-mask: url('../assets/design/sand/blob-5-hollow.png'); }
+.kind-mark--hollow > .sand--square { --sand-mask: url('../assets/design/sand/mark-square-hollow.png'); }
+.kind-mark--hollow > .sand--star { --sand-mask: url('../assets/design/sand/mark-star-hollow.png'); }
+.kind-mark--hollow > .sand--dash { --sand-mask: url('../assets/design/sand/mark-dash-hollow.png'); }
+.kind-mark--hollow > .sand--slip { --sand-mask: url('../assets/design/sand/mark-slip-hollow.png'); }
+.kind-mark--hollow > .sand--spiral { --sand-mask: url('../assets/design/sand/mark-spiral-hollow.png'); }
+.kind-mark--hollow > .sand--corner { --sand-mask: url('../assets/design/sand/mark-corner-hollow.png'); }
 
 /* ── Brush icons ────────────────────────────────────────────────────
  * Icons drawn with the same sand brush, one colour, tinted by the

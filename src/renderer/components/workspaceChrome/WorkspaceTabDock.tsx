@@ -4,6 +4,7 @@ import { formatAccelerator } from '../../lib/shortcuts';
 import { useShortcutsStore } from '../../store/shortcuts-store';
 import { useUiStore } from '../../store/ui-store';
 import { TopTimeline } from '../topBars/TopTimeline/TopTimeline';
+import { useTimelineToggleHostedByEditor } from '../editor/editor-corner';
 import { BrushIcon } from '../ui/BrushIcon';
 import { GhostIconButton } from '../ui/GhostIconButton';
 
@@ -84,10 +85,17 @@ export function WorkspaceTabDock() {
 
 /**
  * Shows or hides the Bottom Timeline under the paper (⌘J): a round glass
- * button in the paper's lower-right corner, beside (not part of) the
- * editor's own toolbar.
+ * button in the paper's lower-right corner, to the left of (not part of)
+ * the editor's own toolbar. The right-hand editor pane carries it in its
+ * corner (EditorTopBar); the stage shows its own only while no visible
+ * editor does.
  */
-export function TimelineToggle() {
+export function StageTimelineToggle() {
+  const hostedByEditor = useTimelineToggleHostedByEditor();
+  return hostedByEditor ? null : <TimelineToggle stage />;
+}
+
+export function TimelineToggle({ stage = false }: { stage?: boolean }) {
   const { t } = useTranslation();
   const hidden = useUiStore((state) => state.bottomTimelineHidden);
   const toggle = useUiStore((state) => state.toggleBottomTimelineHidden);
@@ -96,7 +104,7 @@ export function TimelineToggle() {
   return (
     <GhostIconButton
       glass="round"
-      className="workspace-timeline-toggle glass--rest"
+      className={`workspace-timeline-toggle glass--rest${stage ? ' workspace-timeline-toggle--stage' : ''}`}
       aria-pressed={!hidden}
       aria-label={label}
       title={`${label} · ${formatAccelerator(accelerator)}`}

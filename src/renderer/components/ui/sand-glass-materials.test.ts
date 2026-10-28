@@ -1,5 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KindMark } from './KindMark';
 import { kindMarkOfTarget } from './kind-mark';
@@ -24,13 +26,29 @@ describe('kind marks', () => {
     expect(seal('n1')).toContain('--sand-c:#a85443');
   });
 
-  it('lights a busy mark in the accent and keeps loose drifts fainter', () => {
+  it('lights a busy mark in the accent, hollows a preview and keeps loose drifts fainter', () => {
     const busy = renderToStaticMarkup(createElement(KindMark, { kind: 'element', color: '#5f9483', busy: true }));
     expect(busy).toContain('agent-glyph-busy');
     expect(busy).toContain('--sand-c:hsl(var(--accent))');
+    const hollow = renderToStaticMarkup(createElement(KindMark, { kind: 'chapter', seed: 'n1', hollow: true }));
+    expect(hollow).toContain('kind-mark--hollow');
     const loose = renderToStaticMarkup(createElement(KindMark, { kind: 'drift', loose: true }));
     expect(loose).toContain('kind-mark--loose');
     expect(loose).toContain('sand--spiral');
+  });
+});
+
+describe('hollow marks', () => {
+  it('has a generated hollow mask for every shape a tab can show', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/styles/materials.css'), 'utf8');
+    for (const [shape, file] of [
+      ...[0, 1, 2, 3, 4, 5].map((index) => [`blob-${index}`, `blob-${index}`]),
+      ['square', 'mark-square'], ['star', 'mark-star'], ['dash', 'mark-dash'],
+      ['slip', 'mark-slip'], ['spiral', 'mark-spiral'], ['corner', 'mark-corner'],
+    ]) {
+      expect(css).toContain(`.kind-mark--hollow > .sand--${shape} { --sand-mask: url('../assets/design/sand/${file}-hollow.png'); }`);
+      expect(existsSync(resolve(process.cwd(), `src/assets/design/sand/${file}-hollow.png`)), file).toBe(true);
+    }
   });
 });
 

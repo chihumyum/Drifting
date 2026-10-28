@@ -49,7 +49,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 ## Geometry and ownership
 
 - `App.tsx` 只负责应用级 effects/routes；桌面工作区（`DesktopWorkspace`）只有一个 `app-row`：`Sidebar(left) + app-mid + Sidebar(right)`，三栏从窗口顶边贯通到底边。没有 `AppTopbar`、文档 Tab 栏、editor top bar 或 `BottomStatusBar`。
-- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Timeline，装在 `TimelineDrawer` 里滑入滑出）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`），右下角承载时间线开关（`TimelineToggle`）与每个编辑器自己的工具栏；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
+- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Timeline，装在 `TimelineDrawer` 里滑入滑出）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
 - 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整。
 - 顶层工作面使用直角或最多 `2px` 圆角。更大的圆角不用于页面模块、栏、dock 或内容列表容器。
 - Settings 与三个 Super Views 使用同样的平面化 shell：边缘对齐、无 shell gap、无 shell 圆角或阴影，以分隔线表达区域边界。
@@ -60,10 +60,10 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 - **侧栏开关常驻两角**。左栏开关在左上角（macOS 在 `94px` 红绿灯 inset 处），右栏开关在右上角：各是一个 `28px` 圆形玻璃按钮（新月砂笔图标），固定不动，侧栏像抽屉一样从它下面滑出、收回（`420ms`）。侧栏展开时，该栏第一（左）/最后（右）个半栏的 Tab 行在开关下方留一个同宽空位（`SidebarHeaderChrome` 内的 `SidebarToggleSlot`，`data-sidebar-header-chrome`），并计入侧栏最小宽度。Tab 行高等于窗口控件行高 `--window-titlebar-height`，本身也是窗口拖动面。全局搜索没有按钮，只用快捷键。
 - **账户在左栏底部**。头像与名字（打开账户菜单）、Project Home（鸟居）与通知（风铃）组成左栏底部的一个 cell（`WorkspaceAccountCell`），横跨双栏；Home 与通知是圆形玻璃按钮。账户菜单与通知中心从这里向上展开。左栏收起时这个 cell 不显示——左栏是主要工作区，预期大多时候常驻。
-- **标签页在稿纸顶部**。文档 Tab 栏移除，已打开的文档是稿纸顶边居中的一排砂笔记号（与红绿灯、侧栏开关同一中线 `y = 21px`；Preview 更淡），类型变化处留出较宽间隔；分屏标签是相连的两个记号。悬停或键盘聚焦时玻璃落在记号上：每个记号原地长成药丸，砂迹在玻璃下散开淡去，药丸的玻璃边取该记号的颜色，随后出现标题和关闭按钮（沿用原宽度分配、拖拽排序、右键菜单与双击固定）。药丸行左端是锁（按下后无人悬停也保持药丸），右端是 Universal 新建 `+`；两者不随药丸横向滚动。一侧侧栏收起时整行避开两个上角。
-- **时间线开关在稿纸右下角**。Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）是稿纸右下角单独的圆形玻璃按钮，紧挨但不并入稿纸工具栏；打开后时间线从稿纸下方滑上来，可拖高度。
+- **标签页在稿纸顶部**。文档 Tab 栏移除，已打开的文档是稿纸顶边居中的一排砂笔记号（与红绿灯、侧栏开关同一中线 `y = 21px`；Preview 是空心记号，只留沿形状边缘的一圈砂，由 `hollowgen.py` 从实心记号生成），类型变化处留出较宽间隔；分屏标签是相连的两个记号。悬停或键盘聚焦时玻璃落在记号上：每个记号原地长成药丸，砂迹在玻璃下散开淡去，药丸的玻璃边取该记号的颜色，随后出现标题和关闭按钮（沿用原宽度分配、拖拽排序、右键菜单与双击固定）。药丸行左端是锁（按下后无人悬停也保持药丸），右端是 Universal 新建 `+`；两者不随药丸横向滚动。一侧侧栏收起时整行避开两个上角。
+- **时间线开关在稿纸右下角**。Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）是稿纸右下角单独的圆形玻璃按钮，在稿纸工具栏左侧，紧挨但不并入工具栏；分屏时只出现在右侧 pane 的角落；打开后时间线从稿纸下方滑上来，可拖高度。
 - **全书视图在对应实体旁边**。通览全书在章节面板头部、要素全景在要素面板头部、TODO 与素材库在素材库面板工具栏、全屏故事图谱在 Bottom Timeline 头部、项目主页在左栏底部的账户 cell；这些入口都是圆形玻璃按钮。`SUPER` 触发器与底部视图行移除，Super View header 内的切换器保留；某侧栏收起时，其面板里的入口随之隐藏，快捷键仍可用。
-- **稿纸的操作留在稿纸上**。editor top bar 与面包屑移除；情节规划、要素图片、大纲、引用链接、批注（带数量）与三点菜单组成 `.editor-bar` 横排玻璃药丸，药丸内每个按钮是圆形玻璃并使用砂笔图标，停在每个编辑器 pane 的右下角、时间线开关左侧，分屏时各有一组，不被侧栏收走。三点菜单向上展开。
+- **稿纸的操作留在稿纸上**。editor top bar 与面包屑移除；情节规划、要素图片、大纲、引用链接、批注（带数量）与三点菜单组成 `.editor-bar` 横排玻璃药丸，药丸内每个按钮是圆形玻璃并使用砂笔图标，停在每个编辑器 pane 的右下角（右侧 pane 的工具栏左边是时间线开关），分屏时各有一组，不被侧栏收走。三点菜单向上展开。
 - **字数暂时移除**。原桌面左下角的当前上下文字数与今日字数已移除（`WorkspaceWordCount` 删除）；统计面板仍提供字数。
 - **红灯关闭项目**。项目打开时，窗口关闭按钮不再关窗：renderer 通过 `window_set_close_returns_to_shelf` 打开开关后，Rust 端拦下 `CloseRequested` 并发出 `drifting:close-to-shelf`，renderer 回到书架；书架上的关闭按钮仍按原流程 flush 并关窗。`⌘W` 关当前标签，`⇧⌘W`（`closeProject`）关项目回书架。项目名不再常驻显示。
 - **轻重分工**。Bottom Timeline 承担日常的轻量结构操作；调整故事线之间的相对关系、幕边界、时间点和叙事顺序等较重的操作在故事图谱 Super View 中进行。章节 panel 保持按故事线分组的列表。
@@ -102,7 +102,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 文档 Tab 切换和自动滚动是即时的；拖拽重排仍保留窄插入线，因为它表达 drop 位置而不是选中动画。
 - 桌面完整 Settings 左侧 Section 点击后直接定位到目标内容，不播放纵向滚动动画，避免 scroll-spy 沿途快速切换左栏选中态；用户手动滚动右侧内容时仍由 scroll-spy 同步当前 Section。这个即时定位约束只属于桌面完整 Settings，不改变移动设置页及其他共享滚动面的行为。
 - 桌面完整 Settings 的分类下增加二级目录，始终全部展开，不提供折叠操作；搜索匹配一级分类、二级标题及已显示的设置项名称、说明和提示正文，忽略大小写并归一化空白；正文命中保留所属分类与分组，点击结果即时定位。没有二级标题的面板及面板开头的说明也可命中一级分类；隐藏内容和输入框的值不参与搜索。子项直接取自已挂载、可见的设置分区标题，随语言与条件内容更新，不复制一份分区文案或显示未提供的功能。点击子项即时定位，手动滚动同步两级当前项；选中态通过背景与字重表达，不绘制左侧强调竖线。键盘可逐项聚焦、激活，当前项提供 `aria-current`。`desktop-settings-section-navigation.acceptance.test.ts` 覆盖搜索、索引更新与定位行为；`node scripts/run-settings-search.mjs` 生成真实浏览器中的正文搜索、动态内容与跳转证据，`--check` 校验证据与源码一致；实际 Tauri 窗口观感另行验收。
-- 侧栏开合与 Bottom Timeline 开合是工作区保留的结构性动效，时长均为 `420ms`，移动中各自的线条流出玻璃；`prefers-reduced-motion: reduce` 时禁用滑动与玻璃流动。
+- 侧栏开合、侧栏单双栏切换与 Bottom Timeline 开合是工作区保留的结构性动效，时长均为 `420ms`，移动中各自的线条流出玻璃。分成双栏时，中线从新半栏那一侧推入；合成单栏时，被关掉的半栏留下一块空白占位向外收起，中线随之推出（`DesktopSidebarLayout`），不会一帧跳变；`prefers-reduced-motion: reduce` 时禁用滑动与玻璃流动。
 - Bottom Timeline 的章节是有重量的玻璃块：静止时是稿纸底色加故事线颜色的玻璃边，占满泳道高度；拖动时只有手里这一块移动，横向是临界阻尼的弹簧（略落后于手、不回弹），跨泳道时停在原泳道，直到指针越过下一泳道的中线才一次吸附过去并带极轻微的回弹，放下的位置就是它所在的泳道（`chapter-lane-drag.ts` 的 `weighted`）。泳道名前是故事线的砂笔短横；时间线上不再画砂笔笔记。
 
 ## Dense content and semantic controls

@@ -9,6 +9,8 @@ import {
 import { useSettingsStore } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { BrushIcon } from '../ui/BrushIcon';
+import { TimelineToggle } from '../workspaceChrome/WorkspaceTabDock';
+import { useEditorCornerHostsTimelineToggle } from './editor-corner';
 import { MarkdownShareDialog } from './MarkdownShareDialog';
 import type { MarkdownShareTarget } from '../../services/export/markdown-share';
 
@@ -122,81 +124,86 @@ export function EditorTopBar({
   const { t } = useTranslation();
   const [shareRequest, setShareRequest] = useState<MarkdownShareTarget | null>(null);
   const showMenu = Boolean(editorType && onMenuAction);
+  const hostsTimelineToggle = useEditorCornerHostsTimelineToggle();
 
   return (
-    // The document's own controls: one horizontal glass pill in the paper's
-    // lower-right corner, each control a round glass button inside it.
-    <div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">
-      {plotPlannerToggle && (
-        <button
-          type="button"
-          className={`editor-bar__icon glass glass--round editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-          title={
-            plotPlannerToggle.enabled
-              ? t('editorTopBar.actions.collapsePlotPlanner')
-              : t('editorTopBar.actions.expandPlotPlanner')
-          }
-          aria-pressed={plotPlannerToggle.enabled}
-          onClick={plotPlannerToggle.onToggle}
-        >
-          <BrushIcon name="plan-go" />
-        </button>
-      )}
-      {imageEntry}
-      {((editorType && outlineToggle) || referenceLinkToggle) && (
-        <div className="editor-bar__toggle-group">
-          {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
-          {referenceLinkToggle && (
-            <button
-              type="button"
-              className={`editor-bar__icon glass glass--round editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-              title={
-                referenceLinkToggle.enabled
-                  ? t('editorTopBar.actions.hideReferenceLinks')
-                  : t('editorTopBar.actions.showReferenceLinks')
-              }
-              aria-pressed={referenceLinkToggle.enabled}
-              onClick={referenceLinkToggle.onToggle}
-            >
-              <BrushIcon name="knot-links" />
-            </button>
-          )}
-        </div>
-      )}
-      {commentToggle && (
-        <button
-          type="button"
-          className={`editor-bar__icon glass glass--round editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-          title={
-            commentToggle.disabled
-              ? t('editorTopBar.actions.noComments')
-              : commentToggle.enabled
-                ? t('editorTopBar.actions.hideComments')
-                : t('editorTopBar.actions.showComments')
-          }
-          aria-pressed={commentToggle.enabled}
-          disabled={commentToggle.disabled}
-          onClick={commentToggle.onToggle}
-        >
-          <BrushIcon name="comment" />
-          {commentToggle.count > 0 && (
-            <span className="editor-bar__badge">{commentToggle.count}</span>
-          )}
-        </button>
-      )}
-      {showMenu && editorType && onMenuAction && (
-        <EditorBarMenu
-          editorType={editorType}
-          onAction={onMenuAction}
-          nodeWritingStatus={nodeWritingStatus}
-          nodeStatusKind={nodeStatusKind}
-          menuHeader={menuHeader}
-          hiddenActions={hiddenMenuActions}
-          translate={t}
-          onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
-        />
-      )}
-      {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
+    // The paper's lower-right corner: the Bottom Timeline toggle (on the
+    // right-hand pane only), then the document's own controls as one
+    // horizontal glass pill, each control a round glass button inside it.
+    <div className="editor-corner">
+      {hostsTimelineToggle && <TimelineToggle />}
+      <div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">
+        {plotPlannerToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon glass glass--round editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={
+              plotPlannerToggle.enabled
+                ? t('editorTopBar.actions.collapsePlotPlanner')
+                : t('editorTopBar.actions.expandPlotPlanner')
+            }
+            aria-pressed={plotPlannerToggle.enabled}
+            onClick={plotPlannerToggle.onToggle}
+          >
+            <BrushIcon name="plan-go" />
+          </button>
+        )}
+        {imageEntry}
+        {((editorType && outlineToggle) || referenceLinkToggle) && (
+          <div className="editor-bar__toggle-group">
+            {editorType && outlineToggle && <OutlineRailToggle translate={t} />}
+            {referenceLinkToggle && (
+              <button
+                type="button"
+                className={`editor-bar__icon glass glass--round editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+                title={
+                  referenceLinkToggle.enabled
+                    ? t('editorTopBar.actions.hideReferenceLinks')
+                    : t('editorTopBar.actions.showReferenceLinks')
+                }
+                aria-pressed={referenceLinkToggle.enabled}
+                onClick={referenceLinkToggle.onToggle}
+              >
+                <BrushIcon name="knot-links" />
+              </button>
+            )}
+          </div>
+        )}
+        {commentToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon glass glass--round editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={
+              commentToggle.disabled
+                ? t('editorTopBar.actions.noComments')
+                : commentToggle.enabled
+                  ? t('editorTopBar.actions.hideComments')
+                  : t('editorTopBar.actions.showComments')
+            }
+            aria-pressed={commentToggle.enabled}
+            disabled={commentToggle.disabled}
+            onClick={commentToggle.onToggle}
+          >
+            <BrushIcon name="comment" />
+            {commentToggle.count > 0 && (
+              <span className="editor-bar__badge">{commentToggle.count}</span>
+            )}
+          </button>
+        )}
+        {showMenu && editorType && onMenuAction && (
+          <EditorBarMenu
+            editorType={editorType}
+            onAction={onMenuAction}
+            nodeWritingStatus={nodeWritingStatus}
+            nodeStatusKind={nodeStatusKind}
+            menuHeader={menuHeader}
+            hiddenActions={hiddenMenuActions}
+            translate={t}
+            onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
+          />
+        )}
+        {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
+      </div>
     </div>
   );
 }

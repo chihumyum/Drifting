@@ -31,7 +31,7 @@ describe('workspace surface language acceptance', () => {
     // Timeline, which slides in its own drawer. The word count is gone.
     const stage = block(centerColumn, 'className="workspace-stage desktop-workspace-stage"', '</div>');
     expect(stage).toContain('<WorkspaceTabDock />');
-    expect(stage).toContain('<TimelineToggle />');
+    expect(stage).toContain('<StageTimelineToggle />');
     expect(workspace).not.toContain('WorkspaceWordCount');
     expect(centerColumn).toContain('<TimelineDrawer open={!bottomTimelineHidden}>');
     expect(centerColumn).toContain('<DesktopBottomTimeline />');
@@ -130,7 +130,12 @@ describe('workspace surface language acceptance', () => {
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
 
     expect(dock).toContain('expanded={hovered || focused || held || locked}');
-    expect(dock).toContain('export function TimelineToggle()');
+    expect(dock).toContain('export function TimelineToggle({ stage = false }: { stage?: boolean })');
+    // The toggle sits to the left of the right-hand pane's toolbar; the stage
+    // shows its own only while no visible editor corner carries it.
+    expect(dock).toContain('return hostedByEditor ? null : <TimelineToggle stage />;');
+    // A preview tab's mark is hollow.
+    expect(topTimeline).toContain("hollow={isPreview}");
     expect(dock).toContain('className="workspace-tab-dock__lock glass glass--rest glass--round"');
     expect(dock).toContain('aria-pressed={locked}');
     expect(dock).toContain('aria-pressed={!hidden}');
@@ -186,11 +191,17 @@ describe('workspace surface language acceptance', () => {
     const indexCss = source('src/styles/index.css');
 
     expect(topBar).toContain('<div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">');
+    // The corner: the timeline toggle (right-hand pane only), then the pill.
+    const corner = block(topBar, '<div className="editor-corner">', '<div className="editor-bar');
+    expect(corner).toContain('{hostsTimelineToggle && <TimelineToggle />}');
+    expect(block(indexCss, '.editor-corner {', '}')).toContain('position: absolute;');
+    const mainArea = source('src/renderer/components/editor/EditorMainArea.tsx');
+    expect(mainArea.match(/<TrailingEditorPaneContext\.Provider value>/g)).toHaveLength(2);
     expect(topBar).not.toContain('EditorCrumb');
     expect(topBar).not.toContain('editor-crumbs');
     expect(topBar).toContain('placement="top-end"');
     const bar = block(indexCss, '.editor-bar {', '}');
-    expect(bar).toContain('position: absolute;');
+    expect(bar).toContain('position: relative;');
     expect(bar).toContain('flex-direction: row;');
     expect(bar).toContain('background: var(--glass-fill);');
     for (const view of ['NodeEditorView', 'ElementEditorView', 'CategoryEditorView', 'StorylineEditorView', 'AllChaptersEditorView', 'MaterialEditorView']) {
@@ -362,6 +373,19 @@ describe('workspace surface language acceptance', () => {
     expect(columnDivider).toContain(
       "width: 0.5, height: '100%', background: 'var(--workspace-local-border)'",
     );
+  });
+
+  it('pushes the pane divider in and out with glass when a sidebar splits or merges', () => {
+    const layout = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
+    const shell = source('src/styles/desktop-shell.css');
+
+    expect(layout).toContain("className={panel.id === entering ? 'sidebar-pane--entering' : undefined}");
+    expect(layout).toContain('<SidebarPaneGhost grow={leaving.grow} />');
+    expect(layout).toContain('trackGlassFlow(shell, () => divider.getBoundingClientRect().left);');
+    // Grow factors never sum below 1 mid-animation, or flexbox leaves a gap.
+    expect(layout).toContain('flex: `${grow * GROW_SCALE} 1 0`,');
+    expect(block(shell, '@keyframes sidebar-pane-in {', '}')).toContain('flex-grow: 0;');
+    expect(block(shell, '@keyframes sidebar-pane-out {', '}')).toContain('flex-grow: 0;');
   });
 
   it('shows only the chapter count until the first storyline exists', () => {

@@ -86,7 +86,7 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
 /**
  * The workspace's open documents, docked along the paper's top. At rest every
- * tab is the sand mark of its kind in its entity colour (fainter while still a
+ * tab is the sand mark of its kind in its entity colour (hollow while still a
  * preview); while hovered or focused glass lands on the marks: each grows
  * into a pill whose rim takes the mark's colour, its sand spreading away
  * under the glass. The lock (`leading`) and the create button stay put while
@@ -1053,7 +1053,7 @@ function TabDot({
         onContextMenu(event.clientX, event.clientY);
       }}
     >
-      <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} />
+      <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} hollow={isPreview} />
     </button>
   );
 }

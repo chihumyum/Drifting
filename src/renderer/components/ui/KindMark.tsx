@@ -30,6 +30,7 @@ export function KindMark({
   color,
   seed = '',
   loose = false,
+  hollow = false,
   busy = false,
   title,
   className,
@@ -41,6 +42,8 @@ export function KindMark({
   seed?: string;
   /** A drift outside any group is drawn fainter. */
   loose?: boolean;
+  /** Only the rim of the mark: a tab still in preview. */
+  hollow?: boolean;
   /** Agent working on it: the mark takes the accent and pulses. */
   busy?: boolean;
   title?: string;
@@ -55,6 +58,7 @@ export function KindMark({
         'kind-mark',
         `kind-mark--${kind}`,
         loose ? 'kind-mark--loose' : '',
+        hollow ? 'kind-mark--hollow' : '',
         busy ? 'agent-glyph-busy' : '',
         className ?? '',
       ].filter(Boolean).join(' ')}

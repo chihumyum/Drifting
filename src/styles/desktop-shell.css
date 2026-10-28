@@ -289,9 +289,6 @@
   transform: scale(1.35);
 }
 
-.app-tab-dot[data-preview] > .kind-mark {
-  opacity: 0.45;
-}
 
 .app-tab-dot-pair {
   display: inline-flex;
@@ -436,13 +433,19 @@
 }
 
 /* ─── The paper's lower-right corner ──────────────────────────────────
-   The Bottom Timeline toggle is its own round glass button; beside it,
-   separate, the editor's toolbar is one horizontal glass pill. */
-.workspace-timeline-toggle.ghost-icon-button {
+   The Bottom Timeline toggle is its own round glass button; to its right,
+   separate, the editor's toolbar is one horizontal glass pill
+   (`.editor-corner` in index.css). With no editor showing, the stage keeps
+   the toggle alone in the same corner. */
+.workspace-timeline-toggle--stage.ghost-icon-button {
   position: absolute;
   z-index: 20;
   right: 16px;
   bottom: 16px;
+}
+
+.workspace-timeline-toggle.ghost-icon-button {
+  flex-shrink: 0;
   width: 36px;
   height: 36px;
   --glass-rim: 10px;
@@ -623,6 +626,49 @@
 .sidebar-pane-divider__flow {
   left: 3px;
   --flow-gx: -55px;
+}
+
+/* Splitting a sidebar pushes the divider in from the side of the arriving
+   pane; merging folds the closed pane's place away under it. The lines bleed
+   glass while the divider moves (DesktopSidebarLayout). */
+.sidebar-pane--entering {
+  animation: sidebar-pane-in 420ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+@keyframes sidebar-pane-in {
+  from {
+    flex-grow: 0;
+    min-width: 0;
+  }
+}
+
+.sidebar-pane-ghost {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--workspace-ui-bg);
+  animation: sidebar-pane-out 420ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.sidebar-pane-ghost__head {
+  height: var(--window-titlebar-height);
+  border-bottom: 0.5px solid var(--workspace-local-border);
+}
+
+@keyframes sidebar-pane-out {
+  to {
+    flex-grow: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-pane--entering,
+  .sidebar-pane-ghost {
+    animation: none;
+  }
+
+  .sidebar-pane-ghost {
+    display: none;
+  }
 }
 
 .sidebar-account-cell__flow {

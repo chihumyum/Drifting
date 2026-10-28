@@ -2368,6 +2368,7 @@ html[data-shell-mode='mobile'] .review-card-menu .menu-surface__item {
    toolbar remain mounted for state continuity but do not consume the page.
    The paper tools bar's 大纲/便笺 toggles re-admit the two shared rails as
    in-paper overlays, sized for the narrow page. */
+.m-workspace .editor-corner,
 .m-workspace .editor-bar,
 .m-workspace .editor__toc-rail,
 .m-workspace .comment-rail,

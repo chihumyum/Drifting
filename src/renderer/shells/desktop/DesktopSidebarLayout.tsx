@@ -10,6 +10,15 @@ import {
   clampSidebarSplitRatio, sidebarSplitRatioBounds, SIDEBAR_DIVIDER_WIDTH,
   sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
+import { trackGlassFlow } from '../../lib/glass-flow';
+
+// Splitting or merging a sidebar pushes the divider in from (or out to) the
+// side of the pane that arrives or leaves; matches `.sidebar-pane--entering`
+// and `.sidebar-pane-ghost` in desktop-shell.css.
+const SPLIT_ANIM_MS = 420;
+// Flex grow factors are scaled up so they never sum below 1 while a pane
+// grows from or folds to zero: below 1 flexbox leaves the rest empty.
+const GROW_SCALE = 100;
 
 /** Each stable pane owns its tab strip and body, including duplicate tabs. */
 export function DesktopSidebarLayout({
@@ -33,6 +42,36 @@ export function DesktopSidebarLayout({
   const setSplitAvailable = useUiStore((s) => s.setSidebarSplitAvailable);
   const focusPane = useUiStore((s) => s.focusSidebarPane);
   const stopDragging = useRef<() => void>(() => {});
+
+  // The arriving pane grows from nothing; a closed pane leaves a blank ghost
+  // in its place that folds away, so the divider slides rather than jumps.
+  const ids = panels.map((panel) => panel.id).join(' ');
+  const [shownIds, setShownIds] = useState(ids);
+  const [entering, setEntering] = useState<SidebarPaneId | null>(null);
+  const [leaving, setLeaving] = useState<{ index: number; grow: number } | null>(null);
+  if (ids !== shownIds) {
+    const shown = shownIds.split(' ');
+    if (panels.length === 2 && shown.length === 1) {
+      setEntering(panels.find((panel) => !shown.includes(panel.id))?.id ?? null);
+      setLeaving(null);
+    } else if (panels.length === 1 && shown.length === 2) {
+      const index = shown.findIndex((id) => id !== panels[0].id);
+      setLeaving({ index, grow: index === 0 ? ratio : 1 - ratio });
+      setEntering(null);
+    }
+    setShownIds(ids);
+  }
+  useEffect(() => {
+    if (!entering && !leaving) return undefined;
+    const shell = rootRef.current?.closest<HTMLElement>('.sidebar-shell');
+    const divider = rootRef.current?.querySelector<HTMLElement>('[role="separator"]');
+    if (shell && divider) trackGlassFlow(shell, () => divider.getBoundingClientRect().left);
+    const timer = window.setTimeout(() => {
+      setEntering(null);
+      setLeaving(null);
+    }, SPLIT_ANIM_MS);
+    return () => window.clearTimeout(timer);
+  }, [entering, leaving]);
 
   useLayoutEffect(() => {
     const node = rootRef.current;
@@ -84,34 +123,53 @@ export function DesktopSidebarLayout({
       background: 'var(--workspace-ui-bg)',
     }}>
       <div ref={bodyRef} style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
-        {panels.map((panel, index) => (
-          <Fragment key={panel.id}>
-            {index > 0 && <ColumnDivider
+        {panels.map((panel, index) => {
+          const divider = (
+            <ColumnDivider
               ratio={ratio}
               bounds={ratioBounds}
               onChange={(next) => setRatio(clampSidebarSplitRatio(next, minimumWidth, width))}
               onMouseDown={onDividerMouseDown}
-            />}
-            <div data-sidebar-pane={panel.id} data-sidebar-panel={panel.tab}
-              onPointerDownCapture={() => focusPane(side, panel.id)}
-              onFocusCapture={() => focusPane(side, panel.id)}
-              style={{
-              flex: `${split ? (index === 0 ? ratio : 1 - ratio) : 1} 1 0`,
-              minWidth: split ? minimumWidth : 0,
-              minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            }}>
-              <SidebarPaneContext.Provider value={panel.id}>
-                <SidebarPanelStateContext.Provider
-                  key={`${projectId}:${panel.tab}`}
-                  value={projectId ? sidebarPanelKey({ projectId, side, paneId: panel.id, tab: panel.tab }) : null}>
-                  {panel.header}
-                  {panel.content}
-                </SidebarPanelStateContext.Provider>
-              </SidebarPaneContext.Provider>
-            </div>
-          </Fragment>
-        ))}
+            />
+          );
+          const grow = split ? (index === 0 ? ratio : 1 - ratio) : leaving ? 1 - leaving.grow : 1;
+          return (
+            <Fragment key={panel.id}>
+              {leaving?.index === 0 && <SidebarPaneGhost grow={leaving.grow} />}
+              {(index > 0 || leaving?.index === 0) && divider}
+              <div data-sidebar-pane={panel.id} data-sidebar-panel={panel.tab}
+                className={panel.id === entering ? 'sidebar-pane--entering' : undefined}
+                onPointerDownCapture={() => focusPane(side, panel.id)}
+                onFocusCapture={() => focusPane(side, panel.id)}
+                style={{
+                flex: `${grow * GROW_SCALE} 1 0`,
+                minWidth: split ? minimumWidth : 0,
+                minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              }}>
+                <SidebarPaneContext.Provider value={panel.id}>
+                  <SidebarPanelStateContext.Provider
+                    key={`${projectId}:${panel.tab}`}
+                    value={projectId ? sidebarPanelKey({ projectId, side, paneId: panel.id, tab: panel.tab }) : null}>
+                    {panel.header}
+                    {panel.content}
+                  </SidebarPanelStateContext.Provider>
+                </SidebarPaneContext.Provider>
+              </div>
+              {leaving?.index === 1 && divider}
+              {leaving?.index === 1 && <SidebarPaneGhost grow={leaving.grow} />}
+            </Fragment>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+/** Where a closed pane was: blank chrome folding away under the divider. */
+function SidebarPaneGhost({ grow }: { grow: number }) {
+  return (
+    <div className="sidebar-pane-ghost" aria-hidden="true" style={{ flex: `${grow * GROW_SCALE} 1 0` }}>
+      <div className="sidebar-pane-ghost__head" />
     </div>
   );
 }

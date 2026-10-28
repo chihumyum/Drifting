@@ -814,14 +814,20 @@ html[data-shell-mode='mobile'] .app-mid {
   gap: 24px;
 }
 
-.editor-bar {
-  /* The document's own controls: one horizontal glass pill resting in the
-     lower-right corner of its paper, beside the Bottom Timeline toggle and
-     outside the flow so prose starts at the top. */
+.editor-corner {
+  /* The paper's lower-right corner, outside the flow so prose starts at the
+     top: the Bottom Timeline toggle, then the document's own controls. */
   position: absolute;
-  right: 60px;
+  right: 16px;
   bottom: 16px;
   z-index: 15; /* above the semantic TOC rail and margin notes */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.editor-bar {
+  /* The document's own controls: one horizontal glass pill. */
+  position: relative;
   display: flex;
   flex-direction: row;
   align-items: center;

@@ -39,6 +39,7 @@ import {
   EditorSurfaceLifecycleProvider,
   ImmediateEditorSurfaceReady,
 } from './EditorSurfaceLifecycle';
+import { TrailingEditorPaneContext } from './editor-corner';
 import { TextInputLookupStop } from './TextInputLookupStop';
 
 const PROJECT_HOME_SURFACE_KEY = 'project-home';
@@ -330,7 +331,9 @@ function WorkspaceSurface({
         isCommandActive={isInteractive}
         onReadyChange={reportReady}
       >
-        <PaneRenderer leaf={tab} projectId={projectId} />
+        <TrailingEditorPaneContext.Provider value>
+          <PaneRenderer leaf={tab} projectId={projectId} />
+        </TrailingEditorPaneContext.Provider>
       </EditorSurfaceLifecycleProvider>
     );
   }
@@ -468,7 +471,9 @@ function SplitView({
           isCommandActive={isSurfaceInteractive && split.focused === 'right'}
           onReadyChange={setRightReady}
         >
-          <PaneRenderer leaf={split.right} projectId={projectId} />
+          <TrailingEditorPaneContext.Provider value>
+            <PaneRenderer leaf={split.right} projectId={projectId} />
+          </TrailingEditorPaneContext.Provider>
         </EditorSurfaceLifecycleProvider>
       </PaneWrapper>
     </div>
