@@ -2507,8 +2507,6 @@
     "menu": {
       "closePane": "关闭此格",
       "extractTab": "拆出为独立 Tab",
-      "extractLeft": "拆出左侧",
-      "extractRight": "拆出右侧",
       "swapPanes": "左右互换",
       "unsplit": "解除分屏",
       "close": "关闭",

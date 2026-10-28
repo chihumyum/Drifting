@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatAccelerator } from '../../lib/shortcuts';
 import { useShortcutsStore } from '../../store/shortcuts-store';
@@ -25,7 +25,6 @@ export function WorkspaceTabDock() {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [held, setHeld] = useState(false);
   const locked = useUiStore((state) => state.tabDockLocked);
   const toggleLocked = useUiStore((state) => state.toggleTabDockLocked);
   // With a sidebar closed its toggle floats over the desk: the row keeps
@@ -38,7 +37,6 @@ export function WorkspaceTabDock() {
     collapseTimer.current = null;
   };
   useEffect(() => clearTimer, []);
-  const onHoldExpanded = useCallback((next: boolean) => setHeld(next), []);
   const lockLabel = t(locked ? 'topTimeline.dockUnlock' : 'topTimeline.dockLock');
 
   return (
@@ -60,8 +58,7 @@ export function WorkspaceTabDock() {
     >
       <div className="workspace-tab-dock__tabs">
         <TopTimeline
-          expanded={hovered || focused || held || locked}
-          onHoldExpanded={onHoldExpanded}
+          expanded={hovered || focused || locked}
           leading={(
             <button
               type="button"

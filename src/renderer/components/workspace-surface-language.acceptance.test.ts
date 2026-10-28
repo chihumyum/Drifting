@@ -129,7 +129,7 @@ describe('workspace surface language acceptance', () => {
     const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
 
-    expect(dock).toContain('expanded={hovered || focused || held || locked}');
+    expect(dock).toContain('expanded={hovered || focused || locked}');
     expect(dock).toContain('export function TimelineToggle({ stage = false }: { stage?: boolean })');
     // The toggle sits to the left of the right-hand pane's toolbar; the stage
     // shows its own only while no visible editor corner carries it.

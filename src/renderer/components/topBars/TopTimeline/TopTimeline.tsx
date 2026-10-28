@@ -19,9 +19,6 @@ import {
   type SplitTab,
   type TabEntityType,
 } from '../../../store/ui-store';
-import { HoverCardShell, type HoverActionGroup } from '../../ui/HoverCard';
-import { BrushIcon } from '../../ui/BrushIcon';
-import { useHoverPreview } from '../../../features/entities/hover/entity-hover-card-model';
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
 
@@ -80,10 +77,10 @@ function measureLabelWidth(text: string, fontSize: number): number {
 // (the flex container has gap:6 between *every* adjacent pair — there are
 // two gaps with three children, both must be counted.)
 const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
-// Split tab = two SplitSubLabel slots around the split knob. Each sub-label:
+// Split tab = two SplitSubLabel slots around a short I-shaped divider. Each sub-label:
 //   paddingL 8 + icon 12 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 50 + label
-// Total chrome = 50 + 50 + 20 (knob 18 + its margins) = 120.
-const SPLIT_CHROME_WIDTH = 50 + 50 + 20;
+// Total chrome = 50 + 50 + 9 (divider 1 + its margins) = 109.
+const SPLIT_CHROME_WIDTH = 50 + 50 + 9;
 
 
 /**
@@ -94,10 +91,8 @@ const SPLIT_CHROME_WIDTH = 50 + 50 + 20;
  * under the glass. The lock (`leading`) and the create button stay put while
  * the pills scroll.
  */
-export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
+export function TopTimeline({ expanded = true, leading }: {
   expanded?: boolean;
-  /** Keeps the dock open while a split's operations card is showing. */
-  onHoldExpanded?: (held: boolean) => void;
   /** Rendered before the pills while expanded, outside their overflow. */
   leading?: ReactNode;
 } = {}) {
@@ -110,9 +105,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   const openCreateTab = useUiStore((s) => s.openCreateTab);
   const closeWorkspaceTab = useDesktopTabClose();
   const closeSplitSide = useUiStore((s) => s.closeSplitSide);
-  const unsplitTab = useUiStore((s) => s.unsplitTab);
-  const swapSplitPanes = useUiStore((s) => s.swapSplitPanes);
-  const extractFromSplit = useUiStore((s) => s.extractFromSplit);
   const promoteTab = useUiStore((s) => s.promoteTab);
   const selectPresentation = useMemo(() => createTopTabPresentationSelector(projectId, openTabs), [projectId, openTabs]);
   const presentation = useDataStore(selectPresentation);
@@ -123,16 +115,8 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
   const [containerWidth, setContainerWidth] = useState(0);
   const [labelFontSize, setLabelFontSize] = useState(14);
   // Pills have no hover card: a tab is split by dragging it onto the left or
-  // right half of the paper. A split tab carries a small knob between its two
-  // halves whose card holds the split's own operations.
-  const {
-    preview: knobHover,
-    onEnter: hoverKnob,
-    onLeave: leaveKnob,
-    dismiss: dismissKnobCard,
-    open: openKnobCard,
-    card: knobCard,
-  } = useHoverPreview<string>();
+  // right half of the paper; the split's own operations live on the editors'
+  // seam (EditorMainArea).
 
   // The strip hugs its tabs so it can sit centred under the paper; the dock
   // around it owns the width the tabs may share.
@@ -146,17 +130,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
     return () => ro.disconnect();
   }, [containerRef]);
 
-  useEffect(() => {
-    onHoldExpanded?.(knobHover !== null);
-  }, [knobHover, onHoldExpanded]);
-
-  // A split closed or unsplit under its card (⌘W, an action) never sends the
-  // mouseleave that would close it, and would hold the dock open.
-  const knobTab = knobHover ? openTabs.find((tab) => tabKey(tab) === knobHover.data) : undefined;
-  const knobSplit = knobTab?.kind === 'split' ? knobTab : null;
-  useEffect(() => {
-    if (knobHover && !knobSplit) dismissKnobCard();
-  }, [knobHover, knobSplit, dismissKnobCard]);
 
   // The portaled probe inherits the same desktop token as visible tabs.
   // Recalculate after a text-size preference change even
@@ -309,42 +282,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
     [projectId, promoteTab],
   );
 
-  // The split knob's card: take either pane out as a tab of its own, swap
-  // them, or undo the split. Closing one pane stays on that pane's ×. Each
-  // operation that can change the active tab follows up with openEntity() so
-  // the URL races EditorShell's own URL→tab sync — without this the URL can
-  // keep pointing at a pane that just left and EditorShell re-adds it.
-  const splitActions = (tab: SplitTab): HoverActionGroup[] => {
-    if (!projectId) return [];
-    const extract = (side: 'left' | 'right') => {
-      const { nextActive } = extractFromSplit(projectId, tab.id, side);
-      if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-    };
-    return [
-      {
-        key: 'extract',
-        actions: [
-          { key: 'extractLeft', label: t('topTimeline.menu.extractLeft'), onSelect: () => extract('left') },
-          { key: 'extractRight', label: t('topTimeline.menu.extractRight'), onSelect: () => extract('right') },
-        ],
-      },
-      {
-        key: 'arrange',
-        actions: [
-          { key: 'swapPanes', label: t('topTimeline.menu.swapPanes'), onSelect: () => swapSplitPanes(projectId, tab.id) },
-          {
-            key: 'unsplit',
-            label: t('topTimeline.menu.unsplit'),
-            onSelect: () => {
-              const { nextActive } = unsplitTab(projectId, tab.id);
-              if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            },
-          },
-        ],
-      },
-    ];
-  };
-
   return (
     <div
       ref={containerRef}
@@ -461,11 +398,6 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
               const { nextActive } = closeSplitSide(projectId, tab.id, side);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             }}
-            knob={{
-              onMouseEnter: (event) => hoverKnob(key, event.currentTarget),
-              onMouseLeave: leaveKnob,
-              onClick: (event) => openKnobCard(key, event.currentTarget),
-            }}
           />
         );
       })}
@@ -487,26 +419,8 @@ export function TopTimeline({ expanded = true, onHoldExpanded, leading }: {
         <Plus size={16} strokeWidth={1.8} aria-hidden />
       </button>}
 
-      {knobHover && knobSplit && (
-        <HoverCardShell
-          anchor={knobHover.anchor}
-          placement="top-center"
-          width={316}
-          label={t('topTimeline.splitControls')}
-          pointer={knobCard}
-          actions={splitActions(knobSplit)}
-          onDismiss={dismissKnobCard}
-        />
-      )}
     </div>
   );
-}
-
-/** The split knob reports the pointer, and a click, to the strip's split card. */
-interface SplitKnobProps {
-  onMouseEnter: (event: React.MouseEvent<HTMLElement>) => void;
-  onMouseLeave: () => void;
-  onClick: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 function CreateTabSlot({
@@ -706,8 +620,6 @@ interface SplitSlotProps {
   onSelectSide: (side: 'left' | 'right') => void;
   onPromoteSide: (side: 'left' | 'right') => void;
   onCloseSide: (side: 'left' | 'right') => void;
-  /** Between the halves: its card holds the split's own operations. */
-  knob: SplitKnobProps;
 }
 
 function SplitTabSlot({
@@ -723,9 +635,7 @@ function SplitTabSlot({
   onSelectSide,
   onPromoteSide,
   onCloseSide,
-  knob,
 }: SplitSlotProps) {
-  const { t } = useTranslation();
   return (
     <div
       role="tab"
@@ -759,17 +669,7 @@ function SplitTabSlot({
         onPromote={() => onPromoteSide('left')}
         onClose={() => onCloseSide('left')}
       />
-      <button
-        type="button"
-        className="app-tab__split-knob glass glass--rest glass--round"
-        aria-label={t('topTimeline.splitControls')}
-        aria-haspopup="true"
-        onMouseEnter={knob.onMouseEnter}
-        onMouseLeave={knob.onMouseLeave}
-        onClick={knob.onClick}
-      >
-        <BrushIcon name="split" size={12} />
-      </button>
+      <span aria-hidden className="app-tab__split-divider" />
       <SplitSubLabel
         entityType={tab.right.entityType}
         entityId={tab.right.id}

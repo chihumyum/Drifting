@@ -132,13 +132,19 @@ describe('shared menu surface style', () => {
     for (const owner of [
       'src/renderer/components/BottomTimeline/ActRail.tsx',
       'src/renderer/components/timeline/TimelinePin.tsx',
-      'src/renderer/components/topBars/TopTimeline/TopTimeline.tsx',
       'src/renderer/features/library/LibraryItemCard.tsx',
       'src/renderer/features/library/MaterialFolderTree.tsx',
     ]) {
       expect(source(owner), owner).toContain('<HoverCardShell');
     }
     expect(source('src/renderer/features/comments/CommentSourceHoverCard.tsx')).toContain('<HoverCardActions');
+    // Plain tab pills have no card; a split's own operations unfold from the
+    // grip on the editors' seam.
+    expect(source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx')).not.toContain('HoverCard');
+    const seam = source('src/renderer/components/editor/EditorMainArea.tsx');
+    expect(seam).toContain('className="editor-split-seam__grip"');
+    expect(seam).toContain("t('topTimeline.menu.swapPanes')");
+    expect(seam).toContain("t('topTimeline.menu.unsplit')");
 
     // The editor's selection actions float over the selection as one bar.
     const bar = source('src/renderer/features/editor/editor-selection-bar.ts');

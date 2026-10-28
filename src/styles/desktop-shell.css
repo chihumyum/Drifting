@@ -740,29 +740,129 @@
   --flow-gy: -110px;
 }
 
-/* Between a split's two halves: a small round glass knob. Resting the pointer
-   on it (or clicking it) shows the split's own operations — take a pane out,
-   swap them, undo the split. A plain pill has no hover card; a tab is split by
-   dragging it onto the left or right half of the paper. */
-.app-tab__split-knob {
-  --brush-icon-size: 12px;
-  display: grid;
+/* Between a split's two halves: a short I-shaped hairline. The split's own
+   operations live on the editors' seam, not on the pill. */
+.app-tab__split-divider {
   flex: none;
-  place-items: center;
   align-self: center;
-  width: 18px;
-  height: 18px;
-  margin: 0 1px;
+  width: 1px;
+  height: 12px;
+  margin: 0 4px;
+  background: hsl(var(--ink-1) / 0.18);
+}
+
+/* The seam between two split editors (EditorMainArea's PaneDivider): drag it
+   to resize. A small I-shaped grip sits in its middle; resting on it unfolds
+   the split's own operations to its right (swap, unsplit) while the grip stays
+   as the drag handle, and leaving folds them back. */
+.editor-split-seam {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  width: 5px;
+  background: hsl(var(--rule));
+  cursor: col-resize;
+  transition: background 0.15s ease;
+}
+
+.editor-split-seam:hover {
+  background: hsl(var(--accent) / 0.25);
+}
+
+.editor-split-seam__grip-group {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-6px, -50%);
+}
+
+/* A 12px-wide target around a 4px bar. */
+.editor-split-seam__grip {
+  position: relative;
+  flex: none;
+  width: 12px;
+  height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
   background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  cursor: col-resize;
+}
+
+.editor-split-seam__grip::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 4px;
+  width: 4px;
+  border-radius: 2px;
+  background: hsl(var(--ink-3));
+  transition: background 0.15s ease, top 0.15s ease, bottom 0.15s ease;
+}
+
+.editor-split-seam__grip-group[data-open='true'] .editor-split-seam__grip::before {
+  top: 2px;
+  bottom: 2px;
+  background: hsl(var(--ink-1));
+}
+
+.editor-split-seam__options {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  white-space: nowrap;
+  opacity: 0;
+  filter: blur(2px);
+  transform: translateX(-6px);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease,
+    filter 110ms ease,
+    visibility 0s linear 110ms;
+}
+
+.editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {
+  opacity: 1;
+  filter: blur(0);
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease,
+    visibility 0s;
+}
+
+.editor-split-seam__option {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 12.5px);
   cursor: pointer;
 }
 
-.app-tab__split-knob:hover,
-.app-tab__split-knob:focus-visible,
-.app-tab__split-knob[aria-expanded='true'] {
+.editor-split-seam__option:hover,
+.editor-split-seam__option:focus-visible {
   color: hsl(var(--ink-1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-split-seam__options,
+  .editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {
+    transition: none;
+    transform: none;
+    filter: none;
+  }
 }

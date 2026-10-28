@@ -2507,8 +2507,6 @@
     "menu": {
       "closePane": "Close pane",
       "extractTab": "Extract as tab",
-      "extractLeft": "Extract left",
-      "extractRight": "Extract right",
       "swapPanes": "Swap panes",
       "unsplit": "Unsplit",
       "close": "Close",
