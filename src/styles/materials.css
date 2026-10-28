@@ -398,10 +398,10 @@
  * A list cell (`.sand-cell`) has no hover wash. Under the pointer its
  * outline, all four sides, becomes a hairline of flowing glass in the
  * cell's colour (--cell-c): one ring cut from one texture, so no side is
- * heavier than another. Selected (`.is-selected`), the brush leaves the
- * cell's mark and goes round it once; the frame fades out whole when the
- * selection moves on. `.is-settled` shows an existing selection without
- * drawing it (a panel built with the cell already selected). */
+ * heavier than another. Selected (`.is-selected`), the brush leaves beside
+ * the cell's mark and goes round it once: a stroke drawn for this cell's
+ * size on a canvas (`.cell-frame`, SandFrame, lib/sand-frame.ts), a new one
+ * every time; the frame fades out whole when the selection moves on. */
 :where(.sand-cell) { position: relative; }
 
 .sand-cell > .cell-ring {
@@ -428,49 +428,30 @@
 .sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }
 .sand-cell.is-selected > .cell-ring { opacity: 0; }
 
-@property --cell-sweep {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
+/* The frame box is the cell grown 2px each side and 1px top and bottom;
+   the canvas adds SAND_FRAME_PAD (5px) round it for the stroke. The canvas
+   paints in its own `color`. */
 .sand-cell > .cell-frame {
-  --cell-sweep: 0deg;
   position: absolute;
-  inset: -1px -2px;
+  top: -6px;
+  left: -7px;
   z-index: 1;
+  width: calc(100% + 14px);
+  height: calc(100% + 12px);
   pointer-events: none;
-  transform: scaleX(-1);
-  background: color-mix(in srgb, var(--cell-c, hsl(var(--ink-3))), #ffffff var(--pigment-lift));
+  color: color-mix(in srgb, var(--cell-c, hsl(var(--ink-3))), #ffffff var(--pigment-lift));
   mix-blend-mode: var(--pigment-blend);
-  -webkit-mask-image: url('../assets/design/sand/frame.png'), conic-gradient(from 90deg at calc(100% - var(--cell-frame-origin, 22px)) 50%, #000 var(--cell-sweep), transparent 0);
-  mask-image: url('../assets/design/sand/frame.png'), conic-gradient(from 90deg at calc(100% - var(--cell-frame-origin, 22px)) 50%, #000 var(--cell-sweep), transparent 0);
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
   opacity: 0;
-  transition: opacity 0.3s ease-out, --cell-sweep 0s linear 0.32s;
+  transition: opacity 0.3s ease-out;
 }
 
 .sand-cell.is-selected > .cell-frame {
   opacity: var(--pigment);
-  --cell-sweep: 361deg;
-  transition: --cell-sweep 0.38s cubic-bezier(0.4, 0.1, 0.3, 1) 0.06s, opacity 0.06s ease-out;
-}
-
-.sand-cell.is-selected.is-settled > .cell-frame { transition: opacity 0.3s ease-out, --cell-sweep 0s; }
-
-/* Compact tiles: a frame drawn for their proportions. */
-.sand-cell--tile > .cell-frame {
-  --cell-frame-origin: 13px;
-  -webkit-mask-image: url('../assets/design/sand/frame-tile.png'), conic-gradient(from 90deg at calc(100% - var(--cell-frame-origin)) 50%, #000 var(--cell-sweep), transparent 0);
-  mask-image: url('../assets/design/sand/frame-tile.png'), conic-gradient(from 90deg at calc(100% - var(--cell-frame-origin)) 50%, #000 var(--cell-sweep), transparent 0);
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .glass::before,
   .sand-cell > .cell-ring { animation: none; }
-  .sand-cell.is-selected > .cell-frame { transition: none; }
   .sand--arrive { animation: none; }
 }

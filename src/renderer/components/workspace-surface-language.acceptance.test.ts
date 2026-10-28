@@ -476,12 +476,12 @@ describe('workspace surface language acceptance', () => {
       'background: var(--workspace-cell-hover-bg);',
     );
     // Every cell is a SandCell: its kind mark, a hairline glass ring under
-    // the pointer and a frame drawn from the mark when selected.
+    // the pointer and a frame drawn beside the mark when selected.
     const sandCell = source('src/renderer/components/ui/SandCell.tsx');
     const materials = source('src/styles/materials.css');
     expect(sandCell).toContain("selected ? 'is-selected' : ''");
     expect(sandCell).toContain('<i className="cell-ring" aria-hidden="true" />');
-    expect(sandCell).toContain('<i className="cell-frame" aria-hidden="true" />');
+    expect(sandCell).toContain('<SandFrame selected={selected} />');
     expect(materials).toContain('.sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }');
     expect(materials).toContain('.sand-cell.is-selected > .cell-frame {');
     expect(chapterPanel).toContain('<KindMark\n            kind="chapter"');

@@ -1,8 +1,9 @@
 """Sand masks for the main-interface prototype (white on alpha).
 
 blob-0..5.png   irregular sand marks: an entity's 印记 (seeded per entity)
-frame.png       dry-brush frame for a list cell, loaded where it starts
-                (right edge, middle) and drier as it goes around
+
+The frame round a selected cell is drawn at run time for the cell's own size
+(src/renderer/lib/sand-frame.ts).
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -50,48 +51,4 @@ def blob(seed, size=96):
 for i in range(6):
     write_png(OUT / f"blob-{i}.png", blob(100 + i))
 
-def frame(w=520, h=76, inset=5, thick=3.2, seed=7):
-    rng = np.random.default_rng(seed)
-    alpha = np.zeros((h, w))
-    x0, y0, x1, y1 = inset, inset, w - inset, h - inset
-    # Path: start at right-middle, go down, along the bottom to the left, up the
-    # left side, along the top, and back down to the start.
-    segs = [((x1, h / 2), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0)),
-            ((x0, y0), (x1, y0)), ((x1, y0), (x1, h / 2))]
-    lengths = [np.hypot(b[0] - a[0], b[1] - a[1]) for a, b in segs]
-    total = sum(lengths)
-    steps = int(total * 2)
-    wob = periodic_noise(steps, 40, rng) - 0.5
-    wid = periodic_noise(steps, 23, rng)
-    yy, xx = np.mgrid[0:h, 0:w].astype(float)
-    acc = 0.0; k = 0
-    for (a, b), L in zip(segs, lengths):
-        n = int(L * 2)
-        for j in range(n):
-            t = j / max(1, n)
-            px = a[0] + (b[0] - a[0]) * t; py = a[1] + (b[1] - a[1]) * t
-            s = (acc + L * t) / total           # 0 at the start, 1 at the end
-            load = 1.0 - 0.55 * s               # the brush dries as it goes
-            nx, ny = -(b[1] - a[1]) / L, (b[0] - a[0]) / L
-            off = wob[k % steps] * 2.0
-            px += nx * off; py += ny * off
-            r = thick * (0.6 + 0.6 * wid[k % steps]) * (0.75 + 0.35 * load)
-            x_lo, x_hi = int(max(0, px - r - 2)), int(min(w, px + r + 3))
-            y_lo, y_hi = int(max(0, py - r - 2)), int(min(h, py + r + 3))
-            sub = np.hypot(xx[y_lo:y_hi, x_lo:x_hi] - px, yy[y_lo:y_hi, x_lo:x_hi] - py)
-            dab = np.clip((r - sub) / 1.2, 0, 1) * load
-            alpha[y_lo:y_hi, x_lo:x_hi] = np.maximum(alpha[y_lo:y_hi, x_lo:x_hi], dab)
-            k += 1
-        acc += L
-    grain = rng.random((h, w))
-    dither = (grain < alpha * 1.1).astype(float) * (0.6 + 0.4 * rng.random((h, w)))
-    out = alpha * 0.4 + dither * 0.6
-    loose = (rng.random((h, w)) < 0.006) & (alpha < 0.05)
-    near = np.zeros_like(alpha, bool)
-    near[inset - 4:inset + 6, :] = True; near[h - inset - 6:h - inset + 4, :] = True
-    near[:, inset - 4:inset + 6] = True; near[:, w - inset - 6:w - inset + 4] = True
-    out = np.where(loose & near, 0.5, out)
-    return out
-
-write_png(OUT / "frame.png", frame())
 print(sorted(p.name for p in OUT.iterdir()))

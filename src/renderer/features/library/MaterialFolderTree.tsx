@@ -24,6 +24,7 @@ import { NoteExcerpt } from './NoteExcerpt';
 import { useStoredLibraryItemVariant } from './library-item-media';
 import { useHoverPreview } from '../entities/hover/entity-hover-card-model';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+import { SandFrame } from '../../components/ui/SandFrame';
 
 const MATERIAL_DRAG = 'application/x-drifting-material';
 const FOLDER_DRAG = 'application/x-drifting-material-folder';
@@ -389,7 +390,6 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         style={{
           paddingLeft: 6 + depth * 14,
           '--cell-c': 'hsl(var(--ink-3))',
-          '--cell-frame-origin': `${6 + depth * 14 + 7 + 2}px`,
         } as CSSProperties}
         draggable={desktop && renamingKey !== entry.key}
         onDragStart={(event) => startDrag(event, entry)}
@@ -429,7 +429,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         />
         {!desktop && <MoreButton label={t('common.more')} onOpen={(event) => openMobileMenu(event, entry)} />}
         <i className="cell-ring" aria-hidden="true" />
-        <i className="cell-frame" aria-hidden="true" />
+        <SandFrame selected={active} />
       </div>
     );
   };

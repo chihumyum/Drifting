@@ -53,15 +53,27 @@ describe('hollow marks', () => {
 });
 
 describe('sand cells', () => {
-  it('fades in a selection that exists when the cell mounts instead of drawing it', () => {
-    const settled = renderToStaticMarkup(createElement(SandCell, { selected: true, color: '#a85443', markCenter: 19 }, 'x'));
-    expect(settled).toContain('sand-cell is-selected is-settled');
-    expect(settled).toContain('--cell-frame-origin:21px');
-    expect(settled).toContain('<i class="cell-ring" aria-hidden="true"></i>');
-    expect(settled).toContain('<i class="cell-frame" aria-hidden="true"></i>');
+  it('carries a frame drawn for the cell only while it is selected', () => {
+    const selected = renderToStaticMarkup(createElement(SandCell, { selected: true, color: '#a85443' }, 'x'));
+    expect(selected).toContain('sand-cell is-selected');
+    expect(selected).toContain('--cell-c:#a85443');
+    expect(selected).toContain('<i class="cell-ring" aria-hidden="true"></i>');
+    expect(selected).toContain('<canvas class="cell-frame" aria-hidden="true"></canvas>');
     const resting = renderToStaticMarkup(createElement(SandCell, { selected: false }, 'x'));
     expect(resting).not.toContain('is-selected');
-    expect(resting).not.toContain('is-settled');
+    expect(resting).not.toContain('cell-frame');
+  });
+
+  it('draws the frame at run time instead of stretching a fixed image', () => {
+    const materials = readFileSync(resolve(process.cwd(), 'src/styles/materials.css'), 'utf8');
+    expect(materials).not.toContain('sand/frame.png');
+    expect(materials).not.toContain('--cell-sweep');
+    for (const file of ['frame', 'frame-tile']) {
+      expect(existsSync(resolve(process.cwd(), `src/assets/design/sand/${file}.png`)), file).toBe(false);
+    }
+    const frame = materials.slice(materials.indexOf('.sand-cell > .cell-frame {'), materials.indexOf('.sand-cell.is-selected > .cell-frame {'));
+    expect(frame).toContain('width: calc(100% + 14px);');
+    expect(frame).toContain('color: color-mix(in srgb, var(--cell-c, hsl(var(--ink-3))), #ffffff var(--pigment-lift));');
   });
 });
 

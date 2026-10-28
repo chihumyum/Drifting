@@ -179,7 +179,6 @@ export function GroupHeaderCell({
       <SandCell
         selected={selected}
         color={color}
-        markCenter={GROUP_CELL_PAD_LEFT + 7}
         className="left-sb-group-header left-sb-group-header--cell"
         onClick={onClick ?? (collapseDisabled ? undefined : onToggleCollapsed)}
         onDoubleClick={onDoubleClick}

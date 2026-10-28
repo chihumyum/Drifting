@@ -25,7 +25,7 @@ import { ElementGroupPicker } from './ElementGroupPicker';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import { ElementIdentityTile } from '../ui/ElementIdentityTile';
 import { KindMark } from '../ui/KindMark';
-import { CELL_MARK_CENTER, CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
+import { CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import {
   useHoverPreview,
   type EntityHoverTarget,
@@ -387,7 +387,6 @@ export function ElementPanel({
         key={element.id}
         selected={selected}
         color={categoryColor}
-        markCenter={CELL_MARK_CENTER}
         style={{
           // Aligned with ChapterPanel renderNodeCard so all three left-bar
           // entity cells share the same row metrics — only the kind mark

@@ -8,8 +8,7 @@ colour of their own, so one mask serves every theme and accent.
 | --- | --- | --- |
 | `glass-thick.png` | `glassgen.py` | Tileable thickness of uneven glass; masks the glass rim and flowing hairlines. |
 | `sand/hl.png`, `sand/ul.png` | `gen.py` | Dry highlight swash and dry underline. |
-| `sand/blob-0..5.png`, `sand/frame.png` | `protogen.py` | Round seals and the cell frame (loaded where it starts, drier as it goes round). |
-| `sand/frame-tile.png` | `protogen.py` `frame(w=180, h=60, inset=4, thick=2.7, seed=11)` | Frame for compact-index tiles. |
+| `sand/blob-0..5.png` | `protogen.py` | Round seals. The frame round a selected cell is not an asset: `src/renderer/lib/sand-frame.ts` draws it for each cell's size. |
 | `sand/frame-box.png` | `glyphgen.py` `frame_box()` | Nine-sliced frame for element categories. |
 | `sand/mark-*.png` | `glyphgen.py` | Kind marks: dash, square, corner, spiral, wave, slip, star. |
 | `sand/*-hollow.png` | `hollowgen.py` | Hollow kind marks for preview tabs, derived from the solid marks above (run it after them). |

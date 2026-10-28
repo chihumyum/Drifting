@@ -12,7 +12,7 @@ import { canonicalWordCount, CHAPTER_ORDER_STRIDE, isChapter } from '../../domai
 import { entityHoverActions } from './entity-hover-actions';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { KindMark } from '../ui/KindMark';
-import { CELL_MARK_CENTER, CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
+import { CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import {
   useHoverPreview,
@@ -329,7 +329,6 @@ export function ChapterPanel({
         key={node.id}
         selected={selected}
         color={stripeColor}
-        markCenter={CELL_MARK_CENTER}
         style={{
           display: 'flex',
           alignItems: 'center',

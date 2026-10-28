@@ -5,9 +5,6 @@ import { AgentChangeIndicator } from '../leftBars/AgentChangeIndicator';
 import { KindMark } from './KindMark';
 import { SandCell } from './SandCell';
 
-/** Tile padding-left 8px plus half of its 10px seal. */
-const TILE_MARK_CENTER = 13;
-
 export type ElementIdentityAgentState = 'busy' | 'added' | 'changed' | null;
 
 interface ElementIdentityTileProps {
@@ -64,10 +61,8 @@ export function ElementIdentityTile({
 
   return (
     <SandCell
-      tile
       selected={selected}
       color={color}
-      markCenter={TILE_MARK_CENTER}
       className="element-identity-tile"
       style={style}
       onClick={onActivate}

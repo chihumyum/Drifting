@@ -283,7 +283,6 @@ export function DriftPanel({
         key={node.id}
         selected={selected}
         color={markColor}
-        markCenter={padLeft + 7}
         style={{
           display: 'flex',
           alignItems: 'center',
