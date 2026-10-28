@@ -510,6 +510,14 @@ impl DevWatchdog {
 }
 
 #[tauri::command]
+pub fn dev_watchdog_process_info(state: tauri::State<'_, DevWatchdog>) -> Value {
+    json!({
+        "nativePid": std::process::id(),
+        "webContentPid": state.sampler.web_content_pid.load(Ordering::Relaxed),
+    })
+}
+
+#[tauri::command]
 pub async fn dev_watchdog_heartbeat(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, DevWatchdog>,

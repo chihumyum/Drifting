@@ -65,6 +65,10 @@ profile's database directory. It reports long renderer stalls even when the
 WebView never recovers, with recent input, editor size, IME state and labelled
 work. On macOS, `logs/stall-samples/` holds native WebView stack samples.
 Absence of one-second stalls does not establish smooth typing or scrolling.
+The optional [native heavy-seed audit collector](renderer-performance/stress-seed-native-audit.md)
+adds bounded React, input/frame, DOM and IPC observations plus owned-process
+RSS/CPU sampling. Its coverage report must distinguish completed native
+journeys from unavailable or unmeasured surfaces.
 
 When implementing a potentially expensive operation, add bounded development
 activity labels (`beginDevActivity`) and, where needed, a focused timing/counter

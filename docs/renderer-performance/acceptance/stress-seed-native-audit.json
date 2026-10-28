@@ -1,0 +1,31 @@
+{
+  "kind": "native_stress_seed_ui_audit",
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-28T19:06:59.264Z",
+  "status": "observations-only-coverage-must-be-reviewed",
+  "source": {
+    "head": "ebb836894a2baaa117c621cd7cca96830f45cd32",
+    "dirty": true,
+    "fingerprint": "f899bd3e9268565fb0111a8bff3b1cc86659735ff18fbf651e3db37d5a0e3261",
+    "files": 2632,
+    "recordedAt": "2026-10-28T19:06:30.991Z"
+  },
+  "artifact": {
+    "mode": "current-isolated-debug",
+    "sha256": "2d0ead41696b1090a38da090738b2812de7b9d060d191f61463defa35ca42311"
+  },
+  "observations": {
+    "samples": 0,
+    "visibleSamples": 0,
+    "inputSamples": 0,
+    "processSamples": 0
+  },
+  "measurement": {
+    "build": "debug-vite-react-strict-mode",
+    "endpoint": "input dispatch to second requestAnimationFrame; not compositor presentation",
+    "componentTimings": "React 19 development Fiber metadata; top 30 by self time per sample; render phase only",
+    "overhead": "observerMs measures the Fiber walk; snapshotMs measures snapshot creation; neither accounts for all instrumentation overhead",
+    "memory": "recorded separately from OS samples; no JavaScript heap API assumption"
+  },
+  "phases": []
+}

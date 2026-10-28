@@ -24,7 +24,7 @@ export const LITE_SEED_INSTANCE = 'seed-lite-v2';
 /** The local-only library file (`store/auth`'s LOCAL_USER_ID). */
 export const LOCAL_LIBRARY_DATABASE = 'drifting-library.db';
 
-const usage = 'Usage: pnpm dev:seed [--lite] [--instance <name>] [--port <number>] [--no-watch] [--print-config]\n'
+const usage = 'Usage: pnpm dev:seed [--lite] [--instance <name>] [--port <number>] [--no-watch] [--performance-audit] [--print-config]\n'
   + 'Starts an isolated local-only profile (default instance "seed-stress-v2"; --lite uses "seed-lite-v2") whose library begins with a synthetic\n'
   + 'project. The first launch of an instance seeds it; choose a new --instance for fresh data.';
 

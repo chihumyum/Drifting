@@ -24,6 +24,7 @@ export function parseWorktreeArguments(args) {
     if (argument === '--help' || argument === '-h') options.help = true;
     else if (argument === '--print-config') options.printConfig = true;
     else if (argument === '--no-watch') options.noWatch = true;
+    else if (argument === '--performance-audit') options.performanceAudit = true;
     else if (argument === '--online') options.online = true;
     else if (argument === '--build-app') options.buildApp = true;
     else if (argument === '--instance' || argument === '--port') {
@@ -69,11 +70,12 @@ export function worktreeAppLocalDataRoot({ platform = process.platform, environm
 }
 
 export function createWorktreePlan({
-  root = defaultRoot, instance = 'default', port, noWatch = false, online = false, buildApp = false,
+  root = defaultRoot, instance = 'default', port, noWatch = false, online = false, buildApp = false, performanceAudit = false,
   baseEnvironment = process.env, platform = process.platform,
 } = {}) {
   if (!instancePattern.test(instance)) throw new Error('Invalid worktree instance name');
   if (buildApp && platform !== 'darwin') throw new Error('--build-app currently supports macOS only');
+  if (performanceAudit && buildApp) throw new Error('--performance-audit requires a Vite development instance');
   const worktreeRoot = realpathSync(root);
   const loaded = createDesktopTauriEnvironment({ baseEnvironment, envFile: path.join(worktreeRoot, '.env.local'), mode: online ? 'online' : 'local' });
   const origin = online ? loaded.DRIFTING_HOSTED_ORIGIN : null;
@@ -159,8 +161,10 @@ export function createWorktreePlan({
   };
   const viteConfigSource = `import { mergeConfig } from 'vite';
 import base from '../../../vite.renderer.config.ts';
+${performanceAudit ? "import { nativePerformanceAuditPlugin } from '../../../scripts/native-performance-audit-plugin.mjs';" : ''}
 export default async env => mergeConfig(await (typeof base === 'function' ? base(env) : base), {
   envDir: false,
+  ${performanceAudit ? `plugins: [nativePerformanceAuditPlugin({ directory: ${JSON.stringify(path.join(profileDirectory, 'performance-audit'))}, origin: ${JSON.stringify(devUrl)} })],` : ''}
   cacheDir: ${JSON.stringify(path.join(profileDirectory, 'vite-cache'))},
   server: { host: '127.0.0.1', port: ${selectedPort}, strictPort: true, hmr: true }
 });
@@ -171,6 +175,7 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
     profileDirectory, databaseDirectory, appLocalDataDirectory, cargoTargetDirectory, devUrl, port: selectedPort,
     keychainService: `Drifting.${identifier}`, ephemeralWebview,
     mode: online ? 'hosted' : 'local-only', ...(online ? { serviceOrigin: origin } : {}), configPath,
+    ...(performanceAudit ? { performanceAudit: true, performanceAuditDirectory: path.join(profileDirectory, 'performance-audit') } : {}),
     ...(buildApp ? { buildApp: true, frontendDirectory,
       appBundlePath: path.join(cargoTargetDirectory, 'debug', 'bundle', 'macos', `Drifting Test ${profileId}.app`) } : {}),
   };
@@ -197,7 +202,7 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
 } = {}) {
   const options = parseWorktreeArguments(args);
   if (options.help) {
-    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
+    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--performance-audit] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --performance-audit collects bounded development telemetry in the private profile. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
     return;
   }
   const plan = createWorktreePlan({ root, baseEnvironment, ...options });

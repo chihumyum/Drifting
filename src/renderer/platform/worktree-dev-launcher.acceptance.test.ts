@@ -96,6 +96,18 @@ describe('isolated worktree development', () => {
     expect(path.isAbsolute(a.environment.DRIFTING_DB_DIR)).toBe(true);
   });
 
+  it('enables performance collection only for an explicitly selected development instance', () => {
+    const root = fixture();
+    const ordinary = createWorktreePlan({ root, baseEnvironment: {} });
+    const measured = createWorktreePlan({ root, baseEnvironment: {}, performanceAudit: true });
+    expect(parseWorktreeArguments(['--performance-audit']).performanceAudit).toBe(true);
+    expect(ordinary.viteConfigSource).not.toContain('nativePerformanceAuditPlugin');
+    expect(measured.viteConfigSource).toContain('nativePerformanceAuditPlugin');
+    expect(measured.manifest.performanceAuditDirectory).toBe(path.join(measured.manifest.profileDirectory, 'performance-audit'));
+    expect(measured.manifest.profileId).toBe(ordinary.manifest.profileId);
+    expect(() => createWorktreePlan({ root, buildApp: true, performanceAudit: true, platform: 'darwin' })).toThrow(/development instance/);
+  });
+
   it('refuses shared state aliases instead of following symlinked data directories', () => {
     const root = fixture();
     symlinkSync(fixture(), path.join(root, '.local-data'), 'dir');
