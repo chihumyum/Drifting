@@ -69,6 +69,7 @@ import {
 import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import '../../../../styles/graph-view.css';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('StoryGraphView');
 log.setLevel(loglevel.levels.WARN);
@@ -1132,22 +1133,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               }
               aria-label={t('storyGraph.spreadAria')}
             >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                aria-hidden
-              >
-                <line x1="3" y1="8" x2="1.5" y2="8" />
-                <line x1="14.5" y1="8" x2="13" y2="8" />
-                <path d="M4 5l-2 3 2 3" />
-                <path d="M12 5l2 3-2 3" />
-                <line x1="7" y1="8" x2="9" y2="8" />
-              </svg>
+              <BrushIcon name="spread" size={11} />
               <span>{t('storyGraph.spread')}</span>
             </button>
 

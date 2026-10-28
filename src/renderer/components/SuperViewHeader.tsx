@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPlatformRuntime } from '../platform/runtime';
 import { requestMobileWorkspaceBack } from '../shells/mobile/workspace/mobile-workspace-back';
 import '../../styles/super-view-header.css';
+import { BrushIcon } from './ui/BrushIcon';
 
 export interface SuperViewHeaderProps {
   /** Optional inline caption (e.g. counts like "3 故事线 · 12 章"). */
@@ -52,7 +52,7 @@ export function SuperViewHeader({
             title={resolvedBackLabel}
             aria-label={resolvedBackLabel}
           >
-            <ArrowLeft size={16} strokeWidth={1.7} aria-hidden="true" />
+            <BrushIcon name="arrow-back" size={16} />
           </button>
         )}
         {navigationSlot}

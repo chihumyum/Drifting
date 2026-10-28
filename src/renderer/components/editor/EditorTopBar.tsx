@@ -1,4 +1,3 @@
-import { Check, Share2 } from 'lucide-react';
 import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -294,7 +293,7 @@ function EditorBarMenu({
               setIsOpen(false);
               onShare();
             }}>
-              <Share2 size={14} aria-hidden="true" />
+              <BrushIcon name="share" size={14} />
               {translate?.('markdownShare.menu') ?? 'Share'}
             </button>
             <div className="menu-surface__divider" />
@@ -325,7 +324,7 @@ function EditorBarMenu({
                     }}
                   >
                     <span>{getWritingStatusLabel(status, translate)}</span>
-                    {active && <Check size={12} />}
+                    {active && <BrushIcon name="check" size={12} />}
                   </button>
                 );
               })}

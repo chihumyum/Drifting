@@ -23,18 +23,9 @@ import {
   type BookNode,
 } from '../domain/book-node';
 import { getPlatformRuntime } from '../platform/runtime';
-import {
-  BookOpen,
-  GitBranch,
-  LayoutDashboard,
-  ListTree,
-  MessageSquareText,
-  NotebookPen,
-  Plus,
-  Settings2,
-} from 'lucide-react';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
+import { BrushIcon } from '../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('ProjectDashboard');
 type DashboardView = 'overview' | 'structure';
@@ -528,7 +519,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
             </div>
             <div className="dash-hero__btns">
               <button className="dash-hero__btn" onClick={openStoryGraph}>
-                <GitBranch size={16} aria-hidden="true" />
+                <BrushIcon name="branch" size={16} />
                 {t('dashboard.actions.storyGraph')}
               </button>
               <button className="dash-hero__btn" onClick={openElementOverview}>
@@ -556,10 +547,10 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
         <div className="dash-view-tabs" role="tablist" aria-label={t('dashboard.hero.projectHome')}>
           {(
             [
-              ['overview', isZh(i18n.language) ? '概览' : 'Overview', LayoutDashboard],
-              ['structure', isZh(i18n.language) ? '结构与设定' : 'Structure', ListTree],
+              ['overview', isZh(i18n.language) ? '概览' : 'Overview', 'ov-folding'],
+              ['structure', isZh(i18n.language) ? '结构与设定' : 'Structure', 'toc-raked'],
             ] as const
-          ).map(([id, label, Icon]) => (
+          ).map(([id, label, icon]) => (
             <button
               key={id}
               type="button"
@@ -568,7 +559,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               className={`dash-view-tab${dashboardView === id ? ' dash-view-tab--active' : ''}`}
               onClick={() => setDashboardView(id)}
             >
-              <Icon size={16} aria-hidden="true" />
+              <BrushIcon name={icon} size={16} />
               {label}
             </button>
           ))}
@@ -577,7 +568,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
             className="dash-view-tabs__settings"
             onClick={() => setDashboardView('structure')}
           >
-            <Settings2 size={16} aria-hidden="true" />
+            <BrushIcon name="dharma-wheel" size={16} />
             {isZh(i18n.language) ? '项目设置' : 'Project settings'}
           </button>
         </div>
@@ -591,11 +582,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               <section className="dash-section dash-section--agent">
                 <div className="dash-section__head">
                   <div className="dash-section__title">
-                    <MessageSquareText
-                      className="dash-section__title-mark"
-                      size={18}
-                      aria-hidden="true"
-                    />
+                    <BrushIcon name="shikigami" size={18} className="dash-section__title-mark" />
                     <span className="dash-section__title-cn">{t('projectAgent.title')}</span>
                     <span className="dash-section__title-en">{t('projectAgent.titleShort')}</span>
                   </div>
@@ -753,7 +740,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                 </div>
                 <div className="dash-section__actions">
                   <button className="dash-section__btn" onClick={openStoryGraph}>
-                    <GitBranch size={15} aria-hidden="true" /> {t('dashboard.actions.storyGraph')}
+                    <BrushIcon name="branch" size={15} /> {t('dashboard.actions.storyGraph')}
                   </button>
                   <button className="dash-section__btn" onClick={openAllChapters}>
                     <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>☰</span> {t('dashboard.actions.allChapters')}
@@ -762,7 +749,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                     className="dash-section__btn dash-section__btn--accent"
                     onClick={handleCreateStoryline}
                   >
-                    <Plus size={15} aria-hidden="true" /> {t('dashboard.actions.newStoryline')}
+                    <BrushIcon name="plus" size={15} /> {t('dashboard.actions.newStoryline')}
                   </button>
                 </div>
               </div>
@@ -858,7 +845,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
 
                 <div className="dash-track dash-track--new" onClick={handleCreateStoryline}>
                   <span className="dash-track--new-glyph">
-                    <Plus size={16} aria-hidden="true" />
+                    <BrushIcon name="plus" size={16} />
                   </span>
                   <span>{t('dashboard.actions.newStorylineLong')}</span>
                 </div>
@@ -888,7 +875,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                       className="dash-section__btn dash-section__btn--accent"
                       onClick={handleCreateCategory}
                     >
-                      <Plus size={15} aria-hidden="true" /> {t('dashboard.actions.newCategory')}
+                      <BrushIcon name="plus" size={15} /> {t('dashboard.actions.newCategory')}
                     </button>
                   </div>
                 </div>
@@ -933,7 +920,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                   })}
                   <div className="dash-cat dash-cat--new" onClick={handleCreateCategory}>
                     <span className="dash-cat--new__glyph">
-                      <Plus size={16} aria-hidden="true" />
+                      <BrushIcon name="plus" size={16} />
                     </span>
                     <span>{t('dashboard.actions.newCategory')}</span>
                   </div>
@@ -944,11 +931,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               <section className="dash-section" style={{ marginBottom: 0 }}>
                 <div className="dash-section__head">
                   <div className="dash-section__title">
-                    <LayoutDashboard
-                      className="dash-section__title-mark"
-                      size={18}
-                      aria-hidden="true"
-                    />
+                    <BrushIcon name="tea" size={18} className="dash-section__title-mark" />
                     <span className="dash-section__title-cn">{t('dashboard.sections.recent')}</span>
                     <span className="dash-section__title-en">
                       {t('dashboard.sections.recentShort')}
@@ -1008,7 +991,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
           <section className="dash-section">
             <div className="dash-section__head">
               <div className="dash-section__title">
-                <Settings2 className="dash-section__title-mark" size={18} aria-hidden="true" />
+                <BrushIcon name="dharma-wheel" size={18} className="dash-section__title-mark" />
                 <span className="dash-section__title-cn">
                   {t('dashboard.sections.writingPlan')}
                 </span>
@@ -1101,7 +1084,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
           <section className="dash-section">
             <div className="dash-section__head">
               <div className="dash-section__title">
-                <BookOpen className="dash-section__title-mark" size={18} aria-hidden="true" />
+                <BrushIcon name="open-book" size={18} className="dash-section__title-mark" />
                 <span className="dash-section__title-cn">
                   {t('dashboard.sections.projectProfile')}
                 </span>
@@ -1127,7 +1110,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
             <section className="dash-section" style={{ marginBottom: 0 }}>
               <div className="dash-section__head">
                 <div className="dash-section__title">
-                  <Settings2 className="dash-section__title-mark" size={18} aria-hidden="true" />
+                  <BrushIcon name="dharma-wheel" size={18} className="dash-section__title-mark" />
                   <span className="dash-section__title-cn">
                     {t('dashboard.sections.projectFacts')}
                   </span>
@@ -1149,7 +1132,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
             <section className="dash-section" style={{ marginBottom: 0 }}>
               <div className="dash-section__head">
                 <div className="dash-section__title">
-                  <ListTree className="dash-section__title-mark" size={18} aria-hidden="true" />
+                  <BrushIcon name="bamboo" size={18} className="dash-section__title-mark" />
                   <span className="dash-section__title-cn">
                     {t('dashboard.sections.storylineTemplate')}
                   </span>
@@ -1178,7 +1161,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
           <section className="dash-section">
             <div className="dash-section__head">
               <div className="dash-section__title">
-                <NotebookPen className="dash-section__title-mark" size={18} aria-hidden="true" />
+                <BrushIcon name="knots" size={18} className="dash-section__title-mark" />
                 <span className="dash-section__title-cn">{t('projectMemory.title')}</span>
                 <span className="dash-section__title-en">PROJECT_MEMORY.md</span>
               </div>

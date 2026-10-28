@@ -1,59 +1,27 @@
-/* ⁂ chapter-end mark and menu. The page ends with three sand seals set as an
-   asterism. On a chapter page the mark is also the chapter's end menu:
-   hovering it (after a brief intent delay), clicking it or focusing it with
-   the keyboard lets the three seals fall into one column, each taking an
-   action beside it — a vertical list centred on the mark, the primary action
-   on the mark's own line. The list overhangs the mark's margins instead of
-   taking space, so the page never shifts; leaving it gathers the seals back.
+/* ⁂ chapter-end menu. The asterism stays the page's quiet ending; hovering it
+   (after a brief intent delay), clicking it or focusing it with the keyboard
+   morphs it into three plain monospace actions on the same line — no pressed
+   wash, no button chrome. ⁂ and the row share one grid cell, so the page never
+   shifts; leaving the row's line morphs ⁂ straight back.
 
-   The seals move (180 ms in, 140 ms back) while the words unblur and slide
-   in just behind them (150 ms, 110 ms back). Rules on the resting state time
-   the return; rules under [data-open] time the opening. The seal of the
-   action under the pointer or keyboard focus takes the accent. */
+   The morph is one simultaneous cross-zoom: ⁂ shrinks, blurs and fades while
+   the actions unblur and unfold slightly outward from it, so neither state
+   ever reads as an empty gap. Rules on the resting state time the return
+   (110 ms); rules under [data-open] time the opening (150 ms). */
 
 /* Doubled class: index.css's .page__ornament spaces the bare glyph and may
    load after this sheet. */
 .page__ornament.page__ornament--menu {
-  --list-half: 44px; /* half the action list's width, measured by ChapterEndMenu */
-  --chapter-end-row: 22px;
-  position: relative;
   display: grid;
   place-items: center;
   letter-spacing: 0;
   text-indent: 0;
 }
-.page__ornament--menu > .page__ornament-trigger {
+.page__ornament--menu > * {
   grid-area: 1 / 1;
 }
 
-/* The asterism: three seals around the mark's centre. */
-.page__ornament-mark {
-  position: relative;
-  display: block;
-  width: 18px;
-  height: 16px;
-  margin: 0 auto;
-  color: hsl(var(--ink-3));
-}
-.page__ornament-seal {
-  --sand-c: currentColor;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  margin: -3px 0 0 -3px;
-  transform: translate(var(--seal-x), var(--seal-y));
-  transition:
-    transform 140ms cubic-bezier(0.4, 0, 0.2, 1),
-    background-color 120ms ease-out;
-}
-.page__ornament-seal[data-seal='finish'] { --seal-x: 0px; --seal-y: -5px; --seal-row: -1; }
-.page__ornament-seal[data-seal='insert'] { --seal-x: -6px; --seal-y: 5px; --seal-row: 0; }
-.page__ornament-seal[data-seal='review'] { --seal-x: 6px; --seal-y: 5px; --seal-row: 1; }
-
 .page__ornament-trigger {
-  position: relative;
   display: inline-grid;
   place-items: center;
   width: 48px;
@@ -67,8 +35,7 @@
   line-height: 1;
   cursor: pointer;
 }
-.page__ornament-trigger[data-finished="true"],
-.page__ornament-trigger[data-finished="true"] .page__ornament-mark {
+.page__ornament-trigger[data-finished="true"] {
   color: hsl(var(--accent));
 }
 .page__ornament-trigger:focus-visible {
@@ -78,34 +45,37 @@
 .page__ornament--menu[data-open="true"] .page__ornament-trigger {
   pointer-events: none;
 }
-
-/* Open: each seal drops to the left edge of its action's row. */
-.page__ornament--menu[data-open="true"] .page__ornament-seal {
-  --sand-c: hsl(var(--ink-3));
-  transform: translate(calc(3px - var(--list-half)), calc(var(--seal-row) * var(--chapter-end-row)));
+.page__ornament > .brush-icon {
+  margin-inline: auto;
+}
+.page__ornament-glyph {
+  display: inline-block;
   transition:
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 120ms ease-out;
+    opacity 110ms ease,
+    transform 110ms ease,
+    filter 110ms ease;
 }
-.page__ornament--menu[data-open="true"]:has([data-action='finish']:is(:hover, :focus-visible):not(:disabled)) [data-seal='finish'],
-.page__ornament--menu[data-open="true"]:has([data-action='insert']:is(:hover, :focus-visible):not(:disabled)) [data-seal='insert'],
-.page__ornament--menu[data-open="true"]:has([data-action='review']:is(:hover, :focus-visible):not(:disabled)) [data-seal='review'] {
-  --sand-c: hsl(var(--accent));
+.page__ornament--menu[data-open="true"] .page__ornament-glyph {
+  opacity: 0;
+  transform: scale(0.6);
+  filter: blur(2px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease;
 }
 
-/* The actions: one column centred on the mark, a seal's width of room on
-   the left of every row, the middle row on the mark's line. */
+/* Three columns centre the primary action exactly where ⁂ stood. */
 .chapter-end-menu {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: 32px;
+  align-items: center;
   width: max-content;
-  transform: translate(-50%, -50%);
+  padding: 4px 0;
   font-family: var(--font-prose-mono, ui-monospace, monospace);
   font-size: var(--ui-font-body, 12.5px);
-  line-height: 18px;
+  line-height: var(--ui-line-body, 18px);
   visibility: hidden;
   pointer-events: none;
   transition: visibility 0s linear 110ms;
@@ -117,38 +87,43 @@
 }
 
 .chapter-end-menu__item {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  height: var(--chapter-end-row);
-  padding: 2px 0 2px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
   border: 0;
   background: transparent;
   color: hsl(var(--ink-3));
   font: inherit;
-  text-align: left;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 60ms ease-out;
-}
-.chapter-end-menu__label {
-  display: inline-block;
   opacity: 0;
   filter: blur(2px);
-  transform: translateX(-6px);
+  /* Folded toward ⁂, slightly low, until the row opens. */
+  transform: translate(var(--fold-x, 0), 0.15em);
   transition:
+    color 60ms ease-out,
     opacity 110ms ease,
     transform 110ms ease,
     filter 110ms ease;
 }
-.page__ornament--menu[data-open="true"] .chapter-end-menu__label {
+.page__ornament--menu[data-open="true"] .chapter-end-menu__item {
   opacity: 1;
   filter: blur(0);
   transform: none;
   transition:
-    opacity 150ms ease 30ms,
-    transform 150ms cubic-bezier(0.22, 1, 0.36, 1) 30ms,
-    filter 150ms ease 30ms;
+    color 60ms ease-out,
+    opacity 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease;
+}
+.chapter-end-menu__item:first-child {
+  justify-self: end;
+  --fold-x: 12px;
+}
+.chapter-end-menu__item:last-child {
+  justify-self: start;
+  --fold-x: -12px;
 }
 .chapter-end-menu__item[data-primary="true"] {
   color: hsl(var(--ink-2));
@@ -159,8 +134,6 @@
 }
 .chapter-end-menu__item:focus-visible {
   outline: none;
-}
-.chapter-end-menu__item:focus-visible .chapter-end-menu__label {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -170,15 +143,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page__ornament-seal,
-  .page__ornament--menu[data-open="true"] .page__ornament-seal,
+  .page__ornament-glyph,
+  .page__ornament--menu[data-open="true"] .page__ornament-glyph,
   .chapter-end-menu,
   .page__ornament--menu[data-open="true"] .chapter-end-menu,
-  .chapter-end-menu__label,
-  .page__ornament--menu[data-open="true"] .chapter-end-menu__label {
+  .chapter-end-menu__item,
+  .page__ornament--menu[data-open="true"] .chapter-end-menu__item {
     transition: none;
   }
-  .chapter-end-menu__label {
+  .chapter-end-menu__item {
     transform: none;
     filter: none;
   }

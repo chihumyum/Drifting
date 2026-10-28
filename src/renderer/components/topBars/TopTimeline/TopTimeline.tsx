@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
+import { BrushIcon } from '../../ui/BrushIcon';
 import { KindMark } from '../../ui/KindMark';
 import { kindMarkOfTarget, type KindMarkKind } from '../../ui/kind-mark';
 import { useTabReorder } from './useTabReorder';
@@ -422,7 +422,7 @@ export function TopTimeline({ expanded = true, leading }: {
           navigate(`/project/${projectId}/new`);
         }}
       >
-        <Plus size={16} strokeWidth={1.8} aria-hidden />
+        <BrushIcon name="plus" />
       </button>}
 
     </div>
@@ -458,7 +458,7 @@ function CreateTabSlot({
       onDoubleClick={onPromote}
       style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
     >
-      <Plus size={14} strokeWidth={1.8} aria-hidden />
+      <BrushIcon name="plus" size={14} />
       <span className="app-tab--create__label">{label}</span>
       <button
         type="button"
@@ -471,7 +471,7 @@ function CreateTabSlot({
           onClose();
         }}
       >
-        <X size={12} strokeWidth={2} />
+        <BrushIcon name="close" size={12} />
       </button>
       <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
@@ -608,7 +608,7 @@ function LeafTabSlot({
           event.currentTarget.style.color = 'hsl(var(--ink-3))';
         }}
       >
-        <X size={12} strokeWidth={2} />
+        <BrushIcon name="close" size={12} />
       </button>
       <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
     </div>
@@ -815,7 +815,7 @@ function SplitSubLabel({
           event.currentTarget.style.color = 'hsl(var(--ink-4))';
         }}
       >
-        <X size={10} strokeWidth={2} />
+        <BrushIcon name="close" size={10} />
       </button>
     </div>
   );

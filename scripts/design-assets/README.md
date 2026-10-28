@@ -14,6 +14,7 @@ colour of their own, so one mask serves every theme and accent.
 | `sand/mark-*.png` | `glyphgen.py` | Kind marks: dash, square, corner, spiral, wave, slip, star. |
 | `sand/*-hollow.png` | `hollowgen.py` | Hollow kind marks for preview tabs, derived from the solid marks above (run it after them). |
 | `icons/split.png` | `glyphgen.py` `icon_split()` | Sidebar split button (a pair of hanging scrolls). |
+| `icons/stones-triad.png` … `icons/gate-out.png`, `icons/close.png` … `icons/folder-plus.png` | `brushicons.py` | Chapter end (⁂ and its three actions), dock lock and new, user menu, and the small action glyphs (close, arrows, chevrons, check, minus, loader, trash, edit, search, copy, stop, folder) and the object and state icons (file, comment-plus, status seals, cloud, checklist, image and the rest), which get finer grain. `comment-plus` is composited onto the committed `comment.png`, `new-category` pastes the committed `sand/mark-corner.png`, and `moon-left-hollow` / `moon-right-hollow` are cleared out of the committed solid moons. The docstring lists each icon; seeds are the ones the author picked. |
 | `icons/*.png` (others) | drawn with the same brush in a design session | Committed as source; regenerate by hand if changed. |
 
 Each script takes an output directory: `python3 glyphgen.py out/`. They need

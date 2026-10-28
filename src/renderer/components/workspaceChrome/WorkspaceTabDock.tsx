@@ -68,10 +68,7 @@ export function WorkspaceTabDock() {
               title={lockLabel}
               onClick={toggleLocked}
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
-                <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
-                <path d={locked ? 'M5.5 7V5a2.5 2.5 0 0 1 5 0v2' : 'M5.5 7V5a2.5 2.5 0 0 1 4.9-.7'} />
-              </svg>
+              <BrushIcon name={locked ? 'lock-shut' : 'lock-open'} size={14} />
             </button>
           )}
         />

@@ -5,28 +5,106 @@ import type { CSSProperties } from 'react';
  * tinted by the control's text colour, so hover and press still change them.
  */
 export type BrushIconName =
+  | 'arrow-back'
+  | 'arrow-forward'
   | 'bamboo'
+  | 'books'
+  | 'branch'
+  | 'brush-laid'
+  | 'brush-lifted'
+  | 'case-dew'
+  | 'case-rise'
+  | 'check'
+  | 'checklist'
+  | 'checklist-plus'
+  | 'chevron-down'
+  | 'chevron-left'
+  | 'chevron-right'
+  | 'chevron-up'
+  | 'close'
+  | 'cloud'
   | 'comment'
+  | 'comment-plus'
+  | 'copy'
+  | 'dharma-wheel'
+  | 'edit'
+  | 'enso'
+  | 'eraser'
+  | 'file-text'
+  | 'folder'
+  | 'folder-open'
+  | 'folder-plus'
   | 'fullscreen'
   | 'furin'
+  | 'gate-in'
+  | 'gate-out'
+  | 'image'
+  | 'image-plus'
+  | 'ink-disc'
+  | 'jizo'
   | 'knot-links'
+  | 'knots'
+  | 'layers'
   | 'lib-curio'
+  | 'loader'
+  | 'locate'
+  | 'lock-open'
+  | 'lock-shut'
+  | 'mic'
+  | 'minus'
   | 'moon-left'
+  | 'moon-left-hollow'
   | 'moon-right'
+  | 'moon-right-hollow'
   | 'more'
+  | 'movable-type'
+  | 'new-category'
+  | 'new-storyline'
+  | 'open-book'
   | 'ov-folding'
   | 'ov-iceberg'
   | 'plan-go'
+  | 'plus'
+  | 'rotate'
+  | 'search'
+  | 'share'
+  | 'shikigami'
+  | 'sort'
   | 'split'
+  | 'spread'
+  | 'sprout'
+  | 'status-done'
+  | 'status-stopped'
+  | 'status-warning'
+  | 'sticky-note'
+  | 'stones-triad'
+  | 'stop'
+  | 'taiji'
+  | 'tea'
   | 'toc-raked'
-  | 'torii';
+  | 'torii'
+  | 'trash'
+  | 'view-grid'
+  | 'view-list'
+  | 'wen';
 
-export function BrushIcon({ name, size = 16 }: { name: BrushIconName; size?: number }) {
+export function BrushIcon({
+  name,
+  size = 16,
+  className,
+  style,
+}: {
+  name: BrushIconName;
+  size?: number;
+  /** Extra classes, e.g. a spinner's rotation or a disclosure chevron's turn. */
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <i
       aria-hidden="true"
-      className={`brush-icon brush-icon--${name}`}
-      style={{ '--brush-icon-size': `${size}px` } as CSSProperties}
+      className={`brush-icon brush-icon--${name}${className ? ` ${className}` : ''}`}
+      style={{ '--brush-icon-size': `${size}px`, ...style } as CSSProperties}
     />
   );
 }

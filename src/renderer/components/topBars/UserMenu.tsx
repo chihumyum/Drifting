@@ -1,20 +1,5 @@
 import { useSettingsPreloadIntent } from '../../features/settings/useSettingsPanels';
 import { useEffect, useRef, useState } from 'react';
-import {
-  Sun,
-  Moon,
-  Monitor,
-  Settings,
-  Keyboard,
-  Upload,
-  BookOpenText,
-  LogIn,
-  LogOut,
-  Languages,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
@@ -29,6 +14,7 @@ import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 import { AccountAvatar } from '../ui/AccountAvatar';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -172,7 +158,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 cursor: 'pointer',
               }}
             >
-              <ChevronLeft size={15} strokeWidth={1.6} />
+              <BrushIcon name="chevron-left" size={15} />
             </button>
             <span
               style={{
@@ -234,9 +220,9 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
         {scope === 'project' && (
           <MenuGroup>
             <MenuItem
-              icon={<Sparkles size={13} />}
+              icon={<BrushIcon name="jizo" size={13} />}
               label="Copilot"
-              tail={<ChevronRight size={13} strokeWidth={1.6} />}
+              tail={<BrushIcon name="chevron-right" size={13} />}
               onClick={() => setActiveSettingsPage('copilot')}
             />
           </MenuGroup>
@@ -245,13 +231,10 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
         <MenuGroup last={scope === 'shelf' && !accountSettingsEnabled}>
           <MenuItem
             icon={
-              themeMode === 'light' ? (
-                <Sun size={13} />
-              ) : themeMode === 'dark' ? (
-                <Moon size={13} />
-              ) : (
-                <Monitor size={13} />
-              )
+              <BrushIcon
+                name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}
+                size={13}
+              />
             }
             label={t('userMenu.theme')}
             tail={
@@ -290,7 +273,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             }
           />
           <MenuItem
-            icon={<Languages size={13} />}
+            icon={<BrushIcon name="wen" size={13} />}
             label={t('userMenu.language')}
             tail={
               <div
@@ -319,7 +302,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
           {scope === 'project' && (
             <>
               <MenuItem
-                icon={<Settings size={13} />}
+                icon={<BrushIcon name="dharma-wheel" size={13} />}
                 label={t('userMenu.settings')}
                 intent={settingsIntent}
                 meta="⌘,"
@@ -329,7 +312,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 }}
               />
               <MenuItem
-                icon={<Keyboard size={13} />}
+                icon={<BrushIcon name="movable-type" size={13} />}
                 label={t('userMenu.keyboardShortcuts')}
                 intent={settingsIntent}
                 meta="⌘K ⌘/"
@@ -342,7 +325,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
           )}
           {scope === 'shelf' && (
             <MenuItem
-              icon={<Settings size={13} />}
+              icon={<BrushIcon name="dharma-wheel" size={13} />}
               label={t('userMenu.settings')}
               intent={settingsIntent}
               onClick={() => {
@@ -357,7 +340,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
           <MenuGroup last>
             <>
               <MenuItem
-                icon={<Upload size={13} />}
+                icon={<BrushIcon name="case-dew" size={13} />}
                 label={t('userMenu.import')}
                 meta="MD · DOCX · TXT"
                 onClick={() => {
@@ -366,7 +349,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 }}
               />
               <MenuItem
-                icon={<BookOpenText size={13} />}
+                icon={<BrushIcon name="books" size={13} />}
                 label={t('userMenu.bookshelf')}
                 onClick={() => {
                   navigate('/');
@@ -380,7 +363,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
         {scope === 'shelf' && accountSettingsEnabled && (
           <MenuGroup last>
             <MenuItem
-              icon={canSignOut ? <LogOut size={13} /> : <LogIn size={13} />}
+              icon={<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />}
               label={signingOut ? t('userMenu.signingOut') : t(canSignOut ? 'userMenu.signOut' : 'settings.hosted.sign_in_sync')}
               onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { handleClose(); openSignIn(); }}
             />

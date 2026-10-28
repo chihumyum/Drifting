@@ -1,8 +1,8 @@
-import { ChevronLeft } from 'lucide-react';
 import { useId, useMemo, useState, type FormEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface ElementCategoryCreateMenuProps {
   anchorRef: RefObject<HTMLButtonElement | null>;
@@ -116,7 +116,7 @@ export function ElementCategoryCreateMenu({
                 cursor: 'pointer',
               }}
             >
-              <ChevronLeft size={13} strokeWidth={1.8} />
+              <BrushIcon name="chevron-left" size={13} />
             </button>
             <div className="menu-surface__section-label" style={{ padding: 0 }}>
               {t('elementCategoryCreateMenu.groupTitle')}

@@ -8,16 +8,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  AlertTriangle,
-  Ban,
-  CheckCircle2,
-  Cloud,
-  Loader2,
-  Sparkles,
-  Trash2,
-  X,
-} from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { BrushIcon } from '../ui/BrushIcon';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
@@ -66,17 +56,13 @@ function sourceLabel(
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
   if (n.state === 'running') {
     return (
-      <Loader2
-        size={size}
-        strokeWidth={2}
-        style={{ animation: 'drift-spin 0.9s linear infinite' }}
-      />
+      <BrushIcon name="loader" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />
     );
   }
-  if (n.state === 'stopped') return <Ban size={size} strokeWidth={2} />;
-  if (n.state === 'failed') return <AlertTriangle size={size} strokeWidth={2} />;
-  if (n.outcome === 'issues') return <AlertTriangle size={size} strokeWidth={2} />;
-  return <CheckCircle2 size={size} strokeWidth={2} />;
+  if (n.state === 'stopped') return <BrushIcon name="status-stopped" size={size} />;
+  if (n.state === 'failed') return <BrushIcon name="status-warning" size={size} />;
+  if (n.outcome === 'issues') return <BrushIcon name="status-warning" size={size} />;
+  return <BrushIcon name="status-done" size={size} />;
 }
 
 function flashToneColor(r: NonNullable<FlashResult>): string {
@@ -87,10 +73,10 @@ function flashToneColor(r: NonNullable<FlashResult>): string {
 }
 
 function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
-  if (result.state === 'stopped') return <Ban size={15} strokeWidth={1.7} />;
-  if (result.state === 'failed') return <AlertTriangle size={15} strokeWidth={1.7} />;
-  if (result.outcome === 'issues') return <AlertTriangle size={15} strokeWidth={1.7} />;
-  return <CheckCircle2 size={15} strokeWidth={1.7} />;
+  if (result.state === 'stopped') return <BrushIcon name="status-stopped" size={15} />;
+  if (result.state === 'failed') return <BrushIcon name="status-warning" size={15} />;
+  if (result.outcome === 'issues') return <BrushIcon name="status-warning" size={15} />;
+  return <BrushIcon name="status-done" size={15} />;
 }
 
 // Foreground color for a notification's state/outcome.
@@ -193,9 +179,9 @@ export function NotificationPill({ opens = 'down' }: {
     iconEl = (
       <span key={`${runningItem.source}-run`} className="notif-blink-icon">
         {runningItem.source === 'hosted-sync' ? (
-          <Cloud size={15} strokeWidth={1.8} />
+          <BrushIcon name="cloud" size={15} />
         ) : (
-          <Sparkles size={14} strokeWidth={1.8} />
+          <BrushIcon name="shikigami" size={14} />
         )}
       </span>
     );
@@ -327,7 +313,7 @@ function NotificationCenter({
               borderRadius: 4,
             }}
           >
-            <Trash2 size={12} /> {t('notifications.clear')}
+            <BrushIcon name="trash" size={12} /> {t('notifications.clear')}
           </button>
         )}
       </div>
@@ -378,9 +364,9 @@ function NotificationCenter({
                     }}
                   >
                     {n.source === 'copilot' ? (
-                      <Sparkles size={9} />
+                      <BrushIcon name="shikigami" size={9} />
                     ) : n.source === 'hosted-sync' ? (
-                      <Cloud size={10} />
+                      <BrushIcon name="cloud" size={10} />
                     ) : (
                       <span style={{ fontStyle: 'italic' }}>◐</span>
                     )}
@@ -453,7 +439,7 @@ function NotificationCenter({
                   alignSelf: 'flex-start',
                 }}
               >
-                <X size={13} />
+                <BrushIcon name="close" size={13} />
               </button>
             </div>
           ))}

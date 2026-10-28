@@ -2,38 +2,23 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BrushIcon, type BrushIconName } from '../ui/BrushIcon';
 import '../../../styles/chapter-end-menu.css';
 
-// ⁂ drawn as three sand seals; on a chapter page each seal belongs to the
-// action it falls beside when the menu opens (chapter-end-menu.css).
-const SEALS = [
-  { action: 'finish', shape: 'blob-0' },
-  { action: 'insert', shape: 'blob-3' },
-  { action: 'review', shape: 'blob-1' },
-] as const;
-
-function AsterismSeals() {
-  return (
-    <span className="page__ornament-mark" aria-hidden="true">
-      {SEALS.map((seal) => (
-        <span key={seal.action} className={`sand sand--${seal.shape} page__ornament-seal`} data-seal={seal.action} />
-      ))}
-    </span>
-  );
-}
-
-/** The ⁂ that closes a page. Drift pages and the touch shell keep only this. */
+/**
+ * The ⁂ that closes a page, drawn as a dry garden's three stones. Drift pages
+ * and the touch shell keep only this.
+ */
 export function ChapterEndOrnament() {
   return (
     <div className="page__ornament" aria-hidden="true">
-      <AsterismSeals />
+      <BrushIcon name="stones-triad" size={20} />
     </div>
   );
 }
@@ -62,6 +47,7 @@ const PRIMARY_INDEX = 1;
 
 interface MenuItem {
   key: string;
+  icon: BrushIconName;
   label: string;
   onSelect: () => void;
   disabled?: boolean;
@@ -70,10 +56,10 @@ interface MenuItem {
 type Opener = 'hover' | 'click' | 'keyboard';
 
 // A chapter page's ⁂ doubles as its end-of-chapter menu. Moving onto it (after
-// a brief intent delay), a click or keyboard focus lets its three seals fall
-// into a column, each beside one plain monospace action; the list is centred
-// on ⁂ with the primary action on ⁂'s line. Leaving the list in any direction
-// gathers the seals straight back. A finished chapter's ⁂ takes the accent.
+// a brief intent delay), a click or keyboard focus cross-fades the mark into
+// three monospace actions on the same line, each led by its brush icon, the
+// primary one centred where ⁂ stood. Leaving that line in any direction fades
+// ⁂ straight back. A finished chapter's ⁂ takes the accent colour.
 export function ChapterEndMenu({
   finished,
   onInsert,
@@ -83,7 +69,6 @@ export function ChapterEndMenu({
 }: ChapterEndMenuProps) {
   const { t } = useTranslation();
   const menuId = useId();
-  const hostRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -111,20 +96,6 @@ export function ChapterEndMenu({
   }, []);
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
-
-  // The seals drop to the list's left edge, so the CSS needs half its width;
-  // it changes with the language and the review action's label.
-  useLayoutEffect(() => {
-    const host = hostRef.current;
-    const row = rowRef.current;
-    if (!host || !row) return;
-    const measure = () => host.style.setProperty('--list-half', `${row.offsetWidth / 2}px`);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -201,12 +172,15 @@ export function ChapterEndMenu({
   const items: MenuItem[] = [
     {
       key: 'finish',
+      // 搁笔 lays the brush down; 提笔 picks it up again.
+      icon: finished ? 'brush-lifted' : 'brush-laid',
       label: finished ? t('chapterEnd.markDraft') : t('chapterEnd.markFinished'),
       onSelect: onToggleFinished,
     },
-    { key: 'insert', label: t('chapterEnd.insertAfter'), onSelect: onInsert },
+    { key: 'insert', icon: 'sprout', label: t('chapterEnd.insertAfter'), onSelect: onInsert },
     {
       key: 'review',
+      icon: 'shikigami',
       label: t(`chapterEnd.review.${reviewState}`),
       onSelect: onReview,
       disabled: reviewState === 'starting',
@@ -239,7 +213,7 @@ export function ChapterEndMenu({
   };
 
   return (
-    <div ref={hostRef} className="page__ornament page__ornament--menu" data-open={open}>
+    <div className="page__ornament page__ornament--menu" data-open={open}>
       <button
         ref={triggerRef}
         type="button"
@@ -254,7 +228,9 @@ export function ChapterEndMenu({
         onClick={handleTriggerClick}
         onKeyDown={handleTriggerKeyDown}
       >
-        <AsterismSeals />
+        <span className="page__ornament-glyph" aria-hidden="true">
+          <BrushIcon name="stones-triad" size={20} />
+        </span>
       </button>
       <div
         ref={rowRef}
@@ -279,7 +255,8 @@ export function ChapterEndMenu({
             tabIndex={-1}
             onClick={(event) => select(item, event.timeStamp)}
           >
-            <span className="chapter-end-menu__label">{item.label}</span>
+            <BrushIcon name={item.icon} size={14} />
+            {item.label}
           </button>
         ))}
       </div>

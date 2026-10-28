@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -81,7 +81,8 @@ describe('workspace surface language acceptance', () => {
     expect(buttons).toContain('<SidebarToggleButton side="left" />');
     expect(buttons).toContain('<SidebarToggleButton side="right" />');
     expect(buttons).toContain('glass="round"');
-    expect(buttons).toContain("name={side === 'left' ? 'moon-left' : 'moon-right'}");
+    // The crescent is inked while its sidebar is open and hollow while it is closed.
+    expect(buttons).toContain("name={`moon-${side}${isOpen ? '' : '-hollow'}`}");
     expect(corners).not.toContain('SidebarToggleButton');
     expect(corners).not.toContain('Account');
     // An open sidebar's tab row keeps an empty slot under its toggle.
@@ -728,13 +729,12 @@ describe('workspace surface language acceptance', () => {
     const edgePopoverCss = source('src/styles/relation-edge-popover.css');
     const libraryCard = source('src/renderer/features/library/LibraryItemCard.tsx');
 
-    expect(sharedHeader).toContain("import { ArrowLeft } from 'lucide-react'");
-    expect(sharedHeader).toContain('<ArrowLeft size={16}');
+    expect(sharedHeader).toContain('<BrushIcon name="arrow-back" size={16} />');
     expect(sharedHeader).not.toContain('super-view-head__back-glyph');
-    expect(settings).toContain('<ArrowLeft size={16}');
+    expect(settings).toContain('<BrushIcon name="arrow-back" size={16} />');
     expect(settings).not.toContain("t('settings.title_en')");
     expect(settings).not.toContain("t('settings.esc_close')");
-    expect(driftPanel).toContain('<X size={14}');
+    expect(driftPanel).toContain('<BrushIcon name="close" size={14} />');
     expect(driftPanel).not.toContain('>×<');
     expect(block(driftCss, '.drift-panel__close {', '.drift-panel.is-open')).toContain(
       'border-radius: 50%;',
@@ -903,5 +903,88 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');
     expect(doc).toContain('Plot Planner 是连续的 mini-Excel');
     expect(doc).toContain('不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收');
+  });
+
+  it('draws the chapter end, dock and user menu icons with the sand brush', () => {
+    const chapterEnd = source('src/renderer/components/editor/ChapterEndOrnament.tsx');
+    const dock = source('src/renderer/components/workspaceChrome/WorkspaceTabDock.tsx');
+    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
+    const brushIcon = source('src/renderer/components/ui/BrushIcon.tsx');
+    const materials = source('src/styles/materials.css');
+    const generator = source('scripts/design-assets/brushicons.py');
+
+    // ⁂ is three stones, on chapter pages and on drift pages alike; its three
+    // actions each lead with an icon.
+    expect(chapterEnd).not.toContain('>⁂<');
+    expect(chapterEnd.match(/<BrushIcon name="stones-triad" size=\{20\} \/>/g)).toHaveLength(2);
+    expect(chapterEnd).toContain("icon: finished ? 'brush-lifted' : 'brush-laid'");
+    expect(chapterEnd).toContain("icon: 'sprout'");
+    expect(chapterEnd).toContain("icon: 'shikigami'");
+    expect(chapterEnd).toContain('<BrushIcon name={item.icon} size={14} />');
+    expect(dock).toContain("<BrushIcon name={locked ? 'lock-shut' : 'lock-open'} size={14} />");
+    expect(dock).not.toContain('<svg');
+    expect(topTimeline).toContain('<BrushIcon name="plus" />');
+    expect(userMenu).not.toContain("from 'lucide-react'");
+    for (const name of ['jizo', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books']) {
+      expect(userMenu).toContain(`<BrushIcon name="${name}" size={13} />`);
+    }
+    expect(userMenu).toContain("name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}");
+    expect(userMenu).toContain("<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />");
+
+    // Every icon is registered, masked and generated from a fixed seed.
+    const names = [
+      'stones-triad', 'brush-laid', 'brush-lifted', 'sprout', 'shikigami', 'lock-open', 'lock-shut', 'plus',
+      'jizo', 'enso', 'ink-disc', 'taiji', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books',
+      'gate-in', 'gate-out',
+      // Small glyphs, finished with fine grain.
+      'close', 'arrow-back', 'arrow-forward', 'chevron-down', 'chevron-right', 'chevron-up', 'chevron-left',
+      'check', 'minus', 'loader', 'trash', 'edit', 'search', 'copy', 'stop', 'folder', 'folder-open', 'folder-plus',
+      // Objects and states.
+      'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
+      'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
+      'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'spread', 'locate', 'new-storyline',
+      'new-category',
+      // A closed sidebar's crescent, cleared from the committed solid one.
+      'moon-left-hollow', 'moon-right-hollow',
+    ];
+    for (const name of names) {
+      expect(brushIcon).toContain(`| '${name}'`);
+      expect(materials).toContain(`.brush-icon--${name} { -webkit-mask-image: url('../assets/design/icons/${name}.png');`);
+      expect(existsSync(resolve(process.cwd(), `src/assets/design/icons/${name}.png`))).toBe(true);
+      // Drawn from a fixed seed, turned/mirrored from one that is, or (the
+      // hollow moons) cleared out of a committed solid one.
+      if (name.endsWith('-hollow')) continue;
+      expect(generator).toMatch(new RegExp(`"${name}": \\(\\w+, \\d+\\)|masks\\["${name}"\\] =|\\(\\d, "${name}"\\)`));
+    }
+    expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)');
+    expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
+
+    // The last hand-drawn SVG icons are brush icons too.
+    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).toContain('<BrushIcon name="spread" size={11} />');
+    const bottomTimeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
+    expect(bottomTimeline).toContain('<BrushIcon name="spread" size={12} />');
+    expect(bottomTimeline).toContain('<BrushIcon name="locate" size={12} />');
+    const subHeader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    expect(subHeader).toContain('icon = <BrushIcon name="new-storyline" size={12} />;');
+    expect(subHeader).toContain('icon = <BrushIcon name="new-category" size={12} />;');
+    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={11} />');
+    expect(source('src/renderer/features/agent/AgentComposerConfig.tsx')).toContain('<BrushIcon name="dharma-wheel" size={16} />');
+    expect(source('src/renderer/components/leftBars/AgentChangeIndicator.tsx')).toContain('<BrushIcon name="check" size={10} />');
+  });
+
+  it('keeps lucide out of the desktop renderer outside the paused mobile shell', () => {
+    const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[])
+      .filter((file) => /\.tsx?$/.test(file) && !file.includes('.test.') && !file.startsWith('shells/mobile/'));
+    expect(files.length).toBeGreaterThan(100);
+    for (const file of files) {
+      expect(source(`src/renderer/${file}`), file).not.toContain("from 'lucide-react'");
+    }
+    // The shared generator draws them with fine grain; the spinner turns in CSS.
+    const generator = source('scripts/design-assets/brushicons.py');
+    expect(generator).toContain('masks[name] = grain_fine(draw(rng), rng)');
+    expect(source('src/renderer/components/notifications/NotificationPill.tsx')).toContain(
+      "<BrushIcon name=\"loader\" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />",
+    );
   });
 });

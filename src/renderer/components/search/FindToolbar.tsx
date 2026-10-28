@@ -1,5 +1,5 @@
 import { forwardRef, type ChangeEventHandler, type KeyboardEventHandler } from 'react';
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface FindToolbarProps {
   value: string;
@@ -52,7 +52,7 @@ export const FindToolbar = forwardRef<HTMLInputElement, FindToolbarProps>(functi
         title={previousTitle}
         aria-label={previousTitle}
       >
-        <ChevronUp size={14} />
+        <BrushIcon name="chevron-up" size={14} />
       </button>
       <button
         type="button"
@@ -62,7 +62,7 @@ export const FindToolbar = forwardRef<HTMLInputElement, FindToolbarProps>(functi
         title={nextTitle}
         aria-label={nextTitle}
       >
-        <ChevronDown size={14} />
+        <BrushIcon name="chevron-down" size={14} />
       </button>
       <button
         type="button"
@@ -71,7 +71,7 @@ export const FindToolbar = forwardRef<HTMLInputElement, FindToolbarProps>(functi
         title={closeTitle}
         aria-label={closeTitle}
       >
-        <X size={14} />
+        <BrushIcon name="close" size={14} />
       </button>
     </div>
   );

@@ -1,16 +1,6 @@
 import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ArrowLeft,
-  ListTodo,
-  MessageSquare,
-  MoreHorizontal,
-  Sparkles,
-  StickyNote,
-  X,
-} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
 import {
   commentColorKey,
   agentTaskConversationId,
@@ -45,6 +35,7 @@ import { TodoStatusToggle } from './TodoStatusToggle';
 import { CommentSourceHoverCard } from './CommentSourceHoverCard';
 import { useCommentSourceHover } from './use-comment-source-hover';
 import { buildTodoAgentTask } from './todo-agent-task';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 const launchingTodoTasks = new Set<string>();
 
@@ -80,9 +71,9 @@ export interface ReviewItemCardProps {
 }
 
 function itemIcon(comment: Comment) {
-  if (comment.kind === 'todo') return <ListTodo size={12} />;
-  if (comment.source === 'copilot') return <Sparkles size={12} />;
-  return <MessageSquare size={12} />;
+  if (comment.kind === 'todo') return <BrushIcon name="checklist" size={12} />;
+  if (comment.source === 'copilot') return <BrushIcon name="shikigami" size={12} />;
+  return <BrushIcon name="comment" size={12} />;
 }
 
 export function ReviewItemCard({
@@ -372,7 +363,7 @@ export function ReviewItemCard({
             title={t('reviewPanel.jumpToText')}
             aria-label={t('reviewPanel.jumpToText')}
           >
-            <ArrowLeft size={10} strokeWidth={1.8} aria-hidden />
+            <BrushIcon name="arrow-back" size={10} />
           </button>
         )}
         <span className="review-card__status">
@@ -384,13 +375,13 @@ export function ReviewItemCard({
         </span>
         {presentation === 'panel' && mountedInStickyRail && (
           <span className="review-card__sticky-state" title={t('reviewPanel.inSticky')}>
-            <StickyNote size={11} />
+            <BrushIcon name="sticky-note" size={11} />
           </span>
         )}
         <GhostIconButton
           size="sm"
           className="review-card__menu-button"
-          icon={<MoreHorizontal size={13} />}
+          icon={<BrushIcon name="more" size={13} />}
           onClick={(event) => {
             event.stopPropagation();
             setCardRequested(true);
@@ -405,7 +396,7 @@ export function ReviewItemCard({
           <GhostIconButton
             size="sm"
             className="review-card__close-button"
-            icon={<X size={13} />}
+            icon={<BrushIcon name="close" size={13} />}
             onClick={onRemoveFromStickyRail}
             title={t('reviewPanel.removeSticky')}
             aria-label={t('reviewPanel.removeSticky')}

@@ -1,10 +1,10 @@
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AgentCountBadge } from './AgentCountBadge';
 import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { SandCell } from '../ui/SandCell';
+import { BrushIcon } from '../ui/BrushIcon';
 
 // Single source for the left-sidebar group-header cell. Label headers keep
 // the ordinary [chevron] [mark] row; compact Element categories opt into a
@@ -167,7 +167,7 @@ export function GroupHeaderCell({
       }`}
       style={{ width: 18, height: 18 }}
     >
-      <Plus size={12} strokeWidth={1.6} />
+      <BrushIcon name="plus" size={12} />
     </button>
   ) : null;
 
@@ -239,7 +239,7 @@ export function GroupHeaderCell({
           }}
           onDoubleClick={(event) => event.stopPropagation()}
         >
-          {collapsed ? <ChevronRight size={11} strokeWidth={2} /> : <ChevronDown size={11} strokeWidth={2} />}
+          {collapsed ? <BrushIcon name="chevron-right" size={11} /> : <BrushIcon name="chevron-down" size={11} />}
         </button>
       </SandCell>
     );
@@ -313,9 +313,9 @@ export function GroupHeaderCell({
             }}
           >
             {collapsed ? (
-              <ChevronRight size={11} strokeWidth={2} />
+              <BrushIcon name="chevron-right" size={11} />
             ) : (
-              <ChevronDown size={11} strokeWidth={2} />
+              <BrushIcon name="chevron-down" size={11} />
             )}
           </button>
         )}
@@ -445,7 +445,7 @@ export function GroupHeaderCell({
                 onToggleCollapsed();
               }}
             >
-              {collapsed ? <ChevronRight size={11} strokeWidth={2} /> : <ChevronDown size={11} strokeWidth={2} />}
+              {collapsed ? <BrushIcon name="chevron-right" size={11} /> : <BrushIcon name="chevron-down" size={11} />}
             </button>
           )}
 

@@ -157,13 +157,3 @@ describe('resting glass and switches', () => {
     expect(controls.slice(controls.indexOf('.ui-switch__tint {\n  --switch-tint'), controls.indexOf('.ui-switch.is-on .ui-switch__tint'))).not.toContain('animation');
   });
 });
-
-describe('chapter-end seals', () => {
-  it('draws the decorative ⁂ as three seals, one per chapter-end action', async () => {
-    const { ChapterEndOrnament } = await import('../editor/ChapterEndOrnament');
-    const mark = renderToStaticMarkup(createElement(ChapterEndOrnament));
-    expect(mark).not.toContain('⁂');
-    expect(mark.match(/class="sand sand--blob-\d page__ornament-seal"/g)).toHaveLength(3);
-    for (const action of ['finish', 'insert', 'review']) expect(mark).toContain(`data-seal="${action}"`);
-  });
-});

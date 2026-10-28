@@ -24,7 +24,7 @@ const inputs = [
   'src/renderer/domain/chapter-insert.ts', 'src/renderer/domain/chapter-insert.test.ts',
   'src/renderer/components/editor/ChapterEditor.tsx',
   'src/renderer/views/AllChaptersEditorView.tsx', 'src/renderer/views/NodeEditorView.tsx',
-  'src/styles/chapter-end-menu.css', 'src/styles/index.css', 'src/styles/materials.css',
+  'src/styles/chapter-end-menu.css', 'src/styles/index.css',
 ];
 const fingerprint = () => {
   const hash = createHash('sha256');
@@ -89,29 +89,23 @@ if (process.argv.includes('--check')) {
       await delay(50);
       return mark(id);
     };
-    // The trigger and its three seals: centre, colour and where each seal sits.
-    const seals = host => `Object.fromEntries([...${host}.querySelectorAll('[data-seal]')].map(seal => {
-      const box = seal.getBoundingClientRect();
-      return [seal.dataset.seal, { x: box.left + box.width / 2, y: box.top + box.height / 2,
-        color: getComputedStyle(seal).backgroundColor }];
-    }))`;
     const mark = id => evaluate(`(() => {
       const button = ${triggerOf(id)}; const rect = button.getBoundingClientRect(); const style = getComputedStyle(button);
+      const glyph = getComputedStyle(button.querySelector('.page__ornament-glyph'));
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
         label: button.getAttribute('aria-label'), popup: button.getAttribute('aria-haspopup'),
         expanded: button.getAttribute('aria-expanded'), finished: button.dataset.finished,
-        color: style.color, background: style.backgroundColor, text: button.textContent,
-        seals: ${seals('button')} };
+        color: style.color, background: style.backgroundColor,
+        opacity: Number(glyph.opacity), transform: glyph.transform, filter: glyph.filter };
     })()`);
-    // Samples the primary action's seal and label inside the page: once the
-    // menu's state flips, mid-way through the morph and after it settles.
+    // Samples ⁂ and the primary action inside the page: once the row's state
+    // flips, mid-way through the morph and after it settles.
     const morph = (id, toOpen) => evaluate(`new Promise(resolve => {
       const host = document.querySelector('[data-chapter-id="${id}"] .page__ornament--menu');
-      const seal = host.querySelector('[data-seal=insert]');
-      const label = host.querySelector('[data-action=insert] .chapter-end-menu__label');
-      const read = () => { const box = seal.getBoundingClientRect();
-        return { sealX: box.left + box.width / 2, sealY: box.top + box.height / 2,
-          label: Number(getComputedStyle(label).opacity), labelFilter: getComputedStyle(label).filter }; };
+      const glyph = host.querySelector('.page__ornament-glyph');
+      const action = host.querySelector('[data-action=insert]');
+      const read = () => ({ mark: Number(getComputedStyle(glyph).opacity),
+        action: Number(getComputedStyle(action).opacity), actionFilter: getComputedStyle(action).filter });
       const markBackground = getComputedStyle(host.querySelector('.page__ornament-trigger')).backgroundColor;
       const started = performance.now();
       const wait = () => {
@@ -128,11 +122,11 @@ if (process.argv.includes('--check')) {
       const row = host.querySelector('[role=menu]'); const box = row.getBoundingClientRect();
       return { chapterId: host.closest('[data-chapter-id]')?.dataset.chapterId,
         top: box.top, bottom: box.bottom, left: box.left, right: box.right,
-        seals: ${seals('host')},
         items: [...row.querySelectorAll('[role=menuitem]')].map(item => {
           const rect = item.getBoundingClientRect(); const style = getComputedStyle(item);
           const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
           return { action: item.dataset.action, label: item.textContent, x, y,
+            icon: item.firstElementChild?.className ?? null,
             disabled: item.disabled, focused: document.activeElement === item,
             font: style.fontFamily, border: style.borderTopWidth, background: style.backgroundColor,
             inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
@@ -163,77 +157,57 @@ if (process.argv.includes('--check')) {
     const monoFont = await probeStyle('fontFamily', 'var(--font-prose-mono)');
     const accent = await probeStyle('color', 'hsl(var(--accent))');
 
-    // Resting page: ⁂ is a menu button drawn as three sand seals set as an
-    // asterism (one above, two below) round its centre; the actions are hidden and inert.
+    // Resting page: ⁂ is a menu button; the actions are hidden and inert.
     const resting = await trigger('chapter-b');
     assert.equal(resting.popup, 'menu');
     assert.equal(resting.expanded, 'false');
     assert(resting.label, 'The ⁂ trigger needs an accessible name.');
-    assert.equal(resting.text, '', 'The mark is drawn, not typed.');
-    const restSeal = Object.fromEntries(Object.entries(resting.seals).map(([key, seal]) =>
-      [key, { dx: seal.x - resting.x, dy: seal.y - resting.y }]));
-    assert.deepEqual(Object.keys(restSeal), ['finish', 'insert', 'review']);
-    const near = (a, b, tolerance = 1.5) => Math.abs(a - b) <= tolerance;
-    assert(near(restSeal.finish.dx, 0) && near(restSeal.finish.dy, -5)
-      && near(restSeal.insert.dx, -6) && near(restSeal.insert.dy, 5)
-      && near(restSeal.review.dx, 6) && near(restSeal.review.dy, 5), `Seals form the asterism: ${JSON.stringify(restSeal)}`);
     assert.equal(await menu(), null);
     assert.equal(await evaluate(`[...document.querySelectorAll('[data-chapter-id="chapter-b"] [role=menuitem]')]
       .some(el => document.elementsFromPoint(el.getBoundingClientRect().left + 2, el.getBoundingClientRect().top + 2).includes(el))`), false,
       'Hidden actions must not take the pointer.');
 
     // Hover intent: passing over ⁂ does nothing and never presses it; resting
-    // on it lets the seals fall into a column beside the actions.
+    // on it cross-fades ⁂ into the actions on the same line.
     await away();
     await mouse('mouseMoved', resting.x, resting.y);
     await mouse('mouseMoved', 5, 5);
     await delay(150);
     assert.equal(await menu(), null, 'A brief pass over ⁂ must not open the actions.');
-    // Agile and smooth: after a short intent the switch starts; mid-way the
-    // primary's seal is travelling and its word is coming in.
+    // Agile and smooth: after a short intent the switch starts, and ⁂ and the
+    // action cross-fade together rather than one after the other.
     await mouse('mouseMoved', resting.x, resting.y);
     const opening = await morph('chapter-b', true);
     assert.equal(opening.markBackground, transparent, 'Hover gives ⁂ no pressed wash.');
     assert(opening.flipped >= 30 && opening.flipped < 120, `The switch should start promptly after a short intent: ${JSON.stringify(opening)}`);
-    const restInsertX = resting.x + restSeal.insert.dx;
-    assert(opening.mid.sealX < restInsertX - 1 && opening.mid.sealX > opening.end.sealX + 1,
-      `Mid-morph, the seal is on its way to its row: ${JSON.stringify(opening)}`);
-    assert(opening.mid.label > 0 && opening.mid.label < 1, `Mid-morph, the word is partly visible: ${JSON.stringify(opening)}`);
-    assert(opening.end.label === 1 && opening.end.labelFilter === 'blur(0px)', 'The morph settles on crisp actions.');
-    // Hover follows the next pointer move over the opened list.
-    await mouse('mouseMoved', resting.x + 1, resting.y);
-    await delay(200);
+    assert(opening.mid.mark > 0 && opening.mid.mark < 1 && opening.mid.action > 0 && opening.mid.action < 1,
+      `Mid-morph, ⁂ and the action are both partly visible: ${JSON.stringify(opening)}`);
+    assert.deepEqual(opening.end, { mark: 0, action: 1, actionFilter: 'blur(0px)' }, 'The morph settles on crisp actions.');
+    await delay(100);
     const row = await menu();
     assert(row, 'Resting on ⁂ opens the actions.');
-    // One column centred on ⁂, top to bottom, the primary on ⁂'s line; each
-    // seal has dropped to the left edge of its own row.
+    const faded = await mark('chapter-b');
+    assert.equal(faded.opacity, 0, 'While open, ⁂ has faded out into the actions.');
+    assert.equal(faded.transform, 'matrix(0.6, 0, 0, 0.6, 0, 0)', 'Fading out, ⁂ shrinks toward its centre.');
+    assert.equal(faded.filter, 'blur(2px)');
     assert.deepEqual(row.items.map(entry => entry.action), ['finish', 'insert', 'review']);
+    // Each action leads with its brush icon: 搁笔, a sprout, the shikigami.
+    assert.deepEqual(row.items.map(entry => entry.icon),
+      ['brush-icon brush-icon--brush-laid', 'brush-icon brush-icon--sprout', 'brush-icon brush-icon--shikigami']);
     const [left, centre, right] = row.items;
-    assert(left.y < centre.y && centre.y < right.y, JSON.stringify(row.items));
-    assert(row.items.every(entry => near(entry.x, resting.x)), 'The actions form one column centred on ⁂.');
-    assert(near((row.left + row.right) / 2, resting.x), 'The list is centred where ⁂ stood.');
-    assert(near(centre.y, resting.y), 'The primary action sits on ⁂’s line.');
-    assert(row.items.every(entry => near(row.seals[entry.action].y, entry.y) && near(row.seals[entry.action].x, row.left + 3)),
-      `Each seal falls beside its own action: ${JSON.stringify(row.seals)}`);
-    const neutral = row.seals.finish.color;
-    assert(row.seals.insert.color !== neutral, 'The seal of the action under the pointer takes the accent.');
-    assert(row.seals.review.color === neutral, 'Other seals stay ink.');
+    assert(left.x < centre.x && centre.x < right.x, JSON.stringify(row.items));
+    assert(row.items.every(entry => Math.abs(entry.y - resting.y) < 2), 'All actions sit on ⁂’s line.');
+    assert(Math.abs(centre.x - resting.x) < 1.5, 'The primary action is centred where ⁂ stood.');
     assert(row.items.every(entry => entry.font === monoFont), `Actions use the monospace stack: ${row.items[0].font}`);
     assert(row.items.every(entry => entry.border === '0px' && entry.background === transparent), 'Actions are plain text.');
     assert(row.items.every(entry => entry.inViewport && entry.hitTarget && !entry.disabled), JSON.stringify(row.items));
 
-    // Roaming along the list keeps the actions and moves the accent to the
-    // seal of the hovered word; leaving the list upward, downward or past
-    // either side gathers the seals straight back.
+    // Roaming along the line keeps the actions; leaving it upward, downward or
+    // past either end brings ⁂ straight back.
     await mouse('mouseMoved', left.x, left.y);
-    await delay(200);
-    const roamed = await menu();
-    assert(roamed, 'Moving along the list keeps the actions.');
-    assert(roamed.seals.finish.color !== roamed.seals.insert.color && roamed.seals.insert.color === roamed.seals.review.color,
-      `The accent follows the pointer: ${JSON.stringify(roamed.seals)}`);
     await mouse('mouseMoved', right.x, right.y);
     await delay(50);
-    assert(await menu(), 'Moving along the list keeps the actions.');
+    assert(await menu(), 'Moving along the line keeps the actions.');
     const exits = {};
     for (const [name, x, y] of [
       ['above', centre.x, row.top - 20], ['below', centre.x, row.bottom + 20],
@@ -245,14 +219,14 @@ if (process.argv.includes('--check')) {
       exits[name] = (await menu()) === null;
       assert(exits[name], `Leaving the line ${name} closes the actions at once.`);
     }
-    // Crisp and smooth on the way back: the seals gather, settled fast.
+    // Crisp and smooth on the way back: the same cross-fade, settled fast.
     await hoverOpen('chapter-b');
     await mouse('mouseMoved', centre.x, row.top - 20);
     const closed = await morph('chapter-b', false);
-    assert(closed.flipped < 30, `Leaving the list restores ⁂ at once: ${JSON.stringify(closed)}`);
-    assert(closed.mid.label > 0 && closed.mid.label < 1, `Mid-return, the word is fading: ${JSON.stringify(closed)}`);
-    assert(near(closed.end.sealX, restInsertX) && near(closed.end.sealY, resting.y + restSeal.insert.dy)
-      && closed.end.label === 0 && closed.end.labelFilter === 'blur(2px)', `The asterism is back once settled: ${JSON.stringify(closed)}`);
+    assert(closed.flipped < 30, `Leaving the line restores ⁂ at once: ${JSON.stringify(closed)}`);
+    assert(closed.mid.mark > 0 && closed.mid.mark < 1 && closed.mid.action > 0 && closed.mid.action < 1,
+      `Mid-return, ⁂ and the action are both partly visible: ${JSON.stringify(closed)}`);
+    assert.deepEqual(closed.end, { mark: 1, action: 0, actionFilter: 'blur(2px)' }, '⁂ is back, crisp, once settled.');
 
     // A page scrolling ⁂ under a still pointer does not open the actions.
     await away();
@@ -295,8 +269,6 @@ if (process.argv.includes('--check')) {
     const finishedTrigger = await trigger('chapter-a');
     assert.equal(finishedTrigger.finished, 'true');
     assert.equal(finishedTrigger.color, accent, 'A finished chapter shows its ⁂ in the accent colour.');
-    assert(Object.values(finishedTrigger.seals).every(seal => seal.color === finishedTrigger.seals.finish.color)
-      && finishedTrigger.seals.finish.color !== resting.seals.finish.color, 'All three seals take the accent.');
     assert(finishedTrigger.label !== resting.label, 'The trigger names the finished state.');
     const finishedRow = await hoverOpen('chapter-a');
     const draftLabel = item(finishedRow.state, 'finish').label;
@@ -323,7 +295,7 @@ if (process.argv.includes('--check')) {
     await away();
     assert.equal(await menu(), null);
 
-    // Keyboard: Enter opens on the primary action, arrows move along the list,
+    // Keyboard: Enter opens on the primary action, arrows move along the row,
     // the pointer does not close it, an outside click or Escape does.
     await trigger('chapter-c');
     await evaluate(`${triggerOf('chapter-c')}.focus()`);
@@ -331,13 +303,11 @@ if (process.argv.includes('--check')) {
     await delay(100);
     const keyboard = await menu();
     assert(keyboard && item(keyboard, 'insert').focused, JSON.stringify(keyboard));
-    await key('ArrowUp', 'ArrowUp', 38);
+    await key('ArrowLeft', 'ArrowLeft', 37);
     assert(item(await menu(), 'finish').focused);
-    await key('ArrowDown', 'ArrowDown', 40);
-    await key('ArrowDown', 'ArrowDown', 40);
-    const focusedRow = await menu();
-    assert(item(focusedRow, 'review').focused);
-    assert(focusedRow.seals.review.color !== focusedRow.seals.insert.color, 'Keyboard focus also lights its seal.');
+    await key('ArrowRight', 'ArrowRight', 39);
+    await key('ArrowRight', 'ArrowRight', 39);
+    assert(item(await menu(), 'review').focused);
     await mouse('mouseMoved', 900, 120);
     assert(await menu(), 'Pointer movement does not close a keyboard-opened row.');
     await click(900, 120);
@@ -360,10 +330,12 @@ if (process.argv.includes('--check')) {
 
     const decorative = await evaluate(`(() => {
       const ornament = document.querySelector('[data-testid=decorative] .page__ornament');
-      return { hidden: ornament.getAttribute('aria-hidden'), seals: ornament.querySelectorAll('[data-seal]').length,
+      return { hidden: ornament.getAttribute('aria-hidden'), text: ornament.textContent,
+        stones: ornament.querySelectorAll('.brush-icon--stones-triad').length,
         controls: ornament.querySelectorAll('button').length };
     })()`);
-    assert.deepEqual(decorative, { hidden: 'true', seals: 3, controls: 0 });
+    // The decorative ⁂ is the brush-drawn triad of stones, with no text and no control.
+    assert.deepEqual(decorative, { hidden: 'true', text: '', stones: 1, controls: 0 });
     assert.deepEqual(errors, []);
 
     mkdirSync(path.join(root, '.qa'), { recursive: true });
@@ -375,20 +347,19 @@ if (process.argv.includes('--check')) {
     writeFileSync(output, JSON.stringify({ kind: 'chapter-end-menu', status: 'passed',
       generatedAt: new Date().toISOString(), sourceSha256: before, inputs,
       browser: (await client.Browser.getVersion()).product,
-      samples: { resting, restSeal, opening, row, roamed, exits, closed, inserts: [middle], finishedTrigger, monoFont,
+      samples: { resting, opening, faded, row, exits, closed, inserts: [middle], finishedTrigger, monoFont,
         labels: { finishLabel, draftLabel, reviewIdle: reviewIdle.label, reviewStarting: starting.label, reviewRunning: running.label } },
-      checks: { markIsThreeSealAsterism: true, hoverIntentDelay: true, noPressedWash: true,
-        sealsFallBesideActions: true, verticalListCentredOnMark: true, primaryOnTheMarkLine: true,
-        hoveredSealTakesAccent: true, monospacePlainText: true, opensPromptly: true,
-        sealsTravelWhileWordsArrive: true, roamingAlongListKeepsOpen: true,
-        leavingListClosesAtOnce: true, sealsGatherBackSmoothly: true, scrollUnderStillPointerDoesNotOpen: true,
+      checks: { hoverIntentDelay: true, noPressedWash: true, markCrossFadesIntoActions: true,
+        actionsOnTheMarkLine: true, primaryCentredOnMark: true, monospacePlainText: true,
+        opensPromptly: true, simultaneousCrossZoomMorph: true, roamingAlongLineKeepsOpen: true,
+        leavingLineClosesAtOnce: true, markReturnsSmoothly: true, scrollUnderStillPointerDoesNotOpen: true,
         earlyClickGuard: true, insertsDirectlyAfterChapter: true, staysInsideAct: true,
         finishedToggleAndAccent: true, reviewDispatchStates: true, keyboardMenu: true,
         outsideClickDismisses: true, scrollClosesRow: true, decorativeVariantHasNoControl: true,
         noUncaughtExceptions: true },
       boundary: 'Chromium renderer with the real VirtualChapterRow, ChapterEndMenu, chapterOrderAfter and styles; insert, status and review handlers act on synthetic in-memory chapters with two acts. Database writes, the Agent runtime session, the live-editor title focus, tab opening and WKWebView pointer behaviour are outside this harness.',
     }, null, 2) + '\n');
-    console.log('Chapter-end menu: seal asterism, hover intent, seals falling into a vertical list, accent on the hovered seal, instant close off the list, click guard, insert, finish toggle, review states, keyboard and scroll passed.');
+    console.log('Chapter-end menu: hover intent, same-line monospace actions, instant close off the line, click guard, insert, finish toggle, review states, keyboard and scroll passed.');
   } finally {
     try { if (client) await client.close(); }
     finally {

@@ -2635,11 +2635,11 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
   cursor: pointer;
 }
 
-.review-group__toggle svg {
+.review-group__toggle .brush-icon {
   transition: transform 120ms ease;
 }
 
-.review-group__toggle--open svg {
+.review-group__toggle--open .brush-icon {
   transform: rotate(90deg);
 }
 

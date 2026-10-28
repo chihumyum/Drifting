@@ -90,7 +90,7 @@
   background: hsl(var(--ink-1) / 0.08);
   color: hsl(var(--ink-1));
 }
-.agt-cfg svg {
+.agt-cfg .brush-icon {
   display: block;
 }
 

@@ -16,6 +16,7 @@ import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider-contract';
 import { codexModelCatalog } from '../../lib/agent/codex-model-catalog';
 import { useCodexModelCatalog } from './useCodexModelCatalog';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /**
  * The single composer config control: a quiet summary button that opens an
@@ -71,20 +72,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
         aria-expanded={open}
         aria-haspopup="dialog"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        >
-          <line x1="4" y1="8" x2="20" y2="8" />
-          <circle cx="9" cy="8" r="2.3" fill="currentColor" stroke="none" />
-          <line x1="4" y1="16" x2="20" y2="16" />
-          <circle cx="15" cy="16" r="2.3" fill="currentColor" stroke="none" />
-        </svg>
+        <BrushIcon name="dharma-wheel" size={16} />
       </button>
       <AnchoredPopover
         anchorRef={triggerRef}
