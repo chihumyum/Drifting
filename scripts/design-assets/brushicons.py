@@ -58,9 +58,9 @@ knots.png                   a cord with knots tied along it (结绳记事)
 tea.png                     a cup just set down, still steaming (Project Home "recent")
 
 moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
-                            inside cleared, the rim as thin and light as the
-                            moon's faint outer ring: shown while that sidebar
-                            is closed
+                            inside cleared, the rim as thin, light and sandy as
+                            the moon's faint outer ring: shown while that
+                            sidebar is closed
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -850,14 +850,22 @@ def _dilate(a, r):
             if dx * dx + dy * dy <= r * r: out = np.maximum(out, pad[r + dy:r + dy + h, r + dx:r + dx + w])
     return out
 
-for side in ("left", "right"):
+for seed, side in ((31, "left"), (32, "right")):
     solid = read_png_alpha(ICON_DIR / f"moon-{side}.png")
     # Keep a rim as thin and as light as the faint ring already drawn round
-    # the moon's dark side: about 3px of the stroke's own grain, half its ink.
+    # the moon's dark side: about 3px wide, at half the crescent's ink.
     inside = _blur(_erode((_blur(solid, 2) > 0.3).astype(float), 3), 1)
     rim = solid * (1 - inside)
     crescent = _blur(_dilate((_blur(solid, 2) > 0.55).astype(float), 1), 1)
-    masks[f"moon-{side}-hollow"] = np.where(crescent > 0.5, rim * 0.5, rim)
+    rim = np.where(crescent > 0.5, rim * 0.5, rim)
+    # Then sand it the way that faint ring is sanded: loose grains of varied
+    # weight on a light trace, not a smooth half-tone line.
+    rng = np.random.default_rng(seed)
+    body = solid > 0.55
+    band = np.clip(rim / 0.45, 0, 1) * body
+    grains = (rng.random(band.shape) < band * 0.42) * (0.55 + 0.4 * rng.random(band.shape))
+    trace = band * (0.08 + 0.12 * rng.random(band.shape))
+    masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)
 # One stroke turned or mirrored, so every direction carries the same grain.
 masks["arrow-forward"] = masks["arrow-back"][:, ::-1]
 for k, name in ((1, "chevron-right"), (2, "chevron-up"), (3, "chevron-left")):

@@ -936,7 +936,7 @@ describe('workspace surface language acceptance', () => {
       if (name.endsWith('-hollow')) continue;
       expect(generator).toMatch(new RegExp(`"${name}": \\(\\w+, \\d+\\)|masks\\["${name}"\\] =|\\(\\d, "${name}"\\)`));
     }
-    expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(crescent > 0.5, rim * 0.5, rim)');
+    expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)');
     expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
   });
 
