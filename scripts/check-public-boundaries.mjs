@@ -47,8 +47,8 @@ requireCondition(
 requireCondition(
   !configSource.includes('VITE_ENABLE_SYNC') &&
     !configSource.includes('isSyncEnabled') &&
-    configSource.includes('canUsePersonalCloud'),
-  'retired hosted sync switch must stay absent while personal-cloud capability remains explicit',
+    !configSource.includes('canUsePersonalCloud'),
+  'retired hosted sync switch must stay absent and retired personal-cloud capability must be absent',
 );
 requireCondition(
   configSource.includes('VITE_REQUIRE_AUTH as string | undefined, false'),
@@ -62,7 +62,7 @@ const appleXcodeProject = readFileSync(
   'src-tauri/gen/apple/drifting.xcodeproj/project.pbxproj',
   'utf8',
 );
-const appleSigningConfig = readFileSync('src-tauri/gen/apple/GoogleOAuth.xcconfig', 'utf8');
+const appleSigningConfig = readFileSync('src-tauri/gen/apple/LocalBuild.xcconfig', 'utf8');
 const iosConfig = JSON.parse(readFileSync('src-tauri/tauri.ios.conf.json', 'utf8'));
 const iosDeploymentTargets = [...appleXcodeProject.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);/gu)];
 requireCondition(

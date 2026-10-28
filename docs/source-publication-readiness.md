@@ -145,7 +145,7 @@ Read the [headless dependency regression](renderer-performance/acceptance/source
 and [resource-release regression](renderer-performance/acceptance/source-publication-lifecycle.json)
 alongside the current commit's GitHub CI result. Human acceptance remains in
 [desktop RC](qa/desktop-alpha-release-candidate.md) and
-[two-Mac Drive](qa/google-drive-desktop-alpha-acceptance.md). After that review,
+[Hosted readiness](client-onboarding-and-hosted-readiness.md). After that review,
 freeze the intended publication SHA and repeat the preflight below before an
 explicit visibility change. Source visibility and installer distribution remain
 separate decisions.
@@ -346,8 +346,8 @@ and real-account gates documented in:
 - [`../README.md`](../README.md#licensing-and-project-policy);
 - [`qa/tauri-native-manual-regression.md`](qa/tauri-native-manual-regression.md);
 - [`qa/desktop-alpha-release-candidate.md`](qa/desktop-alpha-release-candidate.md);
-- [`qa/google-drive-desktop-alpha-acceptance.md`](qa/google-drive-desktop-alpha-acceptance.md);
+- [current onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md);
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md); and
-- [`sync-engine/trusted-cloud-google-drive.md`](sync-engine/trusted-cloud-google-drive.md).
+- [Hosted sync contract](hosted-sync/README.md).
 
 Those gates do not block publication of accurately documented source code.

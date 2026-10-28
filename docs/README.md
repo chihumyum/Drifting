@@ -9,22 +9,14 @@ dated run reports are evidence for one checkout, not product truth.
 - [Frozen release contract](alpha-release-contract.md)
 - [Release runbook](desktop-alpha-release-runbook.md)
 - [`0.1.0-alpha.1` release notes](releases/0.1.0-alpha.1.md)
-- [Google Drive data-use disclosure](google-drive-data-use.md)
 - [Desktop quick start](quick-start.md)
-- [Google Drive two-Mac acceptance](qa/google-drive-desktop-alpha-acceptance.md)
 - [Signed desktop RC acceptance](qa/desktop-alpha-release-candidate.md)
 - [Known issues](../KNOWN_ISSUES.md)
 - [Support](../SUPPORT.md)
 
-Mobile is outside the desktop Alpha release scope. The mobile Google Drive
-release gate and its real-account Desktop/iOS/Android run are tracked in
-[`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md).
-
-## Apple native migration
-
-The Apple-only target, staged P0–P7 plan and experimental native builds are
-tracked in [apple-native/README.md](apple-native/README.md). The current Tauri
-client remains the daily-use implementation until each replacement is accepted.
+The standalone Apple-native front-end and Google Drive sync were retired on
+2026-10-28. Tauri and Hosted are the active client/service path. The public
+release contract remains paused. See [onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md).
 
 ## Start here
 
@@ -39,14 +31,11 @@ client remains the daily-use implementation until each replacement is accepted.
 | How do complete `.drifting` library backups and restore work? | [`library-backup.md`](library-backup.md) — local-only package, staged verification, pre-restore copy, additive asset merge                                        |
 | What do crash and integrity reports send?                  | [`crash-reports.md`](crash-reports.md) — content-free, Hosted builds only, Settings → Privacy                                                                         |
 | How do chapter/line location links work?                   | [`location-links.md`](location-links.md)                                                                                                                              |
-| What is the current Google Drive trust/restore contract?   | [`sync-engine/trusted-cloud-google-drive.md`](sync-engine/trusted-cloud-google-drive.md)                                                                              |
 | How do committed remote Yjs updates reach an open editor?  | [`sync-engine/phase1-remote-yjs-live-merge.md`](sync-engine/phase1-remote-yjs-live-merge.md)                                                                          |
 | What does checkpoint capture/isolated restore implement?   | [`sync-engine/phase2-checkpoint-restore.md`](sync-engine/phase2-checkpoint-restore.md)                                                                                |
 | What durable SyncEngine/reference convergence is complete? | [`sync-engine/phase3-durable-runtime.md`](sync-engine/phase3-durable-runtime.md)                                                                                      |
 | How is one App-wide provider activated atomically?         | [`sync-engine/phase3-app-provider-authority.md`](sync-engine/phase3-app-provider-authority.md)                                                                        |
 | What filesystem reference-provider durability is complete? | [`sync-engine/phase3-local-folder-provider.md`](sync-engine/phase3-local-folder-provider.md)                                                                          |
-| What native Google Drive transport is implemented?         | [`sync-engine/phase5-google-drive-native.md`](sync-engine/phase5-google-drive-native.md)                                                                              |
-| How are OAuth refresh credentials owned across crashes?    | [`sync-engine/phase5-google-drive-credential-ownership.md`](sync-engine/phase5-google-drive-credential-ownership.md)                                                  |
 | What SyncEngine product controls and gates exist?          | [`sync-engine/phase6-product-controls.md`](sync-engine/phase6-product-controls.md)                                                                                    |
 | What normalized KV/list/Plot Grid authority is complete?   | [`sync-engine/phase1-normalized-authority.md`](sync-engine/phase1-normalized-authority.md)                                                                            |
 | What does General Agent support now?                       | [`agent-runtime/acceptance/CURRENT_STATUS.md`](agent-runtime/acceptance/CURRENT_STATUS.md)                                                                            |
@@ -62,7 +51,6 @@ client remains the daily-use implementation until each replacement is accepted.
 | How do project relation types behave?                      | [`relation-types.md`](relation-types.md)                                                                                                                              |
 | What is the mobile product boundary?                       | [`mobile-ui-foundation.md`](mobile-ui-foundation.md)                                                                                                                  |
 | What voice-authored source exists, and why is it still unaccepted? | [`voice-authored-capture.md`](voice-authored-capture.md)                                                                                                      |
-| How is real-account three-platform Drive acceptance run?  | [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md)                                                       |
 | How do Review and editor sticky notes behave?              | [`qa/review-sticky-note-rail-2026-08-30.md`](qa/review-sticky-note-rail-2026-08-30.md)                                                                               |
 | What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
 | How does Project Home and workspace entry behave?          | [`project-home.md`](project-home.md)                                                                                                                                  |
@@ -82,11 +70,6 @@ client remains the daily-use implementation until each replacement is accepted.
   [`local-data-export.md`](local-data-export.md) define the current local asset
   and readable-export boundaries. The Markdown archive is not a lossless backup;
   [`library-backup.md`](library-backup.md) defines the restorable `.drifting` package.
-- [`sync-engine/trusted-cloud-google-drive.md`](sync-engine/trusted-cloud-google-drive.md)
-  is the current authority for the Google trust boundary, Google-sign-in plus
-  automatic project discovery, and the Project-only user vocabulary. Drifting
-  does not E2EE synced projects against Google and has no recovery code, QR, or
-  application-managed Project content key.
 - [`sync-engine/README.md`](sync-engine/README.md) indexes current SyncEngine
   architecture and current phase evidence.
 - [`sync-engine/phase2-checkpoint-restore.md`](sync-engine/phase2-checkpoint-restore.md)
@@ -111,18 +94,8 @@ client remains the daily-use implementation until each replacement is accepted.
 - [`sync-engine/phase3-local-folder-provider.md`](sync-engine/phase3-local-folder-provider.md)
   records the opaque-reference filesystem provider, conformance matrix and
   child-process SIGKILL durability evidence.
-- [`sync-engine/phase5-google-drive-native.md`](sync-engine/phase5-google-drive-native.md)
-  records the trusted-cloud `appDataFolder` transport and native credential
-  boundary. Native OAuth source/build evidence does not close any
-  real-account/device gate, so this is not a release claim.
-- [`sync-engine/phase5-google-drive-credential-ownership.md`](sync-engine/phase5-google-drive-credential-ownership.md)
-  records the App-wide singleton credential, provisional/claimed native state,
-  credential-first SQLite ordering and retryable crash matrix. Real-account
-  `SIGKILL` and Keychain restart gates remain open.
 - [`sync-engine/phase6-product-controls.md`](sync-engine/phase6-product-controls.md)
-  records the Google-sign-in, automatic-discovery, status and diagnostics
-  surfaces, plus the real-account and physical-lifecycle gates that still
-  prevent a public Google Drive claim.
+  points to current Hosted controls and local recovery settings.
 - [`ambient-editor/technical-architecture.md`](ambient-editor/technical-architecture.md)
   and [`ambient-editor/delivery-and-acceptance.md`](ambient-editor/delivery-and-acceptance.md)
   define the approved future Ambient design and progressive gates. They are

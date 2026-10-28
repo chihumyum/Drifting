@@ -1,8 +1,8 @@
 {
   "contract": {
     "protocol": "drifting.agent-chat.v1",
-    "nativeNamespace": "agent-chat",
-    "driveProtocol": "agent-chat-v1",
+    "nativeNamespace": "agent-chat-v1",
+    "hostedProtocol": "agent-chat-v1",
     "projectProtocol": "object-v2",
     "projectDomainVersion": 1,
     "sqliteMigration": "0001_agent_chat_sync",
@@ -15,31 +15,30 @@
       "agent_chat_queue"
     ],
     "sourceSha256": {
-      "crates/drifting-core/src/database.rs": "9ab9cc63c2ce1398327feea0f5d579eaedb72045cb51d07af0ee6d7c19e2d893",
+      "crates/drifting-core/src/database.rs": "8d2801e5f8f8e3bb1d02c4417ed86b5b9100d9524fa547abf8fe4477d270fa6b",
       "crates/drifting-core/src/file_io.rs": "841a6f5def8f109e3e43c6974f394333727e5db2a8143b927476cadf9564994c",
       "drizzle/0000_local_first_baseline.sql": "2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2",
       "drizzle/0001_agent_chat_sync.sql": "b188d6c3c38c0af7662d7516593c767bba26df67a100d9ecf7be93048246b9b0",
       "drizzle/0005_agent_conversation_source.sql": "25b99bdfaf7e002c8601cf6106999d549a2b74727ad4b94aa71fbff4ca00e5b0",
-      "scripts/generate-agent-conversation-sync.ts": "1c7a9b5e4bc3aa3dedf1e6bbdeda0769a55cae64f769d168c73742190f22fd58",
+      "scripts/generate-agent-conversation-sync.ts": "578ae6d7535f45f903ddc4ab162d5b8e80d82a3e35d849f0d95c19c89722848d",
       "src-tauri/src/database.rs": "c17443c1e4a6b66361a4e671e946835cc034dd67ec2ce88839c7a30c7ad47389",
-      "src-tauri/src/google_drive_sync.rs": "db6f67c12002e5081c2403b77b01770cfc6acf2ea595b52e6a254d2362a9bf8b",
-      "src-tauri/src/google_drive_sync_legacy_fixture.rs": "214c31ca12538b54c6bd6d556f26b70d5d0775b88f867301026c975742f58063",
+      "src-tauri/src/hosted_sync.rs": "7937e27c46804fe8ac50dc46fd8f91f13be4f74589b518217030281dcb25864d",
       "src-tauri/src/mcp_stdio.rs": "48c385cbd4571c60a89e29d1013029c9cb26ffec924543d18d0eba2c5be74ce2",
       "src/renderer/domain/agent-conversation-source.ts": "37a221e11da9ed0a625e8b36c3b0e4b6399f6a4fdbd289bc5e8ce426cf4534c0",
       "src/renderer/features/agent/chat-display-projection.test.ts": "eee1f278530a4db6eb502acacb6ac1efbb6aa0875fdafb12ca5319a21e254b22",
       "src/renderer/features/agent/chat-display-projection.ts": "3ed2ecce0b1333bf697cfc90805540138a071758be7422498e1e2c17eb4ad9b5",
       "src/renderer/features/agent/desktop/DesktopAgentPanel.tsx": "8c10be0f12df5a25f2d7bac5e12445bf74e8281480daca8fa26736d2bf6dd1f5",
       "src/renderer/features/agent/useAgentChatMessages.ts": "f03884f1c35ecbb1677d91c9cb3d924c962c2c9121ba39ce6bdfb0d9c05b701b",
-      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "00c267b66bde37718b693164fcce42854fba1b2b9c7e8f4319113b727b460fbb",
+      "src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts": "4512510ec7df1f723bc158e05f02e0b545dbd8d955d319b93b211a9a5a000d6e",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.test.ts": "51d399cf3dffefd538e86f3b173d4b3bffb10e092d088be4adb92bfbdfb7fd6c",
       "src/renderer/lib/agent/runtime/chat-journal-dedup.ts": "152db7e49f552b39e1dd5bba8d61d23a73dc000d28ed229137e87b5f4777e24f",
       "src/renderer/lib/agent/runtime/chat-message-publication.ts": "23992bb0ea3be5f8885deac0ebcc9ac18cbb37601ca93689bc1497fc82a679f1",
       "src/renderer/lib/agent/runtime/recovered-transcript.ts": "0891a2e3e4b22a2a1edf7c4450ef00908595fa62df224f366814b97ade9e7120",
       "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "5d674d888f33c8b1f469ca329cc9561b4d7a237132932b7f45339a89d9a23582",
-      "src/renderer/lib/events.ts": "b4175fca1021adf24dcdf9c99c24ef92bd3ac8af1c1e18e3c5a6dff3f701a27c",
-      "src/renderer/platform/contracts.ts": "971a58966737a049e802958d569edf31f134e13e35936b981d9a2a9f9b251849",
-      "src/renderer/platform/types.ts": "54d6e0f09d3ef8fc5d0c5444ab7dacad87eb0182384bd718724a5de772ad6857",
-      "src/renderer/schema/drizzle.ts": "2a65f9d3c21b9f35facb39b954adfcd0807d2ae4a735b3be3d7f8a0c6b4176d5",
+      "src/renderer/lib/events.ts": "87f9138debc629e2654b05fa9de80b581826001b1d7bb867d69d6a0dbe0dc740",
+      "src/renderer/platform/contracts.ts": "cd71bded0ccdaa500304cf9aef7e54bc938e34c6cd30f14d6046365c0eae3213",
+      "src/renderer/platform/types.ts": "6ea9b49054d2f3d86a0b9367645fbb719d4ab36cae0c6c531a7192b2bb84f473",
+      "src/renderer/schema/drizzle.ts": "3a2ce1457d39d7dfe85d09687ca4b3786074b898643b737db0a3dcb624cef6df",
       "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "aed2e0929eef1031c7a6bc029c5d9541003c436d49fca41633168f343b90aec0",
       "src/renderer/sqlite-repo/agent-conversation-repo.ts": "9a6ee360bfcbf3d1613b1151107a1d76f5061c095e23e6718b28c685756a2b37",
       "src/renderer/sqlite-repo/agent-conversation-source.integration.test.ts": "622351e2eab065379de1f431edbc85ac884208719c4f17d01c955c809414c6ce",
@@ -56,16 +55,16 @@
       "src/renderer/sync/agent-chat/runtime.ts": "a3954b82fc0bc7be63a3aa2dfd8e71fc31744924c4fef9fe911e2f2dacee0217",
       "src/renderer/sync/agent-chat/seed.ts": "8efc900a0c3c44135d3600c0c7e5e72bfa31ae86d028802ed1bf5e1514d9af45",
       "src/renderer/sync/production-runtime.test.ts": "f995e2f1b6652ac10976c6374b248ae71c2e6bdf0a14c81b877177f807f7024c",
-      "src/renderer/sync/production-runtime.ts": "852e2c3083b407356a86277459c4cc6817d44d05debca362618f49d52d633d49",
-      "src/renderer/sync/protocol/domain-manifest.ts": "1b6bf13d8aaf650d7a8d371142a22d5784a4468be28b2eace3db516c02e82600",
-      "src/renderer/sync/providers/google-drive/tauri-transport.test.ts": "28d2d39c2f64cb69ce02fdee9916a08ea4463a39fa265649385f37d47aa235c1",
-      "src/renderer/sync/providers/google-drive/tauri-transport.ts": "d44a3ec7608c74e6eae9fed9f88f129b1cd2eabe5ab5fa1aaa64f6edd22dfa6c"
+      "src/renderer/sync/production-runtime.ts": "5b16dfb7ea998bac03dc418305af30cfff96f390d51df8604a96434a49d3aa48",
+      "src/renderer/sync/protocol/domain-manifest.ts": "72114c1909e699305c6b0b1abfe3959038f18fd509cc4780bde4333e9410dcc7",
+      "src/renderer/sync/providers/hosted/provider.ts": "47bc31084fb90ab174fc5fd3b7b93df16d849ace0afe0d62dc6dba66e0898746",
+      "src/renderer/sync/providers/hosted/tauri-transport.ts": "096ba686027e285b03cd83cdd5cf7eec4592f8df5f740afcaac9311414ed58f3"
     }
   },
   "automated": {
     "status": "passed",
     "renderer": {
-      "passed": 67,
+      "passed": 65,
       "failed": 0,
       "skipped": 0,
       "cases": [
@@ -328,25 +327,17 @@
         {
           "name": "publishes tree snapshots without flattening and materializes only for an explicit array reader",
           "status": "passed"
-        },
-        {
-          "name": "TauriGoogleDriveObjectTransport opens an explicit Agent namespace while preserving the released project call shape",
-          "status": "passed"
-        },
-        {
-          "name": "TauriGoogleDriveObjectTransport projects only opaque references and immutable metadata across the native boundary",
-          "status": "passed"
         }
       ]
     },
     "sharedDatabase": {
-      "passed": 121,
+      "passed": 128,
       "failed": 0,
       "ignored": 0,
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
     },
     "native": {
-      "passed": 152,
+      "passed": 132,
       "failed": 0,
       "ignored": 1,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"

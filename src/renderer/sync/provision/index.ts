@@ -1,4 +1,4 @@
-export * from './google-drive-runtime';
+export * from './hosted-runtime';
 export * from './repository';
 export * from './supervisor';
 export * from './sync-generation-provisioner';

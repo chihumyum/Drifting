@@ -62,8 +62,7 @@ offline. Default source builds do not require a Drifting account. Builds
 configured for the official Hosted service can sign in and sync; that service
 is operated separately and its server is not included in this repository.
 Sync is still undergoing validation, does not guarantee conflict-free device
-switching, and does not provide end-to-end encryption. Google Drive sync is
-currently suspended.
+switching, and does not provide end-to-end encryption. Hosted is the only supported sync provider.
 
 Copy or save a document or whole-book manuscript as Markdown, or export a
 Markdown ZIP containing project structure and relationships. The ZIP is a
@@ -157,7 +156,7 @@ Drifting 是一个本地优先的长篇写作工作台，把正文、构想、�
 正文和项目数据保存在本机，断网也能继续写。默认源码构建不需要 Drifting 账号。
 配置了官方 Hosted 服务的构建可以登录并同步；服务端独立运营，不包含在此仓库中。
 当前同步仍在持续验证，不能保证跨设备切换永远无冲突，也不提供端到端加密。
-Google Drive 同步目前暂停。
+Hosted 是目前唯一支持的同步服务。
 
 可以将单篇或整本书的正文复制、保存为 Markdown，也可以导出包含项目结构与关系的
 Markdown ZIP。它是便于阅读和迁移的副本，不是完整备份，不包含图片、PDF 的原始文件。

@@ -62,9 +62,6 @@ export interface NativePlatformCapabilities {
   mcpStdio: boolean;
   secureStorage?: boolean;
   syncObjectStore?: boolean;
-  googleDriveTransport?: boolean;
-  /** Desktop loopback-PKCE OAuth implementation, separate from Drive transport. */
-  googleDriveOAuth?: boolean;
   materialFiles?: boolean;
   assetStore?: boolean;
   aiLog?: boolean;
@@ -88,8 +85,6 @@ export interface PlatformCapabilities extends NativePlatformCapabilities {
   featureStatus: {
     secureStorage: ContractAvailability;
     syncObjectStore: ContractAvailability;
-    googleDriveTransport: ContractAvailability;
-    googleDriveOAuth: ContractAvailability;
     materialFiles: ContractAvailability;
     assetStore: ContractAvailability;
     aiLog: ContractAvailability;
@@ -145,95 +140,6 @@ export interface SyncPreparedAssetSourceResult {
 
 export interface SyncAssetGcResult {
   removedAttempts: number;
-}
-
-export type GoogleDriveNativeErrorCode =
-  | 'cancelled'
-  | 'offline'
-  | 'needs-reauth'
-  | 'permission-denied'
-  | 'rate-limited'
-  | 'quota-exceeded'
-  | 'transient'
-  | 'invalid-cursor'
-  | 'invalid-page-token'
-  | 'invalid-request'
-  | 'local-object-invalid'
-  | 'remote-object-missing'
-  | 'immutable-conflict'
-  | 'remote-corrupt'
-  | 'configuration-required'
-  | 'account-mismatch'
-  | 'unsupported-platform';
-
-export interface GoogleDriveNativeDiagnosticError {
-  /** Allowlisted family/domain labels only; raw NSError text and userInfo never cross IPC. */
-  family: string;
-  domain: string;
-  code: number;
-  reason: string | null;
-  httpStatus: number | null;
-}
-
-export interface GoogleDriveNativeDiagnostics {
-  schemaVersion: 1;
-  operation: string;
-  platform: string;
-  phase: string;
-  elapsedMs: number;
-  completedPhases: string[];
-  errorChain: GoogleDriveNativeDiagnosticError[];
-}
-
-export interface GoogleDriveNativeError {
-  code: GoogleDriveNativeErrorCode;
-  message: string;
-  retryable: boolean;
-  retryAfterMs: number | null;
-  diagnostics?: GoogleDriveNativeDiagnostics | null;
-}
-
-export type GoogleDriveNativeResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: GoogleDriveNativeError };
-
-export interface GoogleDriveNativeRemoteObject {
-  objectId: string;
-  objectKind: NativeSyncObjectKind;
-  logicalKeyId: string;
-  storedSha256: string;
-  sizeBytes: number;
-}
-
-export interface GoogleDriveTransferProgressEvent {
-  transferId: string;
-  direction: 'upload' | 'download';
-  transferredBytes: number;
-  totalBytes: number;
-}
-
-export interface GoogleDriveNativeProjectSnapshotCandidate {
-  syncGenerationId: string;
-  object: GoogleDriveNativeRemoteObject & { objectKind: 'snapshot-commit' };
-}
-
-export type GoogleDriveNativeRemoteChange =
-  | { kind: 'present'; object: GoogleDriveNativeRemoteObject }
-  | { kind: 'removed'; objectId: string; logicalKeyId: string | null };
-
-export interface GoogleDriveNativeGeneration {
-  generationRef: string;
-  syncGenerationId: string;
-}
-
-export interface GoogleDriveNativeOAuthResult {
-  credentialSecretRef: string;
-  accountSubject: string;
-}
-
-export interface GoogleDriveNativeRevokeResult {
-  status: 'revoked' | 'already-revoked' | 'already-missing';
-  diagnostics?: GoogleDriveNativeDiagnostics | null;
 }
 
 export interface DeepLinkEventPayload {
@@ -653,98 +559,6 @@ export interface TauriCommandContract {
   sync_asset_gc_restore_attempts: {
     args: { retainedAttemptIds: readonly string[]; olderThanMs: number };
     result: SyncAssetGcResult;
-  };
-  google_drive_oauth_connect: {
-    args: undefined;
-    result: GoogleDriveNativeResult<GoogleDriveNativeOAuthResult>;
-  };
-  google_drive_claim_account: {
-    args: { credentialSecretRef: string; accountSubject: string };
-    result: GoogleDriveNativeResult<GoogleDriveNativeOAuthResult>;
-  };
-  google_drive_oauth_reauthorize: {
-    args: { credentialSecretRef: string };
-    result: GoogleDriveNativeResult<GoogleDriveNativeOAuthResult>;
-  };
-  google_drive_revoke_account: {
-    args: { credentialSecretRef: string; transferId: string };
-    result: GoogleDriveNativeResult<GoogleDriveNativeRevokeResult>;
-  };
-  google_drive_open_generation: {
-    args: {
-      namespace?: 'project' | 'agent-chat';
-      credentialSecretRef: string;
-      accountSubject: string;
-      bindingId: string;
-      syncGenerationId: string;
-      authorityGeneration: number;
-    };
-    result: GoogleDriveNativeResult<GoogleDriveNativeGeneration>;
-  };
-  google_drive_discover_project_snapshots: {
-    args: { credentialSecretRef: string; accountSubject: string; pageToken?: string };
-    result: GoogleDriveNativeResult<{
-      snapshots: GoogleDriveNativeProjectSnapshotCandidate[];
-      nextPageToken?: string;
-    }>;
-  };
-  google_drive_capture_start_cursor: {
-    args: { generationRef: string };
-    result: GoogleDriveNativeResult<string>;
-  };
-  google_drive_list_inventory: {
-    args: { generationRef: string; pageToken?: string };
-    result: GoogleDriveNativeResult<{
-      objects: GoogleDriveNativeRemoteObject[];
-      nextPageToken?: string;
-    }>;
-  };
-  google_drive_list_changes: {
-    args: { generationRef: string; cursor: string; pageToken?: string };
-    result: GoogleDriveNativeResult<{
-      changes: GoogleDriveNativeRemoteChange[];
-      nextPageToken?: string;
-      newCursor?: string;
-    }>;
-  };
-  google_drive_stat_immutable: {
-    args: { generationRef: string; objectKind: NativeSyncObjectKind; logicalKeyId: string };
-    result: GoogleDriveNativeResult<GoogleDriveNativeRemoteObject | null>;
-  };
-  google_drive_upload_immutable: {
-    args: {
-      generationRef: string;
-      sourceRef: string;
-      objectKind: NativeSyncObjectKind;
-      logicalKeyId: string;
-      storedSha256: string;
-      sizeBytes: number;
-      transferId: string;
-      onProgress: unknown;
-    };
-    result: GoogleDriveNativeResult<{
-      status: 'created' | 'already-present';
-      object: GoogleDriveNativeRemoteObject;
-    }>;
-  };
-  google_drive_download_verified_immutable: {
-    args: {
-      generationRef: string;
-      objectId: string;
-      destinationRef: string;
-      expectedStoredSha256: string;
-      transferId: string;
-      onProgress: unknown;
-    };
-    result: GoogleDriveNativeResult<{
-      destinationRef: string;
-      storedSha256: string;
-      sizeBytes: number;
-    }>;
-  };
-  google_drive_cancel_transfer: {
-    args: { transferId: string };
-    result: boolean;
   };
   material_open_local: { args: { filePath: string }; result: OpenResult };
   material_pick_file: { args: { kind: FilePickerKind }; result: PickFileResult };

@@ -1,6 +1,6 @@
 # Drifting client privacy boundary
 
-Last updated: 2026-08-20
+Last updated: 2026-10-28
 
 This document describes the public-source client. It is not a privacy policy
 for every fork or independently operated service. A fork operator is
@@ -11,39 +11,16 @@ responsible for its own disclosures and data practices.
 The default build is local-only. It stores projects in local SQLite/Yjs data,
 uses OS secure storage for provider credentials, keeps imported assets and
 caches in the application data directory, and does not require an account or
-connect a cloud provider by default. Google Drive sync starts only after the
-author explicitly connects a Google account. Usage-stat and crash-log
-preferences default to off; this repository currently contains no production
-analytics uploader.
+connect a cloud provider by default. Hosted account/sync features require an
+operator-configured build and explicit sign-in. Google Drive sync is retired.
+Usage analytics have no production uploader. Configured Hosted builds can send
+content-free crash/integrity reports according to the Privacy setting; local-only
+builds do not upload them.
 
 User-imported fonts remain device-local. You are responsible for having the
 right to use any imported manuscript, image, PDF, or font.
 
-## Google Drive sync
-
-Google Drive sync is optional. Connecting uses Google OAuth and the Drive
-`appDataFolder` belonging to the selected Google account. Google OAuth and
-Google Drive are inside the cloud trust boundary. Drifting does not
-end-to-end encrypt synced project objects against Google; HTTPS and Google's
-own storage encryption do not change that boundary.
-
-The client may transmit the Google account subject, project metadata, Yjs
-checkpoints and updates containing full manuscript content, snapshots,
-comments, synced Agent memory, settled Agent conversations and necessary tool
-results, and imported project assets such as images or
-PDFs. Google can process those objects under the terms and policies applicable
-to the selected Google account.
-
-Google sign-in is the cross-device access authority. Connect and new-device
-restore use the same flow: sign-in followed by automatic account-scoped
-discovery. Drifting does not require an account of its
-own and does not create a recovery phrase, recovery QR, or separate restore
-secret. It also does not create an application-managed Project content key.
-Disconnect stops the client from using the provider and follows the
-native OAuth revocation path; it does not imply that every already-uploaded
-object has been deleted from Google's systems.
-
-## Other configured network services
+## Hosted account and synchronization
 
 An operator can configure a compatible service and explicitly enable account
 and synchronization features. The client may then transmit account and device
@@ -92,19 +69,28 @@ summary automatically.
 
 ## Your controls
 
-Local-only mode disables Drifting-operated account and hosted-service traffic;
-it does not disable a personal-cloud provider that the author explicitly
-connects. Google Drive synchronization can therefore run in local-only mode
-after the author completes Google sign-in. A BYOK AI request still sends the
-prompt and selected context directly to the provider you choose. For a fully
-offline session, do not connect Google Drive or invoke BYOK or remote
-Agent-extension features. You can export local projects, remove local
-databases and imported assets through your operating system, disconnect Google
-Drive from Settings, and contact Google or the operator of another configured
-service for remote access or deletion requests.
+Local-only mode disables Drifting-operated account and Hosted traffic. A BYOK
+request still sends the prompt and selected context to the provider you choose;
+remote Agent extensions require explicit configuration and grants. For a fully
+offline session, do not invoke those network features.
 
-The current Google Drive trust and restore contract is documented in
-[docs/sync-engine/trusted-cloud-google-drive.md](docs/sync-engine/trusted-cloud-google-drive.md).
+Hosted sign-in connects the current local library: cloud projects are downloaded
+and local projects are uploaded. Disconnecting sync or signing out keeps local
+projects and does not delete uploaded copies. Permanent Hosted project deletion
+requires an owning account and a verified service deletion receipt; service
+retention, backups and account access/deletion requests follow the operator's
+published policy. Offline failure retains local work.
+
+Google Drive OAuth, transport and controls have been removed. Previously stored
+Drive records and protected credentials are not automatically erased or revoked;
+the client can adopt the verified local replica into Hosted without contacting
+Drive, fetching unseen remote changes, or deleting the old remote copy.
+
+Local projects support readable Markdown exports and automatic read-only
+projection. A complete `.drifting` backup currently requires a stable local
+library without a cloud binding; Markdown output is not a full backup.
+See [Hosted behavior](docs/hosted-sync/README.md) and
+[library backup](docs/library-backup.md).
 
 For a security issue, follow [SECURITY.md](SECURITY.md). For the distinction
 between this client and the official hosted service, see

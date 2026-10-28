@@ -44,7 +44,7 @@ describe('mobile dev scripts', () => {
     expect(runner).toContain("path.join(repoDir, '.env.local')");
     expect(runner).toContain('readLocalEnvironment(envFile)');
     expect(runner).toContain('stringEnvironment(baseEnvironment)');
-    expect(runner).toContain('writeIosGoogleOauthLocalConfig(env)');
+    expect(runner).toContain('writeIosLocalBuildConfig(env)');
   });
 
   it('exposes the Tauri device host through Vite and records manual acceptance', () => {

@@ -1,5 +1,5 @@
 // Configuration for local-first operation. Network capabilities are separated
-// by purpose below: hosted service, personal cloud, author-selected BYOK,
+// by purpose below: hosted service, author-selected BYOK,
 // external content, and explicitly configured Agent extensions.
 import loglevel from 'loglevel';
 import { runtimeViteEnv } from './vite-runtime-env';
@@ -47,12 +47,11 @@ export const APP_CONFIG = {
  * Network access is a capability decision, not the inverse of local-only mode.
  *
  * A local-first build must still be able to call an author-selected BYOK model
- * and author-selected extensions. Personal cloud is temporarily suspended;
- * the separately operated Hosted service still requires explicit configuration.
+ * and author-selected extensions. The separately operated Hosted service
+ * still requires explicit configuration.
  */
 export type NetworkPurpose =
   | 'hosted-service'
-  | 'personal-cloud'
   | 'byok-provider'
   | 'agent-extension';
 
@@ -66,17 +65,11 @@ function isBrowserOnline(): boolean {
 export function canUseNetwork(purpose: NetworkPurpose): boolean {
   if (!isBrowserOnline()) return false;
   if (purpose === 'hosted-service') return !APP_CONFIG.LOCAL_ONLY_MODE;
-  // Google Drive is temporarily suspended in every App build.
-  if (purpose === 'personal-cloud') return false;
   return true;
 }
 
 export function canUseHostedService(): boolean {
   return canUseNetwork('hosted-service');
-}
-
-export function canUsePersonalCloud(): boolean {
-  return canUseNetwork('personal-cloud');
 }
 
 export function canUseByokProvider(): boolean {

@@ -1,19 +1,24 @@
-# Drifting desktop Alpha quick start
+# Drifting quick start
 
-1. Continue in local mode and create a project from the Bookshelf. No
-   Drifting account or network connection is required.
-2. Create a chapter or a drift (inspiration note); write a unique sentence;
-   close and reopen Drifting to confirm local persistence. Elements, element
-   categories, and storylines are created the same way; scenes and beats are
-   just headings inside a chapter, not separate objects.
-3. Open **Settings → Sync & Data**. Use Relational Markdown export when you
-   want a readable copy of the library.
-4. Optionally connect Google Drive. Read the trust-boundary notice first; Drive
-   receives manuscript data and original assets without Drifting-provided E2EE.
-5. Optionally configure a model provider under **Models & API**. Copilot and
-   General Agent are Experimental and BYOK; review every proposed edit.
+1. On first launch, choose **Continue locally** or, in an operator-configured
+   Hosted build, **Sign in / sign up and sync**. Source builds default to local-only.
+2. Hosted sign-in supports password or email code. Registration verifies your
+   email. Connecting downloads cloud projects and uploads the current local
+   library; a failed connection can be retried or left for later.
+3. Create a project from the Bookshelf, add a chapter or drift, write, then close
+   and reopen the app to check your local work. The outline supports acts,
+   chapters, scenes, beats and notes.
+4. In an open project, **Settings → Sync & Data** shows the automatic read-only
+   Markdown projection and lets you choose its directory. It is a readable
+   mirror, not a complete backup or reverse-sync folder. Relational Markdown
+   export preserves readable project structure; a `.drifting` library backup is
+   restorable and currently requires a stable local library without a cloud binding.
+5. Configure a model in **Models & API** if wanted. Writing does not require AI;
+   Copilot and General Agent use your own provider credentials and require review.
+6. **Settings → Account** manages Hosted connection, retry, pause/resume,
+   disconnect and sign-out. Offline writing remains available. Wait for sync to
+   finish before switching devices.
 
-For a compact example, make a project named `Alpha canary`, add two chapters,
-drag their order once, relate one element to another, attach a disposable image
-and PDF, restart once, and export every project in the local library as
-Relational Markdown.
+Hosted is the only supported sync provider. See [Hosted behavior](hosted-sync/README.md),
+[local data export](local-data-export.md), [library backup](library-backup.md), and
+[current onboarding/readiness audit](client-onboarding-and-hosted-readiness.md).

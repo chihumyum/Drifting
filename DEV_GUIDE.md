@@ -99,19 +99,11 @@ VITE_AI_TRANSPORT=direct
 ```
 
 `LOCAL_ONLY_MODE` 只关闭 Drifting-compatible hosted service。网络按
-`hosted-service`、`personal-cloud`、`byok-provider` 与 `agent-extension` 分类；
+`hosted-service`、`byok-provider` 与 `agent-extension` 分类；
 用户明确选择的 BYOK provider 及已配置的远程 Agent extension 仅在设备在线时可用。
-素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Personal-cloud 同步只使用独立 capability
-和 SyncEngine authority，不存在 hosted sync 开关。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
+素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Hosted 是唯一支持的同步 provider。Google Drive 同步与独立 Apple 原生前端已经退役。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
 [official-service.md](docs/official-service.md)，并自行配置 API origin、CSP、隐私政策与
 凭据。
-
-可选 Google Drive 同步以 Google 登录作为跨设备访问 authority：新设备登录同一
-Google 账号后自动发现 Project。同步对象通过 HTTPS 写入该账号的
-`appDataFolder`，并受到 Google 自身的存储保护，但 Drifting 不对 Google 做端到端
-加密；Google 可以处理稿件、元数据和素材内容。该流程没有恢复码、二维码或应用管理的
-Project 内容密钥。当前源码/模拟器/构建检查也不等于真实账号与物理设备验收，完整边界见
-[trusted-cloud Google Drive contract](docs/sync-engine/trusted-cloud-google-drive.md)。
 
 BYOK Key 只能通过应用内“设置 → 模型与 API”写入系统安全存储，不要放进
 `VITE_*` 构建变量或源码。

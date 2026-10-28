@@ -12,7 +12,7 @@
       "docs/sync-engine/phase7-log-compaction.md": "b6111c13e06d762810a9b8286890eebe8a8104786455d922316e1e3d47080a91",
       "drizzle/0008_sync_journal_truncation.sql": "ec491eb0c8358a2611087aa148f54132331f9925bc926581f8868cce4f486cdd",
       "scripts/generate-sync-log-compaction.ts": "7bb8f694e0219727d2012b8a603f8912c470d1b0aaa6a26c42bcc200dcb90e6c",
-      "src-tauri/src/hosted_sync.rs": "4a3cf222365005dbb177e1553f520a9bbac8b38f2397d8157aa63de55b2e672f",
+      "src-tauri/src/hosted_sync.rs": "7937e27c46804fe8ac50dc46fd8f91f13be4f74589b518217030281dcb25864d",
       "src/renderer/schema/sync-journal-truncation-migration.integration.test.ts": "fb1f95b15085a68c19ccad21c5079de8c0735c8ec7a943133f8b6e8ea9a3842d",
       "src/renderer/sync/checkpoint/provider-publisher.ts": "e8aa3adbbec376f7f7f42143dff8a683aca70f1e417ff3ce82523c63a9369711",
       "src/renderer/sync/checkpoint/reducer-state.ts": "5a3a1c01ac13b15324462a56be15143046b612c7aff299faa9506a941aad0e50",
@@ -28,21 +28,21 @@
       "src/renderer/sync/engine/durable-runtime.ts": "9899cc1436daac86504379698115602b42c9befaeebdf3632a1dc193151b5b3b",
       "src/renderer/sync/engine/sqlite-repository.ts": "f1d443d5e13444e312b8e4a96df73b96987a1e7e976c07daf5dd438c9f6d10b0",
       "src/renderer/sync/journal/repository.ts": "9391678258c714c5d10ecc8601a74510bcf40eb0547ba30746df8f22a8076152",
-      "src/renderer/sync/production-runtime.ts": "852e2c3083b407356a86277459c4cc6817d44d05debca362618f49d52d633d49",
+      "src/renderer/sync/production-runtime.ts": "5b16dfb7ea998bac03dc418305af30cfff96f390d51df8604a96434a49d3aa48",
       "src/renderer/sync/protocol/provider.ts": "9d424c11e99c76cc19759d6f5a5d928795a2a7af0c27c646a2a288d2e3446863",
       "src/renderer/sync/providers/hosted/provider.ts": "47bc31084fb90ab174fc5fd3b7b93df16d849ace0afe0d62dc6dba66e0898746",
       "src/renderer/sync/providers/memory-provider.prune.test.ts": "1d9ee852c9ff3aaf632ca8949224cec556ba757a626f4e71a72dc39b182f6e0c",
       "src/renderer/sync/providers/memory-provider.ts": "908c35be2a94000cf52e85e43bd5395a44581c2a58ee3cd836d23d29ad73c7b8",
-      "src/renderer/sync/reducer/production-domain-kernel.ts": "d865db89885d51117bdcf3d45bc4bee085a7b70941ab0396f6e2097ce029c6ba",
-      "src/renderer/sync/reducer/reducer.ts": "caad8b59617d95963914683e880a0c5428bfe83e27471a1bc8a091a3984ba5f1",
-      "src/renderer/sync/reducer/sqlite-materializer.ts": "31abca5c2d6a66699955021efcec8918fe1f13b2d1b62a56522a3fd5a3bb11d5",
-      "src/renderer/sync/restore/cloud-restore.ts": "6ee8b8f77f60ff1ce02ccd6febad49637a559d723cfbef90cc2bd1e25a572620"
+      "src/renderer/sync/reducer/production-domain-kernel.ts": "68fe3816365c4f93e715864ccb58b49a80c973029b128992bd490a1cb10d7310",
+      "src/renderer/sync/reducer/reducer.ts": "7bdadac19acb9be9215f69f75241ad6e682aecc8dbefff8d2c83cb4a3200f3c6",
+      "src/renderer/sync/reducer/sqlite-materializer.ts": "2b24373a8b6cb3a2903a5b34aeb6af138cb1bcbd5c9af71a32e873d0828e9c8d",
+      "src/renderer/sync/restore/cloud-restore.ts": "95b8b3c0e68a912c064ce3aeda7010c4218057c20a09eadb532220200aea5272"
     }
   },
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/sync/compaction src/renderer/sync/providers/memory-provider.prune.test.ts src/renderer/sync/providers/hosted/provider.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/checkpoint src/renderer/sync/restore src/renderer/schema/sync-journal-truncation-migration.integration.test.ts",
-    "passed": 100,
+    "passed": 93,
     "failed": 0,
     "skipped": 0,
     "cases": [

@@ -315,7 +315,7 @@ fn prose_journal_rejects_utf16_oversized_ids_atomically_and_accepts_unicode_boun
 #[test]
 fn prose_journal_bytes_and_hashes_match_actual_typescript_encoder() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../docs/apple-native/fixtures/prose-journal-v1.json");
+        .join("tests/fixtures/prose-journal-v1.json");
     let fixture: Value = serde_json::from_slice(
         &std::fs::read(path).expect("Run the production prose journal oracle fixture generator"),
     )

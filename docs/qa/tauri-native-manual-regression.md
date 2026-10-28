@@ -12,7 +12,7 @@
 
 `0.1.0-alpha.1` 只支持 macOS 13+ Apple Silicon。它的 P0/P1 发布记录以
 [签名桌面 RC 表](desktop-alpha-release-candidate.md)和
-[Google Drive 双机表](google-drive-desktop-alpha-acceptance.md)为准；两张表必须记录日期、
+[Google Drive 双机表 (retired)](../client-onboarding-and-hosted-readiness.md)为准；两张表必须记录日期、
 设备、构建 SHA 与脱敏证据。下面保留的 iOS/Android 清单是后续可移植性资料，不影响本轮
 桌面 Alpha 放行，也不能替代桌面签名构建验收。
 

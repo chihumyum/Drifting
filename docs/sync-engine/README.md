@@ -1,10 +1,9 @@
 # SyncEngine documentation
 
-Start with the [Hosted sync contract](../hosted-sync/README.md). Since 2026-10-01,
-Hosted is the only enabled App sync provider; Google Drive UI and background
-execution are suspended. The [Google Drive contract](trusted-cloud-google-drive.md)
-and its implementation/evidence below are retained for recovery and possible
-resumption, not current product availability.
+Start with the [Hosted sync contract](../hosted-sync/README.md). Hosted is the
+only supported App sync provider. Google Drive transport, OAuth and product
+controls were removed on 2026-10-28; only legacy database recovery/adoption remains.
+See [the retirement audit](../client-onboarding-and-hosted-readiness.md).
 
 ## Current architecture
 
@@ -35,34 +34,16 @@ resumption, not current product availability.
   filesystem reference provider.
 - [`phase3-production-runtime.md`](phase3-production-runtime.md): production
   composition boundary.
-- [`phase5-google-drive-native.md`](phase5-google-drive-native.md): native Drive
-  transport and OAuth boundary.
-- [`phase5-google-drive-credential-ownership.md`](phase5-google-drive-credential-ownership.md),
-  [`phase5-google-drive-credential-revoke.md`](phase5-google-drive-credential-revoke.md),
-  [`phase5-google-drive-reauthorize.md`](phase5-google-drive-reauthorize.md), and
-  [`phase5-google-drive-mobile-oauth.md`](phase5-google-drive-mobile-oauth.md):
-  native credential lifecycle.
-- [`phase5-initial-connect.md`](phase5-initial-connect.md),
-  [`phase5-google-drive-restore.md`](phase5-google-drive-restore.md), and
-  [`phase5-sync-generation-provisioning.md`](phase5-sync-generation-provisioning.md):
-  Google sign-in, automatic Project discovery, restore, and post-connect
-  SyncGeneration provisioning.
-- [`phase6-product-controls.md`](phase6-product-controls.md): user-facing sync
-  controls and release gates.
+- [Hosted account and connection](../hosted-sync/README.md): sign-in, discovery,
+  new-project provisioning, pause/resume and local-data-preserving disconnect.
 - [`phase7-log-compaction.md`](phase7-log-compaction.md): Raft-style truncation
   of covered history on the provider and in the local journal, and
   lagging-replica catch-up from a snapshot.
 
 ## Evidence boundary
 
-Phase documents link their machine-readable acceptance JSON and reproducible
-commands where that evidence exists. The top-level product contract is
-[`acceptance/trusted-cloud-google-drive-contract.json`](acceptance/trusted-cloud-google-drive-contract.json).
-These reports cover local implementation and fake/native build boundaries;
-they do not close the real-account, cross-device, or physical-device gates.
-
-Physical-run claims use the evidence chain introduced on 2026-08-24:
-`scripts/check-google-drive-physical-evidence.ts` validates
-`docs/qa/google-drive-physical-evidence-contract.json`, run through
-`pnpm mobile:google-drive:acceptance` or
-`pnpm mobile:google-drive:acceptance:contract`.
+Phase documents contain historical implementation evidence and are not current
+product promises. `pnpm hosted:acceptance` generates the active Hosted HTTP/SQLite
+report, including retired-library adoption without Drive access. Source and
+synthetic HTTP checks do not establish live account, email, cross-device,
+signed-installation or production-service acceptance.

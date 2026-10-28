@@ -64,7 +64,8 @@ acknowledged by this check. The published `PendingUpdate` shape is unchanged.
 Three deterministic native regressions cover all arrival orders, checkpoints,
 multiple holes, duplicate/empty updates, pending deletes and subsequent history.
 The cross-language suite checks real XML prose with Yjs in both input encodings.
-The generated `docs/apple-native/acceptance/yrs-random-array-diagnostic.json`
+The historical `docs/apple-native/acceptance/yrs-random-array-diagnostic.json`
+(recoverable from Git tag `apple-native-paused-2026-09-29`)
 also preserves an unpatched upstream nested-array failure and requires all 100
 patched fixed-seed stress runs to pass. Baseline and patched Cargo artifacts are
 isolated. Keep all patches until a released version passes these regressions;

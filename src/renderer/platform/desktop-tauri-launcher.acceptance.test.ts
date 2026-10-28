@@ -10,7 +10,6 @@ import * as desktopLauncher from '../../../scripts/run-desktop-tauri.mjs';
 const {
   createDesktopTauriConfigOverride,
   createDesktopTauriEnvironment,
-  describeDesktopOauthConfiguration,
   prepareDesktopSigning,
 } = desktopLauncher;
 
@@ -61,26 +60,6 @@ describe('desktop Tauri environment', () => {
     expect(prepareDesktopSigning({ command: 'build', arguments: ['--debug'], platform: 'darwin', environment, resolveIdentity })).toBe('verified');
     expect(resolveIdentity).toHaveBeenCalledWith({ requestedIdentity: 'requested' });
   });
-  it('loads native Google OAuth build values from the ignored root env file', () => {
-    const environment = createDesktopTauriEnvironment({
-      baseEnvironment: {},
-      envFile: localEnv(
-        'DRIFTING_GOOGLE_DESKTOP_CLIENT_ID=file-client-id\n' +
-          'DRIFTING_GOOGLE_DESKTOP_CLIENT_SECRET=file-client-secret\n',
-      ),
-    });
-
-    expect(environment).toMatchObject({
-      DRIFTING_GOOGLE_DESKTOP_CLIENT_ID: 'file-client-id',
-      DRIFTING_GOOGLE_DESKTOP_CLIENT_SECRET: 'file-client-secret',
-      VITE_LOCAL_ONLY_MODE: 'true',
-      VITE_REQUIRE_AUTH: 'false',
-      VITE_AI_TRANSPORT: 'direct',
-    });
-    expect(describeDesktopOauthConfiguration(environment)).toEqual({
-      googleDriveOAuthConfigured: true,
-    });
-  });
 
   it('keeps explicit shell or CI values authoritative', () => {
     const environment = createDesktopTauriEnvironment({
@@ -98,22 +77,6 @@ describe('desktop Tauri environment', () => {
     expect(environment.DRIFTING_DB_DIR).toBe('/tmp/drifting-explicit-database');
   });
 
-  it('fails closed without configuration and never includes values in its summary', () => {
-    const environment = createDesktopTauriEnvironment({
-      baseEnvironment: {},
-      envFile: path.join(tmpdir(), 'missing-drifting-env-file'),
-      mode: 'online',
-    });
-    const summary = describeDesktopOauthConfiguration(environment);
-
-    expect(summary).toEqual({ googleDriveOAuthConfigured: false });
-    expect(JSON.stringify(summary)).not.toMatch(/client[_-]?(id|secret)/iu);
-    expect(environment).toMatchObject({
-      VITE_LOCAL_ONLY_MODE: 'false',
-      VITE_REQUIRE_AUTH: 'false',
-      VITE_AI_TRANSPORT: 'direct',
-    });
-  });
 
   it('uses one configured origin for renderer authentication, native sync and CSP while preserving HMR', () => {
     const environment = createDesktopTauriEnvironment({

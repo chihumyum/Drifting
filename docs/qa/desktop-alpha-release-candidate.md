@@ -1,6 +1,7 @@
 # Desktop Alpha release-candidate acceptance
 
-Status: **NOT RUN — signed RC required**
+Status: **PAUSED — release gates are being rebuilt during the 2026-10-28 restructuring.**
+This checklist is not evidence of an accepted signed RC.
 
 Record: date, operator, Apple Silicon model/RAM, macOS version, exact commit,
 tag, downloaded DMG SHA-256, install state, timings, and sanitized evidence.
@@ -25,17 +26,17 @@ tag, downloaded DMG SHA-256, install state, timings, and sanitized evidence.
 - [ ] Downloaded DMG passes SHA-256, Developer ID, `codesign --deep --strict`,
       Gatekeeper `spctl`, notarization staple, read-only mount, and first launch.
 - [ ] `alpha.1` updates to signed `alpha.2` only after user confirmation;
-      projects, assets, Drive authority, and BYOK survive, and any required
+      projects, assets, Hosted account/bindings, and BYOK survive, and any required
       data migration passes the shadow-migration gate on first launch.
 
 ## P1 desktop experience
 
-- [ ] Onboarding covers local project, optional Drive/local-only choice, and
-      the quick guide without presenting an app-managed backup workflow.
-- [ ] Google Drive connect, reauthorize, cancel, pause/resume, and disconnect
-      show an immediate live operation state. Disconnect explains its final
-      convergence/revoke wait and ends with either local-only confirmation or
-      an actionable inline error.
+- [ ] Onboarding offers local writing and, in a configured build, Hosted sign-in;
+      verify registration, mailbox delivery, initial upload/download, retry and later sign-in.
+- [ ] Hosted connect, retry, pause/resume, disconnect and sign-out show an
+      immediate operation state; failed/offline actions preserve local writing.
+- [ ] The readable projection location and successful first generation are
+      discoverable, and its distinction from a full backup is clear.
 - [ ] Chapter/timeline drag, relationships, Story Graph, and Plot Grid work
       through restart.
 - [ ] Keyboard navigation, focus order, Escape, modals, titlebar, menus, and

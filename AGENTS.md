@@ -20,52 +20,18 @@ Guidance for coding agents working in this standalone Drifting client repository
   itself; `pnpm dev:seed` starts one with a synthetic sample project.
   See `docs/worktree-development.md`. Never point parallel apps at one database.
 
-## Apple native migration
-
-- **Paused by the author on 2026-09-29.** The Tauri client is the active
-  client; do not start native batches, UI rework or acceptance refreshes unless
-  the author resumes the migration. The archived state is tagged
-  `apple-native-paused-2026-09-29`; see `docs/apple-native/README.md`. Keep
-  shared Rust changes compatible with both clients.
-- Follow `docs/apple-native/README.md` for the Apple-only target and staged gates.
-- Shared native correctness lives in `crates/drifting-core`; Tauri adapters and
-  `native/apple` must use that owner instead of duplicating migration logic.
-- Native lab builds use synthetic data and separate application/data identity.
-- Current implementation and all routine native acceptance are Mac-only. Finish
-  the Mac front-end migration first; iPhone and iPad work and testing are deferred
-  until the author discusses those platforms afterwards. Preserve shared Rust,
-  existing UIKit code and historical results, but mobile is not a current gate.
-- Native acceptance defaults to Mac. `--with-ios` explicitly adds mobile tests;
-  `--ios-only` explicitly selects mobile-only, and `--include-ipad` also opts into
-  mobile. Do not use these mobile options during the current Mac-only work.
-- Open P2 document/IME/undo/recovery gates block only the affected editor or
-  sync path, not the local writing loop; see `docs/apple-native/milestones.md`.
-  A demonstrated data-loss or undo defect in the current batch still blocks it.
-- The native client need not stay compatible or interoperable with the Tauri
-  client for any feature (2026-09-27). New batches use native tests and Mac UI
-  acceptance; do not add renderer parity oracles. Existing parity reports stay
-  as regression evidence; retire or narrow one when native intentionally
-  diverges.
-- Iterate with targeted tests. Before each batch commit run `pnpm apple:refresh`
-  (regenerates only stale evidence, in dependency order, then macOS acceptance)
-  and `pnpm apple:check`. Related features may share one batch. Keep topic docs
-  short; `milestones.md` holds status and open gates, not history.
-- The Yrs document module requires Rust 1.96. Keep process-termination and
-  power-loss durability evidence distinct.
-- Default native acceptance excludes desktop XCTest input. On this host it
-  repeatedly opened System Settings and timed out. The user permits desktop
-  interaction, but repair the failing input path before repeatedly rerunning
-  it. Keep omitted/failed UI evidence explicit; targeted app inspection is fine.
-
 ## Repository boundary
 
 - This repository contains the Tauri 2, Rust, React, and Vite client.
 - Public source builds default to local-only mode. Account, hosted sync,
   payment, and other official hosted features belong to a separately operated
-  service. Google Drive is temporarily suspended in the App (2026-10-01):
-  Hosted is the only enabled sync provider. Retain Drive schema, implementation
-  and recovery data, but do not restore its UI or background execution without
-  the author's request. See `docs/hosted-sync/README.md`.
+  service. Hosted is the only supported sync provider. Google Drive sync and
+  the standalone Apple-native front-end were retired on 2026-10-28. Do not
+  restore their UI, transport, plugins or build gates. Preserve published
+  migrations, stored recovery records and the local-replica adoption path.
+  Tauri still uses `drifting-core`, `drifting-document` and `drifting-prose`;
+  Apple platform adapters and Tauri iOS are not the retired front-end. See
+  `docs/client-onboarding-and-hosted-readiness.md` and `docs/hosted-sync/README.md`.
 - `packages/prose-metrics` is independently licensed under Apache-2.0. The
   remaining project-owned client source is AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or

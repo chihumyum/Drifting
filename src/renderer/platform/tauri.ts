@@ -9,11 +9,6 @@ import type {
   ContractAvailability,
   AppUpdateDownloadEvent,
   CodexImagesGenerateInput,
-  GoogleDriveNativeError,
-  GoogleDriveNativeErrorCode,
-  GoogleDriveNativeDiagnostics,
-  GoogleDriveNativeResult,
-  GoogleDriveTransferProgressEvent,
   ImageInboxCandidate,
   ImageVariantResult,
   LifecycleEventPayload,
@@ -28,7 +23,6 @@ import type {
   TauriCommandResult,
   TauriEventContract,
 } from './contracts';
-import { recordActiveGoogleDriveNativeDiagnostics } from '../services/diagnostics/google-drive-operation-trace';
 import type {
   ImageGenerationResult,
   ImageInboxEntry,
@@ -62,70 +56,6 @@ export class PlatformCommandError extends Error {
     this.name = 'PlatformCommandError';
     this.command = command;
   }
-}
-
-export class GoogleDrivePlatformError extends Error {
-  readonly code: GoogleDriveNativeErrorCode;
-  readonly retryable: boolean;
-  readonly retryAfterMs: number | null;
-  readonly diagnostics: GoogleDriveNativeDiagnostics | null;
-
-  constructor(error: GoogleDriveNativeError) {
-    super(error.message);
-    this.name = 'GoogleDrivePlatformError';
-    this.code = error.code;
-    this.retryable = error.retryable;
-    this.retryAfterMs = error.retryAfterMs;
-    this.diagnostics = error.diagnostics ?? null;
-  }
-}
-
-function unwrapGoogleDriveResult<T>(result: GoogleDriveNativeResult<T>): T {
-  if (result.ok) return result.value;
-  throw new GoogleDrivePlatformError(result.error);
-}
-
-async function invokeGoogleDriveTransfer<T>(
-  task: () => Promise<GoogleDriveNativeResult<T>>,
-  transferId: string,
-  signal: AbortSignal,
-): Promise<T> {
-  if (signal.aborted) {
-    throw new GoogleDrivePlatformError({
-      code: 'cancelled',
-      message: 'Google Drive transfer was cancelled',
-      retryable: false,
-      retryAfterMs: null,
-      diagnostics: null,
-    });
-  }
-  let aborted = false;
-  const cancel = () => {
-    aborted = true;
-    void invokeContract('google_drive_cancel_transfer', { transferId }).catch(() => undefined);
-  };
-  signal.addEventListener('abort', cancel, { once: true });
-  try {
-    const result = await task();
-    if (aborted || signal.aborted) {
-      throw new GoogleDrivePlatformError({
-        code: 'cancelled',
-        message: 'Google Drive transfer was cancelled',
-        retryable: false,
-        retryAfterMs: null,
-        diagnostics: null,
-      });
-    }
-    return unwrapGoogleDriveResult(result);
-  } finally {
-    signal.removeEventListener('abort', cancel);
-  }
-}
-
-function googleDriveRevokeTransferId(): string {
-  const randomId = globalThis.crypto?.randomUUID?.();
-  if (randomId) return `revoke-${randomId}`;
-  return `revoke-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export function isTauriRuntime(): boolean {
@@ -465,8 +395,6 @@ function normalizeCapabilities(
     featureStatus: {
       secureStorage: advertised(native.secureStorage),
       syncObjectStore: advertised(native.syncObjectStore),
-      googleDriveTransport: advertised(native.googleDriveTransport),
-      googleDriveOAuth: native.googleDriveOAuth === true ? 'available' : 'unsupported',
       materialFiles: advertised(native.materialFiles),
       assetStore: advertised(native.assetStore),
       aiLog: advertised(native.aiLog),
@@ -750,82 +678,6 @@ export const tauriPlatform: PlatformApi = {
     finalizeRestoreAttempt: (attemptId) =>
       invokeContract('sync_asset_finalize_restore_attempt', { attemptId }),
     gcRestoreAttempts: (input) => invokeContract('sync_asset_gc_restore_attempts', input),
-  },
-
-  googleDrive: {
-    connectAccount: async () =>
-      unwrapGoogleDriveResult(await invokeContract('google_drive_oauth_connect', undefined)),
-    claimAccount: async (credentialSecretRef, accountSubject) =>
-      unwrapGoogleDriveResult(
-        await invokeContract('google_drive_claim_account', {
-          credentialSecretRef,
-          accountSubject,
-        }),
-      ),
-    reauthorizeAccount: async (credentialSecretRef) =>
-      unwrapGoogleDriveResult(
-        await invokeContract('google_drive_oauth_reauthorize', { credentialSecretRef }),
-      ),
-    revokeAccount: async (
-      credentialSecretRef,
-      signal = new AbortController().signal,
-    ): Promise<void> => {
-      const transferId = googleDriveRevokeTransferId();
-      const result = await invokeGoogleDriveTransfer(
-        () =>
-          invokeContract('google_drive_revoke_account', {
-            credentialSecretRef,
-            transferId,
-          }),
-        transferId,
-        signal,
-      );
-      recordActiveGoogleDriveNativeDiagnostics(result.diagnostics);
-    },
-    discoverProjectSnapshots: async (input) =>
-      unwrapGoogleDriveResult(
-        await invokeContract('google_drive_discover_project_snapshots', input),
-      ),
-    openGeneration: async (input) =>
-      unwrapGoogleDriveResult(await invokeContract('google_drive_open_generation', input)),
-    captureStartCursor: async (generationRef) =>
-      unwrapGoogleDriveResult(
-        await invokeContract('google_drive_capture_start_cursor', { generationRef }),
-      ),
-    listInventory: async (input) =>
-      unwrapGoogleDriveResult(await invokeContract('google_drive_list_inventory', input)),
-    listChanges: async (input) =>
-      unwrapGoogleDriveResult(await invokeContract('google_drive_list_changes', input)),
-    statImmutable: async (input) =>
-      unwrapGoogleDriveResult(await invokeContract('google_drive_stat_immutable', input)),
-    uploadImmutable: ({ signal, onProgress, ...input }) => {
-      const progressChannel = new Channel<GoogleDriveTransferProgressEvent>(
-        onProgress ?? (() => {}),
-      );
-      return invokeGoogleDriveTransfer(
-        () =>
-          invokeContract('google_drive_upload_immutable', {
-            ...input,
-            onProgress: progressChannel,
-          }),
-        input.transferId,
-        signal,
-      );
-    },
-    downloadVerifiedImmutable: ({ signal, onProgress, ...input }) => {
-      const progressChannel = new Channel<GoogleDriveTransferProgressEvent>(
-        onProgress ?? (() => {}),
-      );
-      return invokeGoogleDriveTransfer(
-        () =>
-          invokeContract('google_drive_download_verified_immutable', {
-            ...input,
-            onProgress: progressChannel,
-          }),
-        input.transferId,
-        signal,
-      );
-    },
   },
 
   typography: {

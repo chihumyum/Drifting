@@ -28,8 +28,8 @@ targets:
     type: application
     platform: iOS
     configFiles:
-      debug: GoogleOAuth.xcconfig
-      release: GoogleOAuth.xcconfig
+      debug: LocalBuild.xcconfig
+      release: LocalBuild.xcconfig
     sources:
       - path: Sources
       - path: ../../../src/assets/icon.icon
@@ -46,9 +46,6 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: drifting
             CFBundleURLSchemes: [drifting]
-          - CFBundleURLName: google-oauth
-            CFBundleURLSchemes: [$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)]
-        GIDClientID: $(DRIFTING_GOOGLE_IOS_CLIENT_ID)
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         # tao currently gates scene lifecycle registration on this boolean.

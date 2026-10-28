@@ -117,7 +117,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
   },
   writerIdentity: getSyncInstallationIdentity,
   createProvider(mode) {
-    if (mode !== 'hosted') throw new Error('Google Drive sync is temporarily unavailable');
+    if (mode !== 'hosted') throw new Error('Only Hosted sync is supported');
     return createHostedProvider();
   },
   createCoordinator: () =>

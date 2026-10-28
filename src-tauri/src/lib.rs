@@ -13,7 +13,6 @@ mod data_paths;
 mod database;
 #[cfg(all(debug_assertions, desktop))]
 mod dev_watchdog;
-mod google_drive_sync;
 mod hosted_sync;
 mod image_pipeline;
 mod installation_identity;
@@ -68,26 +67,6 @@ struct LifecyclePayload {
 }
 
 fn record_deep_links(app: &tauri::AppHandle, urls: Vec<String>) {
-    if urls.is_empty() {
-        return;
-    }
-
-    #[cfg(target_os = "ios")]
-    let urls = urls
-        .into_iter()
-        .filter_map(|url| {
-            if google_drive_sync::is_private_google_oauth_callback_url(&url) {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    google_drive_sync::handle_private_google_oauth_callback(&app, &url).await;
-                });
-                None
-            } else {
-                Some(url)
-            }
-        })
-        .collect::<Vec<_>>();
-
     if urls.is_empty() {
         return;
     }
@@ -178,9 +157,6 @@ pub fn run() {
         .plugin(tauri_plugin_drifting_secure_storage::init())
         .plugin(tauri_plugin_drifting_image_codec::init());
 
-    #[cfg(any(target_os = "ios", target_os = "android"))]
-    let builder = builder.plugin(tauri_plugin_drifting_google_drive_oauth::init());
-
     #[cfg(target_os = "ios")]
     let mut context = tauri::generate_context!();
     #[cfg(not(target_os = "ios"))]
@@ -224,7 +200,6 @@ pub fn run() {
         .manage(openai_responses::OpenAIResponsesState::default())
         .manage(codex_oauth::CodexOAuthState::default())
         .manage(codex_images::CodexImagesState::default())
-        .manage(google_drive_sync::GoogleDriveState::default())
         .manage(native_capabilities::AssetImportSession::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_get_info,
@@ -293,19 +268,6 @@ pub fn run() {
             sync_asset_store::sync_asset_abandon_restore_attempt,
             sync_asset_store::sync_asset_finalize_restore_attempt,
             sync_asset_store::sync_asset_gc_restore_attempts,
-            google_drive_sync::google_drive_oauth_connect,
-            google_drive_sync::google_drive_claim_account,
-            google_drive_sync::google_drive_oauth_reauthorize,
-            google_drive_sync::google_drive_discover_project_snapshots,
-            google_drive_sync::google_drive_open_generation,
-            google_drive_sync::google_drive_capture_start_cursor,
-            google_drive_sync::google_drive_list_inventory,
-            google_drive_sync::google_drive_list_changes,
-            google_drive_sync::google_drive_stat_immutable,
-            google_drive_sync::google_drive_upload_immutable,
-            google_drive_sync::google_drive_download_verified_immutable,
-            google_drive_sync::google_drive_revoke_account,
-            google_drive_sync::google_drive_cancel_transfer,
             native_capabilities::material_open_local,
             native_capabilities::material_pick_file,
             native_capabilities::material_stage_import_bytes,

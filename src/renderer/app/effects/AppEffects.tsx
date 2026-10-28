@@ -12,7 +12,7 @@ import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { flushApplicationPersistenceForLifecycle } from '../../lib/persistence-lifecycle';
 import { installProductionSyncRuntime } from '../../sync/production-runtime';
-import { installHostedSyncGenerationProvisioningRuntime } from '../../sync/provision/google-drive-runtime';
+import { installHostedSyncGenerationProvisioningRuntime } from '../../sync/provision/hosted-runtime';
 import { installHostedDiscoveryRuntime } from '../../sync/hosted/runtime';
 import { installProductSyncAuthorityMonitor } from '../../sync/product-authority-store';
 import { events } from '../../lib/events';

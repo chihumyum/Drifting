@@ -869,8 +869,7 @@ async function resolveAttempt(input: {
     if (
       !row ||
       row.kind !== 'connect' ||
-      row.targetMode !==
-        (input.dependencies.provider.kind === 'hosted' ? 'hosted' : 'google-drive') ||
+      row.targetMode !== 'hosted' ||
       row.targetAccountSubjectId !== input.account.accountSubject ||
       row.targetCredentialSecretRef !== input.account.credentialSecretRef
     ) {
@@ -896,7 +895,7 @@ async function resolveAttempt(input: {
       attemptId: row.attemptId,
       kind: 'connect',
       sourceMode: 'local',
-      targetMode: input.dependencies.provider.kind === 'hosted' ? 'hosted' : 'google-drive',
+      targetMode: 'hosted',
       authorityGeneration: row.authorityGeneration,
       generations: children.map((child) => ({
         sourceSyncGenerationId: child.sourceSyncGenerationId,
@@ -908,7 +907,7 @@ async function resolveAttempt(input: {
     throw new CloudRestoreError('restore-failed', 'Cloud is already connected');
   }
   return authority.begin({
-    targetMode: input.dependencies.provider.kind === 'hosted' ? 'hosted' : 'google-drive',
+    targetMode: 'hosted',
     accountSubjectId: input.account.accountSubject,
     credentialSecretRef: input.account.credentialSecretRef,
     attemptId:
@@ -995,6 +994,8 @@ export interface RestoreCloudSyncGenerationsResult {
 export async function restoreCloudSyncGenerations(
   input: RestoreCloudSyncGenerationsInput,
 ): Promise<RestoreCloudSyncGenerationsResult> {
+  if (input.dependencies.provider.kind !== 'hosted')
+    throw new Error('Only Hosted sync is supported');
   const account = input.account;
   requireNonEmpty(account.accountSubject, 'Provider account subject');
   requireNonEmpty(account.credentialSecretRef, 'Provider credential secret reference');
@@ -1278,7 +1279,7 @@ export async function restoreCloudSyncGenerations(
                   ].map((syncGenerationId) => ({
                     syncGenerationId,
                     providerNamespace:
-                      dependencies.provider.kind === 'hosted' ? 'project-v1' : 'appDataFolder',
+                      'project-v1',
                     providerGenerationRef: null,
                   })),
                   nowIso: activatedAt,
@@ -1314,7 +1315,7 @@ export async function restoreCloudSyncGenerations(
           ].map((syncGenerationId) => ({
             syncGenerationId,
             providerNamespace:
-              dependencies.provider.kind === 'hosted' ? 'project-v1' : 'appDataFolder',
+              'project-v1',
             providerGenerationRef: null,
           })),
           nowIso: activatedAt,
@@ -1465,6 +1466,8 @@ export async function restoreDiscoveredCloudProjects(
   input: Omit<RestoreCloudSyncGenerationsInput, 'attemptId'>,
 ): Promise<RestoreCloudSyncGenerationsResult['restored']> {
   const { db, dependencies, account } = input;
+  if (dependencies.provider.kind !== 'hosted')
+    throw new Error('Only Hosted sync is supported');
   const repository = createSyncAppAuthorityRepository(db);
   const authority = await repository.read();
   if (authority.transitionState !== 'stable' || authority.mode !== dependencies.provider.kind)
@@ -1589,7 +1592,7 @@ export async function restoreDiscoveredCloudProjects(
             .values({
               syncGenerationId: candidate.syncGenerationId,
               providerAccountId: ownedAccount.id,
-              providerNamespace: authority.mode === 'hosted' ? 'project-v1' : 'appDataFolder',
+              providerNamespace: 'project-v1',
               providerGenerationRef: null,
               state: 'ready',
               connectedAt: activatedAt,

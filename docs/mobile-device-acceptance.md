@@ -31,15 +31,12 @@ Vite/Rust 的开发监听。未指定目标时，Tauri 优先使用已经连接�
 进程必须保持运行；退出命令会同时结束 dev server。移动入口会从 `5173–5193` 自动选择空闲的
 Vite 端口，因此可以和已经占用 `5173` 的桌面开发进程并行运行。
 
-移动入口会先读取仓库根目录中被忽略的 `.env.local`，再把 native Google OAuth build-time
-参数传给 Tauri/Cargo；显式 shell 或 CI 环境变量优先。iOS 入口同时生成被 Git 忽略且仅当前
-用户可读写的 `src-tauri/gen/apple/GoogleOAuth.local.xcconfig`，供 `Info.plist` callback scheme
-和 Rust 使用；Android 通过继承的构建环境传入 Rust，再由 Rust 将 client ID 交给官方 SDK。
-启动日志只显示 `configured` 或 `missing or invalid`，不会显示 client ID。缺失、格式错误或 iOS
-反向 client ID 不匹配时保持 fail-closed，App 会把 Google Drive 登录标记为未配置。
+移动入口会先读取仓库根目录中被忽略的 `.env.local`；显式 shell 或 CI 环境变量优先。
+iOS 入口生成被 Git 忽略且仅当前用户可读写的 `src-tauri/gen/apple/LocalBuild.local.xcconfig`，
+用于 Apple 开发签名和原生 Hosted origin。Google Drive OAuth、SDK 和 callback 配置已经退役。
 
 dev 包默认使用 local-only 模式：不要求 Drifting 官方账号，并让 BYOK AI 直连所选模型提供商；
-正确配置后的个人 Google Drive 同步仍可单独使用。
+Hosted 是唯一支持的同步 provider，需要显式配置服务。
 若显式启用网络服务，脚本不会把 `localhost` 交给真机；它会把检测到或指定的 API origin 精确加入
 本次 Tauri dev CSP，并在原生构建前检查该服务是否可访问。
 
@@ -63,7 +60,7 @@ pnpm mobile:ios:device:debug -- --device "<设备名称或 identifier>"
 ```
 
 也可设置 `DRIFTING_IOS_DEVICE` 后省略 `--device`。命令读取被忽略的 `.env.local`，生成 owner-only
-Google OAuth xcconfig，以 local-only 配置运行 `tauri ios build --debug --target aarch64`，校验
+本地签名与 Hosted xcconfig，以 local-only 配置运行 `tauri ios build --debug --target aarch64`，校验
 `Drifting.app` 的签名与 `cc.drifting.client` bundle identifier，再通过 `devicectl` 覆盖安装并启动。
 它编译并内嵌 `frontendDist`，不启动 Vite dev server，也不依赖桌面客户端或官方服务进程。
 
@@ -97,7 +94,7 @@ App 数据，不执行卸载。这里安装的是普通 Drifting，独立 Hosted
 前端资源已内嵌，运行时无需 Vite 或连接 Mac；此命令不导出 IPA、不上传 App Store/TestFlight。
 Release 编译仍须有效的真机开发签名和包含目标设备的 provisioning profile。
 
-Hosted 地址会与签名设置一起写入忽略的 `GoogleOAuth.local.xcconfig`，再由 Xcode 导出给
+Hosted 地址会与签名设置一起写入忽略的 `LocalBuild.local.xcconfig`，再由 Xcode 导出给
 Rust。URL 使用 `https:/$()/host` 形式，防止 `//` 被 xcconfig 当作注释；不应手工粘贴普通 URL。
 安装入口在构建前读取 Xcode 实际解析的设置，确认原生地址与前端完全一致，否则停止。
 只向 Tauri 父进程传环境变量不够：此前会出现前端登录成功，但 Release 原生同步以
@@ -144,7 +141,7 @@ iOS/Android 工程已在 `src-tauri/gen` 初始化，不要重复运行 init 命
 - 真机签名团队通过被 Git 忽略的根目录 `.env.local` 中的
   `DRIFTING_APPLE_DEVELOPMENT_TEAM` 配置，值为 10 位大写字母或数字的 Team ID；显式 shell
   环境变量优先。`mobile:ios:dev`、`mobile:ios:device:debug` 和 `mobile:ios:device:release` 会把它写入被忽略的
-  `GoogleOAuth.local.xcconfig`，由 Debug、Release 共用的 `GoogleOAuth.xcconfig` 引入。
+  `LocalBuild.local.xcconfig`，由 Debug、Release 共用的 `LocalBuild.xcconfig` 引入。
   模拟器不要求配置团队；真机签名需要有效配置。不要把 Xcode 自动写回的
   `DEVELOPMENT_TEAM` 提交到 `project.pbxproj`，也不要在受版本控制的 xcconfig 或 Tauri
   配置中填写团队。提交前运行 `pnpm public:check` 验证这一边界。

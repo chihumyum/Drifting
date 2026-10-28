@@ -20,7 +20,6 @@
 		C9724C9BCED3489A3848BFEF /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 9E8EFF9C2ABDB3073B6973DC /* icon.icon */; };
 		CB827ECAFFE091BBC6B4BE7F /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5C9371FC9125A40DAC28AE10 /* libapp.a */; };
 		D8F1F100057A4137A7C7F5F4 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 415259E2071B4A3215585359 /* main.mm */; };
-		E6104D76E36BCAE53B98AE04 /* AppAuthIOSCategoryBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B16A9359A08CE88055A0E /* AppAuthIOSCategoryBridge.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,9 +38,8 @@
 		6E6A56295077501A205A2684 /* secure_storage.rs */ = {isa = PBXFileReference; path = secure_storage.rs; sourceTree = "<group>"; };
 		6E8648D2B8A6D188DD940D0B /* sync_object_store.rs */ = {isa = PBXFileReference; path = sync_object_store.rs; sourceTree = "<group>"; };
 		724D80DA465EF17A728CD70C /* data_paths.rs */ = {isa = PBXFileReference; path = data_paths.rs; sourceTree = "<group>"; };
-		7A2B16A9359A08CE88055A0E /* AppAuthIOSCategoryBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppAuthIOSCategoryBridge.m; sourceTree = "<group>"; };
 		815F9CABBA2677147877886B /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
-		911D2C42EA1F79E142A9452F /* GoogleOAuth.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = GoogleOAuth.xcconfig; sourceTree = "<group>"; };
+		911D2C42EA1F79E142A9452F /* LocalBuild.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalBuild.xcconfig; sourceTree = "<group>"; };
 		9999A08FB1711F735BF22066 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		9E8EFF9C2ABDB3073B6973DC /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = icon.icon; sourceTree = "<group>"; };
 		A22D425AC6F10574A553D25C /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
@@ -60,7 +58,6 @@
 		E12E29AE2D903972CE5B1A54 /* native_capabilities.rs */ = {isa = PBXFileReference; path = native_capabilities.rs; sourceTree = "<group>"; };
 		EB4F855CF8C8100E1CF92D9D /* android_image_codec.rs */ = {isa = PBXFileReference; path = android_image_codec.rs; sourceTree = "<group>"; };
 		F6AD636A281B63AEFC916E33 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
-		F6E458A1C433E0921B065186 /* google_drive_sync.rs */ = {isa = PBXFileReference; path = google_drive_sync.rs; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,7 +122,7 @@
 		366EFA2723AA52EEB9A3729D /* apple */ = {
 			isa = PBXGroup;
 			children = (
-				911D2C42EA1F79E142A9452F /* GoogleOAuth.xcconfig */,
+				911D2C42EA1F79E142A9452F /* LocalBuild.xcconfig */,
 			);
 			name = apple;
 			path = .;
@@ -151,7 +148,6 @@
 		712DE8C76335BB585269DF3D /* drifting */ = {
 			isa = PBXGroup;
 			children = (
-				7A2B16A9359A08CE88055A0E /* AppAuthIOSCategoryBridge.m */,
 				415259E2071B4A3215585359 /* main.mm */,
 				751A0262B2A3659C15BDE409 /* bindings */,
 			);
@@ -197,7 +193,6 @@
 				5F1A380A7C3C3C4DC3369486 /* commands.rs */,
 				724D80DA465EF17A728CD70C /* data_paths.rs */,
 				245371F30973ACCD03857844 /* database.rs */,
-				F6E458A1C433E0921B065186 /* google_drive_sync.rs */,
 				AC994B7E884818C0B25F698A /* image_pipeline.rs */,
 				A22D425AC6F10574A553D25C /* lib.rs */,
 				3B1B63FEF134DA7BB3C7EF14 /* main.rs */,
@@ -327,7 +322,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E6104D76E36BCAE53B98AE04 /* AppAuthIOSCategoryBridge.m in Sources */,
 				D8F1F100057A4137A7C7F5F4 /* main.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -456,7 +450,7 @@
 		};
 		6F7702A654265B50B712A976 /* release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 911D2C42EA1F79E142A9452F /* GoogleOAuth.xcconfig */;
+			baseConfigurationReference = 911D2C42EA1F79E142A9452F /* LocalBuild.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ARCHS = (
@@ -488,7 +482,7 @@
 		};
 		BE52DA6FEC92D12EBA4A7DDC /* debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 911D2C42EA1F79E142A9452F /* GoogleOAuth.xcconfig */;
+			baseConfigurationReference = 911D2C42EA1F79E142A9452F /* LocalBuild.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ARCHS = (

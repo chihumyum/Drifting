@@ -438,7 +438,6 @@ describe('tauri General Agent capability', () => {
             deepLinks: true,
             externalUrlOpener: true,
             secureStorage: true,
-            googleDriveOAuth: target === 'desktop',
             materialFiles: true,
             assetStore: true,
             aiLog: true,
@@ -463,13 +462,12 @@ describe('tauri General Agent capability', () => {
         generalAgentUnavailableReason: '',
         featureStatus: {
           generalAgent: 'available',
-          googleDriveOAuth: target === 'desktop' ? 'available' : 'unsupported',
         },
       });
     },
   );
 
-  it('treats missing security and Drive OAuth advertisements as unsupported', async () => {
+  it('treats missing security advertisements as unsupported', async () => {
     tauriMocks.invoke.mockImplementation(async (command: string) => {
       if (command === 'app_get_info') {
         return {
@@ -493,7 +491,6 @@ describe('tauri General Agent capability', () => {
 
     await expect(tauriPlatform.app.getCapabilities()).resolves.toMatchObject({
       featureStatus: {
-        googleDriveOAuth: 'unsupported',
       },
     });
   });

@@ -24,9 +24,6 @@ pub struct PlatformCapabilities {
     external_url_opener: bool,
     secure_storage: bool,
     sync_object_store: bool,
-    google_drive_transport: bool,
-    #[serde(rename = "googleDriveOAuth")]
-    google_drive_oauth: bool,
     material_files: bool,
     asset_store: bool,
     ai_log: bool,
@@ -99,10 +96,6 @@ pub fn platform_capabilities() -> PlatformCapabilities {
             target_os = "android"
         )),
         sync_object_store: true,
-        google_drive_transport: true,
-        // The product UI must not advertise a usable OAuth flow when this
-        // particular binary was built without its public Google client id.
-        google_drive_oauth: crate::google_drive_sync::google_drive_oauth_build_configured(),
         material_files: true,
         asset_store: true,
         ai_log: true,
@@ -316,14 +309,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn platform_capabilities_preserve_oauth_acronym_on_wire() {
+    fn platform_capabilities_do_not_advertise_retired_drive() {
         let value = serde_json::to_value(platform_capabilities())
             .expect("platform capabilities should serialize");
 
-        assert!(value
-            .get("googleDriveOAuth")
-            .and_then(serde_json::Value::as_bool)
-            .is_some());
-        assert!(value.get("googleDriveOauth").is_none());
+        assert!(value.get("googleDriveTransport").is_none());
+        assert!(value.get("googleDriveOAuth").is_none());
     }
 }

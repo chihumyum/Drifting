@@ -29,10 +29,10 @@
     "preparingWorkspace": "正在准备工作区…",
     "readingProject": "正在读取项目内容…",
     "syncingProject": "正在更新项目结构…",
-    "syncingProjectDetail": "正在合并来自 Google Drive 的章节、资料或项目结构更改。完成前，这个项目暂时无法编辑。",
+    "syncingProjectDetail": "正在合并来自 Hosted 的章节、资料或项目结构更改。完成前，这个项目暂时无法编辑。",
     "projectLoadFailedTitle": "无法打开这个项目",
     "projectLoadFailedDetail": "没有继续修改数据。请检查本地数据库后重试。",
-    "projectRefreshFailedTitle": "无法应用 Google Drive 更改",
+    "projectRefreshFailedTitle": "无法应用 Hosted 更改",
     "projectRefreshFailedDetail": "上一个完整工作区仍然安全。请重试加载这个项目。",
     "unexpectedTitle": "Drifting 遇到了意外错误",
     "unexpectedDetail": "当前界面已经停止，以免继续产生错误修改。",
@@ -409,156 +409,6 @@
       "local_kicker": "本地数据 · LOCAL DATA",
       "local_title": "作品只保存在这台设备上。",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
-      "cloud_kicker": "个人云盘 · PERSONAL CLOUD",
-      "cloud_title": "项目已接入 Google Drive 同步。",
-      "cloud_sub": "每台设备仍以 SQLite 作为工作副本，同步数据与素材会存入 Drive。Google 账号与 Google Drive 属于你的信任边界；这不是对 Google 端到端加密的方案。",
-      "google_drive": "Google Drive",
-      "cloud_status": "同步状态",
-      "cloud_status_desc": "{{active}} 个项目中已有 {{ready}} 个就绪。",
-      "device_readiness": "此设备的 Google Drive 能力",
-      "device_readiness_ready": "已就绪",
-      "device_readiness_required": "需要配置",
-      "device_readiness_ready_desc": "Google 登录、Drive 传输与本机安全暂存均已随此构建启用。",
-      "device_readiness_oauth_desc": "此构建缺少有效的 Google 登录配置；本地写作不受影响。",
-      "device_readiness_transport_desc": "此构建没有可用的原生 Google Drive 传输；本地写作不受影响。",
-      "device_readiness_storage_desc": "此构建没有可用的本机同步对象暂存；不会开始 Google Drive 连接。",
-      "cloud_states": {
-        "loading": "正在读取",
-        "local": "仅本机",
-        "transitioning": "正在连接",
-        "cloud-ready": "已就绪",
-        "cloud-provisioning": "正在准备项目",
-        "cloud-paused": "已暂停",
-        "cloud-attention": "需要处理",
-        "unavailable": "不可用"
-      },
-      "transition_states": {
-        "connect": "正在连接",
-        "switch-provider": "正在切换同步服务",
-        "disconnect": "正在断开",
-        "restore": "正在从 Drive 恢复"
-      },
-      "operation_progress": {
-        "connect": {
-          "title": "正在连接 Google Drive…",
-          "desc": "请在系统浏览器中完成 Google 登录。随后会先发现远端项目，再发布仅存在于本机的内容。"
-        },
-        "disconnect": {
-          "title": "正在断开 Google Drive…",
-          "desc": "正在完成本地持久化与最后一次收敛检查，随后撤销 Google 授权；最长可能需要两分钟。"
-        },
-        "reauthorize": {
-          "title": "正在重新授权 Google Drive…",
-          "desc": "请在系统浏览器中完成登录；只接受当前已经连接的 Google 账号。"
-        },
-        "cancel": {
-          "title": "正在取消 Google Drive 设置…",
-          "desc": "正在撤销待完成的授权，并让所有项目返回纯本地模式。"
-        },
-        "settings": {
-          "title": "正在更新同步状态…",
-          "desc": "更新同步服务状态期间，本地编辑仍然可用。"
-        }
-      },
-      "connect_google_drive": "Google Drive 同步",
-      "connect_google_drive_desc": "通过系统浏览器登录 Google。Drifting 会自动发现并恢复这个 Google 账号中已有的项目，再发布只存在于本机的项目。",
-      "google_drive_unavailable_target": "此构建尚未配置完整的 Google Drive 登录参数。",
-      "connect": "登录 Google",
-      "connecting": "正在登录…",
-      "retry_google_sign_in": "重新登录 Google",
-      "connect_done": "Google 登录已完成；远端项目发现与恢复、本机独有项目发布都会自动继续。",
-      "cancel_pending_cloud": "取消待完成的云盘设置",
-      "cancel_pending_cloud_desc": "清除待完成的 Google 登录设置，撤销当前 Google 授权并回到纯本地模式。已经写入 Drive 的数据可能保留；本机 SQLite、Yjs、素材与项目全部保留。",
-      "cancel_pending_cloud_action": "取消设置…",
-      "confirm_cancel_pending_cloud": "确认取消设置",
-      "cancelling": "正在取消…",
-      "cancel_pending_cloud_done": "云盘设置已取消；所有本地项目仍可继续使用。",
-      "finish_provisioning": "完成项目准备",
-      "finish_provisioning_desc": "还有 {{count}} 个项目需要建立初始 Drive 同步状态。",
-      "retry": "重试",
-      "retry_requested": "已安排一次项目准备重试。",
-      "runtime_unavailable": "前台同步 runtime 尚未挂载。",
-      "reauthorize_google_drive": "重新授权 Google Drive",
-      "reauthorize_google_drive_desc": "通过系统浏览器重新登录；只有 Google 确认仍是同一账号后才接受新授权，并继续自动发现项目。",
-      "reauthorize_disconnect_google_drive": "Google 授权已失效",
-      "reauthorize_disconnect_google_drive_desc": "请用当前已连接的同一 Google 账号重新授权。Drifting 验证账号后会立即撤销这份新授权，并继续完成原来的断开事务；本地项目始终保留。",
-      "reauthorize": "重新授权",
-      "reauthorize_and_disconnect": "重新授权并继续断开",
-      "reauthorizing": "正在重新授权…",
-      "reauthorize_done": "Google Drive 授权已更新；受影响的项目可以恢复同步。",
-      "sync_now": "立即同步",
-      "sync_now_desc": "执行一次前台拉取、应用和发布周期。",
-      "sync_requested": "已安排一次前台同步。",
-      "pause_sync": "暂停云同步",
-      "resume_sync": "恢复云同步",
-      "pause_sync_desc": "暂停 provider 网络操作时，本地编辑仍可正常使用。",
-      "pause": "暂停",
-      "resume": "恢复",
-      "pause_done": "所有项目的 Google Drive 同步已暂停。",
-      "resume_done": "所有项目的 Google Drive 同步已恢复。",
-      "disconnect_google_drive": "断开 Google Drive",
-      "disconnect_google_drive_desc": "已就绪的项目会先完成最后一次收敛检查，再撤销 Drifting 的 Google 授权，并把所有项目切回纯本地模式。尚未发布或已阻塞的项目仍会完整保留本机 SQLite、Yjs 与素材，但 Drive 端可能落后。Drive 中的远端数据不会被删除；其他设备之后可能需要重新登录。",
-      "disconnect_confirm_desc": "确认后会完成最后的本地与同步检查，并撤销本 App 的 Google 授权。本地项目仍可使用，Drive 中的远端数据不会删除。",
-      "disconnect": "断开…",
-      "retry_disconnect": "重试断开…",
-      "confirm_disconnect": "确认断开",
-      "disconnecting": "正在断开…",
-      "disconnect_done": "已断开 Google Drive；所有本地项目仍可在这台设备上使用。",
-      "attention_reason": "需要处理的原因",
-      "attention_reason_desc": "当前云同步 authority 的持久状态原因码。需要重新授权、升级或处理损坏等状态会显示在这里；隔离对象不会写入项目。",
-      "last_sync_error": "上次同步错误",
-      "last_sync_error_desc": "最近一次同步周期没有完成；本地内容安全，待发布数据仍完整保留。问题解决后可重试同步。",
-      "last_sync_error_publish_invalid_desc": "内部发布请求失败；本地内容安全，待发布日志仍完整保留。更新应用后可重试同步。",
-      "diagnostics": "待处理工作",
-      "diagnostics_desc": "这里只显示本地 journal 与已验证 inbox 的计数，不展示内容或凭据。",
-      "diagnostics_value": "变更 {{changeSets}} · 分段 {{segments}} · 传输 {{transfers}} · 缺口 {{gaps}} · 冲突 {{conflicts}} · 隔离 {{quarantined}}",
-      "operation_failed": "同步操作失败：{{error}}",
-      "issues": {
-        "configuration": {
-          "title": "此构建尚不能连接 Google Drive",
-          "desc": "Google 登录、Drive 传输或本机暂存配置不完整。请安装配置完整的构建；本地项目不会受影响。"
-        },
-        "offline": {
-          "title": "当前处于离线状态",
-          "desc": "联网后重试。未发布的更改仍安全保存在本机。"
-        },
-        "reauthorize": {
-          "title": "需要重新授权 Google Drive",
-          "desc": "Google SDK 的登录状态已失效或丢失。请使用当前已连接的同一 Google 账号重新授权。"
-        },
-        "account-mismatch": {
-          "title": "选择了另一个 Google 账号",
-          "desc": "现有连接没有被替换。请返回并选择最初连接 Drifting 的同一 Google 账号。"
-        },
-        "permission": {
-          "title": "Google Drive 权限未授予",
-          "desc": "Drifting 只请求隐藏 appDataFolder 所需的权限。重新授权并允许该权限后再试。"
-        },
-        "rate-limited": {
-          "title": "Google Drive 暂时限制了请求",
-          "desc": "本地工作已保留。等待一会儿，再执行一次同步。"
-        },
-        "quota": {
-          "title": "Google Drive 存储空间不足",
-          "desc": "释放 Google Drive 空间后再同步；本地项目与待发布数据保持完整。"
-        },
-        "cancelled": {
-          "title": "Google Drive 操作已取消",
-          "desc": "没有更换账号或删除本地项目。需要时可以再次开始。"
-        },
-        "update-required": {
-          "title": "需要更新 Drifting",
-          "desc": "当前同步数据需要更新版本才能安全处理。请先更新应用，不要重置本地项目。"
-        },
-        "data-integrity": {
-          "title": "Google Drive 数据需要检查",
-          "desc": "可疑远端对象没有写入项目。本地内容与待发布日志仍保留；请保存诊断信息并停止反复重试。"
-        },
-        "retry": {
-          "title": "Google Drive 操作没有完成",
-          "desc": "本地内容安全。稍后重试；若持续失败，请从「设置 > 隐私」复制不含内容与凭据的诊断信息。"
-        }
-      },
       "local_data": "本地数据",
       "backup": {
         "exportTitle": "资料库备份",
@@ -741,8 +591,6 @@
       "license": "客户端许可证",
       "licenseDesc": "GNU AGPL v3 或更高版本",
       "viewLicense": "查看许可证",
-      "driveDataUse": "Google Drive 数据使用",
-      "driveDataUseDesc": "哪些数据进入 Google 信任边界，以及 Drifting 能访问什么",
       "knownIssues": "已知问题",
       "knownIssuesDesc": "当前 Alpha 的限制与发布阻断项",
       "contact": "联系",
@@ -1133,8 +981,6 @@
       "enabled": "已连接托管同步",
       "disabled": "本地书库",
       "projects": "同步 {{count}} 个项目",
-      "switch_from_drive": "以本机副本切换到托管",
-      "switch_description": "将本机已保存的项目和正文接入托管，不等待 Google Drive。只在其他设备或 Drive 云端的修改不会带入；Drive 云端副本保留。",
       "connect_description": "合并此账号的云端项目与本地书库，并上传本地项目。",
       "sync_now": "立即同步",
       "connect": "连接并同步",
@@ -1281,13 +1127,13 @@
     "storageLocal": "设备本地",
     "storage": {
       "local": "设备本地",
-      "syncing": "正在同步到 Google Drive",
-      "checking": "正在检查 Google Drive 更新",
-      "applying": "正在应用 Google Drive 更改",
-      "synced": "Google Drive 已同步",
-      "paused": "Google Drive 同步已暂停",
-      "offline": "离线，Google Drive 已暂停",
-      "attention": "Google Drive 需要处理"
+      "syncing": "正在同步到 Hosted",
+      "checking": "正在检查 Hosted 更新",
+      "applying": "正在应用 Hosted 更改",
+      "synced": "Hosted 已同步",
+      "paused": "Hosted 同步已暂停",
+      "offline": "离线，Hosted 已暂停",
+      "attention": "Hosted 需要处理"
     }
   },
   "nodeHoverPreview": {

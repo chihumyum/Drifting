@@ -1,5 +1,8 @@
 # Desktop Alpha release runbook
 
+Status: paused during the 2026-10-28 restructuring. This is a future publication
+checklist, not an active release gate. See [Hosted readiness](client-onboarding-and-hosted-readiness.md).
+
 This runbook is fail-closed. A checkbox is evidence only when it names the
 date, operator, Apple Silicon device, macOS version, exact commit, build tag,
 artifact SHA-256, and evidence location. Automated tests never substitute for
@@ -12,14 +15,13 @@ the real-account or signed-device rows.
 2. Run `node scripts/check-alpha-release.mjs app-v<version>`, `pnpm
    public:check`, `pnpm agent:capabilities:check`, lint, typecheck, tests,
    renderer build, Cargo formatting, checks, and tests.
-3. Complete the Drive and desktop RC records for the candidate SHA.
-4. Confirm the production Google project is External and In Production, the
-   OAuth consent links are anonymously accessible, and only `openid` and
-   `drive.appdata` are requested.
+3. Complete real-account Hosted and desktop RC records for the candidate SHA.
+4. Configure the production Hosted origin, CSP, email delivery, open registration,
+   service terms and privacy disclosures; validate them with the signed installer.
 5. Confirm the repository is public and LICENSE, PRIVACY, NOTICE, SECURITY,
    Support, Known Issues, source, and release pages are anonymous-readable.
    The tag workflow independently curls the drifting.app homepage, `/privacy`,
-   `/google-drive-data-use`, `/quick-start`, `/support`, and `/known-issues`
+   `/quick-start`, `/support`, and `/known-issues`
    anonymously before the signed build starts; any unreachable page fails the
    whole workflow closed.
 
@@ -28,7 +30,7 @@ the real-account or signed-device rows.
 1. Create the immutable signed tag `app-v<version>` on the accepted SHA.
 2. The tag workflow reruns exact-SHA CI in a secret-free job.
 3. The protected `alpha-release` environment imports the Developer ID
-   certificate, notarization key, production OAuth values, and updater signing
+   certificate, notarization key, Hosted origin and policy values, and updater signing
    key; it builds arm64 only and creates a draft prerelease.
 4. Review every asset, SBOM, THIRD_PARTY_NOTICES.md, checksum, updater
    signature, signing, notarization, staple, mount, and first-launch result.
@@ -42,7 +44,7 @@ the real-account or signed-device rows.
 ## Stop conditions
 
 Do not publish or promote the channel for data loss, partial restore, corrupt
-database, duplicate Drive project, permanent sync blockage, wrong-account
+database, duplicate Hosted project, permanent sync blockage, wrong-account
 credential replacement, invalid signature/notarization, failed migration
 safety snapshot, or an updater that modifies the app without explicit
 confirmation.

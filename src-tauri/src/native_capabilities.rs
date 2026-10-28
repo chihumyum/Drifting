@@ -730,8 +730,7 @@ use drifting_core::file_io::sync_directory;
 #[cfg(windows)]
 use drifting_core::file_io::windows_move_write_through;
 pub(crate) use drifting_core::file_io::{
-    atomic_copy_capped, atomic_write, durable_replace_file, ensure_parent_directory,
-    temporary_sibling,
+    atomic_copy_capped, atomic_write, ensure_parent_directory,
 };
 #[cfg(test)]
 use drifting_core::file_io::{

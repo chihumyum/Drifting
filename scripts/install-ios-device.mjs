@@ -10,7 +10,7 @@ import { discoverIosDevices, selectIosDevice } from './ios-device-selection.mjs'
 
 import {
   createMobileEnvironment,
-  writeIosGoogleOauthLocalConfig,
+  writeIosLocalBuildConfig,
 } from './run-mobile-dev.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -205,7 +205,7 @@ export async function installIosDevice(
     pathExists = existsSync,
     execute = runCommand,
     createEnvironment = createMobileEnvironment,
-    writeOauthConfiguration = writeIosGoogleOauthLocalConfig,
+    writeBuildConfiguration = writeIosLocalBuildConfig,
     profile = 'debug',
     discoverDevices = discoverIosDevices,
     selectDevice = selectIosDevice,
@@ -253,7 +253,7 @@ export async function installIosDevice(
     environment.APPLE_DEVELOPMENT_TEAM = team;
     environment.DRIFTING_APPLE_DEVELOPMENT_TEAM = team;
   }
-  const oauth = writeOauthConfiguration(environment);
+  writeBuildConfiguration(environment);
   if (options.online) {
     // A parent Node environment alone is insufficient: Xcode must export this
     // setting to Cargo, otherwise auth works while Release sync fails closed.
@@ -274,11 +274,6 @@ export async function installIosDevice(
     }
   }
   console.log(`Building standalone iOS arm64 ${profile === 'release' ? 'Release' : 'Debug'} archive in ${options.online ? 'Hosted' : 'local-only'} mode.`);
-  console.log(
-    oauth.googleDriveOAuthConfigured
-      ? 'Google Drive iOS OAuth build configuration: configured'
-      : 'Google Drive iOS OAuth build configuration: missing or invalid',
-  );
 
   const plan = createIosDevicePlan({
     device,

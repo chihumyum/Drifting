@@ -39,15 +39,10 @@ import type {
   SyncObjectGcResult,
   SyncPreparedAssetSourceResult,
   SyncVerifiedAssetSourceResult,
-  NativeSyncObjectKind,
   NativeBytes,
   ThumbnailResult,
-  GoogleDriveNativeOAuthResult,
-  GoogleDriveNativeRemoteChange,
-  GoogleDriveNativeRemoteObject,
-  GoogleDriveNativeProjectSnapshotCandidate,
-  GoogleDriveNativeGeneration,
-  GoogleDriveTransferProgressEvent, NativeCrashReport } from './contracts';
+  NativeCrashReport,
+} from './contracts';
 
 export type Unsubscribe = () => void;
 
@@ -159,75 +154,6 @@ export interface SyncAssetStorePlatformApi {
     retainedAttemptIds: readonly string[];
     olderThanMs: number;
   }): Promise<{ removedAttempts: number }>;
-}
-
-export interface GoogleDrivePlatformApi {
-  /** Desktop uses loopback + PKCE; mobile delegates to the platform Google OAuth SDK. */
-  connectAccount(): Promise<GoogleDriveNativeOAuthResult>;
-  /** Idempotently marks the native provisional credential as owned by a durable SQLite attempt. */
-  claimAccount(
-    credentialSecretRef: string,
-    accountSubject: string,
-  ): Promise<GoogleDriveNativeOAuthResult>;
-  /** Replaces a credential in place only after native verifies the same Google subject. */
-  reauthorizeAccount(credentialSecretRef: string): Promise<GoogleDriveNativeOAuthResult>;
-  /** Native reads/revokes/deletes the credential; the renderer passes only its opaque reference. */
-  revokeAccount(credentialSecretRef: string, signal?: AbortSignal): Promise<void>;
-  discoverProjectSnapshots(input: {
-    credentialSecretRef: string;
-    accountSubject: string;
-    pageToken?: string;
-  }): Promise<{
-    snapshots: GoogleDriveNativeProjectSnapshotCandidate[];
-    nextPageToken?: string;
-  }>;
-  openGeneration(input: {
-    credentialSecretRef: string;
-    accountSubject: string;
-    bindingId: string;
-    syncGenerationId: string;
-    authorityGeneration: number;
-    namespace?: 'project' | 'agent-chat';
-  }): Promise<GoogleDriveNativeGeneration>;
-  captureStartCursor(generationRef: string): Promise<string>;
-  listInventory(input: {
-    generationRef: string;
-    pageToken?: string;
-  }): Promise<{ objects: GoogleDriveNativeRemoteObject[]; nextPageToken?: string }>;
-  listChanges(input: {
-    generationRef: string;
-    cursor: string;
-    pageToken?: string;
-  }): Promise<{
-    changes: GoogleDriveNativeRemoteChange[];
-    nextPageToken?: string;
-    newCursor?: string;
-  }>;
-  statImmutable(input: {
-    generationRef: string;
-    objectKind: NativeSyncObjectKind;
-    logicalKeyId: string;
-  }): Promise<GoogleDriveNativeRemoteObject | null>;
-  uploadImmutable(input: {
-    generationRef: string;
-    sourceRef: string;
-    objectKind: NativeSyncObjectKind;
-    logicalKeyId: string;
-    storedSha256: string;
-    sizeBytes: number;
-    transferId: string;
-    signal: AbortSignal;
-    onProgress?: (progress: GoogleDriveTransferProgressEvent) => void;
-  }): Promise<{ status: 'created' | 'already-present'; object: GoogleDriveNativeRemoteObject }>;
-  downloadVerifiedImmutable(input: {
-    generationRef: string;
-    objectId: string;
-    destinationRef: string;
-    expectedStoredSha256: string;
-    transferId: string;
-    signal: AbortSignal;
-    onProgress?: (progress: GoogleDriveTransferProgressEvent) => void;
-  }): Promise<{ destinationRef: string; storedSha256: string; sizeBytes: number }>;
 }
 
 export interface TypographyPlatformApi {
@@ -399,7 +325,6 @@ export interface PlatformApi {
   };
   readonly syncObjectStore: SyncObjectStorePlatformApi;
   readonly syncAssetStore: SyncAssetStorePlatformApi;
-  readonly googleDrive: GoogleDrivePlatformApi;
   readonly typography: TypographyPlatformApi;
   readonly material: MaterialPlatformApi;
   readonly assetStore: AssetStorePlatformApi;

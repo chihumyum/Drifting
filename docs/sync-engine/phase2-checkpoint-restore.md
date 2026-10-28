@@ -157,7 +157,7 @@ covers:
 The machine-readable result is
 [`acceptance/phase2-checkpoint-restore.json`](acceptance/phase2-checkpoint-restore.json).
 That file is the historical Phase 2 record. The later mutation-row integrity
-fix has separate [source-matched generated evidence](../apple-native/acceptance/checkpoint-mutation-integrity.json).
+fix has separate [source-matched generated evidence (retired)](../client-onboarding-and-hosted-readiness.md).
 Its runner, `node scripts/apple-checkpoint-provenance-acceptance.mjs`, executes
 the checkpoint, protocol and restore suites; `--check` verifies the recorded
 source and required cases. The 13 re-sealed tamper cases and valid round-trip

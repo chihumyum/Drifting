@@ -2,7 +2,7 @@
 
 These limitations are surfaced deliberately. Secret storage never falls back to plaintext,
 prose never falls back to a stale projection, and unsupported operations never report a fake
-success. Google Drive project sync follows the separately documented trusted-cloud model.
+success. Hosted is the only supported sync provider.
 
 ## General Agent
 
@@ -56,8 +56,8 @@ to sign in or enter BYOK credentials again.
 The generic renderer Keychain commands reject value reads, overwrites, and deletion for
 `sync.google-drive.*`. An opaque credential reference therefore does not grant JavaScript access
 to the corresponding OAuth token or resumable-session state. Existence-only checks remain safe
-and supported. Project content itself uses the documented trusted-cloud model and is not protected
-from Google Drive by an application-managed end-to-end encryption key.
+and supported. These prefixes remain reserved so retiring the transport never
+exposes previously stored secrets. The client no longer reads or revokes them.
 
 ## Native OAuth bearer handoff
 
@@ -73,20 +73,6 @@ The remaining public-release boundary is the unverified custom scheme: another i
 application may claim it. Prefer verified iOS Universal Links / Android App Links before public
 mobile distribution. PKCE prevents an intercepting app from exchanging a flow initiated by the
 real client, but verified links are still required to bind the callback to the installed app.
-
-## Google Drive personal-cloud OAuth
-
-The SyncEngine Drive transport is native and keeps Google tokens, bearer headers, resumable upload
-URIs and filesystem paths outside the renderer. Desktop authorization uses the system browser,
-loopback callback and PKCE only when `DRIFTING_GOOGLE_DESKTOP_CLIENT_ID` was supplied to the build;
-otherwise it returns `configuration-required` and stores nothing.
-
-iOS and Android use their official Google SDK OAuth clients registered in the same Google Cloud
-project; the desktop loopback implementation and a WebView flow are not mobile fallbacks. Missing
-build-time client configuration fails closed. Automated host, iOS simulator, and Android build
-checks do not replace a real-account, physical-device, cross-client `appDataFolder` acceptance
-report, so that release gate remains open. See
-[`../docs/sync-engine/phase5-google-drive-native.md`](../docs/sync-engine/phase5-google-drive-native.md).
 
 ## Large material files
 

@@ -1,4 +1,0 @@
-module DriftingCoreFFI {
-    header "drifting.h"
-    export *
-}

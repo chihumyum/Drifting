@@ -6,9 +6,7 @@ configuration, or an entitlement to use official infrastructure.
 
 The default build is local-only. Hosted accounts and the hosted sync provider
 require a separately operated compatible service and explicit build configuration.
-Hosted AI and billing are outside the current implementation. The implemented Google Drive
-provider is a separate, author-connected SyncEngine capability and does not make
-the official service reachable. The source license does not grant API capacity,
+Hosted AI and billing are outside the current implementation. Google Drive sync and the standalone Apple-native front-end are retired. The source license does not grant API capacity,
 an account, hosted support, or permission to bypass authentication, rate limits,
 abuse controls, or service terms.
 
@@ -40,15 +38,14 @@ adapter runs, and Better Auth's own custom fetch transport applies the same
 gate. Direct calls to `authClient` therefore cannot bypass local-only mode.
 
 Product network access is classified as one of `hosted-service`,
-`personal-cloud`, `byok-provider`, or `agent-extension`.
+`byok-provider`, or `agent-extension`.
 The local-first build allows only author-initiated non-hosted purposes while the
 device is online. Materials never fetch web metadata or remote preview images
 (url materials were retired in 2026-10). BYOK clients check
 `byok-provider` before creating or using a direct provider transport. Remote
 Agent extensions already require explicit per-server configuration and durable
 per-tool grants, so `agent-extension` records availability and purpose rather
-than adding a second permission switch. Google Drive uses the `personal-cloud`
-purpose, native OAuth, and an explicit provider-authority binding. Classifying
+than adding a second permission switch. Classifying
 the network purpose by itself does not connect an account, activate a provider,
 or send project content.
 
@@ -66,11 +63,10 @@ compatible service implementation is not currently supplied by this project.
 
 The public production CSP intentionally contains no Drifting hosted origin. It
 allows the currently supported direct BYOK origins, and HTTPS images only for
-the explicitly gated external-preview surface. The native Google Drive
-transport does not depend on renderer CSP access. Changing `VITE_API_BASE_URL`
+the explicitly gated external-preview surface. Changing `VITE_API_BASE_URL`
 alone is therefore not sufficient for an operator build. Fork operators must
 provide a production CSP containing their exact HTTPS and WebSocket service
-origins, add any renderer-based personal-cloud origin they implement, update the
+origins, update the
 development CSP when needed, and verify the result without broadly relaxing the
 remaining policy.
 

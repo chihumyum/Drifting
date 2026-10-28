@@ -5,12 +5,9 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
-import { events } from '../lib/events';
 import {
   ProjectTable,
-  SyncConnectAttemptTable,
   SyncProviderBindingTable,
-  SyncProviderAccountTable,
   SyncRemoteObjectTable,
   SyncGenerationTable,
 } from '../schema/drizzle';
@@ -51,7 +48,7 @@ async function setup() {
   });
   const authority = createSyncAppAuthorityRepository(db);
   const attempt = await authority.begin({
-    targetMode: 'google-drive',
+    targetMode: 'hosted',
     accountSubjectId: 'subject-1',
     credentialSecretRef: 'secret:credential',
     attemptId: 'connect-1',
@@ -79,26 +76,13 @@ async function setup() {
     providerAccountId: 'account-1',
     bindings: [{
       syncGenerationId: 'sync-generation-1',
-      providerNamespace: 'appDataFolder',
-      providerGenerationRef: 'syncdrive:sync-generation-1',
+      providerNamespace: 'project-v1',
+      providerGenerationRef: 'hosted:sync-generation-1',
     }],
     nowIso: NOW,
   });
   const dependencies: ProductSyncCommandDependencies = {
     database: () => db,
-    connectGoogleDrive: vi.fn(async () => ({
-      status: 'connected' as const,
-      attemptId: 'pending-connect',
-      accountSubject: 'subject-1',
-      restored: [],
-      connectedLocalSyncGenerationIds: ['sync-generation-1'],
-    })),
-    reauthorizeGoogleDrive: vi.fn(async (credentialSecretRef) => ({
-      accountSubject: 'subject-1',
-      credentialSecretRef,
-    })),
-    disconnectGoogleDrive: vi.fn(async () => undefined),
-    cancelPendingGoogleDrive: vi.fn(async () => undefined),
     triggerManual: vi.fn(),
     requestProvisioning: vi.fn(() => true),
     emitAuthorityChanged: vi.fn(),
@@ -113,41 +97,7 @@ afterEach(async () => {
 });
 
 describe('ProductSyncCommandService', () => {
-  it('routes one Google Drive action through OAuth, discovery, restore, and publication composition', async () => {
-    const input = await setup();
-    const signal = new AbortController().signal;
-    await expect(input.service.connectGoogleDrive(signal)).resolves.toMatchObject({
-      status: 'connected',
-      connectedLocalSyncGenerationIds: ['sync-generation-1'],
-    });
-    expect(input.dependencies.connectGoogleDrive).toHaveBeenCalledWith(input.db, signal);
-  });
 
-  it('announces freshly restored projects so device-local tabs can be discarded', async () => {
-    const input = await setup();
-    vi.mocked(input.dependencies.connectGoogleDrive).mockResolvedValueOnce({
-      status: 'connected',
-      attemptId: 'pending-connect',
-      accountSubject: 'subject-1',
-      restored: [
-        {
-          projectId: 'project-restored',
-          projectSyncId: 'project-sync-restored',
-          syncGenerationId: 'sync-generation-restored',
-          snapshotId: 'snapshot-restored',
-        },
-      ],
-      connectedLocalSyncGenerationIds: [],
-    });
-    const listener = vi.fn();
-    events.on('sync:projects-restored', listener);
-    try {
-      await input.service.connectGoogleDrive(new AbortController().signal);
-      expect(listener).toHaveBeenCalledWith({ projectIds: ['project-restored'] });
-    } finally {
-      events.off('sync:projects-restored', listener);
-    }
-  });
 
   it('pauses and resumes every SyncGeneration atomically and emits one authority reload', async () => {
     const input = await setup();
@@ -163,113 +113,9 @@ describe('ProductSyncCommandService', () => {
     expect(input.dependencies.emitAuthorityChanged).toHaveBeenCalledTimes(2);
   });
 
-  it('routes App-wide disconnect through the production composition boundary', async () => {
-    const input = await setup();
-    const signal = new AbortController().signal;
-    await input.service.disconnectGoogleDrive(signal);
-    expect(input.dependencies.disconnectGoogleDrive).toHaveBeenCalledWith(input.db, signal);
-  });
 
-  it('routes pending connection cancellation through native revoke composition', async () => {
-    const input = await setup();
-    const signal = new AbortController().signal;
-    await input.service.cancelPendingGoogleDrive(signal);
-    expect(input.dependencies.cancelPendingGoogleDrive).toHaveBeenCalledWith(input.db, signal);
-  });
 
-  it('reauthorizes the same native secret and remounts only needs-reauth SyncGenerations', async () => {
-    const input = await setup();
-    await input.db
-      .update(SyncProviderBindingTable)
-      .set({ state: 'needs-reauth', updatedAt: NOW });
-    await input.service.reauthorizeGoogleDrive();
-    expect(input.dependencies.reauthorizeGoogleDrive).toHaveBeenCalledWith('secret:credential');
-    expect(await input.db.select().from(SyncProviderBindingTable)).toMatchObject([
-      { state: 'ready', updatedAt: LATER },
-    ]);
-    expect(input.dependencies.emitAuthorityChanged).toHaveBeenCalledTimes(1);
-  });
 
-  it('keeps needs-reauth durable when native identity does not match', async () => {
-    const input = await setup();
-    await input.db
-      .update(SyncProviderBindingTable)
-      .set({ state: 'needs-reauth', updatedAt: NOW });
-    vi.mocked(input.dependencies.reauthorizeGoogleDrive).mockResolvedValueOnce({
-      accountSubject: 'another-subject',
-      credentialSecretRef: 'secret:credential',
-    });
-    await expect(input.service.reauthorizeGoogleDrive()).rejects.toThrow(
-      'another account or secret reference',
-    );
-    expect(await input.db.select().from(SyncProviderBindingTable)).toMatchObject([
-      { state: 'needs-reauth' },
-    ]);
-    expect(input.dependencies.emitAuthorityChanged).not.toHaveBeenCalled();
-  });
 
-  it('reauthorizes an owned invalid-grant disconnect without mutating its paused bindings', async () => {
-    const input = await setup();
-    await input.db
-      .update(SyncProviderBindingTable)
-      .set({ state: 'paused', updatedAt: NOW });
-    const authority = createSyncAppAuthorityRepository(input.db);
-    const attempt = await authority.begin({
-      targetMode: 'local',
-      attemptId: 'disconnect-needs-reauth',
-      nowIso: NOW,
-    });
-    await authority.block({
-      attemptId: attempt.attemptId,
-      errorCode: 'needs-reauth',
-      nowIso: NOW,
-    });
 
-    await input.service.reauthorizeGoogleDrive();
-
-    expect(input.dependencies.reauthorizeGoogleDrive).toHaveBeenCalledWith('secret:credential');
-    expect(await authority.read()).toMatchObject({
-      mode: 'google-drive',
-      transitionState: 'blocked',
-      targetMode: 'local',
-      attemptId: 'disconnect-needs-reauth',
-    });
-    expect(await input.db.select().from(SyncConnectAttemptTable)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          attemptId: 'disconnect-needs-reauth',
-          kind: 'disconnect',
-          state: 'blocked',
-          errorCode: 'needs-reauth',
-        }),
-      ]),
-    );
-    expect(await input.db.select().from(SyncProviderBindingTable)).toMatchObject([
-      { state: 'paused', updatedAt: NOW },
-    ]);
-    expect(await input.db.select().from(SyncProviderAccountTable)).toMatchObject([
-      { accountSubjectId: 'subject-1', updatedAt: LATER },
-    ]);
-    expect(input.dependencies.emitAuthorityChanged).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects reauthorization when a blocked disconnect is not classified needs-reauth', async () => {
-    const input = await setup();
-    const authority = createSyncAppAuthorityRepository(input.db);
-    const attempt = await authority.begin({
-      targetMode: 'local',
-      attemptId: 'disconnect-transient',
-      nowIso: NOW,
-    });
-    await authority.block({
-      attemptId: attempt.attemptId,
-      errorCode: 'transient',
-      nowIso: NOW,
-    });
-
-    await expect(input.service.reauthorizeGoogleDrive()).rejects.toThrow(
-      'does not own the blocked disconnect attempt',
-    );
-    expect(input.dependencies.reauthorizeGoogleDrive).not.toHaveBeenCalled();
-  });
 });
