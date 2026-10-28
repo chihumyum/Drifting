@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from './design-system-docs.test-support';
 
 const coreRoot = path.resolve(__dirname, '../../..');
 
@@ -19,6 +20,6 @@ describe('sidebar text tabs', () => {
       expect(header).toContain('typography="label"');
       expect(header).toContain('aria-label=');
     }
-    expect(source('docs/design-system.md')).toContain('始终显示完整标题');
+    expect(designSystemDocs()).toContain('始终显示完整标题');
   });
 });

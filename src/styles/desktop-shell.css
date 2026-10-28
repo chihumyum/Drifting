@@ -325,6 +325,7 @@
 
 .workspace-tab-dock__tabs {
   display: flex;
+  align-items: center;
   justify-content: center;
   width: 100%;
   min-width: 0;
@@ -520,10 +521,11 @@
   }
 }
 
+/* The lock and the plus sit either side of the pills' scroller (TopTimeline),
+   so only the pills scroll and nothing floats over them. */
 .workspace-tab-dock__lock,
 .workspace-tab-dock .top-timeline-create-button {
-  position: sticky;
-  z-index: 2;
+  position: relative;
   display: grid;
   flex-shrink: 0;
   width: 30px;
@@ -542,12 +544,10 @@
 }
 
 .workspace-tab-dock__lock {
-  left: 0;
   margin-right: 5px;
 }
 
 .workspace-tab-dock .top-timeline-create-button {
-  right: 0;
   margin-left: 5px;
 }
 

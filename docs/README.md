@@ -48,6 +48,7 @@ release contract remains paused. See [onboarding and Hosted readiness](client-on
 | How will Copilot triggers and usability change?            | [`copilot/redesign-plan.md`](copilot/redesign-plan.md) — implementation plan; redesign not yet implemented                                                           |
 | What is the frozen target design for Ambient Shadow?       | [`ambient-editor/README.md`](ambient-editor/README.md)                                                                                                                |
 | What should the final Ambient author experience feel like? | [`ambient-editor/product-vision.md`](ambient-editor/product-vision.md)                                                                                                |
+| What is the design system (sand and glass)?               | [`design-system/README.md`](design-system/README.md)                                                                                                                   |
 | What are the renderer dependency rules?                    | [`renderer-ui-architecture.md`](renderer-ui-architecture.md)                                                                                                          |
 | How will frontend architecture and performance improve?   | [`renderer-performance/optimization-plan.md`](renderer-performance/optimization-plan.md) and [execution evidence](renderer-performance/README.md)                                    |
 | How do project relation types behave?                      | [`relation-types.md`](relation-types.md)                                                                                                                              |
@@ -64,7 +65,7 @@ release contract remains paused. See [onboarding and Hosted readiness](client-on
 
 - `agent-runtime/*-protocol.md`, `author-owned-writing-policy.md`, and
   `entity-snapshot-history.md` define runtime invariants.
-- [`design-system.md`](design-system.md) and `editor/*.md` define durable UI and
+- [`design-system/`](design-system/README.md) and `editor/*.md` define durable UI and
   editor contracts that are not obvious from a screenshot.
 - [`ai-provider-settings.md`](ai-provider-settings.md) defines credential and
   provider-routing ownership.

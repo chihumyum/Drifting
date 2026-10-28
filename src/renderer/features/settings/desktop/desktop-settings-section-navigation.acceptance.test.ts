@@ -9,6 +9,7 @@ import {
   type SettingsNavigationSection,
   type SettingsNavigationIndex,
 } from './settings-section-navigation';
+import { designSystemDocs } from '../../../components/design-system-docs.test-support';
 
 const root = process.cwd();
 
@@ -78,7 +79,7 @@ describe('desktop settings section navigation', () => {
     const settings = read('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
     const rail = read('src/renderer/features/settings/desktop/DesktopSettingsRail.tsx');
     const css = read('src/styles/settings.css');
-    const docs = read('docs/design-system.md');
+    const docs = designSystemDocs();
 
     expect(settings).toContain('main.addEventListener(\'scroll\', onScroll');
     expect(settings).toContain('className="set-main set-main--instant-section-nav"');

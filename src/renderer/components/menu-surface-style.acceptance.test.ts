@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from './design-system-docs.test-support';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -119,6 +120,11 @@ describe('shared menu surface style', () => {
     expect(card).toContain('<HoverCardActions groups={groups} onDone={onDismiss} />');
     expect(rule(controls, '.hover-card--interactive {')).toContain('pointer-events: auto;');
     expect(source('src/renderer/features/entities/hover/entity-hover-card-model.ts')).toContain('const HOVER_CARD_GRACE_MS = 220;');
+    // Scrolling the list under a card closes it instead of carrying it along,
+    // and rows that slide under a resting pointer do not open theirs.
+    expect(card).toContain('scroller.contains(anchor)');
+    expect(card).toContain('if (onDismiss) onDismiss();');
+    expect(source('src/renderer/features/entities/hover/entity-hover-card-model.ts')).toContain('if (lastScrollAt > enteredAt - SCROLL_REST_MS) return;');
     for (const owner of [
       'src/renderer/components/leftBars/ChapterPanel.tsx',
       'src/renderer/components/leftBars/ElementPanel.tsx',
@@ -228,7 +234,7 @@ describe('shared menu surface style', () => {
 
   it('drops the editor breadcrumb menus and records the native-menu boundary', () => {
     const css = source('src/styles/index.css');
-    const doc = source('docs/design-system.md');
+    const doc = designSystemDocs();
 
     expect(css).not.toContain('.crumb-dropdown');
     expect(css).not.toContain('.editor-crumb');

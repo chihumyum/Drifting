@@ -233,22 +233,32 @@ export function TopTimeline({ expanded = true, leading }: {
   // When the active tab changes (or the layout shifts enough to push it out of
   // view), scroll the bar so the active tab is fully visible. Without this,
   // activating a tab via shortcut / split focus change / URL nav can leave the
-  // active tab inside the horizontal overflow with no visual cue.
+  // active tab inside the horizontal overflow with no visual cue. Expanding
+  // the dock counts too: the pills grow out of their dots (dock-pill-grow),
+  // so the row only reaches its width once they have grown.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !activeTabKey) return;
-    const activeEl = container.querySelector(
-      `[data-tab-key="${CSS.escape(activeTabKey)}"]`,
-    ) as HTMLElement | null;
-    if (!activeEl) return;
-    const cRect = container.getBoundingClientRect();
-    const eRect = activeEl.getBoundingClientRect();
-    if (eRect.left < cRect.left) {
-      container.scrollBy({ left: eRect.left - cRect.left - 8, behavior: 'auto' });
-    } else if (eRect.right > cRect.right) {
-      container.scrollBy({ left: eRect.right - cRect.right + 8, behavior: 'auto' });
-    }
-  }, [activeTabKey, tabWidths, containerWidth, containerRef]);
+    if (!container || !activeTabKey) return undefined;
+    const reveal = () => {
+      const activeEl = container.querySelector(
+        `[data-tab-key="${CSS.escape(activeTabKey)}"]`,
+      ) as HTMLElement | null;
+      if (!activeEl) return;
+      const left = activeEl.offsetLeft - container.scrollLeft;
+      const right = left + activeEl.offsetWidth;
+      if (left < 0) {
+        container.scrollBy({ left: left - 8, behavior: 'auto' });
+      } else if (right > container.clientWidth) {
+        container.scrollBy({ left: right - container.clientWidth + 8, behavior: 'auto' });
+      }
+    };
+    reveal();
+    const grown = (event: AnimationEvent) => {
+      if (event.animationName === 'dock-pill-grow') reveal();
+    };
+    container.addEventListener('animationend', grown);
+    return () => container.removeEventListener('animationend', grown);
+  }, [activeTabKey, tabWidths, containerWidth, containerRef, expanded]);
 
   // Tab activation uses the shell navigator rather than openEntity. Besides
   // preserving split/all-chapters semantics, the desktop adapter can keep an
@@ -288,7 +298,13 @@ export function TopTimeline({ expanded = true, leading }: {
     [projectId, promoteTab],
   );
 
+  // The lock and the plus sit either side of the pills' scroller, never in
+  // it: only the pills scroll, nothing floats over them, and in WebKit no
+  // sticky glass inside the scroller lifts the pills into layers of their
+  // own, where their flowing rims and the selection wave stop repainting.
   return (
+    <>
+    {expanded && leading}
     <div
       ref={containerRef}
       role="tablist"
@@ -299,6 +315,8 @@ export function TopTimeline({ expanded = true, leading }: {
         gap: TAB_GAP,
         overflowX: 'auto',
         overflowY: 'hidden',
+        flex: '0 1 auto',
+        minWidth: 0,
         width: 'fit-content',
         maxWidth: '100%',
         paddingLeft: 0,
@@ -309,7 +327,6 @@ export function TopTimeline({ expanded = true, leading }: {
         position: 'relative',
       }}
     >
-      {expanded && leading}
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
@@ -407,8 +424,9 @@ export function TopTimeline({ expanded = true, leading }: {
           />
         );
       })}
+    </div>
 
-      {expanded && <button
+    {expanded && <button
         type="button"
         className="top-timeline-create-button glass glass--rest glass--round"
         aria-label={t('topTimeline.newEntity')}
@@ -424,8 +442,7 @@ export function TopTimeline({ expanded = true, leading }: {
       >
         <BrushIcon name="plus" />
       </button>}
-
-    </div>
+    </>
   );
 }
 

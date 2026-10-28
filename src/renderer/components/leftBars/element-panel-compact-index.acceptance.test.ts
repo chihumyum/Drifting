@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GroupHeaderCell, type GroupHeaderCellProps } from './GroupHeaderCell';
+import { designSystemDocs } from '../design-system-docs.test-support';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
@@ -227,7 +228,7 @@ describe('ElementPanel compact text index', () => {
     const panel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const header = source('src/renderer/components/leftBars/GroupHeaderCell.tsx');
     const menu = source('src/renderer/components/leftBars/ElementCategoryCreateMenu.tsx');
-    const docs = source('docs/design-system.md');
+    const docs = designSystemDocs();
     const en = JSON.parse(source('src/renderer/locales/en.json'));
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json'));
 
@@ -261,7 +262,7 @@ describe('ElementPanel compact text index', () => {
   it('keeps the shared hover/focus preview as secondary element context', () => {
     const model = source('src/renderer/features/entities/hover/entity-hover-card-model.ts');
     const card = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
-    const docs = source('docs/design-system.md');
+    const docs = designSystemDocs();
 
     expect(model).toContain('return { title: element.name, summary: element.summary, meta };');
     expect(card).toContain('{content.title}');

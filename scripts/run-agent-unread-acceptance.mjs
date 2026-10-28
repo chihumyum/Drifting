@@ -40,7 +40,7 @@ const sources = [
   'src/renderer/lib/agent/runtime/drifting-write-strategies.ts', 'src/renderer/lib/agent/runtime/drifting-write-tool-runtime.ts',
   'src/styles/agent-activity.css', 'src/styles/ui-controls.css', 'src/renderer/locales/en.json', 'src/renderer/locales/zh-CN.json',
   'scripts/renderer-agent-unread-ui.html', 'scripts/renderer-agent-unread-ui.tsx', 'scripts/run-agent-unread-acceptance.mjs',
-  'docs/agent-runtime/durable-commit-review-protocol.md', 'docs/design-system.md',
+  'docs/agent-runtime/durable-commit-review-protocol.md', 'docs/design-system/workspace.md',
   'src/renderer/features/entities/hover/entity-hover-card-model.ts',
 ];
 const fingerprint = () => {

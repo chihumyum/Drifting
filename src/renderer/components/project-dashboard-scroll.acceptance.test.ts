@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from './design-system-docs.test-support';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -18,7 +19,7 @@ describe('Project Dashboard scroll ownership', () => {
   it('constrains the dashboard to its editor pane while hiding only scrollbar chrome', () => {
     const dashboardView = source('src/renderer/views/ProjectDashboard.tsx');
     const dashboardCss = source('src/styles/dashboard.css');
-    const doc = source('docs/design-system.md');
+    const doc = designSystemDocs();
     const dash = block(dashboardCss, '.dash {', '.dash *,');
     const webkitScrollbar = block(dashboardCss, '.dash::-webkit-scrollbar {', '.dash__inner {');
 

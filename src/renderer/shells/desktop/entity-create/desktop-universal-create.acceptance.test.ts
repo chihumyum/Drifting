@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from '../../../components/design-system-docs.test-support';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -41,10 +42,19 @@ describe('desktop universal create acceptance', () => {
       'containerWidth - TAB_STRIP_START_PADDING - TAB_STRIP_END_PADDING - totalGaps',
     );
     expect(topTimeline).not.toContain('CREATE_BUTTON_WIDTH');
-    // The lock and the plus stay put while only the pills scroll.
-    expect(shell).toContain(
-      '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {\n  position: sticky;',
+    // The lock and the plus sit either side of the pills' scroller, never in
+    // it, so only the pills scroll and nothing floats over them.
+    expect(topTimeline.indexOf('{expanded && leading}')).toBeLessThan(topTimeline.indexOf('ref={containerRef}'));
+    expect(topTimeline.indexOf('className="top-timeline-create-button')).toBeGreaterThan(
+      topTimeline.indexOf('    </div>\n\n    {expanded && <button'),
     );
+    expect(shell).toContain(
+      '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {\n  position: relative;',
+    );
+    expect(shell).not.toMatch(/\.workspace-tab-dock__lock[^{]*\{[^}]*position: sticky/);
+    // Expanding the dock scrolls the current pill into view once the pills
+    // have grown out of their dots.
+    expect(topTimeline).toContain("if (event.animationName === 'dock-pill-grow') reveal();");
   });
 
   it('mounts one desktop-only create surface and reuses all four authored usecases', () => {
@@ -95,7 +105,7 @@ describe('desktop universal create acceptance', () => {
 
   it('documents session-only persistence, navigation, and replacement semantics', () => {
     const architecture = source('docs/renderer-ui-architecture.md');
-    const designSystem = source('docs/design-system.md');
+    const designSystem = designSystemDocs();
 
     expect(architecture).toContain('Desktop universal create');
     expect(architecture).toContain('transient');

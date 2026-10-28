@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from '../design-system-docs.test-support';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -27,7 +28,7 @@ describe('ElementPanel without a category footer', () => {
     const controls = source('src/styles/ui-controls.css');
     const en = JSON.parse(source('src/renderer/locales/en.json'));
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json'));
-    const designSystem = source('docs/design-system.md');
+    const designSystem = designSystemDocs();
 
     expect(store).not.toContain('elementCategoryFooterHeight');
     expect(store).not.toContain('setElementCategoryFooterHeight');

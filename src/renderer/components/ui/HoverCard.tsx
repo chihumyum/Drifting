@@ -100,15 +100,28 @@ export function HoverCardShell({
     return () => observer.disconnect();
   }, [anchor, updatePosition]);
 
+  // Scrolling the list the anchor sits in slides the anchor away from the
+  // pointer: the card goes rather than riding along. Other scrolls (the
+  // card's own body, another panel) only re-place it.
+  const [scrolledAwayFrom, setScrolledAwayFrom] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const update = () => updatePosition();
+    const onScroll = (event: Event) => {
+      const scroller = event.target instanceof Node ? event.target : null;
+      if (scroller && scroller !== cardRef.current && !cardRef.current?.contains(scroller) && scroller.contains(anchor)) {
+        if (onDismiss) onDismiss();
+        else setScrolledAwayFrom(anchor);
+        return;
+      }
+      update();
+    };
     window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
-  }, [updatePosition]);
+  }, [anchor, onDismiss, updatePosition]);
 
   // Wheeling over the anchor scrolls a long card instead of the list under it.
   useEffect(() => {
@@ -156,6 +169,7 @@ export function HoverCardShell({
   // owner's tree; a press on an action must not also click the row under it.
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
+  if (scrolledAwayFrom === anchor) return null;
   return createPortal(
     <div
       ref={cardRef}

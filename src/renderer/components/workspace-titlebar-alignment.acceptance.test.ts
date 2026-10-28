@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from './design-system-docs.test-support';
 
 const coreRoot = path.resolve(__dirname, '../../..');
 
@@ -23,7 +24,7 @@ describe('workspace window-control row', () => {
     const desktopCss = source('src/styles/desktop-shell.css');
     const controlCss = source('src/styles/ui-controls.css');
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
-    const doc = source('docs/design-system.md');
+    const doc = designSystemDocs();
     const baseConfig = JSON.parse(source('src-tauri/tauri.conf.json')) as {
       app: { windows: Array<{ trafficLightPosition?: { x: number; y: number } }> };
     };

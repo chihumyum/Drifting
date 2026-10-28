@@ -195,6 +195,17 @@ const HOVER_CARD_GRACE_MS = 220;
  * pointer can cross into the card (`card` goes on the card); `dismiss`
  * closes at once, for clicks and drags; `open` shows at once.
  */
+// Rows that slide under a resting pointer while a list scrolls are not being
+// pointed at: a card waits for the pointer itself to move onto a row.
+const SCROLL_REST_MS = 180;
+let lastScrollAt = Number.NEGATIVE_INFINITY;
+let watchingScroll = false;
+function watchScroll() {
+  if (watchingScroll || typeof window === 'undefined') return;
+  watchingScroll = true;
+  window.addEventListener('scroll', () => { lastScrollAt = performance.now(); }, { capture: true, passive: true });
+}
+
 export function useHoverPreview<T>(delayMs = HOVER_PREVIEW_DELAY_MS) {
   const [preview, setPreview] = useState<EntityHoverPreview<T> | null>(null);
   const showTimerRef = useRef<number | null>(null);
@@ -211,8 +222,11 @@ export function useHoverPreview<T>(delayMs = HOVER_PREVIEW_DELAY_MS) {
   const onEnter = useCallback(
     (data: T, anchor: HTMLElement) => {
       clearTimers();
+      watchScroll();
+      const enteredAt = performance.now();
       showTimerRef.current = window.setTimeout(() => {
         showTimerRef.current = null;
+        if (lastScrollAt > enteredAt - SCROLL_REST_MS) return;
         if (anchor.isConnected) setPreview({ data, anchor });
       }, delayMs);
     },

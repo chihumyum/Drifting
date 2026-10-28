@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { designSystemDocs } from './design-system-docs.test-support';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -544,7 +545,7 @@ describe('workspace surface language acceptance', () => {
   it('keeps unaffiliated chapters as the final storyline-style group instead of a footer', () => {
     const chapterPanel = source('src/renderer/components/leftBars/ChapterPanel.tsx');
     const store = source('src/renderer/store/ui-store.ts');
-    const designSystem = source('docs/design-system.md');
+    const designSystem = designSystemDocs();
     const unaffiliatedGroup = block(
       chapterPanel,
       '{/* Unaffiliated is deliberately appended after every persisted',
@@ -914,7 +915,7 @@ describe('workspace surface language acceptance', () => {
   });
 
   it('records the palette boundary and manual visual acceptance boundary', () => {
-    const doc = source('docs/design-system.md');
+    const doc = designSystemDocs();
 
     expect(doc).toContain('单层桌面，只有一张抬起的稿纸');
     expect(doc).toContain('它们全部使用从 editor 稿纸外侧提取的');
@@ -998,7 +999,7 @@ describe('workspace surface language acceptance', () => {
       expect(generator).toMatch(new RegExp(`"${name}": \\(\\w+, \\d+\\)|masks\\["${name}"\\] =|\\(\\d, "${name}"\\)`));
     }
     expect(generator).toContain('masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)');
-    expect(source('docs/design-system.md')).toContain('- **砂笔图标**（`BrushIcon`）');
+    expect(designSystemDocs()).toContain('- **砂笔图标**（`BrushIcon`）');
 
     // The last hand-drawn SVG icons are brush icons too.
     expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).toContain('<BrushIcon name="spread" size={11} />');
