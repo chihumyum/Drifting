@@ -59,6 +59,15 @@ export function assertPrivateProfilePath(root, target) {
   }
 }
 
+// Match Tauri app_local_data_dir (directories::BaseDirs), including XDG on
+// Linux. Assets use this root even when DRIFTING_DB_DIR lives in the checkout.
+export function worktreeAppLocalDataRoot({ platform = process.platform, environment = process.env } = {}) {
+  if (platform === 'darwin') return path.join(homedir(), 'Library', 'Application Support');
+  if (platform === 'win32') return environment.LOCALAPPDATA || path.join(homedir(), 'AppData', 'Local');
+  return environment.XDG_DATA_HOME && path.isAbsolute(environment.XDG_DATA_HOME)
+    ? environment.XDG_DATA_HOME : path.join(homedir(), '.local', 'share');
+}
+
 export function createWorktreePlan({
   root = defaultRoot, instance = 'default', port, noWatch = false, online = false, buildApp = false,
   baseEnvironment = process.env, platform = process.platform,
@@ -72,6 +81,9 @@ export function createWorktreePlan({
   const profileId = digest.toString('hex').slice(0, 12);
   const profileDirectory = path.join(worktreeRoot, '.local-data', 'worktree-dev', profileId);
   const identifier = `cc.drifting.wt.w${profileId}`;
+  const appLocalDataRoot = worktreeAppLocalDataRoot({ platform, environment: baseEnvironment });
+  const appLocalDataDirectory = path.join(appLocalDataRoot, identifier);
+  assertPrivateProfilePath(appLocalDataRoot, appLocalDataDirectory);
   const dataRoot = buildApp ? path.join(homedir(), 'Library', 'Application Support') : worktreeRoot;
   const databaseDirectory = buildApp ? path.join(dataRoot, identifier, 'databases') : path.join(profileDirectory, 'databases');
   assertPrivateProfilePath(dataRoot, databaseDirectory);
@@ -156,7 +168,7 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
   // This is deliberately a non-secret manifest, not a dump of process.env.
   const manifest = {
     schemaVersion: 1, worktreeRoot, instance, profileId, identifier,
-    profileDirectory, databaseDirectory, cargoTargetDirectory, devUrl, port: selectedPort,
+    profileDirectory, databaseDirectory, appLocalDataDirectory, cargoTargetDirectory, devUrl, port: selectedPort,
     keychainService: `Drifting.${identifier}`, ephemeralWebview,
     mode: online ? 'hosted' : 'local-only', ...(online ? { serviceOrigin: origin } : {}), configPath,
     ...(buildApp ? { buildApp: true, frontendDirectory,
