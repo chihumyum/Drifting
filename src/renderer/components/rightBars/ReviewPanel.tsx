@@ -35,7 +35,9 @@ import { type ReviewGroupMode, type ReviewScope, type ReviewSortMode } from '../
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
-import { FilterChip } from '../ui/FilterChip';
+import { GlassSlider } from '../ui/GlassSlider';
+import { ScopeToggle } from '../ui/ScopeToggle';
+import { scopeToggleSubject } from '../ui/scope-toggle';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
@@ -321,34 +323,27 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   return (
     <section className="review-panel" aria-label={t('reviewPanel.title')}>
       <header ref={toolbarRef} className="review-panel__toolbar workspace-panel-header-row">
-        <div
+        <GlassSlider
           className="review-panel__type-filters"
-          role="group"
-          aria-label={t('reviewPanel.type')}
-        >
-          {(['all', 'comment', 'todo'] as const).map((filter) => (
-            <FilterChip
-              key={filter}
-              active={typeFilter === filter}
-              shape="square"
-              size="sm"
-              onClick={() => setTypeFilter(filter)}
-            >
-              {t(`reviewPanel.${compactToolbar ? 'filtersCompact' : 'filters'}.${filter}`)}
-            </FilterChip>
-          ))}
-        </div>
+          ariaLabel={t('reviewPanel.type')}
+          value={typeFilter}
+          onChange={setTypeFilter}
+          options={(['all', 'comment', 'todo'] as const).map((filter) => ({
+            value: filter,
+            label: t(`reviewPanel.${compactToolbar ? 'filtersCompact' : 'filters'}.${filter}`),
+          }))}
+        />
 
-        <button
-          type="button"
+        <ScopeToggle
           className="review-panel__scope-toggle"
-          aria-label={`${t('reviewPanel.scope')}: ${t(`reviewPanel.scopes.${effectiveScope}`)}`}
-          aria-pressed={effectiveScope === 'current'}
+          subject={scopeToggleSubject(
+            focused.kind,
+            focused.kind === 'node' && focused.id ? reviewGroupTitle(groupData, 'node', focused.id)?.isDrift : false,
+          )}
+          pressed={effectiveScope === 'current'}
           disabled={!hasCurrentScope}
-          onClick={() => setScope(effectiveScope === 'current' ? 'project' : 'current')}
-        >
-          {t(`reviewPanel.scopes.${effectiveScope}`)}
-        </button>
+          onToggle={() => setScope(effectiveScope === 'current' ? 'project' : 'current')}
+        />
 
         <span className="review-panel__toolbar-spacer" />
         <div className="review-panel__create-actions">

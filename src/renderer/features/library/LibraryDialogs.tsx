@@ -8,7 +8,8 @@ import { Button } from '../../components/ui/Button';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { platform } from '../../platform';
 import type { CreateLibraryItemInput } from '../../usecase/useLibraryItem';
-import { FilterPill, type FocusedEntity } from './LibraryPanel';
+import { type FocusedEntity } from './LibraryPanel';
+import { GlassSlider } from '../../components/ui/GlassSlider';
 import { useEscapeToClose } from './library-item-media';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 
@@ -317,12 +318,16 @@ export function ComposeLibraryItemDialog({
 
   return (
     <DialogShell title={t('memoMaterial.dialog.newMaterial')} onCancel={() => void cancel()}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        {(['text', 'image', 'pdf'] as LibraryItemKind[]).map((k) => (
-          <FilterPill key={k} active={kind === k} onClick={() => void selectKind(k)}>
-            {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
-          </FilterPill>
-        ))}
+      <div style={{ marginBottom: 10 }}>
+        <GlassSlider
+          ariaLabel={t('memoMaterial.dialog.newMaterial')}
+          value={kind}
+          onChange={(k) => void selectKind(k)}
+          options={(['text', 'image', 'pdf'] as const).map((k) => ({
+            value: k,
+            label: t(`memoMaterial.kind.${k}`, { defaultValue: k }),
+          }))}
+        />
       </div>
 
       <input

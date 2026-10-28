@@ -2024,56 +2024,11 @@
   background: var(--workspace-ui-bg);
 }
 
-.review-panel__type-filters,
 .review-panel__create-actions {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
   gap: 4px;
-}
-
-.review-panel__type-filters .filter-chip {
-  min-width: 0;
-  padding-inline: 7px;
-  letter-spacing: 0.06em;
-}
-
-.review-panel__scope-toggle {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  min-width: 0;
-  min-height: 20px;
-  width: auto;
-  padding: 2px 4px;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: var(--ui-font-secondary, 9.5px)/1 var(--font-mono);
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.review-panel__scope-toggle:hover:not(:disabled),
-.review-panel__scope-toggle:focus-visible {
-  color: hsl(var(--ink-1));
-}
-
-.review-panel__scope-toggle:focus-visible {
-  outline: 1px solid hsl(var(--ink-2) / 0.45);
-  outline-offset: 1px;
-}
-
-.review-panel__scope-toggle[aria-pressed='true'] {
-  color: hsl(var(--ink-2));
-}
-
-.review-panel__scope-toggle:disabled {
-  cursor: default;
-  opacity: 0.45;
 }
 
 .review-panel__toolbar-spacer {

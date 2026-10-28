@@ -73,10 +73,13 @@ describe('unified Review surface acceptance', () => {
     const unifiedSurface = css.slice(css.indexOf('Unified Review panel + explicit sticky-note rail'));
 
     expect(panel).toContain('className="review-panel__toolbar workspace-panel-header-row"');
-    expect(panel).toContain('className="review-panel__scope-toggle"');
-    expect(panel).not.toContain('left-panel-view-mode-text review-panel__scope-toggle');
+    // One of several types slides a single glass slider; this-one-or-the-project
+    // is a lock-like toggle whose word never changes.
+    expect(panel).toContain('<GlassSlider\n          className="review-panel__type-filters"');
+    expect(panel).toContain('<ScopeToggle\n          className="review-panel__scope-toggle"');
+    expect(panel).not.toContain("t(`reviewPanel.scopes.${effectiveScope}`)");
     expect(panel).toContain('className="review-panel__list scroll-no-bar workspace-list"');
-    expect(panel).toContain('<FilterChip');
+    expect(panel).not.toContain('<FilterChip');
     expect(panel).toContain('<GhostIconButton');
     expect(card).toContain("presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''");
     // No right-click menu: the item's actions ride on its source hover card.
@@ -89,9 +92,7 @@ describe('unified Review surface acceptance', () => {
 
     expect(unifiedSurface).toContain('.review-card--sticky {');
     expect(unifiedSurface).toContain('.sticky-note-stack {');
-    expect(unifiedSurface).toMatch(
-      /\.review-panel__scope-toggle \{[\s\S]*?min-height: 20px;[\s\S]*?padding: 2px 4px;[\s\S]*?font: var\(--ui-font-secondary, 9\.5px\)\/1 var\(--font-mono\);/,
-    );
+    expect(unifiedSurface).not.toContain('.review-panel__scope-toggle {');
     expect(unifiedSurface.match(/border-radius: var\(--radius-sm\);/g)?.length).toBeGreaterThanOrEqual(4);
     expect(unifiedSurface).not.toContain('border-radius: 5px;');
     expect(unifiedSurface).not.toContain('border-radius: 7px;');

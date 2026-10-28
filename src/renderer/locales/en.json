@@ -3671,5 +3671,18 @@
       "createAndMove": "Create and move"
     },
     "deleteSelectionConfirm": "Delete the {{count}} selected items? Materials are deleted; whatever is in a deleted folder moves up one level."
+  },
+  "scopeToggle": {
+    "subject": {
+      "chapter": "This chapter",
+      "drift": "This idea",
+      "element": "This element",
+      "storyline": "This storyline",
+      "category": "This category",
+      "material": "This material",
+      "current": "Current"
+    },
+    "hintOff": "Only what belongs to “{{subject}}”",
+    "hintOn": "Showing only “{{subject}}”; click again for the whole project"
   }
 }
