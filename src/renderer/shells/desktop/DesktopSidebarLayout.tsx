@@ -11,16 +11,16 @@ import {
   sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
 import { trackGlassFlow } from '../../lib/glass-flow';
-import { planSidebarPush } from '../../lib/sidebar-push';
+import { planSidebarPush, SIDEBAR_PUSH_EASING, SIDEBAR_PUSH_MS } from '../../lib/sidebar-push';
 
 // Splitting or merging a sidebar pushes the divider in from (or out to) the
 // side of the pane that arrives or leaves; matches `.sidebar-pane--entering`
 // and `.sidebar-pane-ghost` in desktop-shell.css.
 const SPLIT_ANIM_MS = 420;
 // A tab switch pushes the pane's strip of panels like heavy ice: slow to
-// start, then fast.
-const PUSH_MS = 265;
-const ICE_PUSH = 'cubic-bezier(0.8, 0, 0.66, 1)';
+// start, then fast (the tab tray's glass block rides the same push).
+const PUSH_MS = SIDEBAR_PUSH_MS;
+const ICE_PUSH = SIDEBAR_PUSH_EASING;
 // The arriving panel's glass outline fades out whole after the push
 // (`.flow-line::after`'s opacity transition); they stay mounted until then.
 const OUTLINE_FADE_MS = 340;

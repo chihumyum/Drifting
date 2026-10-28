@@ -7,7 +7,7 @@ import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import type { ActivityMark } from '../../store/agent-activity-store';
 import { type GroupActivity } from './agentActivityBubble';
-import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
+import { PanelTab as SharedPanelTab, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
 import { AgentCountBadge } from './AgentCountBadge';
@@ -117,6 +117,7 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
       </PanelTabTray>
       <SidebarSplitButton side="left" edge="end" />
       <span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />
+      <PanelTabRowEdges />
     </div>
   );
 }

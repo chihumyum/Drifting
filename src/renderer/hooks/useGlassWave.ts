@@ -4,13 +4,29 @@ import { flowGlassSelection, restGlassWave } from '../lib/glass-wave';
 // A press counts toward the selection it makes for this long.
 const PRESS_WINDOW_MS = 1500;
 
+/** The element matching `group` that holds both items' wave layers, if they share one. */
+export function sharedWaveGroup(container: HTMLElement, from: string, to: string, group: string) {
+  const groupOf = (key: string) => [...container.querySelectorAll<HTMLElement>('.glass-wave[data-wave-key]')]
+    .find((layer) => layer.dataset.waveKey === key)?.closest<HTMLElement>(group) ?? null;
+  const target = groupOf(to);
+  return target && target === groupOf(from) ? target : null;
+}
+
 /**
  * Flows the selected glass from the previous item to the new one whenever
  * `activeKey` changes inside `containerRef` (see lib/glass-wave.ts). Runs
  * before paint so the new item never shows its own bleed ahead of the band.
  * While `enabled` is false (the items are not on screen) nothing moves.
+ * With `group`, the items sit in several rows (the bottom timeline's lanes):
+ * the band only flows along a row, and a selection that changes rows lets
+ * the old item fade where it is while the new one lights in place.
  */
-export function useGlassWave(containerRef: RefObject<HTMLElement | null>, activeKey: string | null, enabled: boolean) {
+export function useGlassWave(
+  containerRef: RefObject<HTMLElement | null>,
+  activeKey: string | null,
+  enabled: boolean,
+  group?: string,
+) {
   const previous = useRef(activeKey);
   // The item last pressed, so a selection made by pressing it goes straight
   // from held-down to selected instead of waiting for the band.
@@ -37,10 +53,13 @@ export function useGlassWave(containerRef: RefObject<HTMLElement | null>, active
       restGlassWave(container);
       return;
     }
+    if (!from || !activeKey || from === activeKey) return;
+    const row = group ? sharedWaveGroup(container, from, activeKey, group) : container;
+    if (!row) return;
     const press = pressed.current;
     const byPress = Boolean(press && press.key === activeKey && performance.now() - press.at < PRESS_WINDOW_MS);
-    if (from && activeKey && from !== activeKey) flowGlassSelection(container, from, activeKey, byPress);
-  }, [activeKey, enabled, containerRef]);
+    flowGlassSelection(row, from, activeKey, byPress);
+  }, [activeKey, enabled, containerRef, group]);
 
   useEffect(() => {
     const container = containerRef.current;
