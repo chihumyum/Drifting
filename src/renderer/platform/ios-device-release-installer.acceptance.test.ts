@@ -107,7 +107,7 @@ function harness({ failure = '', bundle = 'cc.drifting.client', origin = 'https:
       VITE_API_BASE_URL: origin,
       VITE_LOCAL_ONLY_MODE: options.mode === 'online' ? 'false' : 'true',
     })),
-    writeOauthConfiguration: vi.fn(() => ({ googleDriveOAuthConfigured: false })),
+    writeBuildConfiguration: vi.fn(() => ({ signingConfigured: false })),
     discoverDevices: vi.fn(async () => [first, second]),
     selectDevice: vi.fn((devices: unknown[], options: object) => selectIosDevice(devices, {
       ...options, interactive: true, prompt: async () => '2', output,
@@ -140,7 +140,7 @@ describe('standalone iOS Release build and install', () => {
     expect(build).not.toContain('dev');
     const config = JSON.parse(build[build.indexOf('--config') + 1]);
     expect(config.app.security.csp).toContain('https://service.example.test');
-    expect(dependencies.writeOauthConfiguration).toHaveBeenCalledWith(expect.objectContaining({
+    expect(dependencies.writeBuildConfiguration).toHaveBeenCalledWith(expect.objectContaining({
       SDKROOT: '/test/iphoneos.sdk', APPLE_DEVELOPMENT_TEAM: 'SYNTHETIC1',
       PATH: expect.stringContaining('/scripts/apple-toolchain:'), VITE_LOCAL_ONLY_MODE: 'false',
       DRIFTING_HOSTED_ORIGIN: 'https://service.example.test',
@@ -169,7 +169,7 @@ describe('standalone iOS Release build and install', () => {
     const { dependencies, execute } = harness({ origin: 'http://service.example.test' });
     await expect(installIosReleaseDevice(['--online'], dependencies)).rejects.toThrow('HTTPS');
     expect(dependencies.discoverDevices).not.toHaveBeenCalled();
-    expect(dependencies.writeOauthConfiguration).not.toHaveBeenCalled();
+    expect(dependencies.writeBuildConfiguration).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -178,7 +178,7 @@ describe('standalone iOS Release build and install', () => {
     dependencies.selectDevice.mockRejectedValueOnce(new Error('Device selection cancelled.'));
     await expect(installIosReleaseDevice([], dependencies)).rejects.toThrow('cancelled');
     expect(execute).not.toHaveBeenCalled();
-    expect(dependencies.writeOauthConfiguration).not.toHaveBeenCalled();
+    expect(dependencies.writeBuildConfiguration).not.toHaveBeenCalled();
   });
 
   it('fails before building when no valid private signing team is configured', async () => {
@@ -191,7 +191,7 @@ describe('standalone iOS Release build and install', () => {
     }));
     await expect(installIosReleaseDevice([], dependencies)).rejects.toThrow('DRIFTING_APPLE_DEVELOPMENT_TEAM');
     expect(execute.mock.calls.some(([command]) => command === 'pnpm')).toBe(false);
-    expect(dependencies.writeOauthConfiguration).not.toHaveBeenCalled();
+    expect(dependencies.writeBuildConfiguration).not.toHaveBeenCalled();
   });
 
   it.each(['build', 'signature', 'install'])('stops after %s failure without continuing to install/launch', async (failure) => {

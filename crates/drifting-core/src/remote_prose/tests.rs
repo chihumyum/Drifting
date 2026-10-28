@@ -446,14 +446,18 @@ fn remote_prose_treats_redelivery_below_the_truncation_floor_as_applied() {
     let (first, first_bytes) = envelope(&[(DOC, 0, "yjs.update")], 1, 100, 0);
     let (second, second_bytes) = envelope(&[(DOC, 0, "yjs.update")], 2, 200, 0);
     for (expected, bytes) in [(&first, &first_bytes), (&second, &second_bytes)] {
-        assert!(!receiver
-            .receive(&context("receiver"), expected, bytes, None, project)
-            .unwrap()
-            .already_applied);
+        assert!(
+            !receiver
+                .receive(&context("receiver"), expected, bytes, None, project)
+                .unwrap()
+                .already_applied
+        );
     }
     // Without a reducer base and floor the journal stays append-only.
     let delete = "DELETE FROM sync_apply_receipt WHERE change_set_id='sender:epoch:1'";
-    assert!(db.execute(delete.into(), vec![], None, CLIENT.into()).is_err());
+    assert!(db
+        .execute(delete.into(), vec![], None, CLIENT.into())
+        .is_err());
     for sql in [
         "INSERT INTO sync_reducer_base(sync_generation_id,profile_key,payload_version,pages_cbor,source_checkpoint_id,created_at) VALUES ('remote-generation','[]',2,X'80','checkpoint-1','now')",
         "INSERT INTO sync_journal_truncation(sync_generation_id,writer_id,writer_epoch,truncated_through_seq,source_checkpoint_id,updated_at) VALUES ('remote-generation','sender','epoch',1,'checkpoint-1','now')",
@@ -470,7 +474,10 @@ fn remote_prose_treats_redelivery_below_the_truncation_floor_as_applied() {
         "DELETE FROM sync_journal_truncation",
         "DELETE FROM sync_yjs_materialization_receipt",
     ] {
-        assert!(db.execute(sql.into(), vec![], None, CLIENT.into()).is_err(), "{sql}");
+        assert!(
+            db.execute(sql.into(), vec![], None, CLIENT.into()).is_err(),
+            "{sql}"
+        );
     }
     // The receipt outlives its mutation as a watermark; the database reopens clean.
     assert_eq!(

@@ -303,7 +303,7 @@ contracts.
    live-provider, native clipboard, accessibility, or physical-touch gates. The
    retained Google Drive release gate is suspended with that provider. Its
    historical real-account three-platform checklist remains in
-   [`qa/google-drive-three-platform-physical-acceptance.md`](qa/google-drive-three-platform-physical-acceptance.md).
+   [`qa/google-drive-three-platform-physical-acceptance.md` (retired)](client-onboarding-and-hosted-readiness.md).
 
 Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
 the current checklist. Build or Simulator success must not be reported as

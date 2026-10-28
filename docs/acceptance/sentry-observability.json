@@ -4,21 +4,21 @@
     "delivery": "optional-direct-sentry-with-existing-hosted-fallback-when-unconfigured",
     "automatedTransport": "real-browser-sdk-with-synthetic-http-responses",
     "sourceSha256": {
-      ".env.example": "sha256:6061449c472d534fb8d415cc09a9f1928bc1e2e4f2d871e2901ce08de5ac3a07",
-      "PRIVACY.md": "sha256:c8bd8fd5a9385417ae3fc165e96f24161fcc036223cafc1ac6cdc08e66d9b189",
+      ".env.example": "sha256:c0ad19d240fdaa5106a43fd69d813b97b4b8c97db76bf49e4ccc00073330cdc7",
+      "PRIVACY.md": "sha256:39ad5fc82ca1176400141b023b1c78eaaa45e1200fd37aef857779fe7a359e24",
       "docs/crash-reports.md": "sha256:f94c06085579e6c6eadcf80cb4f2810d6ec960dcdff8032ac440587493602196",
       "docs/sentry-observability.md": "sha256:b4d2e88846a231caa8671d5232089ae3640fe6244300d80f1c6e1f90a1fb8b88",
-      "package.json": "sha256:f78e9124abd116aec7e2a3e44f6dcad0f0ea7f5749dc2de34b5c5e7e0a2eb7f7",
+      "package.json": "sha256:33e28e645ab5b640987e6369b5b56abf53e48dd804b3cacf8c1e59766cbe6eda",
       "pnpm-lock.yaml": "sha256:7b9e10fd449940c378daa25310b3da2f3b0ceab15d45a88531dd957ca937eef8",
       "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
       "scripts/generate-sentry-observability.ts": "sha256:5c9ba71b5057629e60c3c092111a591f40379940d4721d9609dd0eaa351c2d4b",
-      "scripts/run-desktop-tauri.mjs": "sha256:3395eef646faac589c368d0b1bc7cf1346503c325f067d2592d115084e07c601",
-      "scripts/run-hosted-client.mjs": "sha256:25ff28420e499960f99e5fca0abee27050bf4833e0b7b54973409a48822548d7",
+      "scripts/run-desktop-tauri.mjs": "sha256:6b9d6ab46cabcf054af7b46da35805150d4d49505a33d3ca5c99f1e24dd41398",
+      "scripts/run-hosted-client.mjs": "sha256:5f13a8ce5c7d5de2f0837aa5d35e9d521ff2604236a6b642eb6dfba6abe08b04",
       "scripts/run-worktree-dev.mjs": "sha256:99b1dbf69ae067b0175bac514dd279693005cfcfeaa56821d9fd4f8afca71de4",
       "scripts/sentry-environment.mjs": "sha256:59ff67241cde61d8f37bbdb393e6060cd3914450e5d3d9bce8a050d8f2b67242",
-      "src/renderer/locales/en.json": "sha256:b279c0f0c07837a237a71fb6b8357ab0307ba8acf954ffe986be0045c772f2d1",
-      "src/renderer/locales/zh-CN.json": "sha256:9d870fbc554a52e3a7316d95a7a28b43986dfa89c102bf4c6b085839fb0e02ab",
-      "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:2641dc642e9ea71f6e6cb97e945275d9b5cde3a8a9561e66d8028394ea8ed099",
+      "src/renderer/locales/en.json": "sha256:3100c6fdf967680838e04d9f2c2abb04f473b828fe3528901c9b49ea54d8fdf9",
+      "src/renderer/locales/zh-CN.json": "sha256:354bdeb3367b6e97f89bcabf3f6bb1b76b1a17f7b38f23a2a5e8b75d132fb8b7",
+      "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:7a5aec6ed207438dfc8107102fe068f1423e48df036b47bce89e7aa1cae73245",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:30413aa86384e0415337e74412fd69591d2a5b36a5443b61251a7cbaccb7ba25",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:67fedb6cc8234f869a9eda5e4083c23ca0c3186b49599da31c21bee9e6bd65c5",
       "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:6836a5699cacc0d904f0b825ffd223caaae2600f2ad7fddcd40abf3d1146374e",
@@ -31,7 +31,7 @@
       "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e",
       "src/renderer/services/update/update-service.test.ts": "sha256:86f2df75e83c7edd248f397a6db6d3a01ea2865615da2bad5b2761970b3d4799",
       "src/renderer/services/update/update-service.ts": "sha256:457af1db0a4466a6f8edcd69f9136ff82c20d25df633b78ab84262a92c83a119",
-      "src/renderer/sync/production-runtime.ts": "sha256:e3096aabcb6a276466f27c38543e225241af68f8a33ab1c98eda7d9ce054c8f7",
+      "src/renderer/sync/production-runtime.ts": "sha256:01beeab28db8b735ed886c584756d116736444c8c6d1b9efffe7ec7ab9763fcc",
       "src/renderer/vite-env.d.ts": "sha256:51fda5f0e41483b63fb2a555533f4771b057e21185caab5be07e76715615d1c2",
       "vite.renderer.config.ts": "sha256:06f376f6f223a64c4233a19763c8b3ef86b07ac0a1400cf9eea0202f7e7fd5d4"
     }
@@ -39,7 +39,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 73,
+    "passed": 68,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -80,10 +80,6 @@
         "status": "passed"
       },
       {
-        "name": "desktop Tauri environment fails closed without configuration and never includes values in its summary",
-        "status": "passed"
-      },
-      {
         "name": "desktop Tauri environment gives a new contributor actionable instructions while keeping signing failures closed",
         "status": "passed"
       },
@@ -101,10 +97,6 @@
       },
       {
         "name": "desktop Tauri environment lets a shell service override the file origin without changing the local library",
-        "status": "passed"
-      },
-      {
-        "name": "desktop Tauri environment loads native Google OAuth build values from the ignored root env file",
         "status": "passed"
       },
       {
@@ -145,18 +137,6 @@
       },
       {
         "name": "fails configured production builds without source map upload credentials",
-        "status": "passed"
-      },
-      {
-        "name": "Google Drive operation trace persists a bounded call chain without an exported trace identifier",
-        "status": "passed"
-      },
-      {
-        "name": "Google Drive operation trace records only allowlisted native fields and drops arbitrary error text",
-        "status": "passed"
-      },
-      {
-        "name": "Google Drive operation trace rejects native diagnostic strings outside the token grammar",
         "status": "passed"
       },
       {

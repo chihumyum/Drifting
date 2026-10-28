@@ -49,9 +49,6 @@ keyring = { version = "3.6", features = ["apple-native", "windows-native", "linu
 tauri-plugin-drifting-image-codec = { path = "plugins/drifting-image-codec" }
 tauri-plugin-drifting-secure-storage = { path = "plugins/drifting-secure-storage" }
 
-[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
-tauri-plugin-drifting-google-drive-oauth = { path = "plugins/drifting-google-drive-oauth" }
-
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 objc2 = "0.6.4"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSKeyValueCoding", "NSObject", "NSString", "NSValue"] }

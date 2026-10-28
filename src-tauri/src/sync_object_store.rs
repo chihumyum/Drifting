@@ -2,7 +2,7 @@
 //!
 //! Renderer code receives only `syncobj:` references. Protocol bytes, canonical
 //! asset sources, and downloaded provider objects never cross the IPC boundary
-//! as absolute paths. The Google Drive adapter streams the current plaintext
+//! as absolute paths. The Hosted adapter streams the current plaintext
 //! object format after re-validating the opaque reference, exact size, and
 //! SHA-256 identity.
 
@@ -12,7 +12,7 @@ use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 use zeroize::Zeroizing;
@@ -25,28 +25,6 @@ const OBJECT_ROOT: &str = "sync-objects";
 const REF_PREFIX: &str = "syncobj:";
 const MAX_STAGED_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_PROTOCOL_CHUNK_BYTES: u64 = 2 * 1024 * 1024;
-
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum SyncObjectKind {
-    Segment,
-    Genesis,
-    Checkpoint,
-    SnapshotCommit,
-    Blob,
-}
-
-impl SyncObjectKind {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Segment => "segment",
-            Self::Genesis => "genesis",
-            Self::Checkpoint => "checkpoint",
-            Self::SnapshotCommit => "snapshot-commit",
-            Self::Blob => "blob",
-        }
-    }
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

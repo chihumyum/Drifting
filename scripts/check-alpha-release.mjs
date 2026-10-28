@@ -40,11 +40,9 @@ for (const required of [
   'KNOWN_ISSUES.md',
   'SUPPORT.md',
   'docs/alpha-release-contract.md',
-  'docs/google-drive-data-use.md',
   'docs/quick-start.md',
   `docs/releases/${expected}.md`,
   'docs/desktop-alpha-release-runbook.md',
-  'docs/qa/google-drive-desktop-alpha-acceptance.md',
   'docs/qa/desktop-alpha-release-candidate.md',
 ]) {
   if (!fs.existsSync(path.join(root, required))) throw new Error(`Missing public release file: ${required}`);

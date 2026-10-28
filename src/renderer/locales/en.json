@@ -29,10 +29,10 @@
     "preparingWorkspace": "Preparing your workspace…",
     "readingProject": "Reading project content…",
     "syncingProject": "Updating project structure…",
-    "syncingProjectDetail": "Merging changes to chapters, reference material, or project structure from Google Drive. This project cannot be edited until the update finishes.",
+    "syncingProjectDetail": "Merging changes to chapters, reference material, or project structure from Hosted. This project cannot be edited until the update finishes.",
     "projectLoadFailedTitle": "This project could not be opened",
     "projectLoadFailedDetail": "No data was changed. Check the local database and try again.",
-    "projectRefreshFailedTitle": "Google Drive changes could not be applied",
+    "projectRefreshFailedTitle": "Hosted changes could not be applied",
     "projectRefreshFailedDetail": "The previous complete workspace is still safe. Try loading the project again.",
     "unexpectedTitle": "Drifting encountered an unexpected error",
     "unexpectedDetail": "The current screen was stopped before it could make more changes.",
@@ -409,156 +409,6 @@
       "local_kicker": "LOCAL DATA",
       "local_title": "Your work stays on this device.",
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
-      "cloud_kicker": "PERSONAL CLOUD",
-      "cloud_title": "Your projects sync with Google Drive.",
-      "cloud_sub": "SQLite remains the working copy on every device. Sync data and assets are stored in Drive. Your Google account and Google Drive are part of the trust boundary; this is not end-to-end encryption against Google.",
-      "google_drive": "Google Drive",
-      "cloud_status": "Sync status",
-      "cloud_status_desc": "{{ready}} of {{active}} projects are ready.",
-      "device_readiness": "Google Drive on this device",
-      "device_readiness_ready": "Ready",
-      "device_readiness_required": "Setup required",
-      "device_readiness_ready_desc": "Google sign-in, Drive transport, and safe on-device staging are enabled in this build.",
-      "device_readiness_oauth_desc": "This build has no valid Google sign-in configuration. Local writing is unaffected.",
-      "device_readiness_transport_desc": "This build has no native Google Drive transport. Local writing is unaffected.",
-      "device_readiness_storage_desc": "This build has no on-device sync-object staging, so Google Drive connection will not start.",
-      "cloud_states": {
-        "loading": "Loading",
-        "local": "On-device only",
-        "transitioning": "Connecting",
-        "cloud-ready": "Ready",
-        "cloud-provisioning": "Preparing projects",
-        "cloud-paused": "Paused",
-        "cloud-attention": "Needs attention",
-        "unavailable": "Unavailable"
-      },
-      "transition_states": {
-        "connect": "Connecting",
-        "switch-provider": "Switching provider",
-        "disconnect": "Disconnecting",
-        "restore": "Restoring from Drive"
-      },
-      "operation_progress": {
-        "connect": {
-          "title": "Connecting Google Drive…",
-          "desc": "Complete Google sign-in in the system browser. Drifting will then discover remote projects before publishing local-only work."
-        },
-        "disconnect": {
-          "title": "Disconnecting Google Drive…",
-          "desc": "Drifting is finishing the local durability and convergence checks, then revoking the Google grant. This can take up to two minutes."
-        },
-        "reauthorize": {
-          "title": "Reauthorizing Google Drive…",
-          "desc": "Complete sign-in in the system browser. Only the currently connected Google account will be accepted."
-        },
-        "cancel": {
-          "title": "Cancelling Google Drive setup…",
-          "desc": "Drifting is revoking the pending authorization and returning every project to local-only mode."
-        },
-        "settings": {
-          "title": "Updating sync state…",
-          "desc": "Local editing remains available while the provider state is updated."
-        }
-      },
-      "connect_google_drive": "Google Drive sync",
-      "connect_google_drive_desc": "Sign in with Google in your system browser. Drifting automatically discovers and restores projects already stored for that Google account, then publishes projects found only on this device.",
-      "google_drive_unavailable_target": "This build does not have complete Google Drive sign-in configuration.",
-      "connect": "Sign in with Google",
-      "connecting": "Signing in…",
-      "retry_google_sign_in": "Sign in with Google again",
-      "connect_done": "Google sign-in is complete. Remote project discovery, restore, and publication of local-only projects continue automatically.",
-      "cancel_pending_cloud": "Cancel pending cloud setup",
-      "cancel_pending_cloud_desc": "Clears the pending Google sign-in setup, revokes the owned Google authorization, and returns to local-only mode. Data already written to Drive may remain; local SQLite, Yjs, assets, and projects are preserved.",
-      "cancel_pending_cloud_action": "Cancel setup…",
-      "confirm_cancel_pending_cloud": "Confirm cancel setup",
-      "cancelling": "Cancelling…",
-      "cancel_pending_cloud_done": "Cloud setup was cancelled. Every local project remains available.",
-      "finish_provisioning": "Finish preparing projects",
-      "finish_provisioning_desc": "{{count}} project(s) still need an initial Drive sync state.",
-      "retry": "Retry",
-      "retry_requested": "A project preparation retry was scheduled.",
-      "runtime_unavailable": "The foreground sync runtime is not mounted yet.",
-      "reauthorize_google_drive": "Reauthorize Google Drive",
-      "reauthorize_google_drive_desc": "Sign in again in the system browser. Drifting accepts the authorization only when Google confirms the same account, then resumes automatic project discovery.",
-      "reauthorize_disconnect_google_drive": "Google authorization expired",
-      "reauthorize_disconnect_google_drive_desc": "Sign in again with the same connected Google account. After Drifting verifies the account, it immediately revokes the renewed grant and continues the original disconnect transaction. Local projects remain available throughout.",
-      "reauthorize": "Reauthorize",
-      "reauthorize_and_disconnect": "Reauthorize and disconnect",
-      "reauthorizing": "Reauthorizing…",
-      "reauthorize_done": "Google Drive authorization was renewed and affected projects are ready to resume.",
-      "sync_now": "Sync now",
-      "sync_now_desc": "Run one foreground pull, apply, and publish cycle.",
-      "sync_requested": "A foreground sync cycle was scheduled.",
-      "pause_sync": "Pause cloud sync",
-      "resume_sync": "Resume cloud sync",
-      "pause_sync_desc": "Local editing remains available while provider network work is paused.",
-      "pause": "Pause",
-      "resume": "Resume",
-      "pause_done": "Google Drive sync is paused for every project.",
-      "resume_done": "Google Drive sync resumed for every project.",
-      "disconnect_google_drive": "Disconnect Google Drive",
-      "disconnect_google_drive_desc": "Ready projects run a final convergence check before Drifting revokes its Google grant and returns every project to local-only mode. A stalled or not-yet-published project still keeps its complete local SQLite, Yjs, and assets, but Drive may be behind. Remote Drive data is not deleted. Other devices may need to sign in again.",
-      "disconnect_confirm_desc": "Confirm to finish the last local/sync checks and revoke this app's Google authorization. Local projects stay available; remote Drive data is not deleted.",
-      "disconnect": "Disconnect…",
-      "retry_disconnect": "Retry disconnect…",
-      "confirm_disconnect": "Confirm disconnect",
-      "disconnecting": "Disconnecting…",
-      "disconnect_done": "Google Drive was disconnected. Every local project remains available on this device.",
-      "attention_reason": "Attention reason",
-      "attention_reason_desc": "The durable reason code for the current cloud-sync authority state. Reauthorization, upgrade, or corruption states appear here; quarantined objects are never applied.",
-      "last_sync_error": "Last sync error",
-      "last_sync_error_desc": "The most recent sync cycle did not finish. Local content is safe and pending data remains intact. Retry after the problem is resolved.",
-      "last_sync_error_publish_invalid_desc": "An internal publish request failed. Local content is safe and the pending journal remains intact. Retry after updating the app.",
-      "diagnostics": "Pending work",
-      "diagnostics_desc": "Local journal and verified inbox counters; content and credentials are never shown here.",
-      "diagnostics_value": "changes {{changeSets}} · segments {{segments}} · transfers {{transfers}} · gaps {{gaps}} · conflicts {{conflicts}} · quarantine {{quarantined}}",
-      "operation_failed": "Sync operation failed: {{error}}",
-      "issues": {
-        "configuration": {
-          "title": "This build cannot connect Google Drive yet",
-          "desc": "Google sign-in, Drive transport, or on-device staging is incomplete. Install a fully configured build; local projects are unaffected."
-        },
-        "offline": {
-          "title": "This device is offline",
-          "desc": "Reconnect and try again. Unpublished changes remain safe on this device."
-        },
-        "reauthorize": {
-          "title": "Google Drive needs reauthorization",
-          "desc": "The Google SDK sign-in state expired or was lost. Reauthorize with the same Google account that is already connected."
-        },
-        "account-mismatch": {
-          "title": "A different Google account was selected",
-          "desc": "The existing connection was not replaced. Go back and choose the same Google account originally connected to Drifting."
-        },
-        "permission": {
-          "title": "Google Drive permission was not granted",
-          "desc": "Drifting requests only the hidden appDataFolder permission. Reauthorize and allow that permission before retrying."
-        },
-        "rate-limited": {
-          "title": "Google Drive is temporarily limiting requests",
-          "desc": "Local work is preserved. Wait a little, then run sync again."
-        },
-        "quota": {
-          "title": "Google Drive storage is full",
-          "desc": "Free some Google Drive space before syncing. Local projects and pending work remain complete."
-        },
-        "cancelled": {
-          "title": "Google Drive operation cancelled",
-          "desc": "No account was replaced and no local project was deleted. Start again when ready."
-        },
-        "update-required": {
-          "title": "Drifting needs an update",
-          "desc": "The current sync data requires a newer build for safe handling. Update the app; do not reset local projects."
-        },
-        "data-integrity": {
-          "title": "Google Drive data needs review",
-          "desc": "Suspicious remote objects were not applied. Local content and pending logs remain intact; save diagnostics and stop repeated retries."
-        },
-        "retry": {
-          "title": "Google Drive operation did not finish",
-          "desc": "Local content is safe. Retry later; if it keeps failing, copy the content- and credential-free diagnostics from Settings > Privacy."
-        }
-      },
       "local_data": "Local data",
       "backup": {
         "exportTitle": "Library backup",
@@ -741,8 +591,6 @@
       "license": "Client license",
       "licenseDesc": "GNU AGPL v3 or later",
       "viewLicense": "View license",
-      "driveDataUse": "Google Drive data use",
-      "driveDataUseDesc": "What enters Google's trust boundary and what Drifting can access",
       "knownIssues": "Known issues",
       "knownIssuesDesc": "Current Alpha limitations and release blockers",
       "contact": "Contact",
@@ -1133,8 +981,6 @@
       "enabled": "Hosted sync connected",
       "disabled": "Local library",
       "projects": "Syncing {{count}} projects",
-      "switch_from_drive": "Switch this library to Hosted",
-      "switch_description": "Connect the saved local replica without waiting for Google Drive. Changes present only on other devices or Drive are not included; the Drive copy is retained.",
       "connect_description": "Merge this account’s cloud projects with your library and upload local projects.",
       "sync_now": "Sync now",
       "connect": "Connect and sync",
@@ -1281,13 +1127,13 @@
     "storageLocal": "On-device",
     "storage": {
       "local": "On-device",
-      "syncing": "Syncing with Google Drive",
-      "checking": "Checking Google Drive for updates",
-      "applying": "Applying Google Drive changes",
-      "synced": "Google Drive up to date",
-      "paused": "Google Drive sync paused",
-      "offline": "Google Drive paused offline",
-      "attention": "Google Drive needs attention"
+      "syncing": "Syncing with Hosted",
+      "checking": "Checking Hosted for updates",
+      "applying": "Applying Hosted changes",
+      "synced": "Hosted up to date",
+      "paused": "Hosted sync paused",
+      "offline": "Hosted paused offline",
+      "attention": "Hosted needs attention"
     }
   },
   "nodeHoverPreview": {

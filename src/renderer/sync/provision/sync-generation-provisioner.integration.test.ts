@@ -43,7 +43,7 @@ async function setup() {
 
   const authorityRepository = createSyncAppAuthorityRepository(db);
   const authorityAttempt = await authorityRepository.begin({
-    targetMode: 'google-drive',
+    targetMode: 'hosted',
     accountSubjectId: 'google-subject',
     credentialSecretRef: 'native:google-credential',
     attemptId: 'empty-cloud-connect',
@@ -170,7 +170,7 @@ describe('post-connect SyncGeneration provisioning', () => {
     });
     expect(await fixture.db.select().from(SyncChangeSetTable)).toHaveLength(2);
 
-    const [pending] = await fixture.repository.ensureAndListPending('google-drive');
+    const [pending] = await fixture.repository.ensureAndListPending('hosted');
     expect(pending).toMatchObject({
       syncGenerationId: SYNC_GENERATION_ID,
       projectSyncId: PROJECT_SYNC_ID,
@@ -221,7 +221,7 @@ describe('post-connect SyncGeneration provisioning', () => {
       return result;
     });
 
-    const [first] = await fixture.repository.ensureAndListPending('google-drive');
+    const [first] = await fixture.repository.ensureAndListPending('hosted');
     await expect(
       fixture.provisioner.provision(first!, new AbortController().signal),
     ).rejects.toThrow('injected marker response loss');
@@ -229,7 +229,7 @@ describe('post-connect SyncGeneration provisioning', () => {
       { state: 'connecting', connectedAt: null },
     ]);
 
-    const [retry] = await fixture.repository.ensureAndListPending('google-drive');
+    const [retry] = await fixture.repository.ensureAndListPending('hosted');
     await fixture.provisioner.provision(retry!, new AbortController().signal);
     const generation = await fixture.provider.openGeneration(retry!.binding);
     expect((await fixture.provider.listInventory({ generation })).objects).toHaveLength(2);
@@ -250,7 +250,7 @@ describe('post-connect SyncGeneration provisioning', () => {
       .mockRejectedValueOnce(new Error('injected crash before ready binding commit'))
       .mockImplementation(markReady);
 
-    const [first] = await fixture.repository.ensureAndListPending('google-drive');
+    const [first] = await fixture.repository.ensureAndListPending('hosted');
     await expect(
       fixture.provisioner.provision(first!, new AbortController().signal),
     ).rejects.toThrow('injected crash before ready');
@@ -261,7 +261,7 @@ describe('post-connect SyncGeneration provisioning', () => {
       { state: 'connecting', connectedAt: null },
     ]);
 
-    const [retry] = await fixture.repository.ensureAndListPending('google-drive');
+    const [retry] = await fixture.repository.ensureAndListPending('hosted');
     await fixture.provisioner.provision(retry!, new AbortController().signal);
     const generation = await fixture.provider.openGeneration(retry!.binding);
     expect((await fixture.provider.listInventory({ generation })).objects).toHaveLength(2);

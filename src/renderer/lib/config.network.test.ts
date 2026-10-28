@@ -5,7 +5,6 @@ import {
   canUseByokProvider,
   canUseHostedService,
   canUseNetwork,
-  canUsePersonalCloud,
   isAuthRequired,
 } from './config';
 
@@ -21,11 +20,10 @@ describe('network capability policy', () => {
     vi.resetModules();
   });
 
-  it('keeps BYOK available but suspends personal cloud in the default local-only build', () => {
+  it('keeps BYOK available in the default local-only build', () => {
     setOnline(true);
 
     expect(canUseHostedService()).toBe(false);
-    expect(canUsePersonalCloud()).toBe(false);
     expect(canUseByokProvider()).toBe(true);
     expect(canUseAgentExtension()).toBe(true);
     expect(canUseNetwork('hosted-service')).toBe(false);
@@ -36,19 +34,16 @@ describe('network capability policy', () => {
     setOnline(false);
 
     expect(canUseHostedService()).toBe(false);
-    expect(canUsePersonalCloud()).toBe(false);
     expect(canUseByokProvider()).toBe(false);
     expect(canUseAgentExtension()).toBe(false);
   });
 
-  it('enables a configured Hosted service while Drive remains suspended', async () => {
+  it('enables a configured Hosted service without enabling any retired provider', async () => {
     setOnline(true);
     vi.stubEnv('VITE_LOCAL_ONLY_MODE', 'false');
     vi.resetModules();
     const configured = await import('./config');
     expect(configured.canUseHostedService()).toBe(true);
-    expect(configured.canUsePersonalCloud()).toBe(false);
-    expect(configured.canUseNetwork('personal-cloud')).toBe(false);
     expect(configured.canUseByokProvider()).toBe(true);
   });
 
@@ -56,7 +51,6 @@ describe('network capability policy', () => {
     vi.stubGlobal('navigator', {});
 
     expect(canUseByokProvider()).toBe(true);
-    expect(canUsePersonalCloud()).toBe(false);
     expect(canUseAgentExtension()).toBe(true);
   });
 });

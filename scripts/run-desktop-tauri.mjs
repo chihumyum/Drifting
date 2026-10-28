@@ -75,14 +75,6 @@ export function createDesktopTauriEnvironment({
   };
 }
 
-export function describeDesktopOauthConfiguration(environment) {
-  return Object.freeze({
-    googleDriveOAuthConfigured: Boolean(
-      environment.DRIFTING_GOOGLE_DESKTOP_CLIENT_ID?.trim(),
-    ),
-  });
-}
-
 /** Check before Cargo/Vite starts, so a new contributor sees setup guidance
  * without first compiling the native host. The runner rechecks before launch. */
 export function prepareDesktopSigning({ command, arguments: tauriArguments = [], environment,
@@ -189,7 +181,6 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const online = normalizedForwarded.includes('--online');
   const tauriArguments = normalizedForwarded.filter((argument) => argument !== '--online');
   const environment = createDesktopTauriEnvironment({ mode: online ? 'online' : 'local' });
-  const configuration = describeDesktopOauthConfiguration(environment);
   const macosSigningIdentity = prepareDesktopSigning({ command, arguments: tauriArguments, environment });
   const tauriConfigOverride = createDesktopTauriConfigOverride({
     command,
@@ -202,11 +193,6 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
     ? `Hosted service: ${environment.DRIFTING_HOSTED_ORIGIN}`
     : 'Local-only client: Hosted service disabled');
 
-  console.log(
-    configuration.googleDriveOAuthConfigured
-      ? 'Google Drive desktop OAuth build configuration: configured'
-      : 'Google Drive desktop OAuth build configuration: missing (.env.local or shell environment)',
-  );
 
   if (command === 'build') {
     console.log(

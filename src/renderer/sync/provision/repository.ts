@@ -8,13 +8,12 @@ import {
   SyncProviderBindingTable,
   SyncGenerationTable,
 } from '../../schema/drizzle';
-import type { CloudSyncProviderMode } from '../app-authority';
 import type { ProviderBinding } from '../protocol';
 
 const PENDING_STATES = ['connecting', 'publishing-genesis'] as const;
 
 export interface PendingSyncGenerationProvision {
-  readonly mode: CloudSyncProviderMode;
+  readonly mode: 'hosted';
   readonly authorityGeneration: number;
   readonly providerAccountId: string;
   readonly accountSubject: string;
@@ -25,10 +24,6 @@ export interface PendingSyncGenerationProvision {
   readonly generationNumber: number;
   readonly bindingState: (typeof PENDING_STATES)[number];
   readonly binding: ProviderBinding;
-}
-
-function namespace(mode: CloudSyncProviderMode): string {
-  return mode === 'google-drive' ? 'appDataFolder' : 'project-v1';
 }
 
 function requireNonEmpty(value: string | null | undefined, label: string): string {
@@ -48,7 +43,7 @@ export class SyncGenerationProvisionRepository {
    * runtimes are deliberately outside this repository.
    */
   async ensureAndListPending(
-    expectedMode: CloudSyncProviderMode,
+    expectedMode: 'hosted',
   ): Promise<readonly PendingSyncGenerationProvision[]> {
     return this.db.transaction(async (tx) => {
       const [authority] = await tx.select().from(SyncAppAuthorityTable).limit(1);
@@ -92,7 +87,7 @@ export class SyncGenerationProvisionRepository {
         await tx.insert(SyncProviderBindingTable).values({
           syncGenerationId,
           providerAccountId: account.id,
-          providerNamespace: namespace(expectedMode),
+          providerNamespace: 'project-v1',
           providerGenerationRef: null,
           state: 'connecting',
           connectedAt: null,

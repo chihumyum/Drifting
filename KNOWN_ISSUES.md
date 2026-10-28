@@ -10,12 +10,14 @@ evidence that a public installer is available.
   ChatGPT account through OpenAI's Codex device login. OpenAI offers no
   third-party contract for it, so it is unsupported, counts against your
   ChatGPT plan, and may stop working without notice.
-- Google Drive synchronization trusts the selected Google account and Drive;
-  synchronized manuscript data is not end-to-end encrypted against Google.
+- Hosted sync trusts the configured service; synchronized manuscript data is
+  readable within that operator's trust boundary and is not end-to-end encrypted.
 - Relational Markdown is a readable export and is not an app-state import or
   restore format.
-- Public Alpha binary distribution remains blocked until the dated two-Mac Drive,
-  notarized distribution, updater, and desktop RC checklists are complete.
+- The public release contract and gates are paused during restructuring. Hosted
+  distribution configuration, signed installers, public update delivery and
+  real-account acceptance must be established before broad promotion. See
+  [current onboarding and Hosted readiness](docs/client-onboarding-and-hosted-readiness.md).
 - Mobile, Intel Mac, Windows, and Linux are not release-supported yet.
 - iOS source builds require iOS 15+. Native smoke-test results and remaining
   mobile acceptance gaps are in [the 2026-09-23 report](docs/qa/native-acceptance-2026-09-23.md).

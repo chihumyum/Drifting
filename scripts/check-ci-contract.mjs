@@ -15,7 +15,7 @@ if (/^\s{4}tags:/mu.test(ci)) {
   errors.push('ordinary CI must not duplicate the exact-SHA release workflow on tags');
 }
 
-for (const job of ['client-checks', 'client-tests', 'client-renderer', 'client', 'native', 'apple-native']) {
+for (const job of ['client-checks', 'client-tests', 'client-renderer', 'client', 'native']) {
   requireMatch(ci, new RegExp(`^  ${job}:\\s*$`, 'mu'), `CI is missing the ${job} job`);
 }
 requireMatch(ci, /^\s{4}name: client\s*$/mu, 'CI must preserve the required client context');
@@ -30,17 +30,9 @@ requireMatch(ci, /DRIFTING_PERF_CHROME: \/usr\/bin\/google-chrome/u, 'renderer C
 requireMatch(ci, /pnpm perf:renderer:lifecycle --output=\.local-data\/renderer-performance\/lifecycle\.json/u, 'CI must check renderer resource release');
 requireMatch(ci, /test "\$RENDERER_RESULT" = success/u, 'client must require renderer success');
 requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u, 'renderer gate must read the renderer job result');
-requireMatch(
-  ci,
-  /^  apple-native:\s*\n    name: Apple native \/ macOS\s*\n(?:    #[^\n]*\n)*    if: \$\{\{ false \}\}/mu,
-  'the paused Apple native job must stay disabled in ordinary CI',
-);
-if (ci.includes('pnpm apple:check')) {
-  errors.push('paused Apple source evidence validation must not run in ordinary CI');
-}
 const rustAction = 'dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de';
 for (const [name, workflow, expectedCount] of [
-  ['ordinary CI', ci, 2],
+  ['ordinary CI', ci, 1],
   ['Alpha release', release, 2],
 ]) {
   if (workflow.split(rustAction).length - 1 !== expectedCount)
@@ -52,11 +44,7 @@ for (const [name, workflow, expectedCount] of [
 for (const command of [
   'pnpm ci:contract:check',
   'pnpm public:check',
-  'pnpm apple:acceptance',
-  'pnpm apple:document:acceptance',
-  'pnpm apple:binding:acceptance',
-  'pnpm apple:durability:acceptance',
-  'pnpm apple:authoring:acceptance',
+  'pnpm core:test',
   'pnpm security:dependencies',
   'pnpm lint',
   'pnpm typecheck',
@@ -66,10 +54,6 @@ for (const command of [
 ]) {
   if (!ci.includes(command)) errors.push(`client checks are missing: ${command}`);
 }
-if (/pnpm apple:acceptance[^\n]*(?:--ios-only|--with-ios|--include-ipad)/u.test(ci)) {
-  errors.push('Routine Apple CI is macOS only; mobile acceptance is deferred');
-}
-
 requireMatch(
   release,
   /^\s{4}tags: \['app-v0\.1\.\*-alpha\.\*'\]\s*$/mu,

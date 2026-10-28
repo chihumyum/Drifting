@@ -71,7 +71,7 @@ export async function connectHostedFromProduct(signal: AbortSignal, db: DbClient
   await flushLocalApplicationPersistence();
   const repository = createSyncAppAuthorityRepository(db);
   let current = await repository.read();
-  // Drive is suspended. Retire an unfinished local transition without contacting
+  // Drive is retired. Cancel an unfinished legacy transition without contacting
   // its provider, so a previous connect/disconnect cannot strand Hosted sign-in.
   if (
     current.transitionState !== 'stable' &&

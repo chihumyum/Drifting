@@ -4,7 +4,7 @@ import { getHostedSessionBinding } from '../../lib/hosted-session-binding';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
 import { events } from '../../lib/events';
 import { productSyncRuntimeControl } from '../product-runtime-control';
-import { holdHostedProvisioning } from '../provision/google-drive-runtime';
+import { holdHostedProvisioning } from '../provision/hosted-runtime';
 import { createHostedProvider } from '../providers/hosted/tauri-transport';
 import { holdHostedDiscovery } from './runtime';
 import { deleteProjectWithRemoteConfirmation } from './project-deletion';

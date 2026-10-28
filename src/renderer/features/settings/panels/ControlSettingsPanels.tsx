@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
 import { UPDATE_LOCAL_SAVE_FAILED, UpdateService } from '../../../services/update/update-service';
 import { createSanitizedDiagnosticSummary } from '../../../services/diagnostics/sanitized-summary';
-import { getSanitizedGoogleDriveOperationTraces } from '../../../services/diagnostics/google-drive-operation-trace';
 import {
   SHORTCUT_ACTIONS,
   useShortcutsStore,
@@ -413,7 +412,6 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
         authority,
         sync: runtime,
         update,
-        googleDriveOperationTraces: getSanitizedGoogleDriveOperationTraces(),
       });
       await navigator.clipboard.writeText(summary);
       setDiagnosticMessage(t('settings.privacy.diagnosticsCopied'));

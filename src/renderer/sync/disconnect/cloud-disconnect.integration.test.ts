@@ -2,13 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
-import {
-  clearGoogleDriveOperationTracesForTests,
-  getSanitizedGoogleDriveOperationTraces,
-} from '../../services/diagnostics/google-drive-operation-trace';
 import {
   ProjectTable,
   SyncProviderAccountTable,
@@ -24,7 +20,6 @@ const LATER = '2026-08-15T12:01:00.000Z';
 const directories: string[] = [];
 const gateways: ProductFileBackedSqliteGateway[] = [];
 
-beforeEach(() => clearGoogleDriveOperationTracesForTests());
 
 async function setup() {
   const directory = await mkdtemp(path.join(tmpdir(), 'drifting-disconnect-'));
@@ -39,7 +34,7 @@ async function setup() {
   });
   const authority = createSyncAppAuthorityRepository(db);
   const connect = await authority.begin({
-    targetMode: 'google-drive', accountSubjectId: 'subject', credentialSecretRef: 'secret:credential',
+    targetMode: 'hosted', accountSubjectId: 'subject', credentialSecretRef: 'secret:credential',
     attemptId: 'connect-1', nowIso: NOW,
   });
   await db.insert(SyncRemoteObjectTable).values({
@@ -53,13 +48,13 @@ async function setup() {
   await authority.complete({
     attemptId: connect.attemptId,
     providerAccountId: 'account-1',
-    bindings: [{ syncGenerationId: 'sync-generation-1', providerNamespace: 'appDataFolder', providerGenerationRef: 'syncdrive:sync-generation-1' }],
+    bindings: [{ syncGenerationId: 'sync-generation-1', providerNamespace: 'project-v1', providerGenerationRef: 'hosted:sync-generation-1' }],
     nowIso: NOW,
   });
   const order: string[] = [];
   const dependencies: CloudDisconnectDependencies = {
     db,
-    providerMode: 'google-drive',
+    providerMode: 'hosted',
     flushLocalDurability: vi.fn(async () => { order.push('flush'); }),
     waitForConvergence: vi.fn(async () => { order.push('converge'); }),
     revokeCredential: vi.fn(async () => { order.push('revoke'); }),
@@ -95,18 +90,10 @@ describe('CloudDisconnectOrchestrator', () => {
     const orchestrator = new CloudDisconnectOrchestrator(input.dependencies);
     await expect(orchestrator.disconnect()).rejects.toThrow('network');
     expect(await input.authority.read()).toMatchObject({
-      mode: 'google-drive',
+      mode: 'hosted',
       targetMode: 'local',
       transitionState: 'blocked',
     });
-    const traces = getSanitizedGoogleDriveOperationTraces();
-    expect(traces[traces.length - 1]?.events).toContainEqual(
-      expect.objectContaining({
-        layer: 'renderer-disconnect',
-        phase: 'persist-blocked-attempt',
-        outcome: 'passed',
-      }),
-    );
     await expect(orchestrator.disconnect()).resolves.toMatchObject({ status: 'disconnected' });
     expect(revoke).toHaveBeenCalledTimes(2);
     expect(input.dependencies.waitForConvergence).toHaveBeenCalledTimes(1);

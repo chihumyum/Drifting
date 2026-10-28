@@ -60,7 +60,6 @@ jobs:
           for url in \
             https://drifting.app \
             https://drifting.app/privacy \
-            https://drifting.app/google-drive-data-use \
             https://drifting.app/quick-start \
             https://drifting.app/support \
             https://drifting.app/known-issues; do

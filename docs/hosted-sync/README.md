@@ -1,11 +1,11 @@
 # Hosted sync dogfooding
 
 The active Tauri client now supports a separately operated Hosted account and
-immutable-object provider. The Apple-native migration remains paused. As of
-2026-10-01, Hosted is the only enabled App sync provider. Google Drive settings,
-OAuth actions, project provisioning, project sync and Agent conversation sync
-are suspended in all builds, including public local-only builds. The retained
-Drive implementation, schema and recovery records are not deleted. Builds without
+immutable-object provider. The standalone Apple-native front-end and Google Drive sync were retired on
+2026-10-28. Hosted is the only supported App sync provider. Drive OAuth, native
+commands, transports, SDK plugins, UI and build gates have been removed.
+Published SQLite schemas, saved recovery records and local-replica adoption are
+retained; see [the cleanup and onboarding audit](../client-onboarding-and-hosted-readiness.md). Builds without
 a configured Hosted service continue locally. The author narrowed this
 milestone to Mac on 2026-09-30. On 2026-10-01 the author resumed Tauri iOS
 Hosted integration, with iPhone Simulator acceptance against the operator's VPS;
@@ -76,8 +76,8 @@ library is needed to move from local writing to Hosted. The source-default
 service-disabled configuration is an operator boundary, not a user mode.
 Service-disabled builds show only **Continue locally**, without a sync action or
 Hosted storage claim. Neither welcome-page variant includes Google Drive copy
-or a quick-guide link. The existing `v5` seen marker is retained, so this copy
-correction does not reopen onboarding for authors who already dismissed it.
+or a quick-guide link. The `v6` seen marker is stored per local library identity; it is not tied to the
+Hosted account. Clearing WebView storage can show the guide again.
 
 Initial connection publishes existing local projects and restores validated cloud projects before
 activating one app-wide authority. New projects publish a genesis snapshot;
@@ -145,7 +145,7 @@ subsequent asset/presentation cleanup. Offline, unsupported-server, account-chan
 and ambiguous-response failures keep the local project and leave the confirmation
 dialog open with a retryable error. Never-synced projects in service-disabled
 local builds retain local deletion; unowned remote evidence blocks that path.
-Suspended Drive history is retained outside the Hosted deletion contract.
+Retired Drive history is retained outside the Hosted deletion contract.
 
 The service tombstones the project stream and the same generation's
 `agent-chat-v1` stream in one PostgreSQL transaction. Tombstones are permanent;

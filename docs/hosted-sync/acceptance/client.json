@@ -1,11 +1,23 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-22T15:56:06.477Z",
-  "sourceSha256": "290a98b3360c6946fe6d5953e170e93c126e0f0090704792cc1f27045d18df5e",
+  "generatedAt": "2026-10-28T15:30:19.184Z",
+  "sourceSha256": "1273cfc3c11b593b0e325cd4c8a9f585e109413e70a265e7b113211179d9e825",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
   "checks": [
+    {
+      "name": "retired client integrations removes Drive native commands, renderer ports and SDK dependencies",
+      "status": "passed"
+    },
+    {
+      "name": "retired client integrations keeps Hosted provisioning and removes experimental build gates",
+      "status": "passed"
+    },
+    {
+      "name": "retired client integrations preserves the published database baseline and shared Tauri persistence crates",
+      "status": "passed"
+    },
     {
       "name": "Hosted credential response ownership ignores stale response credentials after another login or logout",
       "status": "passed"
@@ -15,7 +27,7 @@
       "status": "passed"
     },
     {
-      "name": "network capability policy keeps BYOK available but suspends personal cloud in the default local-only build",
+      "name": "network capability policy keeps BYOK available in the default local-only build",
       "status": "passed"
     },
     {
@@ -23,7 +35,7 @@
       "status": "passed"
     },
     {
-      "name": "network capability policy enables a configured Hosted service while Drive remains suspended",
+      "name": "network capability policy enables a configured Hosted service without enabling any retired provider",
       "status": "passed"
     },
     {
@@ -96,50 +108,6 @@
     },
     {
       "name": "session token durability invalidates a rejected bearer in memory even when secure deletion fails",
-      "status": "passed"
-    },
-    {
-      "name": "ProductSyncRuntimeControl keeps deletion suspended when an overlapping provider change releases its hold",
-      "status": "passed"
-    },
-    {
-      "name": "ProductSyncRuntimeControl holds a coordinator mounted while deletion is already in progress",
-      "status": "passed"
-    },
-    {
-      "name": "ProductSyncRuntimeControl publishes only sanitized diagnostics and detaches by coordinator identity",
-      "status": "passed"
-    },
-    {
-      "name": "ProductSyncRuntimeControl routes manual requests only to registered production SyncGenerations",
-      "status": "passed"
-    },
-    {
-      "name": "ProductSyncRuntimeControl waits for a fresh successful cycle with an empty durable frontier",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
-      "status": "passed"
-    },
-    {
-      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
       "status": "passed"
     },
     {
@@ -220,6 +188,50 @@
     },
     {
       "name": "In-flight sync during a password change waits for rotation and ignores the expired request token",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl keeps deletion suspended when an overlapping provider change releases its hold",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl holds a coordinator mounted while deletion is already in progress",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl publishes only sanitized diagnostics and detaches by coordinator identity",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl routes manual requests only to registered production SyncGenerations",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl waits for a fresh successful cycle with an empty durable frontier",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
       "status": "passed"
     },
     {

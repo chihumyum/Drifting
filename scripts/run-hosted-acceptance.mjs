@@ -54,6 +54,7 @@ if (process.argv.includes('--check')) {
       'src/renderer/sync/product-runtime-control.test.ts',
       'src/renderer/sync/hosted/adopt-drive.integration.test.ts',
       'src/renderer/sync/hosted/connect.test.ts',
+      'src/renderer/architecture/retired-client-integrations.acceptance.test.ts',
       'src/renderer/sync/production-runtime.test.ts',
       'src/renderer/features/settings/personal-cloud-settings.acceptance.test.ts',
       'src/renderer/lib/config.network.test.ts',

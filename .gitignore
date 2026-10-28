@@ -57,10 +57,14 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Apple migration experiments and Rust build outputs
+# Rust build outputs
 crates/*/target/
 vendor/*/target/
-native/apple/build/
-native/apple/*.xcodeproj/
-native/apple/*.xcworkspace/
-native/apple/*.local.xcconfig
+
+# Tauri iOS operator-local signing and Hosted configuration
+src-tauri/gen/apple/LocalBuild.local.xcconfig
+
+# Retired integrations: preserve ignored local configs/caches outside source publication
+/native/apple/
+/crates/drifting-apple-bridge/
+/src-tauri/plugins/drifting-google-drive-oauth/

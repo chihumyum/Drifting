@@ -105,5 +105,5 @@
 维护者明确决定公开后，再执行[仓库可见性变更流程](../source-publication-readiness.md#visibility-change-sequence)。
 
 **正式二进制发布**：仍须完成[桌面 RC](desktop-alpha-release-candidate.md)、
-[双 Mac Drive](google-drive-desktop-alpha-acceptance.md)和移动端实际输入复验等相关门槛。
+[双 Mac Drive (retired)](../client-onboarding-and-hosted-readiness.md)和移动端实际输入复验等相关门槛。
 本轮结果不支持“所有平台已经完整验收”的发布声明。

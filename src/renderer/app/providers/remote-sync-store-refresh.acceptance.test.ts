@@ -52,7 +52,7 @@ describe('remote SyncEngine UI refresh boundary', () => {
     expect(projectRuntime).toContain('<Navigate to="/" replace />');
     expect(projectRuntime).not.toContain('useNavigate');
 
-    const restore = source('../../sync/restore/google-drive-restore.ts');
+    const restore = source('../../sync/hosted/connect.ts');
     expect(restore).toContain("projectionImpact: 'workspace'");
 
     const metrics = source('../../services/node-prose-metrics.service.ts');
@@ -101,8 +101,8 @@ describe('remote SyncEngine UI refresh boundary', () => {
     const desktopShellCss = source('../../../styles/desktop-shell.css');
     expect(desktopShellCss).not.toContain('.app-project-sync-pill');
 
-    const commands = source('../../sync/product-commands.ts');
-    expect(commands).toContain("events.emit('sync:projects-restored', { projectIds })");
+    const commands = source('../../sync/hosted/connect.ts');
+    expect(commands).toContain("events.emit('sync:projects-restored', {");
     const appEffects = source('../effects/AppEffects.tsx');
     expect(appEffects).toContain('clearProjectTabs(projectId)');
   });

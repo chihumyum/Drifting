@@ -9,14 +9,13 @@ migration rules in [`../AGENTS.md`](../AGENTS.md) still apply.
 
 - macOS 13 or later on Apple Silicon.
 - Local-first writing without a Drifting account or hosted Drifting service.
-- Optional Google Drive `appDataFolder` synchronization through the author's
-  Google account. SQLite remains the local working copy. Synchronized project
-  content is not end-to-end encrypted against Google.
+- Optional Hosted account and sync in an explicitly configured distribution.
+  SQLite remains the local working copy; the operator can read synced content.
 - BYOK Copilot and General Agent are experimental. Model requests go directly
   to the provider selected by the author, use that provider's billing and data
   terms, and never fall back to a hosted Drifting model.
 
-Mobile, Intel Mac, Windows, Linux, hosted accounts, hosted models, Ambient
+Mobile, Intel Mac, Windows, Linux, hosted models, Ambient
 Editor, and non-core Agent products are outside this release.
 
 ## Data contract
@@ -26,7 +25,7 @@ releases must migrate every earlier public `0.1.x` database forward. Published
 migrations are append-only. Development databases from before this baseline
 are not a supported migration population.
 
-Relational Markdown is the user-facing readable export. Google Drive is the
+Relational Markdown is the user-facing readable export. Hosted is the
 optional cross-device discovery and restore path. Before a public migration
 touches SQLite, the native layer creates and verifies an internal safety
 snapshot, migrates only an isolated candidate, and activates it only after
@@ -52,12 +51,12 @@ current evidence for the exact source SHA and signed artifact:
 1. shadow database migration and native asset transactions survive injected
    failure and force quit without exposing partial old/new state;
 2. fresh-install write/restart/force-quit and update preservation on a clean Mac;
-3. real-account Google Drive discovery, two-Mac convergence, restart, offline,
+3. real-account Hosted discovery, two-client convergence, restart, offline,
    reauthorization, revoke, quota/error, and resumable large-asset behavior;
 4. Developer ID signing, notarization, stapling, Gatekeeper, updater signature,
    checksum, bundled notices, and public re-download verification;
 5. anonymous availability of the CI-enforced public pages — the drifting.app
-   homepage, Privacy, Google Drive data-use, Quick Start, Support, and Known
+   homepage, Privacy, service terms, Quick Start, Support, and Known
    Issues — plus the public source repository and license linked from the app;
 6. one real reviewed BYOK General Agent task if the Agent remains visible in
    release copy.

@@ -22,7 +22,7 @@ describe('standalone iOS device Debug installer', () => {
       VITE_API_BASE_URL: 'https://service.example.test', VITE_LOCAL_ONLY_MODE: 'false' }));
     await installIosDebugDevice(['--device', 'paired-id', '--online', '--no-launch'], {
       baseEnvironment: {}, platform: 'darwin', pathExists: () => true, execute,
-      createEnvironment, writeOauthConfiguration: () => ({ googleDriveOAuthConfigured: false }),
+      createEnvironment, writeBuildConfiguration: () => ({ signingConfigured: false }),
     });
     expect(createEnvironment).toHaveBeenCalledWith('ios', expect.objectContaining({ mode: 'online' }));
     const args = execute.mock.calls[1] as unknown as [string, string[]];
@@ -94,7 +94,7 @@ describe('standalone iOS device Debug installer', () => {
     expect(plan.launch?.arguments).toContain('cc.drifting.client');
   });
 
-  it('prepares local-only OAuth build state, validates the bundle, installs, and launches', async () => {
+  it('prepares local-only signing build state, validates the bundle, installs, and launches', async () => {
     const calls: Array<{
       command: string;
       arguments: readonly string[];
@@ -119,7 +119,7 @@ describe('standalone iOS device Debug installer', () => {
       execute,
       createEnvironment: (_target: string, options: { baseEnvironment: Record<string, string> }) =>
         options.baseEnvironment,
-      writeOauthConfiguration: () => ({ googleDriveOAuthConfigured: true }),
+      writeBuildConfiguration: () => ({ signingConfigured: true }),
     });
 
     expect(calls.map((call) => call.command)).toEqual([
