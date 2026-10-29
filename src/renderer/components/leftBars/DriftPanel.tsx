@@ -90,7 +90,7 @@ export function DriftPanel({
   const { bookNodes } = useDataStoreFields('bookNodes');
   const driftGroups = useDataStore((s) => s.driftGroups);
   const driftGroupById = useMemo(() => new Map(driftGroups.map((group) => [group.id, group])), [driftGroups]);
-  const { nodeUi } = useUiStore();
+  const nodeUi = useUiStore((s) => s.nodeUi);
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
   const [cellMeta] = useSidebarPreference('driftCellMeta');

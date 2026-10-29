@@ -122,3 +122,10 @@ Every first-run seed performs the same audit before publishing its staging
 library. Existing profile libraries are preserved, including user edits; choose
 a new instance for a clean recipe. Preset versions select different default
 instance names, so a new stress workload does not silently reuse old tiny data.
+
+
+## 重型数据下的实现回归
+
+[2026-10-29 修复记录](renderer-performance/stress-seed-performance-fixes-2026-10-29.md)列出基于原生走查落地的实现：后台投影 Worker 化并保持捕获/原子发布边界、素材有界摘要与视口加载、搜索结果窗口化、隐藏标签与侧栏订阅收窄、离线长对话历史分段显示，以及章节/构想计数修正。
+
+重型 Seed 用于这些性能与稳定性路径的复测；轻量 Seed 仍用于快速验证功能，不能用轻量数据的顺畅程度替代重型验收。新增代码后先通过正常检查，再单独采集原生性能，避免基准与测试/构建争抢 CPU。保存后的 Yjs、Markdown manifest 文件哈希、关系及 SQLite 完整性由只读脚本复核；浏览器 Agent 回归覆盖 100 次面板开关、流式选区/滚动、异步历史和离线发送限制。

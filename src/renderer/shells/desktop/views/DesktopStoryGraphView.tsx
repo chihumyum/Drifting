@@ -1086,7 +1086,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   const totalsLabel = t('storyGraph.meta', {
     storylines: storylines.length,
     placed: placedNodes.length,
-    total: bookNodes.length,
+    total: bookNodes.filter(node => node.kind === 'chapter').length,
   });
 
   return (

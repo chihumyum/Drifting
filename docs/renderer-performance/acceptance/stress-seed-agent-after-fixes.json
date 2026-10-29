@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "kind": "renderer_agent_panel_run",
+  "generatedAt": "2026-10-29T09:03:30.497Z",
+  "status": "measured",
+  "source": {
+    "commit": "a0200af5cd39ae8cf9fc474f2ed501bbba1f6e34",
+    "rendererFingerprint": "07c871900cd91d83976b431a39a276433553e6126f3db27b17b6aef94ac9dd3f",
+    "fingerprintVersion": 2,
+    "dirty": true,
+    "build": "vite-production-isolated-harness"
+  },
+  "scenarios": [],
+  "agentPanel": {
+    "checks": [
+      "long transcript initially mounts a bounded recent page",
+      "asynchronous authentication mounts history at the bottom",
+      "loading older messages preserves scroll position and all canonical history",
+      "all earlier history remains reachable on request",
+      "stream display updates only the transcript and newest message",
+      "streaming preserves composer DOM focus draft and selection",
+      "streaming preserves historical message DOM",
+      "streaming follows the latest displayed text at bottom",
+      "canonical journal contains every streamed delta",
+      "composer draft updates do not render the transcript or historical messages",
+      "reading history keeps scroll and selected text during a new tail",
+      "scrolling away exposes latest control",
+      "latest control reengages bottom follow",
+      "history is an anchored portal outside the panel",
+      "selecting the already active conversation reengages follow",
+      "completed tool detail remains expanded across subsequent streaming",
+      "session usage footer retains the tool count",
+      "permission boundary displays pending card and full tail immediately",
+      "cancellation control disables steering without erasing the draft",
+      "panel remount reads current canonical stream and retains draft",
+      "panel remount positions the current transcript at bottom",
+      "appending across a block boundary retains the currently readable page",
+      "conversation switch synchronously replaces the old transcript",
+      "background sibling events do not render the active panel or transcript",
+      "returning to a running conversation includes its background tail and resets follow",
+      "conversation ownership prevents expanded details leaking to another session",
+      "offline panel retains history and draft while disabling send",
+      "repeated panel closure releases its authentication listener"
+    ],
+    "historyWindowing": {
+      "initialAssistantNodes": 54,
+      "canonicalMessages": 300,
+      "allHistoryReachable": true,
+      "offlineHistory": true
+    },
+    "historyMessages": 300,
+    "displayBatches": 20,
+    "streamEvents": 400,
+    "streaming": {
+      "panel": 0,
+      "composer": 0,
+      "message": 20,
+      "transcript": 20
+    },
+    "drafting": {
+      "panel": 20,
+      "composer": 20,
+      "message": 0,
+      "transcript": 0
+    },
+    "initialBottom": true,
+    "returningBottom": true,
+    "cycles": 100,
+    "remainingAuthListeners": 0,
+    "scope": "Actual desktop panel and composer, production React, canonical synthetic journal and no persistence/model calls. Desktop Chromium scroll and selection; mobile and native acceptance remain separate."
+  },
+  "environment": {
+    "documentFocused": true,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "viewport": [
+      1280,
+      813
+    ],
+    "devicePixelRatio": 1,
+    "platform": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "node": "v24.19.0",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/156.0.8078.48",
+      "revision": "@d0c02bfad08ec92a6ffcf989e53cd995e6381a4c",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "jsVersion": "15.6.75.19"
+    },
+    "runnerImage": null,
+    "runnerImageVersion": null
+  },
+  "validationMode": "measurement",
+  "limitations": [
+    "Synthetic ProseMirror transactions in isolated headless Chromium; not native input, IME, or app-wide acceptance.",
+    "Animation-frame callback is not a compositor paint measurement.",
+    "Timing includes harness wrappers with counters disabled; compare only equivalent environments and fixtures.",
+    "Desktop and mobile Agent components use synthetic auth/journal and deferred write ports; real Agent persistence, full-app startup, multi-tab memory, native and physical-device acceptance: NOT RUN."
+  ]
+}

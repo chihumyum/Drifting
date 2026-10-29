@@ -8,7 +8,7 @@ import { proseReadMarkdown, proseReadVersion } from '../../lib/agent/prose-read-
 import { contentJsonBlockIds, createLocationResolver, type LocationEntity } from '../../lib/location-link';
 import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import type { MarkdownProjectionAsset, MarkdownProjectionDocument } from '../../platform/contracts';
-import { extForMime } from '../asset-store.service';
+import { extForMime } from '../../lib/asset-mime';
 import { markdownShareSummary } from './markdown-share';
 import { markdownLabel, obsidianProse, relativeMarkdownHref, relativeMarkdownLink } from './obsidian-markdown';
 import { readLocalProseJson } from './relational-markdown.prose';
@@ -70,7 +70,7 @@ function parseAliases(value: string | null): string[] {
   catch { return []; }
 }
 
-export async function buildReadableMarkdownProjection(source: LocalRelationalMarkdownSource, now: Date) {
+export async function buildReadableMarkdownProjection(source: LocalRelationalMarkdownSource, now: Date, options: { hydrate?: typeof import('../../lib/agent/prose-hydrate-client').hydrateProseJson; yieldToMain?: () => Promise<void> } = {}) {
   if (source.books.length !== 1) throw new Error('A projection must contain exactly one project');
   const { project, graph } = source.books[0]!;
   const paths = new Paths();
@@ -167,8 +167,9 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
   // Hydrate all prose before creating links; persisted Yjs remains the only initialized prose authority.
   const proseDocuments = [...documents.values()].filter(document => document.fallback !== undefined);
   for (let index = 0; index < proseDocuments.length; index += 6) {
+    await options.yieldToMain?.();
     await Promise.all(proseDocuments.slice(index, index + 6).map(async document => {
-      document.json = await readLocalProseJson(document.kind as ProseEntityType, document.id, document.fallback!, source);
+      document.json = await readLocalProseJson(document.kind as ProseEntityType, document.id, document.fallback!, source, options.hydrate);
     }));
   }
   const resolver = createLocationResolver({ projectId: project.id, entities: locations,
@@ -236,6 +237,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     ...(document.status ? [`写作状态: ${JSON.stringify(document.status)}`] : []), '---', '', `# ${markdownLabel(document.title)}`].join('\n');
   for (const comment of graph.comments) relation(documents.get(key(comment.targetKind ?? '', comment.targetId ?? '')), documents.get(key('comment', comment.id)), comment.kind === 'todo' ? '待办' : '注释');
   for (const document of documents.values()) {
+    await options.yieldToMain?.();
     if (document.kind === 'project' || document.kind === 'comment') continue;
     const parts = [header(document)];
     if (document.summary) parts.push(document.kind === 'act' ? document.summary : markdownShareSummary(document.summary));

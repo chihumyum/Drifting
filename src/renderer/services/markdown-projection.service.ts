@@ -9,7 +9,7 @@ import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction'
 import { flushPendingAssetPersistence } from './asset-store.service';
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
-import { buildRelationalMarkdownEntries } from './export/relational-markdown.service';
+import { renderMarkdownProjection } from './export/markdown-projection-client';
 
 const workers = new Map<string, ReturnType<typeof createProjectionWorker>>();
 
@@ -58,6 +58,11 @@ export function createProjectionWorker(
 /** Project service, independent of whether an external MCP client is connected. */
 export function installMarkdownProjection(projectId: string): () => void {
   let disposed = false;
+  const controller = new AbortController();
+  const stage = async <T>(name: string, operation: () => Promise<T>): Promise<T> => {
+    const end = beginDevActivity(`markdown-projection:${name}`);
+    try { return await operation(); } finally { end(); }
+  };
   const database = getDbIfInitialized();
   const active = () => !disposed && getDbIfInitialized() === database;
   publish(projectId, { state: 'pending', readOnly: true, reverseSync: false });
@@ -73,21 +78,21 @@ export function installMarkdownProjection(projectId: string): () => void {
     if (!active()) return;
     publish(projectId, { ...info, state: 'pending' });
     if (yieldToComposition()) return;
-    await flushAllOpenYjsDocuments();
+    await stage('flush-prose', flushAllOpenYjsDocuments);
     if (!active()) return;
     if (yieldToComposition()) return;
-    await flushPendingAssetPersistence();
+    await stage('flush-assets', flushPendingAssetPersistence);
     if (!active()) return;
     if (yieldToComposition()) return;
-    const source = await readLocalRelationalMarkdownSource(projectId);
+    const source = await stage('capture', () => readLocalRelationalMarkdownSource(projectId));
     if (!active()) return;
     if (yieldToComposition()) return;
     if (source.books.length !== 1) throw new Error('Projection project no longer exists');
     const capturedAt = new Date();
-    const { entries, assets, documents } = await buildRelationalMarkdownEntries(source, true, capturedAt);
+    const { entries, assets, documents } = await stage('render-worker', () => renderMarkdownProjection(source, capturedAt, controller.signal));
     if (!active()) return;
     if (yieldToComposition()) return;
-    const result = await platform.markdownProjection.write(projectId, capturedAt.toISOString(), entries, assets, documents);
+    const result = await stage('publish', () => platform.markdownProjection.write(projectId, capturedAt.toISOString(), entries, assets, documents));
     if (active()) publish(projectId, { ...result, state: 'ready', error: undefined });
   }, error => {
     if (active()) publish(projectId, { state: 'error', error: error instanceof Error ? error.message : String(error) });
@@ -104,6 +109,7 @@ export function installMarkdownProjection(projectId: string): () => void {
   void worker.flush(false);
   return () => {
     disposed = true;
+    controller.abort();
     unsubscribe();
     unregisterFlush();
     events.off('sync:project-changed', changed);

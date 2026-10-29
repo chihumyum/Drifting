@@ -761,7 +761,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
             {stats.wordsReady ? t('common.words') : ''}
           </span>
           <span>
-            <b>{stats.nodes}</b> {t('common.chapters')}
+            <b>{stats.chapters}</b> {t('common.chapters')}
           </span>
           <span>
             <b>{stats.storylines}</b> {t('common.storylinesUnit')}
@@ -828,7 +828,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
       </div>
       <div className="pp-list__cell">
         <span className="pp-list__cell-v">
-          {stats.nodes}
+          {stats.chapters}
           <em>{t('common.chapters')}</em>
         </span>
         <span className="pp-list__cell-k">{t('projectPicker.nodesLabel')}</span>
@@ -912,7 +912,7 @@ function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalPr
           <p className="pp-modal__sub">
             {t('projectPicker.trash.body', {
               words: stats.wordsReady ? stats.words.toLocaleString() : t('common.counting'),
-              nodes: stats.nodes,
+              nodes: stats.chapters,
               elements: stats.elements,
             })}
           </p>

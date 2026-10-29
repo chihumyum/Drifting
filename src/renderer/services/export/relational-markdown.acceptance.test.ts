@@ -425,6 +425,18 @@ function projectedDocument(result: Awaited<ReturnType<typeof buildRelationalMark
 }
 
 describe('automatic read-only Markdown projection', () => {
+  it('renders the worker hydration path identically, including canonical Yjs and source hashes', async () => {
+    const { hydrateInline } = await import('../../lib/agent/prose-hydrate-client');
+    const { buildReadableMarkdownProjection } = await import('./readable-markdown-projection');
+    const source = await sourceFixture();
+    const normal = await buildRelationalMarkdownEntries(source, true, new Date(NOW));
+    const worker = await buildReadableMarkdownProjection(structuredClone(source), new Date(NOW), { hydrate: hydrateInline });
+    expect(worker).toEqual(normal);
+    const corrupt = structuredClone(source);
+    corrupt.proseByDocId.set(proseDocId('node', SNAPSHOT_NODE_ID), { snapshot: new Uint8Array([255]), updates: [] });
+    await expect(buildReadableMarkdownProjection(corrupt, new Date(NOW), { hydrate: hydrateInline })).rejects.toThrow();
+  });
+
   it('merges readable documents and keeps canonical source versions in the manifest mapping', async () => {
     const source = await sourceFixture();
     const before = await buildRelationalMarkdownEntries(source, true);

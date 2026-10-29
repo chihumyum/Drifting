@@ -34,6 +34,7 @@ export async function readProjectStats(
   const linkedNode = alias(BookNodeTable, 'shelf_linked_node');
   const [stats] = await db.select({
     nodes: count(),
+    chapters: sql<number>`count(case when ${BookNodeTable.kind} = 'chapter' then 1 end)`.mapWith(Number),
     words: sql<number>`coalesce(sum(case when ${BookNodeTable.kind} = 'chapter' and ${canonicalWords}
       then ${BookNodeTable.wordCount} else 0 end), 0)`.mapWith(Number),
     wordsReady: sql<number>`count(case when ${BookNodeTable.kind} = 'chapter'

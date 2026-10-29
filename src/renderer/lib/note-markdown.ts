@@ -23,6 +23,36 @@ export function noteToMarkdown(contentJson: string | null | undefined, options: 
   return blocks(doc.content ?? [], options).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
 }
 
+/** Cards are previews, including their expanded state. Bound both text and
+ * structure BEFORE Markdown/HTML conversion; CSS clipping alone still lays out
+ * the entire note. Full prose remains available in the material editor. */
+export function noteMarkdownExcerpt(contentJson: string | null | undefined, expanded = false): string {
+  if (!contentJson) return '';
+  let remaining = expanded ? 2400 : 480;
+  let nodes = expanded ? 96 : 32;
+  let clipped = false;
+  const take = (node: JSONContent, depth: number): JSONContent | null => {
+    if (remaining <= 0 || nodes-- <= 0 || depth > 24) { clipped = true; return null; }
+    if (node.type === 'text') {
+      const text = node.text ?? '';
+      const result = text.slice(0, remaining);
+      remaining -= result.length;
+      if (result.length < text.length) clipped = true;
+      return { ...node, text: result };
+    }
+    const content: JSONContent[] = [];
+    for (const child of node.content ?? []) {
+      const value = take(child, depth + 1);
+      if (!value) break;
+      content.push(value);
+    }
+    return { ...node, content };
+  };
+  const doc = take(parseTiptapDocJson(contentJson), 0);
+  const markdown = blocks(doc?.content ?? [], {}).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
+  return markdown + (clipped && markdown ? '\n\n…' : '');
+}
+
 function blocks(nodes: readonly JSONContent[], options: NoteMarkdownOptions): string[] {
   return nodes.map((node) => block(node, options)).filter((text) => text.length > 0);
 }

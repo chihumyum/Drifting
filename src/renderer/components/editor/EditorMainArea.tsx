@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -204,6 +205,16 @@ export function EditorMainArea() {
     [projectId, dropSide, splitActiveWith],
   );
 
+  const handleSetSplitFocus = useCallback((split: SplitTab, side: 'left' | 'right') => {
+    if (!projectId) return;
+    setSplitFocus(projectId, split.id, side);
+    const leaf = side === 'left' ? split.left : split.right;
+    openEntity({ entityType: leaf.entityType, id: leaf.id });
+  }, [projectId, setSplitFocus, openEntity]);
+  const handleSetSplitRatio = useCallback((split: SplitTab, ratio: number) => {
+    if (projectId) setSplitRatio(projectId, split.id, ratio);
+  }, [projectId, setSplitRatio]);
+
   return (
     <div
       ref={surfaceRef}
@@ -226,16 +237,8 @@ export function EditorMainArea() {
             surface.revisionKey === desiredRevisionKey
           }
           onReadyChange={handleSurfaceReadyChange}
-          onSetSplitFocus={(split, side) => {
-            if (!projectId) return;
-            setSplitFocus(projectId, split.id, side);
-            const leaf = side === 'left' ? split.left : split.right;
-            openEntity({ entityType: leaf.entityType, id: leaf.id });
-          }}
-          onSetSplitRatio={(split, ratio) => {
-            if (!projectId) return;
-            setSplitRatio(projectId, split.id, ratio);
-          }}
+          onSetSplitFocus={handleSetSplitFocus}
+          onSetSplitRatio={handleSetSplitRatio}
         />
       ))}
 
@@ -254,7 +257,7 @@ export function EditorMainArea() {
   );
 }
 
-function WorkspaceSurface({
+const WorkspaceSurface = memo(function WorkspaceSurface({
   descriptor,
   projectId,
   isVisible,
@@ -358,7 +361,11 @@ function WorkspaceSurface({
       <TextInputLookupStop />
     </div>
   );
-}
+}, (previous, next) => previous.descriptor.revisionKey === next.descriptor.revisionKey
+  && previous.descriptor.tab === next.descriptor.tab && previous.projectId === next.projectId
+  && previous.isVisible === next.isVisible && previous.isDesired === next.isDesired
+  && previous.isInteractive === next.isInteractive && previous.onReadyChange === next.onReadyChange
+  && previous.onSetSplitFocus === next.onSetSplitFocus && previous.onSetSplitRatio === next.onSetSplitRatio);
 
 function EditorStageLoadingSurface() {
   const { t } = useTranslation();
@@ -609,7 +616,7 @@ function PaneDivider({ onMouseDown, onSwap, onUnsplit }: {
   );
 }
 
-function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string }) {
+const PaneRenderer = memo(function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string }) {
   // Dispatch on entityType — each entity view accepts an idOverride prop
   // because the desktop stage, not the matched child-route element, owns it.
   // projectId is read from useParams inside the views (the parent route
@@ -630,7 +637,7 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
     case 'all-chapters':
       return <AllChaptersEditorView />;
   }
-}
+});
 
 function DropOverlay({ side }: { side: 'left' | 'right' }) {
   const { t } = useTranslation();
