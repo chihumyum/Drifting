@@ -712,12 +712,18 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
             <article className="page page--entity">
               <div className="page__folio" aria-hidden="true">
                 <span className="page__folio-line">{t('elementEditor.folio')}</span>
-                {currentCategory && (
+                {currentCategory && (glass ? (
+                  <span className="page__folio-line page__folio-storyline">
+                    <KindMark kind="category" color={currentCategory.color ?? undefined} />
+                    {currentCategory.name}
+                    {curElement.groupName ? ` - ${curElement.groupName}` : ''}
+                  </span>
+                ) : (
                   <span className="page__folio-line page__folio-line--accent">
                     {currentCategory.name}
                     {curElement.groupName ? ` - ${curElement.groupName}` : ''}
                   </span>
-                )}
+                ))}
               </div>
 
               <section id="el-overview" className="elem-overview">

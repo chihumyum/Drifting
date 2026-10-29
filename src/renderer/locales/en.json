@@ -3050,6 +3050,7 @@
     "deleteConfirm": "Delete node \"{{name}}\"?",
     "folio": {
       "chapter": "Chapter",
+      "chapterNumber": "Chapter {{n}}",
       "drift": "Idea"
     },
     "empty": {

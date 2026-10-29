@@ -3050,6 +3050,7 @@
     "deleteConfirm": "删除节点「{{name}}」？",
     "folio": {
       "chapter": "章节",
+      "chapterNumber": "第 {{n}} 章",
       "drift": "构想"
     },
     "empty": {
