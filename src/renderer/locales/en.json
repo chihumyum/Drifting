@@ -1173,11 +1173,9 @@
     "defaultTitle": "New chapter",
     "firstChapter": "Write the first chapter"
   },
-  "storylineAllChapter": {
-    "empty": "No chapters in this storyline"
-  },
   "virtualChapterRow": {
-    "chapter": "Chapter"
+    "chapter": "Chapter",
+    "chapterNumber": "Chapter {{n}}"
   },
   "editorOutline": {
     "aria": "Outline",
@@ -3265,12 +3263,13 @@
     "untitledChapter": "Untitled chapter",
     "menuHeader": "Actions: {{title}}",
     "currentAt": "At {{title}}",
+    "actOrdinal": "Act {{n}}",
     "empty": {
       "noChapters": "This project has no chapters yet.",
       "noChaptersShort": "No chapters yet"
     },
     "actions": {
-      "backHome": "Back home"
+      "backHome": "Back to Project Home"
     }
   },
   "mobileWorkspace": {

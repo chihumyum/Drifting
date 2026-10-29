@@ -1173,11 +1173,9 @@
     "defaultTitle": "新章节",
     "firstChapter": "新建第一章"
   },
-  "storylineAllChapter": {
-    "empty": "这条故事线还没有章节"
-  },
   "virtualChapterRow": {
-    "chapter": "章节"
+    "chapter": "章节",
+    "chapterNumber": "第 {{n}} 章"
   },
   "editorOutline": {
     "aria": "大纲",
@@ -3265,12 +3263,13 @@
     "untitledChapter": "无标题章节",
     "menuHeader": "操作：{{title}}",
     "currentAt": "在 {{title}}",
+    "actOrdinal": "第{{n}}幕",
     "empty": {
       "noChapters": "本项目尚无章节。",
       "noChaptersShort": "— 尚无章节 —"
     },
     "actions": {
-      "backHome": "回到首页"
+      "backHome": "回到作品主页"
     }
   },
   "mobileWorkspace": {

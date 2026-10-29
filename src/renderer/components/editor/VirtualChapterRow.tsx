@@ -17,6 +17,7 @@ import { ChapterEditor } from './ChapterEditor';
 import { chapterJsonToHtml } from './chapter-static-html';
 import { EditorDocumentLoadError } from './EditorDocumentLoadError';
 import { ChapterEndOrnament } from './ChapterEndOrnament';
+import { KindMark } from '../ui/KindMark';
 
 const log = loglevel.getLogger('VirtualChapterRow');
 log.setLevel(loglevel.levels.WARN);
@@ -77,6 +78,10 @@ interface VirtualChapterRowProps {
   storylineColor?: string;
   storylineName?: string;
   chapterRoman: string;
+  // The desktop folio: the chapter's number in words and its storyline's sand
+  // dash beside the name in ink, said once. The touch shell keeps the Roman
+  // numeral, the coloured name and the repeated chapter mark.
+  sandFolio?: boolean;
   // Static rows do not mount an EditorView, so the serializer receives the
   // same store/settings-backed color resolver as live editors explicitly.
   resolveEntityLinkColor: EntityLinkTargetColorResolver;
@@ -112,6 +117,7 @@ function VirtualChapterRowImpl({
   storylineColor,
   storylineName,
   chapterRoman,
+  sandFolio = false,
   resolveEntityLinkColor,
 }: VirtualChapterRowProps) {
   const { t } = useTranslation();
@@ -208,6 +214,12 @@ function VirtualChapterRowImpl({
     [onOutlineChange, node.id],
   );
 
+  const wordCount = canonicalWordCount(node);
+  const wordsLabel =
+    wordCount == null
+      ? t('common.counting')
+      : t('common.wordsCount', { count: wordCount.toLocaleString() });
+
   return (
     <div
       ref={rowRef}
@@ -221,27 +233,37 @@ function VirtualChapterRowImpl({
     >
       <div className="editor__spread">
         <article className="page">
-          <div className="page__folio" aria-hidden="true">
-            <span className="page__folio-line">{t('virtualChapterRow.chapter')}</span>
-            <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
-            {storylineName && (
-              <span
-                className="page__folio-line"
-                style={{ color: storylineColor, fontWeight: 600 }}
-              >
-                {storylineName}
+          {sandFolio ? (
+            <div className="page__folio" aria-hidden="true">
+              <span className="page__folio-line">
+                {t('virtualChapterRow.chapterNumber', { n: index + 1 })}
               </span>
-            )}
-            <span className="page__folio-line">
-              {canonicalWordCount(node) == null
-                ? t('common.counting')
-                : t('common.wordsCount', {
-                    count: canonicalWordCount(node)!.toLocaleString(),
-                  })}
-            </span>
-          </div>
-
-          {storylineName && <div className="page__chapter-mark">— {storylineName} —</div>}
+              {storylineName && (
+                <span className="page__folio-line page__folio-storyline">
+                  <KindMark kind="storyline" color={storylineColor} />
+                  {storylineName}
+                </span>
+              )}
+              <span className="page__folio-line">{wordsLabel}</span>
+            </div>
+          ) : (
+            <>
+              <div className="page__folio" aria-hidden="true">
+                <span className="page__folio-line">{t('virtualChapterRow.chapter')}</span>
+                <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
+                {storylineName && (
+                  <span
+                    className="page__folio-line"
+                    style={{ color: storylineColor, fontWeight: 600 }}
+                  >
+                    {storylineName}
+                  </span>
+                )}
+                <span className="page__folio-line">{wordsLabel}</span>
+              </div>
+              {storylineName && <div className="page__chapter-mark">— {storylineName} —</div>}
+            </>
+          )}
 
           {isFocused && content !== undefined && !contentLoadError ? (
             <div style={{ display: 'grid' }}>

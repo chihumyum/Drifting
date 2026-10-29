@@ -166,3 +166,116 @@
 .pmem--compact .pmem__entry {
   padding: 10px 12px;
 }
+
+/* ── Sand and glass (the desktop) ────────────────────────────────────
+ * The entries are one read-only card: no wash, the resting glass line that
+ * stays still under the pointer, entries parted by space rather than rules.
+ * Their actions are text buttons; the append and edit boxes are the
+ * composer's rounded paper slip (glass--rest glass--field) with one primary
+ * button (glass--primary). docs/design-system/components.md, Project Memory. */
+.pmem--glass .pmem__empty {
+  padding: 0;
+  border: 0;
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+.pmem--glass .pmem__list {
+  gap: 2px;
+  padding: 6px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  overflow: visible;
+  --glass-gx: -168px;
+  --glass-gy: -18px;
+}
+
+.pmem--glass .pmem__entry {
+  padding: 9px 12px;
+}
+
+.pmem--glass .pmem__entry + .pmem__entry {
+  border-top: 0;
+}
+
+.pmem--glass .pmem__actions {
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.pmem--glass .pmem__tag {
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Text buttons: no glass; the ink darkens under the pointer. */
+.pmem--glass .pmem__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-secondary, 13px);
+  transition: color 0.12s ease-out;
+}
+
+.pmem--glass .pmem__btn:hover:not(:disabled) {
+  color: hsl(var(--ink-1));
+}
+
+.pmem--glass .pmem__btn--danger,
+.pmem--glass .pmem__btn--danger:hover:not(:disabled) {
+  color: hsl(var(--destructive));
+}
+
+/* The one primary: the accent's glass and ink, never a fill. */
+.pmem--glass .pmem__btn--primary.glass,
+.pmem--glass .pmem__btn--primary.glass:hover:not(:disabled) {
+  height: 28px;
+  padding: 0 14px;
+  background: transparent;
+  color: hsl(var(--accent));
+  font-weight: 500;
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+
+.pmem--glass .pmem__btn--primary.glass:disabled {
+  opacity: 1;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+/* Writing: the rounded paper slip; the text and its button are one field,
+   grouped by space with no line between them. */
+.pmem--glass .pmem__composer,
+.pmem--glass .pmem__edit {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: hsl(var(--page));
+  --glass-gx: -168px;
+  --glass-gy: -18px;
+}
+
+.pmem--glass .pmem__edit {
+  margin: -3px -6px;
+}
+
+.pmem--glass :is(.pmem__composer, .pmem__edit) .pmem__textarea {
+  min-height: 46px;
+  padding: 12px 15px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  resize: none;
+}
+
+.pmem--glass :is(.pmem__composer, .pmem__edit) .pmem__actions {
+  margin-top: 0;
+  padding: 4px 8px 8px;
+}

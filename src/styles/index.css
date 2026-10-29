@@ -977,6 +977,16 @@ html[data-shell-mode='mobile'] .app-mid {
 .page__folio-line--muted {
   color: hsl(var(--ink-3));
 }
+/* The storyline in the folio: its sand dash, then its name in ink. */
+.page__folio-storyline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: hsl(var(--ink-3));
+}
+.page__folio-line.page__folio-storyline::before {
+  margin-right: 3px;
+}
 
 .page__chapter-mark {
   font-family: var(--font-mono);
