@@ -11,7 +11,7 @@
 ## Geometry and ownership
 
 - `App.tsx` 只负责应用级 effects/routes；桌面工作区（`DesktopWorkspace`）只有一个 `app-row`：`Sidebar(left) + app-mid + Sidebar(right)`，三栏从窗口顶边贯通到底边。没有 `AppTopbar`、文档 Tab 栏、editor top bar 或 `BottomStatusBar`。
-- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Panel：Bottom Timeline 或当前章节的情节规划，二选一，装在 `TimelineDrawer` 里滑入滑出；`BottomPanel` 是两者共用的壳子，管顶边、拖高把手、高度与共用 header，两者互换时里面的整块上下推开）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
+- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Panel：Bottom Timeline 或当前章节的情节规划，二选一，装在 `TimelineDrawer` 里滑入滑出；当前不是章节时情节规划自己隐藏，Panel 收起；`BottomPanel` 是两者共用的壳子，管顶边、拖高把手、高度与共用 header，两者互换时里面的整块上下推开）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
 - 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整。
 - Settings 与三个 Super Views 使用同样的平面化 shell：边缘对齐、无 shell gap、无 shell 圆角或阴影，以分隔线表达区域边界。
 

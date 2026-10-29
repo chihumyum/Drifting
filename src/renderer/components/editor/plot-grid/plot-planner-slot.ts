@@ -23,3 +23,32 @@ function subscribe(listener: () => void): () => void {
 export function usePlotPlannerSlot(): HTMLElement | null {
   return useSyncExternalStore(subscribe, () => slot, () => null);
 }
+
+// A planner leaves when its chapter stops being in front, often while the
+// panel still shows (sliding shut, or until the next chapter's planner
+// arrives). It leaves a still, inert copy of itself, scroll included, so the
+// grid goes with the panel instead of blinking out; the next planner, or the
+// panel closing, takes the copy away.
+const GHOST_CLASS = 'plot-planner--ghost';
+
+/** Called by a departing planner, before its element is removed. */
+export function leavePlotPlannerGhost(planner: HTMLElement | null): void {
+  if (!slot || !planner || planner.parentElement !== slot) return;
+  clearPlotPlannerGhost();
+  const ghost = planner.cloneNode(true) as HTMLElement;
+  ghost.classList.add(GHOST_CLASS);
+  ghost.inert = true;
+  ghost.setAttribute('aria-hidden', 'true');
+  slot.append(ghost);
+  const from = planner.querySelector<HTMLElement>('.planner-wrap');
+  const to = ghost.querySelector<HTMLElement>('.planner-wrap');
+  if (from && to) {
+    to.scrollTop = from.scrollTop;
+    to.scrollLeft = from.scrollLeft;
+  }
+}
+
+/** Called by an arriving planner. */
+export function clearPlotPlannerGhost(): void {
+  slot?.querySelectorAll(`:scope > .${GHOST_CLASS}`).forEach((ghost) => ghost.remove());
+}

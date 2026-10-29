@@ -6,7 +6,7 @@
   border-radius: 6px;
   background: hsl(var(--paper));
   color: hsl(var(--ink-1));
-  box-shadow: 0 12px 34px hsl(var(--ink-1) / 0.2);
+  box-shadow: 0 12px 34px hsl(var(--shadow-ink) / 0.2);
   animation: relation-edge-popover-in 120ms ease-out;
 }
 

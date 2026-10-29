@@ -1320,8 +1320,7 @@
     "done": "完成",
     "emptyCell": "写点什么…",
     "fit": "适应",
-    "fitTitle": "适应窗口：让整张表正好填满，之后加行加列只溢出不挤压",
-    "noChapter": "情节规划跟着当前章节；这一页没有情节规划。"
+    "fitTitle": "适应窗口：让整张表正好填满，之后加行加列只溢出不挤压"
   },
   "editorMainArea": {
     "openDashboard": "打开项目主页",

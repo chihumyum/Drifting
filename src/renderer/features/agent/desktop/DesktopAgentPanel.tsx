@@ -316,58 +316,65 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
         restoreFocus={false}
       >
         {convList.length === 0 ? (
-          <div style={{ padding: 12, opacity: 0.5, fontSize: 'var(--ui-font-body, 12px)' }}>
-            {t('agentPanel.history.empty')}
-          </div>
+          <div className="agt-history__empty">{t('agentPanel.history.empty')}</div>
         ) : (
           convList.map((c) =>
             editingItemId === c.id ? (
-              <div key={c.id} style={historyItem} onClick={(e) => e.stopPropagation()}>
-                <input
-                  style={historyInput}
-                  value={itemDraft}
-                  autoFocus
-                  onChange={(e) => setItemDraft(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  onBlur={() => commitItemRename(c.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      commitItemRename(c.id);
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setEditingItemId(null);
-                    }
-                  }}
-                />
+              <div key={c.id} className="agt-history__rename" onClick={(e) => e.stopPropagation()}>
+                <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small">
+                  <input
+                    value={itemDraft}
+                    autoFocus
+                    onChange={(e) => setItemDraft(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => commitItemRename(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitItemRename(c.id);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setEditingItemId(null);
+                      }
+                    }}
+                  />
+                </label>
               </div>
             ) : (
               <div
                 key={c.id}
-                style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
+                className={
+                  'menu-surface__item agt-history__row' +
+                  (c.id === activeConvId ? ' menu-surface__item--active is-current' : '')
+                }
               >
-                <button type="button" style={historyLoadButton} onClick={() => handleLoad(c.id)}>
-                  <span style={historyTitle}>
+                <button
+                  type="button"
+                  className="agt-history__load"
+                  aria-current={c.id === activeConvId || undefined}
+                  onClick={() => handleLoad(c.id)}
+                >
+                  <span className="agt-history__title">
                     {runningTurns[c.id] && <span className="agt-history__running-dot" />}
                     {c.title || t('agentPanel.history.untitled')}{c.branchLabel ? ` · ${c.branchLabel}` : ''}
                   </span>
-                  <span style={historyTime}>{relTime(c.updatedAt)}</span>
+                  <span className="agt-history__time">{relTime(c.updatedAt)}</span>
                 </button>
                 <button
                   type="button"
-                  style={historyAct}
+                  className="agt-history__act"
                   title={t('agentPanel.history.rename')}
                   onClick={(e) => beginItemRename(c, e)}
                 >
-                  <BrushIcon name="edit" size={11} inline />
+                  <BrushIcon name="edit" size={12} />
                 </button>
                 <button
                   type="button"
-                  style={historyAct}
+                  className="agt-history__act"
                   title={t('agentPanel.history.delete')}
                   onClick={(e) => handleDelete(c.id, e)}
                 >
-                  <BrushIcon name="close" size={10} inline />
+                  <BrushIcon name="close" size={11} />
                 </button>
               </div>
             ),
@@ -501,74 +508,6 @@ const historyPanel: React.CSSProperties = {
   overflowY: 'auto',
   zIndex: 'var(--z-popover)',
   padding: 4,
-};
-
-const historyItem: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '6px 8px',
-  borderRadius: 0,
-  cursor: 'pointer',
-  fontSize: 'var(--ui-font-body, 12px)',
-};
-
-const historyItemActive: React.CSSProperties = {
-  background: 'hsl(var(--accent) / 0.12)',
-};
-
-const historyTitle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-
-const historyLoadButton: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flex: 1,
-  minWidth: 0,
-  border: 0,
-  padding: 0,
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  textAlign: 'left',
-  cursor: 'pointer',
-};
-
-const historyTime: React.CSSProperties = {
-  fontSize: 'var(--ui-font-caption, 10.5px)',
-  opacity: 0.5,
-  flexShrink: 0,
-};
-
-const historyAct: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: 'inherit',
-  opacity: 0.4,
-  cursor: 'pointer',
-  fontSize: 'var(--ui-font-body, 13px)',
-  lineHeight: 1,
-  padding: '0 2px',
-  flexShrink: 0,
-};
-
-const historyInput: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  font: 'inherit',
-  fontSize: 'var(--ui-font-body, 12px)',
-  padding: '2px 6px',
-  border: '1px solid hsl(var(--accent) / 0.5)',
-  borderRadius: 1,
-  background: 'hsl(var(--paper))',
-  color: 'inherit',
-  outline: 'none',
 };
 
 const inputArea: React.CSSProperties = {

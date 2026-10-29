@@ -124,7 +124,15 @@ describe('the manuscript tools in sand and glass', () => {
     const dock = source('src/renderer/components/editor/PlotPlannerDock.tsx');
     const store = source('src/renderer/store/ui-store.ts');
     const shellCss = source('src/styles/desktop-shell.css');
-    expect(workspace).toContain("plotPlannerOpen ? 'planner' : bottomTimelineHidden ? null : 'timeline'");
+    // The planner hides itself (the panel closes) while no chapter is in front.
+    expect(workspace).toContain('const chapterInFront = useChapterInFront(projectId);');
+    expect(workspace).toContain("? (chapterInFront ? 'planner' : null)");
+    expect(workspace).not.toContain('plotGrid.noChapter');
+    // A departing planner leaves an inert copy, so the grid goes with the panel.
+    const slot = source('src/renderer/components/editor/plot-grid/plot-planner-slot.ts');
+    expect(dock).toContain('return () => leavePlotPlannerGhost(root);');
+    expect(slot).toContain('ghost.inert = true;');
+    expect(slot).toContain('to.scrollTop = from.scrollTop;');
     expect(workspace).toContain('<TimelineDrawer open={dockPane !== null}>');
     expect(workspace).toContain('<BottomPanel show={dockPane ?? lastPane}>');
     expect(workspace).toContain('ref={setPlotPlannerSlot}');
@@ -224,6 +232,8 @@ describe('the manuscript tools in sand and glass', () => {
       '情节规划和 Bottom Timeline 共用稿纸下面同一个 Bottom Panel，二选一',
       'Bottom Panel 是一个共享的壳子',
       '时间线整块向上推出顶边，情节规划从下面同时升上来',
+      '当前不是章节时情节规划自己隐藏',
+      '网格在原处留下一份静止、不可操作的副本',
       '叠在一起的玻璃各管各的',
       '选区浮条不在其中',
     ]) {

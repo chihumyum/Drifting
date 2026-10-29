@@ -2039,6 +2039,16 @@ export function useProjectTabs(projectId: string | undefined | null): ProjectTab
   );
 }
 
+/** Whether the focused pane of the active tab is a chapter or drift. */
+export function isChapterInFront(project: ProjectTabsState | undefined): boolean {
+  const active = project?.openTabs.find((tab) => tabKey(tab) === project.activeTabKey);
+  return active ? focusedLeafOf(active)?.entityType === 'node' : false;
+}
+
+export function useChapterInFront(projectId: string | undefined | null): boolean {
+  return useUiStore((s) => isChapterInFront(projectId ? s.tabsByProject[projectId] : undefined));
+}
+
 export function usePromoteCurrentTab(projectId: string | undefined | null): () => void {
   return useCallback(() => {
     if (projectId) useUiStore.getState().promoteTab(projectId);
