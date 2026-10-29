@@ -154,45 +154,52 @@ function clearLanded(container: HTMLElement) {
 export function flowGlassSelection(container: HTMLElement, from: string, to: string, pressed = false) {
   if (reducedMotion()) return;
   const state = stateOf(container);
-  const items = itemsOf(container);
-  const target = items.get(to);
-  const origin = items.get(from);
-  const source = state.span ?? (origin ? { left: origin.x, right: origin.x + origin.width } : null);
-  if (!target || !source) {
-    restGlassWave(container);
-    return;
-  }
   cancelAnimationFrame(state.raf);
   clearTimeout(state.settle);
-  const end: WaveSpan = { left: target.x, right: target.x + target.width };
-  const all = [...items.values()];
-  const pitch = all.reduce((sum, item) => sum + item.width, 0) / all.length;
-  const duration = waveDuration((end.left + end.right - source.left - source.right) / 2, pitch);
-  const start = performance.now();
-  let lead = (source.left + source.right) / 2;
   clearLanded(container);
-  if (pressed) target.el.parentElement?.setAttribute('data-wave-landed', '');
+  if (pressed) {
+    [...container.querySelectorAll<HTMLElement>('.glass-wave[data-wave-key]')]
+      .find((layer) => layer.dataset.waveKey === to)?.parentElement?.setAttribute('data-wave-landed', '');
+  }
   container.setAttribute('data-glass-waving', 'move');
-  const tick = (now: number) => {
-    const t = Math.min(1, (now - start) / duration);
-    const frame = waveFrame(source, end, t);
-    const centre = (frame.left + frame.right) / 2;
-    state.texture += (centre - lead) * 0.45;
-    lead = centre;
-    state.span = { left: frame.left, right: frame.right };
-    paint(all, frame, state.texture);
-    if (t < 1) {
-      state.raf = requestAnimationFrame(tick);
+  // Measure on the next frame, not here: a selection changes inside a commit
+  // that may still be revealing other content (an editor tab), and reading
+  // positions now would force that layout, and its styles again afterwards.
+  state.raf = requestAnimationFrame((start) => {
+    const items = itemsOf(container);
+    const target = items.get(to);
+    const origin = items.get(from);
+    const source = state.span ?? (origin ? { left: origin.x, right: origin.x + origin.width } : null);
+    if (!target || !source) {
+      restGlassWave(container);
       return;
     }
-    state.raf = 0;
-    state.span = null;
-    container.setAttribute('data-glass-waving', 'settle');
-    state.settle = setTimeout(() => {
-      state.settle = undefined;
-      container.removeAttribute('data-glass-waving');
-      clearLanded(container);
-    }, WAVE_SETTLE_MS);
-  };
-  state.raf = requestAnimationFrame(tick);
+    const end: WaveSpan = { left: target.x, right: target.x + target.width };
+    const all = [...items.values()];
+    const pitch = all.reduce((sum, item) => sum + item.width, 0) / all.length;
+    const duration = waveDuration((end.left + end.right - source.left - source.right) / 2, pitch);
+    let lead = (source.left + source.right) / 2;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const frame = waveFrame(source, end, t);
+      const centre = (frame.left + frame.right) / 2;
+      state.texture += (centre - lead) * 0.45;
+      lead = centre;
+      state.span = { left: frame.left, right: frame.right };
+      paint(all, frame, state.texture);
+      if (t < 1) {
+        state.raf = requestAnimationFrame(tick);
+        return;
+      }
+      state.raf = 0;
+      state.span = null;
+      container.setAttribute('data-glass-waving', 'settle');
+      state.settle = setTimeout(() => {
+        state.settle = undefined;
+        container.removeAttribute('data-glass-waving');
+        clearLanded(container);
+      }, WAVE_SETTLE_MS);
+    };
+    tick(start);
+  });
 }

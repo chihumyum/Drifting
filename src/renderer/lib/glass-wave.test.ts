@@ -101,6 +101,25 @@ describe('running the band', () => {
     vi.useRealTimers();
   });
 
+  it('measures the pills only on the next frame, not inside the commit that chose one', () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb));
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const { container, layers, attributes } = dock();
+    let reads = 0;
+    const measured = <T,>(read: () => T) => () => { reads += 1; return read(); };
+    for (const layer of layers) layer.getBoundingClientRect = measured(layer.getBoundingClientRect);
+    container.getBoundingClientRect = measured(container.getBoundingClientRect.bind(container));
+    flowGlassSelection(container, 'a', 'd');
+    expect(attributes.get('data-glass-waving')).toBe('move');
+    expect(reads).toBe(0);
+    frames.splice(0).forEach((cb) => cb(16));
+    expect(reads).toBeGreaterThan(0);
+    expect(Number(layers[0].values.get('--wave-k'))).toBeGreaterThan(0);
+    restGlassWave(container);
+  });
+
   it('lets a pill chosen by pressing it keep its own bleed while the band flows in', () => {
     vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
     vi.stubGlobal('requestAnimationFrame', () => 1);
