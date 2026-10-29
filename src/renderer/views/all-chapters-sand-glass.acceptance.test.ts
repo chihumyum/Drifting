@@ -68,6 +68,9 @@ describe('the manuscript folio in sand', () => {
     expect(folio).not.toContain('page__chapter-mark');
     expect(folio).not.toContain('page__folio-line--accent');
     expect(folio).not.toContain('style=');
+    const single = read('src/renderer/views/NodeEditorView.tsx');
+    expect(single).toContain('<span className="page__folio-line page__folio-storyline">');
+    expect(single).toContain('<KindMark kind="storyline" color={mainStoryline.color || undefined} />');
     const storyline = block(indexCss, '.page__folio-storyline {', '}');
     expect(storyline).toContain('display: inline-flex;');
     expect(storyline).toContain('color: hsl(var(--ink-3));');

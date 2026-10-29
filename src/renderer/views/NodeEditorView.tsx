@@ -658,7 +658,16 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                   {!isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">{t('nodeEditor.folio.chapter')}</span>
-                      {mainStoryline && (
+                      {/* The desktop names the storyline by its sand dash and its
+                          name in ink, as 通览全书 does; the touch shell keeps the
+                          coloured name. */}
+                      {mainStoryline && !getPlatformRuntime().isMobileShell && (
+                        <span className="page__folio-line page__folio-storyline">
+                          <KindMark kind="storyline" color={mainStoryline.color || undefined} />
+                          {mainStoryline.name}
+                        </span>
+                      )}
+                      {mainStoryline && getPlatformRuntime().isMobileShell && (
                         <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
                           {mainStoryline.name}
                         </span>
