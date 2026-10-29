@@ -83,6 +83,20 @@ export function createAgentMarkerSelector() {
   };
 }
 
+/** Six sand seals; each tick is pressed once, its shape and turn fixed by its key. */
+export const SCROLL_MARKER_SEALS = 6;
+
+export function scrollMarkerSeal(key: string): { shape: number; turn: number } {
+  // FNV-1a: stable across sessions, so a tick never changes its seal on reload.
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index++) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  hash >>>= 0;
+  return { shape: hash % SCROLL_MARKER_SEALS, turn: Math.floor(hash / SCROLL_MARKER_SEALS) % 360 };
+}
+
 export function scrollMarkerBlockSelector(id: string): string {
   const escaped = typeof CSS !== 'undefined' && 'escape' in CSS ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
   return `[data-block-id="${escaped}"]`;

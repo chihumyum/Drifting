@@ -70,7 +70,7 @@ async function plotCycle(index: number, oldKey = false) {
   const initialJson = JSON.stringify(createEmptyPlotGrid());
   const show = (nodeId: string, open: boolean) => render(<main className="editor-shell" style={{ height: 650 }}>
     <header>Chapter {nodeId}</header>
-    {open && <PlotPlannerDock key={oldKey ? nodeId : __DRIFTING_PLOT_KEY__(nodeId)} nodeId={nodeId} initialJson={initialJson} onPersist={onPersist} />}
+    {open && <PlotPlannerDock key={oldKey ? nodeId : __DRIFTING_PLOT_KEY__(nodeId)} nodeId={nodeId} title={`Chapter ${nodeId}`} initialJson={initialJson} onPersist={onPersist} />}
     <div className="editor-body" key={nodeId}>Synthetic prose {nodeId}</div>
   </main>);
   for (const suffix of ['a', 'b']) {

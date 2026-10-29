@@ -28,7 +28,7 @@ async function runCollaborativeFormats() {
     const initial = JSON.stringify(editor.getJSON());
     editor.commands.setTextSelection({ from: 2, to: 10 });
     owner.open({ rect: { left: 100, top: 100, right: 140, bottom: 116 }, labels });
-    [...document.querySelectorAll<HTMLButtonElement>('.editor-comment-menu button')].find(item => item.textContent === '一级标题')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('.editor-comment-menu button')].find(item => item.getAttribute('aria-label') === '一级标题')!.click();
     const formatted = JSON.stringify(editor.getJSON());
     check('heading and generated trailing block enter one Yjs undo item', manager.undoStack.length === 1 && editor.isActive('heading', { level: 1 }));
     check('format undo restores exact content and block identities', editor.commands.undo() && JSON.stringify(editor.getJSON()) === initial);
@@ -184,7 +184,8 @@ export async function runEditorContextMenuScenarios() {
       // Separate this format action from the preceding synthetic prose edit.
       editor.view.dispatch(closeHistory(editor.state.tr));
       const before = editor.state.doc.textContent; owner.open(options);
-      const heading = [...menu()!.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === '一级标题')!;
+      // The formats pill is the bar's sibling on the body, not inside it.
+      const heading = [...document.querySelectorAll<HTMLButtonElement>('.editor-selection-bar__formats button')].find(item => item.getAttribute('aria-label') === '一级标题')!;
       heading.click();
       // StarterKit may append an empty trailing paragraph after a heading;
       // compare authored text, not getText's extra block-separator newlines.

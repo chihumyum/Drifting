@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
@@ -20,6 +21,7 @@ import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/de
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
+import { usePlotPlannerSlot } from '../components/editor/plot-grid/plot-planner-slot';
 import type { PlotGridMutation } from '../domain/plot-grid';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings } from '../components/editor/outline-rail-model';
@@ -167,6 +169,9 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
     });
   const plotPlannerOpen = useUiStore((s) => isVisible && s.plotPlannerOpen);
   const togglePlotPlanner = useUiStore((s) => s.togglePlotPlannerOpen);
+  // The planner shows in the dock under the paper; only the focused editor
+  // (the one global commands belong to) puts its chapter's grid there.
+  const plotPlannerSlot = usePlotPlannerSlot();
   // Plot planner grid persists on its own debounce, independent of the prose
   // save path. Bound to the dock's nodeId (not activeNodeIdRef) so a flush
   // during a node switch writes to the correct row.
@@ -636,17 +641,23 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             }}
           />
 
-          {/* In-chapter plot planner: a top dock between the bar and the prose,
-              pushing the editor down. Keyed by nodeId so each chapter/drift
-              seeds its own grid only after that node's content row is ready. */}
-          {plotPlannerOpen && isActiveNodeReady && (
-            <PlotPlannerDock
-              key={`plot-planner:${nodeId}`}
-              nodeId={nodeId}
-              initialJson={bookContent?.plotGridJson ?? '{}'}
-              onPersist={handlePlotGridPersist}
-            />
-          )}
+          {/* In-chapter plot planner, portaled into the dock under the paper
+              that it shares with the Bottom Timeline. Keyed by nodeId so each
+              chapter/drift seeds its own grid only after that node's content
+              row is ready. */}
+          {plotPlannerOpen && isCommandActive && isActiveNodeReady && plotPlannerSlot &&
+            createPortal(
+              <PlotPlannerDock
+                key={`plot-planner:${nodeId}`}
+                nodeId={nodeId}
+                title={curNode.title}
+                color={isDriftNode ? undefined : mainStoryline?.color || undefined}
+                drift={isDriftNode}
+                initialJson={bookContent?.plotGridJson ?? '{}'}
+                onPersist={handlePlotGridPersist}
+              />,
+              plotPlannerSlot,
+            )}
 
           {/* The semantic TOC stays outside the native scroll tree on the left;
               review markers independently overlay the native scrollbar on the right. */}
@@ -654,6 +665,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             <EditorOutlineRail
               title={t('nodeEditor.outline.title')}
               items={isActiveNodeReady ? outlineTree : []}
+              color={mainStoryline?.color || undefined}
               scrollspyIds={outlineIds}
               onItemClick={(id) => {
                 scrollToOutlineAnchor(id, scrollEl);

@@ -28,15 +28,23 @@ the right native scrollbar.
 TOC tags remain anchored to the rendered positions of acts, chapters,
 framework sections, and TipTap `h1/h2/h3` blocks. Every sequential TOC range
 intersecting the current viewport receives the existing stronger text style.
-The scrollspy reading location remains the primary accent selection and its
-ancestors remain part of the active path. No selected item acquires a frame,
-chip, background wash, or decorative left spine.
+The scrollspy reading location remains the primary selection and its
+ancestors remain part of the active path. Since 2026-10-29 (sand and glass)
+neither uses the accent colour: the primary, the lowest level of the reading
+location, carries one short level swipe of dry sand across the lower half of
+its first characters, in its owner's colour (a chapter's storyline; the
+storyline or category being edited; ink otherwise), and every level above it
+on the active path is bold ink. A jump the author clicked draws the swipe
+along the label; arriving by scrolling fades it in. No selected item acquires
+a frame, chip, background wash, or decorative left spine.
 
 The five structural levels remain act / chapter / scene / beat / note. `h1`
 maps to scene, `h2` to beat, and `h3` to note in every editor.
 All TOC labels use upright text, including the tags revealed by omission handles.
 Hierarchy remains expressed through font size, weight, family, and colour;
 act and beat labels no longer use italics that can clip at the text boundary.
+Acts are set in the serif structure face with no leading dash, and no tag
+carries a trailing branch dot.
 
 The rail's `OutlineViewportController` now supplies both geometry and the
 single-entity scrollspy reading location. The views pass their existing reading
@@ -118,7 +126,8 @@ Density is derived from the rail's measured height at runtime:
 
 Hovering or focusing an omission handle replaces the shorthand with a small
 `body`-portal group of the nearest real TOC tags at their normal compact type
-size. There is no magnification animation. Choosing one uses the same canonical
+size, on a compact menu surface (a lifted piece of desk) whose hovered row
+bleeds the menu row's ring of flowing glass. There is no magnification animation. Choosing one uses the same canonical
 TOC jump handler and recentres the density window around the destination; it
 does not restore the retired full-height panel.
 
@@ -141,7 +150,9 @@ boundary.
 aligned with the 8px WebKit scrollbar at the right edge. The map does not take
 pointer events, but each Comment or Agent tick does, so tick clicks scroll to
 and flash their anchored prose blocks without disabling the rest of the native
-track.
+track. Each tick is a sand seal pressed once — its shape and turn fixed by its
+key — that deepens under the pointer, arrives as sand does and fades out when
+it goes.
 
 `EditorOutlineRail.tsx` owns DOM measurement and TOC interaction.
 `outline-rail-model.ts` owns deterministic tree flattening, density planning,

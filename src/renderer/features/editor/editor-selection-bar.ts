@@ -10,6 +10,13 @@ const activeBarSlot: { owner: EditorSelectionBar | null } = { owner: null };
 const SETTLE_MS = 180;
 const GAP = 8;
 const MARGIN = 6;
+// Between the bar and the formats pill that unfolds beside it.
+const FORMATS_GAP = 6;
+// Each format is a round glass button carrying its sand glyph (BrushIcon names).
+const FORMAT_GLYPHS: Readonly<Record<string, string>> = {
+  paragraph: 'fmt-paragraph', h1: 'fmt-h1', h2: 'fmt-h2', h3: 'fmt-h3', blockquote: 'fmt-quote',
+  bold: 'fmt-bold', italic: 'fmt-italic', underline: 'fmt-underline', strike: 'fmt-strike',
+};
 
 export interface SelectionRect { left: number; top: number; right: number; bottom: number }
 
@@ -47,16 +54,20 @@ function place(bar: HTMLElement, rect: SelectionRect): 'above' | 'below' {
 }
 
 /**
- * The editing actions for a text selection, as one horizontal bar floating
- * over the selected text: 「格式」 (whose block and inline formats unfold as a
- * second row beside the bar), add comment, new patch and Copilot. It appears
- * by itself once a selection settles; right-clicking is left to the system's
- * own menu. One canonical editor owns its bar; hidden/inactive owners are idle.
+ * The editing actions for a text selection, as one glass long pill floating
+ * over the selected text, each action a short pill: 「格式」 (whose block and
+ * inline formats unfold as a second long pill of round glass buttons beside
+ * the bar), add comment, new patch and Copilot. It floats in by itself once a
+ * selection settles; right-clicking is left to the system's own menu. The
+ * formats pill is the bar's sibling, never its child, so pointing at or
+ * pressing a format never stirs or thickens the bar. One canonical editor
+ * owns its bar; hidden/inactive owners are idle.
  */
 export class EditorSelectionBar {
   private enabled = false;
   private disposed = false;
   private bar: HTMLDivElement | null = null;
+  private formats: HTMLDivElement | null = null;
   private hideTimer: number | null = null;
   private settleTimer: number | null = null;
   private pointerDown = false;
@@ -113,7 +124,8 @@ export class EditorSelectionBar {
     this.hideTimer = null;
   }
   private onOutsideMouseDown = (event: MouseEvent): void => {
-    if (!this.bar?.contains(event.target as Node)) this.close();
+    const target = event.target as Node;
+    if (!this.bar?.contains(target) && !this.formats?.contains(target)) this.close();
   };
   private onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') { event.preventDefault(); this.close(); }
@@ -122,6 +134,7 @@ export class EditorSelectionBar {
   close = (): void => {
     this.cancelHide();
     if (!this.bar) return;
+    this.formats?.remove(); this.formats = null;
     this.bar.remove(); this.bar = null;
     document.removeEventListener('mousedown', this.onOutsideMouseDown, true);
     document.removeEventListener('keydown', this.onKeyDown, true);
@@ -141,7 +154,9 @@ export class EditorSelectionBar {
     if (!this.isEnabled() || this.editor.state.selection.empty) return false;
     activeBarSlot.owner?.close();
     const bar = document.createElement('div');
-    bar.className = `${BAR_CLASS} editor-selection-bar`;
+    // A long pill is a container of glass: it drifts under the pointer and
+    // never thickens when something inside it is pressed.
+    bar.className = `${BAR_CLASS} editor-selection-bar glass glass--rest glass--surface`;
     bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-orientation', 'horizontal');
     this.bar = bar; activeBarSlot.owner = this;
 
@@ -152,57 +167,71 @@ export class EditorSelectionBar {
     };
     const button = (label: string): HTMLButtonElement => {
       const element = document.createElement('button'); element.type = 'button';
-      element.className = 'editor-selection-bar__item glass glass--surface';
+      element.className = 'editor-selection-bar__item glass';
       element.textContent = label;
       // Keep the selection: pressing a button must not move the caret.
       element.addEventListener('mousedown', event => event.preventDefault());
       return element;
     };
     const format = button(options.labels.format); format.classList.add('has-flyout');
-    format.setAttribute('aria-haspopup', 'true');
+    format.setAttribute('aria-haspopup', 'true'); format.setAttribute('aria-expanded', 'false');
     // The same brush chevron as BrushIcon renders, built by hand outside React.
     const chevron = document.createElement('i'); chevron.setAttribute('aria-hidden', 'true');
     chevron.className = 'brush-icon brush-icon--chevron-down is-inline editor-comment-menu__chevron';
     chevron.style.setProperty('--brush-icon-size', '8px');
     format.appendChild(chevron);
+    // The formats: a second long pill, the bar's sibling on the body, so its
+    // pointer, drift and press stay its own.
     const formats = document.createElement('div');
-    formats.className = `${BAR_CLASS} editor-selection-bar editor-selection-bar__formats`;
-    formats.setAttribute('role', 'toolbar'); formats.style.display = 'none';
+    formats.className = `${BAR_CLASS} editor-selection-bar editor-selection-bar__formats glass glass--rest glass--surface`;
+    formats.setAttribute('role', 'toolbar'); formats.setAttribute('aria-label', options.labels.format);
+    this.formats = formats;
     const addFormats = (items: BlockFormatItem[]): void => {
       for (const item of items) {
-        const element = button(item.title);
-        if (item.isActive?.(this.editor)) element.classList.add('is-active');
+        const element = document.createElement('button'); element.type = 'button';
+        element.className = 'editor-selection-bar__format glass glass--round';
+        element.title = item.title; element.setAttribute('aria-label', item.title);
+        element.setAttribute('aria-pressed', item.isActive?.(this.editor) ? 'true' : 'false');
+        // The same brush glyph as BrushIcon renders, built by hand outside React.
+        const glyph = document.createElement('i'); glyph.setAttribute('aria-hidden', 'true');
+        glyph.className = `brush-icon brush-icon--${FORMAT_GLYPHS[item.id] ?? 'fmt-paragraph'}`;
+        glyph.style.setProperty('--brush-icon-size', '16px');
+        element.appendChild(glyph);
+        element.addEventListener('mousedown', event => event.preventDefault());
         element.addEventListener('click', () => invoke(() => item.run(this.editor)));
         formats.appendChild(element);
       }
     };
     addFormats(getBlockFormatItems());
+    // Block formats and inline marks are parted by space, not a line.
     const separator = document.createElement('span');
     separator.className = 'editor-selection-bar__sep'; separator.setAttribute('aria-hidden', 'true');
     formats.appendChild(separator); addFormats(getInlineFormatItems());
     let side: 'above' | 'below' = 'above';
     const show = (): void => {
       if (this.bar !== bar || !this.isEnabled()) return;
-      this.cancelHide(); formats.style.display = 'flex';
-      // The formats unfold as a second row on the far side of the bar.
+      this.cancelHide();
+      // The formats unfold on the far side of the bar, from its left edge.
       const box = bar.getBoundingClientRect();
       const width = formats.offsetWidth; const height = formats.offsetHeight;
       const left = Math.min(Math.max(MARGIN, box.left), window.innerWidth - MARGIN - width);
       formats.style.left = `${left}px`;
-      formats.style.top = `${side === 'above' ? box.top - 4 - height : box.bottom + 4}px`;
+      formats.style.top = `${side === 'above' ? box.top - FORMATS_GAP - height : box.bottom + FORMATS_GAP}px`;
+      formats.classList.add('is-open'); format.setAttribute('aria-expanded', 'true');
     };
     const scheduleHide = (): void => {
       if (this.bar !== bar) return;
       this.cancelHide();
       this.hideTimer = window.setTimeout(() => {
         this.hideTimer = null;
-        if (this.bar === bar) formats.style.display = 'none';
+        if (this.bar !== bar) return;
+        formats.classList.remove('is-open'); format.setAttribute('aria-expanded', 'false');
       }, 140);
     };
     format.addEventListener('mouseenter', show); format.addEventListener('mouseleave', scheduleHide);
     format.addEventListener('click', show);
     formats.addEventListener('mouseenter', () => this.cancelHide()); formats.addEventListener('mouseleave', scheduleHide);
-    bar.append(format, formats);
+    bar.append(format);
     for (const [label, action] of [
       [options.labels.addComment, options.onAddComment], [options.labels.addPatch, options.onAddPatch], [options.labels.copilot, options.onCopilot],
     ] as const) {
@@ -210,7 +239,7 @@ export class EditorSelectionBar {
       const element = button(label); element.addEventListener('click', () => invoke(action)); bar.appendChild(element);
     }
 
-    document.body.appendChild(bar);
+    document.body.append(bar, formats);
     side = place(bar, options.rect ?? selectionRectOf(this.editor));
     // Every close path removes these exact listeners synchronously.
     document.addEventListener('mousedown', this.onOutsideMouseDown, true);

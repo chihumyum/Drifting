@@ -1,24 +1,24 @@
 /* ============================================================
    Plot Grid
-   One contiguous, hairline-divided mini-Excel that fills its host.
-   Desktop hosts it in a top dock between the editor bar and the
-   prose (resized by its BOTTOM border, structure buttons in a slim
-   header); the mobile paper tool hosts the same table under its own
-   header. Cells stretch on both axes down to a per-presentation
-   minimum, then the overflowing axis scrolls while the opposite
-   header stays pinned. Row/column headers remain quiet labels so
-   this reads as a working table, never as a card grid.
+   One contiguous grid that fills its host. Desktop hosts it in the dock
+   under the paper, which it shares with the Bottom Timeline (only one of
+   the two at a time), and draws it as the chapter's own little timeline:
+   each row a lane named on the left, each column a beat along the top, each
+   cell a slip of paper written straight into. The mobile paper tool hosts
+   the same grid as a hairline table under its own header. Cells stretch on
+   both axes down to a per-presentation minimum, then the overflowing axis
+   scrolls.
    ============================================================ */
 
+/* ── The dock (desktop): flat, the desk colour of the timeline's header, no
+   shadow; resized by its top edge. The header names the chapter it follows
+   (the focused one) beside its mark; its actions are text buttons. ── */
 .plot-planner {
   position: relative;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: hsl(var(--paper-deep));
-  border-bottom: 1px solid hsl(var(--rule-strong));
-  box-shadow: inset 0 8px 14px -12px hsl(var(--ink-1) / 0.22);
+  background: var(--workspace-ui-bg);
   font-family: var(--font-sans);
 }
 .plot-planner__header {
@@ -26,37 +26,53 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 8px 0 14px;
-  border-bottom: 0.5px solid var(--workspace-local-border);
-  color: hsl(var(--ink-3));
-  font-size: 11.5px;
-  letter-spacing: 0.06em;
+  padding: 0 10px 0 14px;
+  box-shadow: inset 0 -0.5px 0 var(--workspace-local-border);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
 }
 .plot-planner__title {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
   white-space: nowrap;
+}
+.plot-planner__chapter {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: hsl(var(--ink-2));
+  font-weight: 500;
 }
+.plot-planner__label {
+  flex: none;
+}
+/* Text buttons: no glass; the pointer only darkens their ink. */
 .plot-planner__add {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   height: 22px;
-  padding: 0 7px;
+  padding: 0 6px;
   border: 0;
-  border-radius: var(--radius-xs);
+  border-radius: 2px;
   background: transparent;
-  color: hsl(var(--ink-3));
-  font: 12px var(--font-sans);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: inherit;
   cursor: pointer;
+  transition: color 0.12s ease-out;
 }
 .plot-planner__add:hover,
 .plot-planner__add:focus-visible {
   color: hsl(var(--ink-1));
-  background: var(--workspace-cell-hover-bg, hsl(var(--ink-1) / 0.06));
   outline: none;
+}
+.plot-planner__clear:hover,
+.plot-planner__clear:focus-visible {
+  color: hsl(var(--destructive));
 }
 .plot-planner__add .brush-icon {
   width: 13px;
@@ -70,15 +86,33 @@
   flex: 1;
   min-height: 0;
 }
-
 .plot-planner__resize {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
   height: 5px;
   cursor: ns-resize;
   z-index: 30;
+}
+
+/* The dock's planner place. With no chapter in front a quiet line stands in. */
+.plot-planner-slot {
+  display: flex;
+  flex-direction: column;
+}
+.plot-planner-slot__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  margin: 0;
+  background: var(--workspace-ui-bg);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-secondary, 12px);
+}
+.plot-planner-slot__empty:not(:only-child) {
+  display: none;
 }
 
 /* ── scroll owner ── */
@@ -95,7 +129,7 @@
   margin: 0 12px 12px 0;
 }
 
-/* ── table ── */
+/* ── grid ── */
 .pl-table {
   border-collapse: collapse;
   border-spacing: 0;
@@ -104,17 +138,15 @@
 
 .pl-corner {
   height: var(--pl-col-head-h, 30px);
-  background: hsl(var(--paper-deep));
   border: 0;
   padding: 0;
 }
 
-/* ── headers: borderless quiet labels that scroll with the table ──
+/* ── headers: quiet labels that scroll with the grid ──
    Headers are not sticky: a wide row label would otherwise sit over the
-   table for the whole pan and eat the narrow phone width. ── */
+   grid for the whole pan and eat the narrow phone width. ── */
 .pl-head {
   position: relative;
-  background: hsl(var(--paper-deep));
   border: 0;
   padding: 0 6px;
   vertical-align: middle;
@@ -132,10 +164,6 @@
   width: var(--pl-row-head-w, 72px);
   padding: 0 8px 0 6px;
   text-align: right;
-}
-.pl-head--col:hover,
-.pl-head--row:hover {
-  color: hsl(var(--ink-2));
 }
 /* Labels wrap instead of truncating: the row header column hugs the widest
    label (up to a cap), a long label then takes up to three lines; column
@@ -161,10 +189,9 @@
 }
 .pl-head__text:focus {
   max-height: none;
-  background: hsl(var(--surface));
   color: hsl(var(--ink-1));
 }
-.pl-head__text:empty::before {
+.pl-head__text:empty::after {
   content: attr(data-ph);
   color: hsl(var(--ink-5));
 }
@@ -178,12 +205,9 @@
 .pl-head__text--tap[data-empty='1'] {
   color: hsl(var(--ink-5));
 }
-.pl-head__text.is-selected {
-  color: hsl(var(--ink-1));
-  box-shadow: inset 0 -1.5px 0 hsl(var(--ink-1));
-}
 
-/* Header menu (⋯) — revealed on header hover, desktop only. */
+/* Header menu (⋯) — revealed on header hover, desktop only. It floats over
+   the label's end on the header's own colour so it stays readable. */
 .pl-head__menu {
   position: absolute;
   top: 50%;
@@ -193,15 +217,13 @@
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--radius-xs);
-  background: hsl(var(--paper-deep));
+  border-radius: 2px;
+  background: var(--workspace-ui-bg);
   color: hsl(var(--ink-4));
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s, color 0.12s;
 }
-/* No reserved gutter: the button floats over the label's end on hover, on
-   the header's own background so it stays readable. */
 .pl-head--col .pl-head__menu {
   right: 2px;
 }
@@ -215,7 +237,7 @@
   opacity: 1;
 }
 .pl-head__menu:hover {
-  color: hsl(var(--accent));
+  color: hsl(var(--ink-1));
 }
 /* Portaled to body; the editor shell's stacking contexts would otherwise
    paint over a fixed surface with no z-index (same tier as the other menus). */
@@ -256,51 +278,89 @@
   word-break: break-word;
   overflow: hidden;
 }
-/* faint guide-dot in empty cells, fades on hover/focus */
-.pl-cell[data-empty='1']::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: hsl(var(--ink-5) / 0.6);
-  transition: opacity 0.15s;
-  pointer-events: none;
+
+/* ── Desktop: lanes. Lane names sit on the desk in the serif structure face,
+   beats along the top in the index face; the lanes are the page's white,
+   parted by half-pixel lines in the desk colour, like the timeline's tracks.
+   Each cell is a slip of paper with a resting line of clear glass; under the
+   pointer its glass bleeds and drifts, and holding the caret it is the still
+   selected glass (`.glass--field`). An empty slip shows nothing until the
+   pointer or the caret is on it. Nothing here washes, floats or casts a
+   shadow. ── */
+.planner-wrap[data-presentation='desktop'] .pl-corner,
+.planner-wrap[data-presentation='desktop'] .pl-head {
+  background: var(--workspace-ui-bg);
 }
-.pl-cell[data-empty='1']:hover::before,
-.pl-cell[data-empty='1']:focus::before {
+.planner-wrap[data-presentation='desktop'] .pl-head--row {
+  padding: 0 8px 0 14px;
+  font-family: var(--font-structure, var(--font-sans));
+  font-weight: 500;
+  color: hsl(var(--ink-2));
+  text-align: left;
+}
+.planner-wrap[data-presentation='desktop'] .pl-head--col {
+  padding: 0 6px 0 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  text-align: left;
+}
+.planner-wrap[data-presentation='desktop'] .pl-head:hover {
+  color: hsl(var(--ink-1));
+}
+.planner-wrap[data-presentation='desktop'] .pl-head__text.glass {
+  --glass-rim: 5px;
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+.planner-wrap[data-presentation='desktop'] .pl-cell-td {
+  padding: 3px 5px;
+  background: hsl(var(--page));
+  box-shadow: inset 0.5px 0 0 var(--workspace-ui-bg);
+}
+.planner-wrap[data-presentation='desktop'] tbody tr + tr .pl-cell-td {
+  box-shadow:
+    inset 0.5px 0 0 var(--workspace-ui-bg),
+    inset 0 0.5px 0 var(--workspace-ui-bg);
+}
+.planner-wrap[data-presentation='desktop'] .pl-cell {
+  height: calc(var(--pl-cell-h, 96px) - 6px);
+  padding: 6px 9px;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+/* Small glass: the slips take the dense patches, a different one each beat. */
+.planner-wrap[data-presentation='desktop'] .pl-cell.glass {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+.planner-wrap[data-presentation='desktop'] td:nth-child(3n) .pl-cell.glass {
+  --glass-gx: -168px;
+  --glass-gy: -18px;
+}
+.planner-wrap[data-presentation='desktop'] td:nth-child(3n + 1) .pl-cell.glass {
+  --glass-gx: -58px;
+  --glass-gy: -186px;
+}
+.planner-wrap[data-presentation='desktop'] .pl-cell[data-empty='1']::before {
   opacity: 0;
 }
-
-/* One shared hairline lattice: right/bottom on every cell, top/left on the
-   first row/column only, so adjacent cells never double their borders. */
-.pl-cell {
-  background: hsl(var(--page));
-  border-right: 1px solid hsl(var(--rule-strong));
-  border-bottom: 1px solid hsl(var(--rule-strong));
-  border-radius: 0;
-  box-shadow: none;
-  transition: background 0.12s, border-color 0.12s;
+.planner-wrap[data-presentation='desktop'] .pl-cell[data-empty='1']:hover::before,
+.planner-wrap[data-presentation='desktop'] .pl-cell[data-empty='1']:focus::before {
+  opacity: 1;
 }
-.pl-cell:hover {
-  background: hsl(var(--surface));
+.planner-wrap[data-presentation='desktop'] .pl-cell[data-empty='1']::after {
+  content: attr(data-ph);
+  color: hsl(var(--ink-5));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease-out;
 }
-.pl-table tbody tr:first-child .pl-cell {
-  border-top: 1px solid hsl(var(--rule-strong));
-}
-.pl-table th + td .pl-cell {
-  border-left: 1px solid hsl(var(--rule-strong));
-}
-.pl-cell:focus {
-  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.45);
-  background: hsl(var(--surface));
-}
-.pl-cell[data-selected='true'] {
-  outline: 1.5px solid hsl(var(--ink-1));
-  outline-offset: -1.5px;
-  background: hsl(var(--accent) / 0.06);
+.planner-wrap[data-presentation='desktop'] .pl-cell[data-empty='1']:hover::after,
+.planner-wrap[data-presentation='desktop'] .pl-cell[data-empty='1']:focus::after {
+  opacity: 1;
 }
 
 /* ── table box: the scrolled extent; hosts the corner grip ── */
@@ -308,7 +368,8 @@
   position: relative;
 }
 /* Corner grip: drag to change the cell size (both dimensions); "fit" sizes
-   the table to the host, the grip sizes it by hand. Desktop only. */
+   the grid to the host, the grip sizes it by hand. Desktop only: a brush
+   grip whose ink darkens under the pointer. */
 .pl-resize-grip {
   position: absolute;
   right: -9px;
@@ -319,12 +380,12 @@
   place-items: center;
   border: 0;
   border-radius: 1px;
-  background: hsl(var(--paper));
+  background: transparent;
   color: hsl(var(--ink-4));
   cursor: nwse-resize;
   touch-action: none;
   opacity: 0;
-  transition: opacity 0.14s, color 0.14s, background 0.14s;
+  transition: opacity 0.14s, color 0.14s;
   z-index: 4;
 }
 .planner-wrap:hover .pl-resize-grip {
@@ -332,14 +393,14 @@
 }
 .pl-resize-grip:hover {
   opacity: 1;
-  color: hsl(var(--accent));
-  background: hsl(var(--page));
+  color: hsl(var(--ink-1));
 }
 .planner-wrap[data-fitted='true'] .plot-planner__fit {
   color: hsl(var(--ink-4));
 }
 
-/* Live cell size while the grip or a pinch is changing it. */
+/* Live cell size while the grip or a pinch is changing it: a plain
+   monospaced readout on the desk colour. */
 .pl-size-badge {
   position: sticky;
   top: 6px;
@@ -348,17 +409,57 @@
   display: inline-block;
   height: 22px;
   padding: 0 8px;
-  border-radius: var(--radius-sm);
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  font: 11px var(--font-sans);
+  border-radius: 2px;
+  background: var(--workspace-ui-bg);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 11px var(--font-mono);
   line-height: 22px;
-  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
-/* Mobile cells are tap targets that hand editing to the sheet. */
+/* ── Mobile: the hairline table. One shared lattice: right/bottom on every
+   cell, top/left on the first row/column only, so adjacent cells never
+   double their borders. Cells are tap targets that hand editing to the
+   sheet. ── */
+.planner-wrap[data-presentation='mobile'] .pl-corner,
+.planner-wrap[data-presentation='mobile'] .pl-head {
+  background: hsl(var(--paper-deep));
+}
+.planner-wrap[data-presentation='mobile'] .pl-head__text.is-selected {
+  color: hsl(var(--ink-1));
+  box-shadow: inset 0 -1.5px 0 hsl(var(--ink-1));
+}
+.planner-wrap[data-presentation='mobile'] .pl-cell {
+  background: hsl(var(--page));
+  border-right: 1px solid hsl(var(--rule-strong));
+  border-bottom: 1px solid hsl(var(--rule-strong));
+  border-radius: 0;
+  box-shadow: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+.planner-wrap[data-presentation='mobile'] tbody tr:first-child .pl-cell {
+  border-top: 1px solid hsl(var(--rule-strong));
+}
+.planner-wrap[data-presentation='mobile'] th + td .pl-cell {
+  border-left: 1px solid hsl(var(--rule-strong));
+}
+.planner-wrap[data-presentation='mobile'] .pl-cell:focus {
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.45);
+  background: hsl(var(--surface));
+}
+.planner-wrap[data-presentation='mobile'] .pl-cell[data-selected='true'] {
+  outline: 1.5px solid hsl(var(--ink-1));
+  outline-offset: -1.5px;
+  background: hsl(var(--accent) / 0.06);
+}
+.planner-wrap[data-presentation='mobile'] .pl-size-badge {
+  border-radius: var(--radius-sm);
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  font: 11px var(--font-sans);
+  letter-spacing: 0.06em;
+}
 .pl-cell--tap {
   display: -webkit-box;
   -webkit-line-clamp: var(--pl-clamp, 3);
@@ -371,9 +472,6 @@
   padding: 8px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-}
-.pl-cell--tap[data-empty='1']::before {
-  display: none;
 }
 .planner-wrap[data-presentation='mobile'] .pl-head {
   font-size: 12px;

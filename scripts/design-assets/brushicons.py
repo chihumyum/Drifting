@@ -78,6 +78,16 @@ lift-bent.png               汇流上提: the same head, its shaft bent in from 
 thinking.png                砂聚成点: six frames side by side, loose grains pressing into a
                             dot; CSS plays them back and forth while the Agent thinks
 
+The selection bar's text formats, drawn as letters and marks (fine grain):
+
+fmt-paragraph.png           正文: a pilcrow, an inked bowl hung on two upright stems
+fmt-h1 / -h2 / -h3          标题: an H with its small numeral at the lower right
+fmt-quote.png               引用: two pressed dots with their tails, a closing double quote
+fmt-bold.png                粗体: a heavy B, the brush fully loaded
+fmt-italic.png              斜体: one slanted I with short level strokes top and foot
+fmt-underline.png           下划线: a U with one stroke drawn beneath it
+fmt-strike.png              删除线: an S with one stroke drawn straight through it
+
 moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
                             inside cleared, the rim as thin, light and sandy as
                             the moon's faint outer ring: shown while that
@@ -991,6 +1001,77 @@ def thinking(rng):
         frames.append(a)
     return frames
 
+# ── Text formats ──
+
+def _fmt_stem(a, rng, x0, y0, x1, y1, k=1.0, dry=0.2):
+    brush(a, line((x0, y0), (x1, y1)), G * k, rng, load0=1.0, dry=dry, taper=(0.04, 0.08))
+
+def _numeral(a, rng, n, x, y):
+    """A small brushed 1, 2 or 3 whose top-left is (x, y)."""
+    k = 0.85
+    if n == 1:
+        brush(a, line((x + 4, y + 6), (x + 11, y)), G * k * 0.8, rng, load0=1.0, dry=0.0, taper=(0.3, 0.0))
+        brush(a, line((x + 11, y), (x + 11, y + 30)), G * k, rng, load0=1.0, dry=0.25, taper=(0.0, 0.1))
+    elif n == 2:
+        brush(a, curve([(x + 1, y + 7), (x + 9, y), (x + 18, y + 6), (x + 14, y + 16), (x + 2, y + 29)]), G * k, rng, load0=1.0, dry=0.1, taper=(0.15, 0.0))
+        brush(a, line((x + 2, y + 29), (x + 21, y + 28)), G * k, rng, load0=1.0, dry=0.3, taper=(0.0, 0.2))
+    else:
+        brush(a, curve([(x + 1, y + 4), (x + 10, y), (x + 17, y + 6), (x + 9, y + 13)]), G * k, rng, load0=1.0, dry=0.1, taper=(0.15, 0.05))
+        brush(a, curve([(x + 9, y + 13), (x + 19, y + 19), (x + 13, y + 29), (x + 0, y + 27)]), G * k, rng, load0=1.0, dry=0.3, taper=(0.0, 0.3))
+
+def _heading(n):
+    def draw(rng):
+        a = new()
+        # Two upright strokes and a bar, set left to leave the numeral room.
+        _fmt_stem(a, rng, 14, 18, 14, 76, 1.05)
+        _fmt_stem(a, rng, 50, 18, 50, 76, 1.05)
+        brush(a, line((14, 47), (50, 46)), G * 0.95, rng, load0=1.0, dry=0.3, taper=(0.02, 0.08))
+        _numeral(a, rng, n, 62, 46)
+        return a
+    return draw
+
+def fmt_paragraph(rng):
+    a = new()
+    fill_poly(a, arc(44, 34, 20, 18, 90, 270, 40) + [(44, 16), (44, 52)], rng, rough=0.7)
+    _fmt_stem(a, rng, 46, 14, 46, 84, 0.95)
+    _fmt_stem(a, rng, 66, 14, 66, 84, 0.95, dry=0.35)
+    brush(a, line((40, 15), (76, 14)), G * 0.9, rng, load0=1.0, dry=0.3, taper=(0.02, 0.1))
+    return a
+
+def fmt_quote(rng):
+    a = new()
+    for cx in (30, 64):
+        disc(a, cx, 34, 11.5, rng, wob=0.08)
+        brush(a, curve([(cx + 9, 36), (cx + 6, 52), (cx - 8, 66)]), G * 1.25, rng, load0=1.0, dry=0.2, taper=(0.0, 0.8))
+    return a
+
+def fmt_bold(rng):
+    a = new()
+    k = 1.75
+    brush(a, line((28, 14), (28, 82)), G * k, rng, load0=1.0, dry=0.05, taper=(0.02, 0.04))
+    brush(a, curve([(26, 15), (56, 14), (66, 28), (54, 45), (30, 46)]), G * k * 0.9, rng, load0=1.0, dry=0.05, taper=(0.02, 0.02))
+    brush(a, curve([(32, 46), (64, 47), (74, 63), (60, 81), (26, 81)]), G * k * 0.95, rng, load0=1.0, dry=0.1, taper=(0.02, 0.06))
+    return a
+
+def fmt_italic(rng):
+    a = new()
+    brush(a, line((60, 16), (36, 80)), G * 1.15, rng, load0=1.0, dry=0.3, taper=(0.04, 0.1))
+    brush(a, line((46, 16), (76, 16)), G * 0.85, rng, load0=1.0, dry=0.3, taper=(0.05, 0.15))
+    brush(a, line((20, 80), (50, 80)), G * 0.85, rng, load0=1.0, dry=0.3, taper=(0.05, 0.15))
+    return a
+
+def fmt_underline(rng):
+    a = new()
+    brush(a, curve([(24, 12), (24, 48), (32, 64), (48, 68), (64, 64), (72, 48), (72, 12)]), G * 1.1, rng, load0=1.0, dry=0.25, taper=(0.04, 0.06))
+    brush(a, line((14, 86), (84, 85)), G * 0.95, rng, load0=1.0, dry=0.4, taper=(0.03, 0.2))
+    return a
+
+def fmt_strike(rng):
+    a = new()
+    brush(a, curve([(70, 22), (56, 13), (36, 14), (26, 28), (36, 42), (60, 52), (70, 66), (60, 82), (38, 83), (24, 74)]), G * 1.1, rng, load0=1.0, dry=0.25, taper=(0.06, 0.12))
+    brush(a, line((12, 48), (86, 47)), G * 0.9, rng, load0=1.0, dry=0.35, taper=(0.03, 0.2))
+    return a
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -1005,6 +1086,9 @@ GLYPHS = {
     "check": (check, 1016), "minus": (minus, 1019), "loader": (loader, 1021), "trash": (trash, 1099), "edit": (edit, 1201),
     "search": (search, 1032), "copy": (copy, 1033), "stop": (stop, 1036),
     "folder": (folder, 1038), "folder-open": (folder_open, 1039), "folder-plus": (folder_plus, 1040),
+    "fmt-paragraph": (fmt_paragraph, 7001), "fmt-h1": (_heading(1), 7011), "fmt-h2": (_heading(2), 7012),
+    "fmt-h3": (_heading(3), 7013), "fmt-quote": (fmt_quote, 7021), "fmt-bold": (fmt_bold, 7031),
+    "fmt-italic": (fmt_italic, 7032), "fmt-underline": (fmt_underline, 7033), "fmt-strike": (fmt_strike, 7034),
 }
 OBJECTS = {
     "file-text": (file_text, 2003), "comment-plus": (comment_plus, 2004), "rotate": (rotate, 2006), "sort": (sort_rods, 2009),

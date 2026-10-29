@@ -73,6 +73,14 @@
    Review markers overlay the right native scrollbar. The transparent map lets
    ordinary scrollbar interaction pass through; only the Comment/Agent ticks
    themselves retain pointer events for their existing jump behaviour.
+
+   Every tick is a sand seal multiplied into the paper: a note (comment, TODO,
+   Copilot note) is one small round seal across the track, an Agent change a
+   smaller seal in its own lane (new / changed / deleted). Each seal is
+   pressed once — one of the six seals, turned any way, both fixed by the
+   tick's key (scrollMarkerSeal) — so it never changes on reload. The pointer
+   deepens it; a new tick arrives as sand does, and a tick that goes (a change
+   the author has seen) fades out whole (.is-leaving).
    ============================================================ */
 .editor__scrollmap {
   position: absolute;
@@ -83,71 +91,86 @@
   width: 8px;
   z-index: 9;
   pointer-events: none;
-  opacity: 0.92;
 }
 .editor__scrollmap-tick {
   position: absolute;
-  height: 4px;
-  margin-top: -2px; /* center the tick on its fractional position */
+  left: -1px;
+  right: -1px;
+  height: 8px;
+  margin-top: -4px; /* center the tick on its fractional position */
   padding: 0;
   border: none;
-  border-radius: 0; /* sharp rectangles, VSCode-style — no rounding */
+  background: transparent;
   cursor: pointer;
   pointer-events: auto;
-  opacity: 0.85;
-  transition: opacity 0.12s ease;
 }
-.editor__scrollmap-tick:hover {
+.editor__scrollmap-tick::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: var(--seal-x, 50%);
+  width: var(--seal-d, 6px);
+  height: var(--seal-d, 6px);
+  margin: calc(var(--seal-d, 6px) / -2) 0 0 calc(var(--seal-d, 6px) / -2);
+  background: color-mix(in srgb, var(--tick-c, hsl(var(--ink-3))), #ffffff var(--pigment-lift));
+  mix-blend-mode: var(--pigment-blend);
+  opacity: var(--tick-ink, var(--pigment));
+  transform: rotate(var(--seal-turn, 0deg));
+  -webkit-mask: var(--seal-mask, url('../assets/design/sand/blob-0.png')) center / contain no-repeat;
+  mask: var(--seal-mask, url('../assets/design/sand/blob-0.png')) center / contain no-repeat;
+  transition:
+    opacity 0.3s ease-out,
+    filter 0.16s ease-out;
+  animation: scrollmap-seal-arrive 0.34s ease-out backwards;
+}
+@keyframes scrollmap-seal-arrive {
+  from { opacity: 0; transform: rotate(var(--seal-turn, 0deg)) scale(0.8); filter: blur(1.6px); }
+}
+.editor__scrollmap-tick:hover::before {
   opacity: 1;
+  filter: brightness(0.8) saturate(1.2);
 }
-/* Three vertical lanes for agent ticks (VSCode-git layout):
-   new = left, changed = middle, deleted = right. */
-.editor__scrollmap-tick--lane0 {
-  left: 0;
-  width: 2px;
+.dark .editor__scrollmap-tick:hover::before {
+  filter: brightness(1.25) saturate(1.1);
 }
-.editor__scrollmap-tick--lane1 {
-  left: 3px;
-  width: 2px;
+.editor__scrollmap-tick.is-leaving {
+  pointer-events: none;
 }
-.editor__scrollmap-tick--lane2 {
-  left: 6px;
-  width: 2px;
+.editor__scrollmap-tick.is-leaving::before {
+  opacity: 0;
 }
-/* Comment ticks: a horizontal bar spanning all three lanes, above agent ticks. */
+.editor__scrollmap-tick--seal-0 { --seal-mask: url('../assets/design/sand/blob-0.png'); }
+.editor__scrollmap-tick--seal-1 { --seal-mask: url('../assets/design/sand/blob-1.png'); }
+.editor__scrollmap-tick--seal-2 { --seal-mask: url('../assets/design/sand/blob-2.png'); }
+.editor__scrollmap-tick--seal-3 { --seal-mask: url('../assets/design/sand/blob-3.png'); }
+.editor__scrollmap-tick--seal-4 { --seal-mask: url('../assets/design/sand/blob-4.png'); }
+.editor__scrollmap-tick--seal-5 { --seal-mask: url('../assets/design/sand/blob-5.png'); }
+/* Three lanes for agent ticks (VSCode-git layout): new = left, changed =
+   middle, deleted = right; each a smaller seal centred in its lane. */
+.editor__scrollmap-tick--lane0 { --seal-d: 3.4px; --seal-x: 2.6px; }
+.editor__scrollmap-tick--lane1 { --seal-d: 3.4px; --seal-x: 5px; }
+.editor__scrollmap-tick--lane2 { --seal-d: 3.4px; --seal-x: 7.4px; }
+/* Comment ticks: one seal across all three lanes, above agent ticks. */
 .editor__scrollmap-tick--span {
-  left: 0;
-  right: 0;
-  width: auto;
-  height: 3px;
   z-index: 2;
 }
 
 /* Agent-edit op colours: new = 苔绿 moss green, changed = 群青 ink blue,
-   deleted = muted destructive red. Each drops once its block's reveal has played. */
-.editor__scrollmap-tick--agent-new {
-  background: hsl(var(--story-3));
-}
-.editor__scrollmap-tick--agent-changed {
-  background: hsl(var(--story-2));
-}
-.editor__scrollmap-tick--agent-deleted {
-  background: hsl(var(--story-1));
-}
+   deleted = muted violet. Each fades once its block's reveal has played. */
+.editor__scrollmap-tick--agent-new { --tick-c: hsl(var(--story-3)); }
+.editor__scrollmap-tick--agent-changed { --tick-c: hsl(var(--story-2)); }
+.editor__scrollmap-tick--agent-deleted { --tick-c: hsl(var(--story-1)); }
 
-/* Comment family colours (the spanning bar). */
-.editor__scrollmap-tick--c-manual {
-  background: hsl(var(--comment)); /* 胭脂 rouge */
-}
-.editor__scrollmap-tick--c-copilot {
-  background: hsl(var(--story-2)); /* 群青 abyss blue */
-}
-.editor__scrollmap-tick--c-todo {
-  background: hsl(var(--story-4)); /* 赭黄 ochre */
-}
+/* Comment family colours. */
+.editor__scrollmap-tick--c-manual { --tick-c: hsl(var(--comment)); /* 胭脂 rouge */ }
+.editor__scrollmap-tick--c-copilot { --tick-c: hsl(var(--story-2)); /* 群青 abyss blue */ }
+.editor__scrollmap-tick--c-todo { --tick-c: hsl(var(--story-4)); /* 赭黄 ochre */ }
 .editor__scrollmap-tick--resolved {
-  background: hsl(var(--rule-strong));
-  opacity: 0.5;
+  --tick-c: hsl(var(--ink-4));
+  --tick-ink: 0.4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor__scrollmap-tick::before { animation: none; transition: none; }
 }
 
 /* The block jumped to (scrollbar tick / patch card / block-anchored TODO) is
@@ -606,11 +629,18 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   color: hsl(var(--ink-4));
   font-style: italic;
 }
-/* The editing actions for a text selection: one horizontal bar floating over
-   the selected text (EditorSelectionBar; right-clicking is left to the system
-   menu). 「格式」 unfolds its block and inline formats as a second row on the
-   far side of the bar. Same lifted-desk surface as menus; only the button
-   under the pointer carries flowing glass. */
+/* The editing actions for a text selection (EditorSelectionBar;
+   right-clicking is left to the system menu): one glass long pill floating
+   over the selected text, like the manuscript's toolbar — its resting line,
+   the floating fill, no shadow — each action a short pill whose glass shows
+   only under the pointer. 「格式」 unfolds a second long pill of round glass
+   buttons, each a sand glyph, on the far side of the bar. The two pills are
+   siblings on the body, never one inside the other: the pointer, the drift
+   and the press belong to whichever is under the pointer, and a long pill is
+   a container that never thickens when something in it is pressed
+   (`.glass--surface`). An applied format, and 「格式」 while its pill is out,
+   is the still selected glass. The bar floats in once the selection settles;
+   the formats unfold over 150ms and fold back in 110ms. */
 .editor-selection-bar {
   position: fixed;
   z-index: var(--z-context-menu);
@@ -618,52 +648,111 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   flex-direction: row;
   align-items: center;
   gap: 2px;
-  padding: 3px;
-  background: var(--menu-surface-bg);
-  box-shadow: var(--menu-surface-shadow);
+  padding: 4px;
+  border-radius: 20px;
+  --glass-rim: 12px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
   color: hsl(var(--ink-2));
   font-family: var(--font-sans);
-  font-size: var(--ui-font-body, 12.5px);
+  font-size: var(--ui-font-secondary, 12.5px);
   line-height: 18px;
   white-space: nowrap;
+  animation: editor-selection-bar-in 0.16s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.editor-comment-menu.editor-selection-bar.glass {
+  --glass-gx: -168px;
+  --glass-gy: -18px;
+}
+@keyframes editor-selection-bar-in {
+  from { opacity: 0; translate: 0 3px; }
 }
 .editor-selection-bar__formats {
   z-index: calc(var(--z-context-menu) + 1);
-  flex-wrap: wrap;
-  max-width: min(560px, calc(100vw - 12px));
+  visibility: hidden;
+  opacity: 0;
+  translate: 0 4px;
+  animation: none;
+  transition:
+    opacity 0.11s ease-in,
+    translate 0.11s ease-in,
+    visibility 0s linear 0.11s;
+}
+.editor-selection-bar__formats.is-open {
+  visibility: visible;
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity 0.15s ease-out,
+    translate 0.15s ease-out,
+    visibility 0s;
 }
 .editor-selection-bar__item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 9px;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 3px;
+  border-radius: 14px;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
+  transition: color 0.12s ease-out;
 }
 .editor-selection-bar__item:hover,
-.editor-selection-bar__item:focus-visible {
+.editor-selection-bar__item:focus-visible,
+.editor-selection-bar__item[aria-expanded='true'] {
   color: hsl(var(--ink-1));
 }
-/* Active format (mark/block already applied to the selection), snapshotted
-   when the bar opens. */
-.editor-selection-bar__item.is-active {
+.editor-selection-bar__format {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  cursor: pointer;
+  transition: color 0.12s ease-out;
+}
+.editor-selection-bar__format:hover,
+.editor-selection-bar__format:focus-visible,
+.editor-selection-bar__format[aria-pressed='true'] {
   color: hsl(var(--ink-1));
-  font-weight: 600;
+}
+/* Small glass: every button takes the dense patch, not the sparse first one. */
+.editor-selection-bar > .glass:nth-of-type(4n + 1) {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
 }
 .editor-comment-menu__chevron {
   opacity: 0.45;
 }
-/* Between block transforms and inline marks. */
+/* Between block formats and inline marks: a little space. */
 .editor-selection-bar__sep {
-  align-self: stretch;
-  width: 0.5px;
-  margin: 4px 3px;
-  background: hsl(var(--ink-1) / 0.16);
+  flex: none;
+  width: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-selection-bar { animation: none; }
+  .editor-selection-bar__formats,
+  .editor-selection-bar__formats.is-open { transition: none; }
+}
+/* The paused mobile shell keeps the lifted desk surface it had. */
+html[data-shell-mode='mobile'] .editor-selection-bar {
+  border-radius: var(--menu-surface-radius);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
+  display: none;
 }
 
 /* ============================================================
@@ -743,31 +832,21 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
 }
 .editor__toc-tag-num {
   flex: none;
-  color: hsl(var(--accent));
+  color: hsl(var(--ink-4));
   font-family: var(--font-mono);
   font-size: 0.88em;
 }
-.editor__toc-tag-branch {
-  flex: none;
-  color: hsl(var(--ink-5));
-  font-size: 9px;
-}
 
 /* Five structural levels stay uniform across every editor. Their compact rail
-   treatment preserves the existing "deeper = quieter" hierarchy. */
+   treatment preserves the existing "deeper = quieter" hierarchy; acts are set
+   in the serif structure face. */
 .editor__toc-tag--l1 {
-  font-family: var(--font-sans);
-  font-size: 10px;
+  font-family: var(--font-structure, var(--font-sans));
+  font-size: 11px;
   font-style: normal;
   font-weight: 500;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.02em;
   color: hsl(var(--ink-3));
-}
-.editor__toc-tag--l1::before {
-  content: '';
-  width: 10px;
-  height: 1px;
-  background: hsl(var(--rule-strong));
 }
 .editor__toc-tag--l2 {
   font-family: var(--font-sans);
@@ -794,18 +873,54 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   color: hsl(var(--ink-5));
 }
 
-/* Viewport intersection and the primary reading location are expressed only
-   through text colour/weight. Tags never acquire a chip, frame, or wash. */
+/* Viewport intersection is expressed through text colour; every level above
+   the reading location on its path is bold ink. The reading location itself
+   (the lowest level) carries one short level swipe of dry sand across the
+   lower half of its first characters, in its owner's colour (--toc-sand: a
+   chapter's storyline, an editor's storyline or category; ink otherwise).
+   Tags never acquire a chip, frame, or wash. A jump the author clicked draws
+   the swipe along the label (data-sand="draw"); arriving by scrolling fades
+   it in whole, and the old one fades out. */
 .editor__toc-tag.is-visible {
   color: hsl(var(--ink-2));
 }
 .editor__toc-tag.is-active-path:not(.is-primary) {
-  color: hsl(var(--accent) / 0.82);
+  color: hsl(var(--ink-1));
+  font-weight: 600;
 }
 .editor__toc-tag.is-primary {
   z-index: 5;
-  color: hsl(var(--accent));
-  font-weight: 600;
+  color: hsl(var(--ink-1));
+}
+.editor__toc-tag-sand {
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 0;
+  z-index: -1;
+  width: min(calc(100% + 4px), 2.8em);
+  height: 5px;
+  background: color-mix(in srgb, var(--toc-sand, hsl(var(--ink-3))), #ffffff var(--pigment-lift));
+  mix-blend-mode: var(--pigment-blend);
+  -webkit-mask: url('../assets/design/sand/hl.png') 0 0 / 100% 100% no-repeat;
+  mask: url('../assets/design/sand/hl.png') 0 0 / 100% 100% no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-out;
+}
+.editor__toc-tag.is-primary > .editor__toc-tag-sand {
+  opacity: var(--pigment);
+}
+.editor__toc-tag.is-primary[data-sand='draw'] > .editor__toc-tag-sand {
+  transition: none;
+  animation: toc-sand-draw 0.38s cubic-bezier(0.3, 0.6, 0.3, 1) both;
+}
+@keyframes toc-sand-draw {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor__toc-tag-sand { transition: none; }
+  .editor__toc-tag.is-primary[data-sand='draw'] > .editor__toc-tag-sand { animation: none; }
 }
 .editor__toc-omission {
   min-width: 22px;
@@ -851,70 +966,46 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   text-align: left;
 }
 /* A distant omission restores nearby real TOC tags on hover/focus. This is a
-   compact traversal aid, not a magnification animation or the retired panel. */
+   compact traversal aid, not a magnification animation or the retired panel:
+   a compact menu surface (a lifted piece of desk) of rail-sized rows, whose
+   hovered row bleeds the menu row's ring of flowing glass. */
 .editor__toc-omission-reveal {
   position: fixed;
-  width: 190px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  padding: 3px 5px 3px 24px;
-  border: 0;
-  background: transparent;
   z-index: calc(var(--z-context-menu) + 2);
-}
-.editor__toc-omission-reveal--edge {
-  align-items: flex-start;
-  padding: 3px 24px 3px 5px;
 }
 .editor__toc-reveal-item {
   display: block;
-  max-width: 100%;
-  padding: 2px 7px;
+  min-height: 0;
+  padding: 4px 12px;
   overflow: hidden;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
   color: hsl(var(--ink-3));
   font-family: var(--font-sans);
-  font-size: 9.5px;
+  font-size: 10.5px;
   line-height: 1.35;
-  text-align: right;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-}
-.editor__toc-reveal-item:hover,
-.editor__toc-reveal-item:focus-visible {
-  color: hsl(var(--accent));
-  background: transparent;
-  outline: none;
-}
-.editor__toc-omission-reveal--edge .editor__toc-reveal-item {
-  text-align: left;
 }
 .editor__toc-reveal-item--l1 {
-  font-size: 10px;
+  font-family: var(--font-structure, var(--font-sans));
+  font-size: 11px;
   font-style: normal;
+  font-weight: 500;
 }
-.editor__toc-reveal-item--root {
-  color: hsl(var(--ink-2));
-  font-size: 10.5px;
-  font-weight: 600;
-}
+.editor__toc-reveal-item--root,
 .editor__toc-reveal-item--l2 {
   color: hsl(var(--ink-2));
-  font-size: 10.5px;
   font-weight: 550;
 }
 .editor__toc-reveal-item--l4 {
-  font-size: 9px;
+  font-size: 9.5px;
   font-style: normal;
 }
 .editor__toc-reveal-item--l5 {
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 9px;
 }
 
 /* Scene + Beat headers — render inside .page__body for non-chapter editors,
@@ -2248,6 +2339,15 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
 }
 .comment-source-hover__entity--mark > strong {
   font-weight: 500;
+}
+
+/* The desktop editor runs up under the window-control row (the drag strip,
+   the sidebar toggles in the window's top corners, the dock), and its lower
+   right corner holds the paper's toolbar (`.editor-corner`: 16px in, 36px
+   tall). The rail keeps clear of both, so nothing covers its buttons. */
+.editor-body > .sticky-note-rail.sticky-note-rail--glass {
+  top: calc(var(--window-titlebar-height) + 4px);
+  bottom: calc(16px + 36px + 8px);
 }
 
 /* The sticky-note rail's toolbar: its count in the index type and two round

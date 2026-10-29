@@ -28,14 +28,16 @@ describe('workspace surface language acceptance', () => {
     expect(workspace).toContain('<Sidebar sidebarType="right">');
     expect(centerColumn).toContain('<WorkspaceCornerControls />');
     // The dock runs along the paper's top; the timeline toggle rests in the
-    // paper's lower-right corner, so it rides above the optional Bottom
-    // Timeline, which slides in its own drawer. The word count is gone.
+    // paper's lower-right corner, so it rides above the one optional dock
+    // under the paper, which slides in its own drawer and holds the Bottom
+    // Timeline or the plot planner, never both. The word count is gone.
     const stage = block(centerColumn, 'className="workspace-stage desktop-workspace-stage"', '</div>');
     expect(stage).toContain('<WorkspaceTabDock />');
     expect(stage).toContain('<StageTimelineToggle />');
     expect(workspace).not.toContain('WorkspaceWordCount');
-    expect(centerColumn).toContain('<TimelineDrawer open={!bottomTimelineHidden}>');
-    expect(centerColumn).toContain('<DesktopBottomTimeline />');
+    expect(centerColumn).toContain('<TimelineDrawer open={dockPane !== null}>');
+    expect(centerColumn).toContain('<BottomDockSwap show={dockPane ?? lastPane}>');
+    expect(centerColumn).toContain('{{ timeline: <DesktopBottomTimeline />, planner: <PlotPlannerSlot /> }}');
     // The sidebar toggles are fixed above all three columns.
     expect(workspace).toContain('<WorkspaceSidebarToggles />');
     for (const removed of ['AppTopbar', 'BottomStatusBar']) {
@@ -912,8 +914,10 @@ describe('workspace surface language acceptance', () => {
     expect(block(planner, '.pl-table {', '.pl-corner {')).toMatch(
       /border-collapse:\s*collapse;[\s\S]*?border-spacing:\s*0;/,
     );
+    // The phone keeps its hairline table; desktop draws the grid as lanes of
+    // paper slips (paper-tools-sand-glass.acceptance.test.ts).
     expect(
-      block(planner, '.pl-cell {\n  background: hsl(var(--page));', '.pl-cell:hover {'),
+      block(planner, ".planner-wrap[data-presentation='mobile'] .pl-cell {", '}'),
     ).toMatch(/border-radius:\s*0;[\s\S]*?box-shadow:\s*none;/);
   });
 
@@ -963,7 +967,7 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('**红灯关闭项目**');
     expect(doc).toContain('不重新定义现有配色');
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');
-    expect(doc).toContain('Plot Planner 是连续的 mini-Excel');
+    expect(doc).toContain('Plot Planner 是一张连续的网格，不是带 gap、阴影和 hover lift 的卡片集合');
     expect(doc).toContain('不能替代 macOS 窗口控件几何、iOS 或 Android 上的视觉、触摸和动效验收');
   });
 
@@ -1231,6 +1235,11 @@ describe('workspace surface language acceptance', () => {
     expect(desktopReview).toContain(".todo-status-toggle--glass[aria-pressed='true'] .todo-status-toggle__tick {");
     // The source card names its sources by their sand marks.
     expect(sourceCard).toContain('<KindMark kind={kindMarkOfTarget(entity.targetKind, entity.isDrift)}');
+    // The rail keeps clear of the window-control row and the paper's toolbar,
+    // so neither the drag strip nor a sidebar toggle covers its buttons.
+    const railPlace = block(desktopReview, '.editor-body > .sticky-note-rail.sticky-note-rail--glass {', '}');
+    expect(railPlace).toContain('top: calc(var(--window-titlebar-height) + 4px);');
+    expect(railPlace).toContain('bottom: calc(16px + 36px + 8px);');
     // The rail's stacking switch keeps one word; stacked is its selected glass.
     expect(rail).toContain('aria-pressed={stacked}');
     expect(rail).toContain('glass="round"');

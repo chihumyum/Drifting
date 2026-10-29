@@ -549,10 +549,10 @@ interface UiState {
   setSelectedElementId: (id: string | null) => void;
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
-  // BottomTimeline visibility. The bottom status bar always shows; the
-  // timeline is hidden by default off-button-click, restored by the same
-  // button. There is no "collapsed" timeline state anymore — it's either
-  // present in full or absent entirely.
+  // BottomTimeline visibility. The timeline is hidden off-button-click,
+  // restored by the same button. There is no "collapsed" timeline state —
+  // it's either present in full or absent entirely. It shares the one dock
+  // under the paper with the plot planner: opening either closes the other.
   bottomTimelineHidden: boolean;
   setBottomTimelineHidden: (hidden: boolean) => void;
   toggleBottomTimelineHidden: () => void;
@@ -561,10 +561,11 @@ interface UiState {
   tabDockLocked: boolean;
   toggleTabDockLocked: () => void;
 
-  // In-chapter plot planner dock (mini-Excel grid). Global visibility flag
-  // like the outline toggle — each node editor renders its OWN node's grid.
-  // Height is shared across nodes; null = default. Both persisted so the
-  // layout sticks across sessions.
+  // The plot planner, in the dock under the paper it shares with the Bottom
+  // Timeline (opening either closes the other). Global visibility flag like
+  // the outline toggle — the focused node editor renders its OWN node's
+  // grid there. Height is shared across nodes; null = default. Both
+  // persisted so the layout sticks across sessions.
   plotPlannerOpen: boolean;
   setPlotPlannerOpen: (open: boolean) => void;
   togglePlotPlannerOpen: () => void;
@@ -987,19 +988,30 @@ export const useUiStore = create<UiState>()(
           },
         })),
       bottomTimelineHidden: false,
-      setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
+      setBottomTimelineHidden: (hidden) =>
+        set(hidden ? { bottomTimelineHidden: true } : { bottomTimelineHidden: false, plotPlannerOpen: false }),
 
       bottomTimelineUnaffiliatedVisible: false,
       setBottomTimelineUnaffiliatedVisible: (visible) =>
         set({ bottomTimelineUnaffiliatedVisible: visible }),
       toggleBottomTimelineHidden: () =>
-        set((state) => ({ bottomTimelineHidden: !state.bottomTimelineHidden })),
+        set((state) =>
+          state.bottomTimelineHidden
+            ? { bottomTimelineHidden: false, plotPlannerOpen: false }
+            : { bottomTimelineHidden: true },
+        ),
       tabDockLocked: false,
       toggleTabDockLocked: () => set((state) => ({ tabDockLocked: !state.tabDockLocked })),
 
       plotPlannerOpen: false,
-      setPlotPlannerOpen: (open) => set({ plotPlannerOpen: open }),
-      togglePlotPlannerOpen: () => set((state) => ({ plotPlannerOpen: !state.plotPlannerOpen })),
+      setPlotPlannerOpen: (open) =>
+        set(open ? { plotPlannerOpen: true, bottomTimelineHidden: true } : { plotPlannerOpen: false }),
+      togglePlotPlannerOpen: () =>
+        set((state) =>
+          state.plotPlannerOpen
+            ? { plotPlannerOpen: false }
+            : { plotPlannerOpen: true, bottomTimelineHidden: true },
+        ),
       plotPlannerHeight: null,
       setPlotPlannerHeight: (height) => set({ plotPlannerHeight: height }),
 
@@ -1960,6 +1972,9 @@ export const useUiStore = create<UiState>()(
         }
         // Retired: the material panel has a single folder view.
         delete (merged as { libraryViewMode?: unknown }).libraryViewMode;
+        // The timeline and the plot planner now share one dock; state saved
+        // when both could be open keeps the timeline.
+        if (merged.plotPlannerOpen && !merged.bottomTimelineHidden) merged.plotPlannerOpen = false;
         // Retired Shadow selections fall back to the Agent group.
         if ((merged.activeRightPanel as string) === 'shadow') {
           merged.activeRightPanel = 'library';

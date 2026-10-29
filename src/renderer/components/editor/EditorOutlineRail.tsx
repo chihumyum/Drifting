@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type WheelEvent,
   useCallback,
   useEffect,
@@ -20,6 +21,7 @@ import {
   flattenOutlineEntries,
   layoutOutlineRailLabels,
   outlineActivePathIds,
+  outlineEntryColor,
   planOutlineRail,
   visibleOutlineIds,
   type FlatOutlineEntry,
@@ -35,6 +37,8 @@ interface Props {
   onItemClick?: (id: string) => void;
   emptyHint?: string;
   secondaryItems?: OutlineEntry[];
+  /** The editor's owner colour (storyline or category), for entries that carry none. */
+  color?: string;
 }
 
 interface OmissionReveal {
@@ -46,7 +50,8 @@ const subscribeEmpty = () => () => undefined;
 const emptyViewport = () => EMPTY_OUTLINE_VIEWPORT;
 
 const OMISSION_REVEAL_LIMIT = 10;
-const OMISSION_REVEAL_WIDTH = 190;
+// The compact menu width (--menu-width-compact).
+const OMISSION_REVEAL_WIDTH = 180;
 
 function entryTier(entry: FlatOutlineEntry): 'l1' | 'l2' | 'l3' | 'l4' | 'l5' {
   if (entry.item.kind === 'act') return 'l1';
@@ -101,6 +106,7 @@ function VisibleEditorOutlineRail({
   onItemClick,
   emptyHint,
   secondaryItems,
+  color,
   labelPitch,
   portalTargetId,
 }: Props & { labelPitch?: number; portalTargetId?: string }) {
@@ -163,6 +169,14 @@ function VisibleEditorOutlineRail({
     [flat, geometry],
   );
   const activePathIds = useMemo(() => outlineActivePathIds(flat, primaryId), [flat, primaryId]);
+  // The reading location carries one short swipe of sand in its owner's
+  // colour. A jump the author clicked draws it along the label; arriving by
+  // scrolling fades the swipe in whole.
+  const sandColor = useMemo(() => outlineEntryColor(flat, primaryId) ?? color, [color, flat, primaryId]);
+  const [drawn, setDrawn] = useState<{ id: string; reached: boolean } | null>(null);
+  if (drawn && !drawn.reached && primaryId === drawn.id) setDrawn({ id: drawn.id, reached: true });
+  if (drawn?.reached && primaryId !== drawn.id) setDrawn(null);
+  const sandDrawn = primaryId != null && drawn?.id === primaryId;
   const plan = useMemo(
     () => planOutlineRail(flat, primaryId, railHeight, geometry.fractions, labelPitch),
     [flat, geometry.fractions, labelPitch, primaryId, railHeight],
@@ -210,6 +224,7 @@ function VisibleEditorOutlineRail({
   };
 
   const jumpToEntry = (id: string) => {
+    if (id !== primaryId) setDrawn({ id, reached: false });
     viewport?.pin(id);
     onItemClick?.(id);
   };
@@ -249,6 +264,7 @@ function VisibleEditorOutlineRail({
         aria-label={`${title} · ${t('editorOutline.aria')}`}
         data-density={plan.mode}
         data-placement="edge"
+        style={sandColor ? ({ '--toc-sand': sandColor } as CSSProperties) : undefined}
         onWheel={handleWheel}
       >
       <div className="editor__toc-labels">
@@ -300,15 +316,12 @@ function VisibleEditorOutlineRail({
               style={style}
               onClick={() => jumpToEntry(entry.id)}
               aria-current={primary ? 'location' : undefined}
+              data-sand={primary && sandDrawn ? 'draw' : undefined}
               title={entry.item.text}
             >
+              <i className="editor__toc-tag-sand" aria-hidden="true" />
               {entry.item.num && <span className="editor__toc-tag-num">{entry.item.num}</span>}
               <span className="editor__toc-tag-text">{entry.item.text}</span>
-              {entry.item.children?.length ? (
-                <span className="editor__toc-tag-branch" aria-hidden>
-                  ·
-                </span>
-              ) : null}
             </button>
           );
         })}
@@ -317,7 +330,7 @@ function VisibleEditorOutlineRail({
       {omissionReveal && isVisible && typeof document !== 'undefined'
         ? createPortal(
             <div
-              className="editor__toc-omission-reveal editor__toc-omission-reveal--edge"
+              className="menu-surface menu-surface--compact editor__toc-omission-reveal editor__toc-omission-reveal--edge"
               role="group"
               aria-label={t('editorOutline.hiddenItems', {
                 count: omissionReveal.label.entries.length,
@@ -343,7 +356,7 @@ function VisibleEditorOutlineRail({
                 <button
                   key={entry.id}
                   type="button"
-                  className={`editor__toc-reveal-item editor__toc-reveal-item--${entryTier(entry)}`}
+                  className={`menu-surface__item editor__toc-reveal-item editor__toc-reveal-item--${entryTier(entry)}`}
                   title={entry.item.text}
                   onClick={() => {
                     setOmissionReveal(null);
