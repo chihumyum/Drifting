@@ -72,6 +72,28 @@
   color: hsl(var(--accent));
   border-color: hsl(var(--accent) / 0.35);
 }
+/* Desktop: a section's own action is a text button — no glass, the pointer
+   only deepens it. */
+.refs-section__text-action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.refs-section__text-action:hover,
+.refs-section__text-action:focus-visible {
+  color: hsl(var(--ink-1));
+}
 
 .refs-empty {
   font-family: var(--font-sans);
@@ -223,6 +245,64 @@
   background: transparent;
 }
 
+/* Desktop: a relation is a card with no fill and the resting glass line that
+   flows under the pointer (.glass--rest .glass--surface). Its kind is the
+   other entity's sand mark; its type is a word after a dash of sand in the
+   type's colour. Adding goes through the header's text action. */
+.refs-rel-card--glass {
+  border: 0;
+  border-radius: 2px;
+}
+.refs-rel-card--glass:hover {
+  background: transparent;
+}
+.refs-rel-card--glass .refs-rel-card__remove {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: hsl(var(--ink-4));
+}
+.refs-rel-card--glass .refs-rel-card__remove:hover,
+.refs-rel-card--glass .refs-rel-card__remove:focus-visible {
+  color: hsl(var(--ink-1));
+  opacity: 1;
+}
+.refs-rel-card--glass .refs-rel-card__title:hover {
+  color: hsl(var(--ink-2));
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--ink-5));
+  text-underline-offset: 3px;
+}
+.refs-rel-card--glass .refs-rel-card__type.relation-type-field__button {
+  max-width: 100%;
+  gap: 6px;
+  height: 22px;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-content);
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.refs-rel-card--glass .refs-rel-card__type.relation-type-field__button:hover {
+  color: hsl(var(--ink-1));
+}
+:is(.refs-rel-card__type, .refs-picker__type) .relation-kind-suggestions__marker {
+  width: 16px;
+  height: 6px;
+  border-radius: 0;
+  -webkit-mask: url('../assets/design/sand/mark-dash.png') center / 100% 100% no-repeat;
+  mask: url('../assets/design/sand/mark-dash.png') center / 100% 100% no-repeat;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: var(--pigment);
+}
+
 /* Mention cards — inline backlinks / outgoing reference rows. */
 .refs-cards {
   display: flex;
@@ -295,6 +375,27 @@
   opacity: 1;
   color: hsl(var(--accent));
   transform: translateX(2px);
+}
+
+/* Desktop: mention rows stay flat between their dotted rules; the pointer
+   only deepens the name and brings the arrow in. Kinds are sand marks. */
+.refs-cards--plain .refs-card {
+  gap: 8px;
+}
+.refs-cards--plain .refs-card:hover {
+  background: transparent;
+}
+.refs-cards--plain .refs-card__title {
+  font-style: normal;
+  color: hsl(var(--ink-2));
+  transition: color 0.12s;
+}
+.refs-cards--plain .refs-card:is(:hover, :focus-visible) .refs-card__title {
+  color: hsl(var(--ink-1));
+}
+.refs-cards--plain .refs-card:is(:hover, :focus-visible) .refs-card__arrow {
+  opacity: 1;
+  color: hsl(var(--ink-3));
 }
 
 /* Link picker — paper-deep envelope with mono filter chips. */
@@ -452,6 +553,101 @@
   font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
+  color: hsl(var(--ink-4));
+}
+
+/* Desktop: the picker opens in place with no envelope. Kinds are one
+   GlassSlider, the query the shared single-line field (.ui-field), candidates
+   sidebar cells (mark, name, kind); the chosen one's relation type and
+   「创建」 (the primary Button) sit under them. */
+.refs-picker--glass {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.refs-picker--glass .refs-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 0;
+}
+.refs-picker--glass .refs-picker__item {
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+}
+.refs-picker--glass .refs-picker__item:hover {
+  background: transparent;
+}
+.refs-picker--glass .refs-picker__item-name {
+  font-style: normal;
+}
+.refs-picker--glass .refs-picker__item-kind {
+  width: auto;
+  margin-left: auto;
+}
+.refs-picker--glass .refs-picker__relation-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 0 2px;
+  border-top: 1px dotted hsl(var(--rule));
+  border-radius: 0;
+  background: transparent;
+}
+.refs-picker--glass .refs-picker__selected-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-content);
+  font-size: 13.5px;
+  color: hsl(var(--ink-1));
+}
+.refs-picker__type-field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.refs-picker__type.relation-type-field__button {
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  font-family: var(--font-content);
+  font-size: 12.5px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+}
+
+/* A many-to-one inside the page (picker kinds, list filters): the shared
+   GlassSlider with the page's sans words instead of the panel header's mono. */
+.glass-slider.entity-slider {
+  align-self: flex-start;
+}
+.entity-slider .glass-slider__option {
+  min-height: 24px;
+  padding: 4px 10px;
+  font: 500 12px/1 var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  color: hsl(var(--ink-3));
+}
+.entity-slider .glass-slider__option:hover,
+.entity-slider .glass-slider__option[aria-checked='true'] {
+  color: hsl(var(--ink-1));
+}
+.entity-slider__count {
+  margin-left: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   color: hsl(var(--ink-4));
 }
 
@@ -663,7 +859,9 @@
   margin: 4px 8px;
   border-top: 1px dotted hsl(var(--rule));
 }
-.patch-card__anchor-pop-item {
+/* Scoped to the popover so the shared menu row (.menu-surface__item, which
+   desktop adds for its hover ring) keeps this row's own layout and face. */
+.patch-card__anchor-pop .patch-card__anchor-pop-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -683,13 +881,16 @@
   background: hsl(var(--ink-1) / 0.04);
   color: hsl(var(--ink-1));
 }
-.patch-card__anchor-pop-item--current {
+.patch-card__anchor-pop-item.menu-surface__item:hover {
+  background: transparent;
+}
+.patch-card__anchor-pop .patch-card__anchor-pop-item--current {
   color: hsl(var(--ink-1));
 }
-.patch-card__anchor-pop-item--detach {
+.patch-card__anchor-pop .patch-card__anchor-pop-item--detach {
   color: hsl(var(--ink-4));
 }
-.patch-card__anchor-pop-item--detach.patch-card__anchor-pop-item--current {
+.patch-card__anchor-pop .patch-card__anchor-pop-item--detach.patch-card__anchor-pop-item--current {
   color: hsl(var(--ink-2));
 }
 .patch-card__anchor-pop-mark {
@@ -835,6 +1036,72 @@
   margin-bottom: 0;
 }
 
+/* Desktop: each patch is a card with no fill and the resting glass line that
+   flows under the pointer (.glass--rest .glass--surface). Invalid says so in
+   the danger ink with the brush「！」; the original-text snapshot is a
+   read-only card (.glass--still); a patch the Agent has just added or is
+   taking away is pushed in once (.glass-sweep), its tag a word in ink. */
+.patch-card--glass {
+  margin-bottom: 8px;
+  padding: 6px 12px 8px 8px;
+  border-bottom: 0;
+  border-radius: 2px;
+}
+.patch-card--glass:last-child {
+  margin-bottom: 0;
+  padding-bottom: 8px;
+}
+.patch-card--glass
+  :is(.patch-card__toggle, .patch-card__anchor-link, .patch-card__anchor-edit, .patch-card__delete):hover {
+  color: hsl(var(--ink-1));
+}
+.patch-card--glass:focus-within :is(.patch-card__anchor-edit, .patch-card__delete) {
+  opacity: 1;
+}
+.patch-card__invalid {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--destructive));
+}
+button.patch-card__invalid {
+  cursor: pointer;
+}
+.patch-card--glass .patch-card__snapshot {
+  margin: 2px 0 8px 22px;
+  padding: 7px 10px 8px;
+  border-radius: 2px;
+  background: transparent;
+}
+.patch-card--glass .patch-card__snapshot-body {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.patch-card__agent-tag {
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: capitalize;
+  color: hsl(var(--accent));
+}
+.patch-card__agent-tag--del {
+  color: hsl(var(--destructive));
+}
+.patch-card--agent-delete :is(.patch-card__title, .patch-card__body) {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-4));
+}
+
 /* ============================================================
    Authored-content typography
 
@@ -908,6 +1175,118 @@
   mask: url('../assets/design/icons/check.png') center / 11px 11px no-repeat;
 }
 
+/* Desktop: no colour slab in the hero — the storyline's dash or the
+   category's corner, drawn large ahead of the name. Colours are a row of
+   round glass, each holding a seal of its colour; the chosen one is that
+   colour's still selected glass. */
+.entity-hero__name-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.entity-hero__name-row > .elem-hero__name {
+  flex: 1;
+  min-width: 0;
+}
+.kind-mark.entity-hero__mark {
+  width: 30px;
+  height: 30px;
+  margin-top: 10px;
+}
+.kind-mark--storyline.entity-hero__mark > .sand {
+  left: -2px;
+  top: calc(50% - 6px);
+  width: 34px;
+  height: 12px;
+}
+.kind-mark--category.entity-hero__mark > .sand {
+  inset: 2px;
+}
+.elem-hero__facts:has(.col-pick--glass) {
+  align-items: center;
+}
+.col-pick--glass {
+  gap: 6px;
+  padding: 2px 0;
+}
+.col-pick__dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.col-pick__dot.glass {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+.col-pick__dot > .sand {
+  width: 15px;
+  height: 15px;
+}
+
+/* Desktop element aliases: plain words set apart by a dot. The one under the
+   pointer takes a sidebar cell's hairline ring and shows its ×. */
+.entity-aliases {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  font-family: var(--font-content);
+  font-size: 13px;
+  color: hsl(var(--ink-2));
+}
+.entity-alias {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 4px 0 7px;
+  border-radius: 2px;
+}
+.entity-alias__sep {
+  color: hsl(var(--ink-5));
+}
+.entity-alias__remove {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
+}
+.entity-alias:hover .entity-alias__remove,
+.entity-alias__remove:focus-visible {
+  opacity: 1;
+}
+.entity-alias__remove:hover {
+  color: hsl(var(--ink-1));
+}
+.entity-aliases__input {
+  min-width: 80px;
+  padding: 2px 4px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: hsl(var(--ink-3));
+}
+.entity-aliases__input::placeholder {
+  color: hsl(var(--ink-4));
+}
+
 /* ============================================================
    Management editors — shared list/row/toolbar
    (storyline editor's chapter list + category editor's element list)
@@ -927,49 +1306,6 @@
   gap: 4px;
   flex-wrap: wrap;
 }
-.mgr-toolbar__actions {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-.mgr-toolbar__btn {
-  padding: 4px 10px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  cursor: pointer;
-  background: transparent;
-  transition:
-    color 0.12s,
-    background 0.12s,
-    border-color 0.12s;
-}
-.mgr-toolbar__btn:hover {
-  color: hsl(var(--ink-1));
-  border-color: hsl(var(--ink-3));
-}
-.mgr-toolbar__btn--accent {
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent) / 0.4);
-}
-.mgr-toolbar__btn--accent:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--accent));
-}
-.mgr-toolbar__btn-glyph {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 13px;
-  text-transform: none;
-  letter-spacing: 0;
-  margin-right: 2px;
-}
-
 .mgr-list {
   display: flex;
   flex-direction: column;
@@ -1154,37 +1490,46 @@
   background: hsl(var(--accent) / 0.08);
 }
 
-.mgr-add {
-  margin: 14px 0 4px;
-  padding: 14px;
-  border: 1px dashed hsl(var(--rule-strong));
-  border-radius: 2px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: hsl(var(--ink-4));
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Desktop: a row is a sidebar cell — no wash and no side bar; the pointer
+   brings a hairline ring of the storyline's or category's glass, and the
+   arrow. Its status is the entity's own sand mark, hollow while the chapter
+   is unwritten or the element has nothing in it yet. */
+.mgr-toolbar--glass {
+  padding: 0 0 4px;
+  border-bottom: 0;
+}
+.mgr-list--glass {
+  gap: 2px;
+}
+.mgr-row--glass {
+  grid-template-columns: 14px 44px 1fr auto 16px;
   gap: 10px;
-  transition:
-    color 0.12s,
-    border-color 0.12s,
-    background 0.12s;
+  padding: 10px 8px 10px 10px;
+  border-bottom: 0;
+  border-radius: 2px;
 }
-.mgr-add:hover {
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent) / 0.4);
-  background: hsl(var(--accent) / 0.08);
+.mgr-row--glass:hover {
+  background: transparent;
 }
-.mgr-add__glyph {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 18px;
-  text-transform: none;
-  letter-spacing: 0;
+.mgr-row--glass::before {
+  content: none;
+}
+.mgr-row__mark {
+  margin-top: 5px;
+}
+.mgr-row--glass .mgr-row__open {
+  width: 16px;
+  height: 16px;
+  color: hsl(var(--ink-3));
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.mgr-row--glass:is(:hover, :focus-visible) .mgr-row__open {
+  opacity: 1;
+}
+.mgr-row--glass .mgr-row__open:hover {
+  color: hsl(var(--ink-1));
+  background: transparent;
 }
 
 /* Empty state at the bottom of an empty mgr-list */
@@ -1302,6 +1647,163 @@
 }
 .kv-editor[data-variant='template'] .kv-editor__key {
   color: hsl(var(--ink-2));
+}
+
+/* Desktop: each row is one slip of resting glass the author writes in
+   (.glass--rest .glass--field) — no fill, no line between name and value;
+   while it holds the caret it is the still selected glass. × and 添加字段 are
+   text buttons. */
+.kv-editor--glass .kv-editor__list {
+  gap: 6px;
+}
+.kv-editor--glass .kv-editor__row {
+  grid-template-columns: 140px 1fr 18px;
+  gap: 10px;
+  padding: 5px 6px 5px 10px;
+  border-radius: 3px;
+}
+.kv-editor--glass :is(.kv-editor__key, .kv-editor__value) {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.kv-editor--glass :is(.kv-editor__key, .kv-editor__value):is(:focus, :disabled) {
+  border: 0;
+  background: transparent;
+}
+.kv-editor--glass .kv-editor__remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  padding: 0;
+  align-self: start;
+  color: hsl(var(--ink-4));
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
+}
+.kv-editor--glass .kv-editor__row:is(:hover, :focus-within) .kv-editor__remove {
+  opacity: 1;
+}
+.kv-editor--glass .kv-editor__remove:hover {
+  color: hsl(var(--ink-1));
+  background: transparent;
+}
+.kv-editor--glass .kv-editor__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  margin-top: 4px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: hsl(var(--ink-3));
+}
+.kv-editor--glass .kv-editor__add:hover {
+  color: hsl(var(--ink-1));
+  background: transparent;
+}
+
+/* Desktop: an Agent edit to a field arrives as one band of glass pushed
+   across its diff line (.glass-sweep); deletions and insertions are their
+   colours and the strike alone, with no wash under them. */
+.field-review--glass {
+  isolation: isolate;
+  --glass-cc: var(--glass-clear);
+  margin: 0 -8px;
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+.field-review--glass :is(.field-diff__del, .field-diff__ins) {
+  background: transparent;
+  border-radius: 0;
+}
+.field-review--glass .field-diff__del {
+  color: color-mix(in srgb, hsl(var(--story-1)) 75%, hsl(var(--ink-1)));
+}
+.field-review--glass .field-diff__ins {
+  color: color-mix(in srgb, hsl(var(--story-3)) 65%, hsl(var(--ink-1)));
+}
+
+/* Desktop dialogs on entity pages. A choice is a menu row (the row under the
+   pointer flows), the current one bold with a tick; a name being typed is the
+   shared single-line field (.ui-field). A drift picks its storyline or category from cards
+   of resting glass in each one's colour, the chosen one its still glass. */
+.entity-choice {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  margin: 0 -6px;
+  overflow-y: auto;
+}
+.entity-choice__row.menu-surface__item {
+  gap: 8px;
+  font-size: 14px;
+}
+.entity-choice__row--current.menu-surface__item {
+  font-weight: 600;
+  color: hsl(var(--ink-1));
+}
+.entity-choice__row--none.menu-surface__item {
+  font-style: italic;
+  color: hsl(var(--ink-3));
+}
+.entity-choice__row--create.menu-surface__item {
+  color: hsl(var(--accent));
+}
+.entity-choice__tick {
+  margin-left: auto;
+}
+.ui-field + .entity-choice {
+  margin-top: 10px;
+}
+.entity-choice__empty {
+  padding: 6px 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: hsl(var(--ink-4));
+}
+.entity-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.entity-choice-card {
+  --glass-cc: color-mix(in srgb, var(--choice-c) 55%, var(--glass-clear));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: hsl(var(--ink-1));
+  cursor: pointer;
+}
+.entity-choice-card.is-on {
+  --glass-cc: var(--choice-c);
+  font-weight: 500;
+}
+.entity-choice-card > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Cmd+I inline-copilot popover spinner */

@@ -590,9 +590,22 @@ html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
 }
 
 .menu-surface__item--active,
-.menu-surface__item[aria-checked='true'] {
+.menu-surface__item[aria-checked='true'],
+.menu-surface__item[aria-selected='true'] {
   color: hsl(var(--ink-1));
   font-weight: 500;
+}
+
+/* The row the arrow keys have moved to (a search result, a select's option)
+   keeps the same ring, standing still like any selected glass; the row under
+   the pointer still drifts. */
+html:not([data-shell-mode='mobile']) .menu-surface__item.is-current {
+  color: hsl(var(--ink-1));
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover)::before {
+  opacity: 1;
+  animation-play-state: paused;
 }
 
 .menu-surface__item--status {
@@ -644,8 +657,113 @@ html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
   background: transparent;
 }
 
+/* Account menu (UserMenu). On the desktop its rows run edge to edge, groups
+   are parted by 8px of space and the head has no rule under it; theme and
+   language are GlassSliders. The mobile shelf keeps its ruled groups. */
+.user-menu__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+
+.user-menu__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-menu__name {
+  overflow: hidden;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 14px);
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu__status {
+  margin-top: 2px;
+  color: hsl(var(--accent));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 9.5px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .user-menu__group {
   padding: 4px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+
+.user-menu__group--last {
+  border-bottom: 0;
+}
+
+.user-menu__switch {
+  display: flex;
+  margin-left: auto;
+  padding: 1px;
+  border-radius: 3px;
+  background: hsl(var(--paper-deep));
+}
+
+.user-menu__subhead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 4px 8px;
+  border-bottom: 1px solid hsl(var(--rule));
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__head {
+  padding: 14px 14px 8px;
+  border-bottom: 0;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__name {
+  font-size: var(--ui-font-emphasis, 15px);
+  font-style: normal;
+  font-weight: 500;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__status {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-caption, 12px);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__group {
+  padding: 0;
+  border-bottom: 0;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group {
+  margin-top: 8px;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__group--last {
+  padding-bottom: 4px;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__subhead {
+  padding: 8px 14px 4px 8px;
+  border-bottom: 0;
+  font-weight: 600;
+}
+
+.user-menu__slider {
+  margin-left: auto;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__item--static::before {
+  display: none;
 }
 
 .ui-button {
@@ -713,6 +831,81 @@ html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
 .ui-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Desktop: the shared Button is made of glass (materials.css) and never
+   fills. Primary is the accent's selected glass in the accent's ink; default
+   is the secondary button, a resting line; danger keeps that clear line and
+   says the danger in its ink and brush icon only; ghost is a text button.
+   The paused mobile shell keeps the filled buttons above. */
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {
+  height: var(--ui-control-height, 28px);
+  min-height: var(--ui-control-height, 28px);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 13px);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 1;
+  transition: color 0.12s ease-out;
+}
+
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--sm {
+  height: calc(var(--ui-control-height, 28px) - 4px);
+  min-height: calc(var(--ui-control-height, 28px) - 4px);
+  padding: 0 9px;
+  font-size: var(--ui-font-caption, 12px);
+}
+
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:hover:not(:disabled) {
+  background: transparent;
+  color: hsl(var(--ink-1));
+  opacity: 1;
+}
+
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--ghost {
+  padding-inline: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--primary,
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--primary:hover:not(:disabled) {
+  color: hsl(var(--accent));
+}
+
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger:hover:not(:disabled) {
+  color: hsl(var(--destructive));
+}
+
+/* Disabled: a faint line of clear glass and muted ink; nothing drifts. */
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled {
+  --glass-cc: var(--glass-clear);
+  --glass-g: 0.6;
+  --glass-sp: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  cursor: default;
+}
+
+html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::before {
+  animation: none;
+}
+
+/* The brush loader turning: a running button, a waiting row. */
+.ui-spin {
+  animation: control-spinner-rotate 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-spin {
+    animation: none;
+  }
 }
 
 @keyframes control-spinner-rotate {
@@ -961,6 +1154,324 @@ html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
   border-top: 1px solid hsl(var(--rule));
 }
 
+/* Desktop dialog: a piece of the desk lifted out, like a menu (the
+   --menu-surface-* shell: the sidebar's opaque colour, square, a half-pixel
+   ink hairline and the floating shadow), over a thin mist of the desk's own
+   colour rather than a dark scrim. Head, body and actions are parted by
+   space, never by rules. */
+:where(html:not([data-shell-mode='mobile'])) .modal-root {
+  background: color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent);
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-card {
+  border: 0;
+  border-radius: var(--menu-surface-radius);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-header {
+  gap: 12px;
+  padding: 18px 16px 6px 20px;
+  border-bottom: 0;
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-header__kicker {
+  margin-bottom: 2px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+  line-height: 16px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-header__title {
+  font-size: var(--ui-font-heading, 16px);
+  line-height: 22px;
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-header__subtitle {
+  margin-top: 2px;
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-body {
+  padding: 8px 20px 14px;
+  color: hsl(var(--ink-2));
+  font-size: var(--ui-font-body, 14px);
+  line-height: 1.55;
+}
+
+:where(html:not([data-shell-mode='mobile'])) .modal-actions {
+  align-items: center;
+  padding: 8px 20px 18px;
+  border-top: 0;
+}
+
+.confirmation-dialog__message {
+  font-size: var(--ui-font-body, 13px);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* A section inside a dialog: its label in the index face, then its control. */
+.dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.dialog-section:last-child {
+  margin-bottom: 0;
+}
+
+.dialog-section__label {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+  line-height: 16px;
+}
+
+/* ── Single-line field ─────────────────────────────────────────────
+   Made like the multi-line field the author writes in: a slip of paper
+   colour with a resting line of glass (`glass glass--rest glass--field`), the
+   pointer brings the bleed and the drift, the caret makes it the still
+   selected glass. Small radius per the shape grammar; `--area` is the
+   multi-line slip with its 16px radius. */
+.ui-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--ui-row-height, 32px);
+  padding: 0 10px;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  color: hsl(var(--ink-1));
+  cursor: text;
+}
+
+.ui-field > input,
+.ui-field > textarea {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 13px);
+  line-height: var(--ui-line-body, 20px);
+}
+
+.ui-field > input::placeholder,
+.ui-field > textarea::placeholder {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.ui-field > .brush-icon {
+  color: hsl(var(--ink-3));
+}
+
+.ui-field__meta {
+  flex: none;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ui-field--sm {
+  min-height: calc(var(--ui-row-height, 32px) - 4px);
+}
+
+.ui-field--sm > input {
+  font-size: var(--ui-font-secondary, 12.5px);
+}
+
+.ui-field--area {
+  align-items: stretch;
+  padding: 8px 12px;
+  border-radius: 16px;
+}
+
+.ui-field--area > textarea {
+  min-height: calc(var(--ui-line-body, 20px) * 3);
+  resize: none;
+}
+
+.ui-field:has(> :disabled) {
+  --glass-g: 0.5;
+  background: color-mix(in srgb, hsl(var(--page)) 45%, transparent);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  cursor: default;
+}
+
+/* ── Dropdown select ───────────────────────────────────────────────
+   The trigger is a single-line field ending in one folding stroke; it opens
+   a menu surface below (GlassSelect), each option with its own sand mark.
+   The list takes the trigger's width, never narrower than the standard menu. */
+.ui-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ui-row-height, 32px);
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 13px);
+  line-height: var(--ui-line-body, 20px);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-select:disabled {
+  --glass-g: 0.5;
+  background: color-mix(in srgb, hsl(var(--page)) 45%, transparent);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  cursor: default;
+}
+
+.ui-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-select__value--placeholder {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.ui-select > .brush-icon:last-child {
+  color: hsl(var(--ink-3));
+}
+
+.ui-select__menu {
+  min-width: var(--menu-width-standard);
+}
+
+.ui-select__search {
+  padding: 8px 8px 4px;
+}
+
+.ui-select__check {
+  margin-left: auto;
+  color: hsl(var(--ink-2));
+}
+
+.ui-select__empty {
+  padding: 10px 14px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+/* ── Toggle row: a check box that is the whole row ─────────────────
+   The sidebar cell's grammar: under the pointer one ring of flowing glass in
+   the row's colour (--toggle-color), and while it is on the still selected
+   glass in that colour with the name at medium weight. */
+.ui-toggle-row {
+  --glass-cc: var(--toggle-color, var(--glass-clear));
+  --glass-rim: 7px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  min-height: calc(var(--ui-row-height, 32px) + 2px);
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 13px);
+  line-height: var(--ui-line-body, 20px);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-toggle-row__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-toggle-row.is-on {
+  color: hsl(var(--ink-1));
+}
+
+.ui-toggle-row.is-on .ui-toggle-row__label {
+  font-weight: 500;
+}
+
+/* ── Progress: one hairline ────────────────────────────────────────
+   A 1px track and a 2px square-ended fill in the accent; with no known
+   amount a short segment travels along it. */
+.ui-progress {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+}
+
+.ui-progress::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1px;
+  height: 1px;
+  background: hsl(var(--rule-strong));
+}
+
+.ui-progress__fill {
+  position: absolute;
+  top: 0.5px;
+  left: 0;
+  display: block;
+  height: 2px;
+  background: hsl(var(--accent));
+  transition: width 140ms ease-out;
+}
+
+.ui-progress--indeterminate .ui-progress__fill {
+  width: 22%;
+  animation: ui-progress-travel 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes ui-progress-travel {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(460%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-progress__fill {
+    transition: none;
+  }
+
+  .ui-progress--indeterminate .ui-progress__fill {
+    animation: none;
+  }
+}
+
 /* Native mobile overlays own a safe-area-aware viewport box. The preferred
    desktop width remains a cap; the dialog itself always shrinks to the space
    left after system insets, and only its body scrolls so actions stay usable. */
@@ -1033,21 +1544,367 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   padding: 14px;
 }
 
+/* ── Dialogs built from the shared controls ────────────────────────── */
+.import-dialog__desc,
+.import-dialog__warning {
+  font-size: var(--ui-font-secondary, 12px);
+  line-height: 1.45;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+.import-dialog__warning {
+  color: hsl(var(--destructive));
+}
+
+.import-dialog__pickers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.import-dialog__queue {
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.import-dialog__row {
+  display: grid;
+  grid-template-columns: 16px 44px minmax(0, 1fr) 56px 22px;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-dialog__state {
+  display: grid;
+  place-items: center;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.import-dialog__state--committed {
+  color: hsl(var(--story-3));
+}
+
+.import-dialog__state--error,
+.import-dialog__status--error {
+  color: hsl(var(--destructive));
+}
+
+.import-dialog__format,
+.import-dialog__status {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+  line-height: 1;
+}
+
+.import-dialog__status {
+  text-align: right;
+}
+
+.import-dialog__status--committed {
+  color: hsl(var(--ink-2));
+}
+
+.import-dialog__summary {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+}
+
+.import-dialog__summary b {
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+}
+
+.import-dialog__summary b.is-error {
+  color: hsl(var(--destructive));
+}
+
 .edit-storyline-modal__body {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.edit-storyline-modal__row {
+  display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+.drift-bind-modal,
+.snapshot-history-modal {
+  max-height: min(600px, calc(100vh - 96px));
 }
 
 .drift-bind-modal__body {
   display: flex;
   flex-direction: column;
-  padding: 0;
+  gap: 8px;
   overflow: hidden;
 }
 
-.snapshot-history-modal__body {
-  padding: 6px 10px 12px;
+.drift-bind-modal__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+:where(html:not([data-shell-mode='mobile'])) .drift-bind-modal__list,
+:where(html:not([data-shell-mode='mobile'])) .patch-create-modal__candidates {
+  margin-inline: -20px;
+}
+
+.drift-bind-modal__option.menu-surface__item {
+  align-items: flex-start;
+  padding-inline: 20px;
+}
+
+.drift-bind-modal__option .kind-mark {
+  margin-top: 3px;
+}
+
+.drift-bind-modal__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.drift-bind-modal__title,
+.drift-bind-modal__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drift-bind-modal__title {
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+}
+
+.drift-bind-modal__summary {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 11.5px);
+}
+
+.snapshot-history-modal__note {
+  padding: 0 20px 4px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+}
+
+.snapshot-history-modal__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.snapshot-history-modal__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 26px;
+}
+
+.snapshot-history-modal__time {
+  flex-shrink: 0;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-secondary, 11.5px);
+}
+
+.snapshot-history-modal__words {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10.5px);
+}
+
+.snapshot-history-modal__meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-history-modal__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.snapshot-history-modal__excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.patch-create-modal__quote {
+  padding: 8px 12px;
+  border-radius: 2px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+  line-height: 1.6;
+}
+
+.patch-create-modal__picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding-left: 10px;
+}
+
+.patch-create-modal__picked-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patch-create-modal__candidates {
+  max-height: 176px;
+  overflow-y: auto;
+}
+
+.patch-create-modal__candidates .menu-surface__item {
+  padding-inline: 20px;
+}
+
+.patch-create-modal__candidate-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pre-alpha-guide-modal__text {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.pre-alpha-guide-modal__list {
+  margin: 14px 0;
+  padding-left: 20px;
+  line-height: 1.8;
+}
+
+.debug-modal__tabs {
+  padding: 0 20px 4px;
+}
+
+.debug-modal__title {
+  margin: 0 0 8px;
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-body, 13px);
+  font-weight: 500;
+}
+
+.debug-modal__muted {
+  padding: 28px 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  text-align: center;
+}
+
+.debug-modal__pre {
+  max-height: 384px;
+  margin-bottom: 12px;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+}
+
+.debug-modal__pre pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.debug-modal__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.debug-modal__stat-label {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+}
+
+.debug-modal__stat-value {
+  color: hsl(var(--ink-1));
+}
+
+.debug-modal__compare {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.debug-modal__compare--head {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+}
+
+.debug-modal__num {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.debug-modal__ok {
+  color: hsl(var(--ink-2));
+}
+
+.debug-modal__bad {
+  color: hsl(var(--destructive));
+}
+
+.debug-modal__note {
+  margin-top: 16px;
+}
+
+.debug-modal__list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.debug-modal__footer {
+  justify-content: space-between;
+}
+
+.debug-modal__meta {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+}
+
+/* The paused mobile shell keeps its outlined fields: no glass, a hairline. */
+html[data-shell-mode='mobile'] :is(.ui-field, .ui-select).glass::before {
+  display: none;
+}
+
+html[data-shell-mode='mobile'] :is(.ui-field, .ui-select) {
+  border: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
 }
 
 .entity-card-backdrop {
@@ -1189,6 +2046,37 @@ html[data-shell-mode='mobile'] .patch-create-modal {
 .empty-state--compact {
   padding-block: 32px;
   font-size: var(--ui-font-body, 12.5px);
+}
+
+/* Desktop: one plain sentence in the secondary ink (Chinese has no true
+   italic). When what is missing is a kind of thing, its hollow sand mark sits
+   above the sentence; where it can be made right here, a text button follows. */
+html:not([data-shell-mode='mobile']) .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 20px;
+  font-size: var(--ui-font-secondary, 13px);
+  font-style: normal;
+  line-height: var(--ui-line-body, 20px);
+}
+
+html:not([data-shell-mode='mobile']) .empty-state--compact {
+  padding-block: 22px;
+}
+
+.empty-state__mark.kind-mark {
+  width: 24px;
+  height: 24px;
+}
+
+.empty-state__icon {
+  color: hsl(var(--ink-5));
+}
+
+.empty-state__action {
+  margin-top: 2px;
 }
 
 /* Only the tab strip uses this full-width half-pixel hairline. Panel headers
