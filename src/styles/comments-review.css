@@ -2250,6 +2250,15 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
   font-weight: 500;
 }
 
+/* The desktop editor runs up under the window-control row (the drag strip,
+   the sidebar toggles in the window's top corners, the dock), and its lower
+   right corner holds the paper's toolbar (`.editor-corner`: 16px in, 36px
+   tall). The rail keeps clear of both, so nothing covers its buttons. */
+.editor-body > .sticky-note-rail.sticky-note-rail--glass {
+  top: calc(var(--window-titlebar-height) + 4px);
+  bottom: calc(16px + 36px + 8px);
+}
+
 /* The sticky-note rail's toolbar: its count in the index type and two round
    glass buttons that float over whatever lies under the rail. */
 .sticky-note-rail--glass .sticky-note-rail__toolbar {

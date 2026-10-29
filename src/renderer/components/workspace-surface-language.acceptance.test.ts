@@ -1231,6 +1231,11 @@ describe('workspace surface language acceptance', () => {
     expect(desktopReview).toContain(".todo-status-toggle--glass[aria-pressed='true'] .todo-status-toggle__tick {");
     // The source card names its sources by their sand marks.
     expect(sourceCard).toContain('<KindMark kind={kindMarkOfTarget(entity.targetKind, entity.isDrift)}');
+    // The rail keeps clear of the window-control row and the paper's toolbar,
+    // so neither the drag strip nor a sidebar toggle covers its buttons.
+    const railPlace = block(desktopReview, '.editor-body > .sticky-note-rail.sticky-note-rail--glass {', '}');
+    expect(railPlace).toContain('top: calc(var(--window-titlebar-height) + 4px);');
+    expect(railPlace).toContain('bottom: calc(16px + 36px + 8px);');
     // The rail's stacking switch keeps one word; stacked is its selected glass.
     expect(rail).toContain('aria-pressed={stacked}');
     expect(rail).toContain('glass="round"');
