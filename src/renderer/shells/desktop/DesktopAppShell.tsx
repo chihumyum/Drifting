@@ -71,6 +71,7 @@ export function DesktopAppShell() {
           openGlobalSearch={openGlobalSearch}
         >
           <DesktopWorkspace
+            projectId={projectId}
             bottomTimelineHidden={bottomTimelineHidden}
             findPanelEditor={findPanelEditor}
             onCloseFindPanel={closeFindPanel}
