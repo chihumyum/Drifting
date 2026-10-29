@@ -9,6 +9,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { createDesktopTauriEnvironment, prepareDesktopSigning } from './run-desktop-tauri.mjs';
+import { describeDevAgentKeys, devAgentKeyEnvironment, devAgentKeyProviders, devAgentKeyRoots } from './dev-agent-keys.mjs';
 import { hostedSecurityOverride } from './hosted-environment.mjs';
 import { sentrySecurityOverride } from './sentry-environment.mjs';
 
@@ -119,6 +120,10 @@ export function createWorktreePlan({
     VITE_SENTRY_ENVIRONMENT: loaded.VITE_SENTRY_ENVIRONMENT || 'development',
     VITE_DRIFTING_CRASH_REPORTS_IN_DEV: loaded.VITE_DRIFTING_CRASH_REPORTS_IN_DEV || '',
   });
+  // Development only: the Agent's keys from the checkout's .env files (the
+  // main checkout's too), so a fresh profile starts connected. A packaged app
+  // never gets them; see scripts/dev-agent-keys.mjs.
+  if (!buildApp) Object.assign(environment, devAgentKeyEnvironment({ roots: devAgentKeyRoots(worktreeRoot), baseEnvironment }));
   const frontendDirectory = path.join(profileDirectory, 'frontend');
   if (buildApp) Object.assign(environment, {
     DRIFTING_RENDERER_OUT_DIR: frontendDirectory,
@@ -173,7 +178,7 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
   const manifest = {
     schemaVersion: 1, worktreeRoot, instance, profileId, identifier,
     profileDirectory, databaseDirectory, appLocalDataDirectory, cargoTargetDirectory, devUrl, port: selectedPort,
-    keychainService: `Drifting.${identifier}`, ephemeralWebview,
+    keychainService: `Drifting.${identifier}`, agentKeysFromEnv: devAgentKeyProviders(environment), ephemeralWebview,
     mode: online ? 'hosted' : 'local-only', ...(online ? { serviceOrigin: origin } : {}), configPath,
     ...(performanceAudit ? { performanceAudit: true, performanceAuditDirectory: path.join(profileDirectory, 'performance-audit') } : {}),
     ...(buildApp ? { buildApp: true, frontendDirectory,
@@ -222,6 +227,7 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
     if (!existsSync(file) || readFileSync(file, 'utf8') !== `${contents}\n`) writeFileSync(file, `${contents}\n`, { mode: 0o600 });
   }
   output(JSON.stringify(plan.manifest));
+  if (!options.buildApp) output(describeDevAgentKeys(plan.environment));
   const child = spawnProcess(plan.command, plan.args, {
     cwd: plan.manifest.worktreeRoot, env: plan.environment, stdio: 'inherit',
     // A process group lets headless automation stop Cargo, Vite and the app,

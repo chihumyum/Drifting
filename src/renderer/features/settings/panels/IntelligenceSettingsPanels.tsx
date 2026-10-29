@@ -9,6 +9,7 @@ import {
 import { speechKeychain } from '../../../lib/speech/speech-credentials';
 import { resolveCopilotModel } from '../../../lib/ai/copilot-route';
 import { testByokProviderConnection } from '../../../lib/ai/test-provider-connection';
+import { readEnvApiKey } from '../../../lib/ai/credentials/env';
 import { getCopilotCapability } from '../../../lib/copilot/capability';
 import { copilotRuntime } from '../../../lib/copilot/runtime';
 import { events } from '../../../lib/events';
@@ -45,6 +46,10 @@ function ProviderRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [connected, setConnected] = useState(false);
+  // A development key handed to the dev server (scripts/dev-agent-keys.mjs)
+  // counts as connected; it is read before the keychain, like the Agent does.
+  const envKey = Boolean(readEnvApiKey(provider));
+  const live = connected || envKey;
   const [loading, setLoading] = useState(true);
   const selectedCopilotProvider = useSettingsStore((state) => state.copilotByokProvider);
   const selectedCopilotModel = useSettingsStore((state) => state.copilotByokModel);
@@ -74,7 +79,7 @@ function ProviderRow({
   const [testMsg, setTestMsg] = useState('');
 
   const testConnection = async () => {
-    if (!connected) return;
+    if (!live) return;
     setTestState('testing');
     setTestMsg('');
     try {
@@ -122,7 +127,7 @@ function ProviderRow({
   return (
     <div
       className={
-        'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')
+        'set-provider' + (live ? ' set-provider--connected' : ' set-provider--disconnected')
       }
     >
       <div className="set-provider__head">
@@ -130,8 +135,8 @@ function ProviderRow({
         <div className="set-provider__main">
           <div className="set-provider__name">
             <b>{name}</b>
-            <em className={connected ? 'is-byok' : ''}>
-              {connected
+            <em className={live ? 'is-byok' : ''}>
+              {live
                 ? t('settings.byokProvider.ownKey')
                 : t('settings.byokProvider.notConnected')}
             </em>
@@ -141,15 +146,15 @@ function ProviderRow({
         <div
           className={
             'set-provider__status ' +
-            (connected ? 'set-provider__status--live' : 'set-provider__status--off')
+            (live ? 'set-provider__status--live' : 'set-provider__status--off')
           }
         >
           <span className="set-provider__status-dot" />
-          {connected ? 'CONNECTED' : 'OFFLINE'}
+          {live ? 'CONNECTED' : 'OFFLINE'}
         </div>
       </div>
 
-      {(connected || editing) && (
+      {(live || editing) && (
         <div className="set-provider__body">
           <div className="set-provider__body-inner">
             <span className="set-provider__k">API Key</span>
@@ -168,7 +173,7 @@ function ProviderRow({
               )}
               {!editing && (
                 <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-                  · KEYCHAIN
+                  {connected ? '· KEYCHAIN' : '· .ENV (DEV)'}
                 </span>
               )}
             </span>
@@ -192,7 +197,7 @@ function ProviderRow({
               {t('settings.common.cancel')}
             </button>
           </>
-        ) : connected ? (
+        ) : live ? (
           <>
             <button className="set-btn" onClick={testConnection} disabled={testState === 'testing'}>
               {testState === 'testing'
@@ -219,9 +224,11 @@ function ProviderRow({
               {t('settings.byokProvider.editKey')}
             </button>
             <span style={{ flex: 1 }} />
-            <button className="set-btn set-btn--danger" onClick={disconnect}>
-              {t('settings.common.disconnect')}
-            </button>
+            {connected && (
+              <button className="set-btn set-btn--danger" onClick={disconnect}>
+                {t('settings.common.disconnect')}
+              </button>
+            )}
           </>
         ) : (
           <button

@@ -9,6 +9,7 @@
  */
 import type { BYOKProvider } from '../byok-keychain';
 import { byokKeychain } from '../byok-keychain';
+import { readEnvApiKey } from './credentials/env';
 import { canUseByokProvider } from '../config';
 import { platform } from '../../platform';
 import { buildDirectBYOKClient } from './client/build-default-client';
@@ -31,8 +32,9 @@ export interface TestProviderConnectionDependencies {
 }
 
 const DEFAULT_DEPENDENCIES: TestProviderConnectionDependencies = {
-  hasKey: (provider) => byokKeychain.has(provider),
-  getKey: (provider) => byokKeychain.get(provider),
+  // The same order as the Agent and Copilot: a development key first.
+  hasKey: async (provider) => Boolean(readEnvApiKey(provider)) || byokKeychain.has(provider),
+  getKey: async (provider) => readEnvApiKey(provider) ?? byokKeychain.get(provider),
   buildClient: (provider, apiKey, model) =>
     buildDirectBYOKClient(provider, apiKey, {
       logTag: 'settings-provider-test',

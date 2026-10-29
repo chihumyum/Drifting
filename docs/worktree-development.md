@@ -106,6 +106,23 @@ start that worktree's isolated profile instead, exactly as
 in their own worktrees at once. `DRIFTING_DEV_SHARED_PROFILE=1 pnpm dev` keeps
 the shared profile deliberately.
 
+## Agent keys in development
+
+Every profile has its own Keychain service, so a fresh worktree or instance
+would otherwise ask for the Agent's keys again. `pnpm dev`, `pnpm dev:worktree`
+and `pnpm dev:seed` read `DEEPSEEK_API_KEY` (or `DEEPSEEK_AI_API_KEY`) and
+`OPENAI_API_KEY` from the shell, then the checkout's ignored `.env.local` and
+`.env`, then the main checkout's when started in a linked worktree (a worktree
+has no env files of its own), and hand them to the dev server as
+`VITE_DEEPSEEK_API_KEY` / `VITE_OPENAI_API_KEY`, which the renderer's
+`EnvCredentialsProvider` reads before the Keychain. Settings then shows those
+providers as connected from `.ENV (DEV)`. The launcher prints which providers it
+connected, never the values, and the `--print-config` manifest lists them as
+`agentKeysFromEnv`. Builds and `--build-app` packages never receive them, since
+`VITE_` values are inlined into bundles; keep the plain names in the env files
+for the same reason. `DRIFTING_DEV_AGENT_KEYS=0` starts without them, for
+checking the not-connected setup flow. See `scripts/dev-agent-keys.mjs`.
+
 ## Seeded profiles
 
 **The lite seed is for fast functional verification. The default stress seed is
