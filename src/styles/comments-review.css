@@ -495,82 +495,51 @@
   opacity: 0.85;
 }
 
-/* Desktop: the Agent's changes are sand not yet pressed down (materials.css,
-   "Sand in prose"). Inserted and changed text keeps its ink over loose grains
-   of the highlighter, green for new and blue for changed; deleted text dims
-   and is struck through with one dry stroke. The same marks serve the
-   typewriter reveal (`agent-reveal__*`, which then fades out as a whole) and
-   the in-place review decorations (`agent-diff-*`). The faint wash on a whole
-   changed block is gone: the reveal and the scroll tick already say where the
-   Agent wrote. */
-:root:not([data-shell-mode='mobile']) .agent-reveal__ins,
+/* Desktop: what the Agent writes is coloured ink, never a ground. The reveal
+   plays each changed place in place (AgentRevealText, `overwrite`): added
+   words come in green, rewritten words purple, and the old words are deleted
+   or overwritten without a mark of their own. When the reveal hands over to
+   the real paragraph, the same words stay coloured (::highlight(agent-recent-*),
+   lib/agent-recent-highlight.ts) until the author's pointer rests on them,
+   then ease back to ink in two steps. The in-place review decorations, kept in
+   the code for old receipts, use the same inks. The faint wash on a whole
+   changed block is gone: the colours already say where the Agent wrote. The
+   inks are the story green and purple, deep enough to read on the paper. */
+:root {
+  --agent-new-ink: 148 42% 34%;
+  --agent-chg-ink: 258 42% 52%;
+}
+.dark {
+  --agent-new-ink: 148 40% 66%;
+  --agent-chg-ink: 252 60% 78%;
+}
+.agent-reveal__new { color: hsl(var(--agent-new-ink)); }
+.agent-reveal__chg { color: hsl(var(--agent-chg-ink)); }
+::highlight(agent-recent-new) { color: hsl(var(--agent-new-ink)); }
+::highlight(agent-recent-new-1) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 62%, hsl(var(--ink-1))); }
+::highlight(agent-recent-new-2) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 28%, hsl(var(--ink-1))); }
+::highlight(agent-recent-chg) { color: hsl(var(--agent-chg-ink)); }
+::highlight(agent-recent-chg-1) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 62%, hsl(var(--ink-1))); }
+::highlight(agent-recent-chg-2) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 28%, hsl(var(--ink-1))); }
 :root:not([data-shell-mode='mobile']) .agent-diff-ins,
 :root:not([data-shell-mode='mobile']) .agent-diff-changed {
-  --prose-sand-c: color-mix(in srgb, hsl(var(--story-3)), #000000 var(--prose-sand-deepen));
-  --prose-sand-a: 0.95;
-  --prose-sand-band: color-mix(in srgb, var(--prose-sand-c)
-    calc(var(--prose-sand-a) * var(--prose-sand-strength) * 100%), transparent);
-  color: inherit;
+  color: hsl(var(--agent-new-ink));
+  background: none;
   border-radius: 0;
-  /* The band stops a pixel inside the cover, so no edge of it shows. */
-  background-image:
-    linear-gradient(hsl(var(--page)), hsl(var(--page))),
-    var(--prose-sand-hl-loose),
-    linear-gradient(var(--prose-sand-band), var(--prose-sand-band));
-  background-size: 100% 100%, auto calc(100% + 3px), calc(100% - 2px) calc(100% - 2px);
-  background-position: 0 0, left -1px, center;
-  background-repeat: no-repeat, repeat-x, no-repeat;
-  background-blend-mode: var(--prose-sand-cover-blend), normal, normal;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  mix-blend-mode: var(--prose-sand-blend);
 }
 :root:not([data-shell-mode='mobile']) .agent-diff-changed {
-  --prose-sand-c: color-mix(in srgb, hsl(var(--story-2)), #000000 var(--prose-sand-deepen));
+  color: hsl(var(--agent-chg-ink));
 }
-/* The review decorations fade in with their change. */
-:root:not([data-shell-mode='mobile']) .agent-diff-ins,
-:root:not([data-shell-mode='mobile']) .agent-diff-changed {
-  animation: prose-sand-arrive var(--motion-sand-fade) ease-out backwards;
-}
-:root:not([data-shell-mode='mobile']) .agent-reveal__del,
-:root:not([data-shell-mode='mobile']) .agent-diff-del {
-  --prose-sand-c: color-mix(in srgb, hsl(var(--story-1)), #000000 var(--prose-sand-deepen));
-  --prose-sand-a: 0.85;
-  --prose-sand-band: color-mix(in srgb, var(--prose-sand-c)
-    calc(var(--prose-sand-a) * var(--prose-sand-strength) * 100%), transparent);
-  color: hsl(var(--ink-3));
-  text-decoration: none;
+:root:not([data-shell-mode='mobile']) .agent-diff-del,
+:root:not([data-shell-mode='mobile']) .agent-diff-deleted-block {
+  color: hsl(var(--agent-chg-ink));
+  background: none;
   border-radius: 0;
-  /* The dry underline at its own proportions (6px tall, 166px natural width),
-     through the middle of the line. */
-  background-image:
-    linear-gradient(to left, hsl(var(--page)), transparent 12px),
-    linear-gradient(hsl(var(--page)), hsl(var(--page))),
-    var(--prose-sand-ul),
-    linear-gradient(var(--prose-sand-band), var(--prose-sand-band));
-  background-size: 12px 100%, 100% 6px, max(100%, 166px) 6px, 100% 4px;
-  background-position: right, left 54%, left 54%, left 54%;
-  background-repeat: no-repeat;
-  background-blend-mode: normal, var(--prose-sand-cover-blend), normal, normal;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  mix-blend-mode: var(--prose-sand-blend);
-}
-:root:not([data-shell-mode='mobile']) .agent-diff-del {
-  animation: agent-sand-ghost-arrive var(--motion-sand-fade) ease-out backwards;
+  text-decoration-color: hsl(var(--agent-chg-ink));
 }
 :root:not([data-shell-mode='mobile']) .agent-change-block,
 :root:not([data-shell-mode='mobile']) .agent-change-block--seen {
   background-color: transparent;
-}
-@keyframes agent-sand-ghost-arrive { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-shell-mode='mobile']) .agent-diff-ins,
-  :root:not([data-shell-mode='mobile']) .agent-diff-changed,
-  :root:not([data-shell-mode='mobile']) .agent-diff-del {
-    animation: none;
-  }
 }
 
 /* ============================================================

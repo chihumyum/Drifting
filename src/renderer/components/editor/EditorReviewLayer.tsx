@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 
 import { AgentEditAnimator } from './AgentEditAnimator';
+import { AgentRecentChangeHighlights } from './AgentRecentChangeHighlights';
 import { CommentAnchorHighlights } from './CommentAnchorHighlights';
 import { EditorScrollMarkers } from './EditorScrollMarkers';
 import { planAgentAddedProseReveal } from './agent-added-file';
@@ -123,6 +124,7 @@ export function EditorReviewLayer({
           targetId={id}
         />
       )}
+      {id && <AgentRecentChangeHighlights scrollEl={scrollEl} entityType={entityType} targetId={id} />}
       <EditorScrollMarkers
         projectId={projectId}
         targetKind={entityType}

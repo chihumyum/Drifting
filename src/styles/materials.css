@@ -58,7 +58,6 @@
   --prose-sand-layer-blend: multiply;
   --prose-sand-ul: url('../assets/design/sand/ul-cover.png');
   --prose-sand-ul-loose: url('../assets/design/sand/ul-loose-cover.png');
-  --prose-sand-hl-loose: url('../assets/design/sand/hl-loose-cover.png');
 }
 
 /* On the dark a tinted bleed at the ring's own strength reads as mud (a
@@ -76,7 +75,6 @@
   --prose-sand-layer-blend: screen;
   --prose-sand-ul: url('../assets/design/sand/ul-cover-dark.png');
   --prose-sand-ul-loose: url('../assets/design/sand/ul-loose-cover-dark.png');
-  --prose-sand-hl-loose: url('../assets/design/sand/hl-loose-cover-dark.png');
 }
 
 /* ── Glass ──────────────────────────────────────────────────────────

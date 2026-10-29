@@ -1,4 +1,4 @@
-import type { AgentBlockChange } from '../../lib/agent/block-diff';
+import type { AgentBlockChange, DiffSeg } from '../../lib/agent/block-diff';
 import type { CSSProperties } from 'react';
 
 export interface AgentEditRect {
@@ -87,13 +87,14 @@ export function agentEditProseStyle(style: CSSStyleDeclaration): CSSProperties {
 }
 
 /** Measure the text boundary without putting a caret between text runs: even
- * an absolute inline caret there can interrupt ligatures and change shaping. */
-export function placeAgentRevealCaret(caret: HTMLElement, boundary: HTMLElement) {
+ * an absolute inline caret there can interrupt ligatures and change shaping.
+ * `atEnd` measures the boundary run's end (a caret after the last character). */
+export function placeAgentRevealCaret(caret: HTMLElement, boundary: HTMLElement, atEnd = false) {
   const host = caret.offsetParent;
   if (!(host instanceof HTMLElement)) return;
   const range = document.createRange();
   range.selectNodeContents(boundary);
-  range.collapse(true);
+  range.collapse(!atEnd);
   const rect = range.getBoundingClientRect();
   const base = host.getBoundingClientRect();
   Object.assign(caret.style, {
@@ -227,4 +228,104 @@ export function bulkAgentEditRevealChanges(
   return decision === 'accepted'
     ? [...changes]
     : changes.map(inverseAgentEditReveal);
+}
+
+/** A reveal's text as it plays in place: unchanged text, and each place where
+ * old words become new ones (`next`). A place that only adds is `new`; one
+ * that replaces words is `chg`; one that only deletes has no `next`. */
+export type AgentRevealPiece =
+  | { kind: 'equal'; text: string }
+  | { kind: 'place'; old: string; next: string; mark: 'new' | 'chg' };
+
+export function agentRevealPieces(segments: readonly DiffSeg[]): AgentRevealPiece[] {
+  const pieces: AgentRevealPiece[] = [];
+  let old = '';
+  let next = '';
+  const flush = () => {
+    if (!old && !next) return;
+    pieces.push({ kind: 'place', old, next, mark: old ? 'chg' : 'new' });
+    old = '';
+    next = '';
+  };
+  for (const segment of segments) {
+    if (segment.kind === 'equal') {
+      flush();
+      const last = pieces[pieces.length - 1];
+      if (last?.kind === 'equal') last.text += segment.text;
+      else pieces.push({ kind: 'equal', text: segment.text });
+    } else if (segment.kind === 'del') old += segment.text;
+    else next += segment.text;
+  }
+  flush();
+  return pieces;
+}
+
+const characters = (text: string) => Array.from(text);
+
+/** Steps the in-place reveal takes: each place as many as its longer side. */
+export function agentRevealSteps(pieces: readonly AgentRevealPiece[]): number {
+  return pieces.reduce((sum, piece) => (piece.kind === 'place'
+    ? sum + Math.max(characters(piece.old).length, characters(piece.next).length)
+    : sum), 0);
+}
+
+export interface AgentRevealRun {
+  text: string;
+  mark: 'new' | 'chg' | null;
+}
+
+/**
+ * The paragraph `step` steps into the in-place reveal. The places play one
+ * after another, each from its start: when the old words are longer, they are
+ * deleted from the front (the text after them closing up) until both sides are
+ * as long, then overwritten one character at a time; when they are shorter,
+ * they are overwritten first and the rest of the new words is inserted, pushing
+ * the text after them on. `caret` is the index of the run the caret stands
+ * before (`runs.length` after the last run), or -1 once every place is done.
+ */
+export function agentRevealFrame(
+  pieces: readonly AgentRevealPiece[],
+  step: number,
+): { runs: AgentRevealRun[]; caret: number } {
+  const runs: AgentRevealRun[] = [];
+  let caret = -1;
+  let left = Math.max(0, Math.floor(step));
+  const push = (text: string, mark: AgentRevealRun['mark']) => {
+    if (!text) return;
+    const last = runs[runs.length - 1];
+    if (last && last.mark === mark && caret !== runs.length) last.text += text;
+    else runs.push({ text, mark });
+  };
+  for (const piece of pieces) {
+    if (piece.kind === 'equal') { push(piece.text, null); continue; }
+    const old = characters(piece.old);
+    const next = characters(piece.next);
+    const length = Math.max(old.length, next.length);
+    if (caret >= 0 || left <= 0) {
+      // Not reached yet; the first place not reached holds the caret.
+      if (caret < 0) caret = runs.length;
+      push(piece.old, null);
+      continue;
+    }
+    if (left >= length) {
+      push(piece.next, piece.mark);
+      left -= length;
+      continue;
+    }
+    let written: string[];
+    let rest: string[];
+    if (old.length > next.length) {
+      const surplus = old.length - next.length;
+      written = left <= surplus ? [] : next.slice(0, left - surplus);
+      rest = left <= surplus ? old.slice(left) : old.slice(surplus + written.length);
+    } else {
+      written = next.slice(0, left);
+      rest = left <= old.length ? old.slice(left) : [];
+    }
+    push(written.join(''), piece.mark);
+    caret = runs.length;
+    push(rest.join(''), null);
+    left = 0;
+  }
+  return { runs, caret };
 }

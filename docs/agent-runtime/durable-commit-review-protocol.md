@@ -202,7 +202,28 @@ characters use `visibility: hidden`, and the caret is out of flow. Rendering onl
 a changing prefix causes wrapping (including `text-wrap: pretty`, punctuation
 and words) to relocate already-visible glyphs at line ends even with the correct
 container width. The two phases never reserve old and new text simultaneously.
-Prose and field reveals share this rendering.
+Field reveals and the paused mobile shell use this rendering.
+
+On the desktop, prose reveals play in place instead (`AgentRevealText` with
+`mode="overwrite"`, `agentRevealFrame` in `agent-edit-animation.ts`): the diff
+is grouped into changed places, played one after another from each place's
+start, one character a step. When the old words are longer, they are deleted
+from the front, the text after them closing up, until both sides are as long,
+and are then overwritten; when they are shorter, they are overwritten first and
+the rest of the new words is inserted, pushing the text after them on. A place
+that only adds or only deletes simply inserts or deletes. The overwritten
+characters keep their places; text after the place moves as it would under a
+person's editing. The duration counts steps (each place's longer side) rather
+than deleted plus inserted characters, under the same tiers. Added words show
+in the story green and rewritten words in purple, with no ground; the overlay
+keeps its opaque paper-coloured backdrop, so while it is still taller than the
+committed paragraph it covers the next paragraph's first lines, which come back
+as it shortens and never move. When it hands over, the same words stay coloured
+in the live prose (`lib/agent-recent-changes.ts`, painted through the CSS Custom
+Highlight API by `AgentRecentChangeHighlights`) until the author's pointer rests
+on them for 200 ms; they then ease back to ink over 300 ms. The marks live in
+memory for the app's run, survive tab switches and show in the whole-book
+reader; editing the words away or a later Agent change to the block drops them.
 
 The isolated Chromium check
 `pnpm exec tsx scripts/check-agent-reveal-layout.mjs` compares glyph positions

@@ -87,6 +87,10 @@ export const FORMATS_CLOSE_MS = 140;
 export const DOCK_COLLAPSE_DELAY_MS = 260;
 /** How long leaving a collapsed choice and its options waits before folding them (enough to cross the gap). */
 export const OPTIONS_CLOSE_MS = 160;
+/** How long the pointer rests on words the Agent just wrote before their colour eases back. */
+export const RECENT_CHANGE_DWELL_MS = 200;
+/** How long that colour takes to ease back to ink. */
+export const RECENT_CHANGE_FADE_MS = 300;
 /** How long a drag's reported leave of the window waits for proof it is still here (WebKit reports one before a drop). */
 export const DRAG_LEAVE_GRACE_MS = 150;
 /** How long after a press a selection still counts as made by that press. */
