@@ -22,6 +22,7 @@ import {
   refreshMarkdownProjection, setMarkdownProjectionOutputRoot,
 } from './markdown-projection.service';
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
+import { flushMarkdownProjections } from './markdown-projection-lifecycle';
 import { events } from '../lib/events';
 
 beforeEach(() => {
@@ -44,7 +45,7 @@ describe('Markdown projection scheduling', () => {
     const dispose = installMarkdownProjection('synthetic');
     try {
       fixture.committed({ projectId: 'synthetic' });
-      await vi.advanceTimersByTimeAsync(3500);
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS + 500);
       expect(fixture.flush).not.toHaveBeenCalled();
       expect(fixture.read).not.toHaveBeenCalled();
       fixture.composing = false;
@@ -53,7 +54,7 @@ describe('Markdown projection scheduling', () => {
       fixture.composing = true;
       await refreshMarkdownProjection('synthetic');
       expect(fixture.write).toHaveBeenCalledTimes(2);
-    } finally { dispose(); }
+    } finally { await dispose(); }
   });
 
   it('rechecks composition after asynchronous preparation before capturing the project', async () => {
@@ -70,7 +71,7 @@ describe('Markdown projection scheduling', () => {
       fixture.composing = false;
       await vi.advanceTimersByTimeAsync(1000);
       expect(fixture.write).toHaveBeenCalledOnce();
-    } finally { dispose(); }
+    } finally { await dispose(); }
   });
   it('drains an active capture, persists the location, and refreshes there without overlap', async () => {
     vi.useFakeTimers();
@@ -97,7 +98,7 @@ describe('Markdown projection scheduling', () => {
       expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ ...nextInfo, generatedAt: '2026-10-03T00:00:00Z', state: 'ready' });
       await vi.advanceTimersByTimeAsync(2000);
       expect(fixture.write).toHaveBeenCalledTimes(2);
-    } finally { dispose(); }
+    } finally { await dispose(); }
   });
 
   it('keeps automatic refresh working when changing location fails', async () => {
@@ -111,7 +112,7 @@ describe('Markdown projection scheduling', () => {
       await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
       expect(getMarkdownProjectionStatus('synthetic')?.directory).toBe('/synthetic/projection');
-    } finally { dispose(); }
+    } finally { await dispose(); }
   });
 
   it('reports a failed regeneration at the new path and allows retry', async () => {
@@ -129,7 +130,7 @@ describe('Markdown projection scheduling', () => {
       expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready' });
       // Cleared fields are removed: the status reaches durable Agent payloads.
       expect(getMarkdownProjectionStatus('synthetic')).not.toHaveProperty('error');
-    } finally { dispose(); }
+    } finally { await dispose(); }
   });
   it('automatically captures the mounted project on local and remote changes and stops on database switch', async () => {
     vi.useFakeTimers();
@@ -151,7 +152,7 @@ describe('Markdown projection scheduling', () => {
       fixture.committed({ projectId: 'synthetic' });
       await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
-    } finally { dispose(); }
+    } finally { await dispose(); }
     expect(fixture.disposeRenderer).toHaveBeenCalledOnce();
   });
 
@@ -187,6 +188,78 @@ describe('Markdown projection scheduling', () => {
     await vi.advanceTimersByTimeAsync(PROJECTION_MAX_WAIT_MS);
     expect(refresh).toHaveBeenCalledTimes(3);
   });
+  it('publishes what was written since the last capture when the project closes, then releases it', async () => {
+    vi.useFakeTimers();
+    const dispose = installMarkdownProjection('synthetic');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.write).toHaveBeenCalledOnce();
+    fixture.committed({ projectId: 'synthetic' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fixture.write).toHaveBeenCalledOnce();
+    await dispose();
+    expect(fixture.write).toHaveBeenCalledTimes(2);
+    expect(fixture.disposeRenderer).toHaveBeenCalledOnce();
+    fixture.committed({ projectId: 'synthetic' });
+    await vi.advanceTimersByTimeAsync(PROJECTION_MAX_WAIT_MS);
+    expect(fixture.write).toHaveBeenCalledTimes(2);
+    // A project closed with nothing pending publishes nothing more.
+    const reopened = installMarkdownProjection('synthetic');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.write).toHaveBeenCalledTimes(3);
+    await reopened();
+    expect(fixture.write).toHaveBeenCalledTimes(3);
+    // The last keystroke's save lands only while the editors unmount.
+    const third = installMarkdownProjection('synthetic');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.write).toHaveBeenCalledTimes(4);
+    fixture.flush.mockImplementationOnce(async () => { fixture.committed({ projectId: 'synthetic' }); });
+    await third();
+    expect(fixture.write).toHaveBeenCalledTimes(5);
+  });
+
+  it('starts a reopened project only after its closing capture published', async () => {
+    vi.useFakeTimers();
+    const first = installMarkdownProjection('synthetic');
+    await vi.advanceTimersByTimeAsync(0);
+    let finish!: () => void;
+    fixture.write.mockImplementationOnce(() => new Promise(resolve => {
+      finish = () => resolve({ directory: '/synthetic/projection', generatedAt: '2026-10-02T00:00:01Z', readOnly: true, reverseSync: false });
+    }));
+    fixture.committed({ projectId: 'synthetic' });
+    const closing = first();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.write).toHaveBeenCalledTimes(2);
+    const second = installMarkdownProjection('synthetic');
+    await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
+    expect(fixture.read).toHaveBeenCalledTimes(2);
+    finish();
+    await closing;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.read).toHaveBeenCalledTimes(3);
+    expect(fixture.write).toHaveBeenCalledTimes(3);
+    await second();
+  });
+
+  it('captures pending changes before quitting without waiting for a pause, and nothing when current', async () => {
+    vi.useFakeTimers();
+    const dispose = installMarkdownProjection('synthetic');
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      await flushMarkdownProjections();
+      expect(fixture.write).toHaveBeenCalledOnce();
+      fixture.committed({ projectId: 'synthetic' });
+      await flushMarkdownProjections();
+      expect(fixture.write).toHaveBeenCalledTimes(2);
+      // A failed capture is retried on quit even with nothing new written.
+      fixture.write.mockRejectedValueOnce(new Error('disk full'));
+      fixture.committed({ projectId: 'synthetic' });
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
+      expect(fixture.write).toHaveBeenCalledTimes(3);
+      await flushMarkdownProjections();
+      expect(fixture.write).toHaveBeenCalledTimes(4);
+    } finally { await dispose(); }
+  });
+
   it('reports failure and allows a later refresh without blocking the author', async () => {
     const refresh = vi.fn().mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(undefined);
     const failed = vi.fn();

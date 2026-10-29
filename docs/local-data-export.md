@@ -23,11 +23,15 @@ custom folder never silently falls back to the default. Restore default remains
 available after a location error. No manuscript data is moved.
 
 The directory is
-created when a project opens, refreshed after local authored commits and remote
-project changes, and refreshed during the local lifecycle flush. Background
-refreshes wait until no commit has arrived for 2 seconds, and at most 30 seconds
-after the oldest change not yet projected, so continuous typing does not keep
-re-exporting the project. They serialize captures and replace only changed files.
+created when a project opens and refreshed after local authored commits and remote
+project changes. Background refreshes wait until no commit has arrived for 5
+seconds, and at most 30 seconds after the oldest change not yet projected, so
+continuous typing does not keep re-exporting the project. They serialize captures
+and replace only changed files. Closing the project, and the local lifecycle flush
+that runs before the app quits, capture any change not yet projected (or retry a
+failed capture) at once instead of waiting for the pause; a reopened project's
+first capture waits for its closing one. The native quit waits at most 5 seconds
+for the whole lifecycle flush; see [desktop quit persistence](desktop-quit-persistence.md).
 Only the open project's rows and Yjs state are captured. While the project stays
 open its renderer keeps the prose it hydrated, keyed by each document's persisted
 Yjs revision, so a capture reads Yjs state only for documents changed since the
