@@ -16,10 +16,11 @@ const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice(9)
   ?? '.local-data/renderer-performance/latest.json';
 const assertInputBudget = process.argv.includes('--assert-input-budget');
 const ci = process.argv.includes('--ci');
+const agentPanelOnly = process.argv.includes('--agent-panel');
 const editorFocusOnly = process.argv.includes('--editor-focus');
 const editorImeOnly = process.argv.includes('--editor-ime');
-if (editorFocusOnly && editorImeOnly) throw new Error('Select only one focused editor scenario');
-if ((editorFocusOnly || editorImeOnly) && (ci || assertInputBudget)) throw new Error('Focused editor checks cannot replace full CI or input budgets');
+if ([agentPanelOnly, editorFocusOnly, editorImeOnly].filter(Boolean).length > 1) throw new Error('Select only one focused scenario');
+if ((agentPanelOnly || editorFocusOnly || editorImeOnly) && (ci || assertInputBudget)) throw new Error('Focused editor checks cannot replace full CI or input budgets');
 if (ci && assertInputBudget) throw new Error('CI checks deterministic contracts; run device timing budgets separately');
 const chrome = resolveHeadlessBrowser();
 const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-renderer-perf-'));
@@ -217,7 +218,7 @@ try {
   await client.Page.bringToFront();
   console.log('[renderer] running deterministic scenarios');
   const result = await withDeadline(client.Runtime.evaluate({
-    expression: `window.__DRIFTING_PERFORMANCE_HARNESS__.${editorImeOnly ? 'editorIme' : editorFocusOnly ? 'editorFocus' : 'run'}()`, awaitPromise: true, returnByValue: true,
+    expression: `window.__DRIFTING_PERFORMANCE_HARNESS__.${agentPanelOnly ? 'agentPanel' : editorImeOnly ? 'editorIme' : editorFocusOnly ? 'editorFocus' : 'run'}()`, awaitPromise: true, returnByValue: true,
   }), 8 * 60 * 1000, 'Renderer scenarios');
   if (result.exceptionDetails || pageErrors.length) throw new Error(`Harness failed: ${JSON.stringify(result.exceptionDetails ?? pageErrors)}`);
   if (editorImeOnly) {
@@ -292,7 +293,7 @@ try {
   }
   if (sourceFingerprint !== fingerprint()) throw new Error('Source changed during measurement; discard this run');
   const report = {
-    schemaVersion: 1, kind: editorImeOnly ? 'renderer_editor_ime_run' : editorFocusOnly ? 'renderer_editor_focus_run' : 'renderer_performance_run', generatedAt: new Date().toISOString(),
+    schemaVersion: 1, kind: agentPanelOnly ? 'renderer_agent_panel_run' : editorImeOnly ? 'renderer_editor_ime_run' : editorFocusOnly ? 'renderer_editor_focus_run' : 'renderer_performance_run', generatedAt: new Date().toISOString(),
     status: 'measured', source: {
       commit: sourceCommit, rendererFingerprint: sourceFingerprint,
       fingerprintVersion: rendererFingerprintVersion,

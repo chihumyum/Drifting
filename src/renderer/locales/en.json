@@ -1596,6 +1596,7 @@
       "clearConfirm": "Clear Working Memory? This does not delete manuscript content, long-term rules, or chat history."
     },
     "history": {
+      "loadEarlier": "Load earlier messages",
       "empty": "No chat history yet",
       "untitled": "Untitled",
       "rename": "Rename",

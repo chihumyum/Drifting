@@ -10,6 +10,7 @@ import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import { countWords, extractProseText } from '../packages/prose-metrics/src/index';
 
 const [profileDirectory, output] = process.argv.slice(2);
+const afterFixes = process.argv.includes('--after-fixes');
 assert(profileDirectory && output, 'Usage: node --import=tsx scripts/verify-stress-native-session.ts <profile-directory> <output.json>');
 const profile = JSON.parse(readFileSync(path.join(profileDirectory, 'profile.json'), 'utf8'));
 const database = new DatabaseSync(path.join(profile.databaseDirectory, 'drifting-library.db'), { readOnly: true });
@@ -38,6 +39,10 @@ try {
       const words = countWords(text);
       assert(text.includes(item.marker), `UI write missing from canonical Yjs: ${item.key}`);
       checks[`${item.key}-canonical-marker`] = true;
+      if (afterFixes && item.key === 'idea-50k') {
+        assert(text.includes('修复后投影验收'), 'Post-fix native write missing from canonical prose');
+        checks.postFixCanonicalWrite = true;
+      }
       if (item.cached) {
         assert.equal(words, row[item.cached], `Stale word cache: ${item.key}`);
         checks[`${item.key}-word-cache`] = true;
@@ -63,19 +68,46 @@ try {
   assert.deepEqual(integrity.map(row => Object.values(row)[0]), ['ok']);
   assert.equal(database.prepare('PRAGMA foreign_key_check').all().length, 0);
   checks.sqliteIntegrity = true; checks.foreignKeys = true;
+  let projection: Record<string, unknown> | undefined;
+  if (afterFixes) {
+    const counts = database.prepare("SELECT count(*) AS nodes, count(CASE WHEN kind='chapter' THEN 1 END) AS chapters FROM book_node WHERE deleted_at IS NULL").get()!;
+    assert.equal(counts.nodes, 300); assert.equal(counts.chapters, 100);
+    checks.chapterCountExcludesIdeas = true;
+    const root = path.join(profile.appLocalDataDirectory, 'markdown-projections');
+    const folders = readdirSync(root);
+    for (const folder of folders) {
+      const directory = path.join(root, folder);
+      const manifest = JSON.parse(readFileSync(path.join(directory, '.drifting/manifest.json'), 'utf8'));
+      assert.equal(manifest.readOnly, true); assert.equal(manifest.reverseSync, false);
+      let marker = false;
+      for (const [file, hash] of Object.entries(manifest.files)) {
+        const resolved = path.resolve(directory, file);
+        assert(resolved.startsWith(`${directory}${path.sep}`), 'Projection path escaped its root');
+        const bytes = readFileSync(resolved);
+        assert.equal(sha256(bytes), hash, 'Projection manifest/file hash mismatch');
+        if (file.endsWith('.md') && bytes.toString('utf8').includes('修复后投影验收')) marker = true;
+      }
+      assert(marker, 'Worker projection omitted the post-fix native write');
+      projection = { files: Object.keys(manifest.files).length, documents: manifest.documents.length,
+        manifestSha256: sha256(JSON.stringify(manifest)), generatedAt: manifest.generatedAt };
+    }
+    assert(projection, 'No completed native Worker projection');
+    checks.workerProjectionHashes = true; checks.workerProjectionPostFixWrite = true;
+  }
+  const since = afterFixes ? Date.parse(JSON.parse(readFileSync(path.join(profileDirectory, 'performance-audit/source.json'), 'utf8')).recordedAt) : 0;
   const log = readFileSync(path.join(profileDirectory, 'logs/renderer-stalls.log'), 'utf8');
-  const stalls = log.trim().split('\n').map(line => JSON.parse(line)).filter(row => row.event === 'stall' || row.event === 'stall-recovered').map(row => ({
+  const stalls = log.trim().split('\n').map(line => JSON.parse(line)).filter(row => Date.parse(row.at) >= since && (row.event === 'stall' || row.event === 'stall-recovered')).map(row => ({
     event: row.event, at: row.at, nativeSilentMs: row.nativeSilentMs, blocked: row.blocked ?? null,
     rendererBlockedMs: row.renderer?.blockedMs ?? null,
     activities: row.renderer?.activities?.map((activity: { label: string; durationMs: number }) => ({ label: activity.label, durationMs: activity.durationMs })) ?? [],
   }));
-  const samples = readdirSync(path.join(profileDirectory, 'logs/stall-samples')).filter(file => file.endsWith('.txt')).map(file => {
+  const samples = readdirSync(path.join(profileDirectory, 'logs/stall-samples')).filter(file => file.endsWith('.txt') && !afterFixes).map(file => {
     const content = readFileSync(path.join(profileDirectory, 'logs/stall-samples', file), 'utf8');
     return { sha256: sha256(content), signals: { json: /jsonProtoFuncParse|jsonProtoFuncStringify/.test(content),
       layout: /WebCore::.*[Ll]ayout/.test(content), gc: /JSC::Heap::collect|JSC::MarkedBlock::Handle::sweep/.test(content) } };
   });
   const report = { kind: 'native_stress_seed_persistence', generatedAt: new Date().toISOString(), status: 'passed-read-only-reopen-checks',
-    scriptSha256: sha256(readFileSync(new URL(import.meta.url))), checks, bodies, watchdog: { logSha256: sha256(log), stalls, samples },
+    scriptSha256: sha256(readFileSync(new URL(import.meta.url))), checks, bodies, ...(projection ? { projection } : {}), watchdog: { ...(afterFixes ? { since: new Date(since).toISOString() } : {}), logSha256: sha256(log), stalls, samples },
     limits: ['Checks existing synthetic UI writes only; does not author or repair prose.', 'RSS and native stack samples are not JavaScript heap snapshots or proof of a leak.'] };
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify({ checks: Object.keys(checks).length, canonicalBodies: bodies.length, stalls: stalls.length }));

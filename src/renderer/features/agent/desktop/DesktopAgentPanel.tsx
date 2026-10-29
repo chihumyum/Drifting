@@ -97,6 +97,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
   const renameConversation = useAgentChatViewStore((s) => s.renameConversation);
 
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
+  const usable = api.capability.available && status !== null && isGeneralAgentUsable(agentAuth, status);
   const [panelView, setPanelView] = useState<'chat' | 'working-memory'>('chat');
   const [showHistory, setShowHistory] = useState(false);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
@@ -141,9 +142,10 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
   }, [refreshStatus]);
 
   const handleSend = useCallback(() => {
+    if (!usable) return;
     transcriptRef.current?.follow();
     void send();
-  }, [send]);
+  }, [send, usable]);
 
   const handleNew = useCallback(() => {
     transcriptRef.current?.follow();
@@ -212,63 +214,8 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
     [itemDraft, renameConversation],
   );
 
-  if (!api.capability.available) {
-    return (
-      <div style={hintBox} role="status">
-        <div style={hintTitle}>{t('agentPanel.unavailableTitle')}</div>
-        <div style={hintText}>{t('agentPanel.unavailableReason')}</div>
-        <div style={hintText}>{t('agentPanel.unavailableFuture')}</div>
-      </div>
-    );
-  }
-  if (status === null) {
-    return <div style={hintBox}>{t('agentPanel.checking')}</div>;
-  }
-
-  const usable = isGeneralAgentUsable(agentAuth, status);
-
-  // ---- Not set up → point to Settings (connect / subscribe lives there) ----
-  if (!usable) {
-    const notConnectedText =
-      agentAuth === 'hosted'
-        ? t('agentPanel.setup.hosted')
-        : agentAuth === 'apikey'
-          ? t('agentPanel.setup.apiKey')
-          : t('agentPanel.setup.byok');
-    return (
-      <div style={fillStyle}>
-        <style>{panelCss}</style>
-        <div className="agt-panel-toolbar workspace-panel-header-row">
-          <strong className="agt-toolbar-view-title">
-            {t(panelView === 'working-memory' ? 'agentPanel.workingMemory.title' : 'agentPanel.setup.title')}
-          </strong>
-          <button
-            type="button"
-            className="agt-toolbar-action"
-            onClick={() =>
-              setPanelView((view) => (view === 'chat' ? 'working-memory' : 'chat'))
-            }
-          >
-            {t(panelView === 'chat' ? 'agentPanel.toolbar.workingMemory' : 'agentPanel.toolbar.chat')}
-          </button>
-        </div>
-        {panelView === 'working-memory' ? (
-          <AgentWorkingMemoryView key={projectId} projectId={projectId} />
-        ) : (
-          <div style={hintBox}>
-            <div style={hintText}>{notConnectedText}</div>
-            <button
-              type="button"
-              className="agt-btn glass glass--primary"
-              onClick={() => events.emit('settings:open', { railId: 'models' })}
-            >
-              {t('agentPanel.setup.openSettings')}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const notConnectedText = agentAuth === 'hosted' ? t('agentPanel.setup.hosted')
+    : agentAuth === 'apikey' ? t('agentPanel.setup.apiKey') : t('agentPanel.setup.byok');
 
   // ---- Chat ----
   return (
@@ -428,7 +375,13 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
         )}
       </AnchoredPopover>
 
-      <DesktopAgentTranscript key={`${projectId}:${activeConvId ?? "new"}`} ref={transcriptRef} />
+      {!usable && <div style={hintBox} role="status">
+        <div style={hintText}>{status === null && api.capability.available ? t('agentPanel.checking') : notConnectedText}</div>
+        <button type="button" className="agt-btn glass glass--primary" onClick={() => events.emit('settings:open', { railId: 'models' })}>
+          {t('agentPanel.setup.openSettings')}
+        </button>
+      </div>}
+      <DesktopAgentTranscript canRun={usable} key={`${projectId}:${activeConvId ?? "new"}`} ref={transcriptRef} />
 
       <div style={inputArea}>
         <div className="agt-composer agt-composer--glass glass glass--rest glass--field">
@@ -494,7 +447,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                     className="agt-round glass glass--primary glass--round"
                     onClick={handleSend}
                     disabled={
-                      !prompt.trim() ||
+                      !usable || !prompt.trim() ||
                       starting ||
                       controlStatus === 'waiting_permission' ||
                       controlStatus === 'cancelling' ||
@@ -515,7 +468,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                 type="button"
                 className="agt-round glass glass--primary glass--round"
                 onClick={handleSend}
-                disabled={historyUnavailable || starting || Boolean(pendingControl?.requiresContinuation)}
+                disabled={!usable || historyUnavailable || starting || Boolean(pendingControl?.requiresContinuation)}
                 title={t('agentPanel.composer.send')}
                 aria-label={t('agentPanel.composer.send')}
               >
@@ -630,14 +583,6 @@ const hintBox: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: 'var(--ui-font-secondary, 11.5px)',
   alignItems: 'flex-start',
-};
-
-const hintTitle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--ui-font-caption, 10px)',
-  fontWeight: 500,
-  letterSpacing: '0.04em',
-  color: 'hsl(var(--ink-1))',
 };
 
 const hintText: React.CSSProperties = {

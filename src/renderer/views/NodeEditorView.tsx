@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
 import {
-  BookNode,
   CHAPTER_WRITING_STATUSES,
   CHAPTER_ORDER_STRIDE,
   DRIFT_STATUSES,
@@ -76,17 +75,18 @@ log.setLevel(loglevel.levels.ERROR);
 // URL won't always reflect the side this instance is rendering. Pass the leaf
 // id explicitly via `nodeIdOverride` and we'll use that instead of useParams.
 export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } = {}) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const {
-    navigateToElement,
-    leaveDeletedEntity,
-    openEntity,
-  } = useProjectNavigation();
   const params = useParams<{ nodeId: string; projectId: string }>();
   const nodeId = nodeIdOverride ?? params.nodeId;
+  if (!nodeId) return <Navigate to="/" replace />;
+  return <NodeEditorSession nodeId={nodeId} projectId={params.projectId} />;
+}
+
+// Routing changes every tab switch. The retained editor session only receives
+// its stable owner IDs; unrelated routes must not rebuild all hidden editors.
+const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }: { nodeId: string; projectId?: string }) {
+  const { t } = useTranslation();
+  const { navigateToElement, leaveDeletedEntity, openEntity } = useProjectNavigation();
   const { isCommandActive, isVisible, reportReady } = useEditorSurfaceLifecycle();
-  const projectId = params.projectId;
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
     throw new Error('NodeEditorView requires a projectId');
@@ -99,13 +99,11 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const promoteCurrentTab = usePromoteCurrentTab(activeProjectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(nodeId);
   const {
-    bookNodes,
     storylines,
     nodeStorylineMapping,
     bookElementCategories,
     primaryStorylineByNode,
   } = useDataStoreFields(
-    'bookNodes',
     'storylines',
     'nodeStorylineMapping',
     'bookElementCategories',
@@ -165,7 +163,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       userId: activeUserId,
       projectId: activeProjectId,
     });
-  const plotPlannerOpen = useUiStore((s) => s.plotPlannerOpen);
+  const plotPlannerOpen = useUiStore((s) => isVisible && s.plotPlannerOpen);
   const togglePlotPlanner = useUiStore((s) => s.togglePlotPlannerOpen);
   // Plot planner grid persists on its own debounce, independent of the prose
   // save path. Bound to the dock's nodeId (not activeNodeIdRef) so a flush
@@ -214,20 +212,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     activeNodeIdRef.current = nodeId ?? null;
   }, [nodeId]);
 
-  // get nodeId from url params
-  useEffect(() => {
-    if (!nodeId) {
-      navigate('/', { replace: true });
-    }
-  }, [nodeId, navigate]);
-
-  const curNode = useMemo<BookNode | null>(() => {
-    if (!nodeId) {
-      return null;
-    }
-
-    return bookNodes.find((n) => n.id === nodeId) || null;
-  }, [bookNodes, nodeId]);
+  const curNode = useDataStore((state) => state.bookNodes.find(node => node.id === nodeId) ?? null);
 
   const storylineById = useMemo(() => {
     return new Map(storylines.map((storyline) => [storyline.id, storyline]));
@@ -532,7 +517,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         // we have to assign one. Append to the tail of the global chapter
         // axis, jumping by CHAPTER_ORDER_STRIDE so the new tile lands next
         // to (not overlapping) the current last chapter.
-        const maxChapterOrder = bookNodes
+        const maxChapterOrder = useDataStore.getState().bookNodes
           .filter(isChapter)
           .reduce((max, n) => Math.max(max, n.bookOrder), 0);
         await updateNode(nodeId, {
@@ -593,7 +578,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       setConversionBusy(false);
     }
   }, [
-    bookNodes,
     conversionPickedId,
     conversionTarget,
     createElement,
@@ -859,7 +843,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       )}
     </div>
   );
-}
+});
 
 interface ConversionPickerModalProps {
   target: 'chapter' | 'element';

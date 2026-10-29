@@ -1,10 +1,10 @@
 {
   "kind": "stress_seed_node_diagnostic",
   "status": "passed-domain-checks-native-ui-not-run",
-  "generatedAt": "2026-10-29T05:21:32.904Z",
+  "generatedAt": "2026-10-29T09:33:19.550Z",
   "source": {
-    "commit": "5c046a5988c56905080029a822a77041ccef961a",
-    "fingerprint": "c40c99875a79c52c844a35734cce20b43801ef1182d602827ae5fb6d2abeb2a2"
+    "commit": "21806135831b4cd232713f8faef72ced4fe387cb",
+    "fingerprint": "b9fcd35e0a08473d3cfa024f817ff1a41a72499bc8bd0ca98ac8d9d575533baa"
   },
   "environment": {
     "platform": "darwin",
@@ -16,9 +16,9 @@
     "logicalCpus": 12,
     "memoryBytes": 38654705664,
     "load": [
-      42.56201171875,
-      27.89794921875,
-      20.8583984375
+      9.01708984375,
+      7.56005859375,
+      10.39892578125
     ],
     "explicitGc": true
   },
@@ -35,8 +35,8 @@
     "elements": 300,
     "notes": 60,
     "conversations": 25,
-    "noteHtmlCharacters": 581913,
-    "noteHtmlTags": 3584,
+    "noteHtmlCharacters": 40852,
+    "noteHtmlTags": 704,
     "cachedChatCharacters": 1515527,
     "chatDisplayMessages": 2600,
     "canonicalTurns": 600,
@@ -46,1253 +46,1253 @@
     {
       "name": "workspace-full-capture",
       "samples": 5,
-      "p50Ms": 37.64249999999993,
-      "p95Ms": 45.824916999999914,
-      "maxMs": 45.824916999999914,
-      "maxCpuMs": 53.978,
-      "maxTimerLatenessMs": 43.90979200000038,
-      "maxHeapGrowthBytes": 15781200
+      "p50Ms": 34.93920900000012,
+      "p95Ms": 40.40066700000034,
+      "maxMs": 40.40066700000034,
+      "maxCpuMs": 50.284,
+      "maxTimerLatenessMs": 38.4692500000001,
+      "maxHeapGrowthBytes": 15781664
     },
     {
       "name": "workspace-covered-no-change",
       "samples": 5,
-      "p50Ms": 3.491417000000183,
-      "p95Ms": 4.282040999999481,
-      "maxMs": 4.282040999999481,
-      "maxCpuMs": 11.865,
-      "maxTimerLatenessMs": 2.4022079999995185,
-      "maxHeapGrowthBytes": 1249240
+      "p50Ms": 2.236750000000029,
+      "p95Ms": 3.034707999999682,
+      "maxMs": 3.034707999999682,
+      "maxCpuMs": 12.334,
+      "maxTimerLatenessMs": 1.0834579999996095,
+      "maxHeapGrowthBytes": 1090432
     },
     {
       "name": "material-card-markdown-all-60",
       "samples": 5,
-      "p50Ms": 26.56420799999978,
-      "p95Ms": 32.86016699999982,
-      "maxMs": 32.86016699999982,
-      "maxCpuMs": 47.769,
-      "maxTimerLatenessMs": 30.94641700000011,
-      "maxHeapGrowthBytes": 12095144
+      "p50Ms": 7.143374999999651,
+      "p95Ms": 22.695500000000266,
+      "maxMs": 22.695500000000266,
+      "maxCpuMs": 36.344,
+      "maxTimerLatenessMs": 20.75833300000022,
+      "maxHeapGrowthBytes": 5421544
     },
     {
       "name": "material-search-five-keystrokes",
       "samples": 5,
-      "p50Ms": 19.332750000000487,
-      "p95Ms": 30.48216599999978,
-      "maxMs": 30.48216599999978,
-      "maxCpuMs": 33.879,
-      "maxTimerLatenessMs": 28.736125000000357,
-      "maxHeapGrowthBytes": 23331920
+      "p50Ms": 0.8825839999999516,
+      "p95Ms": 4.408166000000165,
+      "maxMs": 4.408166000000165,
+      "maxCpuMs": 12.961,
+      "maxTimerLatenessMs": 2.5222499999999854,
+      "maxHeapGrowthBytes": 5932040
     },
     {
       "name": "conversation-list",
       "samples": 5,
-      "p50Ms": 7.539458999999624,
-      "p95Ms": 9.37487500000043,
-      "maxMs": 9.37487500000043,
-      "maxCpuMs": 17.35,
-      "maxTimerLatenessMs": 7.478833000000122,
-      "maxHeapGrowthBytes": 227544
+      "p50Ms": 6.573207999999795,
+      "p95Ms": 8.811624999999822,
+      "maxMs": 8.811624999999822,
+      "maxCpuMs": 16.775,
+      "maxTimerLatenessMs": 6.864416999999776,
+      "maxHeapGrowthBytes": 227432
     },
     {
       "name": "conversation-usage-summary-all",
       "samples": 5,
-      "p50Ms": 122.55987499999992,
-      "p95Ms": 134.82841599999938,
-      "maxMs": 134.82841599999938,
-      "maxCpuMs": 123.218,
-      "maxTimerLatenessMs": 132.97320799999943,
-      "maxHeapGrowthBytes": 29615976
+      "p50Ms": 102.25483399999985,
+      "p95Ms": 105.58629200000041,
+      "maxMs": 105.58629200000041,
+      "maxCpuMs": 109.076,
+      "maxTimerLatenessMs": 103.66366700000026,
+      "maxHeapGrowthBytes": 29620536
     },
     {
       "name": "largest-conversation-cache-read",
       "samples": 5,
-      "p50Ms": 25.874959000000672,
-      "p95Ms": 32.841459000000214,
-      "maxMs": 32.841459000000214,
-      "maxCpuMs": 35.633,
-      "maxTimerLatenessMs": 31.058917000000292,
-      "maxHeapGrowthBytes": 6182680
+      "p50Ms": 22.92229099999986,
+      "p95Ms": 23.99612500000012,
+      "maxMs": 23.99612500000012,
+      "maxCpuMs": 31.471,
+      "maxTimerLatenessMs": 22.115124999999807,
+      "maxHeapGrowthBytes": 6182712
     },
     {
       "name": "largest-conversation-canonical-snapshot",
       "samples": 5,
-      "p50Ms": 104.27362499999981,
-      "p95Ms": 172.23662500000046,
-      "maxMs": 172.23662500000046,
-      "maxCpuMs": 116.557,
-      "maxTimerLatenessMs": 170.31212500000038,
-      "maxHeapGrowthBytes": 36411928
+      "p50Ms": 91.8922090000001,
+      "p95Ms": 94.01808399999982,
+      "maxMs": 94.01808399999982,
+      "maxCpuMs": 104.722,
+      "maxTimerLatenessMs": 92.12812499999973,
+      "maxHeapGrowthBytes": 36411952
     },
     {
       "name": "largest-conversation-strict-recovery",
       "samples": 5,
-      "p50Ms": 85.63691600000038,
-      "p95Ms": 162.56654199999957,
-      "maxMs": 162.56654199999957,
-      "maxCpuMs": 175.454,
-      "maxTimerLatenessMs": 84.98245899999984,
-      "maxHeapGrowthBytes": 19936968
+      "p50Ms": 56.920250000000124,
+      "p95Ms": 66.96033400000033,
+      "maxMs": 66.96033400000033,
+      "maxCpuMs": 117.312,
+      "maxTimerLatenessMs": 34.84820800000034,
+      "maxHeapGrowthBytes": 20086400
     },
     {
       "name": "largest-conversation-display-projection",
       "samples": 5,
-      "p50Ms": 160.5824160000002,
-      "p95Ms": 223.70337500000005,
-      "maxMs": 223.70337500000005,
-      "maxCpuMs": 227.802,
-      "maxTimerLatenessMs": 138.28291699999954,
-      "maxHeapGrowthBytes": 77948736
+      "p50Ms": 150.42741699999988,
+      "p95Ms": 175.57937499999935,
+      "maxMs": 175.57937499999935,
+      "maxCpuMs": 203.145,
+      "maxTimerLatenessMs": 115.17500000000018,
+      "maxHeapGrowthBytes": 77973128
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-1",
       "samples": 1,
-      "p50Ms": 98.90074999999888,
-      "p95Ms": 98.90074999999888,
-      "maxMs": 98.90074999999888,
-      "maxCpuMs": 152.682,
-      "maxTimerLatenessMs": 96.99866699999984,
-      "maxHeapGrowthBytes": 20491648
+      "p50Ms": 97.99116700000013,
+      "p95Ms": 97.99116700000013,
+      "maxMs": 97.99116700000013,
+      "maxCpuMs": 153.825,
+      "maxTimerLatenessMs": 96.06574999999975,
+      "maxHeapGrowthBytes": 20726680
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-2",
       "samples": 1,
-      "p50Ms": 79.99479100000099,
-      "p95Ms": 79.99479100000099,
-      "maxMs": 79.99479100000099,
-      "maxCpuMs": 114.875,
-      "maxTimerLatenessMs": 78.07337499999994,
-      "maxHeapGrowthBytes": 19843368
+      "p50Ms": 107.8929590000007,
+      "p95Ms": 107.8929590000007,
+      "maxMs": 107.8929590000007,
+      "maxCpuMs": 113.12,
+      "maxTimerLatenessMs": 105.95941700000003,
+      "maxHeapGrowthBytes": 19557368
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-3",
       "samples": 1,
-      "p50Ms": 72.96945799999958,
-      "p95Ms": 72.96945799999958,
-      "maxMs": 72.96945799999958,
-      "maxCpuMs": 109.382,
-      "maxTimerLatenessMs": 71.04650000000038,
-      "maxHeapGrowthBytes": 19744416
+      "p50Ms": 76.82945800000016,
+      "p95Ms": 76.82945800000016,
+      "maxMs": 76.82945800000016,
+      "maxCpuMs": 100.965,
+      "maxTimerLatenessMs": 74.89699999999993,
+      "maxHeapGrowthBytes": 19933632
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-4",
       "samples": 1,
-      "p50Ms": 90.5625,
-      "p95Ms": 90.5625,
-      "maxMs": 90.5625,
-      "maxCpuMs": 118.524,
-      "maxTimerLatenessMs": 88.71091700000034,
-      "maxHeapGrowthBytes": 18680848
+      "p50Ms": 70.90687499999967,
+      "p95Ms": 70.90687499999967,
+      "maxMs": 70.90687499999967,
+      "maxCpuMs": 101.869,
+      "maxTimerLatenessMs": 69.0338329999995,
+      "maxHeapGrowthBytes": 18826616
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-5",
       "samples": 1,
-      "p50Ms": 71.72358399999939,
-      "p95Ms": 71.72358399999939,
-      "maxMs": 71.72358399999939,
-      "maxCpuMs": 98.77,
-      "maxTimerLatenessMs": 69.80400000000009,
-      "maxHeapGrowthBytes": 18511136
+      "p50Ms": 68.64791700000023,
+      "p95Ms": 68.64791700000023,
+      "maxMs": 68.64791700000023,
+      "maxCpuMs": 110.465,
+      "maxTimerLatenessMs": 66.72370800000044,
+      "maxHeapGrowthBytes": 18577192
     },
     {
       "name": "agent-reopen-close-soak",
       "samples": 20,
-      "p50Ms": 140.00695799999994,
-      "p95Ms": 157.1880000000001,
-      "maxMs": 163.46208300000035,
-      "maxCpuMs": 195.192,
-      "maxTimerLatenessMs": 124.08879100000013,
-      "maxHeapGrowthBytes": 74332776
+      "p50Ms": 139.0312500000009,
+      "p95Ms": 276.894542,
+      "maxMs": 372.218167,
+      "maxCpuMs": 206.051,
+      "maxTimerLatenessMs": 304.7933750000002,
+      "maxHeapGrowthBytes": 74317784
     },
     {
       "name": "authored-create-todo",
       "samples": 5,
-      "p50Ms": 148.0278330000001,
-      "p95Ms": 1111.479792,
-      "maxMs": 1111.479792,
-      "maxCpuMs": 1369.954,
-      "maxTimerLatenessMs": 541.4132499999996,
-      "maxHeapGrowthBytes": 33103968
+      "p50Ms": 261.3154579999991,
+      "p95Ms": 1426.0997909999987,
+      "maxMs": 1426.0997909999987,
+      "maxCpuMs": 1748.331,
+      "maxTimerLatenessMs": 584.4979590000003,
+      "maxHeapGrowthBytes": 31973000
     },
     {
       "name": "authored-replace-20k-chapter",
       "samples": 5,
-      "p50Ms": 483.42583399999785,
-      "p95Ms": 607.4667499999996,
-      "maxMs": 607.4667499999996,
-      "maxCpuMs": 823.288,
-      "maxTimerLatenessMs": 109.53104200000234,
-      "maxHeapGrowthBytes": 80329320
+      "p50Ms": 539.113707999999,
+      "p95Ms": 613.5875410000008,
+      "maxMs": 613.5875410000008,
+      "maxCpuMs": 867.594,
+      "maxTimerLatenessMs": 132.0622910000002,
+      "maxHeapGrowthBytes": 80957680
     },
     {
       "name": "authored-replace-20k-one-character",
       "samples": 5,
-      "p50Ms": 607.200915999998,
-      "p95Ms": 684.3033329999998,
-      "maxMs": 684.3033329999998,
-      "maxCpuMs": 1014.243,
-      "maxTimerLatenessMs": 102.6854170000006,
-      "maxHeapGrowthBytes": 73749504
+      "p50Ms": 602.6773329999996,
+      "p95Ms": 631.3679169999996,
+      "maxMs": 631.3679169999996,
+      "maxCpuMs": 972.065,
+      "maxTimerLatenessMs": 95.22783299999719,
+      "maxHeapGrowthBytes": 70797144
     }
   ],
   "samples": [
     {
       "name": "workspace-full-capture",
       "index": 0,
-      "elapsedMs": 45.824916999999914,
-      "cpuMs": 53.978,
-      "postOperationYieldMs": 2.6147919999993974,
-      "maxTimerLatenessMs": 43.90979200000038,
-      "heapGrowthBytes": 15781200,
-      "rssBytes": 307986432
+      "elapsedMs": 40.40066700000034,
+      "cpuMs": 50.284,
+      "postOperationYieldMs": 2.779041999999663,
+      "maxTimerLatenessMs": 38.4692500000001,
+      "heapGrowthBytes": 15781664,
+      "rssBytes": 302104576
     },
     {
       "name": "workspace-full-capture",
       "index": 1,
-      "elapsedMs": 35.56629100000009,
-      "cpuMs": 50.088,
-      "postOperationYieldMs": 2.648041999999805,
-      "maxTimerLatenessMs": 33.686915999999655,
-      "heapGrowthBytes": 15359968,
-      "rssBytes": 308789248
+      "elapsedMs": 34.87400000000025,
+      "cpuMs": 49.828,
+      "postOperationYieldMs": 2.4420420000001286,
+      "maxTimerLatenessMs": 32.94333400000005,
+      "heapGrowthBytes": 15361872,
+      "rssBytes": 302956544
     },
     {
       "name": "workspace-full-capture",
       "index": 2,
-      "elapsedMs": 42.29462500000045,
-      "cpuMs": 50.787,
-      "postOperationYieldMs": 2.8456250000008367,
-      "maxTimerLatenessMs": 40.42733399999997,
-      "heapGrowthBytes": 15296880,
-      "rssBytes": 309936128
+      "elapsedMs": 34.93920900000012,
+      "cpuMs": 48.975,
+      "postOperationYieldMs": 2.660457999999835,
+      "maxTimerLatenessMs": 33.01204199999984,
+      "heapGrowthBytes": 15296912,
+      "rssBytes": 303382528
     },
     {
       "name": "workspace-full-capture",
       "index": 3,
-      "elapsedMs": 37.64249999999993,
-      "cpuMs": 48.464,
-      "postOperationYieldMs": 2.617707999999766,
-      "maxTimerLatenessMs": 35.71595799999977,
-      "heapGrowthBytes": 15322560,
-      "rssBytes": 312229888
+      "elapsedMs": 31.508790999999746,
+      "cpuMs": 41.837,
+      "postOperationYieldMs": 2.5357500000000073,
+      "maxTimerLatenessMs": 29.56899999999996,
+      "heapGrowthBytes": 15321576,
+      "rssBytes": 304726016
     },
     {
       "name": "workspace-full-capture",
       "index": 4,
-      "elapsedMs": 34.312958999999864,
-      "cpuMs": 42.36,
-      "postOperationYieldMs": 2.5974999999998545,
-      "maxTimerLatenessMs": 32.48512500000015,
-      "heapGrowthBytes": 15312896,
-      "rssBytes": 312246272
+      "elapsedMs": 37.36670800000002,
+      "cpuMs": 48.715,
+      "postOperationYieldMs": 2.555041000000074,
+      "maxTimerLatenessMs": 35.43912500000033,
+      "heapGrowthBytes": 15277848,
+      "rssBytes": 304742400
     },
     {
       "name": "workspace-covered-no-change",
       "index": 0,
-      "elapsedMs": 3.491417000000183,
-      "cpuMs": 10.989,
-      "postOperationYieldMs": 2.487082999999984,
-      "maxTimerLatenessMs": 1.5742079999999987,
-      "heapGrowthBytes": 767752,
-      "rssBytes": 312295424
+      "elapsedMs": 2.236750000000029,
+      "cpuMs": 9.191,
+      "postOperationYieldMs": 2.677959000000101,
+      "maxTimerLatenessMs": 0.5792089999999916,
+      "heapGrowthBytes": 779776,
+      "rssBytes": 304807936
     },
     {
       "name": "workspace-covered-no-change",
       "index": 1,
-      "elapsedMs": 3.544332999999824,
-      "cpuMs": 11.865,
-      "postOperationYieldMs": 2.41662499999984,
-      "maxTimerLatenessMs": 1.59900000000016,
-      "heapGrowthBytes": 758432,
-      "rssBytes": 312393728
+      "elapsedMs": 2.26825000000008,
+      "cpuMs": 9.726,
+      "postOperationYieldMs": 2.515457999999853,
+      "maxTimerLatenessMs": 0.44154200000002675,
+      "heapGrowthBytes": 758464,
+      "rssBytes": 305086464
     },
     {
       "name": "workspace-covered-no-change",
       "index": 2,
-      "elapsedMs": 1.8658749999995052,
-      "cpuMs": 4.206,
-      "postOperationYieldMs": 2.6110420000004524,
-      "maxTimerLatenessMs": 0.4998329999998532,
-      "heapGrowthBytes": 802304,
-      "rssBytes": 312508416
+      "elapsedMs": 3.034707999999682,
+      "cpuMs": 12.334,
+      "postOperationYieldMs": 2.682749999999942,
+      "maxTimerLatenessMs": 1.0834579999996095,
+      "heapGrowthBytes": 1090432,
+      "rssBytes": 305299456
     },
     {
       "name": "workspace-covered-no-change",
       "index": 3,
-      "elapsedMs": 4.282040999999481,
-      "cpuMs": 11.336,
-      "postOperationYieldMs": 2.6026670000001104,
-      "maxTimerLatenessMs": 2.4022079999995185,
-      "heapGrowthBytes": 1249240,
-      "rssBytes": 312737792
+      "elapsedMs": 2.1610420000001795,
+      "cpuMs": 9.799,
+      "postOperationYieldMs": 1.5399999999999636,
+      "maxTimerLatenessMs": 0.2137500000003456,
+      "heapGrowthBytes": 804224,
+      "rssBytes": 305430528
     },
     {
       "name": "workspace-covered-no-change",
       "index": 4,
-      "elapsedMs": 2.004791999999725,
-      "cpuMs": 6.98,
-      "postOperationYieldMs": 1.3801249999996799,
-      "maxTimerLatenessMs": 0.06612499999937427,
-      "heapGrowthBytes": 767504,
-      "rssBytes": 312754176
+      "elapsedMs": 1.377042000000074,
+      "cpuMs": 3.85,
+      "postOperationYieldMs": 2.4845000000000255,
+      "maxTimerLatenessMs": 0.42183299999987867,
+      "heapGrowthBytes": 772672,
+      "rssBytes": 305496064
     },
     {
       "name": "material-card-markdown-all-60",
       "index": 0,
-      "elapsedMs": 32.86016699999982,
-      "cpuMs": 47.769,
-      "postOperationYieldMs": 2.408249999999498,
-      "maxTimerLatenessMs": 30.94641700000011,
-      "heapGrowthBytes": 12095144,
-      "rssBytes": 313720832
+      "elapsedMs": 22.695500000000266,
+      "cpuMs": 36.344,
+      "postOperationYieldMs": 2.5941670000001977,
+      "maxTimerLatenessMs": 20.75833300000022,
+      "heapGrowthBytes": 5421544,
+      "rssBytes": 306446336
     },
     {
       "name": "material-card-markdown-all-60",
       "index": 1,
-      "elapsedMs": 23.77637500000037,
-      "cpuMs": 32.531,
-      "postOperationYieldMs": 2.419332999999824,
-      "maxTimerLatenessMs": 21.839249999999993,
-      "heapGrowthBytes": 11158688,
-      "rssBytes": 314458112
+      "elapsedMs": 7.217290999999932,
+      "cpuMs": 16.973,
+      "postOperationYieldMs": 2.544999999999618,
+      "maxTimerLatenessMs": 5.28283300000021,
+      "heapGrowthBytes": 4027648,
+      "rssBytes": 306544640
     },
     {
       "name": "material-card-markdown-all-60",
       "index": 2,
-      "elapsedMs": 23.979209000000083,
-      "cpuMs": 32.634,
-      "postOperationYieldMs": 2.5375840000006065,
-      "maxTimerLatenessMs": 22.08679200000006,
-      "heapGrowthBytes": 11236528,
-      "rssBytes": 314884096
+      "elapsedMs": 7.143374999999651,
+      "cpuMs": 15.034,
+      "postOperationYieldMs": 2.2801660000000084,
+      "maxTimerLatenessMs": 5.200790999999754,
+      "heapGrowthBytes": 4038584,
+      "rssBytes": 306675712
     },
     {
       "name": "material-card-markdown-all-60",
       "index": 3,
-      "elapsedMs": 26.56420799999978,
-      "cpuMs": 39.643,
-      "postOperationYieldMs": 2.443959000000177,
-      "maxTimerLatenessMs": 24.640082999999322,
-      "heapGrowthBytes": 11292352,
-      "rssBytes": 315146240
+      "elapsedMs": 5.419334000000163,
+      "cpuMs": 13.565,
+      "postOperationYieldMs": 2.4930420000000595,
+      "maxTimerLatenessMs": 3.479917000000114,
+      "heapGrowthBytes": 4025048,
+      "rssBytes": 306692096
     },
     {
       "name": "material-card-markdown-all-60",
       "index": 4,
-      "elapsedMs": 30.476208000000042,
-      "cpuMs": 39.293,
-      "postOperationYieldMs": 2.4666669999996884,
-      "maxTimerLatenessMs": 28.566125000000284,
-      "heapGrowthBytes": 11131896,
-      "rssBytes": 315228160
+      "elapsedMs": 4.688833000000159,
+      "cpuMs": 13.998,
+      "postOperationYieldMs": 2.491125000000011,
+      "maxTimerLatenessMs": 2.7553750000001855,
+      "heapGrowthBytes": 4025048,
+      "rssBytes": 306708480
     },
     {
       "name": "material-search-five-keystrokes",
       "index": 0,
-      "elapsedMs": 16.99829200000022,
-      "cpuMs": 27.024,
-      "postOperationYieldMs": 2.488249999999425,
-      "maxTimerLatenessMs": 15.116500000000087,
-      "heapGrowthBytes": 23331920,
-      "rssBytes": 317980672
+      "elapsedMs": 4.408166000000165,
+      "cpuMs": 12.961,
+      "postOperationYieldMs": 2.520499999999629,
+      "maxTimerLatenessMs": 2.5222499999999854,
+      "heapGrowthBytes": 5932040,
+      "rssBytes": 306774016
     },
     {
       "name": "material-search-five-keystrokes",
       "index": 1,
-      "elapsedMs": 18.13183300000037,
-      "cpuMs": 28.073,
-      "postOperationYieldMs": 2.3167499999999563,
-      "maxTimerLatenessMs": 16.21387500000037,
-      "heapGrowthBytes": 23322920,
-      "rssBytes": 318193664
+      "elapsedMs": 0.6232920000002196,
+      "cpuMs": 1.721,
+      "postOperationYieldMs": 2.686333999999988,
+      "maxTimerLatenessMs": 0,
+      "heapGrowthBytes": 21256,
+      "rssBytes": 307396608
     },
     {
       "name": "material-search-five-keystrokes",
       "index": 2,
-      "elapsedMs": 19.332750000000487,
-      "cpuMs": 27.29,
-      "postOperationYieldMs": 2.4923330000001442,
-      "maxTimerLatenessMs": 17.41966599999978,
-      "heapGrowthBytes": 23306736,
-      "rssBytes": 318226432
+      "elapsedMs": 0.7265830000001188,
+      "cpuMs": 2.225,
+      "postOperationYieldMs": 3.1814589999999043,
+      "maxTimerLatenessMs": 0.5697079999999914,
+      "heapGrowthBytes": 21096,
+      "rssBytes": 307494912
     },
     {
       "name": "material-search-five-keystrokes",
       "index": 3,
-      "elapsedMs": 29.400167000000692,
-      "cpuMs": 33.879,
-      "postOperationYieldMs": 2.6483330000000933,
-      "maxTimerLatenessMs": 27.54504200000065,
-      "heapGrowthBytes": 23311312,
-      "rssBytes": 318242816
+      "elapsedMs": 0.8825839999999516,
+      "cpuMs": 6.512,
+      "postOperationYieldMs": 2.5331249999999272,
+      "maxTimerLatenessMs": 0.19841700000006313,
+      "heapGrowthBytes": 21096,
+      "rssBytes": 307511296
     },
     {
       "name": "material-search-five-keystrokes",
       "index": 4,
-      "elapsedMs": 30.48216599999978,
-      "cpuMs": 33.224,
-      "postOperationYieldMs": 5.185249999999542,
-      "maxTimerLatenessMs": 28.736125000000357,
-      "heapGrowthBytes": 23311312,
-      "rssBytes": 318275584
+      "elapsedMs": 0.9320419999999103,
+      "cpuMs": 0.938,
+      "postOperationYieldMs": 2.776459000000159,
+      "maxTimerLatenessMs": 0.5476669999998194,
+      "heapGrowthBytes": 21096,
+      "rssBytes": 307527680
     },
     {
       "name": "conversation-list",
       "index": 0,
-      "elapsedMs": 7.539458999999624,
-      "cpuMs": 14.322,
-      "postOperationYieldMs": 2.580417000000125,
-      "maxTimerLatenessMs": 5.638833999999406,
-      "heapGrowthBytes": 227544,
-      "rssBytes": 334741504
+      "elapsedMs": 6.351750000000266,
+      "cpuMs": 14.059,
+      "postOperationYieldMs": 2.459374999999909,
+      "maxTimerLatenessMs": 4.416916000000128,
+      "heapGrowthBytes": 227432,
+      "rssBytes": 313475072
     },
     {
       "name": "conversation-list",
       "index": 1,
-      "elapsedMs": 8.132165999999415,
-      "cpuMs": 17.35,
-      "postOperationYieldMs": 2.510207999999693,
-      "maxTimerLatenessMs": 6.192874999999731,
-      "heapGrowthBytes": 217480,
-      "rssBytes": 334741504
+      "elapsedMs": 5.044957999999951,
+      "cpuMs": 13.783,
+      "postOperationYieldMs": 3.006249999999909,
+      "maxTimerLatenessMs": 3.1034169999998085,
+      "heapGrowthBytes": 217512,
+      "rssBytes": 313524224
     },
     {
       "name": "conversation-list",
       "index": 2,
-      "elapsedMs": 9.37487500000043,
-      "cpuMs": 16.991,
-      "postOperationYieldMs": 2.53650000000016,
-      "maxTimerLatenessMs": 7.478833000000122,
-      "heapGrowthBytes": 217480,
-      "rssBytes": 334741504
+      "elapsedMs": 7.700417000000016,
+      "cpuMs": 16.376,
+      "postOperationYieldMs": 2.5095420000002377,
+      "maxTimerLatenessMs": 5.796542000000045,
+      "heapGrowthBytes": 219960,
+      "rssBytes": 313556992
     },
     {
       "name": "conversation-list",
       "index": 3,
-      "elapsedMs": 6.437417000000096,
-      "cpuMs": 14.848,
-      "postOperationYieldMs": 2.5392079999992347,
-      "maxTimerLatenessMs": 4.559041999999863,
-      "heapGrowthBytes": 217480,
-      "rssBytes": 334741504
+      "elapsedMs": 8.811624999999822,
+      "cpuMs": 16.775,
+      "postOperationYieldMs": 2.415457999999944,
+      "maxTimerLatenessMs": 6.864416999999776,
+      "heapGrowthBytes": 217512,
+      "rssBytes": 313573376
     },
     {
       "name": "conversation-list",
       "index": 4,
-      "elapsedMs": 6.917625000000044,
-      "cpuMs": 15.486,
-      "postOperationYieldMs": 2.5207919999993464,
-      "maxTimerLatenessMs": 4.989833000000544,
-      "heapGrowthBytes": 217480,
-      "rssBytes": 334741504
+      "elapsedMs": 6.573207999999795,
+      "cpuMs": 15.836,
+      "postOperationYieldMs": 2.425249999999778,
+      "maxTimerLatenessMs": 4.632291999999779,
+      "heapGrowthBytes": 217512,
+      "rssBytes": 313589760
     },
     {
       "name": "conversation-usage-summary-all",
       "index": 0,
-      "elapsedMs": 106.05783299999985,
-      "cpuMs": 105.793,
-      "postOperationYieldMs": 1.73174999999992,
-      "maxTimerLatenessMs": 104.22087499999998,
-      "heapGrowthBytes": 29614992,
-      "rssBytes": 358105088
+      "elapsedMs": 95.59345799999983,
+      "cpuMs": 101.469,
+      "postOperationYieldMs": 2.4343340000000353,
+      "maxTimerLatenessMs": 93.65425000000005,
+      "heapGrowthBytes": 29620536,
+      "rssBytes": 337018880
     },
     {
       "name": "conversation-usage-summary-all",
       "index": 1,
-      "elapsedMs": 110.43204100000003,
-      "cpuMs": 110.034,
-      "postOperationYieldMs": 2.5541659999998956,
-      "maxTimerLatenessMs": 108.53200000000015,
+      "elapsedMs": 103.9504579999998,
+      "cpuMs": 108.438,
+      "postOperationYieldMs": 2.9173749999999927,
+      "maxTimerLatenessMs": 102.02187499999991,
+      "heapGrowthBytes": 29543680,
+      "rssBytes": 337035264
+    },
+    {
+      "name": "conversation-usage-summary-all",
+      "index": 2,
+      "elapsedMs": 102.25483399999985,
+      "cpuMs": 105.82,
+      "postOperationYieldMs": 2.498500000000149,
+      "maxTimerLatenessMs": 100.39479200000005,
       "heapGrowthBytes": 29543648,
-      "rssBytes": 358219776
-    },
-    {
-      "name": "conversation-usage-summary-all",
-      "index": 2,
-      "elapsedMs": 122.55987499999992,
-      "cpuMs": 115.917,
-      "postOperationYieldMs": 2.5882089999995515,
-      "maxTimerLatenessMs": 120.65700000000015,
-      "heapGrowthBytes": 29543616,
-      "rssBytes": 356237312
+      "rssBytes": 337084416
     },
     {
       "name": "conversation-usage-summary-all",
       "index": 3,
-      "elapsedMs": 133.33604099999957,
-      "cpuMs": 120.175,
-      "postOperationYieldMs": 2.62183400000049,
-      "maxTimerLatenessMs": 131.48908299999948,
-      "heapGrowthBytes": 29615976,
-      "rssBytes": 352911360
+      "elapsedMs": 97.44787499999984,
+      "cpuMs": 105.294,
+      "postOperationYieldMs": 2.5085839999997006,
+      "maxTimerLatenessMs": 95.52545899999996,
+      "heapGrowthBytes": 29616008,
+      "rssBytes": 337117184
     },
     {
       "name": "conversation-usage-summary-all",
       "index": 4,
-      "elapsedMs": 134.82841599999938,
-      "cpuMs": 123.218,
-      "postOperationYieldMs": 2.5507079999997586,
-      "maxTimerLatenessMs": 132.97320799999943,
-      "heapGrowthBytes": 29543616,
-      "rssBytes": 352485376
+      "elapsedMs": 105.58629200000041,
+      "cpuMs": 109.076,
+      "postOperationYieldMs": 2.532416999999896,
+      "maxTimerLatenessMs": 103.66366700000026,
+      "heapGrowthBytes": 29543648,
+      "rssBytes": 337133568
     },
     {
       "name": "largest-conversation-cache-read",
       "index": 0,
-      "elapsedMs": 23.509041000000252,
-      "cpuMs": 29.613,
-      "postOperationYieldMs": 2.5253330000005008,
-      "maxTimerLatenessMs": 21.58312500000011,
-      "heapGrowthBytes": 6182680,
-      "rssBytes": 341753856
+      "elapsedMs": 23.88175000000001,
+      "cpuMs": 29.514,
+      "postOperationYieldMs": 2.874000000000251,
+      "maxTimerLatenessMs": 21.95379200000025,
+      "heapGrowthBytes": 6182712,
+      "rssBytes": 326565888
     },
     {
       "name": "largest-conversation-cache-read",
       "index": 1,
-      "elapsedMs": 25.874959000000672,
-      "cpuMs": 31.098,
-      "postOperationYieldMs": 2.5397920000004888,
-      "maxTimerLatenessMs": 24.00354200000038,
-      "heapGrowthBytes": 6169624,
-      "rssBytes": 340656128
+      "elapsedMs": 21.953583000000435,
+      "cpuMs": 27.087,
+      "postOperationYieldMs": 2.5562079999999696,
+      "maxTimerLatenessMs": 20.09400000000005,
+      "heapGrowthBytes": 6169656,
+      "rssBytes": 326844416
     },
     {
       "name": "largest-conversation-cache-read",
       "index": 2,
-      "elapsedMs": 32.841459000000214,
-      "cpuMs": 35.633,
-      "postOperationYieldMs": 2.7200000000002547,
-      "maxTimerLatenessMs": 31.058917000000292,
-      "heapGrowthBytes": 6174488,
-      "rssBytes": 340705280
+      "elapsedMs": 23.99612500000012,
+      "cpuMs": 28.789,
+      "postOperationYieldMs": 2.668457999999646,
+      "maxTimerLatenessMs": 22.115124999999807,
+      "heapGrowthBytes": 6169656,
+      "rssBytes": 326877184
     },
     {
       "name": "largest-conversation-cache-read",
       "index": 3,
-      "elapsedMs": 30.728541999999834,
-      "cpuMs": 30.972,
-      "postOperationYieldMs": 2.511959000000388,
-      "maxTimerLatenessMs": 28.861291999999594,
-      "heapGrowthBytes": 6169624,
-      "rssBytes": 340721664
+      "elapsedMs": 22.92229099999986,
+      "cpuMs": 31.471,
+      "postOperationYieldMs": 2.6125419999998485,
+      "maxTimerLatenessMs": 20.99362499999961,
+      "heapGrowthBytes": 6169656,
+      "rssBytes": 326877184
     },
     {
       "name": "largest-conversation-cache-read",
       "index": 4,
-      "elapsedMs": 21.769916000000194,
-      "cpuMs": 28.878,
-      "postOperationYieldMs": 2.5185419999997976,
-      "maxTimerLatenessMs": 19.874166000000514,
-      "heapGrowthBytes": 6169624,
-      "rssBytes": 340721664
+      "elapsedMs": 20.7647079999997,
+      "cpuMs": 28.678,
+      "postOperationYieldMs": 2.4368329999997513,
+      "maxTimerLatenessMs": 18.83299999999963,
+      "heapGrowthBytes": 6174504,
+      "rssBytes": 326877184
     },
     {
       "name": "largest-conversation-canonical-snapshot",
       "index": 0,
-      "elapsedMs": 104.27362499999981,
-      "cpuMs": 109.986,
-      "postOperationYieldMs": 3.4747499999994034,
-      "maxTimerLatenessMs": 102.49191700000029,
-      "heapGrowthBytes": 36411928,
-      "rssBytes": 339410944
+      "elapsedMs": 91.8922090000001,
+      "cpuMs": 104.722,
+      "postOperationYieldMs": 2.8044169999998303,
+      "maxTimerLatenessMs": 89.95049999999992,
+      "heapGrowthBytes": 36411952,
+      "rssBytes": 340672512
     },
     {
       "name": "largest-conversation-canonical-snapshot",
       "index": 1,
-      "elapsedMs": 113.19129200000043,
-      "cpuMs": 101.467,
-      "postOperationYieldMs": 2.5885410000000775,
-      "maxTimerLatenessMs": 111.27166699999998,
-      "heapGrowthBytes": 36341792,
-      "rssBytes": 340000768
+      "elapsedMs": 93.6182090000002,
+      "cpuMs": 99.067,
+      "postOperationYieldMs": 2.4412499999998545,
+      "maxTimerLatenessMs": 91.68645900000001,
+      "heapGrowthBytes": 36322392,
+      "rssBytes": 343080960
     },
     {
       "name": "largest-conversation-canonical-snapshot",
       "index": 2,
-      "elapsedMs": 98.31179200000042,
-      "cpuMs": 102.693,
-      "postOperationYieldMs": 2.6575419999999212,
-      "maxTimerLatenessMs": 96.37437500000033,
-      "heapGrowthBytes": 36278768,
-      "rssBytes": 347160576
+      "elapsedMs": 94.01808399999982,
+      "cpuMs": 99.971,
+      "postOperationYieldMs": 3.442500000000109,
+      "maxTimerLatenessMs": 92.12812499999973,
+      "heapGrowthBytes": 36278320,
+      "rssBytes": 350388224
     },
     {
       "name": "largest-conversation-canonical-snapshot",
       "index": 3,
-      "elapsedMs": 87.91220799999974,
-      "cpuMs": 94.978,
-      "postOperationYieldMs": 2.5664159999996627,
-      "maxTimerLatenessMs": 86.07737499999985,
-      "heapGrowthBytes": 36269552,
-      "rssBytes": 347176960
+      "elapsedMs": 84.84620799999993,
+      "cpuMs": 85.633,
+      "postOperationYieldMs": 3.764499999999771,
+      "maxTimerLatenessMs": 82.90733300000011,
+      "heapGrowthBytes": 36273912,
+      "rssBytes": 350568448
     },
     {
       "name": "largest-conversation-canonical-snapshot",
       "index": 4,
-      "elapsedMs": 172.23662500000046,
-      "cpuMs": 116.557,
-      "postOperationYieldMs": 2.4393749999999272,
-      "maxTimerLatenessMs": 170.31212500000038,
-      "heapGrowthBytes": 36262824,
-      "rssBytes": 353107968
+      "elapsedMs": 79.27075000000013,
+      "cpuMs": 73.046,
+      "postOperationYieldMs": 3.2298329999994166,
+      "maxTimerLatenessMs": 77.33091699999977,
+      "heapGrowthBytes": 36264176,
+      "rssBytes": 357974016
     },
     {
       "name": "largest-conversation-strict-recovery",
       "index": 0,
-      "elapsedMs": 120.93625000000065,
-      "cpuMs": 148.295,
-      "postOperationYieldMs": 2.857458000000406,
-      "maxTimerLatenessMs": 82.0184160000008,
-      "heapGrowthBytes": 19936968,
-      "rssBytes": 374325248
+      "elapsedMs": 64.5024170000006,
+      "cpuMs": 117.312,
+      "postOperationYieldMs": 2.582459000000199,
+      "maxTimerLatenessMs": 34.84820800000034,
+      "heapGrowthBytes": 20086400,
+      "rssBytes": 380125184
     },
     {
       "name": "largest-conversation-strict-recovery",
       "index": 1,
-      "elapsedMs": 162.56654199999957,
-      "cpuMs": 175.454,
-      "postOperationYieldMs": 2.63537499999984,
-      "maxTimerLatenessMs": 84.98245899999984,
-      "heapGrowthBytes": 17503272,
-      "rssBytes": 376193024
+      "elapsedMs": 66.96033400000033,
+      "cpuMs": 106.811,
+      "postOperationYieldMs": 2.4705000000003565,
+      "maxTimerLatenessMs": 34.830542000000605,
+      "heapGrowthBytes": 17407144,
+      "rssBytes": 382615552
     },
     {
       "name": "largest-conversation-strict-recovery",
       "index": 2,
-      "elapsedMs": 66.56904099999974,
-      "cpuMs": 107.644,
-      "postOperationYieldMs": 2.5400830000007772,
-      "maxTimerLatenessMs": 33.577124999999796,
-      "heapGrowthBytes": 14885864,
-      "rssBytes": 376291328
+      "elapsedMs": 56.920250000000124,
+      "cpuMs": 100.968,
+      "postOperationYieldMs": 2.387041999999383,
+      "maxTimerLatenessMs": 30.645667000000685,
+      "heapGrowthBytes": 15302688,
+      "rssBytes": 382763008
     },
     {
       "name": "largest-conversation-strict-recovery",
       "index": 3,
-      "elapsedMs": 58.54504199999974,
-      "cpuMs": 73.318,
-      "postOperationYieldMs": 2.4528339999997115,
-      "maxTimerLatenessMs": 30.534874999999374,
-      "heapGrowthBytes": 12302040,
-      "rssBytes": 376340480
+      "elapsedMs": 47.43425000000025,
+      "cpuMs": 62.853,
+      "postOperationYieldMs": 2.4066670000001977,
+      "maxTimerLatenessMs": 24.733041000000412,
+      "heapGrowthBytes": 12349280,
+      "rssBytes": 382779392
     },
     {
       "name": "largest-conversation-strict-recovery",
       "index": 4,
-      "elapsedMs": 85.63691600000038,
-      "cpuMs": 93.23,
-      "postOperationYieldMs": 2.488666000000194,
-      "maxTimerLatenessMs": 52.932708000000275,
-      "heapGrowthBytes": 11799392,
-      "rssBytes": 376389632
+      "elapsedMs": 45.59950000000026,
+      "cpuMs": 71.313,
+      "postOperationYieldMs": 2.39654100000007,
+      "maxTimerLatenessMs": 22.59375,
+      "heapGrowthBytes": 11711552,
+      "rssBytes": 382877696
     },
     {
       "name": "largest-conversation-display-projection",
       "index": 0,
-      "elapsedMs": 223.70337500000005,
-      "cpuMs": 227.802,
-      "postOperationYieldMs": 8.11645800000042,
-      "maxTimerLatenessMs": 138.28291699999954,
-      "heapGrowthBytes": 77948736,
-      "rssBytes": 396115968
+      "elapsedMs": 175.57937499999935,
+      "cpuMs": 203.145,
+      "postOperationYieldMs": 6.8289590000003955,
+      "maxTimerLatenessMs": 115.00845799999934,
+      "heapGrowthBytes": 77973128,
+      "rssBytes": 403111936
     },
     {
       "name": "largest-conversation-display-projection",
       "index": 1,
-      "elapsedMs": 160.5824160000002,
-      "cpuMs": 201.046,
-      "postOperationYieldMs": 8.241542000000663,
-      "maxTimerLatenessMs": 122.15179100000023,
-      "heapGrowthBytes": 75119400,
-      "rssBytes": 403603456
+      "elapsedMs": 148.76274999999987,
+      "cpuMs": 191.609,
+      "postOperationYieldMs": 6.5934580000002825,
+      "maxTimerLatenessMs": 112.10304199999973,
+      "heapGrowthBytes": 75221296,
+      "rssBytes": 410583040
     },
     {
       "name": "largest-conversation-display-projection",
       "index": 2,
-      "elapsedMs": 150.04150000000118,
-      "cpuMs": 178.252,
-      "postOperationYieldMs": 5.111458999999741,
-      "maxTimerLatenessMs": 113.09570800000074,
-      "heapGrowthBytes": 74869560,
-      "rssBytes": 407814144
+      "elapsedMs": 156.64408300000014,
+      "cpuMs": 194.687,
+      "postOperationYieldMs": 6.351415999999517,
+      "maxTimerLatenessMs": 115.17500000000018,
+      "heapGrowthBytes": 74927480,
+      "rssBytes": 415399936
     },
     {
       "name": "largest-conversation-display-projection",
       "index": 3,
-      "elapsedMs": 167.56183299999975,
-      "cpuMs": 174.483,
-      "postOperationYieldMs": 7.011292000001049,
-      "maxTimerLatenessMs": 126.6981250000008,
-      "heapGrowthBytes": 75126240,
-      "rssBytes": 408567808
+      "elapsedMs": 139.3795,
+      "cpuMs": 162.208,
+      "postOperationYieldMs": 6.252917000000707,
+      "maxTimerLatenessMs": 104.72233400000005,
+      "heapGrowthBytes": 75039352,
+      "rssBytes": 415727616
     },
     {
       "name": "largest-conversation-display-projection",
       "index": 4,
-      "elapsedMs": 155.23924999999872,
-      "cpuMs": 182.007,
-      "postOperationYieldMs": 5.934957999999824,
-      "maxTimerLatenessMs": 119.06104199999936,
-      "heapGrowthBytes": 74735952,
-      "rssBytes": 409829376
+      "elapsedMs": 150.42741699999988,
+      "cpuMs": 186.101,
+      "postOperationYieldMs": 5.817291000000296,
+      "maxTimerLatenessMs": 110.72170900000037,
+      "heapGrowthBytes": 74811464,
+      "rssBytes": 416612352
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-1",
       "index": 0,
-      "elapsedMs": 98.90074999999888,
-      "cpuMs": 152.682,
-      "postOperationYieldMs": 2.486041000000114,
-      "maxTimerLatenessMs": 96.99866699999984,
-      "heapGrowthBytes": 20491648,
-      "rssBytes": 397344768
+      "elapsedMs": 97.99116700000013,
+      "cpuMs": 153.825,
+      "postOperationYieldMs": 2.4906670000000304,
+      "maxTimerLatenessMs": 96.06574999999975,
+      "heapGrowthBytes": 20726680,
+      "rssBytes": 405045248
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-2",
       "index": 0,
-      "elapsedMs": 79.99479100000099,
-      "cpuMs": 114.875,
-      "postOperationYieldMs": 2.4191250000003492,
-      "maxTimerLatenessMs": 78.07337499999994,
-      "heapGrowthBytes": 19843368,
-      "rssBytes": 397819904
+      "elapsedMs": 107.8929590000007,
+      "cpuMs": 113.12,
+      "postOperationYieldMs": 8.463291999999456,
+      "maxTimerLatenessMs": 105.95941700000003,
+      "heapGrowthBytes": 19557368,
+      "rssBytes": 405848064
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-3",
       "index": 0,
-      "elapsedMs": 72.96945799999958,
-      "cpuMs": 109.382,
-      "postOperationYieldMs": 2.492499999998472,
-      "maxTimerLatenessMs": 71.04650000000038,
-      "heapGrowthBytes": 19744416,
-      "rssBytes": 398262272
+      "elapsedMs": 76.82945800000016,
+      "cpuMs": 100.965,
+      "postOperationYieldMs": 3.858666999999514,
+      "maxTimerLatenessMs": 74.89699999999993,
+      "heapGrowthBytes": 19933632,
+      "rssBytes": 405962752
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-4",
       "index": 0,
-      "elapsedMs": 90.5625,
-      "cpuMs": 118.524,
-      "postOperationYieldMs": 2.7342920000010054,
-      "maxTimerLatenessMs": 88.71091700000034,
-      "heapGrowthBytes": 18680848,
-      "rssBytes": 398639104
+      "elapsedMs": 70.90687499999967,
+      "cpuMs": 101.869,
+      "postOperationYieldMs": 2.496624999999767,
+      "maxTimerLatenessMs": 69.0338329999995,
+      "heapGrowthBytes": 18826616,
+      "rssBytes": 406077440
     },
     {
       "name": "twenty-largest-yjs-hydration-cycle-5",
       "index": 0,
-      "elapsedMs": 71.72358399999939,
-      "cpuMs": 98.77,
-      "postOperationYieldMs": 2.3430000000007567,
-      "maxTimerLatenessMs": 69.80400000000009,
-      "heapGrowthBytes": 18511136,
-      "rssBytes": 398753792
+      "elapsedMs": 68.64791700000023,
+      "cpuMs": 110.465,
+      "postOperationYieldMs": 2.6528330000001006,
+      "maxTimerLatenessMs": 66.72370800000044,
+      "heapGrowthBytes": 18577192,
+      "rssBytes": 406077440
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 143.44412499999999,
-      "cpuMs": 177.353,
-      "postOperationYieldMs": 5.883291000000099,
-      "maxTimerLatenessMs": 103.59916699999849,
-      "heapGrowthBytes": 74093464,
-      "rssBytes": 413089792
+      "elapsedMs": 142.3375420000002,
+      "cpuMs": 191.243,
+      "postOperationYieldMs": 6.227375000000393,
+      "maxTimerLatenessMs": 104.43662500000028,
+      "heapGrowthBytes": 74017216,
+      "rssBytes": 420429824
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 148.66433400000096,
-      "cpuMs": 168.355,
-      "postOperationYieldMs": 5.9519579999996495,
-      "maxTimerLatenessMs": 111.5810419999998,
-      "heapGrowthBytes": 73652696,
-      "rssBytes": 413122560
+      "elapsedMs": 213.0430409999999,
+      "cpuMs": 178.644,
+      "postOperationYieldMs": 6.402290999999423,
+      "maxTimerLatenessMs": 175.4067500000001,
+      "heapGrowthBytes": 73658672,
+      "rssBytes": 420691968
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 148.18720799999937,
-      "cpuMs": 179.979,
-      "postOperationYieldMs": 7.143167000000176,
-      "maxTimerLatenessMs": 109.82999999999993,
-      "heapGrowthBytes": 73771664,
-      "rssBytes": 413188096
+      "elapsedMs": 372.218167,
+      "cpuMs": 206.051,
+      "postOperationYieldMs": 7.330917000000227,
+      "maxTimerLatenessMs": 304.7933750000002,
+      "heapGrowthBytes": 73734024,
+      "rssBytes": 420757504
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 125.23704100000032,
-      "cpuMs": 152.225,
-      "postOperationYieldMs": 5.9337500000001455,
-      "maxTimerLatenessMs": 94.60379099999955,
-      "heapGrowthBytes": 73819504,
-      "rssBytes": 413204480
+      "elapsedMs": 133.21937499999967,
+      "cpuMs": 152.515,
+      "postOperationYieldMs": 5.673541000000114,
+      "maxTimerLatenessMs": 102.50187499999993,
+      "heapGrowthBytes": 73810256,
+      "rssBytes": 420659200
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 130.51887499999975,
-      "cpuMs": 159.984,
-      "postOperationYieldMs": 6.217083999999886,
-      "maxTimerLatenessMs": 97.44229199999972,
-      "heapGrowthBytes": 73723016,
-      "rssBytes": 413237248
+      "elapsedMs": 143.66616599999998,
+      "cpuMs": 170.894,
+      "postOperationYieldMs": 5.502416000000267,
+      "maxTimerLatenessMs": 106.60325000000012,
+      "heapGrowthBytes": 73576352,
+      "rssBytes": 420773888
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 140.00695799999994,
-      "cpuMs": 174.059,
-      "postOperationYieldMs": 6.42358299999978,
-      "maxTimerLatenessMs": 102.86987500000032,
-      "heapGrowthBytes": 73764920,
-      "rssBytes": 413237248
+      "elapsedMs": 139.0312500000009,
+      "cpuMs": 175.599,
+      "postOperationYieldMs": 6.006374999999025,
+      "maxTimerLatenessMs": 102.89454100000057,
+      "heapGrowthBytes": 73766240,
+      "rssBytes": 420773888
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 163.46208300000035,
-      "cpuMs": 195.192,
-      "postOperationYieldMs": 5.887500000000728,
-      "maxTimerLatenessMs": 124.08879100000013,
-      "heapGrowthBytes": 73634296,
-      "rssBytes": 413237248
+      "elapsedMs": 164.8724170000005,
+      "cpuMs": 189.282,
+      "postOperationYieldMs": 7.4600830000017595,
+      "maxTimerLatenessMs": 116.31008400000064,
+      "heapGrowthBytes": 73693624,
+      "rssBytes": 420773888
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 157.1880000000001,
-      "cpuMs": 178.475,
-      "postOperationYieldMs": 6.8961250000011205,
-      "maxTimerLatenessMs": 109.27920900000026,
-      "heapGrowthBytes": 73351568,
-      "rssBytes": 413237248
+      "elapsedMs": 175.71458299999904,
+      "cpuMs": 179.095,
+      "postOperationYieldMs": 5.341916999999739,
+      "maxTimerLatenessMs": 131.65208299999904,
+      "heapGrowthBytes": 73321208,
+      "rssBytes": 420773888
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 152.41362499999923,
-      "cpuMs": 175.623,
-      "postOperationYieldMs": 6.122292000000016,
-      "maxTimerLatenessMs": 107.99541700000009,
-      "heapGrowthBytes": 73386232,
-      "rssBytes": 413237248
+      "elapsedMs": 180.22191699999894,
+      "cpuMs": 198.536,
+      "postOperationYieldMs": 7.507417000000714,
+      "maxTimerLatenessMs": 119.85666700000002,
+      "heapGrowthBytes": 73355680,
+      "rssBytes": 420773888
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 141.1491249999999,
-      "cpuMs": 173.115,
-      "postOperationYieldMs": 5.3457909999997355,
-      "maxTimerLatenessMs": 106.41491599999972,
-      "heapGrowthBytes": 73576520,
-      "rssBytes": 413237248
+      "elapsedMs": 168.35262499999953,
+      "cpuMs": 175.297,
+      "postOperationYieldMs": 11.035582999998951,
+      "maxTimerLatenessMs": 117.77170900000056,
+      "heapGrowthBytes": 73387368,
+      "rssBytes": 420937728
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 122.4434999999994,
-      "cpuMs": 148.542,
-      "postOperationYieldMs": 5.3663329999999405,
-      "maxTimerLatenessMs": 91.51816700000018,
-      "heapGrowthBytes": 73440392,
-      "rssBytes": 413270016
+      "elapsedMs": 276.894542,
+      "cpuMs": 199.675,
+      "postOperationYieldMs": 7.167457999999897,
+      "maxTimerLatenessMs": 160.63720899999862,
+      "heapGrowthBytes": 73392176,
+      "rssBytes": 414498816
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 134.9435829999984,
-      "cpuMs": 188.156,
-      "postOperationYieldMs": 6.601415999999517,
-      "maxTimerLatenessMs": 97.50391599999966,
-      "heapGrowthBytes": 73459776,
-      "rssBytes": 413270016
+      "elapsedMs": 176.174500000001,
+      "cpuMs": 195.955,
+      "postOperationYieldMs": 6.886667000000671,
+      "maxTimerLatenessMs": 139.36620900000162,
+      "heapGrowthBytes": 73516768,
+      "rssBytes": 411942912
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 149.38008400000035,
-      "cpuMs": 170.294,
-      "postOperationYieldMs": 7.084915999999794,
-      "maxTimerLatenessMs": 108.27108399999997,
-      "heapGrowthBytes": 73788512,
-      "rssBytes": 413286400
+      "elapsedMs": 130.68125000000146,
+      "cpuMs": 162.682,
+      "postOperationYieldMs": 6.124499999999898,
+      "maxTimerLatenessMs": 95.21504100000129,
+      "heapGrowthBytes": 73716104,
+      "rssBytes": 412123136
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 135.59670899999946,
-      "cpuMs": 164.131,
-      "postOperationYieldMs": 5.122540999998819,
-      "maxTimerLatenessMs": 102.50237500000003,
-      "heapGrowthBytes": 74332776,
-      "rssBytes": 413286400
+      "elapsedMs": 134.70458300000064,
+      "cpuMs": 174.809,
+      "postOperationYieldMs": 5.038375000000087,
+      "maxTimerLatenessMs": 101.18212500000118,
+      "heapGrowthBytes": 74314456,
+      "rssBytes": 412073984
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 128.7377919999999,
-      "cpuMs": 162.742,
-      "postOperationYieldMs": 5.7254159999993135,
-      "maxTimerLatenessMs": 96.84054199999991,
-      "heapGrowthBytes": 74328056,
-      "rssBytes": 413302784
+      "elapsedMs": 134.6872910000002,
+      "cpuMs": 163.896,
+      "postOperationYieldMs": 4.903333999998722,
+      "maxTimerLatenessMs": 99.30012499999975,
+      "heapGrowthBytes": 74168464,
+      "rssBytes": 411566080
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 134.65479100000084,
-      "cpuMs": 160.304,
-      "postOperationYieldMs": 7.954250000000684,
-      "maxTimerLatenessMs": 94.22558299999946,
-      "heapGrowthBytes": 74145856,
-      "rssBytes": 413384704
+      "elapsedMs": 131.57699999999932,
+      "cpuMs": 179.767,
+      "postOperationYieldMs": 6.004624999999578,
+      "maxTimerLatenessMs": 97.75354200000038,
+      "heapGrowthBytes": 74317784,
+      "rssBytes": 411631616
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 155.5456669999985,
-      "cpuMs": 181.753,
-      "postOperationYieldMs": 6.004708000000392,
-      "maxTimerLatenessMs": 118.41474999999991,
-      "heapGrowthBytes": 73466376,
-      "rssBytes": 413384704
+      "elapsedMs": 130.98300000000017,
+      "cpuMs": 166.008,
+      "postOperationYieldMs": 7.144249999999374,
+      "maxTimerLatenessMs": 97.40741699999853,
+      "heapGrowthBytes": 73517872,
+      "rssBytes": 411648000
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 155.2308749999993,
-      "cpuMs": 166.659,
-      "postOperationYieldMs": 5.088041999999405,
-      "maxTimerLatenessMs": 119.46237499999916,
-      "heapGrowthBytes": 73321744,
-      "rssBytes": 413384704
+      "elapsedMs": 124.80929199999991,
+      "cpuMs": 166.028,
+      "postOperationYieldMs": 5.032833000001119,
+      "maxTimerLatenessMs": 90.82550000000083,
+      "heapGrowthBytes": 73383896,
+      "rssBytes": 411680768
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 136.1010409999999,
-      "cpuMs": 169.912,
-      "postOperationYieldMs": 5.038582999999562,
-      "maxTimerLatenessMs": 100.00345799999923,
-      "heapGrowthBytes": 73492880,
-      "rssBytes": 413384704
+      "elapsedMs": 124.01566700000149,
+      "cpuMs": 157.725,
+      "postOperationYieldMs": 7.224833000000217,
+      "maxTimerLatenessMs": 92.84312500000124,
+      "heapGrowthBytes": 73381064,
+      "rssBytes": 411713536
     },
     {
       "name": "agent-reopen-close-soak",
       "index": 0,
-      "elapsedMs": 131.7580829999988,
-      "cpuMs": 164.034,
-      "postOperationYieldMs": 6.205582999999024,
-      "maxTimerLatenessMs": 96.36791699999958,
-      "heapGrowthBytes": 73296112,
-      "rssBytes": 413384704
+      "elapsedMs": 129.02141699999993,
+      "cpuMs": 175.459,
+      "postOperationYieldMs": 7.336332999999286,
+      "maxTimerLatenessMs": 92.09870799999953,
+      "heapGrowthBytes": 73332104,
+      "rssBytes": 411762688
     },
     {
       "name": "authored-create-todo",
       "index": 0,
-      "elapsedMs": 1111.479792,
-      "cpuMs": 1369.954,
-      "postOperationYieldMs": 2.465749999999389,
-      "maxTimerLatenessMs": 541.4132499999996,
-      "heapGrowthBytes": 33103968,
-      "rssBytes": 499023872
+      "elapsedMs": 1426.0997909999987,
+      "cpuMs": 1748.331,
+      "postOperationYieldMs": 2.432875000000422,
+      "maxTimerLatenessMs": 584.4979590000003,
+      "heapGrowthBytes": 31973000,
+      "rssBytes": 495599616
     },
     {
       "name": "authored-create-todo",
       "index": 1,
-      "elapsedMs": 173.33933400000024,
-      "cpuMs": 228.017,
-      "postOperationYieldMs": 2.783041000000594,
-      "maxTimerLatenessMs": 93.47883300000103,
-      "heapGrowthBytes": 24174008,
-      "rssBytes": 499318784
+      "elapsedMs": 302.69325000000026,
+      "cpuMs": 258.645,
+      "postOperationYieldMs": 2.2044589999986783,
+      "maxTimerLatenessMs": 192.1118750000005,
+      "heapGrowthBytes": 25406792,
+      "rssBytes": 489013248
     },
     {
       "name": "authored-create-todo",
       "index": 2,
-      "elapsedMs": 148.0278330000001,
-      "cpuMs": 190.865,
-      "postOperationYieldMs": 2.356208000001061,
-      "maxTimerLatenessMs": 83.62112499999967,
-      "heapGrowthBytes": 21894960,
-      "rssBytes": 499351552
+      "elapsedMs": 230.20508300000074,
+      "cpuMs": 240.593,
+      "postOperationYieldMs": 2.484042000000045,
+      "maxTimerLatenessMs": 145.40579100000105,
+      "heapGrowthBytes": 25189328,
+      "rssBytes": 489209856
     },
     {
       "name": "authored-create-todo",
       "index": 3,
-      "elapsedMs": 143.12795800000094,
-      "cpuMs": 177,
-      "postOperationYieldMs": 2.5571670000008453,
-      "maxTimerLatenessMs": 81.96904200000063,
-      "heapGrowthBytes": 22104632,
-      "rssBytes": 499122176
+      "elapsedMs": 261.3154579999991,
+      "cpuMs": 235.167,
+      "postOperationYieldMs": 2.440999999998894,
+      "maxTimerLatenessMs": 153.82695799999965,
+      "heapGrowthBytes": 23026576,
+      "rssBytes": 489242624
     },
     {
       "name": "authored-create-todo",
       "index": 4,
-      "elapsedMs": 130.68270799999846,
-      "cpuMs": 163.345,
-      "postOperationYieldMs": 2.4130420000001322,
-      "maxTimerLatenessMs": 79.45329200000015,
-      "heapGrowthBytes": 21959112,
-      "rssBytes": 499122176
+      "elapsedMs": 183.4940829999996,
+      "cpuMs": 210.983,
+      "postOperationYieldMs": 2.4184580000001006,
+      "maxTimerLatenessMs": 92.18195800000103,
+      "heapGrowthBytes": 24153520,
+      "rssBytes": 489259008
     },
     {
       "name": "authored-replace-20k-chapter",
       "index": 0,
-      "elapsedMs": 402.91408299999966,
-      "cpuMs": 496.634,
-      "postOperationYieldMs": 2.395583000001352,
-      "maxTimerLatenessMs": 100.83499999999913,
-      "heapGrowthBytes": 16185560,
-      "rssBytes": 509902848
+      "elapsedMs": 363.1971249999988,
+      "cpuMs": 462.796,
+      "postOperationYieldMs": 2.427832999999737,
+      "maxTimerLatenessMs": 88.73037499999919,
+      "heapGrowthBytes": 16305352,
+      "rssBytes": 492404736
     },
     {
       "name": "authored-replace-20k-chapter",
       "index": 1,
-      "elapsedMs": 423.96908299999996,
-      "cpuMs": 564.5,
-      "postOperationYieldMs": 2.4904999999998836,
-      "maxTimerLatenessMs": 91.8637920000001,
-      "heapGrowthBytes": 25722816,
-      "rssBytes": 513327104
+      "elapsedMs": 539.113707999999,
+      "cpuMs": 677.605,
+      "postOperationYieldMs": 2.3854580000006536,
+      "maxTimerLatenessMs": 132.0622910000002,
+      "heapGrowthBytes": 29015624,
+      "rssBytes": 494370816
     },
     {
       "name": "authored-replace-20k-chapter",
       "index": 2,
-      "elapsedMs": 483.42583399999785,
-      "cpuMs": 606.42,
-      "postOperationYieldMs": 2.3685000000004948,
-      "maxTimerLatenessMs": 103.68616699999984,
-      "heapGrowthBytes": 67505024,
-      "rssBytes": 528023552
+      "elapsedMs": 518.8819590000003,
+      "cpuMs": 674.065,
+      "postOperationYieldMs": 2.193833999999697,
+      "maxTimerLatenessMs": 111.92712500000016,
+      "heapGrowthBytes": 71777952,
+      "rssBytes": 507756544
     },
     {
       "name": "authored-replace-20k-chapter",
       "index": 3,
-      "elapsedMs": 555.1564169999983,
-      "cpuMs": 733.529,
-      "postOperationYieldMs": 2.370999999999185,
-      "maxTimerLatenessMs": 109.53104200000234,
-      "heapGrowthBytes": 80329320,
-      "rssBytes": 532168704
+      "elapsedMs": 540.8249589999996,
+      "cpuMs": 757.867,
+      "postOperationYieldMs": 2.5047079999985726,
+      "maxTimerLatenessMs": 105.17020899999989,
+      "heapGrowthBytes": 80957680,
+      "rssBytes": 510377984
     },
     {
       "name": "authored-replace-20k-chapter",
       "index": 4,
-      "elapsedMs": 607.4667499999996,
-      "cpuMs": 823.288,
-      "postOperationYieldMs": 2.3372500000004948,
-      "maxTimerLatenessMs": 101.37450000000172,
-      "heapGrowthBytes": 31100560,
-      "rssBytes": 522928128
+      "elapsedMs": 613.5875410000008,
+      "cpuMs": 867.594,
+      "postOperationYieldMs": 2.5265419999996084,
+      "maxTimerLatenessMs": 108.19725000000108,
+      "heapGrowthBytes": 36811712,
+      "rssBytes": 501645312
     },
     {
       "name": "authored-replace-20k-one-character",
       "index": 0,
-      "elapsedMs": 595.1079590000008,
-      "cpuMs": 793.615,
-      "postOperationYieldMs": 2.4079579999997804,
-      "maxTimerLatenessMs": 92.18204100000003,
-      "heapGrowthBytes": 67386648,
-      "rssBytes": 529645568
+      "elapsedMs": 602.6773329999996,
+      "cpuMs": 864.533,
+      "postOperationYieldMs": 2.4033330000020214,
+      "maxTimerLatenessMs": 91.55829100000119,
+      "heapGrowthBytes": 69461264,
+      "rssBytes": 508280832
     },
     {
       "name": "authored-replace-20k-one-character",
       "index": 1,
-      "elapsedMs": 607.200915999998,
-      "cpuMs": 794.452,
-      "postOperationYieldMs": 2.376333000000159,
-      "maxTimerLatenessMs": 87.15299999999843,
-      "heapGrowthBytes": 63755912,
-      "rssBytes": 528596992
+      "elapsedMs": 601.015166000001,
+      "cpuMs": 968.555,
+      "postOperationYieldMs": 2.137125000001106,
+      "maxTimerLatenessMs": 95.22783299999719,
+      "heapGrowthBytes": 65986208,
+      "rssBytes": 507461632
     },
     {
       "name": "authored-replace-20k-one-character",
       "index": 2,
-      "elapsedMs": 608.4391660000001,
-      "cpuMs": 923.473,
-      "postOperationYieldMs": 2.369042000002082,
-      "maxTimerLatenessMs": 86.29187499999898,
-      "heapGrowthBytes": 58466160,
-      "rssBytes": 528875520
+      "elapsedMs": 608.7285410000004,
+      "cpuMs": 962.121,
+      "postOperationYieldMs": 2.152874999999767,
+      "maxTimerLatenessMs": 92.17179100000067,
+      "heapGrowthBytes": 66220496,
+      "rssBytes": 508067840
     },
     {
       "name": "authored-replace-20k-one-character",
       "index": 3,
-      "elapsedMs": 601.351584,
-      "cpuMs": 837.061,
-      "postOperationYieldMs": 2.4564580000005662,
-      "maxTimerLatenessMs": 95.95933299999888,
-      "heapGrowthBytes": 58606136,
-      "rssBytes": 528564224
+      "elapsedMs": 631.3679169999996,
+      "cpuMs": 972.065,
+      "postOperationYieldMs": 2.432667000000947,
+      "maxTimerLatenessMs": 87.42475000000195,
+      "heapGrowthBytes": 70797144,
+      "rssBytes": 508608512
     },
     {
       "name": "authored-replace-20k-one-character",
       "index": 4,
-      "elapsedMs": 684.3033329999998,
-      "cpuMs": 1014.243,
-      "postOperationYieldMs": 2.3820830000004207,
-      "maxTimerLatenessMs": 102.6854170000006,
-      "heapGrowthBytes": 73749504,
-      "rssBytes": 529170432
+      "elapsedMs": 583.5254160000004,
+      "cpuMs": 956.045,
+      "postOperationYieldMs": 2.220459000000119,
+      "maxTimerLatenessMs": 89.11137500000041,
+      "heapGrowthBytes": 61888624,
+      "rssBytes": 509231104
     }
   ],
   "retention": [
     {
       "cycle": 0,
       "documents": 20,
-      "words": 430062,
-      "beforeHeapBytes": 93234184,
-      "retainedHeapBytes": 100888528,
-      "afterDestroyHeapBytes": 93985624,
-      "beforeRssBytes": 395984896,
-      "retainedRssBytes": 397459456,
-      "afterDestroyRssBytes": 397672448
+      "words": 430115,
+      "beforeHeapBytes": 94713752,
+      "retainedHeapBytes": 102414232,
+      "afterDestroyHeapBytes": 95454528,
+      "beforeRssBytes": 403144704,
+      "retainedRssBytes": 405520384,
+      "afterDestroyRssBytes": 405569536
     },
     {
       "cycle": 1,
       "documents": 20,
-      "words": 430062,
-      "beforeHeapBytes": 93951888,
-      "retainedHeapBytes": 101247560,
-      "afterDestroyHeapBytes": 94026936,
-      "beforeRssBytes": 397524992,
-      "retainedRssBytes": 397869056,
-      "afterDestroyRssBytes": 398213120
+      "words": 430115,
+      "beforeHeapBytes": 95403616,
+      "retainedHeapBytes": 102738120,
+      "afterDestroyHeapBytes": 95497984,
+      "beforeRssBytes": 405684224,
+      "retainedRssBytes": 405897216,
+      "afterDestroyRssBytes": 405929984
     },
     {
       "cycle": 2,
       "documents": 20,
-      "words": 430062,
-      "beforeHeapBytes": 93982480,
-      "retainedHeapBytes": 101260456,
-      "afterDestroyHeapBytes": 94029296,
-      "beforeRssBytes": 398213120,
-      "retainedRssBytes": 398557184,
-      "afterDestroyRssBytes": 398639104
+      "words": 430115,
+      "beforeHeapBytes": 95438776,
+      "retainedHeapBytes": 102728744,
+      "afterDestroyHeapBytes": 95475360,
+      "beforeRssBytes": 405929984,
+      "retainedRssBytes": 405913600,
+      "afterDestroyRssBytes": 405929984
     },
     {
       "cycle": 3,
       "documents": 20,
-      "words": 430062,
-      "beforeHeapBytes": 93979344,
-      "retainedHeapBytes": 101278288,
-      "afterDestroyHeapBytes": 94050264,
-      "beforeRssBytes": 398639104,
-      "retainedRssBytes": 398655488,
-      "afterDestroyRssBytes": 398655488
+      "words": 430115,
+      "beforeHeapBytes": 95436824,
+      "retainedHeapBytes": 102728520,
+      "afterDestroyHeapBytes": 95487216,
+      "beforeRssBytes": 405929984,
+      "retainedRssBytes": 406077440,
+      "afterDestroyRssBytes": 406077440
     },
     {
       "cycle": 4,
       "documents": 20,
-      "words": 430062,
-      "beforeHeapBytes": 94021992,
-      "retainedHeapBytes": 101279784,
-      "afterDestroyHeapBytes": 94053592,
-      "beforeRssBytes": 398655488,
-      "retainedRssBytes": 398753792,
-      "afterDestroyRssBytes": 398753792
+      "words": 430115,
+      "beforeHeapBytes": 95455168,
+      "retainedHeapBytes": 102725872,
+      "afterDestroyHeapBytes": 95506632,
+      "beforeRssBytes": 406077440,
+      "retainedRssBytes": 406077440,
+      "afterDestroyRssBytes": 406093824
     }
   ],
   "agentRetention": [
     {
       "cycle": 0,
-      "heapBytes": 94035072,
-      "rssBytes": 398786560
+      "heapBytes": 95483552,
+      "rssBytes": 406323200
     },
     {
       "cycle": 1,
-      "heapBytes": 94068392,
-      "rssBytes": 398835712
+      "heapBytes": 95517256,
+      "rssBytes": 406355968
     },
     {
       "cycle": 2,
-      "heapBytes": 94102096,
-      "rssBytes": 398852096
+      "heapBytes": 95531400,
+      "rssBytes": 406323200
     },
     {
       "cycle": 3,
-      "heapBytes": 94129248,
-      "rssBytes": 398868480
+      "heapBytes": 95557264,
+      "rssBytes": 406355968
     },
     {
       "cycle": 4,
-      "heapBytes": 94185136,
-      "rssBytes": 398901248
+      "heapBytes": 95612984,
+      "rssBytes": 406437888
     },
     {
       "cycle": 5,
-      "heapBytes": 94115600,
-      "rssBytes": 398901248
+      "heapBytes": 95544192,
+      "rssBytes": 406437888
     },
     {
       "cycle": 6,
-      "heapBytes": 94116784,
-      "rssBytes": 398901248
+      "heapBytes": 95545232,
+      "rssBytes": 406437888
     },
     {
       "cycle": 7,
-      "heapBytes": 94130536,
-      "rssBytes": 398901248
+      "heapBytes": 95558696,
+      "rssBytes": 406437888
     },
     {
       "cycle": 8,
-      "heapBytes": 94127992,
-      "rssBytes": 398901248
+      "heapBytes": 95554664,
+      "rssBytes": 406601728
     },
     {
       "cycle": 9,
-      "heapBytes": 94128896,
-      "rssBytes": 398901248
+      "heapBytes": 95556088,
+      "rssBytes": 406601728
     },
     {
       "cycle": 10,
-      "heapBytes": 94138104,
-      "rssBytes": 398934016
+      "heapBytes": 98074600,
+      "rssBytes": 400162816
     },
     {
       "cycle": 11,
-      "heapBytes": 94157000,
-      "rssBytes": 398934016
+      "heapBytes": 97983592,
+      "rssBytes": 397705216
     },
     {
       "cycle": 12,
-      "heapBytes": 94195840,
-      "rssBytes": 398950400
+      "heapBytes": 95611704,
+      "rssBytes": 397737984
     },
     {
       "cycle": 13,
-      "heapBytes": 94169000,
-      "rssBytes": 398950400
+      "heapBytes": 95596128,
+      "rssBytes": 397737984
     },
     {
       "cycle": 14,
-      "heapBytes": 94161984,
-      "rssBytes": 398966784
+      "heapBytes": 95597544,
+      "rssBytes": 397230080
     },
     {
       "cycle": 15,
-      "heapBytes": 94151400,
-      "rssBytes": 399048704
+      "heapBytes": 95576440,
+      "rssBytes": 397295616
     },
     {
       "cycle": 16,
-      "heapBytes": 94149448,
-      "rssBytes": 399048704
+      "heapBytes": 95573656,
+      "rssBytes": 397312000
     },
     {
       "cycle": 17,
-      "heapBytes": 94149808,
-      "rssBytes": 399048704
+      "heapBytes": 95575968,
+      "rssBytes": 397344768
     },
     {
       "cycle": 18,
-      "heapBytes": 94148232,
-      "rssBytes": 399048704
+      "heapBytes": 95573080,
+      "rssBytes": 397377536
     },
     {
       "cycle": 19,
-      "heapBytes": 94184184,
-      "rssBytes": 399048704
+      "heapBytes": 95609376,
+      "rssBytes": 397426688
     }
   ],
   "subscriptions": {
@@ -1310,42 +1310,6 @@
   "profiles": {
     "material": [
       {
-        "function": "inlineTokens",
-        "samples": 8,
-        "file": "marked.esm.js",
-        "line": 41
-      },
-      {
-        "function": "blockTokens",
-        "samples": 3,
-        "file": "marked.esm.js",
-        "line": 28
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 2,
-        "file": "measure-stress-seed.ts",
-        "line": 2
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 2,
-        "file": "marked.esm.js",
-        "line": 2
-      },
-      {
-        "function": "table",
-        "samples": 2,
-        "file": "marked.esm.js",
-        "line": 25
-      },
-      {
-        "function": "lheading",
-        "samples": 2,
-        "file": "marked.esm.js",
-        "line": 26
-      },
-      {
         "function": "parseTiptapDocJson",
         "samples": 2,
         "file": "tiptap-doc.ts",
@@ -1358,10 +1322,10 @@
         "line": 115
       },
       {
-        "function": "k",
+        "function": "list",
         "samples": 1,
-        "file": "marked.esm.js",
-        "line": 61
+        "file": "note-markdown.ts",
+        "line": 5
       },
       {
         "function": "list",
@@ -1370,64 +1334,28 @@
         "line": 18
       },
       {
-        "function": "inlineText",
+        "function": "get",
         "samples": 1,
         "file": "marked.esm.js",
-        "line": 27
-      },
-      {
-        "function": "codespan",
-        "samples": 1,
-        "file": "marked.esm.js",
-        "line": 27
-      },
-      {
-        "function": "paragraph",
-        "samples": 1,
-        "file": "marked.esm.js",
-        "line": 51
-      },
-      {
-        "function": "block",
-        "samples": 1,
-        "file": "note-markdown.ts",
         "line": 2
-      },
-      {
-        "function": "(garbage collector)",
-        "samples": 1,
-        "file": "",
-        "line": 0
       }
     ],
     "recovery": [
       {
         "function": "sameJson",
-        "samples": 4,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "canonicalRecoveryJson",
-        "samples": 4,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "replayTurns",
-        "samples": 3,
+        "samples": 6,
         "file": "recovery.ts",
         "line": 2
       },
       {
         "function": "toCanonicalJsonValue",
-        "samples": 3,
+        "samples": 5,
         "file": "recovery.ts",
         "line": 2
       },
       {
-        "function": "canonicalRecoveryJson",
-        "samples": 3,
+        "function": "replayTurns",
+        "samples": 4,
         "file": "recovery.ts",
         "line": 2
       },
@@ -1439,14 +1367,20 @@
       },
       {
         "function": "canonicalRecoveryJson",
+        "samples": 3,
+        "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "recoverAgentRuntimeSnapshot",
         "samples": 2,
         "file": "recovery.ts",
         "line": 2
       },
       {
-        "function": "applyEvent",
+        "function": "toCanonicalJsonValue",
         "samples": 2,
-        "file": "reducer.ts",
+        "file": "recovery.ts",
         "line": 2
       },
       {
@@ -1468,25 +1402,19 @@
         "line": 2
       },
       {
-        "function": "sameJson",
+        "function": "canonicalRecoveryJson",
         "samples": 1,
         "file": "recovery.ts",
         "line": 2
       },
       {
-        "function": "isNonNegativeInteger",
-        "samples": 1,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "reduceAgentRuntimeJournal",
+        "function": "applyEvent",
         "samples": 1,
         "file": "reducer.ts",
         "line": 2
       },
       {
-        "function": "(anonymous)",
+        "function": "canonicalRecoveryJson",
         "samples": 1,
         "file": "recovery.ts",
         "line": 2
@@ -1498,7 +1426,13 @@
         "line": 2
       },
       {
-        "function": "HashJob",
+        "function": "(anonymous)",
+        "samples": 1,
+        "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "encodeUtf8String",
         "samples": 1,
         "file": "",
         "line": 0
@@ -1510,30 +1444,6 @@
         "line": 0
       },
       {
-        "function": "toCanonicalJsonValue",
-        "samples": 1,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "toCanonicalJsonValue",
-        "samples": 1,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "toCanonicalJsonValue",
-        "samples": 1,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "extractCompleteScopedMessages",
-        "samples": 1,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
         "function": "(anonymous)",
         "samples": 1,
         "file": "recovery.ts",
@@ -1546,7 +1456,31 @@
         "line": 2
       },
       {
-        "function": "buildTranscript",
+        "function": "(program)",
+        "samples": 1,
+        "file": "",
+        "line": 0
+      },
+      {
+        "function": "toCanonicalJsonValue",
+        "samples": 1,
+        "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "toCanonicalJsonValue",
+        "samples": 1,
+        "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 1,
+        "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "validateToolCalls",
         "samples": 1,
         "file": "recovery.ts",
         "line": 2
@@ -1554,56 +1488,26 @@
     ],
     "display": [
       {
-        "function": "query",
-        "samples": 29,
-        "file": "p3-file-backed-sqlite.ts",
-        "line": 41
-      },
-      {
         "function": "all",
-        "samples": 15,
+        "samples": 19,
         "file": "",
         "line": 0
       },
       {
+        "function": "query",
+        "samples": 18,
+        "file": "p3-file-backed-sqlite.ts",
+        "line": 41
+      },
+      {
         "function": "parseJson",
-        "samples": 6,
+        "samples": 9,
         "file": "agent-runtime-persistence-repo.ts",
         "line": 2
       },
       {
-        "function": "recoverAgentRuntimeSnapshot",
-        "samples": 6,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
         "function": "replayTurns",
-        "samples": 6,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "canonicalRecoveryJson",
         "samples": 5,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "canonicalRecoveryJson",
-        "samples": 5,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "mapResultRow",
-        "samples": 4,
-        "file": "utils.js",
-        "line": 2
-      },
-      {
-        "function": "canonicalRecoveryJson",
-        "samples": 4,
         "file": "recovery.ts",
         "line": 2
       },
@@ -1614,21 +1518,21 @@
         "line": 355
       },
       {
-        "function": "(garbage collector)",
-        "samples": 4,
-        "file": "",
-        "line": 0
-      },
-      {
-        "function": "parseJson",
+        "function": "mapResultRow",
         "samples": 3,
-        "file": "agent-runtime-persistence-repo.ts",
+        "file": "utils.js",
         "line": 2
       },
       {
-        "function": "canonicalRecoveryJson",
+        "function": "recoverAgentRuntimeSnapshot",
         "samples": 3,
         "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "reduceAgentRuntimeJournal",
+        "samples": 3,
+        "file": "reducer.ts",
         "line": 2
       },
       {
@@ -1638,9 +1542,9 @@
         "line": 2
       },
       {
-        "function": "loadCanonicalAgentChatProjection",
+        "function": "canonicalRecoveryJson",
         "samples": 3,
-        "file": "recovered-transcript.ts",
+        "file": "recovery.ts",
         "line": 2
       },
       {
@@ -1650,25 +1554,7 @@
         "line": 2
       },
       {
-        "function": "validateMessages",
-        "samples": 2,
-        "file": "recovery.ts",
-        "line": 2
-      },
-      {
-        "function": "reduceAgentRuntimeJournal",
-        "samples": 2,
-        "file": "reducer.ts",
-        "line": 2
-      },
-      {
-        "function": "applyEvent",
-        "samples": 2,
-        "file": "reducer.ts",
-        "line": 2
-      },
-      {
-        "function": "parseRuntimeEvent",
+        "function": "canonicalRecoveryJson",
         "samples": 2,
         "file": "recovery.ts",
         "line": 2
@@ -1686,173 +1572,221 @@
         "line": 0
       },
       {
-        "function": "toCanonicalJsonValue",
-        "samples": 2,
+        "function": "post",
+        "samples": 1,
+        "file": "node:inspector",
+        "line": 115
+      },
+      {
+        "function": "parseJson",
+        "samples": 1,
+        "file": "agent-runtime-persistence-repo.ts",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 1,
+        "file": "sql.js",
+        "line": 2
+      },
+      {
+        "function": "validateMessages",
+        "samples": 1,
         "file": "recovery.ts",
         "line": 2
       },
       {
         "function": "toCanonicalJsonValue",
-        "samples": 2,
+        "samples": 1,
         "file": "recovery.ts",
         "line": 2
       },
       {
-        "function": "fold",
-        "samples": 2,
-        "file": "chat-journal-projection.ts",
+        "function": "replayAgentRuntimeJournal",
+        "samples": 1,
+        "file": "reducer.ts",
+        "line": 2
+      },
+      {
+        "function": "replaceTool",
+        "samples": 1,
+        "file": "reducer.ts",
+        "line": 2
+      },
+      {
+        "function": "expectedEventId",
+        "samples": 1,
+        "file": "reducer.ts",
+        "line": 2
+      },
+      {
+        "function": "toCanonicalJsonValue",
+        "samples": 1,
+        "file": "recovery.ts",
+        "line": 2
+      },
+      {
+        "function": "(garbage collector)",
+        "samples": 1,
+        "file": "",
+        "line": 0
+      },
+      {
+        "function": "toCanonicalJsonValue",
+        "samples": 1,
+        "file": "recovery.ts",
         "line": 2
       }
     ],
     "wholeBodyWrite": [
       {
+        "function": "(anonymous)",
+        "samples": 67,
+        "file": "yjs.mjs",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 26,
+        "file": "yjs.mjs",
+        "line": 2
+      },
+      {
         "function": "query",
-        "samples": 15,
+        "samples": 10,
         "file": "p3-file-backed-sqlite.ts",
         "line": 41
       },
       {
-        "function": "(garbage collector)",
-        "samples": 13,
+        "function": "all",
+        "samples": 10,
         "file": "",
         "line": 0
       },
       {
-        "function": "get",
+        "function": "(garbage collector)",
         "samples": 7,
+        "file": "",
+        "line": 0
+      },
+      {
+        "function": "buildWorkspaceEntries",
+        "samples": 6,
+        "file": "drifting-workspace-tool-runtime.ts",
+        "line": 6
+      },
+      {
+        "function": "get",
+        "samples": 6,
+        "file": "yjs.mjs",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 5,
         "file": "decoding.js",
         "line": 2
       },
       {
-        "function": "all",
-        "samples": 6,
-        "file": "",
-        "line": 0
+        "function": "buildWorkspaceEntries",
+        "samples": 4,
+        "file": "drifting-workspace-tool-runtime.ts",
+        "line": 6
       },
       {
         "function": "(program)",
-        "samples": 6,
+        "samples": 4,
         "file": "",
         "line": 0
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 4,
+        "file": "encoding.js",
+        "line": 2
+      },
+      {
+        "function": "get",
+        "samples": 4,
+        "file": "decoding.js",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 4,
+        "file": "decoding.js",
+        "line": 2
       },
       {
         "function": "exec",
-        "samples": 6,
+        "samples": 4,
         "file": "",
         "line": 0
       },
       {
-        "function": "get",
-        "samples": 6,
-        "file": "encoding.js",
-        "line": 2
-      },
-      {
         "function": "(anonymous)",
-        "samples": 6,
+        "samples": 4,
         "file": "drifting-workspace-tool-runtime.ts",
         "line": 6
       },
       {
-        "function": "(anonymous)",
-        "samples": 5,
-        "file": "yjs.mjs",
-        "line": 2
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 5,
+        "function": "get",
+        "samples": 3,
         "file": "decoding.js",
         "line": 2
       },
       {
         "function": "(anonymous)",
-        "samples": 5,
-        "file": "encoding.js",
-        "line": 2
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 5,
-        "file": "drifting-workspace-tool-runtime.ts",
-        "line": 6
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 4,
-        "file": "drifting-workspace-tool-runtime.ts",
-        "line": 6
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 4,
-        "file": "drifting-workspace-tool-runtime.ts",
-        "line": 6
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 4,
-        "file": "yjs.mjs",
-        "line": 2
-      },
-      {
-        "function": "get",
-        "samples": 4,
+        "samples": 3,
         "file": "yjs.mjs",
         "line": 2
       },
       {
         "function": "(anonymous)",
-        "samples": 4,
-        "file": "yjs.mjs",
-        "line": 2
-      },
-      {
-        "function": "get",
-        "samples": 4,
+        "samples": 3,
         "file": "decoding.js",
         "line": 2
+      },
+      {
+        "function": "get",
+        "samples": 3,
+        "file": "binary.js",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 3,
+        "file": "decoding.js",
+        "line": 2
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 3,
+        "file": "drifting-workspace-tool-runtime.ts",
+        "line": 6
+      },
+      {
+        "function": "(anonymous)",
+        "samples": 2,
+        "file": "",
+        "line": 0
       },
       {
         "function": "resolveWorkspacePath",
-        "samples": 3,
+        "samples": 2,
         "file": "drifting-workspace-tool-runtime.ts",
         "line": 19
       },
       {
-        "function": "(anonymous)",
-        "samples": 3,
-        "file": "yjs.mjs",
-        "line": 2
-      },
-      {
-        "function": "getMissing",
-        "samples": 3,
-        "file": "yjs.mjs",
-        "line": 2
-      },
-      {
-        "function": "prepare",
-        "samples": 3,
-        "file": "",
-        "line": 0
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 3,
-        "file": "encoding.js",
+        "function": "get",
+        "samples": 2,
+        "file": "binary.js",
         "line": 2
       },
       {
         "function": "get",
-        "samples": 3,
+        "samples": 2,
         "file": "yjs.mjs",
-        "line": 2
-      },
-      {
-        "function": "(anonymous)",
-        "samples": 3,
-        "file": "decoding.js",
         "line": 2
       }
     ]

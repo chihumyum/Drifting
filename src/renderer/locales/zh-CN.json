@@ -1596,6 +1596,7 @@
       "clearConfirm": "清空工作记忆？这不会删除作品内容、长期规则或对话记录。"
     },
     "history": {
+      "loadEarlier": "载入更早的消息",
       "empty": "暂无历史对话",
       "untitled": "未命名",
       "rename": "重命名",

@@ -445,7 +445,13 @@ if (report.agentPanel) {
   // The baseline records the original full-panel renders and missing initial
   // bottom position. Current CI requires the isolated transcript contract.
   if (deterministic || scenario.drafting) {
-    assert.equal(scenario.checks.length, 24);
+    assert.equal(scenario.checks.length, scenario.historyWindowing ? 28 : 24);
+    if (scenario.historyWindowing) {
+      assert(scenario.historyWindowing.initialAssistantNodes > 0 && scenario.historyWindowing.initialAssistantNodes <= 64);
+      assert.equal(scenario.historyWindowing.canonicalMessages, 300);
+      assert.equal(scenario.historyWindowing.allHistoryReachable, true);
+      assert.equal(scenario.historyWindowing.offlineHistory, true);
+    }
     assert.equal(scenario.historyMessages, 300);
     assert.equal(scenario.displayBatches, 20);
     assert.equal(scenario.streamEvents, 400);

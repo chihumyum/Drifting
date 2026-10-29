@@ -18,6 +18,7 @@ function summary(id: string, nodes: number, wordsReady: boolean): ProjectSummary
     source: 'local',
     stats: {
       nodes,
+      chapters: nodes,
       words: 0,
       wordsReady,
       storylines: 0,

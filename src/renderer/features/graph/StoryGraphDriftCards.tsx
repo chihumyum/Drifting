@@ -73,7 +73,7 @@ function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
       onMouseEnter={(event) => onPreviewEnter(event, node)}
       onMouseLeave={onPreviewLeave}
     >
-      <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
+      <div className="drift-card__num">{t('nodeEditor.folio.drift')}</div>
       <div className="drift-card__title">{node.title || t('common.untitled')}</div>
       {node.summary && <div className="drift-card__summary">{node.summary}</div>}
     </div>

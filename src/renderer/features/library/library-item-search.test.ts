@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createPlainCommentDoc } from '../../domain/comment';
 import { legacyUrlNoteBodyJson, type LibraryItem } from '../../domain/library-item';
 import { libraryItemMatchesQuery } from './library-item-search';
@@ -36,6 +36,20 @@ const retiredLinkNote: LibraryItem = {
 };
 
 describe('library item search', () => {
+  it('reuses unchanged note projections across queries and invalidates edited bodies', () => {
+    const item = { ...textItem };
+    const parse = vi.spyOn(JSON, 'parse');
+    try {
+      expect(libraryItemMatchesQuery(item, '第三盏灯')).toBe(true);
+      const calls = parse.mock.calls.length;
+      for (const query of ['守夜人', '点亮', 'missing']) libraryItemMatchesQuery(item, query);
+      expect(parse).toHaveBeenCalledTimes(calls);
+      item.bodyJson = createPlainCommentDoc('修改后的笔记');
+      expect(libraryItemMatchesQuery(item, '第三盏灯')).toBe(false);
+      expect(libraryItemMatchesQuery(item, '修改后')).toBe(true);
+      expect(parse.mock.calls.length).toBeGreaterThan(calls);
+    } finally { parse.mockRestore(); }
+  });
   it('ignores TipTap structure keywords in a text body', () => {
     for (const keyword of ['paragraph', 'type', 'doc', 'content', '"text"']) {
       expect(libraryItemMatchesQuery(textItem, keyword)).toBe(false);

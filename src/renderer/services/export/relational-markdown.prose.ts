@@ -7,6 +7,7 @@ export async function readLocalProseJson(
   entityId: string,
   fallbackContentJson: string,
   source: LocalRelationalMarkdownSource,
+  hydrate = hydrateProseJson,
 ): Promise<string> {
   const docId = proseDocId(entityType, entityId);
   const state = source.proseByDocId.get(docId);
@@ -18,5 +19,5 @@ export async function readLocalProseJson(
   // Once any Yjs state exists, it is authoritative even when it represents an
   // intentionally empty document. Corruption rejects the export instead of
   // silently falling back to a stale contentJson projection.
-  return hydrateProseJson(state.snapshot, state.updates);
+  return hydrate(state.snapshot, state.updates);
 }

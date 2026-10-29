@@ -24,11 +24,11 @@ describe('project shelf aggregate', () => {
     await db.insert(NodeStorylineLinkTable).values([{ nodeId: 'trash', storylineId: 'main' }, { nodeId: 'chapter', storylineId: 'support' }]);
     await db.insert(InlineMentionTable).values({ id: 'mention', projectId: 'synthetic-workspace', fromKind: 'node', fromId: 'chapter', fromBlockId: 'block', fromSpansJson: '[]', toKind: 'element', toId: 'element', createdAt: WORKSPACE_TEST_NOW, updatedAt: WORKSPACE_TEST_NOW });
     const query = vi.spyOn(gateway, 'query');
-    expect(await readProjectStats('synthetic-workspace', db)).toEqual({ nodes: 2, words: 12, wordsReady: true, storylines: 2, storylineLinks: 2, elements: 1, categories: 1, entityRelations: 1, inlineMentions: 1 });
+    expect(await readProjectStats('synthetic-workspace', db)).toEqual({ nodes: 2, chapters: 1, words: 12, wordsReady: true, storylines: 2, storylineLinks: 2, elements: 1, categories: 1, entityRelations: 1, inlineMentions: 1 });
     expect(query).toHaveBeenCalledTimes(1);
     expect((await query.mock.results[0].value).rows).toHaveLength(1);
     expect(query.mock.calls[0][1]).toHaveLength(7);
-    expect(await readProjectStats('other-project', db)).toEqual({ nodes: 0, words: 0, wordsReady: true, storylines: 0, storylineLinks: 0, elements: 0, categories: 0, entityRelations: 0, inlineMentions: 0 });
+    expect(await readProjectStats('other-project', db)).toEqual({ nodes: 0, chapters: 0, words: 0, wordsReady: true, storylines: 0, storylineLinks: 0, elements: 0, categories: 0, entityRelations: 0, inlineMentions: 0 });
   });
 
   it('matches the portable hash predicate and existing seed/revision/sequence semantics', async () => {

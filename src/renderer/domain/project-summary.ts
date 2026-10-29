@@ -2,6 +2,7 @@ import type { Project } from './project';
 
 export interface ProjectStats {
   nodes: number;
+  chapters: number;
   words: number;
   wordsReady: boolean;
   storylines: number;

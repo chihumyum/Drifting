@@ -20,7 +20,7 @@ export interface AgentTranscriptHandle { follow(): void }
 
 /** The visible transcript owns display subscriptions and scroll state. The
  * canonical run continues independently when this view is unmounted. */
-export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(function DesktopAgentTranscript(_props, ref) {
+export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { canRun?: boolean }>(function DesktopAgentTranscript({ canRun = true }: { canRun?: boolean }, ref) {
   const { t } = useTranslation();
   const messages = useAgentChatTranscript();
   const messageBlocks = useAgentMessageBlocks(messages);
@@ -36,6 +36,22 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
   const logRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
+  const [firstVisibleBlock, setFirstVisibleBlock] = useState<number | null>(null);
+  const visibleStart = firstVisibleBlock ?? Math.max(0, messageBlocks.length - 2);
+  useLayoutEffect(() => {
+    // History may arrive after this keyed conversation mounts. Anchor the
+    // initial page once it exists, then retain it across live append boundaries.
+    if (firstVisibleBlock === null && messageBlocks.length > 0) setFirstVisibleBlock(visibleStart);
+  }, [firstVisibleBlock, messageBlocks.length, visibleStart]);
+  const prependScroll = useRef<{ height: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const previous = prependScroll.current;
+    const el = logRef.current;
+    if (previous && el) {
+      el.scrollTop = previous.top + el.scrollHeight - previous.height;
+      prependScroll.current = null;
+    }
+  }, [firstVisibleBlock]);
 
   // Runs on the actual log mount, including after authentication or returning
   // from working memory. A parent effect can run before this DOM exists.
@@ -91,14 +107,22 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
           {messages.length === 0 ? (
             <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
           ) : (
-            messageBlocks.map(block => <DesktopMessageBlock key={block.start} block={block} />)
+            <>
+              {visibleStart > 0 && <button type="button" className="agt-toolbar-action" onClick={() => {
+                const el = logRef.current;
+                if (el) prependScroll.current = { height: el.scrollHeight, top: el.scrollTop };
+                stickRef.current = false; setAtBottom(false);
+                setFirstVisibleBlock(index => Math.max(0, (index ?? visibleStart) - 2));
+              }}>{t('agentPanel.history.loadEarlier')}</button>}
+              {messageBlocks.slice(visibleStart).map(block => <DesktopMessageBlock key={block.start} block={block} />)}
+            </>
           )}
           {waiting && <PendingRow status={controlStatus} />}
           {pendingControl && (
             <RuntimeControlCard
               pending={pendingControl}
               onPermission={(decision, scope) => {
-                void respondPermission(decision, scope);
+                if (canRun) void respondPermission(decision, scope);
               }}
               onCancelRecovered={() => {
                 void cancelRecoveredControl();
@@ -139,7 +163,8 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
                 <button
                   type="button"
                   className="agt-btn glass glass--primary glass--waiting"
-                  onClick={() => void continueTask()}
+                  disabled={!canRun}
+                  onClick={() => { if (canRun) void continueTask(); }}
                 >
                   {t('agentPanel.budget.continue', {
                     defaultValue: '继续此任务',

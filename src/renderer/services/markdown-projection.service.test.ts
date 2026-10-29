@@ -13,7 +13,7 @@ vi.mock('../sync/journal/authored-transaction', () => ({ onAuthoredChangeCommitt
 } }));
 vi.mock('./yjs-local-durability.service', () => ({ flushAllOpenYjsDocuments: fixture.flush }));
 vi.mock('./export/relational-markdown.local-source', () => ({ readLocalRelationalMarkdownSource: fixture.read }));
-vi.mock('./export/relational-markdown.service', () => ({ buildRelationalMarkdownEntries: fixture.build }));
+vi.mock('./export/markdown-projection-client', () => ({ renderMarkdownProjection: fixture.build }));
 import { createProjectionWorker, installMarkdownProjection, refreshMarkdownProjection, setMarkdownProjectionOutputRoot } from './markdown-projection.service';
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
 import { events } from '../lib/events';

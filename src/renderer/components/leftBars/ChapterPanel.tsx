@@ -77,7 +77,7 @@ export function ChapterPanel({
 }: ChapterPanelProps = {}) {
   const { t } = useTranslation();
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'storylineNodeMapping', 'primaryStorylineByNode');
-  const { nodeUi } = useUiStore();
+  const nodeUi = useUiStore((s) => s.nodeUi);
   const [persistedViewMode] = useSidebarPreference('chapterPanelViewMode');
   const [globalSortMode] = useSidebarPreference('chapterGlobalSortMode');
   const [storylineInnerSortMode] = useSidebarPreference('chapterStorylineInnerSortMode');
