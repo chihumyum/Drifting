@@ -73,6 +73,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   // moment `isExpanded` flips and the user would just see an empty bar shrink.
   // Re-expanding mid-collapse cancels the pending unmount via cleanup.
   const [mountChildren, setMountChildren] = useState(isExpanded);
+  // A panel is built the first time it opens, never ahead of it.
+  const [opened, setOpened] = useState(isExpanded);
+  if (mountChildren && !opened) setOpened(true);
   useEffect(() => {
     if (isExpanded) {
       // Exit-presence state is intentionally synchronized with the CSS
@@ -251,10 +254,11 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
               display: 'flex',
             }}
           >
-            {/* A closed panel stays mounted but hidden, so reopening it shows
-                kept DOM and state instead of mounting a long panel during the
-                slide's first frame; its updates wait for idle meanwhile. */}
-            <Activity mode={mountChildren ? 'visible' : 'hidden'}>{children}</Activity>
+            {/* Once opened, a closed panel stays mounted but hidden, so
+                reopening it shows kept DOM and state instead of mounting a
+                long panel during the slide's first frame; its updates wait
+                for idle meanwhile. */}
+            {opened && <Activity mode={mountChildren ? 'visible' : 'hidden'}>{children}</Activity>}
           </div>
         </div>
       )}
