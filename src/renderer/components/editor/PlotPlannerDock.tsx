@@ -17,10 +17,11 @@ import {
 } from './plot-grid/plot-grid-cell-ratio-store';
 import '../../../styles/plot-planner.css';
 import { BrushIcon } from '../ui/BrushIcon';
+import { KindMark } from '../ui/KindMark';
 
 const DEFAULT_HEIGHT = 280;
 const MIN_DOCK_HEIGHT = 140;
-// Keep at least this much prose visible below the dock when resizing.
+// Keep at least this much prose visible above the dock when resizing.
 const MIN_PROSE_HEIGHT = 180;
 // Match the prose editor's persist cadence (useEntityEditor PERSIST_DEBOUNCE_MS).
 const PERSIST_DEBOUNCE_MS = 400;
@@ -30,11 +31,27 @@ interface PlotPlannerDockProps {
   // from its own grid; the binding to nodeId is therefore stable for an
   // instance's whole lifetime (used to route the persist to the right row).
   nodeId: string;
+  /** Which chapter (or drift) this is: the dock under the paper follows the focused one. */
+  title: string;
+  /** The chapter's storyline colour, for its mark. */
+  color?: string;
+  drift?: boolean;
   initialJson: string;
   onPersist: (nodeId: string, mutations: readonly PlotGridMutation[]) => Promise<unknown>;
 }
 
-export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerDockProps) {
+/** The desk column the dock sits in; its height bounds the dock's. */
+function deskColumnOf(dock: HTMLElement | null): HTMLElement | null {
+  return dock?.closest<HTMLElement>('.app-mid') ?? null;
+}
+
+/**
+ * The plot planner in the dock under the paper, which it shares with the
+ * Bottom Timeline: the chapter's own little timeline, its rows as named
+ * lanes and its columns as beats (PlotGrid). Resized by its top edge, like
+ * the timeline.
+ */
+export function PlotPlannerDock({ nodeId, title, color, drift = false, initialJson, onPersist }: PlotPlannerDockProps) {
   const { t } = useTranslation();
   const storedHeight = useUiStore((s) => s.plotPlannerHeight);
   const setStoredHeight = useUiStore((s) => s.setPlotPlannerHeight);
@@ -103,18 +120,14 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
   };
 
   const boundsForCurrentShell = useCallback(() => {
-    const dock = dockRef.current;
-    const shell = dockRef.current?.closest('.editor-shell');
-    const availableHeight =
-      dock && shell
-        ? shell.getBoundingClientRect().bottom - dock.getBoundingClientRect().top
-        : window.innerHeight;
+    const column = deskColumnOf(dockRef.current);
+    const availableHeight = column ? column.getBoundingClientRect().height : window.innerHeight;
     return verticalDockBounds(availableHeight, MIN_DOCK_HEIGHT, MIN_PROSE_HEIGHT);
   }, []);
 
   // Persisted dock heights are only preferences, never layout authority.
-  // Re-clamp them after hydration and whenever the editor shell changes size
-  // (window resize, bottom timeline toggle, split changes, etc.).
+  // Re-clamp them after hydration and whenever the desk column changes size
+  // (window resize, split changes, etc.).
   useEffect(() => {
     const normalize = () => {
       if (storedHeight === null) return;
@@ -122,7 +135,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
       if (next !== storedHeight) setStoredHeight(next);
     };
     const frame = window.requestAnimationFrame(normalize);
-    const shell = dockRef.current?.closest('.editor-shell');
+    const shell = deskColumnOf(dockRef.current);
     const observer =
       shell && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(normalize) : null;
     if (shell && observer) observer.observe(shell);
@@ -146,24 +159,19 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
     [flush],
   );
 
-  // Resize via the BOTTOM border — mirror of BottomTimeline's top-edge drag,
-  // inverted (dragging down grows the dock). maxH is measured live against
-  // .editor-shell so the bottom timeline being open (which shrinks the shell)
-  // is automatically accounted for and the prose keeps MIN_PROSE_HEIGHT.
+  // Resize via the TOP edge, like the Bottom Timeline: dragging up grows the
+  // dock. maxH is measured live against the desk column so the prose above
+  // keeps MIN_PROSE_HEIGHT.
   useEffect(() => {
     if (!isResizing) return;
     let last: number | null = null;
     const onMove = (e: MouseEvent) => {
       const dock = dockRef.current;
       if (!dock) return;
-      const dockTop = dock.getBoundingClientRect().top;
-      const shell = dock.closest('.editor-shell');
-      const availableHeight = shell
-        ? shell.getBoundingClientRect().bottom - dockTop
-        : window.innerHeight - dockTop;
+      const dockBottom = dock.getBoundingClientRect().bottom;
       const next = clampDimension(
-        e.clientY - grabOffsetRef.current - dockTop,
-        verticalDockBounds(availableHeight, MIN_DOCK_HEIGHT, MIN_PROSE_HEIGHT),
+        dockBottom - (e.clientY - grabOffsetRef.current),
+        boundsForCurrentShell(),
       );
       last = next;
       setDragHeight(next);
@@ -181,7 +189,7 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [isResizing, setStoredHeight]);
+  }, [boundsForCurrentShell, isResizing, setStoredHeight]);
 
   const fallbackContainerHeight =
     typeof window === 'undefined' ? 700 : Math.max(0, window.innerHeight - 100);
@@ -194,10 +202,23 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
     <div
       className="plot-planner"
       ref={dockRef}
-      style={{ height, maxHeight: `calc(100% - ${MIN_PROSE_HEIGHT}px)` }}
+      style={{ height }}
     >
+      <div
+        className="plot-planner__resize"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const rect = dockRef.current?.getBoundingClientRect();
+          grabOffsetRef.current = rect ? e.clientY - rect.top : 0;
+          setIsResizing(true);
+        }}
+      />
       <div className="plot-planner__header">
-        <span className="plot-planner__title">{t('plotGrid.title')}</span>
+        <span className="plot-planner__title">
+          {drift ? <KindMark kind="drift" /> : <KindMark kind="chapter" seed={nodeId} color={color} />}
+          <span className="plot-planner__chapter">{title || t('common.untitled')}</span>
+          <span className="plot-planner__label">{t('plotGrid.title')}</span>
+        </span>
         <button
           type="button"
           className="plot-planner__add"
@@ -246,15 +267,6 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
           onCellRatioChange={(ratio) => writeLocalPlotGridCellRatio(nodeId, ratio)}
         />
       </div>
-      <div
-        className="plot-planner__resize"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          const rect = dockRef.current?.getBoundingClientRect();
-          grabOffsetRef.current = rect ? e.clientY - rect.bottom : 0;
-          setIsResizing(true);
-        }}
-      />
     </div>
   );
 }

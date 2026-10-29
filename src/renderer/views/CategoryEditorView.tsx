@@ -337,6 +337,7 @@ export function CategoryEditorView({
         <EditorOutlineRail
           title={`${curCategory.name} · OUTLINE`}
           items={frameworkItems}
+          color={curCategory.color || undefined}
           scrollspyIds={outlineIds}
           onItemClick={(id) => {
             scrollToOutlineAnchor(id, scrollEl);

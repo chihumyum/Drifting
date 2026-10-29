@@ -356,6 +356,7 @@ export function StorylineEditorView({
         <EditorOutlineRail
           title={t('storylineEditor.outlineTitle', { name: currentStoryline.name || 'STORYLINE' })}
           items={frameworkItems}
+          color={currentStoryline.color || undefined}
           scrollspyIds={outlineIds}
           onItemClick={(id) => {
             scrollToOutlineAnchor(id, scrollEl);

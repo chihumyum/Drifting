@@ -699,6 +699,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         <EditorOutlineRail
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
           items={frameworkItems}
+          color={bookElementCategories.find((category) => category.id === curElement.categoryId)?.color || undefined}
           scrollspyIds={outlineIds}
           onItemClick={(id) => {
             scrollToOutlineAnchor(id, scrollEl);

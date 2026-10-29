@@ -11,6 +11,7 @@ pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/acce
 pnpm test:renderer-architecture
 pnpm exec vitest run src/renderer/lib/sidebar-tabs.test.ts src/renderer/lib/sidebar-pane-events.test.ts src/renderer/store/ui-store.sidebar-tabs.test.ts src/renderer/lib/layout-geometry.test.ts src/renderer/shells/desktop/desktop-sidebar-tabs.acceptance.test.ts src/renderer/store/agent-chat-preparation.integration.test.ts
 pnpm exec vitest run src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts src/renderer/components/editor/entity-editor-glass.acceptance.test.ts
+pnpm exec vitest run src/renderer/components/editor/paper-tools-sand-glass.acceptance.test.ts src/renderer/components/editor/outline-rail-model.test.ts src/renderer/components/editor/scroll-marker-model.test.ts src/renderer/store/ui-store.bottom-dock.test.ts
 node scripts/run-tab-reorder-acceptance.mjs --check
 ```
 
@@ -31,6 +32,7 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 - **浮层、对话框与控件**：`menu-surface-style.acceptance.test.ts` 还覆盖对话框、全局搜索、查找条与通知中心共用菜单外壳且背后是桌面色薄雾、头尾不画线，键盘当前行是静止的环、命中不垫底，账户菜单的分组留白与两个多选一，桌面 `Button` 的玻璃映射与危险按钮只用危险色的字、危险确认先聚焦取消，单行输入框、下拉选择、整行开关、空状态、加载（`240ms` 后出现）与进度的定义，以及范围内每个对话框都改用共用外壳与控件。观感（薄雾浓淡、深色主题、WKWebView 里的玻璃）仍要目测。
 - **时间线**：`chapter-lane-drag.pointer.test.ts` 覆盖时间线玻璃块在越过下一泳道中线前不换道、越过后吸附并落在所在泳道、以及弹簧跟随。
 - **砂笔框**：`lib/sand-frame.test.ts` 覆盖同一种子画出同一笔、不同种子不同、笔迹从左侧中段起笔并最后画到顶边、笔触粗细不随格子高度变化，以及同一种子拖宽时左半边逐像素不变、右边一段随边缘平移；`sand-glass-materials.test.ts` 覆盖选中的 cell 带画布画框、未选中不带，以及画框不再依赖固定贴图。
+- **稿纸工具**：`paper-tools-sand-glass.acceptance.test.ts` 覆盖大纲当前位置那一道归属色的短砂（取色由 `outline-rail-model.test.ts` 的 `outlineEntryColor` 覆盖）、上级加粗、不用强调色、幕用结构字、省略展开是菜单浮层；选区浮条是玻璃长药丸、格式条是 `body` 上的兄弟而不是子元素、格式是砂笔符号的圆形玻璃、长药丸按下不加深、移动端回退；滚动标记是按 key 固定的砂印（`scroll-marker-model.test.ts` 覆盖 `scrollMarkerSeal` 稳定且有变化）、悬停加深、离开淡出；情节规划与 Bottom Timeline 共用底部位置（`ui-store.bottom-dock.test.ts` 覆盖互斥与旧状态恢复）、只有获得焦点的编辑器把网格放进去、从顶边拖高、泳道纸条没有底色变化与强调色、移动端保留 hairline 表格；九枚格式符号的素材、`BrushIcon` 与生成脚本一致。真实 Chromium 里的选区浮条行为由 `src/renderer/performance/editor-selection-bar-scenarios.ts` 驱动，没有重新生成性能证据。
 
 ## 只能目测的部分
 

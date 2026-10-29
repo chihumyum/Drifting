@@ -6,14 +6,15 @@
 
 | 名称 | 表达 | 时长 / 曲线 | 用在 | 代码 |
 | --- | --- | --- | --- | --- |
-| 结构性开合 | 工作区的结构变了 | `420ms`，`cubic-bezier(0.32, 0.72, 0, 1)` | 侧栏开合、单双栏切换、Bottom Timeline 开合 | `Sidebar.tsx`（`COLLAPSE_ANIM_MS`）、`DesktopSidebarLayout.tsx`（`SPLIT_ANIM_MS`）、`TimelineDrawer.tsx`（`SLIDE_MS`）与对应 CSS |
-| 重冰推进 | 一整块内容被推开，换上另一块 | `265ms`，`cubic-bezier(0.8, 0, 0.66, 1)`（先慢后快） | 切换侧栏 Panel；其下的 Panel Tab 玻璃方块走同一个推进，同一刻落地；新内容四边的轮廓在落地后 `340ms` 淡出 | `lib/sidebar-push.ts`（`SIDEBAR_PUSH_MS`、`SIDEBAR_PUSH_EASING`）、`DesktopSidebarLayout.tsx`、`PanelTabs.tsx` |
+| 结构性开合 | 工作区的结构变了 | `420ms`，`cubic-bezier(0.32, 0.72, 0, 1)` | 侧栏开合、单双栏切换、稿纸下面的位置（Bottom Timeline 或情节规划）开合 | `Sidebar.tsx`（`COLLAPSE_ANIM_MS`）、`DesktopSidebarLayout.tsx`（`SPLIT_ANIM_MS`）、`TimelineDrawer.tsx`（`SLIDE_MS`）与对应 CSS |
+| 重冰推进 | 一整块内容被推开，换上另一块 | `265ms`，`cubic-bezier(0.8, 0, 0.66, 1)`（先慢后快） | 切换侧栏 Panel；其下的 Panel Tab 玻璃方块走同一个推进，同一刻落地；新内容四边的轮廓在落地后 `340ms` 淡出；稿纸下面的位置里时间线与情节规划互换（新来的从它开关那一侧进来，高度走同一曲线） | `lib/sidebar-push.ts`（`SIDEBAR_PUSH_MS`、`SIDEBAR_PUSH_EASING`）、`DesktopSidebarLayout.tsx`、`PanelTabs.tsx`、`BottomDockSwap.tsx` |
 | 有重量的弹簧 | 手里拿着一块有分量的东西 | 临界阻尼弹簧，刚度 `150`（略落后于手、不回弹）；需要定长时归一到 `520ms`，CSS 用 `linear()` 采样 | Dock 药丸拖拽的跟随、让位与落位；筛选滑块换选；Bottom Timeline 章节块拖动（跨泳道越过中线才吸附，带极轻的回弹） | `tab-reorder.ts`（`SPRING_K`、`SPRING_MS`、`springEasing()`）、`GlassSlider.tsx`、`chapter-lane-drag.ts`（`weighted`） |
 | 水波 | 选中从旧项流到新项 | `230ms + 70ms ×` 跨过的项数（最多 4 项，约 `300–510ms`），`outCubic`；中途变宽 ×1.35、变淡 18%、软边 2→16px；落定后 `300ms` 淡出（`0.28s`） | Dock 药丸；Bottom Timeline 同一泳道的章节块（跨泳道时旧块原地淡出、新块原地亮起） | `lib/glass-wave.ts`、`hooks/useGlassWave.ts` |
 | 玻璃流动 | 玻璃在手下或在移动 | 悬停：内晕 `0.24s` 晕开，纹理 `15s` 一圈缓慢流动；随距离：纹理按移动距离走（横线 ×1.2、竖线 ×1.6），强度随速度，停下后 `0.32s` 淡出 | 悬停中的玻璃控件、侧栏 Tab Header 外框；移动中的面板边线、Panel Tab 方块、筛选滑块；等你处理的卡片与它的主按钮反过来，平时流动、悬停停 | `materials.css`（`glass-flow`）、`lib/glass-flow.ts`、`desktop-shell.css`（`panel-tab-edge-drift`） |
 | 推波 | 一个刚到的步骤被推进来 | `1.125s`，`cubic-bezier(0.4, 0.1, 0.35, 1)`；一道玻璃从左往右推过，纹理随之走 `66px`；静止细线在前 40% 不出现，随后淡出 | Agent 工作时新出现的工具步骤（从历史载入的不推） | `materials.css`（`.glass-sweep`、`glass-sweep`、`glass-sweep-line`） |
+| 浮入 | 一条工具从它服务的东西上浮出来 | `160ms`，`cubic-bezier(0.3, 0.7, 0.2, 1)`，上移 `3px` 淡入；它展开的第二条 `150ms` 展开、`110ms` 收回 | 选区浮条与它的格式条 | `comments-review.css`（`editor-selection-bar-in`） |
 | 按压 | 手按下去 | `40ms` 加深，松开 `0.28s` 退回；选中态的边与内晕变化 `0.28s` | 所有 `.glass` 控件（Panel Tab 与筛选项是文字，不按压） | `materials.css` |
-| 砂笔画出 | 作者的操作留下痕迹 | 画框沿路径 `0.38s`；Dock 小点长成药丸 `0.34s`（`cubic-bezier(0.3, 0.7, 0.2, 1)`），药丸内容 `0.36s` 浮出；锁与 `+` `0.3s` 展开；章末 ⁂ 展开 `150ms`、收回 `110ms` | 侧栏 cell 选中、Dock 展开、章末菜单 | `lib/sand-frame.ts`、`desktop-shell.css`、`chapter-end-menu.css` |
+| 砂笔画出 | 作者的操作留下痕迹 | 画框沿路径 `0.38s`；Dock 小点长成药丸 `0.34s`（`cubic-bezier(0.3, 0.7, 0.2, 1)`），药丸内容 `0.36s` 浮出；锁与 `+` `0.3s` 展开；章末 ⁂ 展开 `150ms`、收回 `110ms`；大纲当前位置的那一道砂沿标签抹出 `0.38s`（滚动经过时整道 `0.3s` 淡入）；滚动标记的砂印出现 `0.34s`（`sand-arrive` 那一种），离开整颗 `0.3s` 淡出 | 侧栏 cell 选中、Dock 展开、章末菜单、点大纲标签跳转、滚动标记 | `lib/sand-frame.ts`、`desktop-shell.css`、`chapter-end-menu.css`、`comments-review.css` |
 
 ## 停留与宽限
 
@@ -23,6 +24,7 @@
 | `220ms` | 指针离开对象后，可以移进悬停卡的宽限 | `HOVER_CARD_GRACE_MS` |
 | `180ms` | 列表滚动停下多久之后，滑到指针下的行才算“被指着” | `SCROLL_REST_MS` |
 | `180ms` | 正文选区稳定多久后浮出选区浮条 | `EditorSelectionBar` |
+| `140ms` | 指针离开「格式」与它的格式条后多久收起（够跨过两条之间的缝） | `EditorSelectionBar` |
 | `240ms` | 等数据超过多久才出现加载的缺角圆相（之后 `0.16s` 淡入，`0.9s` 转一圈） | `loading-status.css` |
 | `260ms` | 指针离开 Dock 后多久收回小点 | `COLLAPSE_DELAY_MS` |
 | `160ms` | 指针离开收起的多选一 tab 与它展开的列表后多久收起（够跨过两者之间的缝） | `HOVER_CLOSE_MS`（`GlassSlider.tsx`） |
