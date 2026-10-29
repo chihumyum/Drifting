@@ -89,3 +89,13 @@ pnpm perf:stress --compare a.json b.json # 对比两份报告的核心指标
 5. **投影的原生发布**：只在停笔后运行，暂不优先。
 
 每一项都用 `pnpm perf:stress --release --foreground` 测出改前改后两份报告，再用 `--compare` 对比。
+
+## 进展
+
+- 第 2 项（打字时的 CPU）：见[打字写入路径](keystroke-write-path.md)。每次按键的写入在 Node 中从 50 ms 降到 10 ms；release 构建锁屏测量下，打字的 WebContent CPU 约降三分之一。
+- 第 1 项（标签与侧栏）：见[切换编辑器标签与展开侧栏](editor-tab-switch.md)。
+  - 已去掉切换途中的强制排版和章节面板的整列重绘；
+  - 已让打开过的侧栏面板保持挂载。
+- 尚未完成：
+  - 用 `--foreground` 重测帧数据；
+  - 关掉最后一个标签、打开项目、Super View 首次打开。

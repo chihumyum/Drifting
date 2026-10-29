@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "command": "pnpm perf:stress --release (no --foreground)",
+  "recordedAt": "2026-10-30",
+  "conditions": "Screen locked: the window renders no frames and timers are throttled to about one per 2 s, so only CPU seconds are comparable; typing journeys enter 30 characters each.",
+  "runs": [
+    {
+      "commit": "df251d31",
+      "build": "release (Rust release, production renderer)",
+      "webContentCandidates": 1,
+      "typing": {
+        "type-end": {
+          "seconds": 56.1,
+          "nativeCpuSeconds": 3.1,
+          "webCpuSeconds": 13.3
+        },
+        "type-middle": {
+          "seconds": 54.1,
+          "nativeCpuSeconds": 2.48,
+          "webCpuSeconds": 8.41
+        },
+        "type-end-sidebars": {
+          "seconds": 56.5,
+          "nativeCpuSeconds": 2.6,
+          "webCpuSeconds": 10.05
+        }
+      },
+      "typingTotals": {
+        "nativeCpuSeconds": 8.18,
+        "webCpuSeconds": 31.76
+      }
+    },
+    {
+      "commit": "2bbb9343",
+      "build": "release (Rust release, production renderer)",
+      "webContentCandidates": 1,
+      "typing": {
+        "type-end": {
+          "seconds": 56.7,
+          "nativeCpuSeconds": 2.07,
+          "webCpuSeconds": 7.69
+        },
+        "type-middle": {
+          "seconds": 54.9,
+          "nativeCpuSeconds": 2.55,
+          "webCpuSeconds": 6.8
+        },
+        "type-end-sidebars": {
+          "seconds": 55.1,
+          "nativeCpuSeconds": 2.3,
+          "webCpuSeconds": 7.22
+        }
+      },
+      "typingTotals": {
+        "nativeCpuSeconds": 6.92,
+        "webCpuSeconds": 21.71
+      }
+    }
+  ]
+}
