@@ -1,5 +1,4 @@
 import {
-  type CSSProperties,
   type WheelEvent,
   useCallback,
   useEffect,
@@ -21,7 +20,6 @@ import {
   flattenOutlineEntries,
   layoutOutlineRailLabels,
   outlineActivePathIds,
-  outlineEntryColor,
   planOutlineRail,
   visibleOutlineIds,
   type FlatOutlineEntry,
@@ -37,8 +35,6 @@ interface Props {
   onItemClick?: (id: string) => void;
   emptyHint?: string;
   secondaryItems?: OutlineEntry[];
-  /** The editor's owner colour (storyline or category), for entries that carry none. */
-  color?: string;
 }
 
 interface OmissionReveal {
@@ -106,7 +102,6 @@ function VisibleEditorOutlineRail({
   onItemClick,
   emptyHint,
   secondaryItems,
-  color,
   labelPitch,
   portalTargetId,
 }: Props & { labelPitch?: number; portalTargetId?: string }) {
@@ -169,14 +164,6 @@ function VisibleEditorOutlineRail({
     [flat, geometry],
   );
   const activePathIds = useMemo(() => outlineActivePathIds(flat, primaryId), [flat, primaryId]);
-  // The reading location carries one short swipe of sand in its owner's
-  // colour. A jump the author clicked draws it along the label; arriving by
-  // scrolling fades the swipe in whole.
-  const sandColor = useMemo(() => outlineEntryColor(flat, primaryId) ?? color, [color, flat, primaryId]);
-  const [drawn, setDrawn] = useState<{ id: string; reached: boolean } | null>(null);
-  if (drawn && !drawn.reached && primaryId === drawn.id) setDrawn({ id: drawn.id, reached: true });
-  if (drawn?.reached && primaryId !== drawn.id) setDrawn(null);
-  const sandDrawn = primaryId != null && drawn?.id === primaryId;
   const plan = useMemo(
     () => planOutlineRail(flat, primaryId, railHeight, geometry.fractions, labelPitch),
     [flat, geometry.fractions, labelPitch, primaryId, railHeight],
@@ -224,7 +211,6 @@ function VisibleEditorOutlineRail({
   };
 
   const jumpToEntry = (id: string) => {
-    if (id !== primaryId) setDrawn({ id, reached: false });
     viewport?.pin(id);
     onItemClick?.(id);
   };
@@ -264,7 +250,6 @@ function VisibleEditorOutlineRail({
         aria-label={`${title} · ${t('editorOutline.aria')}`}
         data-density={plan.mode}
         data-placement="edge"
-        style={sandColor ? ({ '--toc-sand': sandColor } as CSSProperties) : undefined}
         onWheel={handleWheel}
       >
       <div className="editor__toc-labels">
@@ -316,10 +301,8 @@ function VisibleEditorOutlineRail({
               style={style}
               onClick={() => jumpToEntry(entry.id)}
               aria-current={primary ? 'location' : undefined}
-              data-sand={primary && sandDrawn ? 'draw' : undefined}
               title={entry.item.text}
             >
-              <i className="editor__toc-tag-sand" aria-hidden="true" />
               {entry.item.num && <span className="editor__toc-tag-num">{entry.item.num}</span>}
               <span className="editor__toc-tag-text">{entry.item.text}</span>
             </button>

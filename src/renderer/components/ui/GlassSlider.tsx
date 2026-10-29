@@ -54,7 +54,9 @@ function slideEasing() {
  * (this chapter vs the whole project) use `ScopeToggle` instead.
  *
  * Where the options don't fit, `collapsed` folds them into the chosen one
- * alone; hovering it opens all of them stacked, and choosing closes them.
+ * alone; hovering it opens all of them stacked, on the same weighted slider.
+ * Choosing slides the glass there and leaves them open, so the slab is seen
+ * to move; they close once the pointer leaves.
  */
 export function GlassSlider<T extends string>({
   collapsed = false,
@@ -291,10 +293,7 @@ function CollapsedGlassSlider<T extends string>({
             value={value}
             ariaLabel={ariaLabel}
             orientation="vertical"
-            onChange={(next) => {
-              onChange(next);
-              close();
-            }}
+            onChange={onChange}
           />
         </div>
       </AnchoredPopover>

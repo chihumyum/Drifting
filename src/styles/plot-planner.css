@@ -11,8 +11,10 @@
    ============================================================ */
 
 /* ── The dock (desktop): flat, the desk colour of the timeline's header, no
-   shadow; resized by its top edge. The header names the chapter it follows
-   (the focused one) beside its mark; its actions are text buttons. ── */
+   shadow. It fills the Bottom Panel, whose height, border and top-edge
+   handle it shares with the timeline; the panel's shared header row names
+   the chapter it follows (the focused one) beside its mark, and its actions
+   are text buttons. ── */
 .plot-planner {
   position: relative;
   display: flex;
@@ -21,24 +23,21 @@
   background: var(--workspace-ui-bg);
   font-family: var(--font-sans);
 }
-.plot-planner__header {
-  flex: 0 0 30px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 10px 0 14px;
+/* The grid's column heads sit on the same desk colour as the header, so a
+   hairline keeps the header apart from them. */
+.plot-planner > .bottom-panel-head,
+.plot-planner-slot__empty > .bottom-panel-head {
   box-shadow: inset 0 -0.5px 0 var(--workspace-local-border);
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font-size: var(--ui-font-secondary, 12px);
 }
 .plot-planner__title {
-  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   overflow: hidden;
   white-space: nowrap;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
 }
 .plot-planner__chapter {
   min-width: 0;
@@ -62,6 +61,7 @@
   background: transparent;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font: inherit;
+  font-size: var(--ui-font-secondary, 12px);
   cursor: pointer;
   transition: color 0.12s ease-out;
 }
@@ -86,33 +86,34 @@
   flex: 1;
   min-height: 0;
 }
-.plot-planner__resize {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  cursor: ns-resize;
-  z-index: 30;
-}
 
-/* The dock's planner place. With no chapter in front a quiet line stands in. */
+/* The panel's planner place, filling it. With no chapter in front its header
+   still names the planner and a quiet line stands in for the grid. */
 .plot-planner-slot {
   display: flex;
   flex-direction: column;
 }
+.plot-planner-slot > * {
+  flex: 1;
+  min-height: 0;
+}
 .plot-planner-slot__empty {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 120px;
-  margin: 0;
+  flex-direction: column;
   background: var(--workspace-ui-bg);
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-size: var(--ui-font-secondary, 12px);
 }
 .plot-planner-slot__empty:not(:only-child) {
   display: none;
+}
+.plot-planner-slot__note {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 12px);
 }
 
 /* ── scroll owner ── */

@@ -34,11 +34,8 @@ import {
 import { createTimelineDragPreview } from '../../../features/graph/timeline-drag-preview';
 import { useBookAct } from '../../../usecase/useBookAct';
 import { events } from '../../../lib/events';
-import {
-  clampDimension,
-  parsePersistedDimension,
-  verticalDockBounds,
-} from '../../../lib/layout-geometry';
+import { BottomPanelHeader } from '../../../components/workspaceChrome/BottomPanel';
+import { BOTTOM_PANEL_DEFAULT_HEIGHT, useBottomPanel } from '../../../components/workspaceChrome/bottom-panel-context';
 import type { TimelineNode } from '../../../components/BottomTimeline/types';
 import { useUiStore, usePromoteCurrentTab } from '../../../store/ui-store';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
@@ -79,12 +76,11 @@ log.setLevel(loglevel.levels.WARN);
 // time axis takes the same vertical slot instead).
 //
 // The old collapsed (strip) state is gone — the timeline is either visible
-// or hidden, controlled by the full-width BottomStatusBar below the workspace
-// row. Visibility lives in uiStore so the footer toggle can reach it.
+// or hidden, by the timeline toggle in the paper's corner. On the desktop it
+// fills the Bottom Panel, which owns its height, top border and resize
+// handle (shared with the plot planner); its head is the panel's header row.
 type TimelineView = 'book' | 'narrative';
 const TIMELINE_VIEW_STORAGE_KEY = 'timeline-view';
-const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';
-const MIN_EDITOR_HEIGHT = 240;
 
 const TIMELINE_CONFIG = {
   GRID_UNIT: 20,
@@ -103,8 +99,6 @@ const TIMELINE_CONFIG = {
   // the same vertical extent regardless of which view is active — visual
   // continuity across mode toggle.
   FULL_BOOK_LANE_HEIGHT: 22,
-  DEFAULT_HEIGHT: 180,
-  MIN_HEIGHT: 180,
 };
 
 function readPersistedView(): TimelineView {
@@ -198,17 +192,6 @@ export function DesktopBottomTimeline({
   }, [bookNodes, nodeStorylineMapping, storylines]);
 
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
-  const [isResizingHeight, setIsResizingHeight] = useState(false);
-  // Offset from the mouse cursor to the timeline's top edge at the moment the
-  // resize drag started. Preserved across the drag so the grabbed point stays
-  // glued to the cursor instead of snapping the top edge onto the mouse y.
-  const resizeGrabOffsetRef = useRef(0);
-  // The timeline's bottom (in viewport coords) at mousedown. The dock isn't
-  // flush with the viewport edge — the full-width `BottomStatusBar` sits below
-  // the workspace row — so we
-  // can't compute height from `window.innerHeight`. The bottom is fixed
-  // during the drag (only the top edge moves), so capturing once is enough.
-  const resizeBottomYRef = useRef(0);
   const [unplacedPopoverOpen, setUnplacedPopoverOpen] = useState(false);
   // Unaffiliated lane (chapters with no primary storyline) visibility is
   // persisted in ui-store so the toggle decision sticks across sessions —
@@ -216,15 +199,7 @@ export function DesktopBottomTimeline({
   // they reopen the app.
   const unaffiliatedVisible = useUiStore((s) => s.bottomTimelineUnaffiliatedVisible);
   const setUnaffiliatedVisible = useUiStore((s) => s.setBottomTimelineUnaffiliatedVisible);
-  const [customHeight, setCustomHeight] = useState<number | null>(() => {
-    if (typeof localStorage === 'undefined') return null;
-    const persisted = parsePersistedDimension(localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY));
-    if (persisted === null) return null;
-    return clampDimension(
-      persisted,
-      verticalDockBounds(window.innerHeight, TIMELINE_CONFIG.MIN_HEIGHT, MIN_EDITOR_HEIGHT),
-    );
-  });
+  const panel = useBottomPanel();
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
@@ -299,36 +274,15 @@ export function DesktopBottomTimeline({
   useGlassWave(scrollContainerRef, isMobilePresentation ? null : (selectedNodeUiId ?? nodeId ?? null),
     !isMobilePresentation, '.btl-track');
   const [mobileTimelineHeight, setMobileTimelineHeight] = useState(0);
-  const timelineHeightBounds = useCallback(() => {
-    const appMid = timelineRef.current?.closest('.app-mid');
-    const containerHeight = appMid?.getBoundingClientRect().height ?? window.innerHeight;
-    return verticalDockBounds(containerHeight, TIMELINE_CONFIG.MIN_HEIGHT, MIN_EDITOR_HEIGHT);
-  }, []);
-
-  // A height restored on a large monitor must not remain authoritative after
-  // the native window moves to a smaller display. ResizeObserver also covers
-  // shell changes caused by chrome/timeline layout without a window resize.
+  // The Bottom Panel's handle stops where the lanes would crush their titles.
+  const minPanelHeight =
+    headHeight +
+    actRailHeightValue +
+    Math.max(storylines.length, 1) * (nodeMinHeight + TIMELINE_CONFIG.STORYLINE_GAP);
+  const setPanelMinHeight = panel?.setMinHeight;
   useEffect(() => {
-    if (isMobilePresentation) return undefined;
-    const normalize = () => {
-      const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
-      const next = clampDimension(base, timelineHeightBounds());
-      if (next === base) return;
-      setCustomHeight(next);
-      localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, next.toString());
-    };
-    const frame = window.requestAnimationFrame(normalize);
-    const appMid = timelineRef.current?.closest('.app-mid');
-    const observer =
-      appMid && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(normalize) : null;
-    if (appMid && observer) observer.observe(appMid);
-    window.addEventListener('resize', normalize);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      observer?.disconnect();
-      window.removeEventListener('resize', normalize);
-    };
-  }, [customHeight, isMobilePresentation, timelineHeightBounds]);
+    setPanelMinHeight?.(minPanelHeight);
+  }, [minPanelHeight, setPanelMinHeight]);
 
   useEffect(() => {
     if (!isMobilePresentation || !timelineRef.current) return undefined;
@@ -357,54 +311,6 @@ export function DesktopBottomTimeline({
       scrollContainerRef.current.scrollLeft = parseInt(savedPosition, 10);
     }
   }, [storylines.length]);
-
-  // Drag-resize top edge (visible only — no collapsed mode anymore).
-  useEffect(() => {
-    if (!isResizingHeight || isMobilePresentation) return;
-    let lastValue: number | null = null;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const minHeight =
-        headHeight +
-        actRailHeightValue +
-        Math.max(storylines.length, 1) * (nodeMinHeight + TIMELINE_CONFIG.STORYLINE_GAP);
-      // height = (bottom edge) − (new top edge), where the new top edge is
-      // `e.clientY − grabOffset` so the originally-grabbed pixel stays under
-      // the cursor.
-      const bounds = timelineHeightBounds();
-      const next = clampDimension(
-        resizeBottomYRef.current - e.clientY + resizeGrabOffsetRef.current,
-        {
-          min: Math.min(bounds.max, Math.max(minHeight, bounds.min)),
-          max: bounds.max,
-        },
-      );
-      lastValue = next;
-      setCustomHeight(next);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizingHeight(false);
-      if (lastValue !== null) {
-        localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, lastValue.toString());
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [
-    actRailHeightValue,
-    headHeight,
-    isMobilePresentation,
-    isResizingHeight,
-    nodeMinHeight,
-    storylines.length,
-    timelineHeightBounds,
-  ]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -470,16 +376,6 @@ export function DesktopBottomTimeline({
       ),
     [primaryStorylineByNode],
   );
-
-  const getTimelineHeight = () =>
-    clampDimension(
-      customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT,
-      verticalDockBounds(
-        typeof window === 'undefined' ? 700 : window.innerHeight,
-        TIMELINE_CONFIG.MIN_HEIGHT,
-        MIN_EDITOR_HEIGHT,
-      ),
-    );
 
   const dispatchEntityAction = useEntityCellAction();
   const { createChapterAt, runNodeAction } = useBottomTimelineActions({
@@ -984,7 +880,7 @@ export function DesktopBottomTimeline({
   };
 
   // ---- Layout math ----
-  const totalHeight = isMobilePresentation ? '100%' : getTimelineHeight();
+  const totalHeight = isMobilePresentation ? '100%' : (panel?.height ?? BOTTOM_PANEL_DEFAULT_HEIGHT);
   // ActRail (幕) replaced FullBookLane as the book-mode top strip. Unlike
   // the old packed lane it lives INSIDE the scroll container, in track
   // coordinate space, so act bands align with the chapter columns below.
@@ -1205,10 +1101,14 @@ export function DesktopBottomTimeline({
     },
   ];
 
+  // The Bottom Panel's shared header row: the view toggle and the lane
+  // toggles at its start, layout and navigation at its end.
   const renderHead = () => {
     return (
-      <div className="btl__head" onClick={(e) => e.stopPropagation()}>
-        <div className="btl__head-left">
+      <BottomPanelHeader
+        className="btl__head"
+        onClick={(e) => e.stopPropagation()}
+        start={<>
           {/* Desktop: one of two, words on the dock and a glass slab under
               the chosen one that slides with the timeline's weight. */}
           {isMobilePresentation ? (
@@ -1253,16 +1153,7 @@ export function DesktopBottomTimeline({
                 // and closing reclaims the slice the lane was occupying —
                 // either way, the remaining tracks keep their size.
                 const delta = rowHeight > 0 ? (next ? rowHeight : -rowHeight) : 0;
-                if (delta !== 0) {
-                  if (!isMobilePresentation) {
-                    const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
-                    const adjusted = clampDimension(base + delta, timelineHeightBounds());
-                    setCustomHeight(adjusted);
-                    if (typeof localStorage !== 'undefined') {
-                      localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, adjusted.toString());
-                    }
-                  }
-                }
+                if (delta !== 0 && panel) panel.setHeight(panel.height + delta);
                 setUnaffiliatedVisible(next);
               }}
               title={
@@ -1386,8 +1277,8 @@ export function DesktopBottomTimeline({
               </AnchoredPopover>
             </div>
           )}
-        </div>
-        <div className="btl__head-right">
+        </>}
+        end={<>
           {/* New-storyline action lives on the ChapterPanel subheader's primary
               create button now; the 「+幕」act-create action moved into the
               act rail's head cell (mirrors the narrative TIME plus). The header
@@ -1444,8 +1335,8 @@ export function DesktopBottomTimeline({
               icon={<BrushIcon name="fullscreen" size={14} />}
             />
           )}
-        </div>
-      </div>
+        </>}
+      />
     );
   };
 
@@ -1456,29 +1347,8 @@ export function DesktopBottomTimeline({
       data-view={viewMode}
       data-mobile-planning={isMobilePresentation ? 'complete' : undefined}
       onClick={handleTimelineClick}
-      style={{ height: totalHeight }}
+      style={isMobilePresentation ? { height: totalHeight } : undefined}
     >
-      {!isMobilePresentation && (
-        <div
-          className="btl__resize"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            // Cursor lands somewhere within the 4px-tall handle (which itself
-            // sits flush with the timeline's top border). Capture how far below
-            // the top edge the grab happened so handleMouseMove can subtract it
-            // and keep the grabbed point glued to the cursor. Also pin the
-            // dock's bottom in viewport coords — the full-width `BottomStatusBar`
-            // sits below the workspace row, so `window.innerHeight` is not the
-            // right anchor.
-            const rect = timelineRef.current?.getBoundingClientRect();
-            resizeGrabOffsetRef.current = rect ? e.clientY - rect.top : 0;
-            resizeBottomYRef.current = rect ? rect.bottom : window.innerHeight;
-            setIsResizingHeight(true);
-          }}
-        />
-      )}
-
       {renderHead()}
 
       <div

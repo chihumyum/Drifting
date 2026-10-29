@@ -1,7 +1,8 @@
 /* ============================================================
    Bottom Timeline
-   Always-expanded dock. Visibility (open/hidden) is toggled by the
-   full-width BottomStatusBar; the old "collapsed strip" mode is gone.
+   Always expanded. On the desktop it fills the Bottom Panel under the
+   paper (shared with the plot planner), which the timeline toggle opens
+   and closes; the old "collapsed strip" mode is gone.
    ============================================================ */
 
 .btl {
@@ -11,51 +12,20 @@
   display: flex;
   flex-direction: column;
   background: var(--workspace-ui-bg);
-  border-top: 1px solid var(--workspace-border);
   position: relative;
-  /* Visible overflow lets the narrative-view "未放置" popover open
-     UPWARD past the head bar into the editor area, as requested.
-     The inner scroll container (.btl__scroll) owns its own clipping
-     so we don't leak horizontal content outside the dock. */
+  /* Popovers (未放置) portal to body; the inner scroll container
+     (.btl__scroll) owns its own clipping so horizontal content never leaks
+     outside the panel. */
   overflow: visible;
   font-family: var(--font-sans);
   border-radius: 0;
   box-shadow: none;
 }
 
-.btl__resize {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  cursor: ns-resize;
-  z-index: 30;
-}
-
-/* ---------------- Head bar ---------------- */
-.btl__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 30px;
-  padding: 0 14px;
-  flex-shrink: 0;
-  background: var(--workspace-ui-bg);
-  gap: 12px;
-}
-.btl__head-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-.btl__head-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
+/* ---------------- Head bar ----------------
+   The Bottom Panel's shared header row (`.bottom-panel-head`, desktop-shell.css)
+   carries the height, padding and desk colour; the border on top and the
+   resize handle are the panel's own. */
 .btl__head-btn {
   width: 22px;
   height: 22px;

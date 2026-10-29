@@ -36,7 +36,7 @@ describe('workspace surface language acceptance', () => {
     expect(stage).toContain('<StageTimelineToggle />');
     expect(workspace).not.toContain('WorkspaceWordCount');
     expect(centerColumn).toContain('<TimelineDrawer open={dockPane !== null}>');
-    expect(centerColumn).toContain('<BottomDockSwap show={dockPane ?? lastPane}>');
+    expect(centerColumn).toContain('<BottomPanel show={dockPane ?? lastPane}>');
     expect(centerColumn).toContain('{{ timeline: <DesktopBottomTimeline />, planner: <PlotPlannerSlot /> }}');
     // The sidebar toggles are fixed above all three columns.
     expect(workspace).toContain('<WorkspaceSidebarToggles />');
@@ -672,8 +672,10 @@ describe('workspace surface language acceptance', () => {
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const review = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const library = source('src/renderer/features/library/LibraryPanel.tsx');
-    const timeline = block(timelineCss, '.btl {', '.btl__resize {');
-    const timelineHead = block(timelineCss, '.btl__head {', '.btl__head-left {');
+    const timeline = block(timelineCss, '.btl {', '/* ---------------- Head bar');
+    const desktopShellCss = source('src/styles/desktop-shell.css');
+    const bottomPanel = block(desktopShellCss, '.bottom-panel {', '.bottom-panel__resize {');
+    const timelineHead = block(desktopShellCss, '.bottom-panel-head {', '.bottom-panel-head__start {');
     const timelineRows = block(timelineCss, '.btl-row {', 'Rail (sticky left)');
     const storylineSeparator = block(
       timelineCss,
@@ -709,7 +711,9 @@ describe('workspace surface language acceptance', () => {
     expect(app).not.toContain('workspace-left-panel-width');
     expect(app).not.toContain('workspace-right-panel-width');
     expect(timeline).toContain('box-shadow: none;');
-    expect(timeline).toContain('border-top: 1px solid var(--workspace-border);');
+    // The Bottom Panel's shell draws the border the timeline and planner share.
+    expect(timeline).not.toContain('border-top');
+    expect(bottomPanel).toContain('border-top: 1px solid var(--workspace-border);');
     expect(timelineHead).toContain('background: var(--workspace-ui-bg);');
     expect(timelineHead).not.toContain('border-bottom');
     expect(timelineRows).not.toContain('border-top');

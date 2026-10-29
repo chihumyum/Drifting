@@ -43,25 +43,102 @@
   overflow: hidden;
 }
 
-/* The dock holds the Bottom Timeline or the plot planner. Swapping them pushes
-   one strip twice the dock's width (BottomDockSwap); only then is it clipped,
-   so the timeline's top-edge handle is never cut off at rest. */
-.bottom-dock-swap.is-swapping {
+/* ─── The Bottom Panel ────────────────────────────────────────────────
+   One shell under the paper holds the Bottom Timeline or the plot planner
+   (BottomPanel): it keeps its top border, the handle on that border and one
+   height for both, and never moves when they swap. Each pane fills it whole,
+   header included; swapping pushes the pane up or down past the border, so
+   the panes are clipped only while they move (the handle is never cut off). */
+.bottom-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--workspace-ui-bg);
+  border-top: 1px solid var(--workspace-border);
+}
+
+.bottom-panel__resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: ns-resize;
+  z-index: 30;
+}
+
+.bottom-panel__panes {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.bottom-panel.is-pushing > .bottom-panel__panes {
   overflow: hidden;
 }
-.bottom-dock-swap__strip {
+
+.bottom-panel__pane {
+  position: absolute;
+  inset: 0;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
 }
-.bottom-dock-swap.is-swapping > .bottom-dock-swap__strip {
-  width: 200%;
+
+.bottom-panel__pane > * {
+  flex: 1;
+  min-height: 0;
 }
-.bottom-dock-swap__pane {
-  flex: 0 0 100%;
+
+.bottom-panel__pane--in,
+.bottom-panel__pane--out {
+  will-change: transform;
+}
+
+.bottom-panel__pane--out {
+  pointer-events: none;
+}
+
+/* The arriving pane's four edges bleed glass while it is pushed in, like a
+   sidebar panel's; every flow line inside the panel bleeds along (the strip
+   carries --flow and .is-moving). */
+.bottom-panel__pane > .bottom-panel__outline {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  flex: none;
+  pointer-events: none;
+}
+
+.bottom-panel__outline-top { top: 0; }
+.bottom-panel__outline-bottom { bottom: 0; --flow-gx: -96px; --flow-gy: -60px; }
+.bottom-panel__outline-start { left: 0; --flow-gx: -40px; --flow-gy: -110px; }
+.bottom-panel__outline-end { right: 0; --flow-gx: -120px; --flow-gy: -24px; }
+
+/* Its header: one row on the desk colour, what the pane shows at the start
+   and its actions at the end. Shared by the timeline and the planner. */
+.bottom-panel-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 30px;
+  padding: 0 14px;
+  background: var(--workspace-ui-bg);
+}
+
+.bottom-panel-head__start {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
 }
-.bottom-dock-swap.is-swapping .bottom-dock-swap__pane {
-  flex-basis: 50%;
+
+.bottom-panel-head__end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
 }
 
 .desktop-workspace-dock__flow {
@@ -116,6 +193,21 @@
   position: absolute;
   top: calc((var(--window-titlebar-height) - 28px) / 2);
   pointer-events: auto;
+  transition:
+    background 0.24s ease-out,
+    color 0.12s ease;
+}
+
+/* With its sidebar closed the toggle floats over the desk on its own: like
+   the paper's toolbar and the timeline toggle, it shows the resting glass
+   line on the floating fill (`.glass--rest`), so it reads at a glance. The
+   fill stays under the pointer; only the rim answers. Open, it sits in its
+   sidebar's tab row and keeps no line. */
+.workspace-sidebar-toggle--floating.ghost-icon-button,
+.workspace-sidebar-toggle--floating.ghost-icon-button:hover:not(:disabled) {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
 }
 
 .workspace-sidebar-toggle--left {

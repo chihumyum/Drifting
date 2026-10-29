@@ -29,7 +29,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 圆形与胶囊只给上表列出的玻璃控件与语义形状；面板里的普通图标按钮不因此获得圆形外壳。滚动条 thumb 沿用平台形状。
 - 页面卡片不依靠 hover 上浮、scale 或大面积阴影表达可点击性；改用边框、背景 wash、文字颜色或玻璃边。
 - 禁止 inset-left vertical accent bar；强调状态使用背景 wash、细分隔线、字重、语义颜色或玻璃。Graph tile 仍可用覆盖块面的低浓度语义 wash；Bottom Timeline 的故事线名称 rail 与桌面 UI 使用同一底灰，颜色只留给真正承载故事线语义的 marker 与 clip。幕/叙事时 rail 内及故事线轨道里的静态竖线统一取 header 的 `--workspace-ui-bg`；相邻故事线轨道之间也用同色 `0.5px` 横线分隔。
-- Plot Planner 是一张连续的网格，不是带 gap、阴影和 hover lift 的卡片集合。桌面上它和 Bottom Timeline 共用稿纸下面同一个位置，画成这一章自己的小时间线：泳道名在桌面色的栏里，泳道是稿纸白、之间是桌面色 `0.5px` 线，每格是一张带静止细玻璃线的纸条（见 [components.md](components.md)）。暂停中的移动端保留共享 hairline 网格的 mini-Excel。
+- Plot Planner 是一张连续的网格，不是带 gap、阴影和 hover lift 的卡片集合。桌面上它和 Bottom Timeline 共用稿纸下面同一个 Bottom Panel（同一份高度与 header 行），画成这一章自己的小时间线：泳道名在桌面色的栏里，泳道是稿纸白、之间是桌面色 `0.5px` 线，每格是一张带静止细玻璃线的纸条（见 [components.md](components.md)）。暂停中的移动端保留共享 hairline 网格的 mini-Excel。
 
 ## 强调色
 

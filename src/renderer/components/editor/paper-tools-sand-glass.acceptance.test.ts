@@ -29,19 +29,21 @@ const reviewCss = () => source('src/styles/comments-review.css');
 const FORMAT_GLYPHS = ['fmt-paragraph', 'fmt-h1', 'fmt-h2', 'fmt-h3', 'fmt-quote', 'fmt-bold', 'fmt-italic', 'fmt-underline', 'fmt-strike'];
 
 describe('the manuscript tools in sand and glass', () => {
-  it('lays one short swipe of its owner-coloured sand under the reading location and bolds the path above it', () => {
+  it('marks the reading location with bold ink alone and keeps an unread chapter as quiet as a scene', () => {
     const css = reviewCss();
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
-    const sand = rule(css, '.editor__toc-tag-sand');
-    expect(sand).toContain("url('../assets/design/sand/hl.png')");
-    expect(sand).toContain('height: 5px;');
-    expect(sand).toContain('width: min(calc(100% + 4px), 2.8em);');
-    expect(sand).toContain('var(--toc-sand, hsl(var(--ink-3)))');
-    expect(sand).toContain('mix-blend-mode: var(--pigment-blend);');
-    expect(rule(css, '.editor__toc-tag.is-primary > .editor__toc-tag-sand')).toContain('opacity: var(--pigment);');
-    expect(rule(css, ".editor__toc-tag.is-primary[data-sand='draw'] > .editor__toc-tag-sand")).toContain('animation: toc-sand-draw 0.38s');
-    const path = rule(css, '.editor__toc-tag.is-active-path:not(.is-primary)');
+    // No sand under the reading location any more: it and its path are bold ink.
+    expect(css).not.toContain('.editor__toc-tag-sand');
+    expect(css).not.toContain('toc-sand');
+    expect(rail).not.toContain('editor__toc-tag-sand');
+    expect(rail).not.toContain('data-sand');
+    const path = rule(css, '.editor__toc-tag.is-active-path,\n.editor__toc-tag.is-primary');
+    expect(path).toContain('color: hsl(var(--ink-1));');
     expect(path).toContain('font-weight: 600;');
+    // A chapter out of view is no brighter than an act or a scene.
+    expect(rule(css, '.editor__toc-tag--l2')).toContain('color: hsl(var(--ink-3));');
+    expect(rule(css, '.editor__toc-tag--l1')).toContain('color: hsl(var(--ink-3));');
+    expect(rule(css, '.editor__toc-tag--l3')).toContain('color: hsl(var(--ink-3));');
     // No accent anywhere on the rail: not the reading location, its path, numbers or revealed rows.
     for (const [selector, body] of rules(css, ['.editor__toc-tag', '.editor__toc-tag-num', '.editor__toc-reveal-item'])) {
       expect(body, selector).not.toContain('--accent');
@@ -51,18 +53,8 @@ describe('the manuscript tools in sand and glass', () => {
     expect(css).not.toContain('.editor__toc-tag--l1::before');
     expect(css).not.toContain('.editor__toc-tag-branch');
     expect(rail).not.toContain('editor__toc-tag-branch');
-    // The sand takes the entry's own colour, else its nearest ancestor's, else the editor's.
-    expect(rail).toContain('outlineEntryColor(flat, primaryId) ?? color');
-    expect(rail).toContain("'--toc-sand': sandColor");
-    expect(rail).toContain("data-sand={primary && sandDrawn ? 'draw' : undefined}");
     expect(rail).toContain('className="menu-surface menu-surface--compact editor__toc-omission-reveal');
     expect(rail).toContain('className={`menu-surface__item editor__toc-reveal-item');
-    expect(source('src/renderer/views/NodeEditorView.tsx')).toContain('color={mainStoryline?.color || undefined}');
-    expect(source('src/renderer/views/AllChaptersEditorView.tsx')).toContain(
-      "color: storylineById.get(primaryStorylineByNode[n.id] ?? '')?.color || undefined",
-    );
-    expect(source('src/renderer/views/StorylineEditorView.tsx')).toContain('color={currentStoryline.color || undefined}');
-    expect(source('src/renderer/views/CategoryEditorView.tsx')).toContain('color={curCategory.color || undefined}');
   });
 
   it('floats the selection bar in as a glass long pill whose formats pill is its sibling, never its child', () => {
@@ -123,27 +115,53 @@ describe('the manuscript tools in sand and glass', () => {
     expect(markers).toContain('const LEAVE_MS = 300;');
   });
 
-  it('shares the dock under the paper between the Bottom Timeline and the focused chapter’s plot planner', () => {
+  it('shares one Bottom Panel shell — height, border, handle and header row — between the timeline and the focused chapter’s plot planner', () => {
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
-    const swap = source('src/renderer/shells/desktop/BottomDockSwap.tsx');
+    const panel = source('src/renderer/components/workspaceChrome/BottomPanel.tsx');
+    const timeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
     const node = source('src/renderer/views/NodeEditorView.tsx');
     const dock = source('src/renderer/components/editor/PlotPlannerDock.tsx');
     const store = source('src/renderer/store/ui-store.ts');
+    const shellCss = source('src/styles/desktop-shell.css');
     expect(workspace).toContain("plotPlannerOpen ? 'planner' : bottomTimelineHidden ? null : 'timeline'");
     expect(workspace).toContain('<TimelineDrawer open={dockPane !== null}>');
+    expect(workspace).toContain('<BottomPanel show={dockPane ?? lastPane}>');
     expect(workspace).toContain('ref={setPlotPlannerSlot}');
-    expect(swap).toContain("const PANES: readonly BottomDockPane[] = ['timeline', 'planner'];");
-    expect(swap).toContain('duration: SIDEBAR_PUSH_MS, easing: SIDEBAR_PUSH_EASING');
-    expect(swap).toContain("prefers-reduced-motion: reduce");
-    // Only the focused editor portals its own chapter's grid into the dock.
-    expect(node).toContain('plotPlannerOpen && isCommandActive && isActiveNodeReady && plotPlannerSlot &&');
+    expect(existsSync(resolve(process.cwd(), 'src/renderer/shells/desktop/BottomDockSwap.tsx'))).toBe(false);
+    // The shell keeps one remembered height (the timeline's old key) and the top-edge handle.
+    expect(panel).toContain("const HEIGHT_STORAGE_KEY = 'timeline-total-height';");
+    expect(panel).toContain('resizing.bottom - event.clientY + resizing.grab');
+    expect(panel).toContain('<div className="bottom-panel__resize" onMouseDown={startResize} />');
+    expect(store).not.toContain('plotPlannerHeight: state.plotPlannerHeight');
+    expect(timeline).not.toContain('btl__resize');
+    expect(timeline).not.toContain('localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY');
+    expect(dock).not.toContain('plot-planner__resize');
+    expect(dock).not.toContain('plotPlannerHeight');
+    // Swapping pushes the whole pane, header included, up or down past the
+    // still border, on the sidebar panels' heavy-ice push, outlined in glass.
+    expect(panel).toContain("const PANES: readonly BottomPanelPane[] = ['timeline', 'planner'];");
+    expect(panel).toContain('transform: `translateY(${move.from}px)`');
+    expect(panel).toContain('duration: SIDEBAR_PUSH_MS, easing: SIDEBAR_PUSH_EASING');
+    expect(panel).toContain('trackGlassFlow(strip,');
+    expect(panel).toContain('flow-line flow-line--h bottom-panel__outline-top');
+    expect(panel).toContain("prefers-reduced-motion: reduce");
+    expect(panel).not.toContain('translateX(');
+    expect(shellCss).toContain('.bottom-panel.is-pushing > .bottom-panel__panes {\n  overflow: hidden;');
+    // One header row for both, styled once.
+    expect(timeline).toContain('<BottomPanelHeader');
+    expect(dock).toContain('<BottomPanelHeader');
+    expect(workspace).toContain('<BottomPanelHeader');
+    expect(source('src/styles/bottom-timeline.css')).not.toContain('.btl__head {');
+    expect(source('src/styles/plot-planner.css')).not.toContain('.plot-planner__header');
+    // Only the focused editor portals its own chapter's grid into the panel,
+    // and keeps it there while the planner pane leaves.
+    expect(node).toContain('isVisible && isCommandActive && isActiveNodeReady && plotPlannerSlot &&');
     expect(node).toContain('createPortal(');
     expect(node).not.toContain('a top dock between the bar and the prose');
     // Opening one closes the other.
     expect(store).toContain('{ plotPlannerOpen: true, bottomTimelineHidden: true }');
     expect(store).toContain('{ bottomTimelineHidden: false, plotPlannerOpen: false }');
-    // Resized by its top edge; its header names the chapter beside its mark.
-    expect(dock).toContain('dockBottom - (e.clientY - grabOffsetRef.current)');
+    // Its header names the chapter beside its mark.
     expect(dock).toContain('<KindMark kind="chapter" seed={nodeId} color={color} />');
     expect(dock).toContain('<span className="plot-planner__chapter">');
   });
@@ -197,11 +215,14 @@ describe('the manuscript tools in sand and glass', () => {
       '## 选区浮条',
       '一级与二级各管各的',
       '## 大纲 rail',
-      '横着抹短短一道干笔砂',
+      '当前阅读位置只靠字变明显',
+      '整列章名不会抢眼',
       '## 滚动标记',
       '每颗印按它的 key 固定取六枚之一',
       '## 情节规划',
-      '情节规划和 Bottom Timeline 共用稿纸下面同一个位置，二选一',
+      '情节规划和 Bottom Timeline 共用稿纸下面同一个 Bottom Panel，二选一',
+      'Bottom Panel 是一个共享的壳子',
+      '时间线整块向上推出顶边，情节规划从下面同时升上来',
       '叠在一起的玻璃各管各的',
       '选区浮条不在其中',
     ]) {

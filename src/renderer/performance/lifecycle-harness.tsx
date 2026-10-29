@@ -77,8 +77,6 @@ async function plotCycle(index: number, oldKey = false) {
     show(`chapter-${index}-${suffix}`, true);
     check(host.querySelectorAll('.plot-planner').length === 1, 'Planner orphan DOM after chapter switch');
     flushSync(() => host.querySelector<HTMLButtonElement>('.plot-planner__add')!.click());
-    // Retire during a drag, before mouseup; global resize listeners must detach.
-    flushSync(() => host.querySelector('.plot-planner__resize')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientY: 250 })));
   }
   show(`chapter-${index}-b`, false);
   check(host.querySelectorAll('.plot-planner').length === 0, 'Planner orphan DOM after close');

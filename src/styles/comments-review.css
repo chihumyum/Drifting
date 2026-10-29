@@ -851,8 +851,8 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
 .editor__toc-tag--l2 {
   font-family: var(--font-sans);
   font-size: 10.5px;
-  font-weight: 550;
-  color: hsl(var(--ink-2));
+  font-weight: 500;
+  color: hsl(var(--ink-3));
 }
 .editor__toc-tag--l3 {
   font-family: var(--font-sans);
@@ -873,54 +873,21 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
   color: hsl(var(--ink-5));
 }
 
-/* Viewport intersection is expressed through text colour; every level above
-   the reading location on its path is bold ink. The reading location itself
-   (the lowest level) carries one short level swipe of dry sand across the
-   lower half of its first characters, in its owner's colour (--toc-sand: a
-   chapter's storyline, an editor's storyline or category; ink otherwise).
-   Tags never acquire a chip, frame, or wash. A jump the author clicked draws
-   the swipe along the label (data-sand="draw"); arriving by scrolling fades
-   it in whole, and the old one fades out. */
+/* Viewport intersection is expressed through text colour. The reading
+   location and every level above it on its path are bold ink; nothing else
+   marks it — no sand, chip, frame or wash. Out of view, a chapter is as quiet
+   as an act or a scene, so the whole book's chapter list (All Chapters) does
+   not stand out until it is read. */
 .editor__toc-tag.is-visible {
   color: hsl(var(--ink-2));
 }
-.editor__toc-tag.is-active-path:not(.is-primary) {
+.editor__toc-tag.is-active-path,
+.editor__toc-tag.is-primary {
   color: hsl(var(--ink-1));
   font-weight: 600;
 }
 .editor__toc-tag.is-primary {
   z-index: 5;
-  color: hsl(var(--ink-1));
-}
-.editor__toc-tag-sand {
-  position: absolute;
-  top: calc(50% - 1px);
-  left: 0;
-  z-index: -1;
-  width: min(calc(100% + 4px), 2.8em);
-  height: 5px;
-  background: color-mix(in srgb, var(--toc-sand, hsl(var(--ink-3))), #ffffff var(--pigment-lift));
-  mix-blend-mode: var(--pigment-blend);
-  -webkit-mask: url('../assets/design/sand/hl.png') 0 0 / 100% 100% no-repeat;
-  mask: url('../assets/design/sand/hl.png') 0 0 / 100% 100% no-repeat;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease-out;
-}
-.editor__toc-tag.is-primary > .editor__toc-tag-sand {
-  opacity: var(--pigment);
-}
-.editor__toc-tag.is-primary[data-sand='draw'] > .editor__toc-tag-sand {
-  transition: none;
-  animation: toc-sand-draw 0.38s cubic-bezier(0.3, 0.6, 0.3, 1) both;
-}
-@keyframes toc-sand-draw {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .editor__toc-tag-sand { transition: none; }
-  .editor__toc-tag.is-primary[data-sand='draw'] > .editor__toc-tag-sand { animation: none; }
 }
 .editor__toc-omission {
   min-width: 22px;

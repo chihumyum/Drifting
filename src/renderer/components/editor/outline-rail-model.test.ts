@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   flattenOutlineEntries,
   layoutOutlineRailLabels,
-  outlineEntryColor,
   planOutlineRail,
   visibleOutlineIds,
   type OutlineEntry,
@@ -121,31 +120,5 @@ describe('semantic outline rail density planning', () => {
     expect([...visible]).toEqual(
       expect.arrayContaining(['chapter', 'scene-a', 'scene-b', 'scene-c']),
     );
-  });
-});
-
-describe('outlineEntryColor', () => {
-  const book: OutlineEntry[] = [
-    { id: 'act', kind: 'act', level: 1, text: 'Act' },
-    {
-      id: 'ch-1', kind: 'chapter', level: 2, text: 'One', color: 'violet',
-      children: [{
-        id: 'scene', kind: 'heading', level: 1, text: 'Scene',
-        children: [{ id: 'beat', kind: 'heading', level: 2, text: 'Beat' }],
-      }],
-    },
-    { id: 'ch-2', kind: 'chapter', level: 2, text: 'Two' },
-  ];
-  const flat = flattenOutlineEntries(book);
-
-  it("takes the reading location's own colour, else its nearest ancestor's", () => {
-    expect(outlineEntryColor(flat, 'ch-1')).toBe('violet');
-    expect(outlineEntryColor(flat, 'beat')).toBe('violet');
-  });
-
-  it('has no colour where nothing on the path carries one', () => {
-    expect(outlineEntryColor(flat, 'ch-2')).toBeUndefined();
-    expect(outlineEntryColor(flat, 'act')).toBeUndefined();
-    expect(outlineEntryColor(flat, null)).toBeUndefined();
   });
 });

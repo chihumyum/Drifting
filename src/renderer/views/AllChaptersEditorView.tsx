@@ -855,7 +855,6 @@ export function AllChaptersEditorView() {
       level: 2,
       kind: 'chapter',
       text: n.title || 'Untitled',
-      color: storylineById.get(primaryStorylineByNode[n.id] ?? '')?.color || undefined,
       children: nestHeadings(outlineByNodeId[n.id] ?? []),
     });
     const segments = deriveActSegments(bookActs, orderedNodes);
@@ -872,7 +871,7 @@ export function AllChaptersEditorView() {
       for (const n of seg.chapters) rows.push(buildChapter(n));
     }
     return rows;
-  }, [orderedNodes, outlineByNodeId, bookActs, storylineById, primaryStorylineByNode]);
+  }, [orderedNodes, outlineByNodeId, bookActs]);
 
   if (orderedNodes.length === 0) {
     return (

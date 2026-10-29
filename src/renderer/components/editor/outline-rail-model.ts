@@ -8,8 +8,6 @@ export interface OutlineEntry {
   kind?: 'act' | 'chapter' | 'section' | 'heading';
   text: string;
   num?: string;
-  /** Its owner's colour (a chapter's storyline); everything under it inherits it. */
-  color?: string;
   children?: OutlineEntry[];
 }
 
@@ -111,22 +109,6 @@ export function outlineActivePathIds(
   active.ancestorIds.forEach((id) => path.add(id));
   path.add(active.id);
   return path;
-}
-
-/** The colour the reading location's sand takes: its own, else the nearest ancestor's. */
-export function outlineEntryColor(
-  flat: FlatOutlineEntry[],
-  id: string | null | undefined,
-): string | undefined {
-  if (!id) return undefined;
-  const byId = new Map(flat.map((entry) => [entry.id, entry]));
-  const entry = byId.get(id);
-  if (!entry) return undefined;
-  for (const candidate of [entry.id, ...[...entry.ancestorIds].reverse()]) {
-    const color = byId.get(candidate)?.item.color;
-    if (color) return color;
-  }
-  return undefined;
 }
 
 function entryFraction(

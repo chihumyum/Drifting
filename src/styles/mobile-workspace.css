@@ -1875,19 +1875,19 @@
   border-bottom: 1px solid hsl(var(--rule));
 }
 
-.btl--mobile .btl__head-left {
+.btl--mobile .bottom-panel-head__start {
   flex: 1;
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.btl--mobile .btl__head-left::-webkit-scrollbar,
+.btl--mobile .bottom-panel-head__start::-webkit-scrollbar,
 .btl--mobile .btl__scroll::-webkit-scrollbar {
   display: none;
 }
 
-.btl--mobile .btl__head-right {
+.btl--mobile .bottom-panel-head__end {
   gap: 2px;
 }
 

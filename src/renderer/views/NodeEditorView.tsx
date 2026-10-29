@@ -641,11 +641,13 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             }}
           />
 
-          {/* In-chapter plot planner, portaled into the dock under the paper
-              that it shares with the Bottom Timeline. Keyed by nodeId so each
-              chapter/drift seeds its own grid only after that node's content
-              row is ready. */}
-          {plotPlannerOpen && isCommandActive && isActiveNodeReady && plotPlannerSlot &&
+          {/* In-chapter plot planner, portaled into the Bottom Panel under the
+              paper that it shares with the Bottom Timeline. The slot exists
+              while the panel shows the planner, including while it is pushed
+              away or slides shut, so the grid leaves with it. Keyed by nodeId
+              so each chapter/drift seeds its own grid only after that node's
+              content row is ready. */}
+          {isVisible && isCommandActive && isActiveNodeReady && plotPlannerSlot &&
             createPortal(
               <PlotPlannerDock
                 key={`plot-planner:${nodeId}`}
@@ -665,7 +667,6 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             <EditorOutlineRail
               title={t('nodeEditor.outline.title')}
               items={isActiveNodeReady ? outlineTree : []}
-              color={mainStoryline?.color || undefined}
               scrollspyIds={outlineIds}
               onItemClick={(id) => {
                 scrollToOutlineAnchor(id, scrollEl);

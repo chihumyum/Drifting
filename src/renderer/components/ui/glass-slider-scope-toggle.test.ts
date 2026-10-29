@@ -92,6 +92,9 @@ describe('glass slider', () => {
     const source = css('src/renderer/components/ui/GlassSlider.tsx');
     expect(source).toContain('placement="bottom-start"');
     expect(source).toContain('orientation="vertical"');
+    // Choosing slides the same heavy slab and leaves the list open; only the
+    // pointer leaving closes it.
+    expect(source).toContain('orientation="vertical"\n            onChange={onChange}\n          />');
   });
 });
 

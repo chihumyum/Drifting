@@ -46,4 +46,11 @@ describe('the one dock under the paper', () => {
     ) as ReturnType<typeof state>;
     expect(restored).toMatchObject({ plotPlannerOpen: false, bottomTimelineHidden: false });
   });
+
+  it('forgets the planner’s own height, now that it takes the Bottom Panel’s', () => {
+    const options = useUiStore.persist.getOptions();
+    const restored = options.merge!({ plotPlannerHeight: 320 }, useUiStore.getInitialState());
+    expect(restored).not.toHaveProperty('plotPlannerHeight');
+    expect(options.partialize!(state())).not.toHaveProperty('plotPlannerHeight');
+  });
 });

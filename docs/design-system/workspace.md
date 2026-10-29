@@ -11,7 +11,7 @@
 ## Geometry and ownership
 
 - `App.tsx` 只负责应用级 effects/routes；桌面工作区（`DesktopWorkspace`）只有一个 `app-row`：`Sidebar(left) + app-mid + Sidebar(right)`，三栏从窗口顶边贯通到底边。没有 `AppTopbar`、文档 Tab 栏、editor top bar 或 `BottomStatusBar`。
-- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Timeline 或当前章节的情节规划，二选一，装在 `TimelineDrawer` 里滑入滑出，两者互换时由 `BottomDockSwap` 整块推开）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
+- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Panel：Bottom Timeline 或当前章节的情节规划，二选一，装在 `TimelineDrawer` 里滑入滑出；`BottomPanel` 是两者共用的壳子，管顶边、拖高把手、高度与共用 header，两者互换时里面的整块上下推开）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
 - 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整。
 - Settings 与三个 Super Views 使用同样的平面化 shell：边缘对齐、无 shell gap、无 shell 圆角或阴影，以分隔线表达区域边界。
 
@@ -19,13 +19,13 @@
 
 工作区布局在 2026-10-27 重构为“三栏贯通、没有横贯的栏”：
 
-- **侧栏开关常驻两角**。左栏开关在左上角（macOS 在 `94px` 红绿灯 inset 处），右栏开关在右上角：各是一个 `28px` 圆形玻璃按钮（新月砂笔图标：该侧栏展开时月牙是实墨，收起时是空心，空心的边和圆月外圈一样细、一样是散砂），固定不动，侧栏像抽屉一样从它下面滑出、收回（`420ms`）。侧栏展开时，该栏第一（左）/最后（右）个半栏的 Tab 行在开关下方留一个同宽空位（`SidebarHeaderChrome` 内的 `SidebarToggleSlot`，`data-sidebar-header-chrome`），并计入侧栏最小宽度。Tab 行高等于窗口控件行高 `--window-titlebar-height`，本身也是窗口拖动面。全局搜索没有按钮，只用快捷键。
+- **侧栏开关常驻两角**。左栏开关在左上角（macOS 在 `94px` 红绿灯 inset 处），右栏开关在右上角：各是一个 `28px` 圆形玻璃按钮（新月砂笔图标：该侧栏展开时月牙是实墨，收起时是空心，空心的边和圆月外圈一样细、一样是散砂），固定不动，侧栏像抽屉一样从它下面滑出、收回（`420ms`）。侧栏收起时开关浮在桌面上，常驻静止细玻璃线与浮起的底色，像稿纸工具栏一样一眼能看到；展开后两者淡出。侧栏展开时，该栏第一（左）/最后（右）个半栏的 Tab 行在开关下方留一个同宽空位（`SidebarHeaderChrome` 内的 `SidebarToggleSlot`，`data-sidebar-header-chrome`），并计入侧栏最小宽度。Tab 行高等于窗口控件行高 `--window-titlebar-height`，本身也是窗口拖动面。全局搜索没有按钮，只用快捷键。
 - **账户在左栏底部**。头像与名字（打开账户菜单）、Project Home（鸟居）与通知（风铃）组成左栏底部的一个 cell（`WorkspaceAccountCell`），横跨双栏；Home 与通知是圆形玻璃按钮。账户菜单与通知中心从这里向上展开。左栏收起时这个 cell 不显示——左栏是主要工作区，预期大多时候常驻。
 - **标签页在稿纸顶部**。文档 Tab 栏移除，已打开的文档是稿纸顶边居中的一排砂笔记号（与红绿灯、侧栏开关同一中线 `y = 21px`），类型变化处留出较宽间隔；分屏标签是相连的两个记号。悬停或键盘聚焦时每个记号原地长成玻璃药丸（见 [components.md](components.md)），沿用原宽度分配、拖拽排序与双击固定。药丸行左端是锁（按下后无人悬停也保持药丸），右端是 Universal 新建 `+`；两者在药丸滚动区两侧，不随药丸横向滚动。一侧侧栏收起时整行避开两个上角。
   - **拖拽排序有重量**：手里的药丸不用系统拖影，而是一份静止的药丸副本按 Bottom Timeline 玻璃块的临界阻尼弹簧（同一刚度）跟随指针，略落后、不回弹；其余药丸用同一弹簧曲线让位，放下时药丸从它所在处弹入新位置（`tab-reorder.ts`）。药丸被拖离药丸行一行高以上（或越过行的两端）时，它原来的位置收拢，两侧药丸接上；在行附近晃动不收拢；拖回行上时再按指针位置让出插入的空位。报告“拖出窗口”的 `dragleave` 要等 `150ms`，其间再有 `dragover` 或 `drop` 就作废（WebKit 松手前也会发一个这样的 `dragleave`，立刻收拢会让整行在松手时弹一下）。
   - **分屏**：普通药丸悬停没有卡片；把药丸拖到稿纸左半或右半即可分屏，分屏标签两半之间只是一条短竖线。分屏自己的操作在两个编辑器的中缝上（见 [components.md](components.md)）；关掉某一格用那一格标签上的 ×。
   - **滚动**：药丸放不下时药丸行横向滚动；当前药丸被挤出可视范围时立即滚动让它露出来，Dock 展开时等药丸从小点长完再滚。
-- **时间线开关在稿纸右下角**。Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）是稿纸右下角单独的圆形玻璃按钮，在稿纸工具栏左侧，紧挨但不并入工具栏；分屏时只出现在右侧 pane 的角落；打开后时间线从稿纸下方滑上来，可拖高度。稿纸工具栏里的情节规划按钮开的是同一个位置：打开其中一个就收起另一个，两个都关就收起整个位置；情节规划跟着当前获得焦点的章节或构想，也从顶边拖高度（见 [components.md](components.md) 的情节规划）。
+- **时间线开关在稿纸右下角**。Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）是稿纸右下角单独的圆形玻璃按钮，在稿纸工具栏左侧，紧挨但不并入工具栏；分屏时只出现在右侧 pane 的角落；打开后时间线从稿纸下方滑上来，可拖高度。稿纸工具栏里的情节规划按钮开的是同一个位置：打开其中一个就收起另一个，两个都关就收起整个位置；两者装在同一个 Bottom Panel 里，共用一份高度、一条顶边与拖高把手、一行 header；情节规划跟着当前获得焦点的章节或构想（见 [components.md](components.md) 的情节规划）。
 - **全书视图在对应实体旁边**。通览全书在章节面板头部、要素全景在要素面板头部、TODO 与素材库在素材库面板工具栏、全屏故事图谱在 Bottom Timeline 头部、项目主页在左栏底部的账户 cell；这些入口都是圆形玻璃按钮。`SUPER` 触发器与底部视图行移除，Super View header 内的切换器保留；某侧栏收起时，其面板里的入口随之隐藏，快捷键仍可用。
 - **稿纸的操作留在稿纸上**。editor top bar 与面包屑移除；稿纸工具栏停在每个编辑器 pane 的右下角（右侧 pane 的工具栏左边是时间线开关），分屏时各有一组，不被侧栏收走。三点菜单向上展开。
 - **字数暂时移除**。原桌面左下角的当前上下文字数与今日字数已移除（`WorkspaceWordCount` 删除）；统计面板仍提供字数。

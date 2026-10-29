@@ -9,7 +9,9 @@ import { GhostIconButton } from '../ui/GhostIconButton';
 // button fixed in its own top corner: it never moves, and the sidebar slides
 // in and out underneath it like a drawer. While the sidebar is open, its tab
 // row keeps an empty slot under the toggle. Its crescent is inked while the
-// sidebar is open and hollow while it is closed. Global search is keyboard-only.
+// sidebar is open and hollow while it is closed; closed, it floats over the
+// desk and wears the resting glass line on the floating fill, like the
+// paper's toolbar. Global search is keyboard-only.
 
 export function SidebarToggleButton({ side }: { side: SidebarType }) {
   const { t } = useTranslation();
@@ -20,7 +22,7 @@ export function SidebarToggleButton({ side }: { side: SidebarType }) {
     <GhostIconButton
       size="lg"
       glass="round"
-      className={`workspace-sidebar-toggle workspace-sidebar-toggle--${side}`}
+      className={`workspace-sidebar-toggle workspace-sidebar-toggle--${side}${isOpen ? '' : ' workspace-sidebar-toggle--floating glass--rest'}`}
       onClick={() => toggleSidebar(side)}
       title={label}
       aria-label={label}

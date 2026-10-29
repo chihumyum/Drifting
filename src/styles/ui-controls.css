@@ -2794,7 +2794,8 @@ svg.super-viewport-edges[data-panning='1'] {
 
 /* Where the options don't fit side by side, only the chosen one stays, with
    the glass under it; hovering opens all of them stacked in a menu surface
-   just below, and choosing closes it. A hidden copy keeps measuring the
+   just below. Choosing there slides the same heavy slab down or up to it and
+   the menu stays until the pointer leaves. A hidden copy keeps measuring the
    options' natural width so the slider opens out again once there is room. */
 .glass-slider__measure {
   position: absolute;

@@ -5,9 +5,10 @@ import { trackGlassFlow } from '../../lib/glass-flow';
 const SLIDE_MS = 420;
 
 /**
- * The Bottom Timeline slides up from under the paper and back down, like the
- * sidebars: its top edge and lane dividers bleed glass while it moves
- * (lib/glass-flow.ts). It stays mounted through the outgoing slide.
+ * The Bottom Panel (the timeline or the plot planner) slides up from under
+ * the paper and back down, like the sidebars: its top edge and lane dividers
+ * bleed glass while it moves (lib/glass-flow.ts). It stays mounted through
+ * the outgoing slide.
  */
 export function TimelineDrawer({ open, children }: { open: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);

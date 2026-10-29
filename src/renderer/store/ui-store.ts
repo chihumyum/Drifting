@@ -561,16 +561,14 @@ interface UiState {
   tabDockLocked: boolean;
   toggleTabDockLocked: () => void;
 
-  // The plot planner, in the dock under the paper it shares with the Bottom
-  // Timeline (opening either closes the other). Global visibility flag like
-  // the outline toggle — the focused node editor renders its OWN node's
-  // grid there. Height is shared across nodes; null = default. Both
-  // persisted so the layout sticks across sessions.
+  // The plot planner, in the Bottom Panel under the paper it shares with the
+  // Bottom Timeline (opening either closes the other). Global visibility flag
+  // like the outline toggle — the focused node editor renders its OWN node's
+  // grid there. Persisted so the layout sticks across sessions; the panel's
+  // height is the timeline's too (BottomPanel).
   plotPlannerOpen: boolean;
   setPlotPlannerOpen: (open: boolean) => void;
   togglePlotPlannerOpen: () => void;
-  plotPlannerHeight: number | null;
-  setPlotPlannerHeight: (height: number | null) => void;
 
   // Whether the BottomTimeline 未归属 lane is currently visible. Persisted so
   // toggling the lane sticks across sessions; the lane itself is meaningful
@@ -1012,8 +1010,6 @@ export const useUiStore = create<UiState>()(
             ? { plotPlannerOpen: false }
             : { plotPlannerOpen: true, bottomTimelineHidden: true },
         ),
-      plotPlannerHeight: null,
-      setPlotPlannerHeight: (height) => set({ plotPlannerHeight: height }),
 
       resizingSidebar: null,
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
@@ -1901,7 +1897,6 @@ export const useUiStore = create<UiState>()(
         bottomTimelineHidden: state.bottomTimelineHidden,
         tabDockLocked: state.tabDockLocked,
         plotPlannerOpen: state.plotPlannerOpen,
-        plotPlannerHeight: state.plotPlannerHeight,
         bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,
         driftSortMode: state.driftSortMode,
         chapterGlobalSortMode: state.chapterGlobalSortMode,
@@ -1972,6 +1967,8 @@ export const useUiStore = create<UiState>()(
         }
         // Retired: the material panel has a single folder view.
         delete (merged as { libraryViewMode?: unknown }).libraryViewMode;
+        // Retired: the planner takes the Bottom Panel's one height.
+        delete (merged as { plotPlannerHeight?: unknown }).plotPlannerHeight;
         // The timeline and the plot planner now share one dock; state saved
         // when both could be open keeps the timeline.
         if (merged.plotPlannerOpen && !merged.bottomTimelineHidden) merged.plotPlannerOpen = false;
