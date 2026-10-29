@@ -1,7 +1,7 @@
 {
   "kind": "hosted-account-browser-ui",
-  "generatedAt": "2026-10-29T13:59:18.160Z",
-  "sourceSha256": "5d4872811931d9b0f07f41130b4c9a07f8fc91ff68d11f3140a3548a42448f04",
+  "generatedAt": "2026-10-29T14:16:50.237Z",
+  "sourceSha256": "df37bdd83d9167d6c582eb7e2b3f9ec120871a9436f5107003312497e06760f3",
   "status": "passed",
   "synthetic": true,
   "checks": [
