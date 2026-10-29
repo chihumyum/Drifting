@@ -11,7 +11,7 @@ import type { MarkdownProjectionAsset, MarkdownProjectionDocument } from '../../
 import { extForMime } from '../../lib/asset-mime';
 import { markdownShareSummary } from './markdown-share';
 import { markdownLabel, obsidianProse, relativeMarkdownHref, relativeMarkdownLink } from './obsidian-markdown';
-import { readLocalProseJson } from './relational-markdown.prose';
+import { readLocalProseJson, type ProseJsonCache } from './relational-markdown.prose';
 import type { LocalRelationalMarkdownSource } from './relational-markdown.local-source';
 import type { MarkdownZipEntry } from './markdown-zip';
 
@@ -70,7 +70,7 @@ function parseAliases(value: string | null): string[] {
   catch { return []; }
 }
 
-export async function buildReadableMarkdownProjection(source: LocalRelationalMarkdownSource, now: Date, options: { hydrate?: typeof import('../../lib/agent/prose-hydrate-client').hydrateProseJson; yieldToMain?: () => Promise<void> } = {}) {
+export async function buildReadableMarkdownProjection(source: LocalRelationalMarkdownSource, now: Date, options: { hydrate?: typeof import('../../lib/agent/prose-hydrate-client').hydrateProseJson; yieldToMain?: () => Promise<void>; proseCache?: ProseJsonCache } = {}) {
   if (source.books.length !== 1) throw new Error('A projection must contain exactly one project');
   const { project, graph } = source.books[0]!;
   const paths = new Paths();
@@ -169,9 +169,10 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
   for (let index = 0; index < proseDocuments.length; index += 6) {
     await options.yieldToMain?.();
     await Promise.all(proseDocuments.slice(index, index + 6).map(async document => {
-      document.json = await readLocalProseJson(document.kind as ProseEntityType, document.id, document.fallback!, source, options.hydrate);
+      document.json = await readLocalProseJson(document.kind as ProseEntityType, document.id, document.fallback!, source, options.hydrate, options.proseCache);
     }));
   }
+  options.proseCache?.retain(new Set(source.proseVersions?.keys()));
   const resolver = createLocationResolver({ projectId: project.id, entities: locations,
     blockIds: (kind, id) => contentJsonBlockIds(documents.get(key(kind, id))?.json ?? '{}') });
   const link = (from: string, target: Document, title = target.title) =>

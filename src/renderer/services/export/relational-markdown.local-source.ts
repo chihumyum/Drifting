@@ -18,6 +18,7 @@ import {
   ProjectTable,
   ProjectAssetTable,
   StorylineTable,
+  YjsDocumentRevisionTable,
   yjsSnapshots,
   yjsUpdates,
 } from '../../schema/drizzle';
@@ -66,6 +67,22 @@ export interface LocalExportProseState {
 export interface LocalRelationalMarkdownSource {
   books: LocalExportBook[];
   proseByDocId: Map<string, LocalExportProseState>;
+  /**
+   * Incremental captures only: the persisted Yjs version of every document
+   * with state. A document listed here but absent from `proseByDocId` was
+   * unchanged, and the renderer reuses the prose it hydrated at that version.
+   */
+  proseVersions?: Map<string, string>;
+}
+
+export interface LocalRelationalMarkdownCaptureOptions {
+  /** Yjs versions whose prose the caller still holds; their bytes are not read again. */
+  knownProseVersions?: ReadonlyMap<string, string>;
+}
+
+/** A recreated or restored document restarts its revision, so the time is part of the version. */
+export function persistedProseVersion(revision: number, updatedAt: string): string {
+  return `${revision}:${updatedAt}`;
 }
 
 function normalizeBlob(input: unknown): Uint8Array {
@@ -102,7 +119,11 @@ function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string,
  * transaction scheduler is holding the database, while this function makes
  * the structured rows and persisted Yjs state share one SQLite point in time.
  */
-export async function readLocalRelationalMarkdownSource(projectId?: string): Promise<LocalRelationalMarkdownSource> {
+export async function readLocalRelationalMarkdownSource(
+  projectId?: string,
+  options: LocalRelationalMarkdownCaptureOptions = {},
+): Promise<LocalRelationalMarkdownSource> {
+  const known = projectId ? options.knownProseVersions : undefined;
   return getDb().transaction(async (tx) => {
     // Keep the reads sequential. Native SQLite transactions have one owning
     // connection; concurrent proxy calls would add no useful parallelism.
@@ -119,11 +140,6 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
     const nodeIds = nodes.map(node => node.id);
     const nodeScope = (column: typeof NodeContentTable.nodeId | typeof NodeStorylineLinkTable.nodeId) =>
       projectId ? (nodeIds.length ? inArray(column, nodeIds) : sql`0`) : undefined;
-    const nodeContents = await tx
-      .select()
-      .from(NodeContentTable)
-      .where(nodeScope(NodeContentTable.nodeId))
-      .orderBy(asc(NodeContentTable.nodeId));
     const elements = await tx.select().from(BookElementTable).where(projectId ? eq(BookElementTable.projectId, projectId) : undefined).orderBy(asc(BookElementTable.id));
     const categories = await tx
       .select()
@@ -159,11 +175,44 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
       ...elements.map(row => proseDocId('element', row.id)),
       ...categories.map(row => proseDocId('category', row.id)),
       ...storylines.map(row => proseDocId('storyline', row.id))];
+    // An incremental capture reads Yjs bytes, and the contentJson seed that
+    // stands in for a document without state, only where the version moved.
+    let proseVersions: Map<string, string> | undefined;
+    let proseDocIds = docIds;
+    let contentNodeIds = nodeIds;
+    if (known) {
+      // The projection renders live entities only; trashed ones need no prose.
+      const liveDocIds = [...nodes.filter(row => !row.deletedAt).map(row => proseDocId('node', row.id)),
+        ...elements.filter(row => !row.deletedAt).map(row => proseDocId('element', row.id)),
+        ...categories.filter(row => !row.deletedAt).map(row => proseDocId('category', row.id)),
+        ...storylines.filter(row => !row.deletedAt).map(row => proseDocId('storyline', row.id))];
+      const revisions = liveDocIds.length
+        ? await tx.select().from(YjsDocumentRevisionTable).where(inArray(YjsDocumentRevisionTable.docId, liveDocIds))
+        : [];
+      proseVersions = new Map(revisions
+        .filter(row => row.revision > 0)
+        .map(row => [row.docId, persistedProseVersion(row.revision, row.updatedAt)]));
+      proseDocIds = liveDocIds.filter(docId => {
+        const version = proseVersions!.get(docId);
+        return version === undefined || known.get(docId) !== version;
+      });
+      const changed = new Set(proseDocIds);
+      contentNodeIds = nodeIds.filter(id => changed.has(proseDocId('node', id)));
+    }
+    const nodeContents = await tx
+      .select()
+      .from(NodeContentTable)
+      .where(known
+        ? (contentNodeIds.length ? inArray(NodeContentTable.nodeId, contentNodeIds) : sql`0`)
+        : nodeScope(NodeContentTable.nodeId))
+      .orderBy(asc(NodeContentTable.nodeId));
+    const proseScope = (column: typeof yjsSnapshots.docId | typeof yjsUpdates.docId) =>
+      projectId ? (proseDocIds.length ? inArray(column, proseDocIds) : sql`0`) : undefined;
     const snapshotRows = await tx.select().from(yjsSnapshots)
-      .where(projectId ? (docIds.length ? inArray(yjsSnapshots.docId, docIds) : sql`0`) : undefined)
+      .where(proseScope(yjsSnapshots.docId))
       .orderBy(asc(yjsSnapshots.docId));
     const updateRows = await tx.select().from(yjsUpdates)
-      .where(projectId ? (docIds.length ? inArray(yjsUpdates.docId, docIds) : sql`0`) : undefined)
+      .where(proseScope(yjsUpdates.docId))
       .orderBy(asc(yjsUpdates.id));
 
     const assetsByProject = groupByProject(assets);
@@ -240,6 +289,6 @@ export async function readLocalRelationalMarkdownSource(projectId?: string): Pro
       proseByDocId.set(row.docId, state);
     }
 
-    return { books, proseByDocId };
+    return { books, proseByDocId, ...(proseVersions ? { proseVersions } : {}) };
   });
 }

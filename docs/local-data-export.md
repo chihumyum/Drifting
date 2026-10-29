@@ -25,8 +25,14 @@ available after a location error. No manuscript data is moved.
 The directory is
 created when a project opens, refreshed after local authored commits and remote
 project changes, and refreshed during the local lifecycle flush. Background
-refreshes coalesce commits, serialize captures, and replace only changed files.
-Only the open project's rows and Yjs state are captured.
+refreshes wait until no commit has arrived for 2 seconds, and at most 30 seconds
+after the oldest change not yet projected, so continuous typing does not keep
+re-exporting the project. They serialize captures and replace only changed files.
+Only the open project's rows and Yjs state are captured. While the project stays
+open its renderer keeps the prose it hydrated, keyed by each document's persisted
+Yjs revision, so a capture reads Yjs state only for documents changed since the
+previous one. A capture that the renderer cannot match fails and drops that cache;
+the next capture is complete. Closing the project releases it.
 Automatic captures wait while the active editor is composing IME text and check
 again between asynchronous stages. Manual refresh and lifecycle flush still run;
 the authoritative incremental Yjs save path is independent of this deferral.
