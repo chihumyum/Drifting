@@ -76,13 +76,13 @@ A1 后的[独立原生记录](acceptance/heavy-workflow-rendering-before.json)�
 
 [生产 React/Chromium 行为回归](acceptance/heavy-workflow-surface-containment.json)使用共同渲染策略与真实 TipTap/Yjs，9 项检查通过：DOM 继续连接而隐藏内容被跳过；隐藏正文仍接受后台 CRDT 更新；准备态已有布局；揭示后可聚焦；撤销/重做、编辑器身份、选区和滚动保留；20 轮切换后正文一致。它验证行为，不代表原生输入法或整 App 时延。
 
-本轮还在第一次原生尝试中捕获了一个 `RangeError`，保存为[原始异常会话](acceptance/yjs-durability-native-range-error.json)。当时没有源码栈，持久化检查通过。新增 opt-in 审计只记录白名单内的源码位置，过滤错误正文、函数名和查询字符串；隐私回归通过。后续两标签和多标签、十轮撤销重做没有再次复现，不能把该异常标为已修复。下一次出现应凭源码位置继续定位。
+本轮还在第一次原生尝试中捕获了一个 `RangeError`，保存为[原始异常会话](acceptance/yjs-durability-native-range-error.json)。当时没有源码栈，持久化检查通过。新增 opt-in 审计只记录白名单内的源码位置，过滤错误正文、函数名和查询字符串；隐私回归通过。随后两标签和多标签、十轮撤销重做没有再次出现，但最新合并后的冒烟再次捕获了该错误，且 `errorFrames` 为空。它不能标为已修复，下一轮需要在保留隐私边界的前提下补足错误来源分类，并做变更开关对照定位。
 
 视图缓存并不能同时保证无限标签、无限撤销和固定内存。B2 先拆分 EditorView 与文档/撤销所有权；更深的冷文档释放需要明确的磁盘撤销日志、版本与并发语义，不能序列化 Yjs 私有对象或悄悄丢失撤销。原生文本内核实验只作为现有 Tauri 宿主内的编辑器适配器，并沿用共同 domain 与 prose 契约。
 
 ## 最终组合复测：功能通过，性能目标仍未通过
 
-本轮已吸收主分支全书视图等同期改动，在新的隔离 Debug bundle、Vite/React StrictMode 与重型 Seed 中复测。源码指纹随[原生审计](acceptance/yjs-durability-native-audit.json)保存，不能用记录中的时延代表 release 或其他机器。25 标签包括 23 个章节、一个五万字灵感和全书视图。走查通过正常 UI 进行，数据库脚本只读。
+本轮已吸收主分支全书视图等同期改动，在新的隔离 Debug bundle、Vite/React StrictMode 与重型 Seed 中复测。源码指纹随[原生审计](acceptance/yjs-durability-native-audit.json)保存，不能用记录中的时延代表 release 或其他机器。25 标签包括 23 个章节、一个五万字构想和全书视图。走查通过正常 UI 进行，数据库脚本只读。
 
 | 阶段 | 输入到第二次 rAF p95 / 最大 | 最大帧间隔 | 结果 |
 | --- | --- | --- | --- |
@@ -102,6 +102,14 @@ A1 后的[独立原生记录](acceptance/heavy-workflow-rendering-before.json)�
 
 [全量测试摘要](acceptance/heavy-workflow-functional-tests.json)：3,962 项通过、5 项跳过、0 项失败。`ci:contract:check`、`public:check`、`typecheck`、`agent:capabilities:check`、production renderer build 通过；lint 为 0 错误、34 条既有警告。最早一次并行测试曾使既有 1,000 片 JSON 流式用例超时，独立复测及后续单 worker 全量通过；没有提高超时来消除失败。
 
-`node scripts/check-heavy-workflow-acceptance.mjs` 是本轮**严格性能验收门**，要求源码一致、25 文档恢复、空闲零快照、9 项 containment 行为、各原生阶段无错误、零看门狗停顿及全量测试通过。当前命令在看门狗零停顿断言失败（两条事件，对应一次停顿），不会生成 `passed-scoped-a1-b1-checks`。不要把功能测试通过当成这个性能门通过。原生、浏览器与合成证据保留各自的源码指纹，文档不手改生成结果。
+`node scripts/check-heavy-workflow-acceptance.mjs` 是本轮**严格性能验收门**，要求源码一致、25 文档恢复、空闲零快照、9 项 containment 行为、各原生阶段无错误、零看门狗停顿及全量测试通过。在所测 `8f9dceba` 加本轮实现的组合中，该命令在看门狗零停顿断言失败（两条事件，对应一次停顿），没有生成 `passed-scoped-a1-b1-checks`。此后的合并和验收工具文字变更会先触发源码指纹不一致，必须重新采集完整矩阵，不能改指纹绕过。不要把功能测试通过当成性能门通过。
 
-下一轮按以下顺序推进：先给样式/布局与 IPC 队列增加可归因的时间边界，并做同一组合的开关对照；A2 将投影捕获和查询改为基于 revision 的增量与窄读；B2 将编辑视图与文档/撤销状态解耦，建立有界热视图；再执行 C 的有界后台计算。A2、B2 至 E 尚未实现，中文 IME、100 标签、10 倍负载、两小时持续工作流与 release 预算均未验收。一个未复现的 RangeError 和关闭长停顿仍为开放问题。
+### 后续主分支合并的边界
+
+完整压力报告之后又吸收了主分支写作工具/侧栏改动，形成 `17da8f22`。[补充浏览器检查](acceptance/heavy-workflow-merged-containment.json)再次通过 9 项 containment 行为；[原生冒烟](acceptance/heavy-workflow-merged-native-smoke.json)覆盖长文写入、撤销/重做、与全书视图往返及关闭，重做后编辑器查找为 `1/1`，最终编辑器数为 0。该短会话没有看门狗停顿，但捕获一次 `window-error:RangeError`，所以稳定性仍未通过。[补充持久化复核](acceptance/heavy-workflow-merged-persistence.json)18 项通过。它是短冒烟，不能覆盖或推翻前面的 25 标签失败。
+
+最新组合的[全量与定向复测](acceptance/heavy-workflow-merged-tests.json)保留原始结果：3,975 项通过、1 项失败、5 项跳过；唯一失败是本方案使用了退役中文术语。改为当前“构想”后，4 项术语验收全部通过；其余测试目标没有改动。该记录区分全量失败与修正后的定向复测，不伪装成第二次干净全量。最新组合的 typecheck、脚本严格类型检查、contract/public/capabilities 与 lint 也通过，lint 仍为 34 条既有警告。
+
+原生、浏览器与合成证据保留各自的源码指纹；后续合并不覆盖旧测量，文档不手改生成结果。
+
+下一轮按以下顺序推进：先给异常来源、样式/布局与 IPC 队列增加可归因的边界，并做同一组合的开关对照；A2 将投影捕获和查询改为基于 revision 的增量与窄读；B2 将编辑视图与文档/撤销状态解耦，建立有界热视图；再执行 C 的有界后台计算。A2、B2 至 E 尚未实现，中文 IME、100 标签、10 倍负载、两小时持续工作流与 release 预算均未验收。再次捕获而未定位的 RangeError 和关闭长停顿仍为开放问题。

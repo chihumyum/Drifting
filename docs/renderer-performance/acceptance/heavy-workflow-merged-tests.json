@@ -1,0 +1,26 @@
+{
+  "kind": "merged_full_test_and_targeted_rerun",
+  "generatedAt": "2026-10-29T11:11:48.567Z",
+  "fingerprint": "8d8350c483adf96b449439dbe0a7e81f1513486722d5c2a0c1aadb3fc7ca2655",
+  "status": "all-failed-cases-passed-targeted-rerun",
+  "runs": [
+    {
+      "name": "full",
+      "passed": 3975,
+      "failed": 1,
+      "skipped": 5,
+      "success": false,
+      "sourceReportSha256": "21bbe328e55efd01ca7e6a6f5c5bcd4ea934b8e3be26b08d5cb2f352015f8955"
+    },
+    {
+      "name": "terminology-rerun",
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "sourceReportSha256": "7606da614fc7c288cc0afef2cdbd5a9be3b31ddb7943d0a5468b49cc273ce6da"
+    }
+  ],
+  "correction": "The only full-run failure was retired terminology in the new architecture document. The document was corrected and all four terminology checks passed. Other test targets were unchanged.",
+  "scope": "Preserves the original full-run failure and targeted rerun separately. Not a second clean full run or native performance acceptance."
+}

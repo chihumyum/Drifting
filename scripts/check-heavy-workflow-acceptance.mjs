@@ -35,7 +35,7 @@ const report = { kind: 'heavy_workflow_incremental_acceptance', generatedAt: new
   checks: { sourceMatched: true, noSyntheticIdleSnapshotEncodingOrWrite: true, oneDirtyDocumentOneSnapshot: true, nativeIdleSnapshotsUnchanged: true,
     canonicalRecovery: true, noObservedNativeStallOrJsErrorInFinalRun: true, retainedViewContainment: true, twentyFiveEditorsReleased: true, fullTests: true },
   tests: { passed: tests.numPassedTests, skipped: tests.numPendingTests, failed: tests.numFailedTests }, evidenceSha256: hashes,
-  knownOpenIssues: ['An earlier native pass captured one RangeError without a source stack; repeated attempts did not reproduce it. It is not marked fixed.'],
+  knownOpenIssues: ['Native passes captured RangeError without a usable source stack, including the later merged UI smoke run. Its cause remains open.'],
   scope: 'A1 snapshot reuse and B1 retained-view containment only. Other architecture stages and product interaction budgets are not accepted by this report.' };
 const output = `${directory}/heavy-workflow-incremental-acceptance.json`;
 if (process.argv.includes('--check')) { const saved = read(output); assert.equal(saved.fingerprint, fingerprint); assert.deepEqual(saved.evidenceSha256, hashes); }
