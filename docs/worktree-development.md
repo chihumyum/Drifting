@@ -109,6 +109,24 @@ pnpm dev:worktree --no-watch --frontend-debug
 [Frontend Debug](frontend-debug.md#desktop-acceptance). `pnpm dev:seed` passes
 it through to the launch.
 
+## Release-performance instances
+
+`--release-perf` runs the same instance (the same profile, database and port)
+for measurement only:
+
+- The native side is a Rust release build (`tauri dev --release`).
+- The renderer is a production bundle (`vite build` into the private profile)
+  served by `vite preview`. React runs in production mode, without Strict Mode.
+- It is local-only, gets no development Agent keys, and cannot be combined
+  with `--build-app`, `--performance-audit` or `--online`.
+- With `--frontend-debug` the bundle also carries the debug bridge, and only
+  then. The renderer build defines `VITE_DRIFTING_PERF_BUILD` from
+  `DRIFTING_PERF_BUILD=1`, which only this mode sets. Every other build compiles
+  the bridge out, which `node scripts/check-frontend-debug-release.mjs` checks.
+
+`pnpm perf:stress` drives this mode and the Debug mode through the same
+journeys. See the [heavy-seed baseline](renderer-performance/heavy-seed-baseline.md).
+
 ## `pnpm dev` in a linked worktree
 
 The shared profile (identity `cc.drifting.client`, port 5173, its application

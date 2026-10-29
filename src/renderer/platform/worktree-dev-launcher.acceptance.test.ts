@@ -110,6 +110,29 @@ describe('isolated worktree development', () => {
     expect(() => createWorktreePlan({ root, buildApp: true, performanceAudit: true, platform: 'darwin' })).toThrow(/development instance/);
   });
 
+  it('measures the same instance as a release binary with a production renderer, embedding no keys', () => {
+    const root = fixture();
+    const environment = { OPENAI_API_KEY: 'sk-synthetic-not-real' };
+    const ordinary = createWorktreePlan({ root, baseEnvironment: environment });
+    const release = createWorktreePlan({ root, baseEnvironment: environment, releasePerf: true });
+    expect(parseWorktreeArguments(['--release-perf']).releasePerf).toBe(true);
+    expect(release.manifest.profileId).toBe(ordinary.manifest.profileId);
+    expect(release.manifest.databaseDirectory).toBe(ordinary.manifest.databaseDirectory);
+    expect(release.manifest.releasePerf).toBe(true);
+    expect(release.args).toEqual(['exec', 'tauri', 'dev', '--release', '--no-watch', '--config', release.manifest.configPath]);
+    expect(release.tauriConfig.build.devUrl).toBe(ordinary.tauriConfig.build.devUrl);
+    expect(release.tauriConfig.build.beforeDevCommand.script).toMatch(/^pnpm exec vite build .* && pnpm exec vite preview /);
+    expect(release.viteConfigSource).toContain(`preview: { host: '127.0.0.1', port: ${release.manifest.port}, strictPort: true }`);
+    expect(release.environment.DRIFTING_PERF_BUILD).toBe('1');
+    expect(ordinary.environment.DRIFTING_PERF_BUILD).toBeUndefined();
+    // A bundle inlines VITE_ values: the development key hand-off stays out.
+    expect(ordinary.environment.VITE_OPENAI_API_KEY).toBe('sk-synthetic-not-real');
+    expect(Object.keys(release.environment).filter(key => /^VITE_.*API_KEY$/.test(key))).toEqual([]);
+    for (const option of [{ buildApp: true, platform: 'darwin' }, { performanceAudit: true }, { online: true }]) {
+      expect(() => createWorktreePlan({ root, baseEnvironment: {}, releasePerf: true, ...option })).toThrow(/--release-perf/);
+    }
+  });
+
   it('hands the renderer the running desktop Frontend Debug bridge only on explicit opt-in', () => {
     const root = fixture();
     const sessionDirectory = path.join(root, '.local-data', 'frontend-debug');

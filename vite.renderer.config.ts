@@ -29,6 +29,10 @@ export default defineConfig(({ command }) => {
   const configuredDevPort = Number(process.env.DRIFTING_VITE_PORT ?? '5173');
   const devPort = Number.isInteger(configuredDevPort) ? configuredDevPort : 5173;
   const disableAgentDebugHmr = process.env.VITE_DRIFTING_AGENT_DEBUG_DISABLE_HMR === '1';
+  // A local release-performance measurement bundle (`dev:worktree --release-perf`):
+  // production React with the frontend debug bridge, served from a private
+  // profile and never packaged. Every other build compiles the bridge out.
+  const perfBuild = isBuild && process.env.DRIFTING_PERF_BUILD === '1';
 
   if (isBuild) {
     if (!process.env.VITE_API_BASE_URL) {
@@ -39,6 +43,9 @@ export default defineConfig(({ command }) => {
 
     const embeddedSecrets = Object.entries(process.env)
       .filter(([key, value]) => EMBEDDED_SECRET_PATTERN.test(key) && Boolean(value))
+      // The measurement bundle carries its loopback debug-session token, as a
+      // development server does.
+      .filter(([key]) => !(perfBuild && key === 'VITE_DRIFTING_FRONTEND_DEBUG_TOKEN'))
       .map(([key]) => key);
     if (embeddedSecrets.length > 0) {
       throw new Error(
@@ -62,10 +69,13 @@ export default defineConfig(({ command }) => {
         release: { name: sentry.release }, telemetry: false,
         sourcemaps: { filesToDeleteAfterUpload: [path.join(outDir, '**/*.map')] },
       })] : [])],
-    define: sentry ? {
-      'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(sentry.release),
-      'import.meta.env.VITE_SENTRY_ENVIRONMENT': JSON.stringify(sentry.environment),
-    } : {},
+    define: {
+      'import.meta.env.VITE_DRIFTING_PERF_BUILD': JSON.stringify(perfBuild ? '1' : ''),
+      ...(sentry ? {
+        'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(sentry.release),
+        'import.meta.env.VITE_SENTRY_ENVIRONMENT': JSON.stringify(sentry.environment),
+      } : {}),
+    },
     // Only the app is a dev entry. Saved acceptance bundles and design HTML in
     // this checkout must not seed dependency scanning with retired imports.
     optimizeDeps: { entries: ['index.html'] },

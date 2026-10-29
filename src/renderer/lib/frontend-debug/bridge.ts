@@ -225,7 +225,8 @@ async function poll(baseUrl: URL, token: string, signal: AbortSignal): Promise<v
 }
 
 export function installFrontendDebugBridge(): () => void {
-  if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
+  if (!(import.meta.env.DEV || import.meta.env.VITE_DRIFTING_PERF_BUILD === '1')
+    || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
     return () => undefined;
   }
   installFrontendDebugRegistry();

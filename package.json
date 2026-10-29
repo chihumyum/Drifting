@@ -60,6 +60,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:renderer-architecture": "vitest run src/renderer/architecture/renderer-boundaries.test.ts",
+    "perf:stress": "node --conditions=import --import=tsx scripts/perf-stress-baseline.ts",
     "perf:rust-reuse": "node scripts/benchmark-rust-reuse.mjs",
     "perf:rust-reuse:check": "node scripts/benchmark-rust-reuse.mjs --check",
     "perf:renderer": "node scripts/run-renderer-performance.mjs",
