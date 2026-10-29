@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
@@ -1349,6 +1349,81 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(await db.select({ portraitAssetId: BookElementTable.portraitAssetId }).from(BookElementTable).where(eq(BookElementTable.id, elementId))).toEqual([
       { portraitAssetId: 'asset-1' },
     ]);
+  });
+
+  it('blocks a bind whose asset or owner is already taken, or whose metadata changed', async () => {
+    const db = await createDatabase();
+    const digest = 'f'.repeat(64);
+    await remotePortraitOwner(db, 'owner-a', 'shared-asset', digest);
+    const document = new Y.Doc();
+    document.getText('content').insert(0, 'second owner');
+    await apply(db, await changeSet(3, [
+      {
+        action: 'entity.create', kind: 'element', id: 'owner-b',
+        payload: { seed: { name: 'Second owner', summary: '', categoryId: null, groupName: null } },
+      },
+      {
+        action: 'yjs.update', kind: 'prose-document', id: 'element:owner-b',
+        payload: { update: Y.encodeStateAsUpdate(document) },
+      },
+    ]));
+    const codes = async (sequence: number, assetId: string, payload: CanonicalCborValue) =>
+      (await apply(db, await changeSet(sequence, [{ action: 'asset.bind', kind: 'project-asset', id: assetId, payload }])))
+        .conflicts.map(({ code }) => code);
+
+    const otherDigest = '9'.repeat(64);
+    await insertVerifiedBlob(db, otherDigest);
+    expect(await codes(4, 'other-asset', imageAssetPayload(otherDigest, { kind: 'element-portrait', id: 'owner-a' })))
+      .toContain('asset.invalid-owner');
+    expect(await codes(5, 'shared-asset', imageAssetPayload(digest, { kind: 'element-portrait', id: 'owner-b' })))
+      .toContain('asset.multiple-owners');
+    expect(await codes(6, 'shared-asset', { ...imageAssetPayload(digest, { kind: 'element-portrait', id: 'owner-a' }), width: 2 }))
+      .toContain('asset.immutable-metadata-mismatch');
+  });
+
+  it('reads the stored rows for every bound asset in a fixed number of queries', async () => {
+    const reads: { blobStates: number; total: number }[] = [];
+    for (const assetCount of [2, 8]) {
+      const db = await createDatabase();
+      const gateway = gateways[gateways.length - 1]!;
+      let sequence = 0;
+      for (let index = 0; index < assetCount; index += 1) {
+        const elementId = `portrait-owner-${index}`;
+        const digest = index.toString(16).padEnd(64, 'e');
+        await insertVerifiedBlob(db, digest);
+        const document = new Y.Doc();
+        document.getText('content').insert(0, 'portrait owner');
+        await apply(db, await changeSet(++sequence, [
+          {
+            action: 'entity.create', kind: 'element', id: elementId,
+            payload: { seed: { name: `Owner ${index}`, summary: '', categoryId: null, groupName: null } },
+          },
+          {
+            action: 'yjs.update', kind: 'prose-document', id: `element:${elementId}`,
+            payload: { update: Y.encodeStateAsUpdate(document) },
+          },
+        ]));
+        await apply(db, await changeSet(++sequence, [{
+          action: 'asset.bind', kind: 'project-asset', id: `portrait-asset-${index}`,
+          payload: imageAssetPayload(digest, { kind: 'element-portrait', id: elementId }),
+        }]));
+      }
+      expect(await db.select({ id: ProjectAssetTable.id }).from(ProjectAssetTable)).toHaveLength(assetCount);
+
+      // Every write revalidates the whole projection, the binds included.
+      const query = vi.spyOn(gateway, 'query');
+      const typed = await apply(db, await changeSet(++sequence, [
+        { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'Typed' } },
+      ]));
+      expect(typed.conflicts).toEqual([]);
+      reads.push({
+        blobStates: query.mock.calls.filter(([sql]: [string, ...unknown[]]) => sql.includes('"sync_blob_state"')).length,
+        total: query.mock.calls.length,
+      });
+      query.mockRestore();
+    }
+    expect(reads[0]!.blobStates).toBe(1);
+    expect(reads[1]).toEqual(reads[0]);
   });
 
   it('converges asset bind/unbind when the older bind arrives after the winner', async () => {
