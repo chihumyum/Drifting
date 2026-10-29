@@ -295,8 +295,9 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   box-shadow:
     inset 0 0 0 1px var(--switch-rim),
     inset 0 0 0 0 var(--switch-rim);
-  -webkit-mask-position: -14px -46px;
-  mask-position: -14px -46px;
+  /* The track is small glass: its line reads the dense patch, like the tint. */
+  -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+  mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
   animation: switch-rim-flow var(--motion-glass-drift) linear infinite paused;
   transition: box-shadow var(--motion-glass-bleed) ease-out;
 }
@@ -353,12 +354,12 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 @keyframes switch-rim-flow {
   from {
-    -webkit-mask-position: -14px -46px;
-    mask-position: -14px -46px;
+    -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+    mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
   }
   to {
-    -webkit-mask-position: 136px 104px;
-    mask-position: 136px 104px;
+    -webkit-mask-position: calc(var(--glass-dense-gx) + 150px) calc(var(--glass-dense-gy) + 150px);
+    mask-position: calc(var(--glass-dense-gx) + 150px) calc(var(--glass-dense-gy) + 150px);
   }
 }
 
@@ -988,7 +989,7 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   border-radius: var(--radius-md);
   background: hsl(var(--surface));
   color: hsl(var(--ink-1));
-  box-shadow: 0 12px 32px -14px hsl(var(--ink-1) / 0.42);
+  box-shadow: 0 12px 32px -14px hsl(var(--shadow-ink) / 0.42);
 }
 
 /* Relation-kind suggestions are modal-safe: AnchoredPopover portals this
@@ -1003,7 +1004,7 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   border: 1px solid hsl(var(--rule-strong));
   border-radius: var(--radius-xs);
   background: hsl(var(--paper));
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
+  box-shadow: 0 12px 26px -14px hsl(var(--shadow-ink) / 0.3);
 }
 
 .relation-kind-suggestions__option {
@@ -1923,7 +1924,7 @@ html[data-shell-mode='mobile'] :is(.ui-field, .ui-select) {
   border: 1px solid hsl(var(--rule-strong));
   border-radius: var(--radius-md);
   background: hsl(var(--paper));
-  box-shadow: 0 10px 26px -14px hsl(var(--ink-1) / 0.42);
+  box-shadow: 0 10px 26px -14px hsl(var(--shadow-ink) / 0.42);
 }
 
 .filter-chip {
