@@ -18,6 +18,7 @@ import { validateRelationAgainstType } from '../../domain/entity-relation-type';
 import { getDb, getDbIfInitialized } from '../../lib/db';
 import { ReferenceIndexNotice } from './ReferenceIndexNotice';
 import { BrushIcon } from '../ui/BrushIcon';
+import { Button } from '../ui/Button';
 import { GlassSlider } from '../ui/GlassSlider';
 import { KindMark } from '../ui/KindMark';
 import type { KindMarkKind } from '../ui/kind-mark';
@@ -610,7 +611,7 @@ export function ReferencesPanel({
                 </div>
               )}
               {glass ? (
-                <label className="refs-picker__search glass glass--rest glass--field">
+                <label className="ui-field glass glass--rest glass--field">
                   <BrushIcon name="search" size={12} />
                   <input
                     type="text"
@@ -665,14 +666,20 @@ export function ReferencesPanel({
                         : 'relation-type-field__button relation-type-field__button--full'
                     }
                   />
-                  <button
-                    type="button"
-                    className={glass ? 'refs-picker__create glass glass--primary' : 'refs-section__action'}
-                    disabled={!pendingTypeId}
-                    onClick={() => void handleAddManual()}
-                  >
-                    {t('storyGraph.edge.create')}
-                  </button>
+                  {glass ? (
+                    <Button variant="primary" size="sm" disabled={!pendingTypeId} onClick={() => void handleAddManual()}>
+                      {t('storyGraph.edge.create')}
+                    </Button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="refs-section__action"
+                      disabled={!pendingTypeId}
+                      onClick={() => void handleAddManual()}
+                    >
+                      {t('storyGraph.edge.create')}
+                    </button>
+                  )}
                 </div>
               )}
               <div className="refs-picker__list">

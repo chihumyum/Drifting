@@ -28,6 +28,7 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 - **Agent 面板**：`features/agent/agent-glass.render.test.ts` 渲染真实的消息组件：Agent 工作时新出现的工具步骤带推波、从历史载入的不带，只读的步骤与任务清单悬停不变、能展开的步骤悬停流动，作者发出的话是对话框同款的圆角片，出错不垫底，请求授权的卡片与它的主按钮是等你处理的玻璃、主按钮排在最后，没有 `AgentGlassContext` 的移动端不带玻璃；`workspace-surface-language.acceptance.test.ts` 守着对话框的玻璃片、左下托盘、右下圆形按钮与「上提／弯杆上提」，以及 `materials.css` 里五种修饰的关键规则和 Dock 无色药丸取浅灰。
 - **实体编辑器**：`components/editor/entity-editor-glass.acceptance.test.ts` 渲染桌面与移动端的 `KvEditor`（桌面每行是输入片、只读是静止细线、移动端没有玻璃），并守着各编辑器的移动端门控、页头的大记号与圆形玻璃色板、清单的 cell 行与 `GlassSlider`、关联卡与就地选择器、平的提及行、补丁卡与推波、对话框的菜单行与玻璃卡，以及 `entity-editors.css` 的桌面规则不垫底、没有投影、没有左侧竖条。
 - **悬停卡**：`menu-surface-style.acceptance.test.ts` 覆盖没有右键菜单、所有对象的操作在悬停卡里、滚动列表时卡片收起而不是跟着走、滚动中滑到指针下的行不弹卡。
+- **浮层、对话框与控件**：`menu-surface-style.acceptance.test.ts` 还覆盖对话框、全局搜索、查找条与通知中心共用菜单外壳且背后是桌面色薄雾、头尾不画线，键盘当前行是静止的环、命中不垫底，账户菜单的分组留白与两个多选一，桌面 `Button` 的玻璃映射与危险按钮只用危险色的字、危险确认先聚焦取消，单行输入框、下拉选择、整行开关、空状态、加载（`240ms` 后出现）与进度的定义，以及范围内每个对话框都改用共用外壳与控件。观感（薄雾浓淡、深色主题、WKWebView 里的玻璃）仍要目测。
 - **时间线**：`chapter-lane-drag.pointer.test.ts` 覆盖时间线玻璃块在越过下一泳道中线前不换道、越过后吸附并落在所在泳道、以及弹簧跟随。
 - **砂笔框**：`lib/sand-frame.test.ts` 覆盖同一种子画出同一笔、不同种子不同、笔迹从左侧中段起笔并最后画到顶边、笔触粗细不随格子高度变化，以及同一种子拖宽时左半边逐像素不变、右边一段随边缘平移；`sand-glass-materials.test.ts` 覆盖选中的 cell 带画布画框、未选中不带，以及画框不再依赖固定贴图。
 

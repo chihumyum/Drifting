@@ -15,6 +15,8 @@ import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-set
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
+import { GhostIconButton } from '../ui/GhostIconButton';
+import { GlassSlider } from '../ui/GlassSlider';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -107,6 +109,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
   const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
+  const desktop = !getPlatformRuntime().isMobileShell;
   return (
     <AnchoredPopover
       anchorRef={triggerRef}
@@ -131,85 +134,26 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
     >
       {activeSettingsPage && (
         <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              minHeight: 38,
-              padding: '4px 8px',
-              borderBottom: '1px solid hsl(var(--rule))',
-            }}
-          >
-            <button
+          <div className="user-menu__subhead">
+            <GhostIconButton
               ref={settingsBackRef}
-              type="button"
               onClick={() => setActiveSettingsPage(null)}
               aria-label={t('common.back', { defaultValue: 'Back' })}
-              style={{
-                width: 28,
-                height: 28,
-                display: 'grid',
-                placeItems: 'center',
-                padding: 0,
-                border: 0,
-                borderRadius: 2,
-                background: 'transparent',
-                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-                cursor: 'pointer',
-              }}
-            >
-              <BrushIcon name="chevron-left" size={15} />
-            </button>
-            <span
-              style={{
-                marginLeft: 4,
-                fontSize: 'var(--ui-font-body, 12.5px)',
-                fontWeight: 500,
-                color: 'hsl(var(--ink-1))',
-              }}
-            >
-              Copilot
-            </span>
+              title={t('common.back', { defaultValue: 'Back' })}
+              icon={<BrushIcon name="chevron-left" size={15} />}
+            />
+            <span>Copilot</span>
           </div>
           <CopilotQuickSettings onOpenFullSettings={openFullSettings} />
         </div>
       )}
 
       <div style={{ display: activeSettingsPage ? 'none' : undefined }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '12px 12px 10px',
-            borderBottom: '1px solid hsl(var(--rule))',
-          }}
-        >
-          <UserAvatar initial={initial} image={user?.image} size={36} fontSize={17} />
-          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <span
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                fontSize: 'var(--ui-font-body, 14px)',
-                color: 'hsl(var(--ink-1))',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {displayName}
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--ui-font-caption, 9.5px)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                color: 'hsl(var(--accent))',
-                marginTop: 2,
-              }}
-            >
+        <div className="user-menu__head">
+          <UserAvatar initial={initial} image={user?.image} size={desktop ? 32 : 36} fontSize={desktop ? 15 : 17} />
+          <div className="user-menu__identity">
+            <span className="user-menu__name">{displayName}</span>
+            <span className="user-menu__status">
               {accountSettingsEnabled && user?.email
                 ? t(`settings.hosted.session.${hostedStatus}`)
                 : t('userMenu.localStatus')}
@@ -238,65 +182,75 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             }
             label={t('userMenu.theme')}
             tail={
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  display: 'flex',
-                  marginLeft: 'auto',
-                  background: 'hsl(var(--paper-deep))',
-                  borderRadius: 3,
-                  padding: 1,
-                }}
-              >
-                <ThemeSwitchBtn
-                  active={themeMode === 'light'}
-                  onClick={() => setThemeMode('light')}
-                  title={t('userMenu.themeLight')}
-                >
-                  {t('userMenu.themeLightShort')}
-                </ThemeSwitchBtn>
-                <ThemeSwitchBtn
-                  active={themeMode === 'dark'}
-                  onClick={() => setThemeMode('dark')}
-                  title={t('userMenu.themeDark')}
-                >
-                  {t('userMenu.themeDarkShort')}
-                </ThemeSwitchBtn>
-                <ThemeSwitchBtn
-                  active={themeMode === 'system'}
-                  onClick={() => setThemeMode('system')}
-                  title={t('userMenu.themeSystem')}
-                >
-                  {t('userMenu.themeSystemShort')}
-                </ThemeSwitchBtn>
-              </div>
+              desktop ? (
+                <GlassSlider
+                  className="user-menu__slider"
+                  ariaLabel={t('userMenu.theme')}
+                  value={themeMode}
+                  onChange={setThemeMode}
+                  options={[
+                    { value: 'light', label: t('userMenu.themeLightShort'), title: t('userMenu.themeLight') },
+                    { value: 'dark', label: t('userMenu.themeDarkShort'), title: t('userMenu.themeDark') },
+                    { value: 'system', label: t('userMenu.themeSystemShort'), title: t('userMenu.themeSystem') },
+                  ]}
+                />
+              ) : (
+                <div onClick={(e) => e.stopPropagation()} className="user-menu__switch">
+                  <ThemeSwitchBtn
+                    active={themeMode === 'light'}
+                    onClick={() => setThemeMode('light')}
+                    title={t('userMenu.themeLight')}
+                  >
+                    {t('userMenu.themeLightShort')}
+                  </ThemeSwitchBtn>
+                  <ThemeSwitchBtn
+                    active={themeMode === 'dark'}
+                    onClick={() => setThemeMode('dark')}
+                    title={t('userMenu.themeDark')}
+                  >
+                    {t('userMenu.themeDarkShort')}
+                  </ThemeSwitchBtn>
+                  <ThemeSwitchBtn
+                    active={themeMode === 'system'}
+                    onClick={() => setThemeMode('system')}
+                    title={t('userMenu.themeSystem')}
+                  >
+                    {t('userMenu.themeSystemShort')}
+                  </ThemeSwitchBtn>
+                </div>
+              )
             }
           />
           <MenuItem
             icon={<BrushIcon name="wen" size={13} />}
             label={t('userMenu.language')}
             tail={
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  display: 'flex',
-                  marginLeft: 'auto',
-                  background: 'hsl(var(--paper-deep))',
-                  borderRadius: 3,
-                  padding: 1,
-                }}
-              >
-                {UI_LOCALE_OPTIONS.map((locale) => (
-                  <ThemeSwitchBtn
-                    key={locale.code}
-                    active={normalizedUiLocale === locale.code}
-                    onClick={() => setUiLocale(locale.code)}
-                    title={locale.name}
-                  >
-                    {locale.code === 'zh-CN' ? '中' : 'EN'}
-                  </ThemeSwitchBtn>
-                ))}
-              </div>
+              desktop ? (
+                <GlassSlider
+                  className="user-menu__slider"
+                  ariaLabel={t('userMenu.language')}
+                  value={normalizedUiLocale}
+                  onChange={(code) => setUiLocale(code)}
+                  options={UI_LOCALE_OPTIONS.map((locale) => ({
+                    value: locale.code,
+                    label: locale.code === 'zh-CN' ? '中' : 'EN',
+                    title: locale.name,
+                  }))}
+                />
+              ) : (
+                <div onClick={(e) => e.stopPropagation()} className="user-menu__switch">
+                  {UI_LOCALE_OPTIONS.map((locale) => (
+                    <ThemeSwitchBtn
+                      key={locale.code}
+                      active={normalizedUiLocale === locale.code}
+                      onClick={() => setUiLocale(locale.code)}
+                      title={locale.name}
+                    >
+                      {locale.code === 'zh-CN' ? '中' : 'EN'}
+                    </ThemeSwitchBtn>
+                  ))}
+                </div>
+              )
             }
           />
           {scope === 'project' && (
@@ -426,17 +380,9 @@ export function UserAvatar({
   );
 }
 
+/** Groups are parted by space on the desktop, by a rule on the mobile shelf. */
 function MenuGroup({ children, last }: { children: React.ReactNode; last?: boolean }) {
-  return (
-    <div
-      className="user-menu__group"
-      style={{
-        borderBottom: last ? 'none' : '1px solid hsl(var(--rule))',
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div className={`user-menu__group${last ? ' user-menu__group--last' : ''}`}>{children}</div>;
 }
 
 interface MenuItemProps {

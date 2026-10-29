@@ -111,8 +111,8 @@ describe('entity editors in sand and glass', () => {
     const panel = source('src/renderer/components/editor/ReferencesPanel.tsx');
     expect(panel).toContain("' refs-rel-card--glass glass glass--rest glass--surface'");
     expect(panel).toMatch(/\{!glass && \(\s*<button[\s\S]*?refs-rel-card--add/);
-    expect(panel).toContain('className="refs-picker__search glass glass--rest glass--field"');
-    expect(panel).toContain("'refs-picker__create glass glass--primary'");
+    expect(panel).toContain('<label className="ui-field glass glass--rest glass--field">');
+    expect(panel).toContain('<Button variant="primary" size="sm" disabled={!pendingTypeId}');
     expect(panel).toMatch(/<GlassSlider\s+className="entity-slider"/);
     expect(panel).toContain("refs-cards${glass ? ' refs-cards--plain' : ''}");
   });
@@ -131,7 +131,7 @@ describe('entity editors in sand and glass', () => {
 
   it('chooses in dialogs from menu rows and drift conversions from cards of glass', () => {
     const element = source('src/renderer/views/ElementEditorView.tsx');
-    expect(element).toContain('className="entity-field glass glass--rest glass--field"');
+    expect(element).toContain('<label className="ui-field glass glass--rest glass--field">');
     expect(element).toContain('menu-surface__item entity-choice__row');
     const node = source('src/renderer/views/NodeEditorView.tsx');
     expect(node).toContain('className="entity-choice-grid"');
@@ -159,16 +159,13 @@ describe('entity editors in sand and glass', () => {
       '.entity-alias__remove',
       '.entity-choice',
       '.entity-choice__row',
-      '.entity-field',
       '.entity-choice-grid',
       '.entity-choice-card',
       '.entity-slider',
       '.col-pick--glass',
       '.col-pick__dot',
       '.mgr-row__mark',
-      '.refs-picker__search',
       '.refs-picker__type',
-      '.refs-picker__create',
       '.patch-card__invalid',
       '.patch-card__agent-tag',
     ]);

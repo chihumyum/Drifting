@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
-import { createPortal } from 'react-dom';
 import { useDataStore } from '../../store/data-store';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { useBookElement } from '../../usecase/useBookElement';
@@ -11,6 +10,10 @@ import { createPlainCommentDoc } from '../../domain/comment';
 import { eventBus } from '../../lib/events';
 import type { PatchCreateRequest } from './patch-create-request';
 import { BrushIcon } from '../ui/BrushIcon';
+import { Button } from '../ui/Button';
+import { EmptyState } from '../ui/EmptyState';
+import { KindMark } from '../ui/KindMark';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 const log = loglevel.getLogger('PatchCreateModal');
 log.setLevel(loglevel.levels.ERROR);
@@ -62,16 +65,6 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
       setBusy(false);
     }
   }
-
-  // Escape closes.
-  useEffect(() => {
-    if (!request) return undefined;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [request, onClose]);
 
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -130,160 +123,114 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
   };
 
   if (!request) return null;
-
-  return createPortal(
-    <div
-      className="patch-create-modal__overlay fixed inset-0 z-50 flex items-start justify-center pt-28 bg-black/40"
-      onMouseDown={onClose}
-    >
-      <div
-        className="patch-create-modal flex max-h-[72vh] flex-col overflow-hidden rounded-[2px] border border-border bg-card text-card-foreground shadow-lg"
-        onMouseDown={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('patchCreateModal.title')}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-border px-4 py-3">
-          <div>
-            <div className="text-sm font-semibold">{t('patchCreateModal.title')}</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              {t('patchCreateModal.subtitle')}
+  // The shared dialog shell (Escape and the backdrop close it); the quoted
+  // selection is a read-only card of glass, the target element carries its
+  // square seal, candidates are menu rows, the note is the multi-line field.
+  return (
+    <ModalRoot onClose={onClose} ariaLabel={t('patchCreateModal.title')} className="patch-create-modal__overlay">
+      <ModalCard className="patch-create-modal" width={460}>
+        <ModalHeader
+          title={t('patchCreateModal.title')}
+          subtitle={t('patchCreateModal.subtitle')}
+          onClose={onClose}
+          closeLabel={t('common.close')}
+        />
+        <ModalBody>
+          <section className="dialog-section">
+            <div className="patch-create-modal__quote glass glass--rest glass--still">
+              「{request.selectedText}」
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="-mr-1 rounded-[1px] p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={t('common.close')}
-          >
-            <BrushIcon name="close" size={15} />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          {/* Anchored selection quote */}
-          <div className="rounded-[1px] border border-border bg-muted/50 px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
-            <span className="mr-1 select-none text-foreground/40">“</span>
-            {request.selectedText}
-            <span className="ml-0.5 select-none text-foreground/40">”</span>
-          </div>
-
-          {/* Element target */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.targetElement')}</label>
+          </section>
+          <section className="dialog-section">
+            <span className="dialog-section__label">{t('patchCreateModal.targetElement')}</span>
             {elementId ? (
-              <div className="flex items-center gap-2 rounded-[1px] border border-border bg-background px-2.5 py-1.5">
-                <span className="rounded-[1px] bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">
-                  {t('globalSearch.entity.element')}
-                </span>
-                <span className="flex-1 truncate text-sm">{elementName}</span>
-                <button
-                  type="button"
+              <div className="patch-create-modal__picked">
+                <KindMark kind="element" />
+                <span className="patch-create-modal__picked-name">{elementName}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setElementId(null);
                     setQuery('');
                     setElementName('');
                     requestAnimationFrame(() => searchRef.current?.focus());
                   }}
-                  className="text-[11px] text-muted-foreground hover:text-foreground"
                 >
                   {t('patchCreateModal.changeElement')}
-                </button>
+                </Button>
               </div>
             ) : (
               <>
-                <input
-                  ref={searchRef}
-                  type="text"
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t('patchCreateModal.searchElement')}
-                  className="w-full rounded-[1px] border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
-                />
-                <div className="max-h-44 overflow-y-auto rounded-[1px] border border-border">
+                <label className="ui-field glass glass--rest glass--field">
+                  <BrushIcon name="search" size={15} />
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t('patchCreateModal.searchElement')}
+                  />
+                </label>
+                <div className="patch-create-modal__candidates">
                   {candidates.length === 0 && !noExactMatch ? (
-                    <div className="px-2.5 py-2 text-xs italic text-muted-foreground">
-                      {t('patchCreateModal.noElements')}
-                    </div>
+                    <EmptyState density="compact" mark="element" message={t('patchCreateModal.noElements')} />
                   ) : (
                     candidates.map((el) => (
                       <button
                         key={el.id}
                         type="button"
                         onClick={() => pickElement(el.id, el.name)}
-                        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+                        className="menu-surface__item"
                       >
-                        <span className="rounded-[1px] bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          {t('globalSearch.entity.element')}
-                        </span>
-                        <span className="truncate">{el.name}</span>
+                        <KindMark kind="element" />
+                        <span className="patch-create-modal__candidate-name">{el.name}</span>
                       </button>
                     ))
                   )}
                   {noExactMatch && (
-                    <button
-                      type="button"
-                      onClick={handleCreateElement}
-                      className="flex w-full items-center gap-2 border-t border-border px-2.5 py-1.5 text-left text-sm hover:bg-muted"
-                    >
-                      <span className="rounded-[1px] bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {t('patchCreateModal.newElement')}
+                    <button type="button" onClick={handleCreateElement} className="menu-surface__item">
+                      <BrushIcon name="plus" size={14} />
+                      <span className="patch-create-modal__candidate-name">
+                        {t('patchCreateModal.createElement', { name: query.trim() })}
                       </span>
-                      <span className="truncate">{t('patchCreateModal.createElement', { name: query.trim() })}</span>
                     </button>
                   )}
                 </div>
               </>
             )}
-          </div>
-
-          {/* Title */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.patchTitle')}</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t('patchCreateModal.titlePlaceholder')}
-              className="w-full rounded-[1px] border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
-            />
-          </div>
-
-          {/* Body */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.body')}</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={t('patchCreateModal.bodyPlaceholder')}
-              rows={4}
-              className="w-full resize-y rounded-[1px] border border-border bg-background px-2.5 py-1.5 text-sm leading-relaxed outline-none focus:border-ring"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-[1px] px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={handleCreatePatch}
-            disabled={!elementId || busy}
-            className="rounded-[1px] bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          </section>
+          <section className="dialog-section">
+            <span className="dialog-section__label">{t('patchCreateModal.patchTitle')}</span>
+            <label className="ui-field glass glass--rest glass--field">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t('patchCreateModal.titlePlaceholder')}
+              />
+            </label>
+          </section>
+          <section className="dialog-section">
+            <span className="dialog-section__label">{t('patchCreateModal.body')}</span>
+            <label className="ui-field ui-field--area glass glass--rest glass--field">
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={t('patchCreateModal.bodyPlaceholder')}
+                rows={4}
+              />
+            </label>
+          </section>
+        </ModalBody>
+        <ModalActions>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="primary" onClick={handleCreatePatch} disabled={!elementId || busy}>
             {t('patchCreateModal.createPatch')}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }

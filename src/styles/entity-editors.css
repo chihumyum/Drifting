@@ -557,9 +557,9 @@
 }
 
 /* Desktop: the picker opens in place with no envelope. Kinds are one
-   GlassSlider, the query a field of resting glass, candidates sidebar cells
-   (mark, name, kind), and the chosen one's relation type and 「创建」 sit
-   under them — 创建 the primary glass. */
+   GlassSlider, the query the shared single-line field (.ui-field), candidates
+   sidebar cells (mark, name, kind); the chosen one's relation type and
+   「创建」 (the primary Button) sit under them. */
 .refs-picker--glass {
   display: flex;
   flex-direction: column;
@@ -569,29 +569,6 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-.refs-picker__search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 3px;
-  color: hsl(var(--ink-4));
-}
-.refs-picker__search > input {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: hsl(var(--ink-1));
-}
-.refs-picker__search > input::placeholder {
-  color: hsl(var(--ink-4));
 }
 .refs-picker--glass .refs-picker__list {
   display: flex;
@@ -647,17 +624,6 @@
   font-family: var(--font-content);
   font-size: 12.5px;
   color: hsl(var(--ink-2));
-  cursor: pointer;
-}
-.refs-picker__create {
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 500;
   cursor: pointer;
 }
 
@@ -1771,8 +1737,8 @@ button.patch-card__invalid {
 }
 
 /* Desktop dialogs on entity pages. A choice is a menu row (the row under the
-   pointer flows), the current one bold with a tick; a name being typed is a
-   field of resting glass. A drift picks its storyline or category from cards
+   pointer flows), the current one bold with a tick; a name being typed is the
+   shared single-line field (.ui-field). A drift picks its storyline or category from cards
    of resting glass in each one's colour, the chosen one its still glass. */
 .entity-choice {
   display: flex;
@@ -1799,32 +1765,13 @@ button.patch-card__invalid {
 .entity-choice__tick {
   margin-left: auto;
 }
+.ui-field + .entity-choice {
+  margin-top: 10px;
+}
 .entity-choice__empty {
   padding: 6px 14px;
   font-family: var(--font-sans);
   font-size: 13px;
-  color: hsl(var(--ink-4));
-}
-.entity-field {
-  display: flex;
-  align-items: center;
-  height: 32px;
-  margin-bottom: 10px;
-  padding: 0 10px;
-  border-radius: 3px;
-}
-.entity-field > input {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: hsl(var(--ink-1));
-}
-.entity-field > input::placeholder {
   color: hsl(var(--ink-4));
 }
 .entity-choice-grid {

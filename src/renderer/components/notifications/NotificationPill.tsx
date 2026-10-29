@@ -1,15 +1,19 @@
 /**
- * Notification bell button in the topbar. Always a 26×26 circle.
- *   - a task is running   → Copilot icon blinks
- *   - task just finished  → result icon (✓ / ⚠ / ✗) for FLASH_MS, then bell
- *   - otherwise           → bell icon
- * Clicking toggles the NotificationCenter history dropdown.
+ * Notification bell: the round glass button in the account cell at the foot
+ * of the left sidebar.
+ *   - a task is running   → its source icon blinks
+ *   - task just finished  → the result's ink seal for FLASH_MS, then the bell
+ *   - otherwise           → the bell (furin)
+ * Clicking toggles the notification center, which opens upward from it.
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { BrushIcon } from '../ui/BrushIcon';
+import { Button } from '../ui/Button';
+import { EmptyState } from '../ui/EmptyState';
+import { GhostIconButton } from '../ui/GhostIconButton';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
 import '../../../styles/notifications.css';
 
@@ -56,7 +60,7 @@ function sourceLabel(
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
   if (n.state === 'running') {
     return (
-      <BrushIcon name="loader" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />
+      <BrushIcon name="loader" size={size} className="ui-spin" />
     );
   }
   if (n.state === 'stopped') return <BrushIcon name="status-stopped" size={size} />;
@@ -67,7 +71,7 @@ function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
 
 function flashToneColor(r: NonNullable<FlashResult>): string {
   if (r.state === 'stopped') return 'hsl(var(--ink-3))';
-  if (r.state === 'failed') return 'hsl(0 64% 51%)';
+  if (r.state === 'failed') return 'hsl(var(--destructive))';
   if (r.outcome === 'issues') return 'hsl(32 80% 44%)';
   return 'hsl(142 42% 40%)';
 }
@@ -83,7 +87,7 @@ function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
 function toneColor(n: AppNotification): string {
   if (n.state === 'running') return 'hsl(var(--ink-2))';
   if (n.state === 'stopped') return 'hsl(var(--ink-3))';
-  if (n.state === 'failed') return 'hsl(0 64% 51%)';
+  if (n.state === 'failed') return 'hsl(var(--destructive))';
   if (n.outcome === 'issues') return 'hsl(32 80% 44%)';
   return 'hsl(142 42% 40%)';
 }
@@ -173,7 +177,7 @@ export function NotificationPill({ opens = 'down' }: {
 
   // Priority: active work (source-specific blink) > flash result icon > bell.
   let iconEl: React.ReactNode;
-  let iconColor: string;
+  let iconColor: string | undefined;
   if (runningItem) {
     iconColor = 'hsl(var(--ink-2))';
     iconEl = (
@@ -193,44 +197,23 @@ export function NotificationPill({ opens = 'down' }: {
       </span>
     );
   } else {
-    iconColor = 'hsl(var(--ink-3))';
+    iconColor = undefined;
     iconEl = <BrushIcon name="furin" />;
   }
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <button
+    <div ref={wrapRef} className="notification-pill">
+      <GhostIconButton
         ref={btnRef}
-        type="button"
+        glass="round"
         onClick={handleToggle}
         title={t('notifications.title')}
         aria-label={t('notifications.title')}
         aria-expanded={centerOpen}
-        className="notification-pill-button glass glass--round"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 26,
-          height: 26,
-          borderRadius: '50%',
-          border: 'none',
-          background: 'transparent',
-          color: iconColor,
-          cursor: 'pointer',
-          transition: 'color 0.12s ease',
-          flexShrink: 0,
-          padding: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = 'hsl(var(--ink-1))';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = iconColor;
-        }}
-      >
-        {iconEl}
-      </button>
+        className="notification-pill-button"
+        style={iconColor ? { color: iconColor } : undefined}
+        icon={iconEl}
+      />
 
       {centerOpen &&
         createPortal(
@@ -241,6 +224,13 @@ export function NotificationPill({ opens = 'down' }: {
   );
 }
 
+/**
+ * The notification center: the menu shell's rich panel (360px). Each
+ * notification is a menu row; one that leads to a chapter carries the row's
+ * ring of glass under the pointer. Unread titles are set at a heavier weight,
+ * a failure speaks in the danger ink, progress is a hairline, and the remove
+ * button appears only on the row under the pointer.
+ */
 function NotificationCenter({
   now,
   anchor,
@@ -267,140 +257,55 @@ function NotificationCenter({
   return (
     <div
       ref={containerRef}
-      style={{
-        position: 'fixed',
-        ...anchor,
-        width: 340,
-        maxWidth: 'calc(100vw - 24px)',
-        maxHeight: 'min(60vh, 480px)',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'hsl(var(--paper))',
-        border: '1px solid hsl(var(--rule))',
-        borderRadius: 2,
-        boxShadow: '0 16px 34px -16px hsl(var(--ink-1) / 0.36)',
-        zIndex: 'var(--z-toast)',
-        overflow: 'hidden',
-      }}
+      className="menu-surface menu-surface--rich menu-surface--panel notification-center"
+      style={{ position: 'fixed', ...anchor }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '9px 12px',
-          borderBottom: '1px solid hsl(var(--rule))',
-        }}
-      >
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(var(--ink-1))' }}>
-          {t('notifications.title')}
-        </span>
+      <div className="notification-center__head">
+        <span>{t('notifications.title')}</span>
         {items.length > 0 && (
-          <button
-            type="button"
-            onClick={clear}
-            title={t('notifications.clear')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-3))',
-              cursor: 'pointer',
-              fontSize: 11,
-              padding: '2px 4px',
-              borderRadius: 4,
-            }}
-          >
-            <BrushIcon name="trash" size={12} /> {t('notifications.clear')}
-          </button>
+          <Button variant="ghost" size="sm" onClick={clear} title={t('notifications.clear')}>
+            {t('notifications.clear')}
+          </Button>
         )}
       </div>
 
       {items.length === 0 ? (
-        <div
-          style={{
-            padding: '28px 12px',
-            textAlign: 'center',
-            fontSize: 12,
-            color: 'hsl(var(--ink-4))',
-            fontFamily: 'var(--font-sans)',
-            fontStyle: 'italic',
-          }}
-        >
-          {t('notifications.empty')}
-        </div>
+        <EmptyState icon="furin" density="compact" message={t('notifications.empty')} />
       ) : (
-        <div style={{ overflowY: 'auto' }}>
+        <div className="notification-center__list">
           {items.map((n) => (
             <div
               key={n.id}
               onClick={() => onRowClick(n)}
-              style={{
-                display: 'flex',
-                gap: 9,
-                padding: '10px 12px',
-                borderBottom: '1px solid hsl(var(--rule) / 0.6)',
-                cursor: n.chapterId ? 'pointer' : 'default',
-                background: n.read ? 'transparent' : 'hsl(var(--paper-deep) / 0.5)',
-              }}
+              className={[
+                'menu-surface__item',
+                'notification-row',
+                n.read ? '' : 'is-unread',
+                n.chapterId ? '' : 'is-static',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
-              <span style={{ color: toneColor(n), marginTop: 1, flexShrink: 0 }}>
+              <span className="notification-row__state" style={{ color: toneColor(n) }}>
                 <SourceIcon n={n} size={15} />
               </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                      fontSize: 9.5,
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      color: 'hsl(var(--ink-4))',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    {n.source === 'copilot' ? (
-                      <BrushIcon name="shikigami" size={9} />
-                    ) : n.source === 'hosted-sync' ? (
-                      <BrushIcon name="cloud" size={10} />
-                    ) : (
-                      <span style={{ fontStyle: 'italic' }}>◐</span>
-                    )}
+              <div className="notification-row__body">
+                <div className="notification-row__meta">
+                  <span className="notification-row__source">
+                    <BrushIcon name={n.source === 'hosted-sync' ? 'cloud' : 'shikigami'} size={12} />
                     {sourceLabel(n, t)}
                   </span>
-                  <span style={{ marginLeft: 'auto', fontSize: 10, color: 'hsl(var(--ink-4))' }}>
-                    {relTime(n.updatedAt, now, t)}
-                  </span>
+                  <span className="notification-row__time">{relTime(n.updatedAt, now, t)}</span>
                 </div>
-                <div
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    color: 'hsl(var(--ink-1))',
-                    marginTop: 2,
-                  }}
-                >
-                  {n.title}
-                </div>
+                <div className="notification-row__title">{n.title}</div>
                 {(n.detail || n.error) && (
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: n.error ? 'hsl(0 60% 48%)' : 'hsl(var(--ink-3))',
-                      marginTop: 2,
-                      lineHeight: 1.4,
-                    }}
-                  >
+                  <div className={`notification-row__detail${n.error ? ' is-error' : ''}`}>
                     {n.error || n.detail}
                   </div>
                 )}
                 {n.state === 'running' && n.progress && (
                   <div
-                    className={`notif-progress${n.progress.value === null ? ' notif-progress--indeterminate' : ''}`}
+                    className={`ui-progress notification-row__progress${n.progress.value === null ? ' ui-progress--indeterminate' : ''}`}
                     role="progressbar"
                     aria-label={t('notifications.cloudSync.progressLabel')}
                     aria-valuemin={0}
@@ -410,37 +315,23 @@ function NotificationCenter({
                       : { 'aria-valuenow': Math.round(n.progress.value * 100) })}
                   >
                     <span
-                      className="notif-progress__fill"
-                      style={{
-                        width: n.progress.value === null ? '32%' : `${n.progress.value * 100}%`,
-                      }}
+                      className="ui-progress__fill"
+                      style={n.progress.value === null ? undefined : { width: `${n.progress.value * 100}%` }}
                     />
                   </div>
                 )}
               </div>
-              <button
-                type="button"
+              <GhostIconButton
+                size="sm"
+                className="notification-row__remove"
                 aria-label={t('notifications.remove')}
+                title={t('notifications.remove')}
                 onClick={(e) => {
                   e.stopPropagation();
                   remove(n.id);
                 }}
-                style={{
-                  width: 20,
-                  height: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'hsl(var(--ink-4))',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  alignSelf: 'flex-start',
-                }}
-              >
-                <BrushIcon name="close" size={13} />
-              </button>
+                icon={<BrushIcon name="close" size={13} />}
+              />
             </div>
           ))}
         </div>

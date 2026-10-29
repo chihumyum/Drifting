@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -9,6 +9,8 @@ import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { isChapter } from '../../domain/book-node';
 import { Button } from '../ui/Button';
+import { EmptyState } from '../ui/EmptyState';
+import { KindMark } from '../ui/KindMark';
 import {
   ModalActions,
   ModalBody,
@@ -129,102 +131,37 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
         <ModalHeader title={t('editChapterStoryline.title')} subtitle={curNode.title} />
         <ModalBody className="edit-storyline-modal__body">
           {storylines.length === 0 ? (
-            <div
-              style={{
-                padding: '24px 12px',
-                textAlign: 'center',
-                color: 'hsl(var(--ink-3))',
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                fontSize: 13,
-              }}
-            >
-              {t('editChapterStoryline.empty')}
-            </div>
+            <EmptyState density="compact" mark="storyline" message={t('editChapterStoryline.empty')} />
           ) : (
             storylines.map((storyline) => {
               const selected = draftStorylineIds.includes(storyline.id);
               const isMain = draftMainStorylineId === storyline.id;
               const color = storyline.color || 'hsl(var(--accent))';
+              // The whole row is the check box, in the storyline's colour;
+              // "主线" is one never-changing word shaped like the scope toggle.
               return (
-                <div
-                  key={storyline.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '24px 1fr auto',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: selected ? `1px solid ${color}` : '1px solid hsl(var(--rule))',
-                    background: selected
-                      ? `color-mix(in srgb, ${color} 8%, transparent)`
-                      : 'hsl(var(--paper))',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => handleToggleDraftStoryline(storyline.id)}
-                    aria-label={t('editChapterStoryline.include', { name: storyline.name })}
-                  />
+                <div key={storyline.id} className="edit-storyline-modal__row">
                   <button
                     type="button"
+                    role="checkbox"
+                    aria-checked={selected}
+                    aria-label={t('editChapterStoryline.include', { name: storyline.name })}
+                    className={`ui-toggle-row glass${selected ? ' is-on' : ''}`}
+                    style={{ '--toggle-color': color } as CSSProperties}
                     onClick={() => handleToggleDraftStoryline(storyline.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      minWidth: 0,
-                      border: 'none',
-                      background: 'transparent',
-                      padding: 0,
-                      color: 'hsl(var(--ink-2))',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
                   >
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: '50%',
-                        background: color,
-                        flex: '0 0 auto',
-                      }}
-                    />
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 14,
-                        fontWeight: selected ? 700 : 500,
-                      }}
-                    >
-                      {storyline.name}
-                    </span>
+                    <KindMark kind="storyline" color={color} />
+                    <span className="ui-toggle-row__label">{storyline.name}</span>
                   </button>
-                  <label
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      color: selected ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
+                  <button
+                    type="button"
+                    className="scope-toggle glass glass--rest"
+                    aria-pressed={isMain}
+                    disabled={!selected}
+                    onClick={() => handleSelectDraftMain(storyline.id)}
                   >
-                    <input
-                      type="radio"
-                      name="main-storyline"
-                      checked={isMain}
-                      disabled={!selected}
-                      onChange={() => handleSelectDraftMain(storyline.id)}
-                    />
                     {t('editChapterStoryline.main')}
-                  </label>
+                  </button>
                 </div>
               );
             })
