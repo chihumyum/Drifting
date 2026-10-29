@@ -11,6 +11,12 @@ records a watchdog-confirmed stall during a long-document/whole-book transition,
 material-card rendering, search, 25 open tabs and canonical persistence checks.
 It includes exact coverage gaps and Debug measurement limits.
 
+The 2026-10-29 [asset bind validation reads](asset-bind-validation-reads.md) fix
+batches the stored-row reads that every write's full-projection validation makes
+for each bound image and PDF: on the heavy seed a keystroke's save transaction
+drops from 211 to 36 statements. Typing CPU is dominated by the Markdown
+projection, not by these reads.
+
 The 2026-10-17 [IME text lookup](ime-text-lookup.md) fix ends each desktop editor
 surface with a zero-width caret candidate. Before the fix, the macOS input
 method's text lookups near a chapter's end walked one character at a time through

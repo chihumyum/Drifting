@@ -157,7 +157,9 @@ A non-equivalent locked endpoint projection still fails closed, while editable
 relation types retain explicit replacement semantics. Yjs uses
 the existing repository with `remote` revision provenance. Assets require a
 locally verified blob, immutable matching metadata, one typed owner, and a
-kind-compatible owner row. SyncGeneration purge calls the existing transactional
+kind-compatible owner row. Every apply rechecks every bind in the projection, so
+a blocked bind lands once it becomes admissible; those rows are read in batched
+queries rather than per bind. SyncGeneration purge calls the existing transactional
 project deletion kernel and preserves the SyncGeneration journal/receipt.
 
 Invalid semantic effects remain immutable reducer evidence but are returned

@@ -11,7 +11,7 @@ vi.hoisted(() => {
   vi.stubGlobal('window', { localStorage: globalThis.localStorage });
 });
 
-import { useUiStore } from './ui-store';
+import { isChapterInFront, useUiStore, type AnyTab, type LeafTab } from './ui-store';
 
 const state = () => useUiStore.getState();
 
@@ -52,5 +52,20 @@ describe('the one dock under the paper', () => {
     const restored = options.merge!({ plotPlannerHeight: 320 }, useUiStore.getInitialState());
     expect(restored).not.toHaveProperty('plotPlannerHeight');
     expect(options.partialize!(state())).not.toHaveProperty('plotPlannerHeight');
+  });
+
+  it('has the planner only while a chapter or drift is the focused page', () => {
+    const leaf = (entityType: LeafTab['entityType'], id: string) =>
+      ({ kind: 'leaf', entityType, id, isPreview: false }) as LeafTab;
+    const tabs = (openTabs: AnyTab[], activeTabKey: string | null) =>
+      ({ openTabs, activeTabKey, lastActiveContentTabKey: null });
+    expect(isChapterInFront(undefined)).toBe(false);
+    expect(isChapterInFront(tabs([leaf('node', 'n1')], null))).toBe(false);
+    expect(isChapterInFront(tabs([leaf('node', 'n1')], 'node:n1'))).toBe(true);
+    expect(isChapterInFront(tabs([leaf('storyline', 's1')], 'storyline:s1'))).toBe(false);
+    expect(isChapterInFront(tabs([leaf('all-chapters', 'all')], 'all-chapters:all'))).toBe(false);
+    const split = { kind: 'split' as const, id: 'p', left: leaf('node', 'n1'), right: leaf('storyline', 's1'), splitRatio: 0.5 };
+    expect(isChapterInFront(tabs([{ ...split, focused: 'left' }], 'split:p'))).toBe(true);
+    expect(isChapterInFront(tabs([{ ...split, focused: 'right' }], 'split:p'))).toBe(false);
   });
 });

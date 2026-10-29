@@ -1320,8 +1320,7 @@
     "done": "Done",
     "emptyCell": "Write something…",
     "fit": "Fit",
-    "fitTitle": "Fit to the window: size the whole table to fill it; new rows and columns then overflow instead of squeezing",
-    "noChapter": "The plot planner follows the chapter in front; this page has none."
+    "fitTitle": "Fit to the window: size the whole table to fill it; new rows and columns then overflow instead of squeezing"
   },
   "editorMainArea": {
     "openDashboard": "Open project home",

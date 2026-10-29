@@ -576,7 +576,10 @@
   z-index: 50;
   margin: 0;
   pointer-events: none;
-  filter: drop-shadow(0 8px 12px hsl(var(--ink-1) / 0.14));
+  filter: drop-shadow(0 8px 12px hsl(var(--shadow-ink) / 0.14));
+}
+.dark .app-tab--drag-ghost {
+  filter: drop-shadow(0 8px 12px hsl(var(--shadow-ink) / 0.4));
 }
 
 /* The dot the pill grew from sits out of the flow on the spot where the

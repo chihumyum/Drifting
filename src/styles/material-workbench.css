@@ -153,7 +153,7 @@
 }
 .material-stage__media {
   position: relative;
-  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.12);
+  box-shadow: 0 1px 3px hsl(var(--shadow-ink) / 0.12);
 }
 .material-stage__media--pdf {
   background: hsl(var(--surface));
@@ -175,7 +175,7 @@
   border: 1px solid hsl(var(--rule));
   border-radius: 3px;
   background: hsl(var(--paper) / 0.9);
-  box-shadow: 0 12px 24px -14px hsl(var(--ink-1) / 0.3);
+  box-shadow: 0 12px 24px -14px hsl(var(--shadow-ink) / 0.3);
   font-family: var(--font-mono);
   font-size: 11px;
   color: hsl(var(--ink-2));
@@ -425,7 +425,7 @@
   border: 1px solid hsl(var(--rule));
   border-radius: 6px;
   background: hsl(var(--paper));
-  box-shadow: 0 8px 22px -12px hsl(var(--ink-1) / 0.45);
+  box-shadow: 0 8px 22px -12px hsl(var(--shadow-ink) / 0.45);
   animation: note-floating-bar-in 120ms ease-out;
 }
 @keyframes note-floating-bar-in {
@@ -782,7 +782,7 @@
   border: 1px solid hsl(var(--rule-strong));
   border-radius: 8px;
   background: hsl(var(--surface));
-  box-shadow: 0 16px 36px -18px hsl(var(--ink-1) / 0.45);
+  box-shadow: 0 16px 36px -18px hsl(var(--shadow-ink) / 0.45);
 }
 .region-composer textarea {
   display: block;
