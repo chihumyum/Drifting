@@ -1,0 +1,49 @@
+{
+  "kind": "synthetic_yjs_durability_work_bounds",
+  "source": "b5fbe7fe1934df09785f035ba5671b8b5cf71e9bae3b333a9ec63cb48ebfc5f3",
+  "documents": 25,
+  "recovered": 25,
+  "phases": [
+    {
+      "name": "twenty-idle-project-barriers",
+      "elapsedMs": 334.51691700000015,
+      "cpuMs": 387.105,
+      "snapshots": 500,
+      "snapshotBytes": 32014900,
+      "compactions": 500,
+      "tailReads": 500,
+      "authoredUpdates": 0
+    },
+    {
+      "name": "one-edited-document-project-barrier",
+      "elapsedMs": 19.66608300000007,
+      "cpuMs": 35.729,
+      "snapshots": 25,
+      "snapshotBytes": 1600778,
+      "compactions": 25,
+      "tailReads": 26,
+      "authoredUpdates": 1
+    },
+    {
+      "name": "twenty-barriers-after-save",
+      "elapsedMs": 330.95358399999986,
+      "cpuMs": 428.254,
+      "snapshots": 500,
+      "snapshotBytes": 32015560,
+      "compactions": 500,
+      "tailReads": 500,
+      "authoredUpdates": 0
+    },
+    {
+      "name": "release-twenty-five-sessions",
+      "elapsedMs": 26.98337500000025,
+      "cpuMs": 44.362,
+      "snapshots": 25,
+      "snapshotBytes": 1600778,
+      "compactions": 25,
+      "tailReads": 25,
+      "authoredUpdates": 0
+    }
+  ],
+  "scope": "Real Yjs and production YjsDocumentSession; in-memory persistence adapter. Not native I/O, UI latency, undo or release acceptance."
+}

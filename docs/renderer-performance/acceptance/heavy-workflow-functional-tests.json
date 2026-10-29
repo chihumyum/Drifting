@@ -1,0 +1,14 @@
+{
+  "kind": "heavy_workflow_full_test_summary",
+  "generatedAt": "2026-10-29T11:03:28.057Z",
+  "fingerprint": "2cd50ec418b74bd675f6c119257734458dd9ded4d4f5e2afece92740ee929162",
+  "command": "pnpm test --maxWorkers=1 --reporter=json --outputFile=.local-data/heavy-workflow/tests.json",
+  "tests": {
+    "passed": 3962,
+    "skipped": 5,
+    "failed": 0,
+    "success": true
+  },
+  "sourceReportSha256": "fd8880bca4ca926910670721247c16b1751998f55fc3b399f36ad000af916da7",
+  "scope": "Full unit and integration suite. This is not native performance acceptance."
+}

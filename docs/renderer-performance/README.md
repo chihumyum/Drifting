@@ -1,5 +1,11 @@
 # Renderer performance work and evidence
 
+The [heavy-workflow architecture](heavy-workflow-architecture.md) defines proposed
+interaction budgets, phased document/data boundaries and measured incremental
+Yjs snapshot reuse and retained-view rendering containment. The final native run
+still records a close-tab stall; the strict performance gate remains failed.
+Future phases are explicitly unimplemented.
+
 The 2026-10-29 [heavy-seed native audit](stress-seed-native-findings-2026-10-29.md)
 records a watchdog-confirmed stall during a long-document/whole-book transition,
 material-card rendering, search, 25 open tabs and canonical persistence checks.

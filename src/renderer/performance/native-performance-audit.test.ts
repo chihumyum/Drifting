@@ -1,3 +1,4 @@
+import { sourceErrorFrames } from '../../../scripts/native-performance-audit-probe';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -10,6 +11,18 @@ import { describe, expect, it } from 'vitest';
 import { nativePerformanceAuditPlugin } from '../../../scripts/native-performance-audit-plugin.mjs';
 
 describe('native development performance audit', () => {
+  it('retains only bounded source locations from error stacks', () => {
+    const frames = sourceErrorFrames([
+      'RangeError: private manuscript and secret-token',
+      'privateName@http://127.0.0.1:37510/src/renderer/example.ts?t=secret-token:21:9',
+      'privateName@http://127.0.0.1:37510/node_modules/.vite/deps/editor.js?v=secret-token:99:3',
+      'http://private.example/src/private.ts:1:2',
+      'http://127.0.0.1:37510/assets/manuscript.md:1:2',
+    ].join('\n'));
+    expect(frames).toEqual(['/src/renderer/example.ts:21:9', '/node_modules/.vite/deps/editor.js:99:3']);
+    expect(sourceErrorFrames(Array(50).fill('f@http://127.0.0.1:1/src/editor.ts:2:3').join('\n'))).toHaveLength(8);
+  });
+
   it('keeps its control endpoint private and accepts only authenticated bounded telemetry', async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'drifting-perf-audit-'));
     const plugin = nativePerformanceAuditPlugin({ directory, origin: 'http://127.0.0.1' });

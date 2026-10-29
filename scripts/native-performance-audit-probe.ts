@@ -20,6 +20,14 @@ function add(b: Bucket, value: number) {
   else b.dropped++;
 }
 
+/** App source locations only: omit error messages, function names and query strings. */
+export function sourceErrorFrames(stack: string): string[] {
+  return stack.split('\n').flatMap(line => {
+    const frame = line.match(/https?:\/\/127\.0\.0\.1:\d+(\/(?:src|node_modules)\/[A-Za-z0-9_./@%-]+\.(?:tsx?|m?js))(?:\?[^\s:]*)?:(\d+):(\d+)/);
+    return frame ? [`${frame[1]}:${frame[2]}:${frame[3]}`] : [];
+  }).slice(0, 8);
+}
+
 let installed = false;
 export function installNativePerformanceAudit({ endpoint, token }: { endpoint: string; token: string }) {
   if (installed) return;
@@ -45,6 +53,7 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
   // the collection environment, not a fallback to focus-based timings.
   const active = () => document.visibilityState === 'visible';
   let errors: string[] = [];
+  let errorFrames: string[][] = [];
   let pendingInputs = 0;
   let visibilityEpoch = 0;
   document.addEventListener('visibilitychange', () => {
@@ -147,7 +156,10 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
   }, { passive: true, capture: true });
   const failure = (kind: string, error: unknown) => {
     const name = error instanceof Error && /^(TypeError|RangeError|ReferenceError|SyntaxError|Error)$/.test(error.name) ? error.name : 'unknown';
-    if (errors.length < 10) errors.push(`${kind}:${name}`);
+    if (errors.length < 10) {
+      errors.push(`${kind}:${name}`);
+      errorFrames.push(error instanceof Error ? sourceErrorFrames(error.stack ?? '') : []);
+    }
   };
   window.addEventListener('error', event => failure('window-error', event.error));
   window.addEventListener('unhandledrejection', event => failure('unhandled-rejection', event.reason));
@@ -180,7 +192,7 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
       renderCalls: Object.fromEntries(renderCalls),
       frameGaps: frames, inputToTwoRaf: input, timerDelay: timer, reactCommits: commits,
       componentRenders: [...components].sort((a, b) => b[1].selfMs - a[1].selfMs).slice(0, 30).map(([name, values]) => ({ name, ...values })),
-      mutations, commitErrors, errors,
+      mutations, commitErrors, errors, errorFrames,
       ipc: [...ipc].map(([command, stats]) => ({ command, ...stats })), inFlight, maxInFlight,
       nativeProcesses,
       dom: { elements: document.getElementsByTagName('*').length, editors: document.querySelectorAll('.ProseMirror').length, canvases: document.querySelectorAll('canvas').length, svg: document.querySelectorAll('svg').length },
@@ -190,7 +202,7 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
     data.snapshotMs = performance.now() - before;
     frames = bucket(); input = bucket(); timer = bucket(); commits = bucket(); observationMs = 0; commitErrors = 0;
     mutations = { attributes: 0, characterData: 0, childList: 0, added: 0, removed: 0 };
-    components = new Map(); errors = []; longTasks = bucket(); windowStarted = now;
+    components = new Map(); errors = []; errorFrames = []; longTasks = bucket(); windowStarted = now;
     ipc = new Map(); maxInFlight = inFlight;
     renderCalls = new Map();
     sending = true;

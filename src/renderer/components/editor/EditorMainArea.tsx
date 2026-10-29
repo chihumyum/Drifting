@@ -1,3 +1,4 @@
+import { editorSurfaceContentVisibility } from '../../features/editor/surface-rendering';
 import {
   memo,
   useCallback,
@@ -353,6 +354,7 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
         minWidth: 0,
         overflow: 'hidden',
         visibility: isVisible ? 'visible' : 'hidden',
+        contentVisibility: editorSurfaceContentVisibility(isVisible, isDesired),
         pointerEvents: isInteractive ? 'auto' : 'none',
         zIndex: isVisible ? 1 : 0,
       }}

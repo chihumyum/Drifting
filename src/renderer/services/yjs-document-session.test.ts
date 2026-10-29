@@ -85,6 +85,90 @@ async function settleFinalClose(session: {
 }
 
 describe('YjsDocumentSessionRegistry', () => {
+  it('reuses a loaded snapshot across idle barriers and final close', async () => {
+    const { registry, repo, dependencies } = createHarness();
+    vi.mocked(repo.getSnapshot).mockResolvedValue({ docId: 'node-content:idle', stateBlob: yjsUpdate('unchanged'), updatedAt: '' });
+    const session = registry.get('project-1', 'node-content:idle', 'user-1');
+    const release = session.retain();
+    await session.waitUntilLoaded();
+    for (let i = 0; i < 10; i++) await session.flushLocalState();
+    release(); await settleFinalClose(session);
+    expect(repo.upsertSnapshot).not.toHaveBeenCalled();
+    expect(dependencies.compactUpdatesAfterSnapshot).not.toHaveBeenCalled();
+    // Reuse never bypasses the durable-tail check.
+    expect(repo.listUpdates).toHaveBeenCalledTimes(12);
+  });
+
+  it('captures delete-only changes even though the state vector stays identical', async () => {
+    const { registry, repo } = createHarness();
+    const session = registry.get('project-1', 'node-content:delete-only', 'user-1');
+    const release = session.retain(); await session.waitUntilLoaded();
+    session.ydoc.getText('body').insert(0, 'abc'); await session.flushLocalState();
+    const vector = Y.encodeStateVector(session.ydoc);
+    session.ydoc.getText('body').delete(1, 1); await session.flushLocalState();
+    expect(Y.encodeStateVector(session.ydoc)).toEqual(vector);
+    expect(repo.upsertSnapshot).toHaveBeenCalledTimes(2);
+    const snapshots = vi.mocked(repo.upsertSnapshot).mock.calls;
+    const recovered = new Y.Doc(); Y.applyUpdate(recovered, snapshots[snapshots.length - 1]![1]);
+    expect(recovered.getText('body').toString()).toBe('ac'); recovered.destroy();
+    release(); await settleFinalClose(session);
+    expect(repo.upsertSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps an edit arriving during snapshot I/O dirty for the next barrier', async () => {
+    const { registry, repo } = createHarness();
+    const session = registry.get('project-1', 'node-content:during-io', 'user-1');
+    const release = session.retain(); await session.waitUntilLoaded();
+    let unblock!: () => void; let started!: () => void;
+    const writing = new Promise<void>(resolve => { started = resolve; });
+    vi.mocked(repo.upsertSnapshot).mockImplementationOnce(async () => {
+      started(); await new Promise<void>(resolve => { unblock = resolve; });
+    });
+    session.ydoc.getText('body').insert(0, 'a');
+    const flush = session.flushLocalState(); await writing;
+    session.ydoc.getText('body').insert(1, 'b'); unblock(); await flush;
+    await session.flushLocalState(); await session.flushLocalState();
+    expect(repo.upsertSnapshot).toHaveBeenCalledTimes(2);
+    const snapshots = vi.mocked(repo.upsertSnapshot).mock.calls;
+    const recovered = new Y.Doc(); Y.applyUpdate(recovered, snapshots[snapshots.length - 1]![1]);
+    expect(recovered.getText('body').toString()).toBe('ab'); recovered.destroy();
+    release(); await settleFinalClose(session);
+  });
+
+  it('snapshots an unresolved durable tail before it can be compacted', async () => {
+    const { registry, repo, dependencies, persistUpdate } = createHarness();
+    const id = 'node-content:pending-structs';
+    const empty = new Y.Doc();
+    vi.mocked(repo.getSnapshot).mockResolvedValue({ docId: id, stateBlob: Y.encodeStateAsUpdate(empty), updatedAt: '' }); empty.destroy();
+    const source = new Y.Doc(); source.getText('body').insert(0, 'a');
+    const first = Y.encodeStateAsUpdate(source), vector = Y.encodeStateVector(source);
+    source.getText('body').insert(1, 'b'); const second = Y.encodeStateAsUpdate(source, vector); source.destroy();
+    const session = registry.get('project-1', id, 'user-1');
+    const release = session.retain(); await session.waitUntilLoaded();
+    persistUpdate(id, second, 31); // Missing predecessor: no Yjs content event yet.
+    await session.flushLocalState();
+    expect(session.ydoc.getText('body').toString()).toBe('');
+    expect(repo.upsertSnapshot).toHaveBeenCalledOnce();
+    expect(dependencies.compactUpdatesAfterSnapshot).toHaveBeenCalledWith(id, 31, repo);
+    const recovered = new Y.Doc(); Y.applyUpdate(recovered, vi.mocked(repo.upsertSnapshot).mock.calls[0]![1]);
+    Y.applyUpdate(recovered, first);
+    expect(recovered.getText('body').toString()).toBe('ab'); recovered.destroy();
+    release(); await settleFinalClose(session);
+  });
+
+  it('retries failed compaction without encoding and writing the same snapshot again', async () => {
+    const { registry, repo, dependencies } = createHarness();
+    const session = registry.get('project-1', 'node-content:compact-retry', 'user-1');
+    const release = session.retain(); await session.waitUntilLoaded();
+    vi.mocked(dependencies.compactUpdatesAfterSnapshot).mockRejectedValueOnce(new Error('temporary compaction failure'));
+    session.ydoc.getText('body').insert(0, 'durable');
+    await expect(session.flushLocalState()).rejects.toThrow('failed to persist');
+    await session.flushLocalState();
+    expect(repo.upsertSnapshot).toHaveBeenCalledOnce();
+    expect(dependencies.compactUpdatesAfterSnapshot).toHaveBeenCalledTimes(2);
+    release(); await settleFinalClose(session);
+  });
+
   it('does not append an update that an atomic coordinator already persisted', async () => {
     const { dependencies, registry } = createHarness();
     const session = registry.get('project-1', 'node-content:persisted-agent', 'user-1');

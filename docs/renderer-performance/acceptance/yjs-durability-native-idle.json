@@ -1,0 +1,17 @@
+{
+  "kind": "native_idle_yjs_snapshot_reuse",
+  "generatedAt": "2026-10-29T10:58:15.043Z",
+  "fingerprint": "2cd50ec418b74bd675f6c119257734458dd9ded4d4f5e2afece92740ee929162",
+  "status": "passed-read-only-checks",
+  "snapshotsBefore": 45,
+  "snapshotsAfter": 45,
+  "changedSnapshots": 0,
+  "createdSnapshots": 0,
+  "checks": {
+    "sourceMatched": true,
+    "noIdleSnapshotRewrite": true,
+    "sqliteIntegrity": true,
+    "foreignKeys": true
+  },
+  "scope": "Before/after SQLite metadata for the isolated synthetic native instance. UI save actions and editor count are recorded separately in the native audit; this does not measure input latency or undo."
+}

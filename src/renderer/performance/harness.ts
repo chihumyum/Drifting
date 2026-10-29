@@ -1,3 +1,4 @@
+import { runSurfaceContainmentScenarios } from './surface-containment-scenarios';
 import { runEntityLinkPresentationScenarios } from './entity-link-presentation-scenarios';
 import { runDocumentImportScenarios } from './document-import-scenarios';
 import { runRetroactiveLinkMatchingScenarios } from './retroactive-link-matching-scenarios';
@@ -185,7 +186,7 @@ Object.assign(window, { __DRIFTING_PERFORMANCE_HARNESS__: {
       environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio } };
   },
   async editorFocus() {
-    return { scenarios: [], editorContextMenus: await runEditorContextMenuScenarios(),
+    return { scenarios: [], surfaceContainment: await runSurfaceContainmentScenarios(), editorContextMenus: await runEditorContextMenuScenarios(),
       environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio } };
   },
 } });

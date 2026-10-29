@@ -2,6 +2,7 @@ import loglevel from 'loglevel';
 import * as Y from 'yjs';
 
 import { initDatabase } from '../lib/db';
+import { beginDevActivity } from '../lib/dev-activity';
 import { readPersistedYjsUpdateOrigin } from '../lib/yjs-persistence-origin';
 import { createYjsRepository, type YjsRepository } from '../sqlite-repo/yjs-repo';
 import {
@@ -96,6 +97,12 @@ export class YjsDocumentSession {
   private snapshotCoveredUpdateId = 0;
   private writeQueue: Promise<void> = Promise.resolve();
   private writeErrors: unknown[] = [];
+  // Content events also include delete-only updates. A state vector alone
+  // cannot establish that a snapshot contains the current delete set.
+  private stateVersion = 0;
+  private snapshotCapture: { version: number; coveredId: number } | null = null;
+  private compactedUpdateId = 0;
+  private readonly noteStateChange = (): void => { this.stateVersion++; };
 
   constructor(
     readonly projectId: string,
@@ -105,6 +112,9 @@ export class YjsDocumentSession {
     private readonly dispose: (session: YjsDocumentSession) => void,
   ) {
     this.repo = dependencies.createRepository();
+    // Keep this observer through deferred close/remount, when the persistence
+    // listener may be detached but a durable tail can still change the Doc.
+    this.ydoc.on('update', this.noteStateChange);
   }
 
   getSnapshot = (): YjsDocumentSessionSnapshot => this.snapshot;
@@ -191,7 +201,7 @@ export class YjsDocumentSession {
       // state inside the same serial queue so compaction can never cover a row
       // that this live Y.Doc has not actually absorbed.
       await this.applyPersistedTail();
-      await this.persistSnapshotAndCompact(Y.encodeStateAsUpdate(this.ydoc));
+      await this.persistSnapshotAndCompact();
     });
     await this.flushPendingWrites();
   }
@@ -264,7 +274,10 @@ export class YjsDocumentSession {
     await this.dependencies.initDatabase(this.userId);
 
     const snapshot = await this.repo.getSnapshot(this.docId);
-    if (snapshot) Y.applyUpdate(this.ydoc, snapshot.stateBlob, 'load');
+    if (snapshot) {
+      Y.applyUpdate(this.ydoc, snapshot.stateBlob, 'load');
+      this.snapshotCapture = { version: this.stateVersion, coveredId: 0 };
+    }
 
     const updates = await this.repo.listUpdates(this.docId);
     for (const item of updates) {
@@ -299,9 +312,11 @@ export class YjsDocumentSession {
             `Persisted Yjs seed ${persisted.updateId} for ${this.docId} was not visible in SQLite`,
           );
         }
+        const capture = { version: this.stateVersion, coveredId: this.snapshotCoveredUpdateId };
         await this.repo.upsertSnapshot(this.docId, Y.encodeStateAsUpdate(this.ydoc), {
           advanceRevision: false,
         });
+        this.snapshotCapture = capture;
       }
     }
 
@@ -368,7 +383,7 @@ export class YjsDocumentSession {
       this.localUpdatesSinceSnapshot += 1;
 
       if (this.localUpdatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES) {
-        await this.persistSnapshotAndCompact(Y.encodeStateAsUpdate(this.ydoc));
+        await this.persistSnapshotAndCompact();
         this.localUpdatesSinceSnapshot = 0;
       }
     });
@@ -405,21 +420,27 @@ export class YjsDocumentSession {
   }
 
   private async persistSnapshotAndCompact(
-    fullState: Uint8Array,
     reason: 'periodic' | 'close' = 'periodic',
   ): Promise<void> {
-    // Read the session-owned cursor inside the serial queue. It can only name
-    // rows that this same Y.Doc successfully replayed or appended before this
-    // exact fullState capture was queued.
-    const coveredId = this.snapshotCoveredUpdateId;
-    // A snapshot only compacts already-durable CRDT state. Advancing the
-    // semantic revision here makes a no-op flush look like a competing edit
-    // and breaks exact Agent review rollback after the editor is mounted.
-    await this.repo.upsertSnapshot(this.docId, fullState, {
-      advanceRevision: false,
-    });
-    this.dependencies.captureSnapshotHistory(this.docId, fullState, reason);
-    await this.dependencies.compactUpdatesAfterSnapshot(this.docId, coveredId, this.repo);
+    // Tail coverage also changes when Yjs emits no content event (duplicate or
+    // unresolved updates). Never compact a newer row against an older capture.
+    const capture = { version: this.stateVersion, coveredId: this.snapshotCoveredUpdateId };
+    const changed = !this.snapshotCapture || this.snapshotCapture.version !== capture.version
+      || this.snapshotCapture.coveredId !== capture.coveredId;
+    if (changed) {
+      const end = beginDevActivity('yjs:snapshot-encode', { docKind: this.docId.split(':')[0] ?? 'unknown' });
+      let fullState: Uint8Array;
+      try { fullState = Y.encodeStateAsUpdate(this.ydoc); } finally { end(); }
+      await this.repo.upsertSnapshot(this.docId, fullState, { advanceRevision: false });
+      this.dependencies.captureSnapshotHistory(this.docId, fullState, reason);
+      // An edit may arrive while the write awaits I/O. Only mark the captured
+      // version clean; the later edit and its append remain pending.
+      this.snapshotCapture = capture;
+    }
+    if (changed || capture.coveredId > this.compactedUpdateId) {
+      await this.dependencies.compactUpdatesAfterSnapshot(this.docId, capture.coveredId, this.repo);
+      this.compactedUpdateId = capture.coveredId;
+    }
   }
 
   private beginFinalClose(generation: number): void {
@@ -430,7 +451,7 @@ export class YjsDocumentSession {
     if (this.status === 'ready') {
       this.enqueueWrite(async () => {
         await this.applyPersistedTail();
-        await this.persistSnapshotAndCompact(Y.encodeStateAsUpdate(this.ydoc), 'close');
+        await this.persistSnapshotAndCompact('close');
       });
     }
 

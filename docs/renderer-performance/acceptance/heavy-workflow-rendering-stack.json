@@ -1,0 +1,21 @@
+{
+  "kind": "native_rendering_stack_signals",
+  "generatedAt": "2026-10-29T10:50:02.562Z",
+  "reportSha256": "fd7c7e10312f1c16ca3cf9db023f5b18910b41c6896bd3b750f9eb5d88ab1bf8",
+  "samples": [
+    {
+      "sha256": "ba5b36d5bfd8273d2d19e270f86b1f577b626b541965edb45a55c418ce2e188c",
+      "signals": {
+        "renderingUpdate": true,
+        "layout": true,
+        "styleResolution": true,
+        "ruleMatching": true,
+        "json": false,
+        "gc": true
+      }
+    }
+  ],
+  "limits": [
+    "Samples span recovery. Signals establish presence only, not proportions, root cause or forced-layout counts. No paths, messages, text or raw stacks are exported."
+  ]
+}

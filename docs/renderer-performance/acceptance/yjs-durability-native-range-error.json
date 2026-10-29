@@ -1,0 +1,1755 @@
+{
+  "kind": "native_stress_seed_ui_audit",
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T10:24:57.905Z",
+  "status": "observations-only-coverage-must-be-reviewed",
+  "source": {
+    "head": "3f7fbd51c3241d5516f7b220f714d7866c408ea2",
+    "dirty": true,
+    "fingerprint": "4d1d7457588301b08e0d428b4db163aef13254b31cd4eb42cabd8746b0f7ebc6",
+    "files": 2668,
+    "recordedAt": "2026-10-29T10:14:28.663Z"
+  },
+  "analysis": {
+    "scriptSha256": "f1d955c8e9b3ab84a384986531d9cba7bab43e70f96166c9fe755526ee08a997",
+    "rawSamplesSha256": "e760f441567c5e69adf6649cbfab8c47f5d09ffc9b5aef385be28d23e211de3f",
+    "markersSha256": "836638a37ca361f1bdd6fc6b8ac218464249de435ee1642b29bd76553ecf80e4"
+  },
+  "artifact": {
+    "mode": "current-isolated-debug",
+    "sha256": "8ade371a19eb638668fc6cad08c50abecd8e8688466a94bed2c4e84e84bec834"
+  },
+  "observations": {
+    "samples": 273,
+    "visibleSamples": 268,
+    "focusOnlySamples": 0,
+    "comparableSamples": 263,
+    "inputSamples": 282,
+    "processSamples": 205
+  },
+  "measurement": {
+    "build": "debug-vite-react-strict-mode",
+    "endpoint": "input dispatch to second requestAnimationFrame; not compositor presentation",
+    "exclusions": "latency, component timings and function counters require document-visible buckets entirely after their marker; hidden/focus-only and marker-boundary buckets excluded",
+    "componentTimings": "root React Profiler actualDuration plus chained development Fiber metadata; render phase only; not layout/paint or total commit work",
+    "renderCalls": "injected function-entry calls; includes development Strict Mode double invocation; not committed renders",
+    "overhead": "observerMs measures the Fiber walk; snapshotMs measures snapshot creation; neither accounts for all instrumentation overhead",
+    "memory": "recorded separately from OS samples; no JavaScript heap API assumption",
+    "supportedEntries": [
+      "event",
+      "first-input",
+      "largest-contentful-paint",
+      "mark",
+      "measure",
+      "navigation",
+      "paint",
+      "resource"
+    ]
+  },
+  "phases": [
+    {
+      "marker": "startup",
+      "samples": 72,
+      "visibleSamples": 71,
+      "comparableSamples": 71,
+      "activityBasis": {
+        "inactive": 1,
+        "document-visible": 71
+      },
+      "firstAt": 1793268906532,
+      "lastAt": 1793269052019,
+      "metrics": {
+        "frameGaps": {
+          "count": 8098,
+          "retained": 8098,
+          "dropped": 0,
+          "p50": 17,
+          "p95": 21,
+          "max": 472,
+          "over50": 103,
+          "over100": 20,
+          "over1000": 0
+        },
+        "inputToTwoRaf": {
+          "count": 96,
+          "retained": 96,
+          "dropped": 0,
+          "p50": 26,
+          "p95": 145,
+          "max": 387,
+          "over50": 23,
+          "over100": 11,
+          "over1000": 0
+        },
+        "timerDelay": {
+          "count": 566,
+          "retained": 566,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 17,
+          "max": 415,
+          "over50": 14,
+          "over100": 4,
+          "over1000": 0
+        },
+        "reactCommits": {
+          "count": 493,
+          "retained": 493,
+          "dropped": 0,
+          "p50": 1,
+          "p95": 11,
+          "max": 45,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        }
+      },
+      "dom": {
+        "first": {
+          "elements": 35,
+          "editors": 0,
+          "canvases": 0,
+          "svg": 0
+        },
+        "last": {
+          "elements": 9994,
+          "editors": 25,
+          "canvases": 1,
+          "svg": 1
+        },
+        "minElements": 35,
+        "minEditors": 0,
+        "maxElements": 9994,
+        "maxEditors": 25
+      },
+      "mutations": 11826,
+      "commitErrors": 0,
+      "errors": [],
+      "observerMs": 252,
+      "snapshotMs": 11,
+      "components": [
+        {
+          "name": "ChapterEditor",
+          "renders": 132,
+          "selfMs": 212,
+          "maxSelfMs": 24
+        },
+        {
+          "name": "ChapterPanel",
+          "renders": 145,
+          "selfMs": 208,
+          "maxSelfMs": 5
+        },
+        {
+          "name": "NodeEditorSession2",
+          "renders": 267,
+          "selfMs": 92,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 60,
+          "selfMs": 90,
+          "maxSelfMs": 4
+        },
+        {
+          "name": "SandCell2",
+          "renders": 258,
+          "selfMs": 88,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 58,
+          "selfMs": 87,
+          "maxSelfMs": 5
+        },
+        {
+          "name": "KindMark",
+          "renders": 71,
+          "selfMs": 58,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 49,
+          "selfMs": 40,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ChapterEndMenu",
+          "renders": 55,
+          "selfMs": 36,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorBarMenu",
+          "renders": 35,
+          "selfMs": 33,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "SandFrame",
+          "renders": 32,
+          "selfMs": 30,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "UserMenu",
+          "renders": 28,
+          "selfMs": 28,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "PreAlphaOnboardingDialog",
+          "renders": 1,
+          "selfMs": 28,
+          "maxSelfMs": 28
+        },
+        {
+          "name": "LeftSidebarSubHeader",
+          "renders": 29,
+          "selfMs": 25,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ProjectDashboard2",
+          "renders": 3,
+          "selfMs": 23,
+          "maxSelfMs": 17
+        },
+        {
+          "name": "GroupHeaderCell",
+          "renders": 34,
+          "selfMs": 23,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorTopBar",
+          "renders": 70,
+          "selfMs": 18,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 319,
+          "selfMs": 17,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "WorkspaceAccountCell",
+          "renders": 53,
+          "selfMs": 17,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Routes",
+          "renders": 299,
+          "selfMs": 16,
+          "maxSelfMs": 2
+        }
+      ],
+      "renderCalls": {
+        "ElementPanel": 4,
+        "ChapterPanel": 288
+      },
+      "processes": [
+        {
+          "role": "native",
+          "samples": 5,
+          "firstRssKiB": 121104,
+          "lastRssKiB": 122368,
+          "peakRssKiB": 123232,
+          "maxCpuPercent": 5.7
+        },
+        {
+          "role": "web-content",
+          "samples": 5,
+          "firstRssKiB": 257184,
+          "lastRssKiB": 264752,
+          "peakRssKiB": 264752,
+          "maxCpuPercent": 65.6
+        }
+      ],
+      "ipc": [
+        {
+          "command": "database_query",
+          "calls": 10461,
+          "failures": 0,
+          "durationMs": 82687,
+          "maxMs": 1843,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_open",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 18026,
+          "maxMs": 18026,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "dev_watchdog_heartbeat",
+          "calls": 568,
+          "failures": 0,
+          "durationMs": 2827,
+          "maxMs": 126,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_begin",
+          "calls": 1263,
+          "failures": 0,
+          "durationMs": 2417,
+          "maxMs": 343,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "markdown_projection_write",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 1743,
+          "maxMs": 1743,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_commit",
+          "calls": 1263,
+          "failures": 0,
+          "durationMs": 1482,
+          "maxMs": 27,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_execute",
+          "calls": 623,
+          "failures": 0,
+          "durationMs": 1022,
+          "maxMs": 147,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "deep_link_take_pending",
+          "calls": 26,
+          "failures": 0,
+          "durationMs": 392,
+          "maxMs": 66,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "sync_object_gc_orphans",
+          "calls": 2,
+          "failures": 0,
+          "durationMs": 146,
+          "maxMs": 144,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "window_set_close_returns_to_shelf",
+          "calls": 3,
+          "failures": 0,
+          "durationMs": 43,
+          "maxMs": 17,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "asset_store_gc_orphan_imports",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 38,
+          "maxMs": 38,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "sync_asset_finalize_restore_attempt",
+          "calls": 12,
+          "failures": 0,
+          "durationMs": 27,
+          "maxMs": 11,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "markdown_projection_info",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 18,
+          "maxMs": 18,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "keychain_get",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 17,
+          "maxMs": 17,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "mcp_server_attach",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 7,
+          "maxMs": 7,
+          "rows": 0,
+          "stringChars": 64
+        },
+        {
+          "command": "sync_asset_gc_restore_attempts",
+          "calls": 2,
+          "failures": 0,
+          "durationMs": 6,
+          "maxMs": 6,
+          "rows": 0,
+          "stringChars": 0
+        }
+      ]
+    },
+    {
+      "marker": "durability-25-tabs",
+      "samples": 33,
+      "visibleSamples": 33,
+      "comparableSamples": 32,
+      "activityBasis": {
+        "document-visible": 33
+      },
+      "firstAt": 1793269054075,
+      "lastAt": 1793269119121,
+      "metrics": {
+        "frameGaps": {
+          "count": 3841,
+          "retained": 3841,
+          "dropped": 0,
+          "p50": 17,
+          "p95": 18,
+          "max": 120,
+          "over50": 5,
+          "over100": 1,
+          "over1000": 0
+        },
+        "inputToTwoRaf": {
+          "count": 2,
+          "retained": 2,
+          "dropped": 0,
+          "p50": 34,
+          "p95": 96,
+          "max": 96,
+          "over50": 1,
+          "over100": 0,
+          "over1000": 0
+        },
+        "timerDelay": {
+          "count": 256,
+          "retained": 256,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 10,
+          "max": 34,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "reactCommits": {
+          "count": 9,
+          "retained": 9,
+          "dropped": 0,
+          "p50": 4,
+          "p95": 5,
+          "max": 5,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        }
+      },
+      "dom": {
+        "first": {
+          "elements": 9994,
+          "editors": 25,
+          "canvases": 1,
+          "svg": 1
+        },
+        "last": {
+          "elements": 9044,
+          "editors": 25,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 9044,
+        "minEditors": 25,
+        "maxElements": 9994,
+        "maxEditors": 25
+      },
+      "mutations": 931,
+      "commitErrors": 0,
+      "errors": [],
+      "observerMs": 9,
+      "snapshotMs": 1,
+      "components": [
+        {
+          "name": "TopTimeline",
+          "renders": 6,
+          "selfMs": 22,
+          "maxSelfMs": 5
+        },
+        {
+          "name": "SidebarToggleButton",
+          "renders": 1,
+          "selfMs": 2,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "Sidebar",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "QueryClientProvider",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "HashRouter",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Router",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "App",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "RootErrorBoundary",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "AppContents",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "AppRoutes",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Routes",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "RenderedRoute",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "ProtectedRoute",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "DeferredProjectRoute",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Workspace",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "DesktopAppShell",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "ProjectRuntimeProvider",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "SuperViewRelationUiProvider",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 8,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        }
+      ],
+      "renderCalls": {},
+      "processes": [
+        {
+          "role": "native",
+          "samples": 33,
+          "firstRssKiB": 122288,
+          "lastRssKiB": 128896,
+          "peakRssKiB": 130864,
+          "maxCpuPercent": 6.2
+        },
+        {
+          "role": "web-content",
+          "samples": 33,
+          "firstRssKiB": 264336,
+          "lastRssKiB": 311568,
+          "peakRssKiB": 322144,
+          "maxCpuPercent": 75.7
+        }
+      ],
+      "ipc": [
+        {
+          "command": "dev_watchdog_heartbeat",
+          "calls": 256,
+          "failures": 0,
+          "durationMs": 862,
+          "maxMs": 57,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_query",
+          "calls": 32,
+          "failures": 0,
+          "durationMs": 292,
+          "maxMs": 57,
+          "rows": 0,
+          "stringChars": 0
+        }
+      ]
+    },
+    {
+      "marker": "durability-idle-saves",
+      "samples": 13,
+      "visibleSamples": 13,
+      "comparableSamples": 12,
+      "activityBasis": {
+        "document-visible": 13
+      },
+      "firstAt": 1793269121153,
+      "lastAt": 1793269145525,
+      "metrics": {
+        "frameGaps": {
+          "count": 1449,
+          "retained": 1449,
+          "dropped": 0,
+          "p50": 17,
+          "p95": 18,
+          "max": 75,
+          "over50": 2,
+          "over100": 0,
+          "over1000": 0
+        },
+        "inputToTwoRaf": {
+          "count": 20,
+          "retained": 20,
+          "dropped": 0,
+          "p50": 22,
+          "p95": 43,
+          "max": 47,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "timerDelay": {
+          "count": 96,
+          "retained": 96,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 10,
+          "max": 46,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "reactCommits": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        }
+      },
+      "dom": {
+        "first": {
+          "elements": 9044,
+          "editors": 25,
+          "canvases": 0,
+          "svg": 1
+        },
+        "last": {
+          "elements": 9044,
+          "editors": 25,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 9044,
+        "minEditors": 25,
+        "maxElements": 9044,
+        "maxEditors": 25
+      },
+      "mutations": 0,
+      "commitErrors": 0,
+      "errors": [],
+      "observerMs": 0,
+      "snapshotMs": 1,
+      "components": [],
+      "renderCalls": {},
+      "processes": [
+        {
+          "role": "native",
+          "samples": 13,
+          "firstRssKiB": 128880,
+          "lastRssKiB": 127264,
+          "peakRssKiB": 130608,
+          "maxCpuPercent": 4.8
+        },
+        {
+          "role": "web-content",
+          "samples": 13,
+          "firstRssKiB": 311648,
+          "lastRssKiB": 314480,
+          "peakRssKiB": 519680,
+          "maxCpuPercent": 52.8
+        }
+      ],
+      "ipc": [
+        {
+          "command": "database_query",
+          "calls": 640,
+          "failures": 0,
+          "durationMs": 8000,
+          "maxMs": 36,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "dev_watchdog_heartbeat",
+          "calls": 96,
+          "failures": 0,
+          "durationMs": 311,
+          "maxMs": 23,
+          "rows": 0,
+          "stringChars": 0
+        }
+      ]
+    },
+    {
+      "marker": "durability-write",
+      "samples": 121,
+      "visibleSamples": 121,
+      "comparableSamples": 120,
+      "activityBasis": {
+        "document-visible": 121
+      },
+      "firstAt": 1793269147549,
+      "lastAt": 1793269391681,
+      "metrics": {
+        "frameGaps": {
+          "count": 14360,
+          "retained": 14360,
+          "dropped": 0,
+          "p50": 17,
+          "p95": 18,
+          "max": 353,
+          "over50": 47,
+          "over100": 12,
+          "over1000": 0
+        },
+        "inputToTwoRaf": {
+          "count": 94,
+          "retained": 94,
+          "dropped": 0,
+          "p50": 25,
+          "p95": 472,
+          "max": 505,
+          "over50": 15,
+          "over100": 12,
+          "over1000": 0
+        },
+        "timerDelay": {
+          "count": 959,
+          "retained": 959,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 10,
+          "max": 274,
+          "over50": 8,
+          "over100": 2,
+          "over1000": 0
+        },
+        "reactCommits": {
+          "count": 84,
+          "retained": 84,
+          "dropped": 0,
+          "p50": 1,
+          "p95": 19,
+          "max": 30,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        }
+      },
+      "dom": {
+        "first": {
+          "elements": 9044,
+          "editors": 25,
+          "canvases": 0,
+          "svg": 1
+        },
+        "last": {
+          "elements": 9240,
+          "editors": 25,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 9044,
+        "minEditors": 25,
+        "maxElements": 9240,
+        "maxEditors": 25
+      },
+      "mutations": 1046,
+      "commitErrors": 0,
+      "errors": [
+        "window-error:RangeError"
+      ],
+      "observerMs": 46,
+      "snapshotMs": 11,
+      "components": [
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 10,
+          "selfMs": 30,
+          "maxSelfMs": 6
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 25,
+          "selfMs": 30,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "ProjectDashboard2",
+          "renders": 3,
+          "selfMs": 28,
+          "maxSelfMs": 14
+        },
+        {
+          "name": "LeafTabSlot",
+          "renders": 27,
+          "selfMs": 18,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ChapterEditor",
+          "renders": 13,
+          "selfMs": 16,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "NodeEditorSession2",
+          "renders": 30,
+          "selfMs": 15,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "EditorFindPanel",
+          "renders": 15,
+          "selfMs": 14,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "AllChaptersEditorView",
+          "renders": 7,
+          "selfMs": 10,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "WorkspaceTabDock",
+          "renders": 3,
+          "selfMs": 7,
+          "maxSelfMs": 6
+        },
+        {
+          "name": "EditorBarMenu",
+          "renders": 7,
+          "selfMs": 7,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 6,
+          "selfMs": 6,
+          "maxSelfMs": 4
+        },
+        {
+          "name": "EditorTopBar",
+          "renders": 11,
+          "selfMs": 5,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Routes",
+          "renders": 49,
+          "selfMs": 4,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "ProjectRuntimeProvider",
+          "renders": 40,
+          "selfMs": 3,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 49,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 7,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorMainArea",
+          "renders": 26,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorScrollMarkers",
+          "renders": 3,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "AgentEditAnimator",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "PatchCreateModal",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        }
+      ],
+      "renderCalls": {},
+      "processes": [
+        {
+          "role": "native",
+          "samples": 120,
+          "firstRssKiB": 127296,
+          "lastRssKiB": 115504,
+          "peakRssKiB": 352640,
+          "maxCpuPercent": 91.5
+        },
+        {
+          "role": "web-content",
+          "samples": 120,
+          "firstRssKiB": 314672,
+          "lastRssKiB": 523152,
+          "peakRssKiB": 1076480,
+          "maxCpuPercent": 170.9
+        }
+      ],
+      "ipc": [
+        {
+          "command": "database_query",
+          "calls": 5306,
+          "failures": 0,
+          "durationMs": 449697,
+          "maxMs": 17346,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_execute",
+          "calls": 3503,
+          "failures": 0,
+          "durationMs": 14323,
+          "maxMs": 452,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "dev_watchdog_heartbeat",
+          "calls": 959,
+          "failures": 0,
+          "durationMs": 3450,
+          "maxMs": 108,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "markdown_projection_write",
+          "calls": 2,
+          "failures": 0,
+          "durationMs": 2747,
+          "maxMs": 1427,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_begin",
+          "calls": 93,
+          "failures": 0,
+          "durationMs": 418,
+          "maxMs": 44,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_commit",
+          "calls": 93,
+          "failures": 0,
+          "durationMs": 407,
+          "maxMs": 22,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "markdown_projection_info",
+          "calls": 2,
+          "failures": 0,
+          "durationMs": 33,
+          "maxMs": 18,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "deep_link_take_pending",
+          "calls": 3,
+          "failures": 0,
+          "durationMs": 22,
+          "maxMs": 11,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "sync_installation_identity",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 10,
+          "maxMs": 10,
+          "rows": 0,
+          "stringChars": 72
+        }
+      ]
+    },
+    {
+      "marker": "durability-close",
+      "samples": 14,
+      "visibleSamples": 14,
+      "comparableSamples": 13,
+      "activityBasis": {
+        "document-visible": 14
+      },
+      "firstAt": 1793269393698,
+      "lastAt": 1793269420442,
+      "metrics": {
+        "frameGaps": {
+          "count": 1448,
+          "retained": 1448,
+          "dropped": 0,
+          "p50": 17,
+          "p95": 35,
+          "max": 212,
+          "over50": 33,
+          "over100": 3,
+          "over1000": 0
+        },
+        "inputToTwoRaf": {
+          "count": 25,
+          "retained": 25,
+          "dropped": 0,
+          "p50": 100,
+          "p95": 223,
+          "max": 256,
+          "over50": 25,
+          "over100": 12,
+          "over1000": 0
+        },
+        "timerDelay": {
+          "count": 104,
+          "retained": 104,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 32,
+          "max": 139,
+          "over50": 3,
+          "over100": 1,
+          "over1000": 0
+        },
+        "reactCommits": {
+          "count": 148,
+          "retained": 148,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 6,
+          "max": 16,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        }
+      },
+      "dom": {
+        "first": {
+          "elements": 9240,
+          "editors": 25,
+          "canvases": 0,
+          "svg": 1
+        },
+        "last": {
+          "elements": 1236,
+          "editors": 0,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 1236,
+        "minEditors": 0,
+        "maxElements": 9240,
+        "maxEditors": 25
+      },
+      "mutations": 7965,
+      "commitErrors": 0,
+      "errors": [],
+      "observerMs": 20,
+      "snapshotMs": 3,
+      "components": [
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 50,
+          "selfMs": 63,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 46,
+          "selfMs": 41,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "ChapterEditor",
+          "renders": 38,
+          "selfMs": 31,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "LeafTabSlot",
+          "renders": 36,
+          "selfMs": 29,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "NodeEditorSession2",
+          "renders": 83,
+          "selfMs": 26,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorBarMenu",
+          "renders": 15,
+          "selfMs": 15,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 13,
+          "selfMs": 13,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Routes",
+          "renders": 100,
+          "selfMs": 11,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "ChapterEndMenu",
+          "renders": 9,
+          "selfMs": 9,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorTopBar",
+          "renders": 23,
+          "selfMs": 7,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 84,
+          "selfMs": 5,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 6,
+          "selfMs": 5,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "BrushIcon",
+          "renders": 4,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "AllChaptersEditorView",
+          "renders": 4,
+          "selfMs": 3,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "ProjectRuntimeProvider",
+          "renders": 100,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "CopilotInlinePopover",
+          "renders": 3,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ActRail",
+          "renders": 3,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "TimelineToggle",
+          "renders": 4,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ImportDialog",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "AgentEditAnimator",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        }
+      ],
+      "renderCalls": {},
+      "processes": [
+        {
+          "role": "native",
+          "samples": 15,
+          "firstRssKiB": 115504,
+          "lastRssKiB": 112352,
+          "peakRssKiB": 115504,
+          "maxCpuPercent": 11.3
+        },
+        {
+          "role": "web-content",
+          "samples": 15,
+          "firstRssKiB": 523152,
+          "lastRssKiB": 647184,
+          "peakRssKiB": 712912,
+          "maxCpuPercent": 90.6
+        }
+      ],
+      "ipc": [
+        {
+          "command": "database_query",
+          "calls": 119,
+          "failures": 0,
+          "durationMs": 1815,
+          "maxMs": 172,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "dev_watchdog_heartbeat",
+          "calls": 103,
+          "failures": 0,
+          "durationMs": 390,
+          "maxMs": 27,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "deep_link_take_pending",
+          "calls": 25,
+          "failures": 0,
+          "durationMs": 26,
+          "maxMs": 3,
+          "rows": 0,
+          "stringChars": 0
+        }
+      ]
+    },
+    {
+      "marker": "durability-reopen",
+      "samples": 20,
+      "visibleSamples": 16,
+      "comparableSamples": 15,
+      "activityBasis": {
+        "document-visible": 16,
+        "inactive": 4
+      },
+      "firstAt": 1793269422458,
+      "lastAt": 1793269488879,
+      "metrics": {
+        "frameGaps": {
+          "count": 1742,
+          "retained": 1742,
+          "dropped": 0,
+          "p50": 17,
+          "p95": 18,
+          "max": 331,
+          "over50": 12,
+          "over100": 2,
+          "over1000": 0
+        },
+        "inputToTwoRaf": {
+          "count": 45,
+          "retained": 45,
+          "dropped": 0,
+          "p50": 25,
+          "p95": 45,
+          "max": 78,
+          "over50": 1,
+          "over100": 0,
+          "over1000": 0
+        },
+        "timerDelay": {
+          "count": 118,
+          "retained": 118,
+          "dropped": 0,
+          "p50": 2,
+          "p95": 5,
+          "max": 209,
+          "over50": 2,
+          "over100": 1,
+          "over1000": 0
+        },
+        "reactCommits": {
+          "count": 51,
+          "retained": 51,
+          "dropped": 0,
+          "p50": 1,
+          "p95": 9,
+          "max": 30,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "retained": 0,
+          "dropped": 0,
+          "p50": null,
+          "p95": null,
+          "max": 0,
+          "over50": 0,
+          "over100": 0,
+          "over1000": 0
+        }
+      },
+      "dom": {
+        "first": {
+          "elements": 1236,
+          "editors": 0,
+          "canvases": 0,
+          "svg": 1
+        },
+        "last": {
+          "elements": 1783,
+          "editors": 1,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 49,
+        "minEditors": 0,
+        "maxElements": 1783,
+        "maxEditors": 1
+      },
+      "mutations": 1843,
+      "commitErrors": 0,
+      "errors": [],
+      "observerMs": 2,
+      "snapshotMs": 5,
+      "components": [
+        {
+          "name": "ChapterEditor",
+          "renders": 5,
+          "selfMs": 20,
+          "maxSelfMs": 17
+        },
+        {
+          "name": "ProjectDashboard2",
+          "renders": 4,
+          "selfMs": 14,
+          "maxSelfMs": 10
+        },
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 4,
+          "selfMs": 11,
+          "maxSelfMs": 7
+        },
+        {
+          "name": "GlobalSearchSession",
+          "renders": 17,
+          "selfMs": 8,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 4,
+          "selfMs": 6,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "ProjectPickerView",
+          "renders": 3,
+          "selfMs": 5,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "ProjectRuntimeProvider",
+          "renders": 37,
+          "selfMs": 4,
+          "maxSelfMs": 4
+        },
+        {
+          "name": "NodeEditorSession2",
+          "renders": 11,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 4,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "BrushIcon",
+          "renders": 4,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Routes",
+          "renders": 40,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ImportDialog",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ProjectAgentHomeView",
+          "renders": 3,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 36,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorMainArea",
+          "renders": 17,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorTopBar",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Anonymous",
+          "renders": 4,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "UserMenu",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Router",
+          "renders": 40,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DeferredProjectRoute",
+          "renders": 37,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        }
+      ],
+      "renderCalls": {},
+      "processes": [
+        {
+          "role": "native",
+          "samples": 19,
+          "firstRssKiB": 112256,
+          "lastRssKiB": 213072,
+          "peakRssKiB": 243168,
+          "maxCpuPercent": 129.5
+        },
+        {
+          "role": "web-content",
+          "samples": 19,
+          "firstRssKiB": 646976,
+          "lastRssKiB": 532384,
+          "peakRssKiB": 729280,
+          "maxCpuPercent": 88.4
+        }
+      ],
+      "ipc": [
+        {
+          "command": "database_query",
+          "calls": 9612,
+          "failures": 0,
+          "durationMs": 57850,
+          "maxMs": 1604,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_begin",
+          "calls": 1202,
+          "failures": 0,
+          "durationMs": 1903,
+          "maxMs": 252,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_commit",
+          "calls": 1201,
+          "failures": 0,
+          "durationMs": 1297,
+          "maxMs": 57,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "markdown_projection_write",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 1227,
+          "maxMs": 1227,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "database_execute",
+          "calls": 592,
+          "failures": 0,
+          "durationMs": 635,
+          "maxMs": 10,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "dev_watchdog_heartbeat",
+          "calls": 122,
+          "failures": 0,
+          "durationMs": 281,
+          "maxMs": 49,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "window_set_close_returns_to_shelf",
+          "calls": 3,
+          "failures": 0,
+          "durationMs": 45,
+          "maxMs": 17,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "markdown_projection_info",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 18,
+          "maxMs": 18,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "mcp_server_attach",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 12,
+          "maxMs": 12,
+          "rows": 0,
+          "stringChars": 64
+        },
+        {
+          "command": "keychain_get",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 12,
+          "maxMs": 12,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "sync_asset_finalize_restore_attempt",
+          "calls": 6,
+          "failures": 0,
+          "durationMs": 7,
+          "maxMs": 2,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "deep_link_take_pending",
+          "calls": 2,
+          "failures": 0,
+          "durationMs": 5,
+          "maxMs": 4,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "sync_object_gc_orphans",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 3,
+          "maxMs": 3,
+          "rows": 0,
+          "stringChars": 0
+        },
+        {
+          "command": "sync_asset_gc_restore_attempts",
+          "calls": 1,
+          "failures": 0,
+          "durationMs": 1,
+          "maxMs": 1,
+          "rows": 0,
+          "stringChars": 0
+        }
+      ]
+    }
+  ]
+}

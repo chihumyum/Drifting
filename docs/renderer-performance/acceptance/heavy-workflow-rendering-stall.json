@@ -1,0 +1,81 @@
+{
+  "kind": "native_stress_seed_persistence",
+  "generatedAt": "2026-10-29T10:36:37.143Z",
+  "status": "passed-read-only-reopen-checks",
+  "scriptSha256": "c325d32c93bfaf2254eec97ed00eeb2a799cb96904d2c639a5840cab99410d3f",
+  "checks": {
+    "chapter-20k-canonical-marker": true,
+    "chapter-20k-word-cache": true,
+    "idea-50k-canonical-marker": true,
+    "postFixCanonicalWrite": true,
+    "idea-50k-word-cache": true,
+    "element-10k-canonical-marker": true,
+    "material-note-canonical-marker": true,
+    "reviewMarkers": true,
+    "commentNodeAndElementRelations": true,
+    "graphRelation": true,
+    "elementRelation": true,
+    "materialTitle": true,
+    "agentWorkingMemory": true,
+    "sqliteIntegrity": true,
+    "foreignKeys": true,
+    "chapterCountExcludesIdeas": true,
+    "workerProjectionHashes": true,
+    "workerProjectionPostFixWrite": true
+  },
+  "bodies": [
+    {
+      "key": "chapter-20k",
+      "words": 20041,
+      "canonicalSha256": "1b67f52efde5f736b7d7e86038e4f0ebb4e23a94b303fed9a43a9a7f23dbe817"
+    },
+    {
+      "key": "idea-50k",
+      "words": 50079,
+      "canonicalSha256": "59a1a8899461c216818ffa4a7545728e617024a84b10dfaeab576453ee1dc712"
+    },
+    {
+      "key": "element-10k",
+      "words": 10020,
+      "canonicalSha256": "33dbb714a3b0f0f3306d382c1821304b8a37b8ec42c2c230989f4facb582744f"
+    },
+    {
+      "key": "material-note",
+      "words": 10018,
+      "canonicalSha256": "f8b3286baa939affbfb1aee153b5f61e29abff9a9b3988c644ef3ebd48c9f105"
+    }
+  ],
+  "projection": {
+    "files": 755,
+    "documents": 918,
+    "manifestSha256": "3fe0eadc634922a94f7f2d2b8fb39b3b8a217551cbe95a341c207f0a2a570347",
+    "generatedAt": "2026-10-29T10:36:02.465Z"
+  },
+  "watchdog": {
+    "since": "2026-10-29T10:28:37.728Z",
+    "logSha256": "5b9330c072704956f155112c2b469e18295cd9c28181c15b6204e99e0cc0a88b",
+    "stalls": [
+      {
+        "event": "stall",
+        "at": "2026-10-29T18:35:00.124+08:00",
+        "nativeSilentMs": 1250,
+        "blocked": null,
+        "rendererBlockedMs": null,
+        "activities": []
+      },
+      {
+        "event": "stall-recovered",
+        "at": "2026-10-29T18:35:02.004+08:00",
+        "nativeSilentMs": 1879,
+        "blocked": "renderer",
+        "rendererBlockedMs": 1627,
+        "activities": []
+      }
+    ],
+    "samples": []
+  },
+  "limits": [
+    "Checks existing synthetic UI writes only; does not author or repair prose.",
+    "RSS and native stack samples are not JavaScript heap snapshots or proof of a leak."
+  ]
+}
