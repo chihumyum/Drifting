@@ -3,7 +3,7 @@ import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { useSidebarPreference, useSidebarPanelState, useSidebarSelection, useSidebarPanelScroll } from '../../hooks/useSidebarPanelState';
 import { useSidebarPaneId } from '../../lib/sidebar-pane-context';
 import { useLeftSidebarPanelWidth } from '../../hooks/useLeftSidebarPanelWidth';
-import { useMemo, useCallback, useEffect } from 'react';
+import { memo, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
@@ -63,6 +63,131 @@ const formatWordCount = (n: number) => {
   if (n < 10000) return `${(n / 1000).toFixed(1)}k`;
   return `${Math.round(n / 1000)}k`;
 };
+
+interface ChapterRowActions {
+  enter(target: EntityHoverTarget, anchor: HTMLElement): void;
+  leave(): void;
+  activate(nodeId: string, agentChanged: boolean): void;
+  promote(): void;
+}
+
+// Cell layout: [chapter seal] [title] [date]. The seal is pressed in the
+// primary storyline's colour; unaffiliated chapters use a quiet neutral
+// gray instead of disappearing.
+const ChapterRow = memo(function ChapterRow({
+  node,
+  selected,
+  stripeColor,
+  agentBusy,
+  agentAdded,
+  agentChanged,
+  meta,
+  presentation,
+  actions,
+}: {
+  node: BookNode;
+  selected: boolean;
+  stripeColor: string;
+  agentBusy: boolean;
+  agentAdded: boolean;
+  agentChanged: boolean;
+  meta: string;
+  presentation: 'desktop' | 'mobile';
+  actions: ChapterRowActions;
+}) {
+  const { t } = useTranslation();
+  const exactWordCount = canonicalWordCount(node);
+  const wordCountLabel =
+    exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
+
+  return (
+    <SandCell
+      selected={selected}
+      color={stripeColor}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        margin: '0 6px',
+        padding: `5px 10px 5px ${CELL_PAD_LEFT}px`,
+        borderRadius: 3,
+        cursor: 'pointer',
+        color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+        fontSize: 'var(--ui-font-body, 12.5px)',
+        lineHeight: 'var(--ui-line-body, 1.35)',
+        minHeight: 'var(--ui-row-height, 0px)',
+      }}
+      onMouseEnter={(event) => {
+        actions.enter({ kind: 'node', id: node.id }, event.currentTarget);
+      }}
+      onMouseLeave={() => {
+        actions.leave();
+      }}
+      onClick={() => actions.activate(node.id, agentChanged)}
+      onDoubleClick={presentation === 'desktop' ? () => actions.promote() : undefined}
+    >
+      {agentAdded || agentChanged ? (
+        <AgentChangeIndicator
+          onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
+          title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+          style={{
+            width: 14,
+            flexShrink: 0,
+            textAlign: 'center',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--ui-font-caption, 10px)',
+            fontWeight: 600,
+            lineHeight: 1,
+            color: 'hsl(var(--ink-2))',
+          }}
+        >
+          {agentAdded ? 'A' : 'M'}
+        </AgentChangeIndicator>
+      ) : (
+        // Agent status rides the seal while working: accent and pulsing.
+        <KindMark
+          kind="chapter"
+          seed={node.id}
+          color={stripeColor}
+          busy={agentBusy}
+          title={agentBusy ? t('agentActivity.working') : undefined}
+        />
+      )}
+
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          color: 'inherit',
+          letterSpacing: '-0.005em',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span>{node.title || t('common.untitled')}</span>
+      </div>
+
+      {meta !== 'none' && (
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--ui-font-caption, 9.5px)',
+            color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
+            flexShrink: 0,
+            letterSpacing: '0.04em',
+          }}
+        >
+          {meta === 'wordCount'
+            ? wordCountLabel
+            : meta === 'both'
+              ? `${wordCountLabel} · ${formatShortDate(node.updatedAt)}`
+              : formatShortDate(node.updatedAt)}
+        </span>
+      )}
+    </SandCell>
+  );
+});
 
 interface ChapterPanelProps {
   presentation?: 'desktop' | 'mobile';
@@ -307,115 +432,42 @@ export function ChapterPanel({
     [activateTarget, bookNodes, createNode],
   );
 
-  // Cell layout: [chapter seal] [title] [date]. The seal is pressed in the
-  // primary storyline's colour; unaffiliated chapters use a quiet neutral
-  // gray instead of disappearing.
+  // Rows are memoized and get stable actions, so a switch of the editor tab
+  // re-renders the two rows whose selection changed rather than every row.
+  const activateRef = useRef(activateTarget);
+  const promoteRef = useRef(promoteCurrentTab);
+  useLayoutEffect(() => {
+    activateRef.current = activateTarget;
+    promoteRef.current = promoteCurrentTab;
+  }, [activateTarget, promoteCurrentTab]);
+  const rowActions = useMemo<ChapterRowActions>(() => ({
+    enter: hoverEnter,
+    leave: hoverLeave,
+    activate: (nodeId, agentChanged) => {
+      hoverDismiss();
+      if (agentChanged) useAgentActivityStore.getState().clearTouched('node', nodeId);
+      activateRef.current({ entityType: 'node', id: nodeId });
+    },
+    promote: () => promoteRef.current(),
+  }), [hoverEnter, hoverLeave, hoverDismiss]);
+
   const renderNodeCard = (node: BookNode) => {
-    const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
     const agentAdded = !agentBusy && `node:${node.id}` in agentAdditions;
-    const agentChanged =
-      !agentBusy &&
-      !agentAdded &&
-      (`node:${node.id}` in agentTouched);
     const primaryId = primaryStorylineByNode[node.id] ?? null;
-    const storyline = primaryId ? storylineById.get(primaryId) : undefined;
-    const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;
-    const exactWordCount = canonicalWordCount(node);
-    const wordCountLabel =
-      exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
-
     return (
-      <SandCell
+      <ChapterRow
         key={node.id}
-        selected={selected}
-        color={stripeColor}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 9,
-          margin: '0 6px',
-          padding: `5px 10px 5px ${CELL_PAD_LEFT}px`,
-          borderRadius: 3,
-          cursor: 'pointer',
-          color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
-          fontSize: 'var(--ui-font-body, 12.5px)',
-          lineHeight: 'var(--ui-line-body, 1.35)',
-          minHeight: 'var(--ui-row-height, 0px)',
-        }}
-        onMouseEnter={(event) => {
-          hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
-        }}
-        onMouseLeave={() => {
-          hoverLeave();
-        }}
-        onClick={() => {
-          hoverDismiss();
-          if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
-          activateTarget({ entityType: 'node', id: node.id });
-        }}
-        onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
-      >
-        {agentAdded || agentChanged ? (
-          <AgentChangeIndicator
-            onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
-            title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
-            style={{
-              width: 14,
-              flexShrink: 0,
-              textAlign: 'center',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--ui-font-caption, 10px)',
-              fontWeight: 600,
-              lineHeight: 1,
-              color: 'hsl(var(--ink-2))',
-            }}
-          >
-            {agentAdded ? 'A' : 'M'}
-          </AgentChangeIndicator>
-        ) : (
-          // Agent status rides the seal while working: accent and pulsing.
-          <KindMark
-            kind="chapter"
-            seed={node.id}
-            color={stripeColor}
-            busy={agentBusy}
-            title={agentBusy ? t('agentActivity.working') : undefined}
-          />
-        )}
-
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            color: 'inherit',
-            letterSpacing: '-0.005em',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span>{node.title || t('common.untitled')}</span>
-        </div>
-
-        {showMeta && cellMeta !== 'none' && (
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--ui-font-caption, 9.5px)',
-              color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
-              flexShrink: 0,
-              letterSpacing: '0.04em',
-            }}
-          >
-            {cellMeta === 'wordCount'
-              ? wordCountLabel
-              : cellMeta === 'both'
-                ? `${wordCountLabel} · ${formatShortDate(node.updatedAt)}`
-                : formatShortDate(node.updatedAt)}
-          </span>
-        )}
-      </SandCell>
+        node={node}
+        selected={node.id === selectedNodeId}
+        stripeColor={(primaryId ? storylineById.get(primaryId)?.color : undefined) ?? UNAFFILIATED_STRIPE_COLOR}
+        agentBusy={agentBusy}
+        agentAdded={agentAdded}
+        agentChanged={!agentBusy && !agentAdded && `node:${node.id}` in agentTouched}
+        meta={showMeta ? cellMeta : 'none'}
+        presentation={presentation}
+        actions={rowActions}
+      />
     );
   };
 
