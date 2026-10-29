@@ -350,9 +350,16 @@ export function CategoryEditorView({
           >
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">{t('categoryEditor.folio')}</span>
-              <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>
-                {curCategory.name}
-              </span>
+              {glass ? (
+                <span className="page__folio-line page__folio-storyline">
+                  <KindMark kind="category" color={categoryColor} />
+                  {curCategory.name}
+                </span>
+              ) : (
+                <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>
+                  {curCategory.name}
+                </span>
+              )}
               <span className="page__folio-line">{t('categoryEditor.meta.elements', { count: cEls.length })}</span>
             </div>
 

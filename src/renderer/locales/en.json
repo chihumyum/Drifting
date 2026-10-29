@@ -2516,7 +2516,8 @@
       "unaffiliated": "Unaffiliated"
     },
     "storyline": {
-      "openTitle": "Open \"{{name}}\""
+      "openTitle": "Open \"{{name}}\"",
+      "chapterCount": "{{count}} ch"
     },
     "menu": {
       "moveToUnaffiliated": "Move to unaffiliated",
@@ -3050,6 +3051,7 @@
     "deleteConfirm": "Delete node \"{{name}}\"?",
     "folio": {
       "chapter": "Chapter",
+      "chapterNumber": "Chapter {{n}}",
       "drift": "Idea"
     },
     "empty": {
