@@ -1756,6 +1756,7 @@
       "openPdfFailed": "Cannot open PDF",
       "renderPdfFailed": "Cannot render PDF",
       "loadingPdf": "Loading PDF…",
+      "pages": "Pages",
       "previousPage": "Previous",
       "nextPage": "Next",
       "loading": "Loading…"
@@ -3435,6 +3436,7 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "zoomReset": "Fit to view",
+    "toolbar": "Material tools",
     "provenance": {
       "generated": "AI generated · {{model}} · {{date}}",
       "prompt": "Description",
@@ -3479,6 +3481,9 @@
       "placeholder": "What about this part? (⌘↩ to save)",
       "asTodo": "As a TODO",
       "save": "Save",
+      "kindLabel": "Comment type",
+      "kindNote": "Comment",
+      "kindTodo": "TODO",
       "listLabel": "Comments on this material",
       "empty": "Drag over the image or page to add the first comment.",
       "page": "Page {{page}}",

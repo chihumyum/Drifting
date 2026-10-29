@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/core';
 import type { Transaction } from '@tiptap/pm/state';
 
 import { useDataStore } from '../store/data-store';
+import { getPlatformRuntime } from '../platform/runtime';
 import { hasLinkedTodo, taskItemAtSelection } from './note-todo-links';
 
 /** Quiet time after typing before the bar comes back. */
@@ -108,17 +109,27 @@ export function NoteFloatingBar({
   }, [editor, head, visible, context?.inTable, context?.task, linked]);
 
   if (!visible || !context) return null;
+  // Desktop: a floating layer like the menus; only the action under the
+  // pointer flows out in glass (the menu row's ring).
+  const float = !getPlatformRuntime().isMobileShell;
   const table = (label: string, command: (chain: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) =>
     button(label, () => command(editor.chain().focus().setMeta('noteFloatingBar', true)).run());
   const button = (label: string, onClick: () => void, disabled = false) => (
-    <button key={label} type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick}>
+    <button
+      key={label}
+      type="button"
+      className={float ? 'menu-surface__item' : undefined}
+      disabled={disabled}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+    >
       {label}
     </button>
   );
   return createPortal(
     <div
       ref={barRef}
-      className="note-floating-bar"
+      className={`note-floating-bar${float ? ' note-floating-bar--float' : ''}`}
       role="toolbar"
       aria-label={t(context.task ? 'materialEditor.todo.toolbar' : 'materialEditor.table.toolbar')}
       style={{ visibility: 'hidden', left: 0, top: 0 }}

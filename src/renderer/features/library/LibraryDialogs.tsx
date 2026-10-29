@@ -12,6 +12,7 @@ import { type FocusedEntity } from './LibraryPanel';
 import { GlassSlider } from '../../components/ui/GlassSlider';
 import { useEscapeToClose } from './library-item-media';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compose dialogs
@@ -29,6 +30,7 @@ export function ComposeTodoDialog({
 }) {
   const { t } = useTranslation();
   useEscapeToClose(true, onCancel);
+  const glass = !getPlatformRuntime().isMobileShell;
   const [body, setBody] = useState('');
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
     focused.kind && focused.id && isStructuralEntityKind(focused.kind)
@@ -47,24 +49,26 @@ export function ComposeTodoDialog({
       }
       onCancel={onCancel}
     >
-      <textarea
-        autoFocus
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder={
-          kind === 'todo'
-            ? t('memoMaterial.dialog.todoPlaceholder')
-            : t('reviewPanel.commentPlaceholder')
-        }
-        rows={3}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            void onCreate(body, relations);
+      <GlassField glass={glass} area>
+        <textarea
+          autoFocus
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder={
+            kind === 'todo'
+              ? t('memoMaterial.dialog.todoPlaceholder')
+              : t('reviewPanel.commentPlaceholder')
           }
-        }}
-        style={dialogTextareaStyle}
-      />
+          rows={3}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void onCreate(body, relations);
+            }
+          }}
+          style={glass ? undefined : dialogTextareaStyle}
+        />
+      </GlassField>
       <div style={{ marginTop: 10 }}>
         <EntityRelationPicker
           selected={selectedSet}
@@ -108,6 +112,7 @@ export function ComposeLibraryItemDialog({
   onCreate: (input: CreateLibraryItemInput, relations: RelationTarget[]) => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const glass = !getPlatformRuntime().isMobileShell;
   const [kind, setKind] = useState<LibraryItemKind>('text');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -330,16 +335,27 @@ export function ComposeLibraryItemDialog({
         />
       </div>
 
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        disabled={submitting || picking}
-        placeholder={t('memoMaterial.dialog.titlePlaceholder')}
-        style={dialogInputStyle}
-      />
+      <GlassField glass={glass}>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={submitting || picking}
+          placeholder={t('memoMaterial.dialog.titlePlaceholder')}
+          style={glass ? undefined : dialogInputStyle}
+        />
+      </GlassField>
 
       {(kind === 'image' || kind === 'pdf') && (
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {glass ? (
+            // Desktop: the secondary button (the resting line of glass).
+            <Button size="sm" onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')} disabled={submitting || picking}>
+              {picking && <BrushIcon name="loader" size={13} className="control-spinner" />}
+              {picking
+                ? t('memoMaterial.dialog.openingPicker')
+                : t('memoMaterial.dialog.chooseFile')}
+            </Button>
+          ) : (
           <button
             onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')}
             disabled={submitting || picking}
@@ -359,6 +375,7 @@ export function ComposeLibraryItemDialog({
               ? t('memoMaterial.dialog.openingPicker')
               : t('memoMaterial.dialog.chooseFile')}
           </button>
+          )}
           {pickedSourcePath && (
             <span
               title={pickedSourcePath}
@@ -379,7 +396,7 @@ export function ComposeLibraryItemDialog({
       )}
 
       {submitting && (kind === 'image' || kind === 'pdf') && (
-        <div className="material-import-feedback" role="status" aria-live="polite">
+        <div className={`material-import-feedback${glass ? ' material-import-feedback--quiet' : ''}`} role="status" aria-live="polite">
           <BrushIcon name="loader" size={13} className="control-spinner" />
           <div>
             <div className="material-import-feedback__title">
@@ -397,26 +414,36 @@ export function ComposeLibraryItemDialog({
       )}
 
       {operationError && (
-        <div className="material-import-feedback material-import-feedback--error" role="alert">
+        <div
+          className={`material-import-feedback material-import-feedback--error${glass ? ' material-import-feedback--quiet' : ''}`}
+          role="alert"
+        >
+          {glass && <BrushIcon name="status-warning" size={13} />}
           {operationError}
         </div>
       )}
 
       {kind === 'text' && (
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={t('memoMaterial.card.snippetPlaceholder')}
-          rows={5}
-          style={{
-            ...dialogInputStyle,
-            marginTop: 8,
-            resize: 'vertical',
-            minHeight: 100,
-            maxHeight: 240,
-            fontFamily: 'var(--font-sans)',
-          }}
-        />
+        <GlassField glass={glass} area>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={t('memoMaterial.card.snippetPlaceholder')}
+            rows={5}
+            style={
+              glass
+                ? { minHeight: 100, maxHeight: 240 }
+                : {
+                    ...dialogInputStyle,
+                    marginTop: 8,
+                    resize: 'vertical',
+                    minHeight: 100,
+                    maxHeight: 240,
+                    fontFamily: 'var(--font-sans)',
+                  }
+            }
+          />
+        </GlassField>
       )}
 
       <div
@@ -490,6 +517,8 @@ function DialogActions({
   confirmLabel?: string;
 }) {
   const { t } = useTranslation();
+  // Desktop: cancel is a text button beside the one primary glass button.
+  const glass = !getPlatformRuntime().isMobileShell;
   return (
     <div
       style={{
@@ -499,7 +528,7 @@ function DialogActions({
         marginTop: 12,
       }}
     >
-      <Button size="sm" onClick={onCancel} disabled={confirmBusy}>
+      <Button size="sm" variant={glass ? 'ghost' : 'default'} onClick={onCancel} disabled={confirmBusy}>
         {t('common.cancel')}
       </Button>
       <Button
@@ -513,6 +542,16 @@ function DialogActions({
         {confirmLabel ?? t('memoMaterial.dialog.create')}
       </Button>
     </div>
+  );
+}
+
+/** Desktop: the shared field (components.md) — a paper slip with the resting line of glass. */
+function GlassField({ glass, area = false, children }: { glass: boolean; area?: boolean; children: React.ReactNode }) {
+  if (!glass) return <>{children}</>;
+  return (
+    <label className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field`}>
+      {children}
+    </label>
   );
 }
 

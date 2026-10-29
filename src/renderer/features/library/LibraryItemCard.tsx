@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
@@ -10,6 +10,11 @@ import '../../../styles/bottom-timeline.css';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { HoverCardHeading, HoverCardShell, type HoverActionGroup } from '../../components/ui/HoverCard';
 import { useHoverPreview } from '../entities/hover/entity-hover-card-model';
+import { KindMark } from '../../components/ui/KindMark';
+import { SandFrame } from '../../components/ui/SandFrame';
+import { BrushIcon } from '../../components/ui/BrushIcon';
+import { GhostIconButton } from '../../components/ui/GhostIconButton';
+import { getPlatformRuntime } from '../../platform/runtime';
 import {
   libraryItemSubtitle,
   useStoredLibraryItemVariant,
@@ -252,8 +257,161 @@ export function LibraryItemCard({
     setMobileMenu({ x: rect.right, y: rect.bottom + 4 });
   }, []);
 
-  return (
-    <>
+  // Desktop: a material is a sand cell (the upright slip, a ring of flowing
+  // glass under the pointer, a frame drawn round the one open in the active
+  // tab). The paused mobile shell keeps the older card below.
+  const glass = !getPlatformRuntime().isMobileShell;
+  const rowEvents = {
+    onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => {
+      setHover(true);
+      if (hoverEnabled) hoverEnter(null, event.currentTarget);
+    },
+    onMouseLeave: () => {
+      setHover(false);
+      hoverLeave();
+    },
+    onPointerDownCapture: hoverDismiss,
+    onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      if (!onPin || target?.closest('input, textarea, button, [contenteditable="true"]')) return;
+      onPin();
+    },
+  };
+  const startEditing = () => {
+    setDraft(material.title);
+    onSetEditing(true);
+  };
+  const titleInput = (
+    <input
+      autoFocus
+      value={draft}
+      aria-label={t('common.edit')}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== material.title) onUpdate({ title: draft });
+        onSetEditing(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+        if (e.key === 'Escape') {
+          setDraft(material.title);
+          onSetEditing(false);
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+  const expanded = canExpandImage ? imageExpanded : textExpanded;
+  const expandLabel = canExpandImage
+    ? imageExpanded ? t('memoMaterial.card.collapseImage') : t('memoMaterial.card.expandImage')
+    : textExpanded ? t('memoMaterial.card.collapseSnippet') : t('memoMaterial.card.expandSnippet');
+  const glassCard = (
+    <div
+      className={[
+        'library-item-card',
+        'sand-cell',
+        active ? 'is-selected' : '',
+      ].filter(Boolean).join(' ')}
+      style={{ '--cell-c': 'hsl(var(--ink-3))' } as CSSProperties}
+      aria-current={active ? 'page' : undefined}
+      {...rowEvents}
+    >
+      <div className="library-item-card__head">
+        {!isImageExpanded && <LibraryItemThumbnail material={material} onClick={handleOpenInApp} glass />}
+        <div className="library-item-card__text">
+          <div className="library-item-card__title-row">
+            <KindMark kind="material" color="hsl(var(--ink-3))" />
+            {editing ? (
+              <span className="library-item-card__title-field glass glass--rest glass--field">{titleInput}</span>
+            ) : (
+              <span
+                className="library-item-card__title"
+                onClick={startEditing}
+                title={material.title || subtitle}
+                role="button"
+                tabIndex={0}
+                aria-label={`${t('common.edit')} ${material.title || subtitle || t('common.untitled')}`}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  startEditing();
+                }}
+              >
+                {material.title || (
+                  <span className="library-item-card__title--untitled">{subtitle || t('common.untitled')}</span>
+                )}
+              </span>
+            )}
+            <span className="library-item-card__actions">
+              {(canExpandImage || isTextSnippet) && (
+                <GhostIconButton
+                  size="sm"
+                  icon={
+                    <BrushIcon
+                      name="chevron-right"
+                      size={12}
+                      className={expanded ? 'library-item-card__chevron--open' : undefined}
+                    />
+                  }
+                  title={expandLabel}
+                  aria-label={expandLabel}
+                  aria-expanded={expanded}
+                  onClick={() => (canExpandImage ? setImageExpanded((v) => !v) : setTextExpanded((v) => !v))}
+                />
+              )}
+              {!isTextSnippet && (
+                <GhostIconButton
+                  size="sm"
+                  icon={<BrushIcon name="arrow-out" size={12} />}
+                  title={t('memoMaterial.menu.openInSystem')}
+                  aria-label={t('memoMaterial.menu.openInSystem')}
+                  onClick={handleOpenInSystem}
+                />
+              )}
+            </span>
+          </div>
+          <div className="library-item-card__meta">
+            {[kindLabel, folderPath, isTextSnippet ? null : subtitle].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+      </div>
+      {isImageExpanded && (
+        <button
+          type="button"
+          className="library-item-card__image"
+          onClick={handleOpenInApp}
+          title={t('memoMaterial.card.fullscreenImage')}
+        >
+          <img src={imageSrc} alt="" />
+        </button>
+      )}
+      {isTextSnippet && (
+        <div className="library-item-card__excerpt">
+          <NoteExcerpt
+            bodyJson={material.kind === 'text' ? material.bodyJson : null}
+            emptyLabel={t('memoMaterial.card.addSnippetBody')}
+            clamp={!isTextExpanded}
+            onOpen={handleOpenInApp}
+          />
+        </div>
+      )}
+      {showPicker && (
+        <div className="library-item-card__extra">
+          <EntityRelationPicker
+            selected={selectedSet}
+            onAdd={onAddRelation}
+            onRemove={onRemoveRelation}
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+          />
+        </div>
+      )}
+      <i className="cell-ring" aria-hidden="true" />
+      <SandFrame selected={active} />
+    </div>
+  );
+
+  const legacyCard = (
       <div
         className={`workspace-list-row${active ? ' workspace-list-row--active' : ''}`}
         aria-current={active ? 'page' : undefined}
@@ -625,6 +783,11 @@ export function LibraryItemCard({
           </div>
         )}
       </div>
+  );
+
+  return (
+    <>
+      {glass ? glassCard : legacyCard}
       {hoverPreview && (
         <HoverCardShell
           anchor={hoverPreview.anchor}
@@ -657,9 +820,12 @@ export function LibraryItemCard({
 function LibraryItemThumbnail({
   material,
   onClick,
+  glass = false,
 }: {
   material: LibraryItem;
   onClick: () => void;
+  /** Desktop: no frame or fill; a PDF page is a small white sheet. */
+  glass?: boolean;
 }) {
   const { t } = useTranslation();
   const size = 64;
@@ -672,6 +838,29 @@ function LibraryItemThumbnail({
   const currentImageKey = `${material.id}:${material.assetId ?? ''}:${assetThumbnail.fileUrl ?? ''}`;
   const errored = errorKey === currentImageKey;
   const src = !errored && material.kind !== 'text' ? assetThumbnail.fileUrl : null;
+  if (glass) {
+    if (material.kind === 'text') return null;
+    const title = src
+      ? t('memoMaterial.preview.open')
+      : material.kind === 'pdf' ? t('memoMaterial.preview.generating') : t('memoMaterial.preview.open');
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={title}
+        aria-label={title}
+        className={`library-item-card__thumb library-item-card__thumb--${material.kind}`}
+      >
+        {src ? (
+          <img src={src} alt="" onError={() => setErrorKey(currentImageKey)} />
+        ) : material.kind === 'pdf' ? (
+          <BrushIcon name="loader" size={13} className="control-spinner" />
+        ) : (
+          <BrushIcon name="image" size={14} />
+        )}
+      </button>
+    );
+  }
   if (!src) {
     if (material.kind === 'text') return null;
     return (
