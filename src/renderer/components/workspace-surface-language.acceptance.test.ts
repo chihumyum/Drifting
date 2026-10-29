@@ -877,7 +877,7 @@ describe('workspace surface language acceptance', () => {
     expect(block(dashboard, '.dash-hero {', '.dash-hero__kicker {')).toMatch(
       /border-radius:\s*2px;[\s\S]*?box-shadow:\s*none;/,
     );
-    expect(block(picker, '.pp-card {', '.pp-card:hover {')).toMatch(
+    expect(block(picker, '.pp-card {', '.pp-card__body {')).toMatch(
       /border-radius:\s*2px;[\s\S]*?box-shadow:\s*none;/,
     );
     expect(block(agent, '.agt-composer {', '.agt-composer:focus-within {')).toContain(

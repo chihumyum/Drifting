@@ -1986,6 +1986,49 @@
       "summaryLabel": "Summary",
       "summaryPlaceholder": "Describe the book in one or two sentences.",
       "createSubmit": "Create"
+    },
+    "desk": {
+      "allBooks": "All books",
+      "count_one": "{{count}} book",
+      "count_other": "{{count}} books",
+      "filterLabel": "Filter books",
+      "viewLabel": "View",
+      "search": "Search books",
+      "newBook": "New book",
+      "newCard": "New book",
+      "newCardSub": "Start from a blank page",
+      "empty": "No books on the shelf yet.",
+      "noMatch": "No books match.",
+      "open": "Open “{{name}}”",
+      "moveToTrash": "Move to Recently Deleted",
+      "untitled": "Untitled",
+      "progress": "Progress",
+      "goal": "{{pct}}% · goal {{target}} words",
+      "wordsUnit": "words",
+      "chaptersUnit_one": "chapter",
+      "chaptersUnit_other": "chapters",
+      "storylinesUnit_one": "storyline",
+      "storylinesUnit_other": "storylines",
+      "elementsUnit_one": "element",
+      "elementsUnit_other": "elements",
+      "storylineCount_one": "{{count}} storyline",
+      "storylineCount_other": "{{count}} storylines",
+      "localLibrary": "Local library",
+      "trashEntry": "Recently Deleted",
+      "trashTitle": "Move “{{name}}” to Recently Deleted?",
+      "form": {
+        "createTitle": "New book",
+        "editTitle": "Edit “{{name}}”",
+        "nameLabel": "Title",
+        "summaryLabel": "Summary"
+      },
+      "trashList": {
+        "title": "Recently Deleted",
+        "sub": "Books stay here for 30 days and are then permanently deleted, including their Hosted data.",
+        "subLocal": "Books stay here for 30 days and are then permanently deleted.",
+        "empty": "No recently deleted books.",
+        "confirmTitle": "Permanently delete “{{name}}”?"
+      }
     }
   },
   "dashboard": {
