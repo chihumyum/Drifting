@@ -1,5 +1,7 @@
 /* Account sign-in. One compact flow serves the desktop dialog (inside the
-   shared .modal-card shell) and the mobile page (mobile-auth.css). */
+   shared .modal-card shell) and the mobile page (mobile-auth.css). The base
+   rules below are the paused mobile page's; the desktop dialog is built from
+   the shared controls and restyled under `.auth-flow--dialog` at the end. */
 
 .auth-flow {
   display: flex;
@@ -258,6 +260,126 @@
 .auth-flow a:focus-visible {
   outline: 2px solid hsl(var(--accent));
   outline-offset: 2px;
+}
+
+/* ─── Desktop dialog: the control layer ───────────────────────────────
+   Single-line fields (`.ui-field` glass), a full-width primary button, text
+   buttons for the other ways in, and a footer of one line with no rule or
+   band. Errors are the danger ink with its brush icon; the connection waits
+   on the brush loader. */
+.auth-flow--dialog .auth-flow__head {
+  min-height: 0;
+  padding: 18px 16px 6px 20px;
+}
+
+.auth-flow--dialog .auth-flow__head:has(.auth-flow__back) {
+  padding-left: 12px;
+}
+
+.auth-flow--dialog .auth-flow__back {
+  margin-left: 0;
+}
+
+.auth-flow--dialog .auth-flow__title {
+  font-size: var(--ui-font-heading, 16px);
+  line-height: 22px;
+}
+
+.auth-flow--dialog .auth-flow__body {
+  gap: 12px;
+  padding: 8px 20px 14px;
+}
+
+.auth-flow--dialog .auth-flow__lead {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+.auth-flow--dialog .auth-flow__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+.auth-flow--dialog .auth-flow__error > .brush-icon {
+  margin-top: 3px;
+}
+
+.auth-flow--dialog .auth-flow__label {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 var(--ui-font-caption, 12px) / 16px var(--font-mono);
+}
+
+.auth-flow--dialog .ui-field > .auth-flow__input {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--ui-font-body, 14px);
+  line-height: var(--ui-line-body, 20px);
+  transition: none;
+}
+
+.auth-flow--dialog .ui-field > .auth-flow__input--code {
+  font: 400 16px/20px var(--font-mono);
+  letter-spacing: 0.32em;
+}
+
+.auth-flow--dialog .ui-field > .auth-flow__input--code::placeholder {
+  font: 400 var(--ui-font-body, 14px) / 20px var(--font-sans);
+  letter-spacing: normal;
+}
+
+html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button--block.ui-button {
+  width: 100%;
+  height: var(--ui-row-height, 32px);
+  min-height: var(--ui-row-height, 32px);
+  margin-top: 2px;
+}
+
+.auth-flow--dialog .auth-flow__glass-button--text {
+  justify-self: center;
+}
+
+html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button--link.ui-button {
+  height: 16px;
+  min-height: 16px;
+  margin-right: -6px;
+  font: 400 var(--ui-font-caption, 12px) / 16px var(--font-sans);
+}
+
+html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button--foot.ui-button {
+  color: hsl(var(--ink-1));
+  font-weight: 600;
+}
+
+.auth-flow--dialog .auth-flow__legal {
+  font-size: var(--ui-font-caption, 12px);
+}
+
+.auth-flow--dialog .auth-flow__actions {
+  align-items: center;
+}
+
+.auth-flow--dialog .auth-flow__progress {
+  display: grid;
+  padding-bottom: 22px;
+}
+
+.auth-flow--dialog .auth-flow__foot {
+  gap: 2px;
+  padding: 2px 20px 18px;
+  border-top: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 13px);
 }
 
 /* Desktop first run: the choice sits on a quiet page before the shelf mounts,

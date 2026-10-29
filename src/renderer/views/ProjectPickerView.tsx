@@ -1,13 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { projectTrashExpiresAt, useProject, type ProjectSummary } from '../usecase/useProject';
 import type { Project } from '../domain/project';
 import { useAuthStore } from '../store/auth';
 import { hostedAccountSettingsEnabled } from '../features/settings/hosted-settings-policy';
-import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
-import { FilterChip } from '../components/ui/FilterChip';
+import { UserMenu } from '../components/topBars/UserMenu';
+import { AccountAvatar } from '../components/ui/AccountAvatar';
+import { Button } from '../components/ui/Button';
+import { EmptyState } from '../components/ui/EmptyState';
+import { GhostIconButton } from '../components/ui/GhostIconButton';
+import { GlassSlider } from '../components/ui/GlassSlider';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/Modal';
+import { SandCell } from '../components/ui/SandCell';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
@@ -21,6 +27,12 @@ import {
 import { events } from '../lib/events';
 import { canUseHostedService } from '../lib/config';
 import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
+import {
+  coverSeed,
+  peekSandCoverMasks,
+  requestSandCoverMasks,
+  sandCoverKey,
+} from '../lib/sand-cover';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { KindMark } from '../components/ui/KindMark';
@@ -270,6 +282,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           wordProgress:
             p.stats.wordsReady && wordTarget > 0
               ? Math.min(100, Math.max(0, (p.stats.words / wordTarget) * 100)) : null,
+          wordTarget,
         };
       }),
     [projects, i18n.language, writingPlans],
@@ -450,208 +463,189 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     );
   }
 
+  const openCreate = () => setCreateOpen(true);
+  const viewButton = (value: View, icon: 'view-grid' | 'view-list', label: string) => (
+    <GhostIconButton
+      size="lg"
+      glass="round"
+      className="pp-bar__view glass--rest"
+      icon={<BrushIcon name={icon} size={16} />}
+      onClick={() => setView(value)}
+      aria-pressed={view === value}
+      aria-label={label}
+      title={label}
+    />
+  );
+
   return (
     <div className="pp">
       <WindowDragStrip />
       <div className="pp__inner">
-        {/* ─── Header ─── */}
+        {/* ─── Header: the shelf's name and the account ─── */}
         <header className="pp-head">
-          <div>
-            <div className="pp-head__kicker">
-              <span>{t('projectPicker.header.workspace')}</span>
-            </div>
-            <h1 className="pp-head__title">{t('projectPicker.header.titleEm')}</h1>
-            <p className="pp-head__sub">{t('projectPicker.header.subtitle')}</p>
-          </div>
-          <aside className="pp-head__aside">
-            <div className="pp-head__user">
-              <div className="pp-head__user-name">
-                <div className="pp-head__user-name-main">
-                  {account?.name || account?.email || 'Drifting'}
-                </div>
-                <div className="pp-head__user-name-plan">{t('projectPicker.header.userPlan')}</div>
-              </div>
-              <UserAvatar
-                forwardRef={avatarRef}
-                initial={userInitial}
-                image={account?.image}
-                size={36}
-                fontSize={16}
-                title={t(
-                  hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
-                )}
-                onClick={() => setMenuOpen((v) => !v)}
-                expanded={menuOpen}
-              />
-            </div>
-            <UserMenu
-              triggerRef={avatarRef}
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-              scope="shelf"
-            />
-          </aside>
+          <h1 className="pp-head__title">{t('projectPicker.header.titleEm')}</h1>
+          <GhostIconButton
+            ref={avatarRef}
+            glass="round"
+            className="pp-head__account"
+            icon={
+              <span className="pp-head__avatar">
+                <AccountAvatar image={account?.image} initial={userInitial} />
+              </span>
+            }
+            title={t(
+              hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
+            )}
+            aria-label={t(
+              hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
+            )}
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          />
+          <UserMenu
+            triggerRef={avatarRef}
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            scope="shelf"
+          />
         </header>
 
-        {/* ─── Toolbar ─── */}
-        <div className="pp-toolbar">
-          <label className="pp-toolbar__search">
-            <BrushIcon name="search" size={17} />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={isZh(i18n.language) ? '搜索项目' : 'Search projects'}
-              aria-label={isZh(i18n.language) ? '搜索项目' : 'Search projects'}
-            />
-          </label>
-          <div className="pp-toolbar__chips">
-            {(
+        {/* ─── Toolbar: what is shown, how, and a new book ─── */}
+        <div className="pp-bar">
+          <h2 className="pp-bar__title">
+            <BrushIcon name="books" size={17} />
+            {t('projectPicker.desk.allBooks')}
+            <span className="pp-bar__count">
+              {t('projectPicker.desk.count', { count: filtered.length })}
+            </span>
+          </h2>
+          <GlassSlider
+            className="pp-bar__filters"
+            ariaLabel={t('projectPicker.desk.filterLabel')}
+            value={filter}
+            onChange={setFilter}
+            options={(
               [
                 ['all', t('projectPicker.filters.all'), counts.all],
                 ['active', t('projectPicker.filters.active'), counts.active],
                 ['paused', t('projectPicker.filters.paused'), counts.paused],
               ] as Array<[Filter, string, number]>
-            ).map(([k, label, n]) => (
-              <FilterChip
-                key={k}
-                active={filter === k}
-                count={`· ${n}`}
-                onClick={() => setFilter(k)}
-              >
-                {label}
-              </FilterChip>
-            ))}
+            ).map(([value, label, n]) => ({
+              value,
+              label: (
+                <>
+                  {label}
+                  <span className="pp-bar__n">{n}</span>
+                </>
+              ),
+            }))}
+          />
+          <span className="pp-bar__grow" />
+          <label className="pp-bar__search ui-field glass glass--rest glass--field">
+            <BrushIcon name="search" size={15} />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('projectPicker.desk.search')}
+              aria-label={t('projectPicker.desk.search')}
+            />
+          </label>
+          <div className="pp-bar__views" role="group" aria-label={t('projectPicker.desk.viewLabel')}>
+            {viewButton('grid', 'view-grid', t('projectPicker.view.card'))}
+            {viewButton('list', 'view-list', t('projectPicker.view.list'))}
           </div>
-          <div className="pp-toolbar__actions">
-            <div className="pp-toolbar__view">
-              <button
-                type="button"
-                className={`pp-toolbar__view-btn ${view === 'grid' ? 'pp-toolbar__view-btn--active' : ''}`}
-                onClick={() => setView('grid')}
-                aria-label={t('projectPicker.view.card')}
-                aria-pressed={view === 'grid'}
-              >
-                <BrushIcon name="view-grid" size={16} />
-              </button>
-              <button
-                type="button"
-                className={`pp-toolbar__view-btn ${view === 'list' ? 'pp-toolbar__view-btn--active' : ''}`}
-                onClick={() => setView('list')}
-                aria-label={t('projectPicker.view.list')}
-                aria-pressed={view === 'list'}
-              >
-                <BrushIcon name="view-list" size={17} />
-              </button>
-            </div>
-            <button
-              type="button"
-              className="pp-toolbar__btn pp-toolbar__btn--accent"
-              onClick={() => setCreateOpen(true)}
-            >
-              <BrushIcon name="plus" size={17} /> {t('projectPicker.newProject')}
-            </button>
-          </div>
+          <Button onClick={openCreate}>
+            <BrushIcon name="plus" size={14} />
+            {t('projectPicker.desk.newBook')}
+          </Button>
         </div>
 
-        {/* ─── All projects ─── */}
-        <section className="pp-section">
-          <div className="pp-section__head">
-            <div className="pp-section__title">
-              <BrushIcon name="books" size={18} className="pp-section__title-mark" />
-              <span className="pp-section__title-cn">{t('projectPicker.allProjectsCn')}</span>
-            </div>
-            <div className="pp-section__aside">
-              {trashed.length > 0 && (
-                <button
-                  type="button"
-                  className="pp-section__trash"
-                  onClick={() => setTrashOpen(true)}
-                >
-                  <BrushIcon name="trash" size={13} />
-                  {t('projectPicker.trash.entry', { count: trashed.length })}
-                </button>
-              )}
-              <span className="pp-section__count">
-                {t('projectPicker.projectCount', {
-                  filtered: filtered.length,
-                  total: decorated.length,
-                })}
-              </span>
-            </div>
+        {/* ─── The books ─── */}
+        {decorated.length === 0 ? (
+          <EmptyState
+            className="pp-empty-state"
+            mark="all"
+            message={t('projectPicker.desk.empty')}
+            action={
+              <Button variant="ghost" onClick={openCreate}>
+                <BrushIcon name="plus" size={14} />
+                {t('projectPicker.desk.newBook')}
+              </Button>
+            }
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState className="pp-empty-state" message={t('projectPicker.desk.noMatch')} />
+        ) : view === 'grid' ? (
+          <div className="pp-grid">
+            {filtered.map((row) => (
+              <ProjectCard
+                key={row.project.id}
+                row={row}
+                onOpen={() => handleOpen(row.project.id)}
+                onEdit={() => setEditing(row.project)}
+                onDelete={() => openDelete(row.project)}
+              />
+            ))}
+            <SandCell
+              selected={false}
+              className="pp-card pp-card--new"
+              onClick={openCreate}
+              onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
+              role="button"
+              tabIndex={0}
+            >
+              <BrushIcon name="plus" size={22} />
+              <span>{t('projectPicker.desk.newCard')}</span>
+              <small>{t('projectPicker.desk.newCardSub')}</small>
+            </SandCell>
           </div>
-
-          {decorated.length === 0 ? (
-            <div className="pp-empty">{t('projectPicker.empty')}</div>
-          ) : view === 'grid' ? (
-            <div className="pp-grid">
-              {filtered.map((row) => (
-                <ProjectCard
-                  key={row.project.id}
-                  row={row}
-                  onOpen={() => handleOpen(row.project.id)}
-                  onEdit={() => setEditing(row.project)}
-                  onDelete={() => openDelete(row.project)}
-                />
-              ))}
-              <div
-                className="pp-card pp-card--new"
-                onClick={() => setCreateOpen(true)}
-                onKeyDown={(event) => activateOnEnterOrSpace(event, () => setCreateOpen(true))}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="pp-card--new__glyph">
-                  <BrushIcon name="plus" size={24} />
-                </div>
-                <div className="pp-card--new__label">{t('projectPicker.newBookInline')}</div>
-                <div className="pp-card--new__sub">{t('projectPicker.newBookSubtitle')}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="pp-list">
-              {filtered.map((row) => (
-                <ProjectListRow
-                  key={row.project.id}
-                  row={row}
-                  onOpen={() => handleOpen(row.project.id)}
-                  onEdit={() => setEditing(row.project)}
-                  onDelete={() => openDelete(row.project)}
-                />
-              ))}
-              <div
-                className="pp-list__row"
-                style={{ borderStyle: 'dashed', cursor: 'pointer', color: 'hsl(var(--ink-4))' }}
-                onClick={() => setCreateOpen(true)}
-                onKeyDown={(event) => activateOnEnterOrSpace(event, () => setCreateOpen(true))}
-                role="button"
-                tabIndex={0}
-              >
-                <span className="pp-list__glyph">
-                  <BrushIcon name="plus" size={18} />
-                </span>
-                <div className="pp-list__title">
-                  <span className="pp-list__title-main" style={{ color: 'hsl(var(--ink-4))' }}>
-                    {t('projectPicker.newBookInline')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
+        ) : (
+          <div className="pp-list">
+            {filtered.map((row) => (
+              <ProjectListRow
+                key={row.project.id}
+                row={row}
+                onOpen={() => handleOpen(row.project.id)}
+                onEdit={() => setEditing(row.project)}
+                onDelete={() => openDelete(row.project)}
+              />
+            ))}
+            <SandCell
+              selected={false}
+              className="pp-row pp-row--new"
+              onClick={openCreate}
+              onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
+              role="button"
+              tabIndex={0}
+            >
+              <BrushIcon name="plus" size={16} />
+              <span>{t('projectPicker.desk.newCard')}</span>
+            </SandCell>
+          </div>
+        )}
 
         <footer className="pp-foot">
-          <span>{t('projectPicker.footer.brand')}</span>
+          {trashed.length > 0 ? (
+            <Button variant="ghost" size="sm" className="pp-foot__trash" onClick={() => setTrashOpen(true)}>
+              <BrushIcon name="trash" size={12} />
+              {t('projectPicker.desk.trashEntry')}
+              <span className="pp-foot__n">{trashed.length}</span>
+            </Button>
+          ) : (
+            <span />
+          )}
           <span>
             {hostedAccountSettingsEnabled() && account?.email
               ? account.email
-              : t('projectPicker.footer.local')}
+              : t('projectPicker.desk.localLibrary')}
           </span>
         </footer>
       </div>
 
       {confirmDelete && (
-        <DeleteModal
+        <TrashDialog
           project={confirmDelete}
           error={deleteError}
           busy={busy}
@@ -660,7 +654,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         />
       )}
       {trashOpen && (
-        <RecentlyDeletedModal
+        <RecentlyDeletedDialog
           projects={trashed}
           onRestore={handleRestore}
           onDeleteNow={handleDeleteNow}
@@ -668,7 +662,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         />
       )}
       {createOpen && (
-        <ProjectFormModal
+        <ProjectFormDialog
           mode="create"
           busy={busy}
           onSubmit={handleCreate}
@@ -676,7 +670,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         />
       )}
       {editing && (
-        <ProjectFormModal
+        <ProjectFormDialog
           mode="edit"
           project={editing}
           busy={busy}
@@ -700,6 +694,66 @@ export interface DecoratedRow {
   lastEditedRel: string;
   createdRel: string;
   wordProgress: number | null;
+  wordTarget: number;
+}
+
+/** Words as the shelf reads them: 8.6 万 in Chinese, 86.4k otherwise. */
+function formatWords(words: number, locale: string): string {
+  if (!isZh(locale)) return formatWordsK(words);
+  if (words < 10_000) return String(words);
+  return `${(words / 10_000).toFixed(1).replace(/\.0$/, '')} 万`;
+}
+
+/**
+ * The cover's sand (lib/sand-cover.ts), drawn off the main path the first time
+ * a book is shown and kept for the session. Until it lands the cover is a
+ * plain slip of paper with its first letter.
+ */
+// A list row's small cover gets masks of its own size: scaling the big ones
+// down that far would drop most of their grains.
+const MINI_COVER_MASK = { width: 60, height: 92 };
+
+function useCoverMasks(project: ProjectSummary, mini: boolean): string[] | null {
+  const lines = project.cover.storylines;
+  const chapters = project.stats.chapters;
+  const key = sandCoverKey(project.id, chapters, lines, mini ? MINI_COVER_MASK : undefined);
+  const [drawn, setDrawn] = useState<{ key: string; masks: string[] } | null>(null);
+  const cached = peekSandCoverMasks(key);
+  useEffect(() => {
+    if (peekSandCoverMasks(key)) return undefined;
+    return requestSandCoverMasks(
+      key,
+      { seed: coverSeed(project.id), chapters, storylines: lines, ...(mini ? MINI_COVER_MASK : {}) },
+      (masks) => setDrawn({ key, masks }),
+    );
+  }, [key, project.id, chapters, lines, mini]);
+  return cached ?? (drawn?.key === key ? drawn.masks : null);
+}
+
+function BookCover({ row, mini = false }: { row: DecoratedRow; mini?: boolean }) {
+  const { project, meta, glyph } = row;
+  const masks = useCoverMasks(project, mini);
+  const lines = project.cover.storylines;
+  return (
+    <div className={`pp-cover${mini ? ' pp-cover--mini' : ''}`} aria-hidden="true">
+      {masks?.map((mask, index) => (
+        <i
+          key={index}
+          className="sand pp-cover__band"
+          style={
+            {
+              '--sand-mask': `url(${mask})`,
+              '--sand-c': lines[index]?.color || undefined,
+            } as CSSProperties
+          }
+        />
+      ))}
+      {!mini && (
+        <span className="pp-cover__glyph">{glyph || <KindMark kind="all" />}</span>
+      )}
+      {!mini && meta.genre && <span className="pp-cover__label">{meta.genre}</span>}
+    </div>
+  );
 }
 
 interface CardProps {
@@ -709,80 +763,92 @@ interface CardProps {
   onDelete: () => void;
 }
 
-function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
+function RowActions({ onEdit, onDelete }: Pick<CardProps, 'onEdit' | 'onDelete'>) {
   const { t } = useTranslation();
-  const { project, meta, status, colorToken, glyph, lastEditedRel, wordProgress } = row;
+  return (
+    <div className="pp-acts" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="pp-act"
+        onClick={onEdit}
+        title={t('common.edit')}
+        aria-label={t('common.edit')}
+      >
+        <BrushIcon name="edit" size={15} />
+      </button>
+      <button
+        type="button"
+        className="pp-act pp-act--danger"
+        onClick={onDelete}
+        title={t('projectPicker.desk.moveToTrash')}
+        aria-label={t('projectPicker.desk.moveToTrash')}
+      >
+        <BrushIcon name="trash" size={15} />
+      </button>
+    </div>
+  );
+}
+
+function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
+  const { t, i18n } = useTranslation();
+  const { project, meta, status, lastEditedRel, wordProgress, wordTarget } = row;
   const stats = project.stats;
-  const sourceLabel = t('projectPicker.source.localDraft');
-  const categoryLabel = meta.genre || sourceLabel;
+  const title = project.name.trim() || t('projectPicker.desk.untitled');
 
   return (
-    <article
-      className="pp-card"
-      style={{ ['--pp-c' as string]: `var(${colorToken})` }}
-    >
-      <div className="pp-card__cover" aria-hidden="true">
-        <span className="pp-card__cover-glyph">{glyph || <KindMark kind="all" />}</span>
-        <span className="pp-card__cover-label">{categoryLabel}</span>
-      </div>
+    <article className="pp-card glass glass--rest">
+      <BookCover row={row} />
       <div className="pp-card__body">
         <div className="pp-card__head">
-          <div>
-            <h2 className="pp-card__title">{project.name}</h2>
+          <div className="pp-card__titles">
+            <h3 className="pp-card__title">{title}</h3>
             {meta.subtitle && <div className="pp-card__subtitle">{meta.subtitle}</div>}
           </div>
-          <div className="pp-card__menu" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="pp-card__menu-btn"
-              onClick={onEdit}
-              title={t('common.edit')}
-              aria-label={t('common.edit')}
-            >
-              <BrushIcon name="edit" size={15} />
-            </button>
-            <button
-              type="button"
-              className="pp-card__menu-btn"
-              onClick={onDelete}
-              title={t('common.delete')}
-              aria-label={t('common.delete')}
-            >
-              <BrushIcon name="trash" size={15} />
-            </button>
-          </div>
+          <RowActions onEdit={onEdit} onDelete={onDelete} />
         </div>
-        <p className="pp-card__summary">
-          {project.summary || meta.subtitle || t('projectPicker.newBookSubtitle')}
-        </p>
+        {project.summary && <p className="pp-card__summary">{project.summary}</p>}
         <div className="pp-card__meta">
           <span>
-            <b>{stats.wordsReady ? formatWordsK(stats.words) : t('common.counting')}</b>{' '}
-            {stats.wordsReady ? t('common.words') : ''}
+            <b>{stats.wordsReady ? formatWords(stats.words, i18n.language) : t('common.counting')}</b>
+            {stats.wordsReady && t('projectPicker.desk.wordsUnit')}
           </span>
           <span>
-            <b>{stats.chapters}</b> {t('common.chapters')}
+            <b>{stats.chapters}</b>
+            {t('projectPicker.desk.chaptersUnit', { count: stats.chapters })}
           </span>
           <span>
-            <b>{stats.storylines}</b> {t('common.storylinesUnit')}
+            <b>{stats.storylines}</b>
+            {t('projectPicker.desk.storylinesUnit', { count: stats.storylines })}
           </span>
           <span>
-            <b>{stats.elements}</b> {t('common.elementsUnit')}
+            <b>{stats.elements}</b>
+            {t('projectPicker.desk.elementsUnit', { count: stats.elements })}
           </span>
         </div>
         {wordProgress !== null && (
-          <div
-            className="pp-card__progress"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(wordProgress)}
-          >
-            <div className="pp-card__progress-fill" style={{ width: `${wordProgress}%` }} />
+          <div className="pp-card__progress">
+            <div className="pp-card__progress-k">
+              <span>{t('projectPicker.desk.progress')}</span>
+              <span>
+                {t('projectPicker.desk.goal', {
+                  pct: Math.round(wordProgress),
+                  target: formatWords(wordTarget, i18n.language),
+                })}
+              </span>
+            </div>
+            <div
+              className="sand-track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(wordProgress)}
+            >
+              <span className="sand-stroke" style={{ width: `${wordProgress}%` }} />
+            </div>
           </div>
         )}
-        <div className="pp-card__foot">
-          <span className={`pp-card__status pp-card__status--${status}`}>
+        <div className={`pp-card__foot${wordProgress === null ? ' pp-card__foot--end' : ''}`}>
+          <span className={`pp-status pp-status--${status}`}>
             {t(`projectPicker.status.${status}`)}
           </span>
           <span>{lastEditedRel}</span>
@@ -790,89 +856,341 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
       </div>
       <button
         type="button"
-        className="pp-card__hit"
+        className="pp-hit"
         onClick={onOpen}
-        aria-label={project.name}
+        aria-label={t('projectPicker.desk.open', { name: title })}
       />
     </article>
   );
 }
 
 function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
-  const { t } = useTranslation();
-  const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
+  const { t, i18n } = useTranslation();
+  const { project, meta, status, lastEditedRel } = row;
   const stats = project.stats;
-  const subline = meta.genre || t('projectPicker.source.localDraft');
+  const title = project.name.trim() || t('projectPicker.desk.untitled');
+  const subline = [
+    meta.genre,
+    stats.storylines ? t('projectPicker.desk.storylineCount', { count: stats.storylines }) : '',
+  ].filter(Boolean).join(' · ') || '—';
 
   return (
-    <div
-      className="pp-list__row"
-      style={{ ['--pp-c' as string]: `var(${colorToken})` }}
-    >
-      <span className="pp-list__glyph">{glyph || <KindMark kind="all" />}</span>
-      <div className="pp-list__title">
-        <span className="pp-list__title-main">
-          <em>《</em>
-          {project.name}
-          <em>》</em>
-        </span>
-        <span className="pp-list__title-sub">{subline}</span>
+    <SandCell selected={false} className="pp-row">
+      <BookCover row={row} mini />
+      <div className="pp-row__title">
+        <span>{title}</span>
+        <small>{subline}</small>
       </div>
-      <div className="pp-list__sub">{project.summary || meta.subtitle || '—'}</div>
-      <div className="pp-list__cell">
-        <span className="pp-list__cell-v">
-          {stats.wordsReady ? (stats.words / 1000).toFixed(1) : t('common.counting')}
-          {stats.wordsReady && <em>k</em>}
-        </span>
-        <span className="pp-list__cell-k">{t('common.words')}</span>
+      <div className="pp-row__sum">{project.summary || meta.subtitle || ''}</div>
+      <div className="pp-row__v">
+        {stats.wordsReady ? formatWords(stats.words, i18n.language) : t('common.counting')}
+        <small>{t('projectPicker.desk.wordsUnit')}</small>
       </div>
-      <div className="pp-list__cell">
-        <span className="pp-list__cell-v">
-          {stats.chapters}
-          <em>{t('common.chapters')}</em>
-        </span>
-        <span className="pp-list__cell-k">{t('projectPicker.nodesLabel')}</span>
+      <div className="pp-row__v pp-row__v--chapters">
+        {stats.chapters}
+        <small>{t('projectPicker.desk.chaptersUnit', { count: stats.chapters })}</small>
       </div>
-      <div className="pp-list__cell">
-        <span
-          className="pp-list__cell-v"
-          style={{ fontStyle: 'italic', color: 'hsl(var(--ink-2))' }}
-        >
-          {lastEditedRel}
-        </span>
-        <span className="pp-list__cell-k">{t(`projectPicker.status.${status}`)}</span>
+      <div className="pp-row__v">
+        {lastEditedRel}
+        <small>{t(`projectPicker.status.${status}`)}</small>
       </div>
-      <div className="pp-list__menu" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          className="pp-list__menu-btn"
-          onClick={onEdit}
-          title={t('common.edit')}
-          aria-label={t('common.edit')}
-        >
-          <BrushIcon name="edit" size={15} />
-        </button>
-        <button
-          type="button"
-          className="pp-list__menu-btn"
-          onClick={onDelete}
-          title={t('common.delete')}
-          aria-label={t('common.delete')}
-        >
-          <BrushIcon name="trash" size={15} />
-        </button>
-      </div>
+      <RowActions onEdit={onEdit} onDelete={onDelete} />
       <button
         type="button"
-        className="pp-list__hit"
+        className="pp-hit"
         onClick={onOpen}
-        aria-label={project.name}
+        aria-label={t('projectPicker.desk.open', { name: title })}
       />
-    </div>
+    </SandCell>
   );
 }
 
-/* ─── Modals ─── */
+/* ─── Desktop dialogs: the shared shell (ModalRoot/ModalCard) and controls ─── */
+
+interface TrashDialogProps {
+  project: ProjectSummary;
+  error: string | null;
+  busy: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+/** Moving a book to Recently Deleted; it can come back for 30 days, but the
+ * button still says danger, and the dialog opens on Cancel. */
+function TrashDialog({ project, error, busy, onConfirm, onClose }: TrashDialogProps) {
+  const { t } = useTranslation();
+  const stats = project.stats;
+  const title = t('projectPicker.desk.trashTitle', { name: project.name });
+  return (
+    <ModalRoot onClose={onClose} ariaLabel={title}>
+      <ModalCard className="pp-dialog" width={420}>
+        <ModalHeader title={title} />
+        <ModalBody>
+          <p>
+            {t('projectPicker.trash.body', {
+              words: stats.wordsReady ? stats.words.toLocaleString() : t('common.counting'),
+              nodes: stats.chapters,
+              elements: stats.elements,
+            })}
+          </p>
+          <p className="pp-dialog__lead">{t(canUseHostedService()
+            ? 'projectPicker.trash.remoteNote' : 'projectPicker.trash.localNote')}</p>
+          {error && (
+            <p role="alert" className="pp-dialog__error">
+              <BrushIcon name="status-warning" size={13} />
+              {t(error)}
+            </p>
+          )}
+        </ModalBody>
+        <ModalActions>
+          <Button onClick={onClose} disabled={busy} autoFocus>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="danger" onClick={onConfirm} disabled={busy}>
+            <BrushIcon name={busy ? 'loader' : 'trash'} size={14} className={busy ? 'ui-spin' : undefined} />
+            {busy ? t('projectPicker.trash.moving') : t('projectPicker.trash.confirm')}
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
+  );
+}
+
+interface RecentlyDeletedDialogProps {
+  projects: Project[];
+  onRestore: (id: string) => Promise<void>;
+  onDeleteNow: (id: string) => Promise<void>;
+  onClose: () => void;
+}
+
+function RecentlyDeletedDialog({ projects, onRestore, onDeleteNow, onClose }: RecentlyDeletedDialogProps) {
+  const { t } = useTranslation();
+  const [confirming, setConfirming] = useState<Project | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [openedAt] = useState(() => Date.now());
+  const busy = busyId !== null;
+
+  const run = async (id: string, action: () => Promise<void>, errorKey: (e: unknown) => string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      await action();
+      setConfirming(null);
+    } catch (e) {
+      log.error('Recently deleted project action failed:', e);
+      setError(errorKey(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const expiryLabel = (deletedAt: string) => {
+    const days = Math.ceil((projectTrashExpiresAt(deletedAt).getTime() - openedAt) / DAY_MS);
+    return days > 0
+      ? t('projectPicker.trash.expiresIn', { count: days })
+      : t('projectPicker.trash.expiresSoon');
+  };
+
+  // Escape and the mist step back from the confirmation before they close.
+  const dismiss = () => {
+    if (busy) return;
+    if (confirming) setConfirming(null);
+    else onClose();
+  };
+
+  const errorLine = error && (
+    <p role="alert" className="pp-dialog__error">
+      <BrushIcon name="status-warning" size={13} />
+      {t(error)}
+    </p>
+  );
+
+  return (
+    <ModalRoot onClose={dismiss} ariaLabel={t('projectPicker.desk.trashList.title')}>
+      <ModalCard className="pp-dialog" width={420}>
+        {confirming ? (
+          <>
+            <ModalHeader
+              kicker={t('projectPicker.desk.trashList.title')}
+              title={t('projectPicker.desk.trashList.confirmTitle', { name: confirming.name })}
+            />
+            <ModalBody>
+              <p>{t('projectPicker.trash.permanentBody')}</p>
+              <p className="pp-dialog__lead">{t(canUseHostedService()
+                ? 'projectPicker.delete.remoteBody' : 'projectPicker.delete.localBody')}</p>
+              {errorLine}
+            </ModalBody>
+            <ModalActions>
+              <Button onClick={() => setConfirming(null)} disabled={busy} autoFocus>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => void run(confirming.id, () => onDeleteNow(confirming.id),
+                  projectDeletionErrorKey)}
+                disabled={busy}
+              >
+                <BrushIcon name={busy ? 'loader' : 'trash'} size={14} className={busy ? 'ui-spin' : undefined} />
+                {busy ? t('projectPicker.delete.deleting') : t(canUseHostedService()
+                  ? 'projectPicker.delete.everywhere' : 'common.delete')}
+              </Button>
+            </ModalActions>
+          </>
+        ) : (
+          <>
+            <ModalHeader
+              title={t('projectPicker.desk.trashList.title')}
+              onClose={busy ? undefined : onClose}
+              closeLabel={t('common.close')}
+            />
+            <ModalBody>
+              <p className="pp-dialog__lead">{t(canUseHostedService()
+                ? 'projectPicker.desk.trashList.sub' : 'projectPicker.desk.trashList.subLocal')}</p>
+              {projects.length === 0 ? (
+                <EmptyState density="compact" message={t('projectPicker.desk.trashList.empty')} />
+              ) : (
+                <div className="pp-trash">
+                  {projects.map((project) => (
+                    <SandCell key={project.id} selected={false} className="pp-trash__row">
+                      <div className="pp-trash__text">
+                        <span className="pp-trash__name">{project.name}</span>
+                        <span className="pp-trash__meta">
+                          {project.deletedAt ? expiryLabel(project.deletedAt) : null}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void run(project.id, () => onRestore(project.id),
+                          () => 'projectPicker.trash.restoreFailed')}
+                      >
+                        {busyId === project.id ? t('projectPicker.trash.restoring') : t('projectPicker.trash.restore')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={busy}
+                        onClick={() => { setError(null); setConfirming(project); }}
+                      >
+                        {t('projectPicker.trash.deleteNow')}
+                      </Button>
+                    </SandCell>
+                  ))}
+                </div>
+              )}
+              {errorLine}
+            </ModalBody>
+            <ModalActions>
+              <Button onClick={onClose} disabled={busy} autoFocus>
+                {t('common.close')}
+              </Button>
+            </ModalActions>
+          </>
+        )}
+      </ModalCard>
+    </ModalRoot>
+  );
+}
+
+interface ProjectFormProps {
+  mode: 'create' | 'edit';
+  project?: ProjectSummary;
+  busy: boolean;
+  onSubmit: (form: ProjectFormState) => void;
+  onClose: () => void;
+}
+
+function ProjectFormDialog({ mode, project, busy, onSubmit, onClose }: ProjectFormProps) {
+  const { t } = useTranslation();
+  const nameId = useId();
+  const summaryId = useId();
+  const [form, setForm] = useState<ProjectFormState>({
+    name: project?.name ?? '',
+    summary: project?.summary ?? '',
+  });
+
+  const set =
+    <K extends keyof ProjectFormState>(key: K) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !busy) onSubmit(form);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [busy, form, onSubmit]);
+
+  const isEdit = mode === 'edit';
+  const title = isEdit
+    ? t('projectPicker.desk.form.editTitle', { name: project?.name ?? '' })
+    : t('projectPicker.desk.form.createTitle');
+  const submitLabel = isEdit
+    ? busy
+      ? t('common.saving')
+      : t('common.save')
+    : busy
+      ? t('common.creating')
+      : t('projectPicker.form.createSubmit');
+
+  return (
+    <ModalRoot onClose={onClose} ariaLabel={title}>
+      <ModalCard className="pp-dialog" width={420}>
+        <ModalHeader title={title} onClose={onClose} closeLabel={t('common.close')} />
+        <ModalBody>
+          <div className="dialog-section">
+            <label className="dialog-section__label" htmlFor={nameId}>
+              {t('projectPicker.desk.form.nameLabel')}
+            </label>
+            <label className="ui-field glass glass--rest glass--field">
+              <input
+                id={nameId}
+                placeholder={t('projectPicker.form.namePlaceholder')}
+                value={form.name}
+                onChange={set('name')}
+                disabled={busy}
+                autoFocus
+              />
+            </label>
+          </div>
+          <div className="dialog-section">
+            <label className="dialog-section__label" htmlFor={summaryId}>
+              {t('projectPicker.desk.form.summaryLabel')}
+            </label>
+            <label className="ui-field ui-field--area glass glass--rest glass--field">
+              <textarea
+                id={summaryId}
+                placeholder={t('projectPicker.form.summaryPlaceholder')}
+                value={form.summary}
+                onChange={set('summary')}
+                disabled={busy}
+              />
+            </label>
+          </div>
+        </ModalBody>
+        <ModalActions>
+          <kbd className="pp-dialog__kbd">{submitShortcut()}</kbd>
+          <span className="pp-dialog__grow" />
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="primary" onClick={() => onSubmit(form)} disabled={busy}>
+            {submitLabel}
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
+  );
+}
+
+function submitShortcut(): string {
+  const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  return mac ? '⌘↵' : 'Ctrl+↵';
+}
+
+/* ─── The paused mobile shelf's modals ─── */
 
 interface DeleteModalProps {
   project: ProjectSummary;
@@ -938,155 +1256,6 @@ function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalPr
           >
             {busy ? t('projectPicker.trash.moving') : t('projectPicker.trash.confirm')}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface RecentlyDeletedModalProps {
-  projects: Project[];
-  onRestore: (id: string) => Promise<void>;
-  onDeleteNow: (id: string) => Promise<void>;
-  onClose: () => void;
-}
-
-function RecentlyDeletedModal({ projects, onRestore, onDeleteNow, onClose }: RecentlyDeletedModalProps) {
-  const { t } = useTranslation();
-  const [confirming, setConfirming] = useState<Project | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [openedAt] = useState(() => Date.now());
-  const busy = busyId !== null;
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || busy) return;
-      if (confirming) setConfirming(null);
-      else onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [busy, confirming, onClose]);
-
-  const run = async (id: string, action: () => Promise<void>, errorKey: (e: unknown) => string) => {
-    setBusyId(id);
-    setError(null);
-    try {
-      await action();
-      setConfirming(null);
-    } catch (e) {
-      log.error('Recently deleted project action failed:', e);
-      setError(errorKey(e));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const expiryLabel = (deletedAt: string) => {
-    const days = Math.ceil((projectTrashExpiresAt(deletedAt).getTime() - openedAt) / DAY_MS);
-    return days > 0
-      ? t('projectPicker.trash.expiresIn', { count: days })
-      : t('projectPicker.trash.expiresSoon');
-  };
-
-  return (
-    <div className="pp-modal-backdrop" onClick={() => (busy ? undefined : onClose())}>
-      <div
-        className="pp-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('projectPicker.trash.listTitle')}
-      >
-        <div className="pp-modal__head">
-          <div className="pp-modal__kicker">{t('projectPicker.trash.listKicker')}</div>
-          <h2 className="pp-modal__title">
-            {confirming ? (
-              <>
-                {t('projectPicker.delete.titlePrefix')} <em>《{confirming.name}》</em>？
-              </>
-            ) : (
-              t('projectPicker.trash.listTitle')
-            )}
-          </h2>
-        </div>
-        <div className="pp-modal__body">
-          {confirming ? (
-            <>
-              <p className="pp-modal__sub">{t('projectPicker.trash.permanentBody')}</p>
-              <p className="pp-modal__sub">{t(canUseHostedService()
-                ? 'projectPicker.delete.remoteBody' : 'projectPicker.delete.localBody')}</p>
-            </>
-          ) : (
-            <>
-              <p className="pp-modal__sub">{t(canUseHostedService()
-                ? 'projectPicker.trash.listSub' : 'projectPicker.trash.listSubLocal')}</p>
-              {projects.length === 0 ? (
-                <p className="pp-modal__sub">{t('projectPicker.trash.empty')}</p>
-              ) : (
-                <ul className="pp-trash">
-                  {projects.map((project) => (
-                    <li key={project.id} className="pp-trash__row">
-                      <div className="pp-trash__text">
-                        <span className="pp-trash__name">{project.name}</span>
-                        <span className="pp-trash__meta">
-                          {project.deletedAt ? expiryLabel(project.deletedAt) : null}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="pp-modal__btn"
-                        disabled={busy}
-                        onClick={() => void run(project.id, () => onRestore(project.id),
-                          () => 'projectPicker.trash.restoreFailed')}
-                      >
-                        {busyId === project.id ? t('projectPicker.trash.restoring') : t('projectPicker.trash.restore')}
-                      </button>
-                      <button
-                        type="button"
-                        className="pp-modal__btn"
-                        disabled={busy}
-                        onClick={() => { setError(null); setConfirming(project); }}
-                      >
-                        {t('projectPicker.trash.deleteNow')}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-          {error && <p role="alert" className="pp-modal__sub">{t(error)}</p>}
-        </div>
-        <div className="pp-modal__foot">
-          {confirming ? (
-            <>
-              <button
-                type="button"
-                className="pp-modal__btn"
-                onClick={() => setConfirming(null)}
-                disabled={busy}
-                autoFocus
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                className="pp-modal__btn pp-modal__btn--danger"
-                onClick={() => void run(confirming.id, () => onDeleteNow(confirming.id),
-                  projectDeletionErrorKey)}
-                disabled={busy}
-              >
-                {busy ? t('projectPicker.delete.deleting') : t(canUseHostedService()
-                  ? 'projectPicker.delete.everywhere' : 'common.delete')}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="pp-modal__btn" onClick={onClose} disabled={busy} autoFocus>
-              {t('common.close')}
-            </button>
-          )}
         </div>
       </div>
     </div>
