@@ -95,6 +95,20 @@ updater artifacts and does not notarize or publish a release. `--online` remains
 an explicit opt-in; see [Sentry acceptance](sentry-observability.md#isolated-mac-test-package)
 for the separate diagnostic acceptance entry and evidence.
 
+## Frontend Debug for desktop acceptance
+
+DOM-level acceptance of a worktree profile goes through the desktop Frontend
+Debug bridge, with no iOS Simulator:
+
+```bash
+pnpm drifting frontend serve --platform desktop
+pnpm dev:worktree --no-watch --frontend-debug
+```
+
+`--frontend-debug` is the only way a debug endpoint reaches the renderer; see
+[Frontend Debug](frontend-debug.md#desktop-acceptance). `pnpm dev:seed` passes
+it through to the launch.
+
 ## `pnpm dev` in a linked worktree
 
 The shared profile (identity `cc.drifting.client`, port 5173, its application
@@ -105,6 +119,23 @@ start that worktree's isolated profile instead, exactly as
 `pnpm dev:worktree [--online]` would, so several people or agents can develop
 in their own worktrees at once. `DRIFTING_DEV_SHARED_PROFILE=1 pnpm dev` keeps
 the shared profile deliberately.
+
+## Agent keys in development
+
+Every profile has its own Keychain service, so a fresh worktree or instance
+would otherwise ask for the Agent's keys again. `pnpm dev`, `pnpm dev:worktree`
+and `pnpm dev:seed` read `DEEPSEEK_API_KEY` (or `DEEPSEEK_AI_API_KEY`) and
+`OPENAI_API_KEY` from the shell, then the checkout's ignored `.env.local` and
+`.env`, then the main checkout's when started in a linked worktree (a worktree
+has no env files of its own), and hand them to the dev server as
+`VITE_DEEPSEEK_API_KEY` / `VITE_OPENAI_API_KEY`, which the renderer's
+`EnvCredentialsProvider` reads before the Keychain. Settings then shows those
+providers as connected from `.ENV (DEV)`. The launcher prints which providers it
+connected, never the values, and the `--print-config` manifest lists them as
+`agentKeysFromEnv`. Builds and `--build-app` packages never receive them, since
+`VITE_` values are inlined into bundles; keep the plain names in the env files
+for the same reason. `DRIFTING_DEV_AGENT_KEYS=0` starts without them, for
+checking the not-connected setup flow. See `scripts/dev-agent-keys.mjs`.
 
 ## Seeded profiles
 

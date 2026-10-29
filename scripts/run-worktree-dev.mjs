@@ -9,6 +9,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { createDesktopTauriEnvironment, prepareDesktopSigning } from './run-desktop-tauri.mjs';
+import { describeDevAgentKeys, devAgentKeyEnvironment, devAgentKeyProviders, devAgentKeyRoots } from './dev-agent-keys.mjs';
 import { hostedSecurityOverride } from './hosted-environment.mjs';
 import { sentrySecurityOverride } from './sentry-environment.mjs';
 
@@ -27,6 +28,7 @@ export function parseWorktreeArguments(args) {
     else if (argument === '--performance-audit') options.performanceAudit = true;
     else if (argument === '--online') options.online = true;
     else if (argument === '--build-app') options.buildApp = true;
+    else if (argument === '--frontend-debug') options.frontendDebug = true;
     else if (argument === '--instance' || argument === '--port') {
       const value = args[++index];
       if (!value || value.startsWith('-')) throw new Error(`${argument} requires a value`);
@@ -69,14 +71,38 @@ export function worktreeAppLocalDataRoot({ platform = process.platform, environm
     ? environment.XDG_DATA_HOME : path.join(homedir(), '.local', 'share');
 }
 
+// The desktop Frontend Debug daemon started from this checkout
+// (`pnpm drifting frontend serve --platform desktop`) leaves its session here.
+export function readDesktopFrontendDebugSession(worktreeRoot) {
+  const sessionPath = path.join(worktreeRoot, '.local-data', 'frontend-debug', 'session.json');
+  let session;
+  try {
+    session = JSON.parse(readFileSync(sessionPath, 'utf8'));
+  } catch {
+    throw new Error(`--frontend-debug needs a running desktop daemon: start \`pnpm drifting frontend serve --platform desktop\` in this checkout first (no ${sessionPath}).`);
+  }
+  if (session?.schemaVersion !== 1 || session.platform !== 'desktop' || typeof session.token !== 'string'
+    || session.host !== '127.0.0.1' || !Number.isInteger(session.port)) {
+    throw new Error(`--frontend-debug needs a desktop session, but ${sessionPath} belongs to ${session?.platform ?? 'an unknown platform'}; restart the daemon with --platform desktop.`);
+  }
+  try {
+    process.kill(session.pid, 0);
+  } catch (error) {
+    if (error.code !== 'EPERM') throw new Error(`The desktop Frontend Debug daemon (PID ${session.pid}) is no longer running; start it again.`);
+  }
+  return { url: `http://${session.host}:${session.port}`, token: session.token, transport: session.transport };
+}
+
 export function createWorktreePlan({
   root = defaultRoot, instance = 'default', port, noWatch = false, online = false, buildApp = false, performanceAudit = false,
-  baseEnvironment = process.env, platform = process.platform,
+  frontendDebug = false, baseEnvironment = process.env, platform = process.platform,
 } = {}) {
   if (!instancePattern.test(instance)) throw new Error('Invalid worktree instance name');
   if (buildApp && platform !== 'darwin') throw new Error('--build-app currently supports macOS only');
   if (performanceAudit && buildApp) throw new Error('--performance-audit requires a Vite development instance');
+  if (frontendDebug && buildApp) throw new Error('--frontend-debug requires a Vite development instance');
   const worktreeRoot = realpathSync(root);
+  const debugSession = frontendDebug ? readDesktopFrontendDebugSession(worktreeRoot) : null;
   const loaded = createDesktopTauriEnvironment({ baseEnvironment, envFile: path.join(worktreeRoot, '.env.local'), mode: online ? 'online' : 'local' });
   const origin = online ? loaded.DRIFTING_HOSTED_ORIGIN : null;
   const digest = createHash('sha256').update(`${worktreeRoot}\0${instance}${online ? `\0${origin}` : ''}${buildApp ? '\0packaged' : ''}`).digest();
@@ -119,6 +145,18 @@ export function createWorktreePlan({
     VITE_SENTRY_ENVIRONMENT: loaded.VITE_SENTRY_ENVIRONMENT || 'development',
     VITE_DRIFTING_CRASH_REPORTS_IN_DEV: loaded.VITE_DRIFTING_CRASH_REPORTS_IN_DEV || '',
   });
+  // Development only: the Agent's keys from the checkout's .env files (the
+  // main checkout's too), so a fresh profile starts connected. A packaged app
+  // never gets them; see scripts/dev-agent-keys.mjs.
+  if (!buildApp) Object.assign(environment, devAgentKeyEnvironment({ roots: devAgentKeyRoots(worktreeRoot), baseEnvironment }));
+  // Only this explicit opt-in may hand the renderer a debug bridge endpoint;
+  // the token stays in the environment and never reaches the manifest.
+  if (debugSession) Object.assign(environment, {
+    VITE_DRIFTING_FRONTEND_DEBUG: '1',
+    VITE_DRIFTING_FRONTEND_DEBUG_TRANSPORT: debugSession.transport,
+    VITE_DRIFTING_FRONTEND_DEBUG_URL: debugSession.url,
+    VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: debugSession.token,
+  });
   const frontendDirectory = path.join(profileDirectory, 'frontend');
   if (buildApp) Object.assign(environment, {
     DRIFTING_RENDERER_OUT_DIR: frontendDirectory,
@@ -153,7 +191,7 @@ export function createWorktreePlan({
       security: {
         ...(buildApp ? sentrySecurityOverride(hostedSecurityOverride(base, online ? origin : 'http://localhost:3000'), environment) : {}),
         devCsp: (online ? sentrySecurityOverride(hostedSecurityOverride(base, origin), environment).devCsp : base.app.security.devCsp).replace(/\bconnect-src\b[^;]*/, directive =>
-          `${directive} ${devUrl} ws://127.0.0.1:${selectedPort}`),
+          `${directive} ${devUrl} ws://127.0.0.1:${selectedPort}${debugSession ? ` ${debugSession.url}` : ''}`),
       },
     },
     bundle: { createUpdaterArtifacts: false },
@@ -173,9 +211,10 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
   const manifest = {
     schemaVersion: 1, worktreeRoot, instance, profileId, identifier,
     profileDirectory, databaseDirectory, appLocalDataDirectory, cargoTargetDirectory, devUrl, port: selectedPort,
-    keychainService: `Drifting.${identifier}`, ephemeralWebview,
+    keychainService: `Drifting.${identifier}`, agentKeysFromEnv: devAgentKeyProviders(environment), ephemeralWebview,
     mode: online ? 'hosted' : 'local-only', ...(online ? { serviceOrigin: origin } : {}), configPath,
     ...(performanceAudit ? { performanceAudit: true, performanceAuditDirectory: path.join(profileDirectory, 'performance-audit') } : {}),
+    ...(debugSession ? { frontendDebug: { transport: debugSession.transport, url: debugSession.url } } : {}),
     ...(buildApp ? { buildApp: true, frontendDirectory,
       appBundlePath: path.join(cargoTargetDirectory, 'debug', 'bundle', 'macos', `Drifting Test ${profileId}.app`) } : {}),
   };
@@ -202,7 +241,7 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
 } = {}) {
   const options = parseWorktreeArguments(args);
   if (options.help) {
-    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--performance-audit] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --performance-audit collects bounded development telemetry in the private profile. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
+    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--performance-audit] [--frontend-debug] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --performance-audit collects bounded development telemetry in the private profile. --frontend-debug connects the renderer to the desktop Frontend Debug daemon running in this checkout. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
     return;
   }
   const plan = createWorktreePlan({ root, baseEnvironment, ...options });
@@ -222,6 +261,7 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
     if (!existsSync(file) || readFileSync(file, 'utf8') !== `${contents}\n`) writeFileSync(file, `${contents}\n`, { mode: 0o600 });
   }
   output(JSON.stringify(plan.manifest));
+  if (!options.buildApp) output(describeDevAgentKeys(plan.environment));
   const child = spawnProcess(plan.command, plan.args, {
     cwd: plan.manifest.worktreeRoot, env: plan.environment, stdio: 'inherit',
     // A process group lets headless automation stop Cargo, Vite and the app,

@@ -1006,6 +1006,8 @@ describe('workspace surface language acceptance', () => {
       'new-category',
       // A closed sidebar's crescent, cleared from the committed solid one.
       'moon-left-hollow', 'moon-right-hollow',
+      // The Agent composer's send and steer, a weight heavier.
+      'lift', 'lift-bent',
     ];
     for (const name of names) {
       expect(brushIcon).toContain(`| '${name}'`);
@@ -1139,5 +1141,60 @@ describe('workspace surface language acceptance', () => {
     const css = source('src/styles/materials.css');
     expect(css).toContain('animation: brush-thinking 720ms steps(6, jump-none) infinite alternate;');
     expect(source('scripts/design-assets/brushicons.py')).toContain('STRIPS = {"thinking": (thinking, 4102)}');
+  });
+
+  it('wears sand and glass in the desktop Agent panel', () => {
+    const panel = source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx');
+    const transcript = source('src/renderer/features/agent/desktop/DesktopAgentTranscript.tsx');
+    const views = source('src/renderer/features/agent/AgentMessageViews.tsx');
+    const agentCss = source('src/styles/agent-panel.css');
+    const materials = source('src/styles/materials.css');
+
+    // The composer: a rounded slip with the resting line, its menus in a
+    // glass tray, stop / steer / send as single round glass buttons.
+    expect(panel).toContain('className="agt-composer agt-composer--glass glass glass--rest glass--field"');
+    expect(panel).toContain('className="agt-composer__tray glass glass--rest"');
+    expect(panel).toContain('<AgentComposerConfig glass />');
+    expect(panel).toContain('part="button"');
+    expect(panel).toContain('part="status"');
+    expect(panel).toContain('className="agt-round glass glass--rest glass--round"');
+    expect(panel).toContain('<BrushIcon name="stop" size={12} />');
+    expect(panel).toContain("<BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} size={17} />");
+    expect(panel).toContain('<BrushIcon name="lift" size={17} />');
+    expect(panel).not.toContain('agt-send');
+    expect(block(agentCss, '.agt-composer.agt-composer--glass {', '}')).toContain('border-radius: 16px;');
+    expect(block(agentCss, '.agt-composer--glass .agt-composer__bar {', '}')).toContain('border-top: 0;');
+
+    // Only the desktop transcript opens the glass; the mobile shell keeps its look.
+    expect(transcript).toContain('<AgentGlassContext.Provider value>');
+    expect(transcript).toContain('className="agt-control-card agt-control-card--glass glass glass--waiting"');
+    expect(views).toContain("const [arriving] = useState(() => msg.status === 'running');");
+    expect(views).toContain('className="agt-user-bubble glass glass--rest glass--still"');
+    expect(block(agentCss, '.agt-user-bubble {', '}')).toContain('border-radius: 16px;');
+
+    // The materials: read-only stays still, a field is selected while it holds
+    // the caret, the primary is the accent's glass, waiting glass runs the other
+    // way, and an arriving step is swept before its line comes in.
+    expect(block(materials, '.glass--still:hover,', '.glass--field')).toContain('animation-play-state: paused;');
+    expect(materials).toContain('.glass--field:focus-within { --glass-g: 1; --glass-sp: 1; }');
+    expect(block(materials, '.glass--primary {', '}')).toContain('--glass-cc: hsl(var(--accent));');
+    expect(materials).toContain('.glass--primary:disabled::before { animation: none; }');
+    expect(materials).toContain('.glass--waiting::before { opacity: 1; animation-play-state: running; }');
+    expect(materials).toContain('.glass--waiting:hover::before { animation-play-state: paused; }');
+    expect(materials).toContain('animation: glass-sweep 1.125s cubic-bezier(0.4, 0.1, 0.35, 1) both;');
+    expect(block(materials, '.glass-sweep.glass--rest::before {', '}')).toContain('glass-sweep-line 1.125s ease-out backwards;');
+    expect(block(materials, '@keyframes glass-sweep-line {', '100%')).toContain('0%, 40% { opacity: 0; }');
+
+    // Glass with no colour of its own is the clear glass, the dock's pills too.
+    const dock = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    expect(dock).toContain("const accent = color || 'var(--glass-clear)';");
+    expect(dock).not.toContain("|| 'hsl(var(--ink-3))',");
+
+    const docs = designSystemDocs();
+    expect(docs).toContain('## 主按钮');
+    expect(docs).toContain('## 多行输入框');
+    expect(docs).toContain('## 等你处理');
+    expect(docs).toContain('没有归属的玻璃一律用 `--glass-clear`（浅灰）');
+    expect(docs).toContain('| 推波 | 一个刚到的步骤被推进来 | `1.125s`');
   });
 });

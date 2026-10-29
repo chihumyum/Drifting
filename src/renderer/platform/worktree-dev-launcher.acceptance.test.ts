@@ -16,6 +16,8 @@ import { createWorktreePlan, parseWorktreeArguments, runWorktreeDev, assertWorkt
 import { isLinkedGitWorktree, shouldIsolateDevelopment } from '../../../scripts/run-desktop-tauri.mjs';
 // @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
 import { LOCAL_LIBRARY_DATABASE, runSeededDev, seededArguments, SEED_INSTANCE, LITE_SEED_INSTANCE } from '../../../scripts/run-seeded-dev.mjs';
+// @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
+import { devAgentKeyEnvironment, devAgentKeyRoots, describeDevAgentKeys } from '../../../scripts/dev-agent-keys.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const baseConfig = readFileSync(path.join(repoRoot, 'src-tauri/tauri.conf.json'), 'utf8');
@@ -106,6 +108,44 @@ describe('isolated worktree development', () => {
     expect(measured.manifest.performanceAuditDirectory).toBe(path.join(measured.manifest.profileDirectory, 'performance-audit'));
     expect(measured.manifest.profileId).toBe(ordinary.manifest.profileId);
     expect(() => createWorktreePlan({ root, buildApp: true, performanceAudit: true, platform: 'darwin' })).toThrow(/development instance/);
+  });
+
+  it('hands the renderer the running desktop Frontend Debug bridge only on explicit opt-in', () => {
+    const root = fixture();
+    const sessionDirectory = path.join(root, '.local-data', 'frontend-debug');
+    const writeSession = (session: Record<string, unknown>) => {
+      mkdirSync(sessionDirectory, { recursive: true });
+      writeFileSync(path.join(sessionDirectory, 'session.json'), JSON.stringify({
+        schemaVersion: 1, host: '127.0.0.1', port: 4319, token: 'desktop-token', pid: process.pid,
+        platform: 'desktop', transport: 'desktop-renderer-bridge', ...session,
+      }));
+    };
+    expect(parseWorktreeArguments(['--frontend-debug']).frontendDebug).toBe(true);
+    expect(() => createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true })).toThrow(/--platform desktop/);
+
+    writeSession({});
+    const ordinary = createWorktreePlan({ root, baseEnvironment: { VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: 'inherited' } });
+    const debug = createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true });
+    // Without the flag nothing reaches the renderer, not even an inherited token.
+    expect(Object.keys(ordinary.environment).filter((key) => key.startsWith('VITE_DRIFTING_FRONTEND_DEBUG'))).toEqual([]);
+    expect(debug.environment).toMatchObject({
+      VITE_DRIFTING_FRONTEND_DEBUG: '1',
+      VITE_DRIFTING_FRONTEND_DEBUG_TRANSPORT: 'desktop-renderer-bridge',
+      VITE_DRIFTING_FRONTEND_DEBUG_URL: 'http://127.0.0.1:4319',
+      VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: 'desktop-token',
+    });
+    // The bridge's port may differ from the default the base CSP allows.
+    expect(debug.tauriConfig.app.security.devCsp).toMatch(/connect-src [^;]*http:\/\/127\.0\.0\.1:4319/);
+    expect(ordinary.tauriConfig.app.security.devCsp).not.toContain('127.0.0.1:4319');
+    expect(debug.manifest.frontendDebug).toEqual({ transport: 'desktop-renderer-bridge', url: 'http://127.0.0.1:4319' });
+    expect(JSON.stringify(debug.manifest)).not.toContain('desktop-token');
+    expect(debug.manifest.profileId).toBe(ordinary.manifest.profileId);
+    expect(() => createWorktreePlan({ root, buildApp: true, frontendDebug: true, platform: 'darwin' })).toThrow(/development instance/);
+
+    writeSession({ platform: 'ios', transport: 'ios-renderer-bridge' });
+    expect(() => createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true })).toThrow(/belongs to ios/);
+    writeSession({ pid: 2 ** 22 + 12345 });
+    expect(() => createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true })).toThrow(/no longer running/);
   });
 
   it('refuses shared state aliases instead of following symlinked data directories', () => {
@@ -245,6 +285,62 @@ describe('isolated worktree development', () => {
 
   it.each([['--instance', '../escape'], ['--port', '5173oops'], ['--port', '80'], ['--port', '65536'], ['--config', 'other.json'], ['--instance']])('rejects invalid or isolation-breaking arguments %j', (...args) => {
     expect(() => parseWorktreeArguments(args)).toThrow();
+  });
+
+  it('starts a development profile connected with the Agent keys from .env, never a packaged app', () => {
+    const root = fixture();
+    writeFileSync(path.join(root, '.env'), 'DEEPSEEK_API_KEY=synthetic-deepseek-key\n');
+    writeFileSync(path.join(root, '.env.local'), 'OPENAI_API_KEY=synthetic-openai-key\nVITE_PRIVATE_TOKEN=synthetic-secret\n');
+    const dev = createWorktreePlan({ root, baseEnvironment: {} });
+    expect(dev.environment.VITE_DEEPSEEK_API_KEY).toBe('synthetic-deepseek-key');
+    expect(dev.environment.VITE_OPENAI_API_KEY).toBe('synthetic-openai-key');
+    expect(dev.environment.VITE_PRIVATE_TOKEN).toBeUndefined();
+    expect(dev.manifest.agentKeysFromEnv).toEqual(['deepseek', 'openai']);
+    expect(JSON.stringify(dev.manifest)).not.toContain('synthetic-deepseek-key');
+    expect(describeDevAgentKeys(dev.environment)).toBe('Agent API keys from .env: DeepSeek, OpenAI (development only)');
+    expect(describeDevAgentKeys(dev.environment)).not.toContain('synthetic');
+
+    const packaged = createWorktreePlan({ root, buildApp: true, platform: 'darwin', baseEnvironment: {} });
+    expect(packaged.environment.VITE_DEEPSEEK_API_KEY).toBeUndefined();
+    expect(packaged.manifest.agentKeysFromEnv).toEqual([]);
+
+    const off = createWorktreePlan({ root, baseEnvironment: { DRIFTING_DEV_AGENT_KEYS: '0' } });
+    expect(off.environment.VITE_DEEPSEEK_API_KEY).toBeUndefined();
+    const shell = createWorktreePlan({ root, baseEnvironment: { DEEPSEEK_AI_API_KEY: 'synthetic-shell-key' } });
+    expect(shell.environment.VITE_DEEPSEEK_API_KEY).toBe('synthetic-shell-key');
+  });
+
+  it('reads the main checkout\'s .env from a linked worktree that has none of its own', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'drifting keys-'));
+    directories.push(root);
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      if (result.status !== 0) throw new Error(result.stderr);
+    };
+    git('init', '-q', '-b', 'main', 'main');
+    writeFileSync(path.join(root, 'main/README'), 'synthetic');
+    git('-C', 'main', '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.test', 'add', 'README');
+    git('-C', 'main', '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.test', 'commit', '-q', '-m', 'synthetic');
+    git('-C', 'main', 'worktree', 'add', '-q', '../linked');
+    writeFileSync(path.join(root, 'main/.env'), 'DEEPSEEK_API_KEY=synthetic-main-deepseek\nOPENAI_API_KEY=synthetic-main-openai\n');
+    writeFileSync(path.join(root, 'main/.env.local'), 'OPENAI_API_KEY=synthetic-main-local-openai\n');
+
+    const linked = path.join(root, 'linked');
+    const roots = devAgentKeyRoots(linked);
+    expect(roots.map((directory: string) => path.basename(directory))).toEqual(['linked', 'main']);
+    expect(devAgentKeyEnvironment({ roots, baseEnvironment: {} })).toEqual({
+      VITE_DEEPSEEK_API_KEY: 'synthetic-main-deepseek',
+      VITE_OPENAI_API_KEY: 'synthetic-main-local-openai',
+    });
+    // The worktree's own file comes first when it has one.
+    writeFileSync(path.join(linked, '.env.local'), 'DEEPSEEK_API_KEY=synthetic-linked-deepseek\n');
+    expect(devAgentKeyEnvironment({ roots, baseEnvironment: {} }).VITE_DEEPSEEK_API_KEY).toBe('synthetic-linked-deepseek');
+    expect(devAgentKeyRoots(path.join(root, 'main')).map((directory: string) => path.basename(directory))).toEqual(['main']);
+  });
+
+  it('hands the Agent keys only to pnpm dev, never to a build', () => {
+    const launcher = readFileSync(path.join(repoRoot, 'scripts/run-desktop-tauri.mjs'), 'utf8');
+    expect(launcher).toContain("if (command === 'dev') {\n    Object.assign(environment, devAgentKeyEnvironment({ roots: devAgentKeyRoots(repoDir), baseEnvironment: environment }));");
   });
 
   it('isolates pnpm dev in a linked Git worktree and keeps the main checkout on the shared profile', () => {

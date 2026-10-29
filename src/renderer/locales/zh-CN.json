@@ -3520,16 +3520,8 @@
     "deleteSelectionConfirm": "删除所选的 {{count}} 项？素材会被删除；删除的文件夹里的内容会移到上一级。"
   },
   "scopeToggle": {
-    "subject": {
-      "chapter": "本章",
-      "drift": "本构想",
-      "element": "本要素",
-      "storyline": "本故事线",
-      "category": "本类目",
-      "material": "本素材",
-      "current": "当前"
-    },
-    "hintOff": "只看{{subject}}的内容",
-    "hintOn": "正在只看{{subject}}；再点一下看整个项目"
+    "label": "当前",
+    "hintOff": "只看当前这一项的内容",
+    "hintOn": "正在只看当前这一项；再点一下看整个项目"
   }
 }

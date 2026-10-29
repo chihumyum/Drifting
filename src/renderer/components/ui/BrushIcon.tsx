@@ -44,6 +44,8 @@ export type BrushIconName =
   | 'gate-out'
   | 'grip'
   | 'hook'
+  | 'lift'
+  | 'lift-bent'
   | 'image'
   | 'image-plus'
   | 'ink-disc'

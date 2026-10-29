@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import '../../lib/i18n';
 import { GlassSlider } from './GlassSlider';
 import { ScopeToggle } from './ScopeToggle';
-import { scopeToggleSubject } from './scope-toggle';
 
 const css = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
@@ -39,7 +38,7 @@ describe('glass slider', () => {
   it('slides on the dock spring with no track, square like the panel-tab block, and stays put under reduced motion', () => {
     const controls = css('src/styles/ui-controls.css');
     expect(controls).toContain(
-      'transform var(--slider-ms) var(--slider-ease),\n    width var(--slider-ms) var(--slider-ease);',
+      'transform var(--slider-ms) var(--slider-ease),\n    width var(--slider-ms) var(--slider-ease),\n    height var(--slider-ms) var(--slider-ease);',
     );
     const track = controls.slice(controls.indexOf('.glass-slider {'), controls.indexOf('.glass-slider__thumb {'));
     expect(track).toContain('background: transparent;');
@@ -52,22 +51,65 @@ describe('glass slider', () => {
     // block uses, and the slider's glass runs with its travel like that block.
     expect(controls).toContain('.glass-slider > .glass-slider__thumb.glass {\n  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);\n  --glass-gy: -132px;');
     expect(controls).toContain('.scope-toggle.glass.glass--rest {\n  --glass-gx: -96px;\n  --glass-gy: -132px;');
-    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain('trackGlassFlow(track, () => element.getBoundingClientRect().left);');
+    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain(
+      'trackGlassFlow(track, () => (vertical ? element.getBoundingClientRect().top : element.getBoundingClientRect().left));',
+    );
+  });
+
+  it('folds into the chosen option alone when collapsed, opening the rest stacked on hover', () => {
+    const markup = renderToStaticMarkup(
+      createElement(GlassSlider<'all' | 'comment' | 'todo'>, {
+        ariaLabel: 'Type',
+        value: 'todo',
+        onChange: () => {},
+        collapsed: true,
+        onNaturalWidth: () => {},
+        options: [
+          { value: 'all', label: 'All' },
+          { value: 'comment', label: 'Notes' },
+          { value: 'todo', label: 'TODO' },
+        ],
+      }),
+    );
+    // One tab: the chosen option on the glass, a trigger for the stacked list.
+    expect(markup).toContain('class="glass-slider glass-slider--collapsed"');
+    expect(markup.match(/<button/g)).toHaveLength(1);
+    expect(markup).toContain('aria-haspopup="dialog" aria-expanded="false"');
+    expect(markup).toContain('>TODO</button>');
+    expect(markup).not.toContain('role="radio"');
+    expect(markup.match(/[" ]glass(?=[" ])/g)).toHaveLength(1);
+    // A hidden copy still measures every option side by side.
+    expect(markup).toContain('<span aria-hidden="true" class="glass-slider__measure">');
+    expect(markup.match(/<span class="glass-slider__option">/g)).toHaveLength(3);
+
+    const controls = css('src/styles/ui-controls.css');
+    expect(controls).toContain('.glass-slider--vertical {\n  flex-direction: column;');
+    expect(controls).toContain('.glass-slider__measure {\n  position: absolute;');
+    expect(controls).toContain('visibility: hidden;');
+    // The opened list sits on body yet keeps the panel header's size and voice.
+    expect(controls).toContain(":is(.workspace-panel-header-row, .glass-slider-popover) :is(.glass-slider__option, .scope-toggle)");
+    expect(css('src/styles/interface-fonts.css')).toContain(':is(.workspace-panel-header-row, .glass-slider-popover, .left-sb-inline-group-header) :is(button, span)');
+    const source = css('src/renderer/components/ui/GlassSlider.tsx');
+    expect(source).toContain('placement="bottom-start"');
+    expect(source).toContain('orientation="vertical"');
   });
 });
 
 describe('scope toggle', () => {
-  it('names the current thing by its kind, a drift node as an idea', () => {
-    expect(scopeToggleSubject('node')).toBe('chapter');
-    expect(scopeToggleSubject('node', true)).toBe('drift');
-    expect(scopeToggleSubject('element')).toBe('element');
-    expect(scopeToggleSubject('library_item')).toBe('material');
-    expect(scopeToggleSubject(null)).toBe('current');
+  it('says 当前 for every kind of thing, in every panel', () => {
+    const word = (markup: string) => markup.replace(/<[^>]+>/g, '');
+    const toggle = renderToStaticMarkup(createElement(ScopeToggle, { pressed: false, onToggle: () => {} }));
+    expect(word(toggle)).toBe('Current');
+    expect(toggle).toContain('title="Only what belongs to the current item"');
+    expect(JSON.parse(css('src/renderer/locales/zh-CN.json')).scopeToggle.label).toBe('当前');
+    for (const panel of ['src/renderer/components/rightBars/ReviewPanel.tsx', 'src/renderer/features/library/LibraryPanel.tsx']) {
+      expect(css(panel)).not.toContain('scopeToggleSubject');
+    }
   });
 
   it('keeps one word in both states and shows the state as lock-like glass', () => {
-    const off = renderToStaticMarkup(createElement(ScopeToggle, { subject: 'chapter', pressed: false, onToggle: () => {} }));
-    const on = renderToStaticMarkup(createElement(ScopeToggle, { subject: 'chapter', pressed: true, onToggle: () => {} }));
+    const off = renderToStaticMarkup(createElement(ScopeToggle, { pressed: false, onToggle: () => {} }));
+    const on = renderToStaticMarkup(createElement(ScopeToggle, { pressed: true, onToggle: () => {} }));
     const word = (markup: string) => markup.replace(/<[^>]+>/g, '');
     expect(word(off)).toBe(word(on));
     expect(off).toContain('class="scope-toggle glass glass--rest"');

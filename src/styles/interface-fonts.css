@@ -61,7 +61,7 @@ html[data-shell-mode='desktop'] :is(
   text-transform: none !important;
 }
 
-html[data-shell-mode='desktop'] :is(.workspace-panel-header-row, .left-sb-inline-group-header) :is(button, span) {
+html[data-shell-mode='desktop'] :is(.workspace-panel-header-row, .glass-slider-popover, .left-sb-inline-group-header) :is(button, span) {
   font-family: var(--font-mono);
   letter-spacing: 0 !important;
   text-transform: none !important;

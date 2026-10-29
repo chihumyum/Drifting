@@ -1,5 +1,5 @@
 import { useSidebarPreference, useSidebarPanelState } from '../../hooks/useSidebarPanelState';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -37,7 +37,6 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
 import { GlassSlider } from '../ui/GlassSlider';
 import { ScopeToggle } from '../ui/ScopeToggle';
-import { scopeToggleSubject } from '../ui/scope-toggle';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
@@ -91,6 +90,8 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const [composeKind, setComposeKind] = useState<ComposeKind | null>(null);
   const toolbarRef = useRef<HTMLElement | null>(null);
   const [compactToolbar, setCompactToolbar] = useState(false);
+  const [typeFiltersWidth, setTypeFiltersWidth] = useState(0);
+  const [collapseTypeFilters, setCollapseTypeFilters] = useState(false);
   useStickyNoteRailRegistryRevision();
   // A material tab scopes to its region comments, which target it directly.
   const hasCurrentScope = isCommentTargetKind(focused.kind) && Boolean(focused.id);
@@ -105,6 +106,32 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  // The header never breaks onto a second line: once the type filters no
+  // longer fit beside the scope toggle and the actions, they fold into one
+  // tab that opens on hover. The room is what the row has left after the
+  // other controls and the gaps; the filters report their full width.
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar || !typeFiltersWidth) return undefined;
+    const update = () => {
+      const style = getComputedStyle(toolbar);
+      const items = [...toolbar.children];
+      const others = items
+        .filter((item) => !item.matches('.review-panel__type-filters, .review-panel__toolbar-spacer'))
+        .reduce((width, item) => width + item.getBoundingClientRect().width, 0);
+      const room = toolbar.clientWidth
+        - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+        - (parseFloat(style.columnGap) || 0) * (items.length - 1)
+        - others;
+      setCollapseTypeFilters(typeFiltersWidth > room + 0.5);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(toolbar);
+    for (const item of toolbar.children) observer.observe(item);
+    return () => observer.disconnect();
+  }, [typeFiltersWidth]);
 
   const genericRelationTypeId = genericAssociationRelationTypeId(projectId);
   const genericRelations = useMemo(
@@ -328,6 +355,8 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
           ariaLabel={t('reviewPanel.type')}
           value={typeFilter}
           onChange={setTypeFilter}
+          collapsed={collapseTypeFilters}
+          onNaturalWidth={setTypeFiltersWidth}
           options={(['all', 'comment', 'todo'] as const).map((filter) => ({
             value: filter,
             label: t(`reviewPanel.${compactToolbar ? 'filtersCompact' : 'filters'}.${filter}`),
@@ -336,10 +365,6 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
 
         <ScopeToggle
           className="review-panel__scope-toggle"
-          subject={scopeToggleSubject(
-            focused.kind,
-            focused.kind === 'node' && focused.id ? reviewGroupTitle(groupData, 'node', focused.id)?.isDrift : false,
-          )}
           pressed={effectiveScope === 'current'}
           disabled={!hasCurrentScope}
           onToggle={() => setScope(effectiveScope === 'current' ? 'project' : 'current')}

@@ -20,7 +20,10 @@ Guidance for coding agents working in this standalone Drifting client repository
   one checkout and `--print-config` to inspect the non-secret JSON manifest.
   In a linked Git worktree plain `pnpm dev` uses that isolated profile by
   itself; `pnpm dev:seed` starts one with a synthetic sample project.
-  See `docs/worktree-development.md`. Never point parallel apps at one database.
+  For DOM-level checks start `pnpm drifting frontend serve --platform desktop`
+  and add `--frontend-debug` to the launch; desktop acceptance needs no iOS
+  Simulator. See `docs/worktree-development.md`. Never point parallel apps at
+  one database.
 
 ## Repository boundary
 

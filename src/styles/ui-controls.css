@@ -25,8 +25,11 @@
    button with the 3px padding, 4px above the base control), so a panel with
    one is exactly as tall as a panel without. Words keep the interface text
    size. */
-html[data-shell-mode='desktop'] .workspace-panel-header-row {
+html[data-shell-mode='desktop'] :is(.workspace-panel-header-row, .glass-slider-popover) {
   --panel-header-scale: 1.25;
+}
+
+html[data-shell-mode='desktop'] .workspace-panel-header-row {
   min-height: calc((var(--ui-control-height, 26px) + 4px) * var(--panel-header-scale));
   padding-block: calc(3px * var(--panel-header-scale));
 }
@@ -35,7 +38,9 @@ html[data-shell-mode='desktop'] .workspace-panel-header-row .ghost-icon-button {
   zoom: var(--panel-header-scale);
 }
 
-html[data-shell-mode='desktop'] .workspace-panel-header-row :is(.glass-slider__option, .scope-toggle) {
+/* A collapsed slider's options open on body, outside the header, and keep
+   its size there. */
+html[data-shell-mode='desktop'] :is(.workspace-panel-header-row, .glass-slider-popover) :is(.glass-slider__option, .scope-toggle) {
   min-height: calc(20px * var(--panel-header-scale));
   padding: calc(2px * var(--panel-header-scale)) calc(8px * var(--panel-header-scale));
 }
@@ -1856,12 +1861,12 @@ svg.super-viewport-edges[data-panning='1'] {
 .glass-slider__thumb {
   position: absolute;
   top: 0;
-  bottom: 0;
   left: 0;
   width: var(--slider-w);
+  height: var(--slider-h);
   border-radius: 0;
   background: var(--glass-fill);
-  transform: translateX(var(--slider-x));
+  transform: translate(var(--slider-x), var(--slider-y));
   opacity: 0;
   pointer-events: none;
 }
@@ -1880,7 +1885,41 @@ svg.super-viewport-edges[data-panning='1'] {
 .glass-slider[data-placed='true'] .glass-slider__thumb {
   transition:
     transform var(--slider-ms) var(--slider-ease),
-    width var(--slider-ms) var(--slider-ease);
+    width var(--slider-ms) var(--slider-ease),
+    height var(--slider-ms) var(--slider-ease);
+}
+
+/* Stacked options (a collapsed slider's opened list) slide top to bottom;
+   the glass runs down the same dense patch of texture. */
+.glass-slider--vertical {
+  flex-direction: column;
+}
+
+.glass-slider--vertical > .glass-slider__option {
+  text-align: start;
+}
+
+.glass-slider--vertical > .glass-slider__thumb.glass {
+  --glass-gx: -96px;
+  --glass-gy: calc(var(--flow, 0) * 1.2px - 132px);
+}
+
+/* Where the options don't fit side by side, only the chosen one stays, with
+   the glass under it; hovering opens all of them stacked in a menu surface
+   just below, and choosing closes it. A hidden copy keeps measuring the
+   options' natural width so the slider opens out again once there is room. */
+.glass-slider__measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.glass-slider-popover {
+  width: auto;
 }
 
 .glass-slider__option {

@@ -519,7 +519,8 @@ function LeafTabSlot({
   onClose,
 }: LeafSlotProps) {
   const { t } = useTranslation();
-  const accent = color || 'hsl(var(--ink-3))';
+  // Glass with no colour of its own is the clear glass, as everywhere else.
+  const accent = color || 'var(--glass-clear)';
   return (
     <div
       role="tab"
@@ -672,7 +673,7 @@ function SplitTabSlot({
       className={`app-tab app-tab--split glass glass--rest${isActive ? ' is-active is-on' : ''}`}
       draggable
       style={{
-        '--glass-cc': (tab.focused === 'right' ? rightColor : leftColor) || 'hsl(var(--ink-3))',
+        '--glass-cc': (tab.focused === 'right' ? rightColor : leftColor) || 'var(--glass-clear)',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'stretch',

@@ -23,7 +23,14 @@ import { BrushIcon } from '../../components/ui/BrushIcon';
  * upward menu. The menu adjusts the active model, provider-aware reasoning,
  * and edit-review behavior.
  */
-export function AgentComposerConfig({ preserveInputFocus = false }: { preserveInputFocus?: boolean }) {
+export function AgentComposerConfig({
+  preserveInputFocus = false,
+  glass = false,
+}: {
+  preserveInputFocus?: boolean;
+  /** A round glass button in the desktop composer's tray. */
+  glass?: boolean;
+}) {
   const { t } = useTranslation();
   const agentProvider = useSettingsStore((s) => s.agentProvider);
   const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
@@ -65,7 +72,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
       <button
         ref={triggerRef}
         type="button"
-        className={'agt-cfg' + (open ? ' agt-cfg--open' : '')}
+        className={'agt-cfg' + (open ? ' agt-cfg--open' : '') + (glass ? ' glass glass--round' : '')}
         onClick={() => setOpen((o) => !o)}
         title={t('agentPanel.config.title')}
         aria-label={t('agentPanel.config.aria')}

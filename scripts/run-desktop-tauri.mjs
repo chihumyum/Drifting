@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-identity.mjs';
 import { hostedEnvironment, normalizeHostedOrigin } from './hosted-environment.mjs';
 import { sentrySecurityOverride } from './sentry-environment.mjs';
+import { describeDevAgentKeys, devAgentKeyEnvironment, devAgentKeyRoots } from './dev-agent-keys.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoDir = path.resolve(path.dirname(scriptPath), '..');
@@ -181,6 +182,11 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const online = normalizedForwarded.includes('--online');
   const tauriArguments = normalizedForwarded.filter((argument) => argument !== '--online');
   const environment = createDesktopTauriEnvironment({ mode: online ? 'online' : 'local' });
+  // Development only: the Agent's keys from .env (scripts/dev-agent-keys.mjs).
+  if (command === 'dev') {
+    Object.assign(environment, devAgentKeyEnvironment({ roots: devAgentKeyRoots(repoDir), baseEnvironment: environment }));
+    console.log(describeDevAgentKeys(environment));
+  }
   const macosSigningIdentity = prepareDesktopSigning({ command, arguments: tauriArguments, environment });
   const tauriConfigOverride = createDesktopTauriConfigOverride({
     command,

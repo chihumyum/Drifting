@@ -12,8 +12,6 @@ import type { LibraryItem } from '../../domain/library-item';
 import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { ScopeToggle } from '../../components/ui/ScopeToggle';
-import { scopeToggleSubject } from '../../components/ui/scope-toggle';
-import { isDrift } from '../../domain/book-node';
 import { ComposeLibraryItemDialog } from './LibraryDialogs';
 import { openLibraryItemInSystem } from './open-library-item';
 import { MaterialFolderTree, type MaterialTreeSelection } from './MaterialFolderTree';
@@ -83,11 +81,6 @@ export function LibraryPanel({
   const [moveRequest, setMoveRequest] = useState<{ selection: MaterialTreeSelection; current: string | null } | null>(null);
   const [newFolderRequest, setNewFolderRequest] = useState(0);
   const materialFolders = useDataStore((s) => s.materialFolders);
-  const focusedIsDrift = useDataStore((s) => {
-    if (focused.kind !== 'node' || !focused.id) return false;
-    const node = s.bookNodes.find((candidate) => candidate.id === focused.id);
-    return node ? isDrift(node) : false;
-  });
   const folderUsecases = useMaterialFolder(projectId);
 
   // Index entityRelations by from-entity so cards can render their relation
@@ -149,7 +142,6 @@ export function LibraryPanel({
         filter={filter}
         onFilterChange={setFilter}
         focusedKind={focused.kind}
-        focusedIsDrift={focusedIsDrift}
         onCompose={() => setComposeOpen(true)}
         libraryItemTotal={libraryItems.length}
         onNewFolder={presentation === 'desktop' ? () => setNewFolderRequest((count) => count + 1) : undefined}
@@ -239,7 +231,6 @@ function Toolbar({
   filter,
   onFilterChange,
   focusedKind,
-  focusedIsDrift,
   onCompose,
   libraryItemTotal,
   onNewFolder,
@@ -252,7 +243,6 @@ function Toolbar({
   filter: ViewFilter;
   onFilterChange: (f: ViewFilter) => void;
   focusedKind: EntityKind | null;
-  focusedIsDrift: boolean;
   onCompose: () => void;
   libraryItemTotal: number;
 }) {
@@ -293,7 +283,6 @@ function Toolbar({
       {/* Two states, so one toggle: off shows every material, on only those
           related to the focused chapter, element or material. */}
       <ScopeToggle
-        subject={scopeToggleSubject(focusedKind, focusedIsDrift)}
         pressed={filter === 'related' && Boolean(focusedKind)}
         disabled={!focusedKind}
         onToggle={() => onFilterChange(filter === 'related' ? 'all' : 'related')}

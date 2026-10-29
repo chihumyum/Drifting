@@ -1,15 +1,18 @@
 /**
  * Env credentials — reads API keys from Vite environment variables.
  *
- * Intended for **development convenience only**: drop your key into
- * `.env.local` so dev console smoke tests work without poking the keychain
- * every restart. Vite inlines `import.meta.env.VITE_*` at build time, so
- * never commit a real key — and never ship a production build with one set.
+ * Intended for **development convenience only**. The development launchers
+ * read `DEEPSEEK_API_KEY` / `OPENAI_API_KEY` from the ignored `.env` /
+ * `.env.local` and hand them to the dev server under these names
+ * (scripts/dev-agent-keys.mjs), so every fresh development profile starts
+ * connected. Vite inlines `import.meta.env.VITE_*` at build time, so never
+ * commit a real key — and never ship a production build with one set.
  *
  * Looked up per provider (first match wins):
  *   google    →  VITE_GOOGLE_AI_API_KEY  |  VITE_GEMINI_API_KEY
  *   anthropic →  VITE_ANTHROPIC_API_KEY
  *   openai    →  VITE_OPENAI_API_KEY
+ *   deepseek  →  VITE_DEEPSEEK_AI_API_KEY  |  VITE_DEEPSEEK_API_KEY
  */
 import type { BYOKProvider } from '../../byok-keychain';
 import { AIError } from '../types';
@@ -20,7 +23,7 @@ export class EnvCredentialsProvider implements CredentialsProvider {
   readonly mode: CredentialsMode = 'byok';
 
   async getApiKey(provider: BYOKProvider): Promise<string> {
-    const key = readEnvKey(provider);
+    const key = readEnvApiKey(provider);
     if (!key) {
       throw new AIError(
         'auth',
@@ -31,7 +34,8 @@ export class EnvCredentialsProvider implements CredentialsProvider {
   }
 }
 
-function readEnvKey(provider: BYOKProvider): string | undefined {
+/** The development key for `provider`, if the dev server was given one. */
+export function readEnvApiKey(provider: BYOKProvider): string | undefined {
   const env = runtimeViteEnv as Record<string, string | undefined>;
   for (const name of envNames(provider)) {
     const v = env[name];

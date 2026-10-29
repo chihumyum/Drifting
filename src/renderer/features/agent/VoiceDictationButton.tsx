@@ -24,14 +24,21 @@ function formatElapsed(fromMs: number, nowMs: number): string {
  * the button: nothing about capture is visible at the OS level when it fails,
  * so a colour change alone cannot carry the message. `onNeedsSetup` fires
  * when no transcription key is configured, letting each surface route to its
- * own settings entry.
+ * own settings entry. The desktop composer keeps the button in its glass
+ * tray and lays the status beside the tray, so it renders the two parts
+ * apart.
  */
 export function VoiceDictationButton({
   projectId,
   onNeedsSetup,
+  glass = false,
+  part = 'both',
 }: {
   projectId: string;
   onNeedsSetup(): void;
+  /** A round glass button in the desktop composer's tray. */
+  glass?: boolean;
+  part?: 'both' | 'button' | 'status';
 }) {
   const { t } = useTranslation();
   const phase = useVoiceCaptureStore((state) => state.phase);
@@ -90,25 +97,27 @@ export function VoiceDictationButton({
 
   return (
     <>
-      <button
-        type="button"
-        className="agt-cfg agt-mic"
-        data-state={phase}
-        onClick={() => void handleClick()}
-        disabled={phase === 'transcribing'}
-        title={title}
-        aria-label={title}
-        aria-pressed={phase === 'recording'}
-      >
-        {phase === 'recording' ? (
-          <BrushIcon name="stop" size={14} />
-        ) : phase === 'transcribing' ? (
-          <BrushIcon name="loader" size={15} className="agt-mic__spin" />
-        ) : (
-          <BrushIcon name="mic" size={15} />
-        )}
-      </button>
-      {statusText && (
+      {part !== 'status' && (
+        <button
+          type="button"
+          className={glass ? 'agt-cfg agt-mic glass glass--round' : 'agt-cfg agt-mic'}
+          data-state={phase}
+          onClick={() => void handleClick()}
+          disabled={phase === 'transcribing'}
+          title={title}
+          aria-label={title}
+          aria-pressed={phase === 'recording'}
+        >
+          {phase === 'recording' ? (
+            <BrushIcon name="stop" size={14} />
+          ) : phase === 'transcribing' ? (
+            <BrushIcon name="loader" size={15} className="agt-mic__spin" />
+          ) : (
+            <BrushIcon name="mic" size={15} />
+          )}
+        </button>
+      )}
+      {part !== 'button' && statusText && (
         <span className="agt-mic__status" role="status" data-state={phase}>
           <span className="agt-mic__status-text">{statusText}</span>
           {errorKey === 'voiceAgent.error.noKey' && (

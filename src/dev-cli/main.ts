@@ -21,7 +21,7 @@ Usage:
   pnpm drifting scenario run <file> --project <id> --db <file>
   pnpm drifting agent turn --project <id> --bridge http://127.0.0.1:4317 --prompt <text>
   pnpm drifting agent review --project <id> --bridge http://127.0.0.1:4317 --review-id <id> --decision accept|reject
-  pnpm drifting frontend serve --platform android|ios [--device <id>]
+  pnpm drifting frontend serve --platform android|ios|desktop [--device <id>]
   pnpm drifting frontend status|snapshot|query|wait|style|hit-test [--input <json|@file>]
   pnpm drifting frontend tap|type|scroll|drag|pinch|evaluate [--input <json|@file>]
   pnpm drifting frontend console|network [--stream]
