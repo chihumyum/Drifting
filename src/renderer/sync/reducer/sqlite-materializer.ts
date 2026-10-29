@@ -127,9 +127,11 @@ export interface SyncDomainMaterializationContext {
   /** Full deterministic projection; effects with materialize=false are evidence only. */
   readonly effects: readonly ReducerEffect[];
   /**
-   * Effects whose projection differs from the one last materialized for this
-   * SyncGeneration. Null when that projection is unknown (after a rebuild);
-   * domain rows must then be converged to the full projection.
+   * Remote applies only: effects whose projection differs from the one last
+   * materialized for this SyncGeneration. Null when that projection is
+   * unknown (after a rebuild); domain rows must then be converged to the full
+   * projection. A local authored write has already written its domain rows
+   * and skips this comparison of every effect.
    */
   readonly changedEffectIds?: ReadonlySet<string> | null;
 }
@@ -295,11 +297,57 @@ function changedValues<T>(next: ReadonlyMap<string, T>, prior: ReadonlyMap<strin
   return changed;
 }
 
+type ClockColumns = ReturnType<typeof clockColumns>;
+const clockSignature = (clock: ClockColumns) => [clock.hlcWallMs, clock.hlcCounter, clock.writerId,
+  clock.writerEpoch, clock.deviceSeq, clock.changeSetId, clock.mutationIndex];
+const bytesHex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+
+/**
+ * What every metadata row of a SyncGeneration holds now, keyed by its primary
+ * key, as the JSON of exactly the columns an upsert would write.
+ */
+interface StoredReducerMetadata {
+  readonly fields: ReadonlyMap<string, string>;
+  readonly setTags: ReadonlyMap<string, string>;
+  readonly orders: ReadonlyMap<string, string>;
+  readonly lifecycles: ReadonlyMap<string, string>;
+}
+
+const fieldRowKey = (kind: string, id: string, incarnation: number, fieldKey: string) => JSON.stringify([kind, id, incarnation, fieldKey]);
+const setTagRowKey = (kind: string, id: string, incarnation: number, setKey: string, valueKey: string, addTag: string) =>
+  JSON.stringify([kind, id, incarnation, setKey, valueKey, addTag]);
+const orderRowKey = (listKind: string, entityId: string, incarnation: number) => JSON.stringify([listKind, entityId, incarnation]);
+const lifecycleRowKey = (kind: string, id: string) => JSON.stringify([kind, id]);
+
+async function readStoredReducerMetadata(tx: DbTransaction, syncGenerationId: string): Promise<StoredReducerMetadata> {
+  const fields = new Map<string, string>();
+  for (const row of await tx.select().from(SyncFieldClockTable).where(eq(SyncFieldClockTable.syncGenerationId, syncGenerationId))) {
+    fields.set(fieldRowKey(row.targetKind, row.targetId, row.incarnation, row.fieldKey), JSON.stringify(clockSignature(row)));
+  }
+  const setTags = new Map<string, string>();
+  for (const row of await tx.select().from(SyncSetTagTable).where(eq(SyncSetTagTable.syncGenerationId, syncGenerationId))) {
+    setTags.set(setTagRowKey(row.ownerKind, row.ownerId, row.incarnation, row.setKey, row.valueKey, row.addTag),
+      JSON.stringify([bytesHex(new Uint8Array(row.valueCbor as Uint8Array)), row.removedByChangeSetId ?? null, row.removedByMutationIndex ?? null]));
+  }
+  const orders = new Map<string, string>();
+  for (const row of await tx.select().from(SyncOrderRegisterTable).where(eq(SyncOrderRegisterTable.syncGenerationId, syncGenerationId))) {
+    orders.set(orderRowKey(row.listKind, row.entityId, row.incarnation), JSON.stringify([row.ownerId, row.positionKey, ...clockSignature(row)]));
+  }
+  const lifecycles = new Map<string, string>();
+  for (const row of await tx.select().from(SyncEntityLifecycleTable).where(eq(SyncEntityLifecycleTable.syncGenerationId, syncGenerationId))) {
+    lifecycles.set(lifecycleRowKey(row.entityKind, row.entityId), JSON.stringify([row.incarnation, row.state, ...clockSignature(row)]));
+  }
+  return { fields, setTags, orders, lifecycles };
+}
+
 /**
  * Upserts reducer metadata. With `previous`, only registers and containers
  * the latest change-set replaced are written; every earlier row already holds
- * its value. Without it (a rebuilt state) every row is written, which also
- * repairs metadata that drifted from the journal.
+ * its value. Without it (a rebuilt state) every row is checked against what is
+ * stored, and every missing or different row is written, which repairs
+ * metadata that drifted from the journal. Rows that already match are not
+ * rewritten: on a large project that full rewrite cost seconds on the first
+ * write after every launch.
  */
 async function persistReducerMetadata(
   tx: DbTransaction,
@@ -313,6 +361,7 @@ async function persistReducerMetadata(
   },
 ): Promise<void> {
   const { state, previous } = input;
+  const stored = previous ? null : await readStoredReducerMetadata(tx, state.identity.syncGenerationId);
   if (state.generationPurge && state.generationPurge !== previous?.generationPurge) {
     const values = {
       syncGenerationId: state.identity.syncGenerationId,
@@ -332,6 +381,7 @@ async function persistReducerMetadata(
       fieldKey: `field:${register.field}`,
       ...clockColumns(register.order, register.source),
     };
+    if (stored?.fields.get(fieldRowKey(values.targetKind, values.targetId, values.incarnation, values.fieldKey)) === JSON.stringify(clockSignature(values))) continue;
     await tx.insert(SyncFieldClockTable).values(values).onConflictDoUpdate({
       target: [
         SyncFieldClockTable.syncGenerationId,
@@ -352,6 +402,7 @@ async function persistReducerMetadata(
       fieldKey: `tuple:${register.tuple}`,
       ...clockColumns(register.order, register.source),
     };
+    if (stored?.fields.get(fieldRowKey(values.targetKind, values.targetId, values.incarnation, values.fieldKey)) === JSON.stringify(clockSignature(values))) continue;
     await tx.insert(SyncFieldClockTable).values(values).onConflictDoUpdate({
       target: [
         SyncFieldClockTable.syncGenerationId,
@@ -386,6 +437,8 @@ async function persistReducerMetadata(
           removedByChangeSetId: remove?.source.changeSetId,
           removedByMutationIndex: remove?.source.mutationIndex,
         };
+        if (stored?.setTags.get(setTagRowKey(values.ownerKind, values.ownerId, values.incarnation, values.setKey, values.valueKey, values.addTag))
+          === JSON.stringify([bytesHex(values.valueCbor), values.removedByChangeSetId ?? null, values.removedByMutationIndex ?? null])) continue;
         await tx.insert(SyncSetTagTable).values(values).onConflictDoUpdate({
           target: [
             SyncSetTagTable.syncGenerationId,
@@ -415,6 +468,8 @@ async function persistReducerMetadata(
       positionKey: register.value,
       ...clockColumns(register.order, register.source),
     };
+    if (stored?.orders.get(orderRowKey(values.listKind, values.entityId, values.incarnation))
+      === JSON.stringify([values.ownerId, values.positionKey, ...clockSignature(values)])) continue;
     await tx.insert(SyncOrderRegisterTable).values(values).onConflictDoUpdate({
       target: [
         SyncOrderRegisterTable.syncGenerationId,
@@ -449,6 +504,8 @@ async function persistReducerMetadata(
       state: effect.status as 'live' | 'trashed' | 'purged',
       ...clockColumns(effect.order!, effect.source!),
     };
+    if (stored?.lifecycles.get(lifecycleRowKey(values.entityKind, values.entityId))
+      === JSON.stringify([values.incarnation, values.state, ...clockSignature(values)])) continue;
     await tx.insert(SyncEntityLifecycleTable).values(values).onConflictDoUpdate({
       target: [
         SyncEntityLifecycleTable.syncGenerationId,
@@ -568,7 +625,9 @@ async function reduceAndPersist(
   const nextContext: SyncDomainMaterializationContext = {
     ...context,
     effects: validated.effects,
-    changedEffectIds: loaded.effects ? changedEffectIds(loaded.effects, validated.effects) : null,
+    ...(input.origin === 'remote'
+      ? { changedEffectIds: loaded.effects ? changedEffectIds(loaded.effects, validated.effects) : null }
+      : {}),
   };
 
   if (input.origin === 'local') {

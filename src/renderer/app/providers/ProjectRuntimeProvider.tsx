@@ -31,6 +31,7 @@ import { createWorkspaceProjectionRefresh } from '../../services/workspace-proje
 import { captureWorkspaceProjection } from '../../services/workspace-projection.service';
 import { FullScreenStatus } from '../components/FullScreenStatus';
 import { releaseEntityLinkNames } from '../../lib/entity-link-names';
+import { prewarmAuthoredReducer } from '../../sync/journal/authored-transaction';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -168,6 +169,16 @@ export function ProjectRuntimeProvider({
     revertToNote: commentUsecases.revertToNote,
   });
   useDriftingAgentRuntime();
+
+  useEffect(() => {
+    if (bootState.key !== bootKey || bootState.status !== 'ready') return;
+    // Rebuild the reducer state once the project has painted, instead of on
+    // the first keystroke.
+    const timer = window.setTimeout(() => {
+      void prewarmAuthoredReducer(projectId).catch((error) => log.debug('Reducer prewarm skipped:', error));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [bootKey, bootState.key, bootState.status, projectId]);
 
   useEffect(() => {
     if (bootState.key !== bootKey || bootState.status !== 'ready' || getPlatformRuntime().target !== 'desktop') return;

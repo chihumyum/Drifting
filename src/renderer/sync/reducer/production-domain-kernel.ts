@@ -370,6 +370,24 @@ function conflict(
 }
 
 const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, readonly ReducerEffect[]>>();
+type SetMemberEffect = Extract<ReducerEffect, { type: 'set.member' }>;
+const setMembersByKey = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, SetMemberEffect>>();
+
+/** The first set.member effect for a set and member, like a scan of `effects` in order. */
+function setMemberEffect(effects: readonly ReducerEffect[], setKind: string, setId: string, memberId: string): SetMemberEffect | undefined {
+  let index = setMembersByKey.get(effects);
+  if (!index) {
+    const members = new Map<string, SetMemberEffect>();
+    for (const effect of effects) {
+      if (effect.type !== 'set.member') continue;
+      const key = JSON.stringify([effect.target.kind, effect.target.id, effect.memberId]);
+      if (!members.has(key)) members.set(key, effect);
+    }
+    index = members;
+    setMembersByKey.set(effects, index);
+  }
+  return index.get(JSON.stringify([setKind, setId, memberId]));
+}
 
 /**
  * Validation looks up an entity for nearly every effect in the full
@@ -583,8 +601,8 @@ function liveLifecycleCandidate(
   kind: string,
   id: string,
 ): CborRecord | null | undefined {
-  const lifecycle = effects.find((effect): effect is LifecycleEffect =>
-    effect.type === 'entity.lifecycle' && effect.target.kind === kind && effect.target.id === id,
+  const lifecycle = effectsForEntity(effects, kind, id).find((effect): effect is LifecycleEffect =>
+    effect.type === 'entity.lifecycle',
   );
   if (!lifecycle) return undefined;
   if (lifecycle.status !== 'live') return null;
@@ -655,15 +673,17 @@ async function validateStorylineMembershipInvariant(
   );
 }
 
+function isPrimaryStorylineAssignment(effect: FieldEffect): boolean {
+  return effect.target.kind === NODE_PRIMARY_STORYLINE_REGISTER_KIND
+    && effect.field === NODE_PRIMARY_STORYLINE_FIELD
+    && effect.value !== null;
+}
+
 async function validatePrimaryStorylineInvariant(
   context: SyncDomainMaterializationContext,
   effect: FieldEffect,
 ): Promise<readonly SemanticConflictDraft[]> {
-  if (
-    effect.target.kind !== NODE_PRIMARY_STORYLINE_REGISTER_KIND ||
-    effect.field !== NODE_PRIMARY_STORYLINE_FIELD ||
-    effect.value === null
-  ) return [];
+  if (!isPrimaryStorylineAssignment(effect)) return [];
   const storylineId = effect.value as string;
   const issues = [...await validateLiveChapterAndStoryline(
     context,
@@ -671,13 +691,7 @@ async function validatePrimaryStorylineInvariant(
     effect.target.id,
     storylineId,
   )];
-  const canonicalMembership = context.effects.find(
-    (candidate): candidate is Extract<ReducerEffect, { type: 'set.member' }> =>
-      candidate.type === 'set.member' &&
-      candidate.target.kind === STORYLINE_MEMBERSHIP_SET_KIND &&
-      candidate.target.id === storylineId &&
-      candidate.memberId === effect.target.id,
-  );
+  const canonicalMembership = setMemberEffect(context.effects, STORYLINE_MEMBERSHIP_SET_KIND, storylineId, effect.target.id);
   const storedMembership = canonicalMembership
     ? canonicalMembership.present
     : (await context.tx
@@ -1570,7 +1584,9 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
     if (effect.type === 'field.set') {
       const issue = validateFieldEffect(effect);
       if (issue) issues.push(issue);
-      else issues.push(...await validatePrimaryStorylineInvariant(context, effect));
+      // Most effects are ordinary fields. Awaiting the async invariant for
+      // each of them costs more than the whole field check.
+      else if (isPrimaryStorylineAssignment(effect)) issues.push(...await validatePrimaryStorylineInvariant(context, effect));
     } else if (effect.type === 'tuple.set') {
       const issue = validateTupleEffect(effect);
       if (issue) issues.push(issue);
@@ -1587,7 +1603,9 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
     } else if (effect.type === 'set.member') {
       const issue = validateSetEffect(effect);
       if (issue) issues.push(issue);
-      else issues.push(...await validateStorylineMembershipInvariant(context, effect));
+      else if (effect.target.kind === STORYLINE_MEMBERSHIP_SET_KIND && effect.present) {
+        issues.push(...await validateStorylineMembershipInvariant(context, effect));
+      }
     } else if (effect.type === 'entity.lifecycle') {
       issues.push(...validateLifecycleEffect(effect));
     } else {

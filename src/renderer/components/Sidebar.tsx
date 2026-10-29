@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from 'react';
+import { Activity, ReactNode, useState, useEffect, useRef } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
 import { clampSidebarWidth } from '../lib/layout-geometry';
 import { useSidebarMetricsStore } from '../store/sidebar-metrics-store';
@@ -251,7 +251,10 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
               display: 'flex',
             }}
           >
-            {mountChildren ? children : null}
+            {/* A closed panel stays mounted but hidden, so reopening it shows
+                kept DOM and state instead of mounting a long panel during the
+                slide's first frame; its updates wait for idle meanwhile. */}
+            <Activity mode={mountChildren ? 'visible' : 'hidden'}>{children}</Activity>
           </div>
         </div>
       )}
