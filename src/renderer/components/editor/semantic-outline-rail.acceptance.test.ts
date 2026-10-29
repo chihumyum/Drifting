@@ -165,9 +165,11 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(commentsReviewCss).toMatch(
       /\.editor__scrollmap-tick\s*\{[\s\S]*?pointer-events:\s*auto;/,
     );
-    expect(scrollMarkers).toContain('onClick={() => jump(tick.blockIds)}');
+    expect(scrollMarkers).toContain('onClick={() => jump(tick)}');
     expect(scrollMarkers).toContain("scrollIntoView({ behavior: 'smooth', block: 'center' })");
+    // Agent ticks flash their blocks; a comment tick draws its anchor in sand on the desktop.
     expect(scrollMarkers).toContain('blocks.forEach(flashBlock)');
+    expect(scrollMarkers).toContain('selectCommentHighlight(tick.key.slice(2))');
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
   });
 

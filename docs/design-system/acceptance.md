@@ -15,6 +15,7 @@ pnpm exec vitest run src/renderer/features/library/material-sand-glass.acceptanc
 pnpm exec vitest run src/renderer/components/editor/paper-tools-sand-glass.acceptance.test.ts src/renderer/components/editor/outline-rail-model.test.ts src/renderer/components/editor/scroll-marker-model.test.ts src/renderer/store/ui-store.bottom-dock.test.ts
 node scripts/run-tab-reorder-acceptance.mjs --check
 pnpm exec vitest run src/renderer/views/all-chapters-sand-glass.acceptance.test.ts src/renderer/features/agent/project-memory-glass.render.test.ts
+pnpm exec vitest run src/renderer/components/editor/comment-sand.acceptance.test.ts src/renderer/lib/comment-sand.test.ts src/renderer/components/editor/comment-anchor-highlight.acceptance.test.ts
 ```
 
 所有侧栏 Tab 的视图隔离契约与合成数据验收见 [sidebar-panel-isolation](../qa/sidebar-panel-isolation.md)。
@@ -35,6 +36,7 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 - **实体编辑器**：`components/editor/entity-editor-glass.acceptance.test.ts` 渲染桌面与移动端的 `KvEditor`（桌面每行是输入片、只读是静止细线、移动端没有玻璃），并守着各编辑器的移动端门控、页头的大记号与圆形玻璃色板、清单的 cell 行与 `GlassSlider`、关联卡与就地选择器、平的提及行、补丁卡与推波、对话框的菜单行与玻璃卡，以及 `entity-editors.css` 的桌面规则不垫底、没有投影、没有左侧竖条。
 - **通览全书与稿纸页眉**：`views/all-chapters-sand-glass.acceptance.test.ts` 守着桌面上章与章之间不画线（只有移动端保留）、幕扉页是小字幕序加正文字体幕名与一笔干砂、没有章节时是主按钮加带鸟居的次按钮，页眉里的故事线是砂笔短横加墨色名字、不再重复「— 主线 —」也不用强调色，以及两种语言都有新文案。
 - **Project Memory**：`features/agent/project-memory-glass.render.test.ts` 渲染真实的编辑器：桌面上条目是一张只读细线卡、操作是带砂笔图标的文字按钮（删除为危险色、不带玻璃）、追加框是多行输入框的圆角片且「记下」是停用的主按钮，移动端不带任何玻璃与图标；同时守着 `project-memory.css` 的桌面规则不垫底色、不画分隔线、不加投影。
+- **砂笔进正文**：`components/editor/comment-sand.acceptance.test.ts` 守着桌面用 `CommentSandPainter`、移动端保留 `::highlight()`；叠层在 `.editor__spread` 里、正文下面、没有文字、不接指针、自己的节点不算正文变化、几何在下一帧重读、只测近处的章、不监听滚动；批注层的淡入、加深、淡出与减少动效；卡片跳转、滚动标记与便笺里写下的批注会选中它（桌面不再闪底色）；实体链接的干笔下划线、点线与只悬停显示；Agent 改动（打字机揭示与就地装饰）的散砂、删除线与去掉的段落底色；六张遮罩与 `covergen.py` 一致、主题令牌成对。`lib/comment-sand.test.ts` 覆盖短行从笔头截取并收笔、长行整笔拉长、同一批注同一行取同一截、重画是一口气缓出地走过各行。真实应用里的复测与探针数字记在 [materials.md](materials.md) 的「砂笔进正文」。
 - **悬停卡**：`menu-surface-style.acceptance.test.ts` 覆盖没有右键菜单、所有对象的操作在悬停卡里、滚动列表时卡片收起而不是跟着走、滚动中滑到指针下的行不弹卡。
 - **浮层、对话框与控件**：`menu-surface-style.acceptance.test.ts` 还覆盖对话框、全局搜索、查找条与通知中心共用菜单外壳且背后是桌面色薄雾、头尾不画线，键盘当前行是静止的环、命中不垫底，账户菜单的分组留白与两个多选一，桌面 `Button` 的玻璃映射与危险按钮只用危险色的字、危险确认先聚焦取消，单行输入框、下拉选择、整行开关、空状态、加载（`240ms` 后出现）与进度的定义，以及范围内每个对话框都改用共用外壳与控件。观感（薄雾浓淡、深色主题、WKWebView 里的玻璃）仍要目测。
 - **时间线**：`chapter-lane-drag.pointer.test.ts` 覆盖时间线玻璃块在越过下一泳道中线前不换道、越过后吸附并落在所在泳道、以及弹簧跟随。`BottomTimeline/timeline-drift-glass.acceptance.test.ts` 渲染真实的幕栏、时间点与构想卡片：桌面的幕标签与时间点是静止细玻璃、绑定构想的时间点带砂笔小漩涡、移动端仍是纸底小块；并守着头部的多选一与不变词开关、平面图标、未放置弹层的菜单行、泳道名的砂笔 cell 与「N 章」、幕边界与落点线的玻璃、时间线里没有强调色，以及构想托盘的入口、关闭与卡片都是浮起玻璃、卡片不再写 § 编号。

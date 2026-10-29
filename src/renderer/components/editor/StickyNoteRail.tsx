@@ -9,6 +9,7 @@ import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import { useEntityStickyNoteRail } from '../../hooks/useEntityStickyNoteRail';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
+import { selectCommentHighlight } from '../../lib/comment-highlight';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { getPlatformRuntime } from '../../platform/runtime';
@@ -181,6 +182,8 @@ export function StickyNoteRail({
     });
     rail.add(created.id);
     onPendingRequestChange(null);
+    // Writing a note is the author's own trace: its anchor is drawn in.
+    if (glass) selectCommentHighlight(created.id);
   };
 
   if (!relevantPending && items.length === 0) return null;

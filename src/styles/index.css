@@ -671,6 +671,69 @@ html[data-entity-link-style='prose'] .entity-link--deep::after {
   opacity: 0.6;
 }
 
+/* Desktop: the band is one dry underline in the link's colour, drawn again on
+   each line the link runs over (materials.css, "Sand in prose"): the stroke at
+   its own proportions (7px tall, 194px natural width), cut from its start on a
+   short link and stretched on a long one. It deepens under the pointer and
+   fades in with the link; hover-only links bring it in under the pointer; the
+   dotted style keeps only its grains; text-only links have none. */
+:root:not([data-shell-mode='mobile']) .entity-link {
+  --prose-sand-a: 0.7;
+  --prose-sand-band: color-mix(in srgb, var(--entity-link-band-color)
+    calc(var(--prose-sand-a) * var(--prose-sand-strength) * 100%), transparent);
+  /* Paints below the words without moving the line. */
+  padding-bottom: 3px;
+  border-radius: 0;
+  background-image:
+    linear-gradient(to left, hsl(var(--page)), transparent 12px),
+    linear-gradient(hsl(var(--page)), hsl(var(--page))),
+    var(--prose-sand-ul),
+    linear-gradient(var(--prose-sand-band), var(--prose-sand-band));
+  background-size: 100% 7px, 100% 7px, max(100%, 194px) 7px, 100% 5px;
+  background-position: left bottom, left bottom, left bottom, left bottom 1px;
+  background-repeat: no-repeat;
+  background-blend-mode: normal, var(--prose-sand-cover-blend), normal, normal;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  mix-blend-mode: var(--prose-sand-blend);
+  transition: --prose-sand-a var(--motion-sand-shift) ease-out;
+  animation: prose-sand-arrive var(--motion-sand-fade) ease-out backwards;
+}
+:root:not([data-shell-mode='mobile']) .entity-link:hover {
+  --prose-sand-a: 0.95;
+}
+:root:not([data-shell-mode='mobile'])[data-entity-link-band-style='dots'] .entity-link {
+  --prose-sand-a: 0.85;
+  background-image:
+    linear-gradient(hsl(var(--page)), hsl(var(--page))),
+    var(--prose-sand-ul-loose),
+    linear-gradient(var(--prose-sand-band), var(--prose-sand-band));
+  background-size: 100% 7px, auto 7px, 100% 5px;
+  background-position: left bottom, left bottom, left bottom 1px;
+  background-repeat: no-repeat, repeat-x, no-repeat;
+  background-blend-mode: var(--prose-sand-cover-blend), normal, normal;
+}
+:root:not([data-shell-mode='mobile'])[data-entity-link-style='hover'] .entity-link {
+  --prose-sand-a: 0;
+}
+:root:not([data-shell-mode='mobile'])[data-entity-link-style='hover'] .entity-link:hover {
+  --prose-sand-a: 0.95;
+}
+:root:not([data-shell-mode='mobile'])[data-entity-link-band-style='dots'] .entity-link:hover {
+  --prose-sand-a: 1;
+}
+:root:not([data-shell-mode='mobile'])[data-entity-link-highlight='text']:not([data-entity-link-style='prose']) .entity-link {
+  padding-bottom: 0;
+  background-image: none;
+  mix-blend-mode: normal;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-shell-mode='mobile']) .entity-link {
+    transition: none;
+    animation: none;
+  }
+}
+
 /* ============================================================
    Text selection — diagnostic high-contrast rule, overrides every
    other ::selection in the cascade. If this doesn't render the

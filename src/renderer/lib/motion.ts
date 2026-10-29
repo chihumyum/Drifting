@@ -57,6 +57,21 @@ export const WAVE_PER_ITEM_MS = 70;
 export const WAVE_MAX_ITEMS = 4;
 export const WAVE_SETTLE_MS = 300;
 
+// Sand drawn: a trace the author's own action leaves is drawn along its path,
+// SAND_DRAW_MS for its first line of prose and SAND_DRAW_PER_LINE_MS more for
+// each further one, easing out. Sand that comes or goes for any other reason
+// fades as a whole over SAND_FADE_MS; a change of strength (pointing at its
+// card) takes SAND_SHIFT_MS.
+export const SAND_DRAW_MS = 380;
+export const SAND_DRAW_PER_LINE_MS = 120;
+export const SAND_FADE_MS = 300;
+export const SAND_SHIFT_MS = 240;
+
+/** When, as a fraction of the whole draw, the stroke has reached `drawn` (0–1) of its length. */
+export function sandDrawTimeAt(drawn: number) {
+  return 1 - Math.pow(1 - Math.min(1, Math.max(0, drawn)), 1 / 2.2);
+}
+
 // Dwell and grace.
 /** How long the pointer rests on a thing before its hover card shows. */
 export const HOVER_PREVIEW_DELAY_MS = 220;

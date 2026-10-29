@@ -86,10 +86,22 @@ TODO data model.
   washed. Unresolvable anchors paint nothing.
 - Hovering a card in Review, a sticky rail or the TODO workbench adds a stronger
   overlay on that item's anchor, including resolved and Copilot items.
-- Highlights are display-only. They are painted with the CSS Custom Highlight
-  API, never change ProseMirror DOM, Yjs or exports, and are absent where the
-  API is unavailable. Painters re-resolve anchors 150ms after prose DOM
-  mutations and release their ranges and observers while a surface is hidden.
+- Highlights are display-only. They never change ProseMirror DOM, Yjs or
+  exports, and painters re-resolve anchors 150ms after prose DOM mutations.
+  On the desktop (2026-10-29) each anchor is drawn in sand: a dry highlighter
+  swash along every line it covers, on a text-free layer after the page inside
+  `.editor__spread` that blends with the words like pigment (multiply /
+  screen) so they keep their colour and read as lying on it (`lib/comment-sand.ts`). In the whole-book reader the anchor
+  follows the copy of a chapter that is shown (live editor or static copy). Its geometry follows prose
+  mutations on the next animation frame, the whole-book reader measures only
+  rows near the viewport, and a hidden surface stops observing while keeping
+  its sand. Selecting a comment (its card's jump, its scroll tick, or writing
+  it in the sticky rail) draws its swash again along the lines until the
+  author clicks or types in the prose; resolving fades it out. The paused
+  mobile shell keeps the CSS Custom Highlight API wash, absent where the API
+  is unavailable, and releases its ranges while a surface is hidden. See
+  `docs/design-system/materials.md` ("砂笔进正文") and
+  `comment-sand.acceptance.test.ts`.
 - Washes are per family (note rouge, TODO ochre, Copilot blue on hover), use
   background colour only, and add no border, left bar or layout change.
 

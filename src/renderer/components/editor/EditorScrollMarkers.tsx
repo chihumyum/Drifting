@@ -4,7 +4,9 @@ import type { CommentTargetKind } from '../../domain/comment';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
+import { selectCommentHighlight } from '../../lib/comment-highlight';
 import { flashBlock } from '../../lib/scroll-to-block';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { isProseEntityType } from '../../lib/yjs-doc-id';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 import { createAgentMarkerSelector, createCommentMarkerSelector, EMPTY_SCROLL_MARKERS, scrollMarkerBlockSelector, scrollMarkerSeal, type ScrollMarkerTick } from './scroll-marker-model';
@@ -69,13 +71,15 @@ export function EditorScrollMarkers({ scrollEl, projectId, targetKind, targetId,
     return () => window.clearTimeout(timer);
   }, [shown.leaving]);
 
-  const jump = (blockIds: readonly string[]) => {
+  const jump = (tick: ScrollMarkerTick) => {
     if (!scrollEl) return;
-    const blocks = blockIds.map(id => scrollEl.querySelector<HTMLElement>(scrollMarkerBlockSelector(id)))
+    const blocks = tick.blockIds.map(id => scrollEl.querySelector<HTMLElement>(scrollMarkerBlockSelector(id)))
       .filter((element): element is HTMLElement => element !== null);
     if (!blocks.length) return;
     blocks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    blocks.forEach(flashBlock);
+    // On the desktop a comment's anchor is drawn again in sand instead of flashing its blocks.
+    if (tick.key.startsWith('c:') && !getPlatformRuntime().isMobileShell) selectCommentHighlight(tick.key.slice(2));
+    else blocks.forEach(flashBlock);
   };
   if (!ticks.length && !shown.leaving.length) return null;
   // A leaving tick no longer takes the pointer (.is-leaving).
@@ -85,7 +89,7 @@ export function EditorScrollMarkers({ scrollEl, projectId, targetKind, targetId,
       <button key={tick.key} type="button" tabIndex={-1}
         className={`editor__scrollmap-tick ${tick.cls} ${tick.laneCls} editor__scrollmap-tick--seal-${seal.shape}${leaving ? ' is-leaving' : ''}`}
         style={{ top: `${(tick.frac * 100).toFixed(3)}%`, '--seal-turn': `${seal.turn}deg` } as CSSProperties}
-        title={t(tick.titleKey)} onClick={() => jump(tick.blockIds)} />
+        title={t(tick.titleKey)} onClick={() => jump(tick)} />
     );
   };
   return (
