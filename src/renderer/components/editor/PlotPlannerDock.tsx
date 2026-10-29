@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { requestConfirmation } from '../../store/confirmation-store';
 import {
@@ -9,6 +9,7 @@ import {
   type PlotGridMutation,
 } from '../../domain/plot-grid';
 import { PlotGridEditor, type PlotGridEditorApi } from './PlotGrid';
+import { clearPlotPlannerGhost, leavePlotPlannerGhost } from './plot-grid/plot-planner-slot';
 import {
   readLocalPlotGridCellRatio,
   writeLocalPlotGridCellRatio,
@@ -46,6 +47,7 @@ export function PlotPlannerDock({ nodeId, title, color, drift = false, initialJs
   const { t } = useTranslation();
   const [isClearPending, setIsClearPending] = useState(false);
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const gridApiRef = useRef<PlotGridEditorApi | null>(null);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedGridRef = useRef<PlotGrid | null>(readPlotGridProjection(initialJson));
@@ -115,8 +117,16 @@ export function PlotPlannerDock({ nodeId, title, color, drift = false, initialJs
     [flush],
   );
 
+  // Take the place of the planner that left, and leave one in turn: the cleanup
+  // runs before this element is removed.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    clearPlotPlannerGhost();
+    return () => leavePlotPlannerGhost(root);
+  }, []);
+
   return (
-    <div className="plot-planner">
+    <div ref={rootRef} className="plot-planner">
       <BottomPanelHeader
         start={
           <span className="plot-planner__title">

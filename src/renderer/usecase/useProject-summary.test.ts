@@ -16,6 +16,7 @@ function summary(id: string, nodes: number, wordsReady: boolean): ProjectSummary
     createdAt: '2026-08-15T00:00:00.000Z',
     updatedAt: '2026-08-15T00:00:00.000Z',
     source: 'local',
+    cover: { storylines: [] },
     stats: {
       nodes,
       chapters: nodes,

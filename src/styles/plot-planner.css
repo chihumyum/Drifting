@@ -87,8 +87,8 @@
   min-height: 0;
 }
 
-/* The panel's planner place, filling it. With no chapter in front its header
-   still names the planner and a quiet line stands in for the grid. */
+/* The panel's planner place, filling it. While the chapter's editor is still
+   opening, a bare header naming the planner stands in. */
 .plot-planner-slot {
   display: flex;
   flex-direction: column;
@@ -104,16 +104,6 @@
 }
 .plot-planner-slot__empty:not(:only-child) {
   display: none;
-}
-.plot-planner-slot__note {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-family: var(--font-sans);
-  font-size: var(--ui-font-secondary, 12px);
 }
 
 /* ── scroll owner ── */

@@ -339,7 +339,7 @@ describe('floating layers, dialogs and the controls inside them', () => {
     );
   });
 
-  it('makes the shared Button glass on the desktop and says danger only in its ink', () => {
+  it('makes the shared Button glass on the desktop and draws danger in its own red line', () => {
     const button = source('src/renderer/components/ui/Button.tsx');
     const controls = source('src/styles/ui-controls.css');
     const confirm = source('src/renderer/components/modals/ConfirmationDialog.tsx');
@@ -352,9 +352,9 @@ describe('floating layers, dialogs and the controls inside them', () => {
     const glassButton = rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {");
     expect(glassButton).toContain('background: transparent;');
     expect(glassButton).toContain('border: 0;');
-    expect(
-      rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,"),
-    ).toContain('color: hsl(var(--destructive));');
+    const danger = rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,");
+    expect(danger).toContain('--glass-cc: hsl(var(--destructive));');
+    expect(danger).toContain('color: hsl(var(--destructive));');
     // A destructive confirmation opens on Cancel; Enter never deletes.
     expect(confirm).toContain('autoFocus={destructive}');
     expect(confirm).toContain('autoFocus={!destructive}');

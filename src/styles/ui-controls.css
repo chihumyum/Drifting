@@ -295,8 +295,9 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   box-shadow:
     inset 0 0 0 1px var(--switch-rim),
     inset 0 0 0 0 var(--switch-rim);
-  -webkit-mask-position: -14px -46px;
-  mask-position: -14px -46px;
+  /* The track is small glass: its line reads the dense patch, like the tint. */
+  -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+  mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
   animation: switch-rim-flow var(--motion-glass-drift) linear infinite paused;
   transition: box-shadow var(--motion-glass-bleed) ease-out;
 }
@@ -353,12 +354,12 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 @keyframes switch-rim-flow {
   from {
-    -webkit-mask-position: -14px -46px;
-    mask-position: -14px -46px;
+    -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+    mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
   }
   to {
-    -webkit-mask-position: 136px 104px;
-    mask-position: 136px 104px;
+    -webkit-mask-position: calc(var(--glass-dense-gx) + 150px) calc(var(--glass-dense-gy) + 150px);
+    mask-position: calc(var(--glass-dense-gx) + 150px) calc(var(--glass-dense-gy) + 150px);
   }
 }
 
@@ -835,9 +836,10 @@ html:not([data-shell-mode='mobile']) .user-menu__item--static::before {
 
 /* Desktop: the shared Button is made of glass (materials.css) and never
    fills. Primary is the accent's selected glass in the accent's ink; default
-   is the secondary button, a resting line; danger keeps that clear line and
-   says the danger in its ink and brush icon only; ghost is a text button.
-   The paused mobile shell keeps the filled buttons above. */
+   is the secondary button, a resting line; danger is that resting line in the
+   danger's own colour, with the danger ink (hover bleeds red, press deepens);
+   ghost is a text button. The paused mobile shell keeps the filled buttons
+   above. */
 html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {
   height: var(--ui-control-height, 28px);
   min-height: var(--ui-control-height, 28px);
@@ -881,6 +883,7 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--prim
 
 html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,
 html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger:hover:not(:disabled) {
+  --glass-cc: hsl(var(--destructive));
   color: hsl(var(--destructive));
 }
 
@@ -988,7 +991,7 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   border-radius: var(--radius-md);
   background: hsl(var(--surface));
   color: hsl(var(--ink-1));
-  box-shadow: 0 12px 32px -14px hsl(var(--ink-1) / 0.42);
+  box-shadow: 0 12px 32px -14px hsl(var(--shadow-ink) / 0.42);
 }
 
 /* Relation-kind suggestions are modal-safe: AnchoredPopover portals this
@@ -1003,7 +1006,7 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   border: 1px solid hsl(var(--rule-strong));
   border-radius: var(--radius-xs);
   background: hsl(var(--paper));
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
+  box-shadow: 0 12px 26px -14px hsl(var(--shadow-ink) / 0.3);
 }
 
 .relation-kind-suggestions__option {
@@ -1267,6 +1270,13 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   font-family: var(--font-sans);
   font-size: var(--ui-font-body, 13px);
   line-height: var(--ui-line-body, 20px);
+}
+
+/* The glass is the focus: the base layer's accent ring on focused form
+   controls (index.css) stays off inside a field. */
+.ui-field > input:focus-visible,
+.ui-field > textarea:focus-visible {
+  box-shadow: none;
 }
 
 .ui-field > input::placeholder,
@@ -1923,7 +1933,7 @@ html[data-shell-mode='mobile'] :is(.ui-field, .ui-select) {
   border: 1px solid hsl(var(--rule-strong));
   border-radius: var(--radius-md);
   background: hsl(var(--paper));
-  box-shadow: 0 10px 26px -14px hsl(var(--ink-1) / 0.42);
+  box-shadow: 0 10px 26px -14px hsl(var(--shadow-ink) / 0.42);
 }
 
 .filter-chip {

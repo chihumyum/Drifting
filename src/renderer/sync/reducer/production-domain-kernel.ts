@@ -1,5 +1,5 @@
 import { insertYjsMaterializationReceiptInTransaction } from '../../sqlite-repo/yjs-materialization-receipt-repo';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import type { DbTransaction } from '../../lib/db';
@@ -709,9 +709,74 @@ function parseYjsPayload(effect: Extract<ReducerEffect, { type: 'yjs.update' }>)
   }
 }
 
+/** The stored rows every asset bind in the projection is checked against. */
+interface AssetBindFacts {
+  readonly blobStates: ReadonlyMap<string, string>;
+  readonly assets: ReadonlyMap<string, typeof ProjectAssetTable.$inferSelect>;
+  readonly portraitOwners: ReadonlyMap<string, { id: string; portraitAssetId: string | null }>;
+  readonly libraryOwners: ReadonlyMap<string, { id: string; kind: string; assetId: string | null }>;
+  /** Asset id → ids of every element or library item stored as its owner. */
+  readonly storedOwners: ReadonlyMap<string, readonly string[]>;
+}
+
+async function selectByIdChunks<T>(ids: ReadonlySet<string>, read: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
+  const all = [...ids];
+  const rows: T[] = [];
+  for (let offset = 0; offset < all.length; offset += 500) {
+    rows.push(...await read(all.slice(offset, offset + 500)));
+  }
+  return rows;
+}
+
+/**
+ * Validation covers the whole projection on every apply, so a blocked bind
+ * lands once it becomes admissible. Its stored rows are read in a few batched
+ * queries rather than five per bind, which every keystroke would otherwise
+ * pay for each image and PDF in the project.
+ */
+async function loadAssetBindFacts(context: SyncDomainMaterializationContext): Promise<AssetBindFacts> {
+  const blobIds = new Set<string>();
+  const assetIds = new Set<string>();
+  const portraitOwnerIds = new Set<string>();
+  const libraryOwnerIds = new Set<string>();
+  for (const effect of context.effects) {
+    if (effect.type !== 'asset.bind' || !effect.materialize) continue;
+    const parsed = parseProjectAssetMutationV1({ action: effect.type, target: effect.target, payload: effect.payload });
+    if (!parsed.ok || parsed.value.action !== 'asset.bind') continue;
+    const { blobId, owner } = parsed.value.payload;
+    blobIds.add(blobId);
+    assetIds.add(effect.target.id);
+    (owner.kind === 'element-portrait' ? portraitOwnerIds : libraryOwnerIds).add(owner.id);
+  }
+  const { tx, changeSet } = context;
+  const [blobs, assets, portraitOwners, libraryOwners, portraitHolders, libraryHolders] = await Promise.all([
+    selectByIdChunks(blobIds, (chunk) => tx.select({ blobId: SyncBlobStateTable.blobId, localState: SyncBlobStateTable.localState }).from(SyncBlobStateTable).where(and(eq(SyncBlobStateTable.syncGenerationId, changeSet.syncGenerationId), inArray(SyncBlobStateTable.blobId, chunk)))),
+    selectByIdChunks(assetIds, (chunk) => tx.select().from(ProjectAssetTable).where(inArray(ProjectAssetTable.id, chunk))),
+    selectByIdChunks(portraitOwnerIds, (chunk) => tx.select({ id: BookElementTable.id, portraitAssetId: BookElementTable.portraitAssetId }).from(BookElementTable).where(and(inArray(BookElementTable.id, chunk), eq(BookElementTable.projectId, changeSet.projectId)))),
+    selectByIdChunks(libraryOwnerIds, (chunk) => tx.select({ id: LibraryItemTable.id, kind: LibraryItemTable.kind, assetId: LibraryItemTable.assetId }).from(LibraryItemTable).where(and(inArray(LibraryItemTable.id, chunk), eq(LibraryItemTable.projectId, changeSet.projectId)))),
+    selectByIdChunks(assetIds, (chunk) => tx.select({ id: BookElementTable.id, assetId: BookElementTable.portraitAssetId }).from(BookElementTable).where(inArray(BookElementTable.portraitAssetId, chunk))),
+    selectByIdChunks(assetIds, (chunk) => tx.select({ id: LibraryItemTable.id, assetId: LibraryItemTable.assetId }).from(LibraryItemTable).where(inArray(LibraryItemTable.assetId, chunk))),
+  ]);
+  const storedOwners = new Map<string, string[]>();
+  for (const { id, assetId } of [...portraitHolders, ...libraryHolders]) {
+    if (assetId === null) continue;
+    const owners = storedOwners.get(assetId) ?? [];
+    owners.push(id);
+    storedOwners.set(assetId, owners);
+  }
+  return {
+    blobStates: new Map(blobs.map(({ blobId, localState }) => [blobId, localState])),
+    assets: new Map(assets.map((row) => [row.id, row])),
+    portraitOwners: new Map(portraitOwners.map((row) => [row.id, row])),
+    libraryOwners: new Map(libraryOwners.map((row) => [row.id, row])),
+    storedOwners,
+  };
+}
+
 async function validateExternalEffect(
   context: SyncDomainMaterializationContext,
   effect: Extract<ReducerEffect, { type: 'yjs.update' | 'asset.bind' | 'asset.unbind' | 'sync-generation.purge' }>,
+  assetFacts: AssetBindFacts,
 ): Promise<readonly SemanticConflictDraft[]> {
   if (effect.type === 'yjs.update') {
     const update = parseYjsPayload(effect);
@@ -766,51 +831,39 @@ async function validateExternalEffect(
       if (semantic.length > 0) {
         return [conflict(effect, 'asset.invalid-metadata', semantic.map(({ message }) => message).join('; '))];
       }
-      const blob = await context.tx
-        .select({ localState: SyncBlobStateTable.localState })
-        .from(SyncBlobStateTable)
-        .where(and(
-          eq(SyncBlobStateTable.syncGenerationId, context.changeSet.syncGenerationId),
-          eq(SyncBlobStateTable.blobId, parsed.value.payload.blobId),
-        ))
-        .limit(1);
-      if (blob[0]?.localState !== 'verified') {
+      if (assetFacts.blobStates.get(parsed.value.payload.blobId) !== 'verified') {
         return [conflict(effect, 'asset.blob-not-verified', 'Asset owner cannot materialize before its blob is locally verified')];
       }
       const payload = parsed.value.payload;
       const sourceSha256 = payload.sourceSha256.slice('sha256:'.length);
-      const existing = await context.tx.select().from(ProjectAssetTable).where(eq(ProjectAssetTable.id, effect.target.id)).limit(1);
-      if (existing[0] && (
-        existing[0].projectId !== context.changeSet.projectId ||
-        existing[0].kind !== payload.kind ||
-        existing[0].sourceMime !== payload.sourceMime ||
-        existing[0].sourceSizeBytes !== payload.sourceSizeBytes ||
-        existing[0].sourceSha256 !== sourceSha256 ||
-        existing[0].width !== payload.width ||
-        existing[0].height !== payload.height
+      const existing = assetFacts.assets.get(effect.target.id);
+      if (existing && (
+        existing.projectId !== context.changeSet.projectId ||
+        existing.kind !== payload.kind ||
+        existing.sourceMime !== payload.sourceMime ||
+        existing.sourceSizeBytes !== payload.sourceSizeBytes ||
+        existing.sourceSha256 !== sourceSha256 ||
+        existing.width !== payload.width ||
+        existing.height !== payload.height
       )) {
         return [conflict(effect, 'asset.immutable-metadata-mismatch', 'Asset identity already has different immutable metadata')];
       }
       if (payload.owner.kind === 'element-portrait') {
-        const owners = await context.tx.select({ id: BookElementTable.id, portraitAssetId: BookElementTable.portraitAssetId }).from(BookElementTable).where(and(eq(BookElementTable.id, payload.owner.id), eq(BookElementTable.projectId, context.changeSet.projectId))).limit(1);
-        if (payload.kind !== 'image' || !owners[0] || (owners[0].portraitAssetId !== null && owners[0].portraitAssetId !== effect.target.id)) {
+        const owner = assetFacts.portraitOwners.get(payload.owner.id);
+        if (payload.kind !== 'image' || !owner || (owner.portraitAssetId !== null && owner.portraitAssetId !== effect.target.id)) {
           return [conflict(effect, 'asset.invalid-owner', 'Portrait assets require an existing unbound element and image metadata')];
         }
       } else {
-        const owners = await context.tx.select({ id: LibraryItemTable.id, kind: LibraryItemTable.kind, assetId: LibraryItemTable.assetId }).from(LibraryItemTable).where(and(eq(LibraryItemTable.id, payload.owner.id), eq(LibraryItemTable.projectId, context.changeSet.projectId))).limit(1);
+        const owner = assetFacts.libraryOwners.get(payload.owner.id);
         // A material imported on another device arrives with its bind in
         // the same change set, before it has a row here; its seed has the kind.
-        const ownerKind = owners[0]?.kind ?? candidateRecord(context.effects, 'library-item', payload.owner.id)?.kind;
-        const boundElsewhere = owners[0] !== undefined && owners[0].assetId !== null && owners[0].assetId !== effect.target.id;
+        const ownerKind = owner?.kind ?? candidateRecord(context.effects, 'library-item', payload.owner.id)?.kind;
+        const boundElsewhere = owner !== undefined && owner.assetId !== null && owner.assetId !== effect.target.id;
         if (ownerKind !== payload.kind || boundElsewhere) {
           return [conflict(effect, 'asset.invalid-owner', 'Asset kind must match an existing or newly created unbound library item')];
         }
       }
-      const [otherElements, otherLibraryItems] = await Promise.all([
-        context.tx.select({ id: BookElementTable.id }).from(BookElementTable).where(and(eq(BookElementTable.portraitAssetId, effect.target.id), ne(BookElementTable.id, payload.owner.id))).limit(1),
-        context.tx.select({ id: LibraryItemTable.id }).from(LibraryItemTable).where(and(eq(LibraryItemTable.assetId, effect.target.id), ne(LibraryItemTable.id, payload.owner.id))).limit(1),
-      ]);
-      if (otherElements[0] || otherLibraryItems[0]) {
+      if ((assetFacts.storedOwners.get(effect.target.id) ?? []).some((id) => id !== payload.owner.id)) {
         return [conflict(effect, 'asset.multiple-owners', 'An asset can have exactly one owner')];
       }
     }
@@ -1511,6 +1564,7 @@ export async function mergeCheckpointProseInTransaction(
 
 async function validateNamedInvariants(context: SyncDomainMaterializationContext): Promise<SemanticConflictDraft[]> {
   const issues: SemanticConflictDraft[] = [];
+  const assetFacts = await loadAssetBindFacts(context);
   for (const effect of context.effects) {
     if (!effect.materialize && effect.type !== 'entity.lifecycle') continue;
     if (effect.type === 'field.set') {
@@ -1537,7 +1591,7 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
     } else if (effect.type === 'entity.lifecycle') {
       issues.push(...validateLifecycleEffect(effect));
     } else {
-      issues.push(...await validateExternalEffect(context, effect));
+      issues.push(...await validateExternalEffect(context, effect, assetFacts));
     }
   }
 

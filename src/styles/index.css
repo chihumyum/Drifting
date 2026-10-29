@@ -65,7 +65,7 @@
     --menu-surface-radius: 0;
     --menu-surface-shadow:
       0 0 0 0.5px hsl(var(--ink-1) / 0.16),
-      0 16px 30px -16px hsl(var(--ink-1) / 0.38);
+      0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);
     --menu-item-hover-bg: hsl(var(--ink-1) / 0.05);
     --menu-item-danger: hsl(var(--destructive));
     --menu-item-danger-hover-bg: hsl(var(--destructive) / 0.1);
@@ -81,6 +81,11 @@
     --surface: 0 0% 100%;
     --page: 45 30% 99.5%;
     --page-elevation: 0 1px 0 rgba(28, 24, 19, 0.05), 0 5px 30px -15px rgba(28, 24, 19, 0.13);
+    /* Colour of every lifted surface's shadow. It is the ink on the light
+       paper but black in the dark, where the ink is near white and a shadow
+       drawn in it reads as a glow under the surface. Hairline edges stay
+       ink. */
+    --shadow-ink: 30 6% 12%;
 
     --ink-1: 30 6% 12%;
     --ink-2: 30 4% 26%;
@@ -329,6 +334,10 @@
     --surface: 220 6% 14%;
     --page: 220 6% 14%;
     --page-elevation: 0 1px 0 rgba(0, 0, 0, 0.28), 0 5px 30px -15px rgba(0, 0, 0, 0.55);
+    --shadow-ink: 0 0% 0%;
+    --menu-surface-shadow:
+      0 0 0 0.5px hsl(var(--ink-1) / 0.16),
+      0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);
 
     --ink-1: 220 8% 93%;
     --ink-2: 220 6% 82%;
