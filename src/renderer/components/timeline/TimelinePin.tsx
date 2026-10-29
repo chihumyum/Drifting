@@ -16,6 +16,7 @@ import {
   type HoverAction,
   type HoverActionGroup,
 } from '../ui/HoverCard';
+import { KindMark } from '../ui/KindMark';
 
 export interface TimelinePinAnchor {
   left: number;
@@ -40,6 +41,9 @@ export interface TimelinePinProps {
   boundDriftTitle?: string | null;
   onRequestBind?: () => void;
   onOpenDrift?: (anchor?: TimelinePinAnchor) => void;
+  /** Desktop Bottom Timeline: the label is a resting glass chip, still selected
+      glass while it is renamed; a bound drift shows its own sand eddy. */
+  glass?: boolean;
 }
 
 function anchorOf(element: HTMLElement): TimelinePinAnchor {
@@ -68,6 +72,7 @@ export function TimelinePin({
   boundDriftTitle = null,
   onRequestBind,
   onOpenDrift,
+  glass = false,
 }: TimelinePinProps) {
   const { t } = useTranslation();
   const isBound = Boolean(marker.driftNodeId);
@@ -284,7 +289,7 @@ export function TimelinePin({
     >
       <div
         ref={labelRef}
-        className={`${classPrefix}__label`}
+        className={`${classPrefix}__label${glass ? ` glass glass--rest${editing ? ' is-on' : ''}` : ''}`}
         contentEditable={editing}
         suppressContentEditableWarning
         onMouseEnter={(event) => {
@@ -319,6 +324,7 @@ export function TimelinePin({
         // stack on it.
         title={editing ? t('bottomTimeline.marker.editingTitle') : undefined}
       >
+        {glass && isBound && <KindMark kind="drift" color="hsl(var(--accent))" />}
         {displayLabel}
       </div>
       <div

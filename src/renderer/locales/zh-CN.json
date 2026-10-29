@@ -2515,7 +2515,8 @@
       "unaffiliated": "未归属"
     },
     "storyline": {
-      "openTitle": "点击打开「{{name}}」"
+      "openTitle": "点击打开「{{name}}」",
+      "chapterCount": "{{count}} 章"
     },
     "menu": {
       "moveToUnaffiliated": "转移至未归属",

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useSyncExternalStore, ty
 import { useTranslation } from 'react-i18next';
 import type { BookNode } from '../../domain/book-node';
 import type { StoryGraphDriftDrag } from './story-graph-drift-drag';
+import { KindMark } from '../../components/ui/KindMark';
 
 export interface StoryGraphDriftCardsProps {
   nodes: readonly BookNode[];
@@ -48,11 +49,13 @@ function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
         else cardRefs.current.delete(node.id);
       }}
       className={[
-        'drift-card',
+        // Floating resting glass (drift-panel.css); an endpoint of the
+        // selected edge is the still selected glass.
+        'drift-card glass glass--rest',
         isLinkSource ? 'is-link-source' : '',
         isDragged ? 'is-dragged' : '',
         isResting ? 'is-resting' : '',
-        isEdgeSelected ? 'is-edge-selected' : '',
+        isEdgeSelected ? 'is-edge-selected is-on' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -73,8 +76,7 @@ function DriftCard({ node, index, drag, cardRefs, isLinkSource, isEdgeSelected,
       onMouseEnter={(event) => onPreviewEnter(event, node)}
       onMouseLeave={onPreviewLeave}
     >
-      <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
-      <div className="drift-card__title">{node.title || t('common.untitled')}</div>
+      <div className="drift-card__title"><KindMark kind="drift" /><span>{node.title || t('common.untitled')}</span></div>
       {node.summary && <div className="drift-card__summary">{node.summary}</div>}
     </div>
   );

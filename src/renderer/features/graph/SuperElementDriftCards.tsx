@@ -1,6 +1,7 @@
 import { memo, type MouseEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BookNode } from '../../domain/book-node';
+import { KindMark } from '../../components/ui/KindMark';
 
 export interface SuperElementDriftCardsProps {
   nodes: readonly BookNode[];
@@ -23,7 +24,7 @@ function DriftCards({ nodes, linkSourceId, cardRefs, onClick, onPreviewEnter, on
           key={node.id}
           data-super-card="node"
           data-node-id={node.id}
-          className={`drift-card${isLinkSource ? ' is-link-source' : ''}${isResting ? ' is-resting' : ''}`}
+          className={`drift-card glass glass--rest${isLinkSource ? ' is-link-source' : ''}${isResting ? ' is-resting' : ''}`}
           ref={(el) => {
             if (el) cardRefs.current.set(node.id, el);
             else cardRefs.current.delete(node.id);
@@ -32,8 +33,7 @@ function DriftCards({ nodes, linkSourceId, cardRefs, onClick, onPreviewEnter, on
           onMouseEnter={(event) => onPreviewEnter(event, node)}
           onMouseLeave={onPreviewLeave}
         >
-          <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
-          <div className="drift-card__title">{node.title || t('common.untitled')}</div>
+          <div className="drift-card__title"><KindMark kind="drift" /><span>{node.title || t('common.untitled')}</span></div>
           {node.summary && <div className="drift-card__summary">{node.summary}</div>}
         </div>
       );

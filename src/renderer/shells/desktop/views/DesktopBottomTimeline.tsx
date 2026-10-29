@@ -45,6 +45,8 @@ import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
 import { useGlassWave } from '../../../hooks/useGlassWave';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
+import { GlassSlider } from '../../../components/ui/GlassSlider';
+import { SandCell } from '../../../components/ui/SandCell';
 import {
   DEFAULT_STORYLINE_LANE_ID as DEFAULT_LANE_ID,
   UNAFFILIATED_STORYLINE_LANE_ID as UNAFFILIATED_LANE_ID,
@@ -846,6 +848,17 @@ export function DesktopBottomTimeline({
     const isSynthetic = laneOpts?.synthetic ?? false;
     const isRouteActive = !isSynthetic && storylineId === storyline.id;
     const railColor = storyline.color || 'hsl(var(--story-4))';
+    const railMain = (
+      <div className="btl-rail__main">
+        <div className="btl-rail__name">
+          {!isMobilePresentation && <KindMark kind="storyline" color={storyline.color || 'hsl(var(--ink-4))'} />}
+          {storyline.name || 'Untitled'}
+        </div>
+        <div className="btl-rail__count">
+          {t('bottomTimeline.storyline.chapterCount', { count: nodesInStoryline.length })}
+        </div>
+      </div>
+    );
 
     return (
       <div
@@ -906,15 +919,20 @@ export function DesktopBottomTimeline({
             } as React.CSSProperties
           }
         >
-          <div className="btl-rail__main">
-            <div className="btl-rail__name">
-              {!isMobilePresentation && <KindMark kind="storyline" color={storyline.color || 'hsl(var(--ink-4))'} />}
-              {storyline.name || 'Untitled'}
-            </div>
-            <div className="btl-rail__count">
-              {nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}
-            </div>
-          </div>
+          {/* On desktop a real storyline's name is a sidebar cell: a ring of
+              flowing glass under the pointer, and the brush frame round it
+              while the storyline is open. Synthetic lanes have no entity. */}
+          {isMobilePresentation || isSynthetic ? (
+            railMain
+          ) : (
+            <SandCell
+              selected={isRouteActive}
+              color={storyline.color || 'hsl(var(--ink-4))'}
+              className="btl-rail__cell"
+            >
+              {railMain}
+            </SandCell>
+          )}
         </div>
 
         <div
@@ -1154,29 +1172,63 @@ export function DesktopBottomTimeline({
     );
   };
 
+  const spreadTitle =
+    placedNodes.length < 2
+      ? t('bottomTimeline.spread.needTwo')
+      : t('bottomTimeline.spread.title', {
+          mode: isNarrative ? t('bottomTimeline.view.narrative') : t('bottomTimeline.view.book'),
+        });
+
+  const locateCurrent = () => {
+    const activeId = isMobilePresentation ? nodeId : (selectedNodeUiId ?? nodeId);
+    const activeNode = activeId ? (nodeById.get(activeId) ?? null) : null;
+    const activeOrder = activeNode ? orderOf(activeNode) : null;
+    if (activeOrder == null || !scrollContainerRef.current) return;
+    const left =
+      railWidth +
+      orderToPosition(activeOrder) -
+      scrollContainerRef.current.clientWidth / 2 +
+      nodeWidth / 2;
+    scrollContainerRef.current.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  };
+
+  const viewOptions = [
+    {
+      value: 'book' as const,
+      label: t('bottomTimeline.view.book'),
+      title: t('bottomTimeline.view.bookTitle'),
+    },
+    {
+      value: 'narrative' as const,
+      label: t('bottomTimeline.view.narrative'),
+      title: t('bottomTimeline.view.narrativeTitle'),
+    },
+  ];
+
   const renderHead = () => {
     return (
       <div className="btl__head" onClick={(e) => e.stopPropagation()}>
         <div className="btl__head-left">
-          <SegmentedControl
-            className="btl__view-toggle"
-            size="sm"
-            value={viewMode}
-            onChange={setViewMode}
-            ariaLabel={t('bottomTimeline.view.toggleTitle')}
-            options={[
-              {
-                value: 'book',
-                label: t('bottomTimeline.view.book'),
-                title: t('bottomTimeline.view.bookTitle'),
-              },
-              {
-                value: 'narrative',
-                label: t('bottomTimeline.view.narrative'),
-                title: t('bottomTimeline.view.narrativeTitle'),
-              },
-            ]}
-          />
+          {/* Desktop: one of two, words on the dock and a glass slab under
+              the chosen one that slides with the timeline's weight. */}
+          {isMobilePresentation ? (
+            <SegmentedControl
+              className="btl__view-toggle"
+              size="sm"
+              value={viewMode}
+              onChange={setViewMode}
+              ariaLabel={t('bottomTimeline.view.toggleTitle')}
+              options={viewOptions}
+            />
+          ) : (
+            <GlassSlider
+              className="btl__view-toggle"
+              value={viewMode}
+              onChange={setViewMode}
+              ariaLabel={t('bottomTimeline.view.toggleTitle')}
+              options={viewOptions}
+            />
+          )}
           {/* 未归属 toggle — only meaningful when there are storylines AND
               chapters with no primary. Click reveals the 未归属 lane in the
               timeline; click again hides it. Hidden by default per UX spec.
@@ -1184,9 +1236,16 @@ export function DesktopBottomTimeline({
               current height instead of being squeezed/expanded to absorb the
               new lane. */}
           {storylines.length > 0 && (
+            // Desktop: one word that never changes, its count beside it; the
+            // resting glass line while hidden, the still selected glass while shown.
             <button
               type="button"
-              className={`btl__unaffiliated-toggle${unaffiliatedVisible ? ' is-active' : ''}`}
+              className={
+                isMobilePresentation
+                  ? `btl__unaffiliated-toggle${unaffiliatedVisible ? ' is-active' : ''}`
+                  : 'btl__toggle glass glass--rest'
+              }
+              aria-pressed={unaffiliatedVisible}
               onClick={() => {
                 const next = !unaffiliatedVisible;
                 // rowHeight reflects the CURRENT (pre-toggle) per-row slice,
@@ -1212,7 +1271,12 @@ export function DesktopBottomTimeline({
                   : t('bottomTimeline.unaffiliated.showTitle')
               }
             >
-              {unaffiliatedVisible ? (
+              {!isMobilePresentation ? (
+                <>
+                  {t('bottomTimeline.synthetic.unaffiliated')}
+                  <span className="btl__toggle-count">{unaffiliatedChapters.length}</span>
+                </>
+              ) : unaffiliatedVisible ? (
                 t('bottomTimeline.unaffiliated.hide')
               ) : (
                 <>
@@ -1229,14 +1293,20 @@ export function DesktopBottomTimeline({
               <button
                 ref={unplacedBtnRef}
                 type="button"
-                className={`btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`}
+                className={
+                  isMobilePresentation
+                    ? `btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`
+                    : 'btl__toggle glass glass--rest'
+                }
                 onClick={() => setUnplacedPopoverOpen((v) => !v)}
                 title={t('bottomTimeline.unplaced.title')}
                 aria-haspopup="menu"
                 aria-expanded={unplacedPopoverOpen}
               >
                 <span>{t('bottomTimeline.unplaced.label')}</span>
-                <span className="btl__unplaced-count">{unplacedNodes.length}</span>
+                <span className={isMobilePresentation ? 'btl__unplaced-count' : 'btl__toggle-count'}>
+                  {unplacedNodes.length}
+                </span>
                 <BrushIcon name="chevron-down" size={8} className="btl__unplaced-arrow" />
               </button>
               <AnchoredPopover
@@ -1244,7 +1314,9 @@ export function DesktopBottomTimeline({
                 open={unplacedPopoverOpen}
                 onClose={() => setUnplacedPopoverOpen(false)}
                 placement="top-start"
-                className="menu-surface menu-surface--rich menu-surface--panel btl__unplaced-popover"
+                className={`menu-surface menu-surface--rich menu-surface--panel btl__unplaced-popover${
+                  isMobilePresentation ? '' : ' btl__unplaced-popover--rows'
+                }`}
                 role="menu"
                 ariaLabel={t('bottomTimeline.unplaced.title')}
                 maxHeight={320}
@@ -1258,9 +1330,15 @@ export function DesktopBottomTimeline({
                       const sl = slId ? storylineById.get(slId) : null;
                       const color = sl?.color || 'hsl(var(--ink-4))';
                       return (
+                        // Desktop: a menu row, no fill; under the pointer a ring of
+                        // flowing glass in the chapter's storyline colour.
                         <div
                           key={node.id}
-                          className="btl__unplaced-chip"
+                          className={
+                            isMobilePresentation
+                              ? 'btl__unplaced-chip'
+                              : 'menu-surface__item btl__unplaced-row'
+                          }
                           role="menuitem"
                           tabIndex={0}
                           onPointerDown={(event) => {
@@ -1289,7 +1367,11 @@ export function DesktopBottomTimeline({
                           }
                           title={node.title || t('common.untitled')}
                         >
-                          <span className="btl__unplaced-chip-dot" />
+                          {isMobilePresentation ? (
+                            <span className="btl__unplaced-chip-dot" />
+                          ) : (
+                            <KindMark kind="chapter" seed={node.id} color={sl?.color} />
+                          )}
                           <span className="btl__unplaced-chip-num">
                             § {String(node.bookOrder ?? 0).padStart(2, '0')}
                           </span>
@@ -1310,42 +1392,45 @@ export function DesktopBottomTimeline({
               create button now; the 「+幕」act-create action moved into the
               act rail's head cell (mirrors the narrative TIME plus). The header
               keeps only the layout / navigation controls below. */}
-          <button
-            className="btl__head-btn"
-            title={
-              placedNodes.length < 2
-                ? t('bottomTimeline.spread.needTwo')
-                : t('bottomTimeline.spread.title', {
-                    mode: isNarrative
-                      ? t('bottomTimeline.view.narrative')
-                      : t('bottomTimeline.view.book'),
-                  })
-            }
-            disabled={placedNodes.length < 2}
-            onClick={() => {
-              void handleSpread();
-            }}
-          >
-            <BrushIcon name="spread" size={12} />
-          </button>
-          <button
-            className="btl__head-btn"
-            title={t('bottomTimeline.locateCurrent')}
-            onClick={() => {
-              const activeId = isMobilePresentation ? nodeId : (selectedNodeUiId ?? nodeId);
-              const activeNode = activeId ? (nodeById.get(activeId) ?? null) : null;
-              const activeOrder = activeNode ? orderOf(activeNode) : null;
-              if (activeOrder == null || !scrollContainerRef.current) return;
-              const left =
-                railWidth +
-                orderToPosition(activeOrder) -
-                scrollContainerRef.current.clientWidth / 2 +
-                nodeWidth / 2;
-              scrollContainerRef.current.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-            }}
-          >
-            <BrushIcon name="locate" size={12} />
-          </button>
+          {/* Desktop: the panel header's plain icon buttons (hover only
+              darkens the ink); the story graph entry beside them is glass. */}
+          {isMobilePresentation ? (
+            <>
+              <button
+                className="btl__head-btn"
+                title={spreadTitle}
+                disabled={placedNodes.length < 2}
+                onClick={() => {
+                  void handleSpread();
+                }}
+              >
+                <BrushIcon name="spread" size={12} />
+              </button>
+              <button className="btl__head-btn" title={t('bottomTimeline.locateCurrent')} onClick={locateCurrent}>
+                <BrushIcon name="locate" size={12} />
+              </button>
+            </>
+          ) : (
+            <>
+              <GhostIconButton
+                size="sm"
+                title={spreadTitle}
+                aria-label={spreadTitle}
+                disabled={placedNodes.length < 2}
+                onClick={() => {
+                  void handleSpread();
+                }}
+                icon={<BrushIcon name="spread" size={12} />}
+              />
+              <GhostIconButton
+                size="sm"
+                title={t('bottomTimeline.locateCurrent')}
+                aria-label={t('bottomTimeline.locateCurrent')}
+                onClick={locateCurrent}
+                icon={<BrushIcon name="locate" size={12} />}
+              />
+            </>
+          )}
           {/* Heavier structural work — act boundaries, storyline relations —
               continues in the full-window story graph over the same timeline. */}
           {!isMobilePresentation && (
@@ -1436,6 +1521,7 @@ export function DesktopBottomTimeline({
             onOpenDrift={(driftNodeId) =>
               openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
             }
+            glass={!isMobilePresentation}
           />
         )}
 
@@ -1456,6 +1542,7 @@ export function DesktopBottomTimeline({
               orderToPosition={orderToPosition}
               positionToOrder={positionToOrder}
               variant="bottom"
+              glass={!isMobilePresentation}
               xOffset={railOffset}
               pinHeight={overlayTopOffset}
               editOnMount={m.id === newlyAddedMarkerId}

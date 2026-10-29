@@ -79,44 +79,50 @@
   cursor: not-allowed;
 }
 
-.btl__state-toggle {
-  display: inline-flex;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  overflow: hidden;
-  background: hsl(var(--surface));
-}
-.btl__state-toggle button {
-  min-width: 26px;
-  height: 20px;
-  padding: 0 6px;
-  display: grid;
-  place-items: center;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10px);
-  line-height: 1;
-  letter-spacing: 0.04em;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.btl__state-toggle button:hover {
-  color: hsl(var(--ink-2));
-  background: hsl(var(--rule) / 0.5);
-}
-.btl__state-toggle button.is-active {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-}
-
-/* View toggle (书序 ↔ 叙事时) sits in the head-left cluster next to the
-   title so the active view is always visible while scanning the dock. */
+/* View toggle (书序 ↔ 叙事时) leads the head-left cluster. On desktop it is
+   a GlassSlider: the two words on the dock, one glass slab under the chosen. */
 .btl__view-toggle {
   margin-left: 4px;
+}
+
+/* Desktop head toggles (未归属 shows its lane, 未放置 opens its popover):
+   like the scope toggle, one word that never changes and its count, the
+   resting glass line while off, the floating fill and still selected glass
+   while on or open. Mobile keeps the bordered buttons below. */
+.btl__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 20px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-caption, 10px)/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    background-color 0.24s ease-out;
+}
+/* Small slabs read the dense patch of the texture (materials.md). */
+.btl__toggle.glass.glass--rest {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+.btl__toggle:hover {
+  color: hsl(var(--ink-1));
+}
+.btl__toggle[aria-pressed='true'],
+.btl__toggle[aria-expanded='true'] {
+  background: var(--glass-fill);
+  color: hsl(var(--ink-1));
+}
+.btl__toggle-count {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 /* ---------------- Unplaced popover (narrative view, head-right) ----------
@@ -230,6 +236,32 @@
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
+/* Desktop rows: menu rows edge to edge, no fill; the row under the pointer
+   becomes a ring of flowing glass in its chapter's storyline colour, led by
+   the chapter's sand seal. Mobile keeps the paper chips above. */
+.btl__unplaced-popover--rows {
+  padding: 6px 0;
+}
+.btl__unplaced-popover--rows .btl__unplaced-list {
+  gap: 0;
+}
+.btl__unplaced-row {
+  gap: 7px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
+}
+.btl__unplaced-row:active {
+  cursor: grabbing;
+}
+html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row::before {
+  --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 50%, var(--glass-clear));
+}
+html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:active::before {
+  --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 75%, var(--glass-clear));
+}
+
 /* ---------------- Unaffiliated toggle (head, next to 书序/叙事时) ----
    Mirrors the unplaced button styling so the two head-level toggles read as
    a matching pair. Active state uses the same darker tint as `.is-open` to
@@ -366,6 +398,25 @@
 .btl-rail.is-active .btl-rail__name {
   color: hsl(var(--ink-1));
 }
+/* Desktop: a real storyline's name is a sand cell inset in its rail (the
+   brush frame then fits inside the rail's clip): the hover ring and, while
+   the storyline is open, the drawn frame. Synthetic lanes keep the same
+   inset without a cell. */
+.btl--desktop .btl-rail {
+  padding: 3px 4px;
+}
+.btl-rail__cell {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 6px 0 5px;
+  border-radius: 2px;
+}
+.btl--desktop .btl-rail > .btl-rail__main {
+  padding: 0 6px 0 5px;
+}
 .btl-rail__count {
   flex-shrink: 0;
   font-family: var(--font-mono);
@@ -387,6 +438,10 @@
   /* Double-clicking an empty spot creates a chapter there; it must not also
      select the clip titles around it. */
   user-select: none;
+}
+/* Desktop shape grammar: small radii stop at 3px. */
+.btl--desktop .btl-track {
+  border-radius: 2px;
 }
 
 /* ---------------- Time axis row (narrative view only) ---------------- */
@@ -437,6 +492,10 @@
   background: hsl(var(--rule));
   color: hsl(var(--ink-1));
 }
+/* Desktop: a panel header's plain icon button; hover only darkens the ink. */
+.btl--desktop .btl-axis__rail-add:hover {
+  background: transparent;
+}
 .btl-axis__rail-add:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -475,7 +534,7 @@
   background: var(--btl-guide-line);
 }
 
-.btl .actrail__divider:hover::after {
+.btl .actrail:not(.actrail--glass) .actrail__divider:hover::after {
   width: 0.5px;
   background: hsl(var(--accent));
 }
@@ -558,7 +617,7 @@
 /* Bound pin — the marker carries a drift node as its content. Label shows
    the drift's live title; double-click opens its editor. Accent border +
    accent line signal "this is a thing, not just a caption". */
-.btl-pin.is-bound .btl-pin__label {
+.btl-pin.is-bound .btl-pin__label:not(.glass) {
   border-color: hsl(var(--accent) / 0.55);
   background: hsl(var(--accent) / 0.06);
   color: hsl(var(--ink-1));
@@ -566,7 +625,7 @@
 }
 /* The drift's own sand eddy marks the marker as bound to a drift node — the
    same mark the act rail shows for its bound drift, so the two read as one. */
-.btl-pin.is-bound .btl-pin__label::before {
+.btl-pin.is-bound .btl-pin__label:not(.glass)::before {
   content: '';
   display: inline-block;
   width: 11px;
@@ -576,7 +635,7 @@
   -webkit-mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
   mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
 }
-.btl-pin.is-bound .btl-pin__label:hover {
+.btl-pin.is-bound .btl-pin__label:not(.glass):hover {
   background: hsl(var(--accent) / 0.12);
 }
 .btl-pin.is-bound .btl-pin__line {
@@ -602,6 +661,53 @@
   width: 1.5px;
   background: hsl(var(--accent));
   z-index: 12;
+}
+
+/* Desktop time pins: the label is the act chip's resting glass (dense patch,
+   no fill); renamed, it is the still selected glass on the floating fill. A
+   pin bound to a drift leads with the drift's sand eddy (a KindMark: the
+   glass rim owns ::before) and takes no accent of its own. */
+.btl--desktop .btl-pin__label.glass {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+.btl--desktop .btl-pin.is-editing .btl-pin__label.glass {
+  background: var(--glass-fill);
+  color: hsl(var(--ink-1));
+}
+.btl--desktop .btl-pin.is-bound .btl-pin__label.glass {
+  color: hsl(var(--ink-1));
+  cursor: pointer;
+}
+.btl-pin__label > .kind-mark {
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: top;
+}
+.btl-pin__label > .kind-mark > .sand {
+  top: 1px;
+}
+
+/* Desktop drop line (marker or act drag), rail half and lane half alike: a
+   strip of clear glass whose texture runs with the distance dragged
+   (--flow, set by TimelineGuideLines / ActRail), like a moving panel edge. */
+.btl--desktop {
+  --btl-drop-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 50%);
+}
+.btl--desktop .btl-pin-line.is-dragging {
+  width: 4px;
+  margin-left: -2px;
+  background: linear-gradient(to right, transparent, var(--btl-drop-glass), transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: -96px calc(var(--flow, 0) * 1.6px);
+  mask-position: -96px calc(var(--flow, 0) * 1.6px);
 }
 
 /* Playhead removed — the active tile's own selected styling carries the

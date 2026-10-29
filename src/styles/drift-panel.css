@@ -29,67 +29,70 @@
   align-items: center;
 }
 
-/* Tab — only rendered while !mounted. No arrow / chevron; the
-   close button serves as the collapse affordance once open. */
+/* Tab — only rendered while !mounted. No arrow / chevron; the close button
+   serves as the collapse affordance once open. Floating glass: the paper
+   fill under a resting glass line, led by the drift's sand eddy; it flows
+   under the pointer and thickens when pressed. Never inverts or fills. */
 .drift-panel__tab {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   margin-bottom: 14px;
-  padding: 6px 16px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong, var(--rule)));
-  border-radius: 1px;
+  padding: 6px 14px 6px 11px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
   color: hsl(var(--ink-2));
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10.5px);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  box-shadow: none;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 12.5px);
+  font-weight: 500;
+  line-height: 1.2;
+  transition: color 0.12s;
 }
 .drift-panel__tab:hover {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
+  color: hsl(var(--ink-1));
 }
 .drift-panel__count {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-2));
-  padding: 1px 6px;
-  border-radius: 1px;
-  font-size: var(--ui-font-caption, 9px);
-}
-.drift-panel__tab:hover .drift-panel__count {
-  background: hsl(var(--paper) / 0.2);
-  color: hsl(var(--paper));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10.5px);
+  font-weight: 400;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
-/* Compact icon close button — centered above the open panel. */
+/* Small glass reads the dense patch of the texture (materials.md). */
+.drift-panel .drift-panel__tab.glass,
+.drift-panel .drift-panel__close.glass {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+
+/* Compact close button centered above the open panel: a round glass button
+   on the paper fill, like the workspace's other round controls. */
 .drift-panel__close {
   pointer-events: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   margin-bottom: 6px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong, var(--rule)));
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+  border: 0;
   border-radius: 50%;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
-  font-size: var(--ui-font-body, 14px);
   line-height: 1;
   padding: 0;
   opacity: 0;
   transform: translateY(6px) scale(0.96);
   box-shadow: none;
   transition:
-    background 0.12s,
     color 0.12s,
-    border-color 0.12s,
     opacity 0.16s,
     transform 0.2s;
 }
@@ -103,10 +106,7 @@
   transform: translateY(6px) scale(0.96);
 }
 .drift-panel__close:hover {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-  transform: translateY(0);
+  color: hsl(var(--ink-1));
 }
 
 /* Panel slides as a single hand. Starts below the viewport edge so
@@ -158,10 +158,14 @@
 
 /* ------------------------------------------------------------ */
 /* Drift card — shared between GraphView and SuperElementView.  */
-/* Visual derived from SuperElementView's compact 168×96 layout */
-/* so both views feel like the same affordance. Modifier flags  */
-/* (.is-link-source / .is-edge-selected / .is-dragged) layer on */
-/* the base; parent decides which ones apply.                   */
+/* A slab of floating glass over the graph: the paper fill under */
+/* a resting glass line (no wash, no border); it flows under the */
+/* pointer and thickens while held to drag. The link source      */
+/* (Shift-click, waiting for its other end) stays held — the     */
+/* thick still glass; an endpoint of the selected edge is the    */
+/* still selected glass (`.is-on`). A resting drift only fades.  */
+/* The title leads with the drift's sand eddy: drifts have no    */
+/* book order to number them by.                                 */
 /* ------------------------------------------------------------ */
 .drift-card {
   position: relative;
@@ -170,51 +174,37 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 10px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule));
-  border-radius: 1px;
+  padding: 9px 10px 8px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+  border: 0;
+  border-radius: 2px;
   cursor: pointer;
   user-select: none;
   overflow: hidden;
   transition:
     transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-    background 0.12s,
-    border-color 0.12s,
-    box-shadow 0.16s,
     opacity 0.18s;
   will-change: transform;
 }
-.drift-card:hover {
-  border-color: hsl(var(--ink-2));
-  background: hsl(var(--paper-deep));
+.drift-card.glass.is-link-source {
+  --glass-g: 1.7;
+  --glass-sp: 1.3;
 }
-/* Shift-click link source — dashed outline highlight matches the
-   element-card / chapter-pill convention in SuperElementView. */
-.drift-card.is-link-source {
-  border: 1.5px solid hsl(var(--ink-2));
-  background: hsl(var(--paper-deep));
-  outline: 2px dashed hsl(var(--ink-3));
-  outline-offset: 1px;
-}
-/* GraphView only — endpoint of the currently selected edge. */
-.drift-card.is-edge-selected {
-  border-color: hsl(var(--accent));
-  border-width: 2px;
-  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18);
+.drift-card.glass.is-link-source::before {
+  opacity: 1;
+  animation-play-state: paused;
 }
 /* GraphView only — source card faded while a drag ghost is in flight. */
 .drift-card.is-dragged {
   opacity: 0.2;
 }
-/* Drift status: resting — parked, no longer in active rotation. Dim the
-   card so active (drifting) notes stand out, but keep it interactive: the
-   user might pull it back out, so it shouldn't read as disabled. */
+/* Drift status: resting — parked, no longer in active rotation. Faded so
+   active (drifting) notes stand out, but still interactive: the author
+   might pull it back out, so it shouldn't read as disabled. */
 .drift-card.is-resting {
   opacity: 0.55;
-  background: hsl(var(--paper-deep));
-  border-style: dashed;
-  border-color: hsl(var(--rule));
 }
 .drift-card.is-resting:hover {
   opacity: 0.85;
@@ -224,25 +214,23 @@
   color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
-.drift-card__num {
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 8.5px);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  flex-shrink: 0;
-}
 .drift-card__title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
   font-family: var(--font-sans);
   font-size: var(--ui-font-secondary, 12px);
   font-weight: 500;
   color: hsl(var(--ink-1));
   letter-spacing: -0.005em;
   line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
+}
+.drift-card__title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .drift-card__summary {
   flex: 1;
