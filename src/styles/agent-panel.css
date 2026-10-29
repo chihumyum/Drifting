@@ -915,3 +915,152 @@
 .agt-wm__footer > span {
   color: hsl(var(--ink-2));
 }
+
+/* ---- sand and glass (the desktop panel) ---------------------------------
+ * The desktop composer and transcript wear the design system's materials
+ * (docs/design-system/components.md); the paused mobile shell keeps the
+ * fallback look above. Glass texture patches: the dense ones, since the
+ * sparse first patch all but hides a small control's rim. */
+
+/* The composer: a rounded slip of paper with the resting glass line (glass
+   glass--rest glass--field). No line between the text and its controls;
+   space groups them. */
+.agt-composer.agt-composer--glass {
+  border: 0;
+  border-radius: 16px;
+  background: hsl(var(--page));
+}
+.agt-composer.agt-composer--glass.glass { --glass-gx: -168px; --glass-gy: -18px; }
+.agt-composer--glass .agt-composer__text { padding: 11px 15px 4px; }
+.agt-composer--glass .agt-composer__bar {
+  gap: 4px;
+  padding: 4px 7px 7px;
+  border-top: 0;
+}
+
+/* Its menus: round glass buttons in one glass pill, like the manuscript's
+   toolbar (.editor-bar). */
+.agt-composer__tray {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 18px;
+  background: var(--glass-fill);
+  --glass-rim: 12px;
+}
+.agt-composer__tray .agt-cfg {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.agt-composer__tray .agt-cfg:hover,
+.agt-composer__tray .agt-cfg--open {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+/* Recording is the mic's selected glass (aria-pressed) and its red stop
+   seal, not a pulsing red wash. */
+.agt-composer__tray .agt-mic[data-state='recording'] {
+  background: transparent;
+  animation: none;
+}
+
+/* Stop, steer and send: single round glass buttons. Stop is the resting line
+   of a secondary button; steer and send are the accent's primary glass. */
+.agt-round {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+}
+.agt-round:hover:not(:disabled) { color: hsl(var(--ink-1)); }
+.agt-round:disabled { cursor: default; }
+.agt-composer .agt-round.glass,
+.agt-composer__tray .agt-cfg.glass,
+.agt-log--glass .agt-btn.glass,
+.agt-entity-links .agt-entity-chip.glass { --glass-gx: -96px; --glass-gy: -132px; }
+
+/* A text button made of glass (a card's actions, the setup hint). */
+.agt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  font-size: var(--ui-font-secondary, 12px);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agt-btn.glass--rest:hover { color: hsl(var(--ink-1)); }
+
+/* The primary glass keeps the accent's ink over these buttons' own ink. */
+:is(.agt-btn, .agt-round).glass--primary,
+:is(.agt-btn, .agt-round).glass--primary:hover:not(:disabled) { color: hsl(var(--accent)); }
+:is(.agt-btn, .agt-round).glass--primary:disabled { color: var(--ui-text-muted, hsl(var(--ink-4))); }
+
+/* The transcript. Steps, task lists and the author's sent words carry the
+   resting glass line; what is only read keeps it under the pointer. */
+.agt-log--glass > .glass:nth-of-type(2n + 1) { --glass-gx: -96px; --glass-gy: -132px; }
+.agt-log--glass > .glass:nth-of-type(2n) { --glass-gx: -168px; --glass-gy: -18px; }
+
+.agt-user-bubble {
+  max-width: 100%;
+  padding: 8px 13px;
+  border-radius: 16px;
+  background: hsl(var(--page));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.agt-user-bubble.glass { --glass-gx: -168px; --glass-gy: -18px; }
+
+.agt-tool {
+  border-radius: 2px;
+  font-size: var(--agent-font-secondary, 12px);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+.agt-tool code { color: hsl(var(--ink-2)); }
+
+.agt-todos {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 2px;
+  font-size: var(--agent-font-secondary, 12px);
+}
+
+/* An error is said in the danger ink with its brush icon, no red slab. */
+.agt-error {
+  color: hsl(var(--destructive));
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* A card that waits on the author (leave to act, a question, a stopped task
+   to continue): no fill, the accent's glass drifting on its own until the
+   author decides (glass--waiting); its primary action drifts with it. */
+.agt-control-card.agt-control-card--glass {
+  --glass-cc: hsl(var(--accent));
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+.agt-control-card.agt-control-card--glass.glass { --glass-gx: -58px; --glass-gy: -186px; }
+.agt-control-card__actions .agt-btn,
+.agt-control-card__actions .agt-btn:hover {
+  border: 0;
+  padding: 0 12px;
+  background: transparent;
+}

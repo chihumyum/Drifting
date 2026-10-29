@@ -259,7 +259,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
             <div style={hintText}>{notConnectedText}</div>
             <button
               type="button"
-              style={primaryBtn}
+              className="agt-btn glass glass--primary"
               onClick={() => events.emit('settings:open', { railId: 'models' })}
             >
               {t('agentPanel.setup.openSettings')}
@@ -431,7 +431,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
       <DesktopAgentTranscript key={`${projectId}:${activeConvId ?? "new"}`} ref={transcriptRef} />
 
       <div style={inputArea}>
-        <div className="agt-composer">
+        <div className="agt-composer agt-composer--glass glass glass--rest glass--field">
           <textarea
             ref={taRef}
             className="agt-composer__text"
@@ -459,8 +459,19 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
             rows={1}
           />
           <div className="agt-composer__bar">
-            <AgentComposerConfig />
+            {/* The composer's menus: round glass buttons in one glass pill,
+                like the manuscript's toolbar. */}
+            <div className="agt-composer__tray glass glass--rest">
+              <AgentComposerConfig glass />
+              <VoiceDictationButton
+                glass
+                part="button"
+                projectId={projectId}
+                onNeedsSetup={() => events.emit('settings:open', { railId: 'models' })}
+              />
+            </div>
             <VoiceDictationButton
+              part="status"
               projectId={projectId}
               onNeedsSetup={() => events.emit('settings:open', { railId: 'models' })}
             />
@@ -469,17 +480,18 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
               <>
                 <button
                   type="button"
-                  className="agt-send agt-send--stop"
+                  className="agt-round glass glass--rest glass--round"
                   onClick={() => void stopAfterTool()}
                   disabled={starting}
                   title={t('agentPanel.composer.stopAfterToolTitle')}
+                  aria-label={t('agentPanel.composer.stop')}
                 >
-                  {t('agentPanel.composer.stop')}
+                  <BrushIcon name="stop" size={12} />
                 </button>
                 {running && (
                   <button
                     type="button"
-                    className="agt-send"
+                    className="agt-round glass glass--primary glass--round"
                     onClick={handleSend}
                     disabled={
                       !prompt.trim() ||
@@ -489,21 +501,25 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                       controlStatus === 'committing'
                     }
                     title={t('agentPanel.composer.steerTitle')}
-                  >
-                    {pendingControl?.status === 'waiting_user'
+                    aria-label={pendingControl?.status === 'waiting_user'
                       ? t('agentPanel.composer.answer')
                       : t('agentPanel.composer.steer')}
+                  >
+                    {/* Answering is sending; steering joins the running task. */}
+                    <BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} size={17} />
                   </button>
                 )}
               </>
             ) : (
               <button
                 type="button"
-                className="agt-send"
+                className="agt-round glass glass--primary glass--round"
                 onClick={handleSend}
                 disabled={historyUnavailable || starting || Boolean(pendingControl?.requiresContinuation)}
+                title={t('agentPanel.composer.send')}
+                aria-label={t('agentPanel.composer.send')}
               >
-                {t('agentPanel.composer.send')}
+                <BrushIcon name="lift" size={17} />
               </button>
             )}
           </div>
@@ -607,17 +623,6 @@ const inputArea: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const primaryBtn: React.CSSProperties = {
-  background: 'hsl(var(--accent))',
-  color: 'white',
-  border: 'none',
-  borderRadius: 2,
-  padding: '4px 8px',
-  fontSize: 'var(--ui-font-caption, 10.5px)',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-};
-
 const hintBox: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -670,8 +675,7 @@ const panelCss = `
 .agt-pending span:last-child { margin-left: 2px; }
 @keyframes agtPendingPulse { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
-.agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 1px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: var(--agent-font-secondary, 11.5px); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
-.agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
+.agt-entity-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 0; border-radius: 2px; background: transparent; color: hsl(var(--ink-1)); font: inherit; font-size: var(--agent-font-secondary, 11.5px); cursor: pointer; }
 .agt-entity-chip__op { font-size: var(--agent-font-caption, 10.5px); opacity: 0.55; }
 .agt-history__running-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtHistoryRunPulse 1.4s ease-in-out infinite; }
 @keyframes agtHistoryRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }

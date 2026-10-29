@@ -72,6 +72,9 @@ name-seal.png               名章: an upright seal, a head and shoulders cut wh
 inkstone.png                砚: a slab, its well inked solid (models and API)
 grip.png                    three short slants in a corner (a resize grip)
 hook.png                    ↳: one stroke down and round, a head at its end (a deep link)
+lift.png                    上提: one heavy stroke pulled up, a 「人」 head on it (send to the Agent)
+lift-bent.png               汇流上提: the same head, its shaft bent in from the lower left like a
+                            stream running in to join the current (add to the Agent's running task)
 thinking.png                砂聚成点: six frames side by side, loose grains pressing into a
                             dot; CSS plays them back and forth while the Agent thinks
 
@@ -947,6 +950,27 @@ def hook(rng):
     brush(a, poly((62, 48), (84, 70), (62, 92), n=16), G, rng, load0=1.0, dry=0.2, taper=(0.1, 0.1))
     return a
 
+# Heavier than the small glyphs: these stand alone in a round glass button.
+H = G * 1.35
+
+def lift(rng):
+    """上提: one stroke pulled up from the foot, a 「人」 head at the top."""
+    a = new()
+    brush(a, curve([(49, 88), (48, 60), (48, 30), (48, 14)]), H, rng, load0=1.0, dry=0.35, taper=(0.04, 0.0))
+    _lift_head(a, rng)
+    return a
+
+def lift_bent(rng):
+    """汇流上提: the same head, its shaft bent in from the lower left."""
+    a = new()
+    brush(a, curve([(25, 80), (36, 71), (45, 55), (48, 36), (48, 14)]), H, rng, load0=1.0, dry=0.35, taper=(0.04, 0.0))
+    _lift_head(a, rng)
+    return a
+
+def _lift_head(a, rng):
+    brush(a, curve([(48, 12), (36, 24), (20, 40)], 10), H * 0.95, rng, load0=1.0, dry=0.3, taper=(0.0, 0.35))
+    brush(a, curve([(48, 12), (60, 24), (76, 40)], 10), H * 0.95, rng, load0=1.0, dry=0.3, taper=(0.0, 0.35))
+
 def thinking(rng):
     """砂聚成点: loose grains drawn in from all round until they press into one
     dot. Six frames, laid side by side and played back and forth."""
@@ -995,6 +1019,7 @@ OBJECTS = {
     "both-ways": (both_ways, 4005), "swap": (swap, 4007), "stitched": (stitched, 4012),
     "task-todo": (task_todo, 4013), "task-doing": (task_doing, 4014), "task-done": (task_done, 4015),
     "name-seal": (name_seal, 4019), "inkstone": (inkstone, 4020), "grip": (grip, 4025), "hook": (hook, 4026),
+    "lift": (lift, 5101), "lift-bent": (lift_bent, 5205),
 }
 # Frames drawn with one rng, each finished with fine grain, then laid side by side.
 STRIPS = {"thinking": (thinking, 4102)}

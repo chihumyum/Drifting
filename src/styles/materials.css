@@ -111,6 +111,89 @@
 .glass--surface[aria-pressed='true'] { --glass-g: 1; --glass-sp: 1; }
 .glass--surface:active::before { animation-play-state: running; }
 
+/* What is only read (a message already sent, a task list, a finished tool
+   step) keeps its resting line under the pointer: it never asks to be pressed. */
+.glass--still:hover,
+.glass--still:focus-visible { --glass-g: 0.85; --glass-sp: 0; }
+.glass--still:hover::before,
+.glass--still:focus-visible::before { animation-play-state: paused; }
+
+/* A field the author writes in: its resting line always shows, the pointer
+   brings the bleed and the drift, and while it holds the caret it is the
+   selected glass, still. */
+.glass--field:focus-within { --glass-g: 1; --glass-sp: 1; }
+.glass--field:focus-within::before {
+  opacity: 1;
+  animation-play-state: paused;
+  transition: opacity 0.24s ease-out, box-shadow 0.28s ease-out;
+}
+
+/* The primary action: the accent's selected glass at rest, the accent's ink,
+   never a fill. It drifts under the pointer and thickens while held like any
+   glass; disabled, it falls back to a faint line of clear glass. */
+.glass--primary {
+  --glass-cc: hsl(var(--accent));
+  --glass-g: 1;
+  --glass-sp: 1;
+  color: hsl(var(--accent));
+}
+.glass--primary::before { opacity: 1; }
+.glass--primary:disabled {
+  --glass-cc: var(--glass-clear);
+  --glass-g: 0.6;
+  --glass-sp: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  cursor: default;
+}
+.glass--primary:disabled::before { animation: none; }
+
+/* Waiting on the author (the Agent asking leave): the reverse of every other
+   glass. It drifts on its own until the author decides, and the pointer on
+   it stills it; a waiting button inside a waiting card stills both. */
+.glass--waiting { --glass-g: 1; --glass-sp: 1; }
+.glass--waiting::before { opacity: 1; animation-play-state: running; }
+.glass--waiting:hover::before { animation-play-state: paused; }
+
+/* A step that has just arrived (a tool the Agent ran): one band of drifting
+   glass is pushed across it from left to right, once, and its resting line
+   comes in behind the band. Rows loaded from history arrive without it. */
+.glass-sweep::after {
+  --sweep-ring: color-mix(in srgb, var(--glass-cc) 85%, transparent);
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px var(--sweep-ring),
+    inset 0 0 12px 1.5px var(--sweep-ring);
+  -webkit-mask-image:
+    var(--glass-texture),
+    linear-gradient(to right, transparent 35%, #000 46%, #000 54%, transparent 65%);
+  mask-image:
+    var(--glass-texture),
+    linear-gradient(to right, transparent 35%, #000 46%, #000 54%, transparent 65%);
+  -webkit-mask-size: 150px 150px, 300% 100%;
+  mask-size: 150px 150px, 300% 100%;
+  -webkit-mask-repeat: repeat, no-repeat;
+  mask-repeat: repeat, no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  opacity: 0;
+  animation: glass-sweep 1.125s cubic-bezier(0.4, 0.1, 0.35, 1) both;
+}
+.glass-sweep.glass--rest::before {
+  animation:
+    glass-flow 15s linear infinite,
+    glass-sweep-line 1.125s ease-out backwards;
+  animation-play-state: paused, running;
+}
+.glass-sweep.glass--rest:hover::before,
+.glass-sweep.glass--rest:focus-visible::before { animation-play-state: running, running; }
+.glass-sweep.glass--still:hover::before,
+.glass-sweep.glass--still:focus-visible::before { animation-play-state: paused, running; }
+
 @keyframes glass-flow {
   from {
     -webkit-mask-position: var(--glass-gx) var(--glass-gy);
@@ -120,6 +203,25 @@
     -webkit-mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px);
     mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px);
   }
+}
+
+@keyframes glass-sweep {
+  0% {
+    opacity: 1;
+    -webkit-mask-position: var(--glass-gx) var(--glass-gy), 100% 0;
+    mask-position: var(--glass-gx) var(--glass-gy), 100% 0;
+  }
+  88% { opacity: 1; }
+  100% {
+    opacity: 0;
+    -webkit-mask-position: calc(var(--glass-gx) + 66px) var(--glass-gy), 0% 0;
+    mask-position: calc(var(--glass-gx) + 66px) var(--glass-gy), 0% 0;
+  }
+}
+
+@keyframes glass-sweep-line {
+  0%, 40% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* ── A selection that flows between siblings ─────────────────────────
@@ -417,6 +519,8 @@
 .brush-icon--inkstone { -webkit-mask-image: url('../assets/design/icons/inkstone.png'); mask-image: url('../assets/design/icons/inkstone.png'); }
 .brush-icon--grip { -webkit-mask-image: url('../assets/design/icons/grip.png'); mask-image: url('../assets/design/icons/grip.png'); }
 .brush-icon--hook { -webkit-mask-image: url('../assets/design/icons/hook.png'); mask-image: url('../assets/design/icons/hook.png'); }
+.brush-icon--lift { -webkit-mask-image: url('../assets/design/icons/lift.png'); mask-image: url('../assets/design/icons/lift.png'); }
+.brush-icon--lift-bent { -webkit-mask-image: url('../assets/design/icons/lift-bent.png'); mask-image: url('../assets/design/icons/lift-bent.png'); }
 /* Thinking: six frames side by side, grains pressing into a dot and loosening
  * again, played back and forth the way a terminal spinner cycles its glyphs.
  * `.brush-icon--still` holds the gathered dot once the thought is done. */
@@ -494,6 +598,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .glass::before,
+  .glass-sweep.glass--rest::before,
   .sand-cell > .cell-ring { animation: none; }
+  .glass-sweep::after { animation: none; opacity: 0; }
   .sand--arrive { animation: none; }
 }

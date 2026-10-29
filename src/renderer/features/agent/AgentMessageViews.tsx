@@ -18,6 +18,7 @@ import {
 import { BrushIcon, type BrushIconName } from '../../components/ui/BrushIcon';
 import { KindMark } from '../../components/ui/KindMark';
 import type { KindMarkKind } from '../../components/ui/kind-mark';
+import { useAgentGlass } from './agent-glass';
 
 export const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
 
@@ -65,6 +66,10 @@ function mdToHtml(text: string): string {
 
 function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
   const { t, i18n } = useTranslation();
+  const glass = useAgentGlass();
+  // Only a step that arrives while the Agent works is swept in; rows loaded
+  // from history have already finished and arrive still.
+  const [arriving] = useState(() => msg.status === 'running');
   const icon: BrushIconName = msg.status === 'running' ? 'loader' : msg.status === 'ok' ? 'status-done' : 'status-stopped';
   const semanticActivity = useMemo(
     () =>
@@ -115,8 +120,13 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
       )}
     </>
   );
+  const glassClass = glass
+    ? ['agt-tool glass glass--rest', hasBody ? 'glass--surface' : 'glass--still', arriving ? 'glass-sweep' : '']
+        .filter(Boolean)
+        .join(' ')
+    : undefined;
   return (
-    <div style={semanticTool ? quietToolRow : toolRow}>
+    <div className={glassClass} style={glass ? undefined : semanticTool ? quietToolRow : toolRow}>
       {hasBody ? (
         <details style={toolDetails}>
           <summary style={toolSummary}>{summary}</summary>
@@ -283,10 +293,15 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
 
 const UserBubble = memo(function UserBubble({ msg }: { msg: Extract<ChatMsg, { kind: 'user' }> }) {
   const { t } = useTranslation();
+  const glass = useAgentGlass();
   const timestamp = messageTime(msg.at);
   return (
     <div style={userMessage}>
-      <div style={userBubble}>{msg.text}</div>
+      {glass ? (
+        <div className="agt-user-bubble glass glass--rest glass--still">{msg.text}</div>
+      ) : (
+        <div style={userBubble}>{msg.text}</div>
+      )}
       {timestamp ? (
         <time
           dateTime={msg.at}
@@ -338,7 +353,7 @@ export function EntityLinkChip({
   const deletedLabel = t('common.deleted_paren');
   const name = useDataStore((s) => entityRefName(s, refItem, deletedLabel));
   return (
-    <button type="button" className="agt-entity-chip" onClick={() => onOpen(refItem)}>
+    <button type="button" className="agt-entity-chip glass glass--surface" onClick={() => onOpen(refItem)}>
       <KindMark kind={ENTITY_MARK[refItem.entityType]} seed={refItem.id} color="hsl(var(--accent))" />
       <span>{name}</span>
       <span className="agt-entity-chip__op">
@@ -385,6 +400,7 @@ export function PendingRow({ status }: { status: AgentControlStatus | null }) {
 // composer) does not re-render/-parse every message — only messages whose `msg`
 // object identity changed (the streaming tail) re-render.
 export const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {
+  const glass = useAgentGlass();
   switch (msg.kind) {
     case 'user':
       return (
@@ -403,7 +419,11 @@ export const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) 
     case 'usage':
       return <UsageRow msg={msg} />;
     case 'error':
-      return <div style={errorBubble}><BrushIcon name="status-warning" size={12} inline /> {msg.text}</div>;
+      return glass ? (
+        <div className="agt-error"><BrushIcon name="status-warning" size={12} inline /> {msg.text}</div>
+      ) : (
+        <div style={errorBubble}><BrushIcon name="status-warning" size={12} inline /> {msg.text}</div>
+      );
     default:
       return null;
   }
@@ -419,13 +439,17 @@ export function RuntimeControlCard({
   onCancelRecovered: () => void;
 }) {
   const { t, i18n } = useTranslation();
+  const glass = useAgentGlass();
+  const cardClass = glass ? 'agt-control-card agt-control-card--glass glass glass--waiting' : 'agt-control-card';
+  const secondaryClass = glass ? 'agt-btn glass glass--rest' : undefined;
+  const primaryClass = glass ? 'agt-btn glass glass--primary glass--waiting' : 'agt-control-card__allow';
   if (pending.requiresContinuation) {
     return (
-      <div className="agt-control-card" role="status">
+      <div className={cardClass} role="status">
         <strong>{t('agentPanel.control.recoveredTitle')}</strong>
         <span>{t('agentPanel.control.recoveredBody')}</span>
         <div className="agt-control-card__actions">
-          <button type="button" onClick={onCancelRecovered}>
+          <button type="button" className={glass ? primaryClass : undefined} onClick={onCancelRecovered}>
             {t('agentPanel.control.endRecovered')}
           </button>
         </div>
@@ -446,8 +470,13 @@ export function RuntimeControlCard({
     } catch {
       argumentsText = String(permission.arguments);
     }
+    // One primary action, last in the row: the narrowest leave the Agent asks.
+    const primaryScope = permission.allowedScopes.includes('once') ? 'once' : permission.allowedScopes[0];
+    const scopes = glass
+      ? [...permission.allowedScopes.filter((scope) => scope !== primaryScope), ...permission.allowedScopes.filter((scope) => scope === primaryScope)]
+      : permission.allowedScopes;
     return (
-      <div className="agt-control-card" role="alertdialog">
+      <div className={cardClass} role="alertdialog">
         <strong>{t('agentPanel.control.permissionTitle')}</strong>
         <div className="agt-control-card__description">
           <span>{description?.summary ?? <code>{permission.toolName}</code>}</span>
@@ -467,14 +496,14 @@ export function RuntimeControlCard({
           <pre>{argumentsText}</pre>
         </details>
         <div className="agt-control-card__actions">
-          <button type="button" onClick={() => onPermission('deny', 'once')}>
+          <button type="button" className={secondaryClass} onClick={() => onPermission('deny', 'once')}>
             {t('agentPanel.control.deny')}
           </button>
-          {permission.allowedScopes.map((scope) => (
+          {scopes.map((scope) => (
             <button
               key={scope}
               type="button"
-              className="agt-control-card__allow"
+              className={glass && scope !== primaryScope ? secondaryClass : primaryClass}
               onClick={() => onPermission('allow', scope)}
             >
               {t(`agentPanel.control.allow.${scope}`)}
@@ -488,7 +517,7 @@ export function RuntimeControlCard({
   const request = pending.userInputRequest;
   if (pending.status === 'waiting_user' && request) {
     return (
-      <div className="agt-control-card" role="status">
+      <div className={cardClass} role="status">
         <strong>{t('agentPanel.control.questionTitle')}</strong>
         <span>{request.prompt}</span>
         <small>{t('agentPanel.control.answerHint')}</small>
@@ -500,10 +529,11 @@ export function RuntimeControlCard({
 
 function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
   const { t } = useTranslation();
+  const glass = useAgentGlass();
   if (items.length === 0) return null;
   const done = items.filter((t) => t.status === 'completed').length;
   return (
-    <div style={todoBox}>
+    <div className={glass ? 'agt-todos glass glass--rest glass--still' : undefined} style={glass ? undefined : todoBox}>
       <div style={todoHead}>
         <span>{t('agentPanel.todos.plan')}</span>
         <span style={{ opacity: 0.7 }}>

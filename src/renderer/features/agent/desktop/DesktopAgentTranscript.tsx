@@ -10,6 +10,7 @@ import { useWorkspaceNavigator } from '../../workspace/navigation/WorkspaceNavig
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { collectTurnEntityRefs, type ToolEntityRef } from '../../../lib/agent/tool-entity-ref';
 import { EntityLinkChip, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX, fmtCost, fmtTokens } from '../AgentMessageViews';
+import { AgentGlassContext } from '../agent-glass';
 
 const DesktopMessageBlock = memo(function DesktopMessageBlock({ block }: { block: AgentMessageBlock }) {
   return <>{block.messages.map((m, i) => <MessageView key={i} msg={m} />)}</>;
@@ -84,9 +85,9 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
     [openEntity],
   );
 
-  return (<>
+  return (<AgentGlassContext.Provider value>
       <div style={logWrap}>
-        <div ref={logRef} style={logStyle} onScroll={onScroll}>
+        <div ref={logRef} className="agt-log--glass" style={logStyle} onScroll={onScroll}>
           {messages.length === 0 ? (
             <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
           ) : (
@@ -105,7 +106,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
             />
           )}
           {continuationReason && (
-            <div className="agt-control-card" role="status">
+            <div className="agt-control-card agt-control-card--glass glass glass--waiting" role="status">
               <strong>
                 {automaticContinuation?.stopReason === 'waiting_review'
                   ? t('agentPanel.autoContinue.waitingReviewTitle')
@@ -137,7 +138,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
               <div className="agt-control-card__actions">
                 <button
                   type="button"
-                  className="agt-control-card__allow"
+                  className="agt-btn glass glass--primary glass--waiting"
                   onClick={() => void continueTask()}
                 >
                   {t('agentPanel.budget.continue', {
@@ -159,6 +160,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
         {!atBottom && (
           <button
             type="button"
+            className="glass glass--rest glass--round"
             style={jumpBtn}
             onClick={jumpToBottom}
             title={t('agentPanel.jumpLatest')}
@@ -179,7 +181,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
         </div>
       )}
 
-  </>);
+  </AgentGlassContext.Provider>);
 }));
 
 const logWrap: React.CSSProperties = {
@@ -206,14 +208,15 @@ const jumpBtn: React.CSSProperties = {
   position: 'absolute',
   bottom: 10,
   right: 12,
+  display: 'grid',
+  placeItems: 'center',
   width: 28,
   height: 28,
-  borderRadius: 2,
-  border: '1px solid hsl(var(--rule))',
-  background: 'hsl(var(--paper))',
+  padding: 0,
+  border: 0,
+  background: 'var(--glass-fill)',
   color: 'hsl(var(--ink-1))',
   cursor: 'pointer',
-  boxShadow: '0 2px 10px hsl(var(--ink-1) / 0.2)',
   fontSize: 14,
   lineHeight: 1,
   zIndex: 10,
