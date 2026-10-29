@@ -5,6 +5,7 @@ import { useGlobalSearchResults } from './use-global-search-results';
 import type { SearchableEntityType, Field, Occurrence, EntityGroup } from './global-search-model';
 import '../../../styles/search.css';
 import { BrushIcon } from '../ui/BrushIcon';
+import { GhostIconButton } from '../ui/GhostIconButton';
 import { KindMark } from '../ui/KindMark';
 import type { KindMarkKind } from '../ui/kind-mark';
 
@@ -51,7 +52,7 @@ function highlight(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="gsearch-mark">{text.slice(idx, idx + query.length)}</mark>
+      <mark className="search-hit">{text.slice(idx, idx + query.length)}</mark>
       {text.slice(idx + query.length)}
     </>
   );
@@ -62,7 +63,7 @@ function renderOccurrence(o: Occurrence): React.ReactNode {
   return (
     <>
       {excerpt.slice(0, matchStart)}
-      <mark className="gsearch-mark">
+      <mark className="search-hit">
         {excerpt.slice(matchStart, matchStart + matchLen)}
       </mark>
       {excerpt.slice(matchStart + matchLen)}
@@ -167,30 +168,30 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
     <div className="gsearch-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
       <div className="gsearch-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gsearch-header">
-          <BrushIcon name="search" size={15} />
-          <input
-            ref={inputRef}
-            className="gsearch-input"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setSelectedIdx(0); }}
-            placeholder={t('globalSearch.placeholder')}
-          />
-          {hasQuery && (
-            <span className="gsearch-stats">
-              {t('globalSearch.stats', {
-                groups: groups.length,
-                occurrences: totalOccurrences,
-              })}
-            </span>
-          )}
-          <button
-            type="button"
-            className="gsearch-close-btn"
+          <label className="ui-field glass glass--rest glass--field">
+            <BrushIcon name="search" size={15} />
+            <input
+              ref={inputRef}
+              className="gsearch-input"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setSelectedIdx(0); }}
+              placeholder={t('globalSearch.placeholder')}
+            />
+            {hasQuery && (
+              <span className="ui-field__meta">
+                {t('globalSearch.stats', {
+                  groups: groups.length,
+                  occurrences: totalOccurrences,
+                })}
+              </span>
+            )}
+          </label>
+          <GhostIconButton
+            icon={<BrushIcon name="close" size={15} />}
             onClick={onClose}
             title={t('globalSearch.closeTitle')}
-          >
-            <BrushIcon name="close" size={13} />
-          </button>
+            aria-label={t('globalSearch.closeTitle')}
+          />
         </div>
 
         <div
@@ -208,7 +209,7 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
               const drift = g.nodeKind === 'drift';
               const style = { position: 'absolute' as const, top: (start + offset) * rowHeight, height: rowHeight, boxSizing: 'border-box' as const, left: 0, right: 0 };
               if (row.occIdx < 0) return (
-                <div key={`${g.entityType}:${g.entityId}:header`} style={style} className="gsearch-group-header" onClick={() => choose(g)}>
+                <div key={`${g.entityType}:${g.entityId}:header`} style={style} className="gsearch-group-header menu-surface__item" onClick={() => choose(g)}>
                   <span className="gsearch-group-icon"><KindMark kind={drift ? 'drift' : ENTITY_MARK[g.entityType]} seed={g.entityId} /></span>
                   <span className="gsearch-group-title">{highlight(g.entityTitle, query)}</span>
                   <span className="gsearch-count">{g.occurrences.length + g.truncated}</span>
@@ -219,7 +220,7 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
               return (
                 <div key={`${g.entityType}:${g.entityId}:${row.occIdx}`} style={style}
                   data-occurrence-index={row.flatIdx}
-                  className={`gsearch-row${row.flatIdx === selectedIdx ? ' is-active' : ''}`}
+                  className={`gsearch-row menu-surface__item${row.flatIdx === selectedIdx ? ' is-current' : ''}`}
                   onMouseEnter={() => setSelectedIdx(row.flatIdx)} onClick={() => choose(g)}>
                   <span className="gsearch-field-tag">{t(FIELD_LABEL_KEY[o.field])}</span>
                   <span className="gsearch-excerpt">{renderOccurrence(o)}</span>

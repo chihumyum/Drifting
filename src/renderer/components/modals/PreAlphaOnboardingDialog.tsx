@@ -44,27 +44,16 @@ function PreAlphaGuideCard({
 
   return (
     <ModalCard className="pre-alpha-guide-modal" width={560}>
-      <ModalHeader kicker="PUBLIC ALPHA" title={t('preAlphaGuide.title')} />
+      <ModalHeader kicker="Public Alpha" title={t('preAlphaGuide.title')} />
       <ModalBody>
-        <p style={{ margin: 0, color: 'hsl(var(--ink-2))', lineHeight: 1.7 }}>
-          {t('preAlphaGuide.intro')}
-        </p>
-        <div
-          style={{
-            margin: '20px 0',
-            padding: '16px 18px',
-            borderRadius: 2,
-            background: 'hsl(var(--page))',
-          }}
-        >
-          <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
-            <li>{t('preAlphaGuide.localData')}</li>
-            {hosted && <li>{t('settings.hosted.trust')}</li>}
-            <li>{t('preAlphaGuide.byok')}</li>
-            {hosted && <li>{t('preAlphaGuide.crashReports')}</li>}
-          </ul>
-        </div>
-        <p style={{ margin: '0 0 20px', color: 'hsl(var(--ink-2))', lineHeight: 1.65 }}>
+        <p className="pre-alpha-guide-modal__text">{t('preAlphaGuide.intro')}</p>
+        <ul className="pre-alpha-guide-modal__list">
+          <li>{t('preAlphaGuide.localData')}</li>
+          {hosted && <li>{t('settings.hosted.trust')}</li>}
+          <li>{t('preAlphaGuide.byok')}</li>
+          {hosted && <li>{t('preAlphaGuide.crashReports')}</li>}
+        </ul>
+        <p className="pre-alpha-guide-modal__text">
           {t(hosted ? 'settings.hosted.onboarding' : 'preAlphaGuide.settingsHint')}
         </p>
       </ModalBody>

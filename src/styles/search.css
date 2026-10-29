@@ -1,40 +1,19 @@
 /* ============================================================================
    Search components — Global search modal + Editor find panel.
 
-   Backgrounds, text, and borders ride the app-wide light/dark tokens.
-   Highlight tints, the count badge, and field tags have no direct
-   analogue, so they use local semantic variables.
+   Both are floating layers: the menu shell (--menu-surface-*: the sidebar's
+   opaque colour, square, a half-pixel ink hairline and the floating shadow),
+   a single-line field of glass for the query, rows that carry the menu row's
+   ring of glass, sand marks for kinds, the index face for counts and field
+   names. A hit is marked by darker, heavier ink, never a wash. Only the
+   matches inside the manuscript stay a flat tint (::highlight() honours only
+   colours), taken from the accent so a custom accent follows.
    ============================================================================ */
 
 @layer base {
   :root {
-    /* Overlay must be a dark tint regardless of theme — using --ink-1 with
-       low alpha breaks in dark mode (ink-1 is near-white there, so the
-       overlay reads as a brightening film instead of a scrim). */
-    --search-overlay-bg:           hsl(220 10% 14% / 0.32);
-    --search-group-bg:             hsl(30 6% 96%);
-    --search-row-active-bg:        hsl(218 30% 94%);
-    --search-mark-bg:              hsl(218 80% 55% / 0.18);
-    --search-find-match-bg:        hsl(218 70% 55% / 0.20);
-    --search-find-match-cur-bg:    hsl(218 85% 50% / 0.38);
-    --search-find-match-cur-ring:  hsl(218 85% 42% / 0.70);
-    --search-count-bg:             hsl(var(--accent));
-    --search-count-fg:             hsl(var(--accent-foreground));
-    --search-tag-bg:               hsl(30 6% 90%);
-  }
-
-  /* Dark search palette */
-  html.dark {
-    --search-overlay-bg:           hsl(220 12% 4% / 0.65);
-    --search-group-bg:             hsl(220 6% 18%);
-    --search-row-active-bg:        hsl(218 18% 24%);
-    --search-mark-bg:              hsl(218 85% 65% / 0.22);
-    --search-find-match-bg:        hsl(218 70% 62% / 0.25);
-    --search-find-match-cur-bg:    hsl(218 85% 62% / 0.42);
-    --search-find-match-cur-ring:  hsl(218 90% 70% / 0.75);
-    --search-count-bg:             hsl(var(--accent));
-    --search-count-fg:             hsl(var(--accent-foreground));
-    --search-tag-bg:               hsl(220 6% 22%);
+    --search-find-match-bg:        hsl(var(--accent) / 0.16);
+    --search-find-match-cur-bg:    hsl(var(--accent) / 0.34);
   }
 }
 
@@ -45,7 +24,8 @@
   box-sizing: border-box;
   position: fixed;
   inset: 0;
-  background: var(--search-overlay-bg);
+  /* The dialogs' thin mist of the desk's own colour. */
+  background: color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -59,58 +39,25 @@
   min-width: 0;
   max-width: 100%;
   max-height: 80vh;
-  background: hsl(var(--surface));
+  background: var(--menu-surface-bg);
   color: hsl(var(--ink-1));
-  border-radius: 2px;
-  border: 1px solid hsl(var(--rule));
-  box-shadow: 0 20px 46px -18px hsl(var(--ink-1) / 0.5);
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-family: var(--font-sans);
 }
 
 .gsearch-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid hsl(var(--rule));
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  gap: 6px;
+  padding: 10px 8px 6px 10px;
 }
 
-.gsearch-input {
+.gsearch-header > .ui-field {
   flex: 1;
-  border: none;
-  outline: none;
-  font-size: var(--ui-font-body, 14px);
-  background: transparent;
-  color: hsl(var(--ink-1));
-}
-.gsearch-input::placeholder {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-}
-
-.gsearch-stats {
-  font-size: var(--ui-font-secondary, 11px);
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  white-space: nowrap;
-}
-
-.gsearch-close-btn {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  cursor: pointer;
-  border-radius: 1px;
-}
-.gsearch-close-btn:hover {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-1));
 }
 
 .gsearch-results {
@@ -118,35 +65,24 @@
   min-height: 0;
   overflow-anchor: none;
   overflow-y: auto;
-  padding: 4px;
+  padding: 2px 0 6px;
   font-size: var(--ui-font-body, 12.5px);
 }
 .gsearch-results.is-empty-state {
-  padding: 20px;
+  padding: 0;
 }
 
 .gsearch-empty {
-  padding: 24px;
+  padding: 22px 14px 26px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font-size: var(--ui-font-body, 13px);
+  font-size: var(--ui-font-secondary, 13px);
   text-align: center;
 }
 
-.gsearch-group {
-  margin-bottom: 2px;
-}
-
-.gsearch-group-header {
-  display: flex;
-  align-items: center;
+.gsearch-group-header.menu-surface__item {
   gap: 8px;
-  padding: 4px 8px;
-  background: var(--search-group-bg);
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: var(--ui-font-body, 12.5px);
-  color: hsl(var(--ink-1));
+  min-height: 0;
+  padding-block: 0;
 }
 
 .gsearch-group-icon {
@@ -161,48 +97,41 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+}
+
+.gsearch-count,
+.gsearch-kind {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10.5px);
+  line-height: 1;
 }
 
 .gsearch-count {
-  font-size: var(--ui-font-secondary, 11px);
-  color: var(--search-count-fg);
-  background: var(--search-count-bg);
-  padding: 1px 6px;
-  border-radius: 1px;
-  font-weight: 500;
-  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .gsearch-kind {
-  font-size: var(--ui-font-caption, 10px);
   color: var(--ui-text-muted, hsl(var(--ink-4)));
-  flex-shrink: 0;
 }
 
-.gsearch-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 8px 2px 26px;
-  border-radius: 3px;
-  cursor: pointer;
-  color: hsl(var(--ink-2));
-}
-.gsearch-row.is-active {
-  background: var(--search-row-active-bg);
-  color: hsl(var(--ink-1));
+.gsearch-row.menu-surface__item {
+  gap: 10px;
+  min-height: 0;
+  padding-block: 0;
+  padding-left: 36px;
 }
 
 .gsearch-field-tag {
-  white-space: nowrap;
-  font-size: var(--ui-font-caption, 10px);
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  background: var(--search-tag-bg);
-  padding: 1px 4px;
-  border-radius: 3px;
-  min-width: 28px;
-  text-align: center;
   flex-shrink: 0;
+  min-width: 28px;
+  white-space: nowrap;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+  line-height: 1;
 }
 
 .gsearch-excerpt {
@@ -211,22 +140,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--ui-font-body, 12.5px);
+  font-size: var(--ui-font-secondary, 12.5px);
   line-height: 1.5;
 }
 
-.gsearch-mark {
-  background: var(--search-mark-bg);
-  color: inherit;
+/* A hit: darker, heavier ink; no wash. Shared with the find results. */
+.search-hit {
   padding: 0;
-  border-radius: 2px;
-}
-
-.gsearch-truncated {
-  font-size: var(--ui-font-secondary, 11px);
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  padding: 2px 8px 4px 36px;
-  font-style: italic;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font-weight: 600;
 }
 
 /* ============================================================
@@ -257,61 +180,24 @@ html[data-shell-mode='mobile'] .gsearch-modal {
   max-height: 100%;
 }
 
+/* The find bar is a floating layer too: the menu shell, a field of glass,
+   flat brush-icon buttons for previous, next and close. */
 .editor-find-panel {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule));
-  border-radius: 2px;
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
-  font-size: var(--ui-font-body, 13px);
+  gap: 2px;
+  padding: 6px;
+  background: var(--menu-surface-bg);
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
+  font-family: var(--font-sans);
   color: hsl(var(--ink-1));
 }
 
-.editor-find-input {
+.editor-find-panel > .ui-field {
   flex: 1;
-  min-width: 0;
-  padding: 4px 6px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 1px;
-  outline: none;
-  font-size: var(--ui-font-body, 13px);
-  background: hsl(var(--page));
-  color: hsl(var(--ink-1));
-}
-.editor-find-input::placeholder {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-}
-
-.editor-find-stats {
-  min-width: 48px;
-  text-align: center;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font-size: var(--ui-font-secondary, 12px);
-}
-
-.editor-find-btn {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  cursor: pointer;
-  border-radius: 4px;
-}
-.editor-find-btn:hover {
-  background: hsl(var(--rule));
-}
-.editor-find-btn:disabled,
-.editor-find-btn[aria-disabled='true'] {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  cursor: not-allowed;
-  background: transparent;
+  min-height: 30px;
+  margin-right: 2px;
 }
 
 /* ============================================================
@@ -321,56 +207,46 @@ html[data-shell-mode='mobile'] .gsearch-modal {
    ============================================================ */
 .ProseMirror .find-match {
   background-color: var(--search-find-match-bg);
-  border-radius: 2px;
+  border-radius: 1px;
 }
 .ProseMirror .find-match-current {
   background-color: var(--search-find-match-cur-bg);
-  box-shadow: 0 0 0 1px var(--search-find-match-cur-ring);
 }
 
 /* ============================================================
    Find results list (under the find bar) — shared by the
    whole-book find (通览全书) and the single-editor find.
-   Each row is a one-line context snippet for one match.
+   Each row is a one-line context snippet for one match, a menu
+   row; the match the bar is on keeps the still ring.
    ============================================================ */
 .find-list {
   max-height: 320px;
   overflow-y: auto;
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule));
-  border-radius: 2px;
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
-  padding: 4px;
-  font-size: var(--ui-font-body, 12.5px);
+  padding: 4px 0;
+  background: var(--menu-surface-bg);
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 12.5px);
 }
 
 .find-list-group {
-  padding: 4px 8px 2px;
-  font-weight: 600;
-  font-size: var(--ui-font-secondary, 11.5px);
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 3px;
+  font-weight: 500;
+  color: hsl(var(--ink-2));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.find-list-row {
+.find-list-row.menu-surface__item {
   display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: hsl(var(--ink-2));
-}
-.find-list-row:hover {
-  background: var(--search-row-active-bg);
-}
-.find-list-row.is-active {
-  background: var(--search-row-active-bg);
-  color: hsl(var(--ink-1));
+  min-height: 0;
+  padding-block: 4px;
+  font-size: inherit;
 }
 
 .find-list-excerpt {
@@ -381,16 +257,9 @@ html[data-shell-mode='mobile'] .gsearch-modal {
   line-height: 1.6;
 }
 
-.find-list-mark {
-  background: var(--search-find-match-cur-bg);
-  color: inherit;
-  border-radius: 2px;
-  padding: 0 1px;
-}
-
 .find-list-more {
-  padding: 4px 8px;
-  font-size: var(--ui-font-secondary, 11px);
-  font-style: italic;
+  padding: 4px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }

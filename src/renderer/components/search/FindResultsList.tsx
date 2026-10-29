@@ -43,7 +43,7 @@ function renderExcerpt(text: string, start: number, end: number) {
   return (
     <>
       {text.slice(0, s)}
-      <mark className="find-list-mark">{text.slice(s, e)}</mark>
+      <mark className="search-hit">{text.slice(s, e)}</mark>
       {text.slice(e)}
     </>
   );
@@ -88,7 +88,7 @@ export function FindResultsList({
             <button
               type="button"
               ref={isActive ? activeRef : undefined}
-              className={`find-list-row${isActive ? ' is-active' : ''}`}
+              className={`find-list-row menu-surface__item${isActive ? ' is-current' : ''}`}
               onClick={() => onPick(row.index)}
               role="option"
               aria-selected={isActive}

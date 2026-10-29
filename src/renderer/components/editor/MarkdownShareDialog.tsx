@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 import '../../../styles/markdown-share.css';
 import { BrushIcon } from '../ui/BrushIcon';
+import { LoadingStatus } from '../ui/LoadingStatus';
 
 export function MarkdownShareDialog({ target, onClose }: {
   target: MarkdownShareTarget;
@@ -102,13 +103,17 @@ export function MarkdownShareDialog({ target, onClose }: {
               <span>{t('markdownShare.readOnly')}</span>
             </div>
             {document ? (
-              <textarea ref={textRef} className="markdown-share__text" readOnly spellCheck={false}
-                aria-label={t('markdownShare.preview')} value={document.markdown} />
-            ) : (
-              <div className="markdown-share__placeholder" role={error ? 'alert' : 'status'}>
-                <p>{t(error ? 'markdownShare.loadFailed' : 'markdownShare.loading')}</p>
-                {error && <Button onClick={() => { setError(false); setAttempt(value => value + 1); }}><BrushIcon name="rotate" size={14} />{t('markdownShare.retry')}</Button>}
+              <div className="markdown-share__sheet glass glass--rest glass--still glass--field">
+                <textarea ref={textRef} className="markdown-share__text" readOnly spellCheck={false}
+                  aria-label={t('markdownShare.preview')} value={document.markdown} />
               </div>
+            ) : error ? (
+              <div className="markdown-share__placeholder" role="alert">
+                <p>{t('markdownShare.loadFailed')}</p>
+                <Button onClick={() => { setError(false); setAttempt(value => value + 1); }}><BrushIcon name="rotate" size={14} />{t('markdownShare.retry')}</Button>
+              </div>
+            ) : (
+              <div className="markdown-share__placeholder"><LoadingStatus label={t('markdownShare.loading')} /></div>
             )}
             <div className="markdown-share__caption">
               <span>{t('markdownShare.proseOnly')}</span>

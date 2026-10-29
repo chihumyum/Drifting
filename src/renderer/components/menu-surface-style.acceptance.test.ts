@@ -178,6 +178,7 @@ describe('shared menu surface style', () => {
       'src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx',
       'src/renderer/features/graph/StoryGraphUnplacedChapters.tsx',
       'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx',
+      'src/renderer/components/notifications/NotificationPill.tsx',
     ];
     for (const path of richMenus) {
       expect(source(path), path).toContain('menu-surface menu-surface--rich');
@@ -216,6 +217,9 @@ describe('shared menu surface style', () => {
     expect(source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx')).toContain(
       'menu-surface--panel entity-filter-popover',
     );
+    expect(source('src/renderer/components/notifications/NotificationPill.tsx')).toContain(
+      'menu-surface--panel notification-center',
+    );
 
     const legacyOuterRules = [
       ['src/styles/agent-panel.css', '.agt-menu {'],
@@ -244,5 +248,173 @@ describe('shared menu surface style', () => {
     expect(doc).toContain('180 / 220 / 280 / 360 / 420px');
     expect(doc).toContain('桌面单行内容至少为 `32px`');
     expect(doc).toContain('不能证明不同平台上的字体栅格化、阴影观感');
+  });
+});
+
+describe('floating layers, dialogs and the controls inside them', () => {
+  const desktop = ":where(html:not([data-shell-mode='mobile']))";
+
+  it('lifts dialogs, global search, the find bar and the notification center out of the desk like a menu', () => {
+    const controls = source('src/styles/ui-controls.css');
+    const search = source('src/styles/search.css');
+    const notifications = source('src/renderer/components/notifications/NotificationPill.tsx');
+    const card = rule(controls, `${desktop} .modal-card {`);
+
+    expect(card).toContain('background: var(--menu-surface-bg);');
+    expect(card).toContain('border-radius: var(--menu-surface-radius);');
+    expect(card).toContain('box-shadow: var(--menu-surface-shadow);');
+    expect(card).toContain('border: 0;');
+    // A thin mist of the desk's own colour instead of a dark scrim.
+    expect(rule(controls, `${desktop} .modal-root {`)).toContain(
+      'color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent)',
+    );
+    expect(rule(search, '.gsearch-overlay {')).toContain(
+      'color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent)',
+    );
+    // Head, body and actions are parted by space, never by rules.
+    expect(rule(controls, `${desktop} .modal-header {`)).toContain('border-bottom: 0;');
+    expect(rule(controls, `${desktop} .modal-actions {`)).toContain('border-top: 0;');
+    expect(rule(controls, `${desktop} .modal-header__kicker {`)).toContain('text-transform: none;');
+
+    for (const selector of ['.gsearch-modal {', '.editor-find-panel {', '.find-list {']) {
+      const shell = rule(search, selector);
+      expect(shell, selector).toContain('box-shadow: var(--menu-surface-shadow);');
+      expect(shell, selector).toContain('var(--menu-surface-radius)');
+      expect(shell, selector).toContain('var(--menu-surface-bg)');
+    }
+    // Those three are the only shadows left in search.css: no washes either.
+    expect(search.match(/box-shadow:/g)).toHaveLength(3);
+    expect(search).not.toContain('--search-row-active-bg');
+    expect(search).not.toContain('--search-group-bg');
+    expect(search).not.toContain('--search-count-bg');
+    expect(search).not.toContain('--search-tag-bg');
+
+    expect(notifications).toContain('menu-surface menu-surface--rich menu-surface--panel notification-center');
+    expect(notifications).toContain('<EmptyState icon="furin"');
+    expect(notifications).toContain('ui-progress');
+    expect(notifications).not.toContain('boxShadow');
+    expect(notifications).not.toContain('borderBottom');
+  });
+
+  it('keeps the arrow keys on a still ring and marks hits with ink, not a wash', () => {
+    const controls = source('src/styles/ui-controls.css');
+    const search = source('src/styles/search.css');
+    const current = rule(
+      controls,
+      "html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover)::before {",
+    );
+
+    expect(current).toContain('opacity: 1;');
+    expect(current).toContain('animation-play-state: paused;');
+    expect(source('src/renderer/components/search/GlobalSearchModal.tsx')).toContain(
+      "gsearch-row menu-surface__item${row.flatIdx === selectedIdx ? ' is-current' : ''}",
+    );
+    expect(source('src/renderer/components/search/FindResultsList.tsx')).toContain(
+      "find-list-row menu-surface__item${isActive ? ' is-current' : ''}",
+    );
+    const hit = rule(search, '.search-hit {');
+    expect(hit).toContain('background: transparent;');
+    expect(hit).toContain('font-weight: 600;');
+    // Matches in the manuscript follow the accent rather than a fixed blue.
+    expect(search).toContain('--search-find-match-bg:        hsl(var(--accent) / 0.16);');
+  });
+
+  it('parts the account menu by space and sets theme and language with GlassSliders', () => {
+    const menu = source('src/renderer/components/topBars/UserMenu.tsx');
+    const controls = source('src/styles/ui-controls.css');
+
+    expect(menu.match(/<GlassSlider/g)).toHaveLength(2);
+    expect(menu).not.toContain("borderBottom: last ? 'none'");
+    // The mobile shelf keeps its older switch; the desktop has the sliders.
+    expect(menu).toContain('const desktop = !getPlatformRuntime().isMobileShell;');
+    expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group {")).toContain(
+      'border-bottom: 0;',
+    );
+    expect(
+      rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group {"),
+    ).toContain('margin-top: 8px;');
+    expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__name {")).toContain(
+      'font-style: normal;',
+    );
+  });
+
+  it('makes the shared Button glass on the desktop and says danger only in its ink', () => {
+    const button = source('src/renderer/components/ui/Button.tsx');
+    const controls = source('src/styles/ui-controls.css');
+    const confirm = source('src/renderer/components/modals/ConfirmationDialog.tsx');
+
+    expect(button).toContain("default: 'glass glass--rest',");
+    expect(button).toContain("primary: 'glass glass--primary',");
+    expect(button).toContain("danger: 'glass glass--rest',");
+    expect(button).toContain("ghost: '',");
+    expect(button).toContain('!getPlatformRuntime().isMobileShell');
+    const glassButton = rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {");
+    expect(glassButton).toContain('background: transparent;');
+    expect(glassButton).toContain('border: 0;');
+    expect(
+      rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,"),
+    ).toContain('color: hsl(var(--destructive));');
+    // A destructive confirmation opens on Cancel; Enter never deletes.
+    expect(confirm).toContain('autoFocus={destructive}');
+    expect(confirm).toContain('autoFocus={!destructive}');
+  });
+
+  it('defines the field, select, toggle row, empty state, loading and progress once', () => {
+    const controls = source('src/styles/ui-controls.css');
+    const select = source('src/renderer/components/ui/GlassSelect.tsx');
+    const loading = source('src/styles/loading-status.css');
+
+    expect(rule(controls, '.ui-field {')).toContain('background: hsl(var(--page));');
+    expect(rule(controls, '.ui-field--area {')).toContain('border-radius: 16px;');
+    expect(select).toContain('ui-select glass glass--rest glass--field');
+    expect(select).toContain('className="menu-surface menu-surface--rich ui-select__menu"');
+    expect(select).toContain('role="listbox"');
+    expect(select).toContain('const SEARCH_THRESHOLD = 8;');
+    expect(rule(controls, '.ui-toggle-row {')).toContain('--glass-cc: var(--toggle-color, var(--glass-clear));');
+    expect(rule(controls, '.ui-progress__fill {')).toContain('height: 2px;');
+    expect(rule(controls, "html:not([data-shell-mode='mobile']) .empty-state {")).toContain('font-style: normal;');
+    expect(source('src/renderer/components/ui/EmptyState.tsx')).toContain('hollow');
+    expect(source('src/renderer/components/ui/LoadingStatus.tsx')).toContain('name="loader"');
+    expect(loading).toContain('animation: loading-status-appear 0.16s ease-out 0.24s both;');
+  });
+
+  it('builds every dialog in scope from the shared shell and controls', () => {
+    const importDialog = source('src/renderer/components/modals/ImportDialog.tsx');
+    const storyline = source('src/renderer/components/modals/EditChapterStorylineModal.tsx');
+    const patch = source('src/renderer/components/editor/PatchCreateModal.tsx');
+    const debug = source('src/renderer/components/modals/DebugModal.tsx');
+    const drift = source('src/renderer/components/modals/DriftBindModal.tsx');
+    const snapshots = source('src/renderer/components/modals/EntitySnapshotHistoryModal.tsx');
+
+    for (const borrowed of ['set-tier', 'set-btn', 'set-input', 'set-sec__title']) {
+      expect(importDialog).not.toContain(borrowed);
+    }
+    expect(importDialog).toContain('<GlassSlider');
+    expect(importDialog).toContain('<GlassSelect');
+    expect(storyline).toContain('ui-toggle-row glass');
+    expect(storyline).toContain('scope-toggle glass glass--rest');
+    expect(storyline).not.toContain('type="checkbox"');
+    expect(patch).toContain('<ModalRoot');
+    expect(patch).not.toContain('createPortal');
+    expect(patch).not.toContain('bg-primary');
+    expect(debug).toContain('<ModalRoot');
+    expect(debug).not.toContain('bg-white');
+    expect(debug).not.toContain('<BrushIcon');
+    expect(drift).toContain('<EmptyState');
+    expect(drift).not.toContain('onMouseEnter');
+    expect(snapshots).toContain('<LoadingStatus');
+    expect(snapshots).not.toContain('function rowBtn');
+  });
+
+  it('records the definitions in the design-system docs', () => {
+    const doc = designSystemDocs();
+
+    expect(doc).toContain('## 对话框');
+    expect(doc).toContain('## 危险操作的按钮');
+    expect(doc).toContain('## 下拉选择');
+    expect(doc).toContain('## 空状态');
+    expect(doc).toContain('## 加载与进度');
+    expect(doc).toContain('`GlassSelect`');
+    expect(doc).toContain('超过 `240ms` 才出现');
   });
 });
