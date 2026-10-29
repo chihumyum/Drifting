@@ -12,6 +12,13 @@ switching, sidebars and Super Views still freeze single frames for 60–300 ms, 
 typing keeps WebContent near 73% CPU. Background CPU and the native save path
 mostly were Debug-build costs.
 
+The 2026-10-30 [keystroke write path](keystroke-write-path.md) work stops each
+keystroke from rebuilding the chapter's Yjs document and re-sorting, re-cloning
+and re-validating the whole reducer projection. `pnpm perf:keystroke` replays
+authored keystrokes on a copy of the stress seed: 50 ms per write before, 10 ms
+after, in Node (141 ms to 19 ms on a library whose chapter had been edited). In a
+release build, WebContent CPU while typing fell by about a third.
+
 The 2026-10-29 [heavy-seed native audit](stress-seed-native-findings-2026-10-29.md)
 records a watchdog-confirmed stall during a long-document/whole-book transition,
 material-card rendering, search, 25 open tabs and canonical persistence checks.

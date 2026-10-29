@@ -88,6 +88,7 @@ import type {
   SyncDomainMaterializationContext,
   SyncDomainMaterializationKernel,
 } from './sqlite-materializer';
+import { applyToStoredYjsDocument } from './yjs-validation-documents';
 
 type CborRecord = Readonly<Record<string, CanonicalCborValue>>;
 type FieldEffect = Extract<ReducerEffect, { type: 'field.set' }>;
@@ -369,7 +370,25 @@ function conflict(
   };
 }
 
-const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, readonly ReducerEffect[]>>();
+const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, ReadonlyMap<string, readonly ReducerEffect[]>>>();
+type SetMemberEffect = Extract<ReducerEffect, { type: 'set.member' }>;
+const setMembersByKey = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, SetMemberEffect>>();
+
+/** The first set.member effect for a set and member, like a scan of `effects` in order. */
+function setMemberEffect(effects: readonly ReducerEffect[], setKind: string, setId: string, memberId: string): SetMemberEffect | undefined {
+  let index = setMembersByKey.get(effects);
+  if (!index) {
+    const members = new Map<string, SetMemberEffect>();
+    for (const effect of effects) {
+      if (effect.type !== 'set.member') continue;
+      const key = JSON.stringify([effect.target.kind, effect.target.id, effect.memberId]);
+      if (!members.has(key)) members.set(key, effect);
+    }
+    index = members;
+    setMembersByKey.set(effects, index);
+  }
+  return index.get(JSON.stringify([setKind, setId, memberId]));
+}
 
 /**
  * Validation looks up an entity for nearly every effect in the full
@@ -378,17 +397,18 @@ const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string
 function effectsForEntity(effects: readonly ReducerEffect[], kind: string, id: string): readonly ReducerEffect[] {
   let index = effectsByEntity.get(effects);
   if (!index) {
-    const buckets = new Map<string, ReducerEffect[]>();
+    const kinds = new Map<string, Map<string, ReducerEffect[]>>();
     for (const effect of effects) {
-      const key = JSON.stringify([effect.target.kind, effect.target.id]);
-      const bucket = buckets.get(key);
+      let ids = kinds.get(effect.target.kind);
+      if (!ids) kinds.set(effect.target.kind, (ids = new Map()));
+      const bucket = ids.get(effect.target.id);
       if (bucket) bucket.push(effect);
-      else buckets.set(key, [effect]);
+      else ids.set(effect.target.id, [effect]);
     }
-    index = buckets;
+    index = kinds;
     effectsByEntity.set(effects, index);
   }
-  return index.get(JSON.stringify([kind, id])) ?? [];
+  return index.get(kind)?.get(id) ?? [];
 }
 
 function entityConflict(
@@ -463,6 +483,27 @@ function proseOwnerKind(kind: DocKind): string {
     case 'category': return 'element-category';
     case 'library-item': return 'library-item';
   }
+}
+
+/**
+ * Field, tuple, order, set and lifecycle checks read nothing but their own
+ * effect, and the reducer reuses the effect of every unchanged register
+ * (reducer.ts `projectedEffect`). Each is therefore checked once rather than
+ * on every keystroke, which re-parsed every JSON body in the project.
+ */
+const ownEffectIssues = new WeakMap<ReducerEffect, readonly SemanticConflictDraft[]>();
+
+function ownIssues(effect: ReducerEffect, check: () => readonly SemanticConflictDraft[]): readonly SemanticConflictDraft[] {
+  let issues = ownEffectIssues.get(effect);
+  if (!issues) {
+    issues = check();
+    ownEffectIssues.set(effect, issues);
+  }
+  return issues;
+}
+
+function single(issue: SemanticConflictDraft | null): readonly SemanticConflictDraft[] {
+  return issue ? [issue] : [];
 }
 
 function validateFieldEffect(effect: FieldEffect): SemanticConflictDraft | null {
@@ -583,8 +624,8 @@ function liveLifecycleCandidate(
   kind: string,
   id: string,
 ): CborRecord | null | undefined {
-  const lifecycle = effects.find((effect): effect is LifecycleEffect =>
-    effect.type === 'entity.lifecycle' && effect.target.kind === kind && effect.target.id === id,
+  const lifecycle = effectsForEntity(effects, kind, id).find((effect): effect is LifecycleEffect =>
+    effect.type === 'entity.lifecycle',
   );
   if (!lifecycle) return undefined;
   if (lifecycle.status !== 'live') return null;
@@ -655,15 +696,17 @@ async function validateStorylineMembershipInvariant(
   );
 }
 
+function isPrimaryStorylineAssignment(effect: FieldEffect): boolean {
+  return effect.target.kind === NODE_PRIMARY_STORYLINE_REGISTER_KIND
+    && effect.field === NODE_PRIMARY_STORYLINE_FIELD
+    && effect.value !== null;
+}
+
 async function validatePrimaryStorylineInvariant(
   context: SyncDomainMaterializationContext,
   effect: FieldEffect,
 ): Promise<readonly SemanticConflictDraft[]> {
-  if (
-    effect.target.kind !== NODE_PRIMARY_STORYLINE_REGISTER_KIND ||
-    effect.field !== NODE_PRIMARY_STORYLINE_FIELD ||
-    effect.value === null
-  ) return [];
+  if (!isPrimaryStorylineAssignment(effect)) return [];
   const storylineId = effect.value as string;
   const issues = [...await validateLiveChapterAndStoryline(
     context,
@@ -671,13 +714,7 @@ async function validatePrimaryStorylineInvariant(
     effect.target.id,
     storylineId,
   )];
-  const canonicalMembership = context.effects.find(
-    (candidate): candidate is Extract<ReducerEffect, { type: 'set.member' }> =>
-      candidate.type === 'set.member' &&
-      candidate.target.kind === STORYLINE_MEMBERSHIP_SET_KIND &&
-      candidate.target.id === storylineId &&
-      candidate.memberId === effect.target.id,
-  );
+  const canonicalMembership = setMemberEffect(context.effects, STORYLINE_MEMBERSHIP_SET_KIND, storylineId, effect.target.id);
   const storedMembership = canonicalMembership
     ? canonicalMembership.present
     : (await context.tx
@@ -804,14 +841,7 @@ async function validateExternalEffect(
       if (!ownerExists) {
         return [conflict(effect, 'yjs.missing-owner', 'Yjs document owner does not exist in this project')];
       }
-      const document = new Y.Doc();
-      const repository = createYjsRepository(context.tx);
-      const snapshot = await repository.getSnapshot(effect.target.id);
-      if (snapshot) Y.applyUpdate(document, snapshot.stateBlob);
-      for (const existing of await repository.listUpdates(effect.target.id)) {
-        Y.applyUpdate(document, existing.updateBlob);
-      }
-      Y.applyUpdate(document, update);
+      await applyToStoredYjsDocument(context.tx, effect.target.id, update);
       return [];
     } catch (error) {
       return [conflict(effect, 'yjs.invalid-update', error instanceof Error ? error.message : String(error))];
@@ -1568,12 +1598,13 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
   for (const effect of context.effects) {
     if (!effect.materialize && effect.type !== 'entity.lifecycle') continue;
     if (effect.type === 'field.set') {
-      const issue = validateFieldEffect(effect);
-      if (issue) issues.push(issue);
-      else issues.push(...await validatePrimaryStorylineInvariant(context, effect));
+      const own = ownIssues(effect, () => single(validateFieldEffect(effect)));
+      if (own.length) issues.push(...own);
+      // Most effects are ordinary fields. Awaiting the async invariant for
+      // each of them costs more than the whole field check.
+      else if (isPrimaryStorylineAssignment(effect)) issues.push(...await validatePrimaryStorylineInvariant(context, effect));
     } else if (effect.type === 'tuple.set') {
-      const issue = validateTupleEffect(effect);
-      if (issue) issues.push(issue);
+      issues.push(...ownIssues(effect, () => single(validateTupleEffect(effect))));
     } else if (effect.type === 'order.position') {
       // Retired pre-release chapter order registers can remain in an older
       // reducer history until the next checkpoint. They are inert history,
@@ -1581,15 +1612,16 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
       // a newly authored order effect so new chapter fractional-order writes
       // still fail closed without poisoning unrelated current field writes.
       if (effect.source?.changeSetId === context.changeSet.changeSetId) {
-        const issue = validateOrderEffect(effect);
-        if (issue) issues.push(issue);
+        issues.push(...ownIssues(effect, () => single(validateOrderEffect(effect))));
       }
     } else if (effect.type === 'set.member') {
-      const issue = validateSetEffect(effect);
-      if (issue) issues.push(issue);
-      else issues.push(...await validateStorylineMembershipInvariant(context, effect));
+      const own = ownIssues(effect, () => single(validateSetEffect(effect)));
+      if (own.length) issues.push(...own);
+      else if (effect.target.kind === STORYLINE_MEMBERSHIP_SET_KIND && effect.present) {
+        issues.push(...await validateStorylineMembershipInvariant(context, effect));
+      }
     } else if (effect.type === 'entity.lifecycle') {
-      issues.push(...validateLifecycleEffect(effect));
+      issues.push(...ownIssues(effect, () => validateLifecycleEffect(effect)));
     } else {
       issues.push(...await validateExternalEffect(context, effect, assetFacts));
     }

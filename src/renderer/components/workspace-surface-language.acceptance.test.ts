@@ -542,7 +542,7 @@ describe('workspace surface language acceptance', () => {
     expect(sandCell).toContain('<SandFrame selected={selected} />');
     expect(materials).toContain('.sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }');
     expect(materials).toContain('.sand-cell.is-selected > .cell-frame {');
-    expect(chapterPanel).toContain('<KindMark\n            kind="chapter"');
+    expect(chapterPanel).toContain('<KindMark\n          kind="chapter"');
     expect(elementPanel).toContain('<KindMark\n            kind="element"');
     expect(driftPanel).toContain('<KindMark\n            kind="drift"');
     for (const panel of panels) {

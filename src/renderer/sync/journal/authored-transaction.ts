@@ -7,7 +7,12 @@ import {
   flushPendingAtomicSyncTransactions,
   trackAtomicSyncTransaction,
 } from '../../services/atomic-sync-transaction-tracker';
-import { observeLocalAuthoredReducerInTransaction } from '../reducer/sqlite-materializer';
+import {
+  LOCAL_SQLITE_REDUCER_PROFILE,
+  observeLocalAuthoredReducerInTransaction,
+  sqliteReplayReducerProfile,
+} from '../reducer/sqlite-materializer';
+import { loadSqliteReducerStateInTransaction } from '../reducer/state-store';
 import { productionSyncDomainMaterializationKernel } from '../reducer/production-domain-kernel';
 import { SyncChangeBuilder } from './change-builder';
 import { getSyncInstallationIdentity } from './installation-identity';
@@ -73,6 +78,25 @@ const defaultDependencies: AuthoredTransactionDependencies = {
   observeAuthored: observeLocalAuthoredWithProductionKernel,
   onCommitted: notifyAuthoredChangeCommitted,
 };
+
+/**
+ * Rebuild a project's reducer state ahead of its first authored write. On a
+ * large project the rebuild takes long enough to stall the first keystroke
+ * after opening it; this only reads, and leaves the metadata repair a rebuild
+ * implies to that first write.
+ */
+export async function prewarmAuthoredReducer(projectId: string): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    const generation = await findActiveSyncGenerationInTransaction(tx, projectId);
+    if (!generation) return;
+    await loadSqliteReducerStateInTransaction(
+      tx,
+      { projectId, projectSyncId: generation.projectSyncId, syncGenerationId: generation.syncGenerationId },
+      sqliteReplayReducerProfile(LOCAL_SQLITE_REDUCER_PROFILE, productionSyncDomainMaterializationKernel),
+      '',
+    );
+  });
+}
 
 /** Post-commit only; Agent-owned transactions use afterDatabaseCommit. */
 export function notifyAuthoredChangeCommitted(event: AuthoredCommitEvent): void {

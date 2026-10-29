@@ -230,6 +230,16 @@ export function TopTimeline({ expanded = true, leading }: {
   // Choosing another pill sends the selected glass across like water.
   useGlassWave(containerRef, activeTabKey, expanded);
 
+  // Whether the pills have been scrolled away from their start.
+  const scrolled = useRef(false);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const onScroll = () => { scrolled.current = container.scrollLeft > 0; };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [containerRef]);
+
   // When the active tab changes (or the layout shifts enough to push it out of
   // view), scroll the bar so the active tab is fully visible. Without this,
   // activating a tab via shortcut / split focus change / URL nav can leave the
@@ -239,7 +249,13 @@ export function TopTimeline({ expanded = true, leading }: {
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !activeTabKey) return undefined;
+    const tabsWidth = tabWidths.reduce((sum, width) => sum + width, 0) + TAB_GAP * Math.max(0, tabWidths.length - 1);
+    const fits = containerWidth > 0 && tabsWidth <= containerWidth - TAB_STRIP_START_PADDING - TAB_STRIP_END_PADDING;
     const reveal = () => {
+      // Every pill fits and the strip sits at its start, so the active one is
+      // in view. Reading offsets here would force the layout of the editor
+      // tab that this same switch is revealing.
+      if (fits && !scrolled.current) return;
       const activeEl = container.querySelector(
         `[data-tab-key="${CSS.escape(activeTabKey)}"]`,
       ) as HTMLElement | null;

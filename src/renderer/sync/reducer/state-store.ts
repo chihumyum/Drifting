@@ -504,11 +504,13 @@ export async function loadSqliteReducerStateInTransaction(
     .limit(1);
   const receiptRows = Number(receiptCount?.value ?? 0) - currentReceipt.length;
   const cached = reducerStateCache.get(cacheKey);
-  if (cached?.current.receiptRows === receiptRows) return { ...cached.current, rebuilt: false };
+  // A state rebuilt ahead of its first write (no effects recorded yet) still
+  // counts as rebuilt, so that write still repairs drifted metadata.
+  if (cached?.current.receiptRows === receiptRows) return { ...cached.current, rebuilt: cached.current.effects === null };
   if (cached?.previous?.receiptRows === receiptRows) {
     // The optimistic write that produced `cached.current` did not commit.
     reducerStateCache.set(cacheKey, { current: cached.previous, previous: null });
-    return { ...cached.previous, rebuilt: false };
+    return { ...cached.previous, rebuilt: cached.previous.effects === null };
   }
 
   const rebuilt = await rebuildReducerState(tx, identity, profile, excludeChangeSetId);

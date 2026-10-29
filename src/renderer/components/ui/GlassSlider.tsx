@@ -17,6 +17,10 @@ export interface GlassSliderOption<T extends string> {
   title?: string;
 }
 
+function optionValuesKey(options: readonly GlassSliderOption<string>[]): string {
+  return options.map((option) => option.value).join('\u0000');
+}
+
 interface GlassSliderProps<T extends string> {
   options: readonly GlassSliderOption<T>[];
   value: T;
@@ -50,6 +54,7 @@ export function GlassSlider<T extends string>({
   // A hidden copy of the options measures their natural width in either state,
   // so a collapsed slider can tell when there is room to open out again.
   const measureRef = useRef<HTMLSpanElement | null>(null);
+  const optionsKey = optionValuesKey(props.options);
   useLayoutEffect(() => {
     const measure = measureRef.current;
     if (!measure || !onNaturalWidth) return undefined;
@@ -59,7 +64,7 @@ export function GlassSlider<T extends string>({
     const observer = new ResizeObserver(report);
     observer.observe(measure);
     return () => observer.disconnect();
-  }, [collapsed, onNaturalWidth, props.options]);
+  }, [collapsed, onNaturalWidth, optionsKey]);
 
   const measure = onNaturalWidth ? (
     <span ref={measureRef} aria-hidden="true" className="glass-slider__measure">
@@ -88,6 +93,10 @@ function GlassSliderTrack<T extends string>({
   const [thumb, setThumb] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   // The first placement lands without motion; later changes slide.
   const [placed, setPlaced] = useState(false);
+  // Callers often build `options` inline. Keying on their values keeps a
+  // parent's unrelated re-render from forcing a synchronous layout here;
+  // label and size changes reach the track through its ResizeObserver.
+  const optionsKey = optionValuesKey(options);
 
   useLayoutEffect(() => {
     const track = trackRef.current;
@@ -105,7 +114,7 @@ function GlassSliderTrack<T extends string>({
     const observer = new ResizeObserver(place);
     observer.observe(track);
     return () => observer.disconnect();
-  }, [value, options]);
+  }, [value, optionsKey]);
 
   useEffect(() => {
     if (!thumb || placed) return undefined;

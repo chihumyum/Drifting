@@ -63,8 +63,22 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
     if (slide) trackGlassFlow(tray, () => block.getBoundingClientRect().left);
   }, []);
 
-  // A new choice slides in the same commit the pane's push starts.
-  useLayoutEffect(() => place(true));
+  // A new choice slides in the same commit the pane's push starts. Only a
+  // different chosen tab or a different row is measured here: reading
+  // offsets on every render forced a synchronous layout inside unrelated
+  // commits, such as switching the editor tab while the sidebar is open.
+  const seated = useRef<{ chosen: Element | null; tabs: number } | null>(null);
+  const resizes = useRef<ResizeObserver | null>(null);
+  useLayoutEffect(() => {
+    const tray = trayRef.current;
+    if (!tray) return;
+    const chosen = tray.querySelector(':scope > .app-panel-tab.is-active');
+    const tabs = tray.childElementCount;
+    if (seated.current?.chosen === chosen && seated.current.tabs === tabs) return;
+    seated.current = { chosen, tabs };
+    for (const tab of tray.querySelectorAll(':scope > .app-panel-tab')) resizes.current?.observe(tab);
+    place(true);
+  });
 
   // A row that only changes size (resize, fonts, labels) re-seats the block still.
   useEffect(() => {
@@ -76,7 +90,11 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
     const observer = new ResizeObserver(() => place(false));
     observer.observe(tray);
     for (const tab of tray.querySelectorAll(':scope > .app-panel-tab')) observer.observe(tab);
-    return () => observer.disconnect();
+    resizes.current = observer;
+    return () => {
+      observer.disconnect();
+      resizes.current = null;
+    };
   }, [place]);
 
   return (

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
@@ -46,9 +46,11 @@ import {
   observeLocalAuthoredReducerInTransaction,
   setSqliteReducerSnapshotIntervalForTest,
   SQLITE_REDUCER_V1_TARGET_KINDS,
+  sqliteReplayReducerProfile,
   SyncReducerRejectedError,
   type SyncDomainMaterializationKernel,
 } from './sqlite-materializer';
+import { loadSqliteReducerStateInTransaction } from './state-store';
 import { encodeReducerState, REDUCER_STATE_SNAPSHOT_FORMAT } from './state-snapshot';
 
 const PROJECT_ID = 'project-materializer';
@@ -661,6 +663,56 @@ describe('reducer state compaction and incremental metadata', () => {
     expect(withoutLast(repaired.sets)).toEqual(withoutLast(incremental.sets));
     expect(withoutLast(repaired.orders)).toEqual(withoutLast(incremental.orders));
     expect(withoutLast(repaired.lifecycles)).toEqual(withoutLast(incremental.lifecycles));
+  });
+
+  it('repairs only drifted metadata rows after a rebuild', async () => {
+    setSqliteReducerSnapshotIntervalForTest(1_000);
+    const changes = await history(31);
+    const { db, gateway } = await createDatabase();
+    for (const changeSet of changes.slice(0, 30)) await apply(db, changeSet);
+    const reference = await metadata(db);
+    // One stored clock drifts from the journal; the rebuilt state must repair it.
+    const touchOne = changes[30];
+    const touched = touchOne.mutations[0]!;
+    const touchedKey = `field:${(touched.payload as { field: string }).field}`;
+    const drifted = (await db.select().from(SyncFieldClockTable))
+      .find((row) => row.targetId !== touched.target.id || row.fieldKey !== touchedKey);
+    await db.update(SyncFieldClockTable).set({ hlcWallMs: drifted!.hlcWallMs + 1 }).where(and(
+      eq(SyncFieldClockTable.targetId, drifted!.targetId),
+      eq(SyncFieldClockTable.fieldKey, drifted!.fieldKey),
+    ));
+    await db.delete(SyncEntityLifecycleTable).where(eq(SyncEntityLifecycleTable.entityId, (await db.select().from(SyncEntityLifecycleTable).limit(1))[0]!.entityId));
+    const metadataWrites = /insert into "sync_(field_clock|set_tag|order_register|entity_lifecycle|generation_purge)"/u;
+    const execute = vi.spyOn(gateway, 'execute');
+    invalidateSqliteReducerStateCache();
+    await apply(db, touchOne);
+    // The drifted clock, the missing lifecycle and the one changed field.
+    expect(execute.mock.calls.filter(([statement]) => metadataWrites.test(statement))).toHaveLength(3);
+    const repaired = await metadata(db);
+    const restored = (await db.select().from(SyncFieldClockTable))
+      .find((row) => row.targetId === drifted!.targetId && row.fieldKey === drifted!.fieldKey);
+    expect(restored).toEqual(drifted);
+    expect(repaired.lifecycles).toEqual(reference.lifecycles);
+    expect(repaired.sets).toEqual(reference.sets);
+    expect(repaired.orders).toEqual(reference.orders);
+  });
+
+  it('still repairs drifted metadata on the first write after a prewarmed rebuild', async () => {
+    setSqliteReducerSnapshotIntervalForTest(1_000);
+    const changes = await history(31);
+    const { db } = await createDatabase();
+    for (const changeSet of changes.slice(0, 30)) await apply(db, changeSet);
+    invalidateSqliteReducerStateCache();
+    const identityKey = { projectId: PROJECT_ID, projectSyncId: PROJECT_SYNC_ID, syncGenerationId: SYNC_GENERATION_ID };
+    const profile = sqliteReplayReducerProfile(DEFAULT_SQLITE_REDUCER_PROFILE, nodeKernel());
+    await db.transaction((tx) => loadSqliteReducerStateInTransaction(tx, identityKey, profile, ''));
+    const rebuilds = getSqliteReducerLoadDiagnostics();
+    const lifecycle = (await db.select().from(SyncEntityLifecycleTable).limit(1))[0]!;
+    await db.delete(SyncEntityLifecycleTable).where(eq(SyncEntityLifecycleTable.entityId, lifecycle.entityId));
+    await apply(db, changes[30]);
+    // The prewarmed state was reused, and the missing row came back.
+    expect(getSqliteReducerLoadDiagnostics()).toBe(rebuilds);
+    expect((await db.select().from(SyncEntityLifecycleTable)).find((row) => row.entityId === lifecycle.entityId)).toEqual(lifecycle);
   });
 
   it('upserts only the registers a warm write touched', async () => {

@@ -88,6 +88,13 @@ export function assertActiveDatabaseTransaction(transaction: DbExecutor): void {
   }
 }
 
+/** The client whose transaction this is, while it is active. Caches of
+ * committed state key on it, so a reopened or different database never sees
+ * another one's entries. */
+export function activeTransactionOwner(transaction: DbExecutor): object | null {
+  return transactionScopes.get(transaction)?.owner ?? null;
+}
+
 /** Schedule a synchronous notification only after the owning outer commit.
  * Savepoint rollback discards its callbacks. Notifications must enqueue work,
  * not await another transaction while the current scheduler is still held. */
@@ -178,6 +185,8 @@ async function rollbackAfterFailure(
 interface SavepointSequence {
   next: number;
   active?: object;
+  /** The client that opened the outer transaction. */
+  readonly owner: object;
 }
 
 function createBoundTransaction(
@@ -242,12 +251,13 @@ function createBoundTransaction(
 
 async function runGatewayTransaction<T>(
   database: DatabasePlatformApi,
+  owner: object,
   callback: (transaction: DbTransaction) => Promise<T>,
   behavior?: TransactionBehavior,
 ): Promise<T> {
   const { id } = await database.begin(behavior);
   const commitCallbacks: Array<() => void> = [];
-  const transaction = createBoundTransaction(database, id, { next: 0 }, commitCallbacks);
+  const transaction = createBoundTransaction(database, id, { next: 0, owner }, commitCallbacks);
 
   let result: T;
   try {
@@ -292,6 +302,7 @@ export function createDatabaseClient(database: DatabasePlatformApi): DrizzleData
     scheduler.enqueue(() =>
       runGatewayTransaction(
         database,
+        client,
         callback as (transaction: DbTransaction) => Promise<unknown>,
         config?.behavior,
       ),
