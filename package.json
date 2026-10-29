@@ -55,6 +55,7 @@
     "diagnostics:sentry:browser": "node scripts/run-sentry-browser.mjs",
     "diagnostics:sentry:cloud": "node scripts/verify-sentry-cloud.mjs",
     "diagnostics:sentry:packaged": "node scripts/verify-sentry-packaged.mjs",
+    "ui:fonts:check": "node scripts/check-interface-fonts.mjs --check",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
@@ -188,6 +189,10 @@
   "dependencies": {
     "@drifting/prose-metrics": "workspace:*",
     "@fontsource-variable/inter-tight": "^5.2.7",
+    "@fontsource-variable/newsreader": "5.3.0",
+    "@fontsource-variable/noto-sans-sc": "5.3.1",
+    "@fontsource-variable/noto-serif-sc": "5.3.1",
+    "@fontsource-variable/source-sans-3": "5.3.1",
     "@google/genai": "^2.6.0",
     "@sentry/browser": "^11.9.0",
     "@sinclair/typebox": "^0.34.49",

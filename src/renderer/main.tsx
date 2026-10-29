@@ -4,8 +4,7 @@ import { HashRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Buffer } from 'buffer';
 
-// The unified application UI bundles one sans family and remains independent
-// from the device-local font selected for chapter prose.
+// Retained for the mobile UI; desktop fonts follow semantic roles below.
 import '@fontsource-variable/inter-tight';
 import '../styles/index.css';
 import '../styles/materials.css';
@@ -17,6 +16,7 @@ import '../styles/ui-controls.css';
 import '../styles/settings.css';
 import '../styles/agent-activity.css';
 import '../styles/desktop-typography.css';
+import '../styles/interface-fonts.css';
 import './lib/i18n';
 import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';

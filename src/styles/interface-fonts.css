@@ -1,0 +1,82 @@
+@import '@fontsource-variable/newsreader';
+@import '@fontsource-variable/noto-serif-sc';
+@import '@fontsource-variable/source-sans-3';
+@import '@fontsource-variable/noto-sans-sc';
+
+@font-face {
+  font-family: 'Sarasa Mono SC';
+  src: url('../assets/fonts/sarasa-mono-sc/SarasaMonoSC-Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* UI roles are independent of the author's --editor-* / --font-content axis.
+   Mobile keeps its existing UI family until its design migration resumes. */
+html[data-shell-mode='desktop'] {
+  --font-structure: 'Newsreader Variable', 'Noto Serif SC Variable', serif;
+  --font-ui: 'Source Sans 3 Variable', 'Noto Sans SC Variable', sans-serif;
+  --font-sans: var(--font-ui);
+  --font-mono: 'Sarasa Mono SC', monospace;
+}
+
+/* Structure: panel destinations and the headings that organize entities. */
+html[data-shell-mode='desktop'] :is(
+  .workspace-panel-tab-row .app-panel-tab,
+  .workspace-panel-tab-row [data-panel-tab-label],
+  .left-sb-group-header__name,
+  .left-sb-group-header__frame-label,
+  .btl-rail__name
+) {
+  font-family: var(--font-structure);
+  font-style: normal;
+  font-weight: 400;
+  font-optical-sizing: auto;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* GroupHeaderCell's inline styles are retained as the mobile fallback. */
+html[data-shell-mode='desktop'] .left-sb-group-header__name {
+  font-family: var(--font-structure) !important;
+  font-size: var(--ui-font-body, 12.5px) !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+/* Index: subheaders, filters, secondary groups and their metadata. */
+html[data-shell-mode='desktop'] :is(
+  .workspace-panel-header-row,
+  .left-sb-inline-group-header,
+  .left-sb-group-header__count,
+  .review-group__count,
+  .review-card__kind,
+  .review-card__status,
+  .review-card__time
+) {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+html[data-shell-mode='desktop'] :is(.workspace-panel-header-row, .left-sb-inline-group-header) :is(button, span) {
+  font-family: var(--font-mono);
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Entity names and review prose use the ordinary UI family, including
+   storyline-scoped review groups whose labels name a specific entity. */
+html[data-shell-mode='desktop'] :is(
+  .sand-cell,
+  .element-panel-item-label,
+  .review-card__body,
+  .review-card__quote,
+  .review-group__name
+) {
+  font-family: var(--font-sans);
+  font-style: normal;
+  letter-spacing: normal;
+}

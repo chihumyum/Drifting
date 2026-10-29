@@ -383,6 +383,7 @@ export function GroupHeaderCell({
               }}
             >
               <span
+                className="left-sb-group-header__name"
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: 'var(--ui-font-caption, 9.5px)',
@@ -401,6 +402,7 @@ export function GroupHeaderCell({
           ) : (
             <>
               <span
+                className="left-sb-group-header__name"
                 onMouseEnter={(event) => onPreviewEnter?.(event.currentTarget)}
                 onMouseLeave={onPreviewLeave}
                 style={{

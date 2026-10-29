@@ -106,9 +106,8 @@
     --el-period: var(--story-2);
     --el-lex: var(--story-5);
 
-    /* The application UI has one bundled sans face. Authored content can choose
-       a platform serif/sans/monospace stack, one installed family, or one
-       imported font. */
+    /* Authored content owns an independent font preference. Desktop UI font
+       roles are supplied by interface-fonts.css; mobile keeps its fallback. */
     --font-prose-system-serif:
       ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia,
       'Times New Roman', serif;
@@ -121,8 +120,8 @@
     --font-ui:
       'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system,
       system-ui, sans-serif;
-    /* Compatibility aliases for existing component styles. Both resolve to
-       the one application UI face. */
+    --font-structure: var(--font-ui);
+    /* Mobile fallbacks; desktop assigns separate sans and monospace roles. */
     --font-sans: var(--font-ui);
     --font-mono: var(--font-ui);
     --editor-font-family: var(--font-prose-system-serif);

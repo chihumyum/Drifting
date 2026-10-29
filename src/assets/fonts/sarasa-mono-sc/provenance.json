@@ -1,0 +1,9 @@
+{
+  "version": "1.0.43",
+  "source": "https://github.com/be5invis/Sarasa-Gothic/releases/download/v1.0.43/SarasaMonoSC-TTF-Unhinted-1.0.43.7z",
+  "member": "SarasaMonoSC-Regular.ttf",
+  "sourceTtfSha256": "8c8a032ef20b5db2e0ecb08f87cd4e427b4cf4752168507b026d70e8c699fc58",
+  "bundledWoff2Sha256": "e13d277b070d29ff59d8904cbd1deb20e4d1acd5e6f73c398fe2080d72cb55d2",
+  "conversion": "fontTools.ttLib.woff2 compress; full font, no subsetting or glyph edits",
+  "license": "OFL-1.1"
+}

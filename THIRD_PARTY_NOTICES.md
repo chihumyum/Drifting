@@ -14,6 +14,10 @@ tao#1245 iOS scene lifetime backport; it is not relicensed under Drifting's AGPL
 | Component                                                | Use                                                        | License    | Copyright / source                                                              |
 | -------------------------------------------------------- | ---------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
 | Inter Tight variable font                                | Bundled UI font through `@fontsource-variable/inter-tight` | OFL-1.1    | Copyright 2022 The Inter Project Authors; <https://github.com/rsms/inter-tight> |
+| Newsreader variable font | Desktop structural titles through `@fontsource-variable/newsreader` | OFL-1.1 | The Newsreader Project Authors; notice in `LICENSES/fonts/newsreader.txt` |
+| Source Sans 3 variable font | Desktop entity text through `@fontsource-variable/source-sans-3` | OFL-1.1 | Adobe; notice in `LICENSES/fonts/source-sans-3.txt` |
+| Noto Serif SC / Noto Sans SC variable fonts | Desktop Chinese structure and entity text through Fontsource | OFL-1.1 | Noto / Source Han contributors; notices in `LICENSES/fonts/noto-serif-sc.txt` and `noto-sans-sc.txt` |
+| Sarasa Mono SC Regular 1.0.43 | Desktop index and metadata; full-font WOFF2 format conversion | OFL-1.1 | Renzhi Li and upstream contributors; complete notice in `src/assets/fonts/sarasa-mono-sc/LICENSE` |
 | Android Gradle wrapper scripts and vendored JAR (8.14.3) | Generated Android build wrapper                            | Apache-2.0 | Gradle authors; source: <https://github.com/gradle/gradle/tree/v8.14.3>         |
 
 Major runtime dependency families include Tauri, React, Tiptap/ProseMirror,

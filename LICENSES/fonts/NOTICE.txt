@@ -1,0 +1,14 @@
+Font copyright notices from the bundled upstream name tables.
+Each font remains under OFL-1.1; see the adjacent license texts.
+
+newsreader
+Copyright 2020 The Newsreader Project Authors (http://github.com/productiontype/Newsreader)
+
+source-sans-3
+© 2023 Adobe (http://www.adobe.com/), with Reserved Font Name ‘Source’
+
+noto-serif-sc
+(c) 2017-2024 Adobe (http://www.adobe.com/).
+
+noto-sans-sc
+(c) 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.

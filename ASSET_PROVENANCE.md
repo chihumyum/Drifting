@@ -27,7 +27,21 @@ smaller action, object and state icons come from `brushicons.py` with fixed
 seeds. They are original project assets under the
 client's AGPL-3.0-or-later terms.
 
-## Inter Tight
+## Desktop semantic fonts
+
+Newsreader 5.3.0, Source Sans 3 5.3.1, Noto Serif SC 5.3.1 and Noto Sans SC
+5.3.1 are supplied by their corresponding `@fontsource-variable` packages.
+They retain OFL-1.1 and their notices in `LICENSES/fonts/`.
+
+Sarasa Mono SC Regular comes from the upstream
+[1.0.43 release](https://github.com/be5invis/Sarasa-Gothic/releases/tag/v1.0.43),
+`SarasaMonoSC-TTF-Unhinted-1.0.43.7z`. The complete font was converted with
+`python -m fontTools.ttLib.woff2 compress SarasaMonoSC-Regular.ttf` without
+subsetting or glyph edits. Its license, source and output SHA-256 hashes are
+retained beside the bundled WOFF2 in `src/assets/fonts/sarasa-mono-sc/`.
+This font remains OFL-1.1, not AGPL.
+
+## Inter Tight mobile fallback
 
 The bundled Inter Tight variable font is supplied through
 `@fontsource-variable/inter-tight`. It remains under OFL-1.1 and is not

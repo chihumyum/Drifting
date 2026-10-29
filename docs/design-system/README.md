@@ -22,6 +22,7 @@
 | [motion.md](motion.md) | 全部动效的时长、曲线与代码位置 |
 | [components.md](components.md) | 组件目录：每个组件用哪种材料、有哪些状态、在哪里实现 |
 | [surfaces.md](surfaces.md) | 表面层级、形状语法、颜色与强调色、桌面字号 |
+| [typography.md](typography.md) | 衬线结构、等宽索引、非衬线实体与独立正文字体 |
 | [interaction.md](interaction.md) | 悬停卡、没有右键菜单、菜单外壳、选区浮条、拖动与按压 |
 | [workspace.md](workspace.md) | 桌面工作区的布局、标签、侧栏与面板契约 |
 | [acceptance.md](acceptance.md) | 守护测试、行为证据与只能目测的部分 |
