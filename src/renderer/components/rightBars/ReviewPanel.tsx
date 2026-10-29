@@ -37,7 +37,6 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
 import { GlassSlider } from '../ui/GlassSlider';
 import { ScopeToggle } from '../ui/ScopeToggle';
-import { scopeToggleSubject } from '../ui/scope-toggle';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { SortMenu, sortMenuGroup } from '../leftBars/SortMenu';
 import type { RelationTarget } from './EntityRelationPicker';
@@ -366,10 +365,6 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
 
         <ScopeToggle
           className="review-panel__scope-toggle"
-          subject={scopeToggleSubject(
-            focused.kind,
-            focused.kind === 'node' && focused.id ? reviewGroupTitle(groupData, 'node', focused.id)?.isDrift : false,
-          )}
           pressed={effectiveScope === 'current'}
           disabled={!hasCurrentScope}
           onToggle={() => setScope(effectiveScope === 'current' ? 'project' : 'current')}

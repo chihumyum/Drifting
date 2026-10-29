@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import '../../lib/i18n';
 import { GlassSlider } from './GlassSlider';
 import { ScopeToggle } from './ScopeToggle';
-import { scopeToggleSubject } from './scope-toggle';
 
 const css = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
@@ -97,17 +96,20 @@ describe('glass slider', () => {
 });
 
 describe('scope toggle', () => {
-  it('names the current thing by its kind, a drift node as an idea', () => {
-    expect(scopeToggleSubject('node')).toBe('chapter');
-    expect(scopeToggleSubject('node', true)).toBe('drift');
-    expect(scopeToggleSubject('element')).toBe('element');
-    expect(scopeToggleSubject('library_item')).toBe('material');
-    expect(scopeToggleSubject(null)).toBe('current');
+  it('says 当前 for every kind of thing, in every panel', () => {
+    const word = (markup: string) => markup.replace(/<[^>]+>/g, '');
+    const toggle = renderToStaticMarkup(createElement(ScopeToggle, { pressed: false, onToggle: () => {} }));
+    expect(word(toggle)).toBe('Current');
+    expect(toggle).toContain('title="Only what belongs to the current item"');
+    expect(JSON.parse(css('src/renderer/locales/zh-CN.json')).scopeToggle.label).toBe('当前');
+    for (const panel of ['src/renderer/components/rightBars/ReviewPanel.tsx', 'src/renderer/features/library/LibraryPanel.tsx']) {
+      expect(css(panel)).not.toContain('scopeToggleSubject');
+    }
   });
 
   it('keeps one word in both states and shows the state as lock-like glass', () => {
-    const off = renderToStaticMarkup(createElement(ScopeToggle, { subject: 'chapter', pressed: false, onToggle: () => {} }));
-    const on = renderToStaticMarkup(createElement(ScopeToggle, { subject: 'chapter', pressed: true, onToggle: () => {} }));
+    const off = renderToStaticMarkup(createElement(ScopeToggle, { pressed: false, onToggle: () => {} }));
+    const on = renderToStaticMarkup(createElement(ScopeToggle, { pressed: true, onToggle: () => {} }));
     const word = (markup: string) => markup.replace(/<[^>]+>/g, '');
     expect(word(off)).toBe(word(on));
     expect(off).toContain('class="scope-toggle glass glass--rest"');
