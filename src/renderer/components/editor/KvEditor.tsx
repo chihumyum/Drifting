@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { KvEntry, KvList } from '../../domain/kv';
 import { parseKv, stringifyKv } from '../../domain/kv';
 import { BrushIcon } from '../ui/BrushIcon';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 interface Props {
   // JSON-stringified KvList from the entity. Re-seeded into local edit state
@@ -106,9 +107,12 @@ export function KvEditor({
     (variant === 'template'
       ? t('kvEditor.templateEmpty')
       : t('kvEditor.empty'));
+  // Desktop rows are slips of resting glass; the paused mobile shell keeps
+  // its outlined inputs.
+  const glass = !getPlatformRuntime().isMobileShell;
 
   return (
-    <div className="kv-editor" data-variant={variant}>
+    <div className={`kv-editor${glass ? ' kv-editor--glass' : ''}`} data-variant={variant}>
       {rows.length === 0 && <div className="kv-editor__empty">{resolvedEmptyHint}</div>}
       {rows.length > 0 && (
         <div className="kv-editor__list" role="list">
@@ -123,6 +127,7 @@ export function KvEditor({
                 keyPlaceholder={resolvedKeyPlaceholder}
                 valuePlaceholder={resolvedValuePlaceholder}
                 readOnly={readOnly}
+                glass={glass}
                 onKeyChange={(key) => handleChangeKey(idx, key)}
                 onValueChange={(value) => handleChangeValue(idx, value)}
                 onBlur={handleBlur}
@@ -146,6 +151,7 @@ interface RowProps {
   keyPlaceholder: string;
   valuePlaceholder: string;
   readOnly: boolean;
+  glass: boolean;
   onKeyChange: (key: string) => void;
   onValueChange: (value: string) => void;
   onBlur: () => void;
@@ -157,14 +163,18 @@ function KvRow({
   keyPlaceholder,
   valuePlaceholder,
   readOnly,
+  glass,
   onKeyChange,
   onValueChange,
   onBlur,
   onRemove,
 }: RowProps) {
   const { t } = useTranslation();
+  const glassClass = glass
+    ? readOnly ? ' glass glass--rest glass--still' : ' glass glass--rest glass--field'
+    : '';
   return (
-    <div className="kv-editor__row" role="listitem">
+    <div className={`kv-editor__row${glassClass}`} role="listitem">
       <input
         type="text"
         className="kv-editor__key"

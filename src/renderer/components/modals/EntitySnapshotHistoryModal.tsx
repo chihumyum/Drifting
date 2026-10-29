@@ -21,6 +21,9 @@ import { docToPlainText } from '../../lib/agent/serialize';
 import { countWordsInPmJson } from '../../lib/word-count';
 import { useDataStore } from '../../store/data-store';
 import type { SnapshotEntityKind } from '../../lib/yjs-doc-id';
+import { Button } from '../ui/Button';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingStatus } from '../ui/LoadingStatus';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 interface Target {
@@ -160,7 +163,7 @@ export function EntitySnapshotHistoryModal() {
 
   return (
     <ModalRoot onClose={close} ariaLabel={t('snapshotHistory.aria')} closeOnBackdrop={!busy}>
-      <ModalCard width={520} style={{ maxHeight: 'min(620px, calc(100vh - 96px))' }}>
+      <ModalCard className="snapshot-history-modal" width={520}>
         <ModalHeader
           kicker={t('snapshotHistory.title')}
           title={header}
@@ -168,124 +171,45 @@ export function EntitySnapshotHistoryModal() {
           closeLabel={t('common.close')}
         />
 
-        {note && (
-          <div
-            style={{
-              padding: '8px 18px',
-              fontSize: 12,
-              color: 'hsl(var(--ink-2))',
-              borderBottom: '1px solid hsl(var(--rule) / 0.6)',
-              background: 'hsl(var(--ink-1) / 0.03)',
-            }}
-          >
-            {note}
-          </div>
-        )}
+        {note && <div className="snapshot-history-modal__note">{note}</div>}
 
         <ModalBody className="snapshot-history-modal__body">
           {rows === null ? (
-            <EmptyLine text={t('snapshotHistory.loading')} />
+            <LoadingStatus label={t('snapshotHistory.loading')} />
           ) : rows.length === 0 ? (
-            <EmptyLine text={t('snapshotHistory.empty')} />
+            <EmptyState density="compact" message={t('snapshotHistory.empty')} />
           ) : (
             rows.map((row) => (
-              <div
-                key={row.id}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
-                  padding: '10px 8px',
-                  borderBottom: '1px dotted hsl(var(--rule))',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11.5,
-                      color: 'hsl(var(--ink-1))',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {formatTime(row.createdAt)}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10.5,
-                      color: 'hsl(var(--ink-3))',
-                      flexShrink: 0,
-                    }}
-                  >
+              <div key={row.id} className="snapshot-history-modal__row">
+                <div className="snapshot-history-modal__top">
+                  <span className="snapshot-history-modal__time">{formatTime(row.createdAt)}</span>
+                  <span className="snapshot-history-modal__words">
                     {t('common.wordsCount', { count: row.words.toLocaleString() })}
                   </span>
-                  {row.metaLabel && (
-                    <span
-                      style={{
-                        fontFamily: 'var(--font-sans)',
-                        fontStyle: 'italic',
-                        fontSize: 12,
-                        color: 'hsl(var(--ink-3))',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
-                      {row.metaLabel}
-                    </span>
-                  )}
-                  <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', gap: 6 }}>
+                  {row.metaLabel && <span className="snapshot-history-modal__meta">{row.metaLabel}</span>}
+                  <span className="snapshot-history-modal__actions">
                     {confirmId === row.id ? (
                       <>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void handleRestore(row.id)}
-                          style={rowBtn('hsl(var(--accent))')}
-                        >
-                          {busy ? t('snapshotHistory.restoring') : t('snapshotHistory.confirmRestore')}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setConfirmId(null)}
-                          style={rowBtn('hsl(var(--ink-3))')}
-                        >
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmId(null)}>
                           {t('common.cancel')}
-                        </button>
+                        </Button>
+                        <Button variant="primary" size="sm" disabled={busy} onClick={() => void handleRestore(row.id)}>
+                          {busy ? t('snapshotHistory.restoring') : t('snapshotHistory.confirmRestore')}
+                        </Button>
                       </>
                     ) : (
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
                         disabled={busy}
                         onClick={() => setConfirmId(row.id)}
-                        style={rowBtn('hsl(var(--ink-2))')}
                         title={t('snapshotHistory.restoreTitle')}
                       >
                         {t('snapshotHistory.restore')}
-                      </button>
+                      </Button>
                     )}
                   </span>
                 </div>
-                {row.excerpt && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      color: 'hsl(var(--ink-3))',
-                      overflow: 'hidden',
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical',
-                      WebkitLineClamp: 2,
-                    }}
-                  >
-                    {row.excerpt}
-                  </div>
-                )}
+                {row.excerpt && <div className="snapshot-history-modal__excerpt">{row.excerpt}</div>}
               </div>
             ))
           )}
@@ -293,34 +217,4 @@ export function EntitySnapshotHistoryModal() {
       </ModalCard>
     </ModalRoot>
   );
-}
-
-function EmptyLine({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        padding: '28px 12px',
-        textAlign: 'center',
-        fontFamily: 'var(--font-sans)',
-        fontStyle: 'italic',
-        fontSize: 12.5,
-        color: 'hsl(var(--ink-3))',
-      }}
-    >
-      {text}
-    </div>
-  );
-}
-
-function rowBtn(color: string): React.CSSProperties {
-  return {
-    border: '1px solid hsl(var(--rule))',
-    borderRadius: 4,
-    background: 'transparent',
-    color,
-    fontSize: 11,
-    fontFamily: 'var(--font-mono)',
-    padding: '3px 8px',
-    cursor: 'pointer',
-  };
 }

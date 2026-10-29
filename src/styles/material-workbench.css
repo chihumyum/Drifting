@@ -1546,15 +1546,13 @@
   box-shadow: var(--menu-surface-shadow);
 }
 
-.region-composer__field {
-  display: block;
-  border-radius: 2px;
-  background: hsl(var(--page));
-}
-
 .region-composer--float .region-composer__field > textarea {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  padding: 0;
   border: 0;
-  border-radius: inherit;
+  border-radius: 0;
   background: transparent;
 }
 
@@ -2122,8 +2120,9 @@
   background: transparent;
 }
 
-/* ── Pickers and dialogs: fields are paper-coloured slips with the resting
-   line of glass; rows have no fill, the current one holds still glass. ── */
+/* ── Pickers and dialogs: fields are the shared `.ui-field` (a paper slip
+   with the resting line of glass); rows have no fill, the current one holds
+   still glass. ── */
 
 .material-folder-picker--glass .material-folder-picker__row:hover:not(:disabled),
 .material-folder-picker--glass .material-folder-picker__row--current {
@@ -2143,34 +2142,11 @@
   border-top: 0;
 }
 
-.material-field {
-  display: block;
+.material-folder-picker__new--glass > .ui-field {
   flex: 1;
-  min-width: 0;
-  border-radius: 2px;
-  background: hsl(var(--page));
 }
 
-.material-field > input,
-.material-field > textarea {
-  display: block;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  outline: 0;
-  border-radius: inherit;
-  background: transparent;
-  color: hsl(var(--ink-1));
-  font: 13px/1.5 var(--font-sans);
-  resize: vertical;
-}
-
-.material-field > input::placeholder,
-.material-field > textarea::placeholder {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-}
-
-.material-field + .material-field {
+.library-dialog__field + .library-dialog__field {
   margin-top: 8px;
 }
 

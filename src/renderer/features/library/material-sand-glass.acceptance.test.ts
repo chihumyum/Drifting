@@ -70,7 +70,7 @@ describe('materials in sand and glass on the desktop', () => {
     // The composer is a floating layer: a paper field, note or TODO as one of
     // a set, cancel as a text button and save as the primary.
     expect(regions).toContain('className="region-composer region-composer--float"');
-    expect(regions).toContain('className="region-composer__field glass glass--rest glass--field"');
+    expect(regions).toContain('className="ui-field ui-field--area region-composer__field glass glass--rest glass--field"');
     expect(regions).toContain('<GlassSlider');
     expect(regions).toContain('<Button size="sm" variant="ghost" onClick={onCancel}>');
     expect(regions).toContain('<Button size="sm" variant="primary" disabled={!body.trim()} onClick={submit}>');
@@ -170,9 +170,10 @@ describe('materials in sand and glass on the desktop', () => {
 
     expect(picker).toContain("glass && current ? 'is-on' : ''");
     expect(picker).toContain('<Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>');
-    expect(dialogs).toContain('className="material-field library-dialog__field glass glass--rest glass--field"');
+    expect(dialogs).toContain("className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field`}");
     expect(dialogs).toContain("variant={glass ? 'ghost' : 'default'}");
-    expect(block(css, '.material-field {', '}')).toContain('background: hsl(var(--page));');
+    expect(picker).toContain('<label className="ui-field glass glass--rest glass--field">');
+    expect(css).not.toContain('.material-field {');
 
     const docs = designSystemDocs();
     expect(docs).toContain('## 素材页');

@@ -49,7 +49,7 @@ export function ComposeTodoDialog({
       }
       onCancel={onCancel}
     >
-      <GlassField glass={glass}>
+      <GlassField glass={glass} area>
         <textarea
           autoFocus
           value={body}
@@ -424,7 +424,7 @@ export function ComposeLibraryItemDialog({
       )}
 
       {kind === 'text' && (
-        <GlassField glass={glass}>
+        <GlassField glass={glass} area>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -545,10 +545,14 @@ function DialogActions({
   );
 }
 
-/** Desktop: a paper-coloured field with the resting line of glass, still while it holds the caret. */
-function GlassField({ glass, children }: { glass: boolean; children: React.ReactNode }) {
+/** Desktop: the shared field (components.md) — a paper slip with the resting line of glass. */
+function GlassField({ glass, area = false, children }: { glass: boolean; area?: boolean; children: React.ReactNode }) {
   if (!glass) return <>{children}</>;
-  return <span className="material-field library-dialog__field glass glass--rest glass--field">{children}</span>;
+  return (
+    <label className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field`}>
+      {children}
+    </label>
+  );
 }
 
 const dialogInputStyle: React.CSSProperties = {

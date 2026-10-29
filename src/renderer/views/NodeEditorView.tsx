@@ -53,6 +53,8 @@ import { ChapterEndOrnament } from '../components/editor/ChapterEndOrnament';
 import { ChapterEndActions } from '../features/editor/ChapterEndActions';
 import { getPlatformRuntime } from '../platform/runtime';
 import { Button } from '../components/ui/Button';
+import { BrushIcon } from '../components/ui/BrushIcon';
+import { KindMark } from '../components/ui/KindMark';
 import {
   ModalActions,
   ModalBody,
@@ -194,10 +196,10 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
   // level via leading spaces — <option> can't be styled).
   const driftGroupOptions = useMemo(() => {
     const children = buildDriftGroupChildren(driftGroups);
-    const out: Array<{ id: string; label: string }> = [];
+    const out: Array<{ id: string; label: string; name: string; depth: number }> = [];
     const walk = (key: string, depth: number) => {
       for (const g of children.get(key) ?? []) {
-        out.push({ id: g.id, label: `${'  '.repeat(depth)}${g.name}` });
+        out.push({ id: g.id, label: `${'  '.repeat(depth)}${g.name}`, name: g.name, depth });
         walk(g.id, depth + 1);
       }
     };
@@ -777,7 +779,47 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
         />
       )}
 
-      {showGroupModal && curNode && isDrift(curNode) && nodeId && (
+      {showGroupModal && curNode && isDrift(curNode) && nodeId && !getPlatformRuntime().isMobileShell && (
+        // Desktop: the groups are menu rows, the current one bold with a tick.
+        <ModalRoot onClose={() => setShowGroupModal(false)} ariaLabel={t('nodeEditor.groupMove.title')}>
+          <ModalCard width={360}>
+            <ModalHeader
+              title={t('nodeEditor.groupMove.title')}
+              onClose={() => setShowGroupModal(false)}
+              closeLabel={t('common.close')}
+            />
+            <ModalBody>
+              <div className="entity-choice" role="listbox" aria-label={t('nodeEditor.groupMove.title')}>
+                {[{ id: '', name: t('nodeEditor.groupMove.root'), depth: 0 }, ...driftGroupOptions].map((g) => {
+                  const current = (curNode.driftGroupId ?? '') === g.id;
+                  return (
+                    <button
+                      key={g.id || 'root'}
+                      type="button"
+                      role="option"
+                      aria-selected={current}
+                      className={`menu-surface__item entity-choice__row${g.id ? '' : ' entity-choice__row--none'}${
+                        current ? ' entity-choice__row--current' : ''
+                      }`}
+                      style={{ paddingLeft: 14 + g.depth * 16 }}
+                      onClick={() => {
+                        void moveDriftToGroup(nodeId, g.id || null);
+                        setShowGroupModal(false);
+                      }}
+                    >
+                      {g.id && <KindMark kind="drift-group" />}
+                      <span>{g.name}</span>
+                      {current && <BrushIcon name="check" size={11} className="entity-choice__tick" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </ModalBody>
+          </ModalCard>
+        </ModalRoot>
+      )}
+
+      {showGroupModal && curNode && isDrift(curNode) && nodeId && getPlatformRuntime().isMobileShell && (
         <div
           role="dialog"
           aria-modal="true"
@@ -870,6 +912,8 @@ function ConversionPickerModal({
 }: ConversionPickerModalProps) {
   const { t } = useTranslation();
   const isChapter = target === 'chapter';
+  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
+  const glass = !getPlatformRuntime().isMobileShell;
   const options = isChapter
     ? storylines.map((s) => ({ id: s.id, name: s.name, color: s.color }))
     : categories.map((c) => ({ id: c.id, name: c.name, color: c.color }));
@@ -890,6 +934,26 @@ function ConversionPickerModal({
           description={subtitle}
         />
         <ModalBody className="conversion-picker__body">
+          {glass && options.length > 0 && (
+            // Desktop: cards of resting glass in each storyline's or category's
+            // colour; the chosen one is that colour's still selected glass.
+            <div className="entity-choice-grid" role="radiogroup" aria-label={title}>
+              {options.map((opt) => (
+                <button
+                  type="button"
+                  key={opt.id}
+                  role="radio"
+                  aria-checked={pickedId === opt.id}
+                  className={`entity-choice-card glass glass--rest${pickedId === opt.id ? ' is-on' : ''}`}
+                  style={{ '--choice-c': opt.color || 'hsl(var(--accent))' } as React.CSSProperties}
+                  onClick={() => onPick(opt.id)}
+                >
+                  <KindMark kind={isChapter ? 'storyline' : 'category'} color={opt.color || undefined} />
+                  <span>{opt.name || t('common.untitled')}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {options.length === 0 && (
             <div
               style={{
@@ -903,7 +967,7 @@ function ConversionPickerModal({
               {isChapter ? t('nodeEditor.conversion.noStorylines') : t('nodeEditor.conversion.noCategories')}
             </div>
           )}
-          {options.map((opt) => {
+          {!glass && options.map((opt) => {
             const selected = pickedId === opt.id;
             const color = opt.color || 'hsl(var(--accent))';
             return (

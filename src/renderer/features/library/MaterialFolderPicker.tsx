@@ -97,14 +97,14 @@ export function MaterialFolderPicker({
                 void createAndPick();
               }}
             >
-              <span className="material-field glass glass--rest glass--field">
+              <label className="ui-field glass glass--rest glass--field">
                 <input
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder={t('materialFolders.picker.newPlaceholder')}
                   aria-label={t('materialFolders.picker.newPlaceholder')}
                 />
-              </span>
+              </label>
               <Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>
                 {t('materialFolders.picker.createAndMove')}
               </Button>

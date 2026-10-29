@@ -27,6 +27,10 @@ import { inferFormat, orderImportFiles, parseFile, type ImportTarget, type Parse
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 import { BrushIcon } from '../ui/BrushIcon';
+import { GhostIconButton } from '../ui/GhostIconButton';
+import { GlassSelect } from '../ui/GlassSelect';
+import { GlassSlider } from '../ui/GlassSlider';
+import { KindMark } from '../ui/KindMark';
 
 interface ImportDialogProps {
   open: boolean;
@@ -43,6 +47,7 @@ interface QueuedItem {
 }
 
 const ACCEPTED_EXTS = ['.md', '.markdown', '.txt', '.docx'];
+const IMPORT_TARGETS: readonly ImportTarget[] = ['chapter', 'element', 'inspiration'];
 
 export function ImportDialog({ open, onClose }: ImportDialogProps) {
   const { t } = useTranslation();
@@ -240,7 +245,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
       closeOnBackdrop={!running}
       dismissOnEscape={!running}
     >
-      <ModalCard width={640}>
+      <ModalCard width={560}>
         <ModalHeader
           title={t('importDialog.title')}
           description={
@@ -254,107 +259,83 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         />
         <ModalBody>
 
-        {/* Target type */}
-        <section style={{ marginBottom: 16 }}>
-          <div className="set-sec__title" style={{ marginBottom: 10 }}>
-            {t('importDialog.targetTitle')}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['chapter', 'element', 'inspiration'] as const).map((targetKind) => (
-              <button
-                key={targetKind}
-                type="button"
-                onClick={() => setTarget(targetKind)}
-                disabled={running}
-                className={'set-tier' + (target === targetKind ? ' set-tier--active' : '')}
-                style={{ flex: 1, textAlign: 'left' }}
-              >
-                <div className="set-tier__name">
-                  {t(`importDialog.targets.${targetKind}.label`)}
-                </div>
-                <div className="set-tier__desc">{t(`importDialog.targets.${targetKind}.desc`)}</div>
-              </button>
-            ))}
-          </div>
+        {/* Target type: three short choices, so a GlassSlider; what each does below it. */}
+        <section className="dialog-section">
+          <span className="dialog-section__label">{t('importDialog.targetTitle')}</span>
+          <GlassSlider
+            ariaLabel={t('importDialog.targetTitle')}
+            value={target}
+            onChange={(next) => {
+              if (!running) setTarget(next);
+            }}
+            options={IMPORT_TARGETS.map((targetKind) => ({
+              value: targetKind,
+              label: t(`importDialog.targets.${targetKind}.label`),
+            }))}
+          />
+          <span className="import-dialog__desc">{t(`importDialog.targets.${target}.desc`)}</span>
         </section>
 
         {/* Target-specific config */}
         {target === 'chapter' && (
-          <section style={{ marginBottom: 16 }}>
-            <div className="set-sec__title" style={{ marginBottom: 6 }}>
-              {t('importDialog.storylineTitle')}
-            </div>
+          <section className="dialog-section">
+            <span className="dialog-section__label">{t('importDialog.storylineTitle')}</span>
             {storylines.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
-                {t('importDialog.noStorylines')}
-              </div>
+              <div className="import-dialog__warning">{t('importDialog.noStorylines')}</div>
             ) : (
-              <select
-                className="set-input"
-                style={{ minWidth: '100%' }}
-                value={storylineId ?? ''}
+              <GlassSelect
+                ariaLabel={t('importDialog.storylineTitle')}
+                value={storylineId}
                 disabled={running}
-                onChange={(e) => setStorylineId(e.target.value)}
-              >
-                {storylines.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setStorylineId}
+                options={storylines.map((s) => ({
+                  value: s.id,
+                  label: s.name,
+                  mark: <KindMark kind="storyline" color={s.color || undefined} />,
+                }))}
+              />
             )}
           </section>
         )}
 
         {target === 'element' && (
-          <section style={{ marginBottom: 16 }}>
-            <div className="set-sec__title" style={{ marginBottom: 6 }}>
-              {t('importDialog.categoryTitle')}
-            </div>
+          <section className="dialog-section">
+            <span className="dialog-section__label">{t('importDialog.categoryTitle')}</span>
             {categories.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
-                {t('importDialog.noCategories')}
-              </div>
+              <div className="import-dialog__warning">{t('importDialog.noCategories')}</div>
             ) : (
-              <select
-                className="set-input"
-                style={{ minWidth: '100%' }}
-                value={categoryId ?? ''}
+              <GlassSelect
+                ariaLabel={t('importDialog.categoryTitle')}
+                value={categoryId}
                 disabled={running}
-                onChange={(e) => setCategoryId(e.target.value)}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategoryId}
+                options={categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  mark: <KindMark kind="category" color={c.color || undefined} />,
+                }))}
+              />
             )}
           </section>
         )}
 
         {/* File picker */}
-        <section style={{ marginBottom: 16 }}>
-          <div className="set-sec__title" style={{ marginBottom: 10 }}>
-            {t('importDialog.filesTitle')}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" className="set-btn" onClick={onPickFiles} disabled={running}>
-              <BrushIcon name="file-text" size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
-            </button>
-            <button type="button" className="set-btn" onClick={onPickFolder} disabled={running}>
-              <BrushIcon name="folder" size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFolder')}
-            </button>
+        <section className="dialog-section">
+          <span className="dialog-section__label">{t('importDialog.filesTitle')}</span>
+          <div className="import-dialog__pickers">
+            <Button onClick={onPickFiles} disabled={running}>
+              <BrushIcon name="file-text" size={14} />
+              {t('importDialog.chooseFiles')}
+            </Button>
+            <Button onClick={onPickFolder} disabled={running}>
+              <BrushIcon name="folder" size={14} />
+              {t('importDialog.chooseFolder')}
+            </Button>
             <span style={{ flex: 1 }} />
             {items.length > 0 && (
-              <button
-                type="button"
-                className="set-btn set-btn--ghost"
-                onClick={() => setItems([])}
-                disabled={running}
-              >
+              <Button variant="ghost" onClick={() => setItems([])} disabled={running}>
                 {t('importDialog.clear')}
-              </button>
+              </Button>
             )}
           </div>
           <input
@@ -385,93 +366,46 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           />
         </section>
 
-        {/* Queue */}
+        {/* Queue: one row per file, parted by space; its title is a field of glass. */}
         {items.length > 0 && (
-          <section
-            style={{
-              border: '1px solid hsl(var(--rule))',
-              borderRadius: 5,
-              overflow: 'hidden auto',
-              marginBottom: 16,
-              maxHeight: 240,
-            }}
-          >
+          <section className="dialog-section import-dialog__queue">
             {items.map((it) => {
               const fmt = inferFormat(it.filename);
               return (
-                <div
-                  key={it.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '20px 60px 1fr 100px 24px',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 10px',
-                    borderBottom: '1px dotted hsl(var(--rule))',
-                    fontSize: 12,
-                  }}
-                >
-                  <span style={{ color: 'hsl(var(--ink-4))' }}>
+                <div key={it.id} className="import-dialog__row">
+                  <span className={`import-dialog__state import-dialog__state--${it.status}`}>
                     {it.status === 'committed' ? (
-                      <BrushIcon name="status-done" size={14} style={{ color: 'hsl(var(--story-3))' }} />
+                      <BrushIcon name="status-done" size={14} />
                     ) : it.status === 'error' ? (
-                      <BrushIcon name="status-warning" size={14} style={{ color: 'hsl(var(--accent))' }} />
+                      <BrushIcon name="status-warning" size={14} />
                     ) : (
                       <BrushIcon name="file-text" size={14} />
                     )}
                   </span>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      color: 'hsl(var(--ink-4))',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {fmt ?? '?'}
-                  </span>
-                  <input
-                    className="set-input"
-                    style={{ minWidth: 0, width: '100%', fontSize: 12, padding: '3px 6px' }}
-                    value={it.title ?? it.filename}
-                    placeholder={it.filename}
-                    disabled={it.status !== 'ready'}
-                    onChange={(e) =>
-                      setItems((prev) =>
-                        prev.map((p) => (p.id === it.id ? { ...p, title: e.target.value } : p)),
-                      )
-                    }
-                    title={it.error ?? it.filename}
-                  />
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      color:
-                        it.status === 'error'
-                          ? 'hsl(var(--accent))'
-                          : it.status === 'committed'
-                            ? 'hsl(var(--story-3))'
-                            : 'hsl(var(--ink-4))',
-                      textTransform: 'uppercase',
-                    }}
-                  >
+                  <span className="import-dialog__format">{fmt ?? '?'}</span>
+                  <label className="ui-field ui-field--sm glass glass--rest glass--field" title={it.error ?? it.filename}>
+                    <input
+                      value={it.title ?? it.filename}
+                      placeholder={it.filename}
+                      disabled={it.status !== 'ready'}
+                      onChange={(e) =>
+                        setItems((prev) =>
+                          prev.map((p) => (p.id === it.id ? { ...p, title: e.target.value } : p)),
+                        )
+                      }
+                    />
+                  </label>
+                  <span className={`import-dialog__status import-dialog__status--${it.status}`}>
                     {t(`importDialog.status.${it.status}`)}
                   </span>
-                  <button
-                    type="button"
+                  <GhostIconButton
+                    size="sm"
                     onClick={() => removeItem(it.id)}
                     disabled={running}
-                    style={{
-                      background: 'transparent',
-                      border: 0,
-                      cursor: 'pointer',
-                      color: 'hsl(var(--ink-4))',
-                    }}
                     title={t('common.delete')}
-                  >
-                    <BrushIcon name="trash" size={12} />
-                  </button>
+                    aria-label={t('common.delete')}
+                    icon={<BrushIcon name="trash" size={12} />}
+                  />
                 </div>
               );
             })}
@@ -479,22 +413,13 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         )}
 
         {summary && (
-          <div
-            style={{
-              padding: 10,
-              background: 'hsl(var(--paper-deep))',
-              borderRadius: 4,
-              fontSize: 12,
-              color: 'hsl(var(--ink-2))',
-              marginBottom: 12,
-            }}
-          >
+          <div className="import-dialog__summary">
             {t('importDialog.summary.done')} · {t('importDialog.summary.ok')} <b>{summary.ok}</b>
             {summary.failed > 0 && (
               <>
                 {' · '}
                 {t('importDialog.summary.failed')}{' '}
-                <b style={{ color: 'hsl(var(--accent))' }}>{summary.failed}</b>
+                <b className="is-error">{summary.failed}</b>
               </>
             )}
           </div>
@@ -510,6 +435,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             onClick={commit}
             disabled={running || !canCommit}
           >
+            {running && <BrushIcon name="loader" size={14} className="ui-spin" />}
             {running
               ? t('importDialog.importing')
               : t('importDialog.start', {

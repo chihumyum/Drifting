@@ -271,7 +271,7 @@ export function RegionCommentComposer({
     // one of a set, cancel as a text button and save as the primary glass.
     return createPortal(
       <div ref={ref} className="region-composer region-composer--float" style={position} role="dialog" aria-label={t('materialEditor.regions.compose')}>
-        <span className="region-composer__field glass glass--rest glass--field">{textarea}</span>
+        <label className="ui-field ui-field--area region-composer__field glass glass--rest glass--field">{textarea}</label>
         <div className="region-composer__actions">
           <GlassSlider
             ariaLabel={t('materialEditor.regions.kindLabel')}

@@ -23,6 +23,7 @@
 | `220ms` | 指针离开对象后，可以移进悬停卡的宽限 | `HOVER_CARD_GRACE_MS` |
 | `180ms` | 列表滚动停下多久之后，滑到指针下的行才算“被指着” | `SCROLL_REST_MS` |
 | `180ms` | 正文选区稳定多久后浮出选区浮条 | `EditorSelectionBar` |
+| `240ms` | 等数据超过多久才出现加载的缺角圆相（之后 `0.16s` 淡入，`0.9s` 转一圈） | `loading-status.css` |
 | `260ms` | 指针离开 Dock 后多久收回小点 | `COLLAPSE_DELAY_MS` |
 | `160ms` | 指针离开收起的多选一 tab 与它展开的列表后多久收起（够跨过两者之间的缝） | `HOVER_CLOSE_MS`（`GlassSlider.tsx`） |
 | `150ms` | 拖动中报告“离开窗口”后等多久才当真（WebKit 松手前也会报告一次） | `LEAVE_GRACE_MS` |
