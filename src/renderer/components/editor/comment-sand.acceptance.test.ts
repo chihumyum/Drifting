@@ -62,8 +62,17 @@ describe('sand in prose (desktop)', () => {
     expect(sand).toContain('animation: comment-sand-arrive var(--motion-sand-fade)');
     expect(rule(css, ".comment-sand[data-state='gone']")).toContain('opacity: 0');
     expect(rule(css, ".comment-sand[data-state='hot']")).toContain('--comment-sand-hot');
-    expect(rule(css, '.comment-sand__line')).toContain("url('../assets/design/sand/hl.png')");
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.comment-sand \{\s*transition: none;\s*animation: none;/);
+    // At rest the swash is light enough to read through; pointing at its card
+    // turns it to a sparser swash of the same grains, only a little stronger.
+    expect(rule(css, '.comment-sand')).toContain('--comment-sand-rest: 0.27;');
+    expect(rule(css, '.comment-sand')).toContain('--comment-sand-hot: 0.61;');
+    expect(rule(css, '.comment-sand--todo')).toContain('--comment-sand-rest: 0.29;');
+    expect(rule(css, '.comment-sand--todo')).toContain('--comment-sand-hot: 0.66;');
+    expect(rule(css, '.comment-sand__line::before')).toContain("url('../assets/design/sand/hl.png')");
+    expect(css).toMatch(/\n\.comment-sand__line::after \{[^}]*url\('\.\.\/assets\/design\/sand\/hl-hot\.png'\)[^}]*opacity: 0;/);
+    expect(rule(css, ".comment-sand[data-state='hot'] .comment-sand__line::before")).toContain('opacity: 0');
+    expect(rule(css, ".comment-sand[data-state='hot'] .comment-sand__line::after")).toContain('opacity: 1');
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.comment-sand,\s*\.comment-sand__line::before,\s*\.comment-sand__line::after \{\s*transition: none;\s*animation: none;/);
     // The mobile wash stays.
     expect(css).toContain('::highlight(comment-hl-manual) {');
   });
@@ -112,6 +121,14 @@ describe('sand in prose (desktop)', () => {
     expect(css).toMatch(/:root:not\(\[data-shell-mode='mobile'\]\) \.agent-change-block,[\s\S]*?background-color: transparent;/);
     // The mobile reveal keeps its tinted grounds.
     expect(rule(css, '.agent-reveal__ins')).toContain('background: hsl(var(--story-3) / 0.18)');
+  });
+
+  it('generates the pointed-at swash from the resting one’s seed', () => {
+    expect(existsSync(resolve(process.cwd(), 'src/assets/design/sand/hl-hot.png'))).toBe(true);
+    expect(source('scripts/design-assets/README.md')).toContain('sand/hl-hot.png');
+    const gen = source('scripts/design-assets/gen.py');
+    expect(gen).toContain('mask_png("hl-hot.png", brush_stroke(720, 64, np.random.default_rng(11)');
+    expect(gen).toContain('keep=0.65, body=0.75');
   });
 
   it('keeps the colourless covers generated and the material tokens per theme', () => {

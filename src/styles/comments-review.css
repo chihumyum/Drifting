@@ -65,9 +65,11 @@
    own sand shows through; it must not form a stacking context (no z-index,
    containment or opacity), or the blend would see nothing beneath. Notes in the comment colour, TODOs in the TODO
    yellow; a Copilot proposal has no resting stroke and shows in its blue only
-   while its card is pointed at. Pointing at a card deepens the whole stroke;
-   selecting a comment draws its stroke again along the lines (the painter
-   animates each line's clip); a comment that goes fades out. */
+   while its card is pointed at. Pointing at a card (or selecting the comment)
+   hands the stroke over to a sparser swash of the same grains, a little
+   stronger, so the words still read through it; selecting a comment draws its
+   stroke again along the lines (the painter animates each line's clip); a
+   comment that goes fades out. */
 .comment-sand-layer {
   position: absolute;
   inset: 0;
@@ -77,8 +79,8 @@
 }
 .comment-sand {
   --comment-sand-c: hsl(var(--comment));
-  --comment-sand-rest: 0.46;
-  --comment-sand-hot: 0.84;
+  --comment-sand-rest: 0.27;
+  --comment-sand-hot: 0.61;
   opacity: calc(var(--comment-sand-rest) * var(--prose-sand-strength));
   mix-blend-mode: var(--prose-sand-layer-blend);
   transition: opacity var(--motion-sand-shift) ease-out;
@@ -86,8 +88,8 @@
 }
 .comment-sand--todo {
   --comment-sand-c: color-mix(in srgb, hsl(var(--story-4)), #000000 var(--prose-sand-deepen));
-  --comment-sand-rest: 0.5;
-  --comment-sand-hot: 0.9;
+  --comment-sand-rest: 0.29;
+  --comment-sand-hot: 0.66;
 }
 .comment-sand--copilot {
   --comment-sand-c: color-mix(in srgb, hsl(var(--story-2)), #000000 var(--prose-sand-deepen));
@@ -103,16 +105,21 @@
 @keyframes comment-sand-arrive { from { opacity: 0; } }
 /* One line of the swash. The painter places it and picks how the stroke fits:
    cut from its start (--comment-sand-size the natural width, --comment-sand-x
-   a seeded offset, --comment-sand-tail 12px thinning out) or stretched. */
+   a seeded offset, --comment-sand-tail 12px thinning out) or stretched. The
+   line holds the swash twice, the resting one (hl.png) and the sparser one
+   shown while its card is pointed at (hl-hot.png, a subset of the same grains
+   along the same path), and cross-fades between them. */
 .comment-sand__line {
   position: absolute;
   left: 0;
   top: 0;
+}
+.comment-sand__line::before,
+.comment-sand__line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: color-mix(in srgb, var(--comment-sand-c), #ffffff var(--pigment-lift));
-  -webkit-mask-image: url('../assets/design/sand/hl.png'),
-    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
-  mask-image: url('../assets/design/sand/hl.png'),
-    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
   -webkit-mask-size: var(--comment-sand-size, 100%) 100%, 100% 100%;
   mask-size: var(--comment-sand-size, 100%) 100%, 100% 100%;
   -webkit-mask-position: var(--comment-sand-x, 0px) 0, 0 0;
@@ -121,9 +128,31 @@
   mask-repeat: no-repeat;
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
+  transition: opacity var(--motion-sand-shift) ease-out;
+}
+.comment-sand__line::before {
+  -webkit-mask-image: url('../assets/design/sand/hl.png'),
+    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
+  mask-image: url('../assets/design/sand/hl.png'),
+    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
+}
+.comment-sand__line::after {
+  -webkit-mask-image: url('../assets/design/sand/hl-hot.png'),
+    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
+  mask-image: url('../assets/design/sand/hl-hot.png'),
+    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
+  opacity: 0;
+}
+.comment-sand[data-state='hot'] .comment-sand__line::before {
+  opacity: 0;
+}
+.comment-sand[data-state='hot'] .comment-sand__line::after {
+  opacity: 1;
 }
 @media (prefers-reduced-motion: reduce) {
-  .comment-sand {
+  .comment-sand,
+  .comment-sand__line::before,
+  .comment-sand__line::after {
     transition: none;
     animation: none;
   }

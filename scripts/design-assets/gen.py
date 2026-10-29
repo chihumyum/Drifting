@@ -93,8 +93,12 @@ def aniso_noise(h, w, cell_y, cell_x, rng):
 
 
 def brush_stroke(w, h, rng, top, bottom, load_start=1.0, load_end=0.35, taper=(0.04, 0.10),
-                 streak_cell=3, dry=0.55):
-    """A horizontal dry-brush stroke: ragged edges, fine bristle streaks, paper skips, grain."""
+                 streak_cell=3, dry=0.55, keep=1.0, body=1.0):
+    """A horizontal dry-brush stroke: ragged edges, fine bristle streaks, paper skips, grain.
+
+    `keep` is the share of the dithered grains kept and `body` scales the
+    continuous wash under them; with the same seed a thinner stroke keeps a
+    subset of the full one's grains along the same path."""
     x = np.arange(w)[None, :] / w
     y = np.arange(h)[:, None]
     span = bottom - top
@@ -118,9 +122,9 @@ def brush_stroke(w, h, rng, top, bottom, load_start=1.0, load_end=0.35, taper=(0
     density = shape * bristles * covered
     # Grain: part dithered, part continuous, so the colour reads as powder.
     grain = rng.random((h, w))
-    dither = (grain < density * 1.15).astype(float) * (0.7 + 0.3 * rng.random((h, w)))
-    alpha = density * 0.45 + dither * 0.55
-    loose = (rng.random((h, w)) < 0.012) & (dist > 0.9) & (dist < 1.5)
+    dither = (grain < density * 1.15 * keep).astype(float) * (0.7 + 0.3 * rng.random((h, w)))
+    alpha = density * 0.45 * body + dither * 0.55
+    loose = (rng.random((h, w)) < 0.012 * keep) & (dist > 0.9) & (dist < 1.5)
     alpha = np.where(loose, np.maximum(alpha, 0.45 * rng.random((h, w)) + 0.2), alpha)
     return np.clip(alpha, 0, 1)
 
@@ -209,6 +213,11 @@ def dunes(w, h, rng, base, amp, phase, density_scale):
 
 rng = np.random.default_rng(11)
 mask_png("hl.png", brush_stroke(720, 64, rng, top=10, bottom=56, load_end=0.5, taper=(0.03, 0.14), dry=0.7))
+# The swash a comment anchor shows while its card is pointed at: the same
+# stroke (its own generator from the same seed), two grains in three kept and
+# a thinner wash, so the words read through it.
+mask_png("hl-hot.png", brush_stroke(720, 64, np.random.default_rng(11), top=10, bottom=56, load_end=0.5,
+                                    taper=(0.03, 0.14), dry=0.7, keep=0.65, body=0.75))
 mask_png("ul.png", brush_stroke(720, 26, rng, top=4, bottom=22, load_start=1.0, load_end=0.3,
                                 taper=(0.05, 0.25), streak_cell=2, dry=0.75))
 intensities = {

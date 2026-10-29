@@ -22,7 +22,8 @@
 //
 // Sand is an author's trace: only the author's own action draws it (selecting
 // a comment draws its anchor again along the lines); everything else fades in
-// or out as a whole, and pointing at a comment's card deepens it.
+// or out as a whole, and pointing at a comment's card turns it to a sparser
+// swash of the same grains, a little stronger (the CSS cross-fades the two).
 import { commentColorKey, type Comment } from '../domain/comment';
 import {
   blockLookup,
