@@ -4,6 +4,7 @@ const fixture = vi.hoisted(() => ({
   composing: false,
   committed: (_event: { projectId: string }) => undefined as void,
   read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(),
+  known: new Map<string, string>(), disposeRenderer: vi.fn(),
 }));
 vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot } } }));
 vi.mock('../lib/db', () => ({ getDbIfInitialized: () => fixture.database }));
@@ -13,8 +14,13 @@ vi.mock('../sync/journal/authored-transaction', () => ({ onAuthoredChangeCommitt
 } }));
 vi.mock('./yjs-local-durability.service', () => ({ flushAllOpenYjsDocuments: fixture.flush }));
 vi.mock('./export/relational-markdown.local-source', () => ({ readLocalRelationalMarkdownSource: fixture.read }));
-vi.mock('./export/markdown-projection-client', () => ({ renderMarkdownProjection: fixture.build }));
-import { createProjectionWorker, installMarkdownProjection, refreshMarkdownProjection, setMarkdownProjectionOutputRoot } from './markdown-projection.service';
+vi.mock('./export/markdown-projection-client', () => ({ createMarkdownProjectionRenderer: () => ({
+  knownProseVersions: () => fixture.known, render: fixture.build, dispose: fixture.disposeRenderer,
+}) }));
+import {
+  createProjectionWorker, installMarkdownProjection, PROJECTION_MAX_WAIT_MS, PROJECTION_QUIET_MS,
+  refreshMarkdownProjection, setMarkdownProjectionOutputRoot,
+} from './markdown-projection.service';
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
 import { events } from '../lib/events';
 
@@ -102,7 +108,7 @@ describe('Markdown projection scheduling', () => {
       fixture.setOutputRoot.mockRejectedValueOnce(new Error('folder not writable'));
       await expect(setMarkdownProjectionOutputRoot('synthetic', '/synthetic/custom')).rejects.toThrow('folder not writable');
       fixture.committed({ projectId: 'synthetic' });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
       expect(getMarkdownProjectionStatus('synthetic')?.directory).toBe('/synthetic/projection');
     } finally { dispose(); }
@@ -130,41 +136,56 @@ describe('Markdown projection scheduling', () => {
     const dispose = installMarkdownProjection('synthetic');
     try {
       await vi.advanceTimersByTimeAsync(0);
-      expect(fixture.read).toHaveBeenCalledWith('synthetic');
+      expect(fixture.read).toHaveBeenCalledWith('synthetic', { knownProseVersions: fixture.known });
       expect(fixture.write).toHaveBeenCalledOnce();
       expect(fixture.flush.mock.invocationCallOrder[0]).toBeLessThan(fixture.read.mock.invocationCallOrder[0]!);
       expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready', readOnly: true, reverseSync: false });
       fixture.committed({ projectId: 'other' });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledOnce();
       fixture.committed({ projectId: 'synthetic' });
       events.emit('sync:project-changed', { projectId: 'synthetic', projectionImpact: 'prose-only' });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
       fixture.database = {};
       fixture.committed({ projectId: 'synthetic' });
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
     } finally { dispose(); }
+    expect(fixture.disposeRenderer).toHaveBeenCalledOnce();
   });
 
-  it('coalesces continuous commits without starving refresh or overlapping captures', async () => {
+  it('waits for the author to pause, without starving a continuous writer or overlapping captures', async () => {
     vi.useFakeTimers();
     let release: () => void = () => undefined;
     const refresh = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
     const worker = createProjectionWorker(refresh, () => undefined);
-    for (let i = 0; i < 10; i++) { worker.request(); await vi.advanceTimersByTimeAsync(100); }
+    // Typing: each commit pushes the capture back.
+    for (let i = 0; i < 10; i++) { worker.request(); await vi.advanceTimersByTimeAsync(500); }
+    expect(refresh).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS - 500);
     expect(refresh).toHaveBeenCalledTimes(1);
+    // A commit during the capture waits for it, then for a pause.
     worker.request();
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS * 2);
     expect(refresh).toHaveBeenCalledTimes(1);
+    release();
+    await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
+    expect(refresh).toHaveBeenCalledTimes(2);
     release();
     await vi.advanceTimersByTimeAsync(0);
-    expect(refresh).toHaveBeenCalledTimes(2);
+    // Never pausing: the capture still runs once the oldest change has waited the maximum.
+    const started = Date.now();
+    while (refresh.mock.calls.length === 2 && Date.now() - started < PROJECTION_MAX_WAIT_MS * 2) {
+      worker.request();
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(Date.now() - started).toBeLessThanOrEqual(PROJECTION_MAX_WAIT_MS + 500);
     worker.dispose();
     release();
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(refresh).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(PROJECTION_MAX_WAIT_MS);
+    expect(refresh).toHaveBeenCalledTimes(3);
   });
   it('reports failure and allows a later refresh without blocking the author', async () => {
     const refresh = vi.fn().mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(undefined);
