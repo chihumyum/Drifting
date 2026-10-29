@@ -1,5 +1,6 @@
 import { forwardRef, type ChangeEventHandler, type KeyboardEventHandler } from 'react';
 import { BrushIcon } from '../ui/BrushIcon';
+import { GhostIconButton } from '../ui/GhostIconButton';
 
 interface FindToolbarProps {
   value: string;
@@ -16,6 +17,8 @@ interface FindToolbarProps {
   closeTitle: string;
 }
 
+/** The find bar: a floating layer in the menu shell, the query in a field of
+ * glass with the count at its end, then flat previous / next / close. */
 export const FindToolbar = forwardRef<HTMLInputElement, FindToolbarProps>(function FindToolbar(
   {
     value,
@@ -35,44 +38,37 @@ export const FindToolbar = forwardRef<HTMLInputElement, FindToolbarProps>(functi
 ) {
   return (
     <div className="editor-find-panel">
-      <input
-        ref={ref}
-        className="editor-find-input"
-        value={value}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-      />
-      <span className="editor-find-stats">{stats}</span>
-      <button
-        type="button"
-        className="editor-find-btn"
+      <label className="ui-field glass glass--rest glass--field">
+        <input
+          ref={ref}
+          className="editor-find-input"
+          value={value}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+        />
+        <span className="ui-field__meta editor-find-stats">{stats}</span>
+      </label>
+      <GhostIconButton
+        icon={<BrushIcon name="chevron-up" size={14} />}
         onClick={onPrevious}
         disabled={noMatches}
         title={previousTitle}
         aria-label={previousTitle}
-      >
-        <BrushIcon name="chevron-up" size={14} />
-      </button>
-      <button
-        type="button"
-        className="editor-find-btn"
+      />
+      <GhostIconButton
+        icon={<BrushIcon name="chevron-down" size={14} />}
         onClick={onNext}
         disabled={noMatches}
         title={nextTitle}
         aria-label={nextTitle}
-      >
-        <BrushIcon name="chevron-down" size={14} />
-      </button>
-      <button
-        type="button"
-        className="editor-find-btn"
+      />
+      <GhostIconButton
+        icon={<BrushIcon name="close" size={14} />}
         onClick={onClose}
         title={closeTitle}
         aria-label={closeTitle}
-      >
-        <BrushIcon name="close" size={14} />
-      </button>
+      />
     </div>
   );
 });
