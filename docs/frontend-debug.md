@@ -1,14 +1,16 @@
-# Mobile frontend Debug V1
+# Frontend Debug V1
 
 This developer-only surface lets coding agents observe, operate, and collect
-evidence from Drifting's mobile WebView without adding a second product or
+evidence from Drifting's WebView without adding a second product or
 business-data path. Android Emulator uses Chrome DevTools Protocol (CDP).
-iOS Simulator uses a renderer-owned debug bridge because WKWebView does not
-expose CDP. The command names are shared, but every result declares its real
-transport and input fidelity.
+iOS Simulator and the desktop Tauri app use a renderer-owned debug bridge
+because WKWebView does not expose CDP. The command names are shared, but every
+result declares its real transport and input fidelity.
 
-V1 supports emulators and simulators only. It deliberately rejects Android
-physical devices and only accepts simulator identifiers returned by `simctl`.
+On mobile, V1 supports emulators and simulators only. It deliberately rejects
+Android physical devices and only accepts simulator identifiers returned by
+`simctl`. The desktop platform needs no device: it attaches to a desktop
+worktree profile on this machine.
 It never reads or writes SQLite, Yjs, CRUD resources, secure storage, or
 product use cases.
 
@@ -41,6 +43,34 @@ wrapper stops the daemon and removes the active session descriptor.
 For separate terminals, run `pnpm drifting frontend serve --platform ios` or
 `--platform android`, then launch the mobile dev process with the
 `rendererEnv` values returned in the JSON envelope.
+
+## Desktop acceptance
+
+Desktop UI acceptance needs no iOS Simulator. Start the daemon in desktop mode,
+then launch an isolated worktree profile with the explicit opt-in:
+
+```bash
+pnpm drifting frontend serve --platform desktop
+pnpm dev:seed:lite --no-watch --frontend-debug   # or: pnpm dev:worktree --no-watch --frontend-debug
+```
+
+`--frontend-debug` reads this checkout's `session.json`, requires a running
+desktop daemon, and passes its bridge URL and token to the renderer; the
+worktree launcher strips every other inherited `VITE_*` value, and its
+manifest records only the transport and URL. It also adds the daemon's
+address to the profile's development CSP, so a daemon on another `--port`
+works. The desktop daemon accepts renderer origins on any loopback port,
+because each worktree profile serves its renderer on a port derived from the
+checkout; LAN origins are refused, and the bearer token still guards every
+request. `--frontend-debug` is not available with `--build-app`: a packaged
+build never contains the bridge.
+
+Desktop declares `screenshot: "none"`: the daemon does not capture window
+pixels, `screenshot` fails with `SCREENSHOT_UNSUPPORTED`, and `bundle` writes
+its evidence without one. When the test window sits behind other windows,
+WebKit marks the page hidden: `requestAnimationFrame` stops, so sidebar slides
+and other rAF-driven motion pause, while layout, sizes and synthetic input
+still work.
 
 ## Commands
 
@@ -119,6 +149,21 @@ Run the machine checks with:
 ```bash
 pnpm frontend:debug:check
 ```
+
+## Recorded desktop smoke
+
+On 2026-10-29 the desktop transport was exercised on macOS with no iOS
+Simulator booted (`xcrun simctl list devices booted` listed none before,
+during and after the run). `pnpm drifting frontend serve --platform desktop`
+started without a device; `pnpm dev:seed:lite --no-watch --frontend-debug`
+launched the lite seeded profile on its derived port (`127.0.0.1:27147`, outside
+the mobile `5173–5193` range) and the renderer attached. `status`, `snapshot`,
+`tap` (onboarding, then the sample project card), `query`, `evaluate`,
+`style`, `console` and `network` completed with `inputPath: "synthetic-dom"`;
+the network buffer held no requests to the daemon itself. `screenshot`
+answered `SCREENSHOT_UNSUPPORTED` and `bundle` wrote its manifest, console,
+network and transcript without a screenshot. Running the daemon tests during
+the session left its `session.json` and connection intact.
 
 ## Recorded simulator smoke
 

@@ -110,6 +110,44 @@ describe('isolated worktree development', () => {
     expect(() => createWorktreePlan({ root, buildApp: true, performanceAudit: true, platform: 'darwin' })).toThrow(/development instance/);
   });
 
+  it('hands the renderer the running desktop Frontend Debug bridge only on explicit opt-in', () => {
+    const root = fixture();
+    const sessionDirectory = path.join(root, '.local-data', 'frontend-debug');
+    const writeSession = (session: Record<string, unknown>) => {
+      mkdirSync(sessionDirectory, { recursive: true });
+      writeFileSync(path.join(sessionDirectory, 'session.json'), JSON.stringify({
+        schemaVersion: 1, host: '127.0.0.1', port: 4319, token: 'desktop-token', pid: process.pid,
+        platform: 'desktop', transport: 'desktop-renderer-bridge', ...session,
+      }));
+    };
+    expect(parseWorktreeArguments(['--frontend-debug']).frontendDebug).toBe(true);
+    expect(() => createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true })).toThrow(/--platform desktop/);
+
+    writeSession({});
+    const ordinary = createWorktreePlan({ root, baseEnvironment: { VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: 'inherited' } });
+    const debug = createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true });
+    // Without the flag nothing reaches the renderer, not even an inherited token.
+    expect(Object.keys(ordinary.environment).filter((key) => key.startsWith('VITE_DRIFTING_FRONTEND_DEBUG'))).toEqual([]);
+    expect(debug.environment).toMatchObject({
+      VITE_DRIFTING_FRONTEND_DEBUG: '1',
+      VITE_DRIFTING_FRONTEND_DEBUG_TRANSPORT: 'desktop-renderer-bridge',
+      VITE_DRIFTING_FRONTEND_DEBUG_URL: 'http://127.0.0.1:4319',
+      VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: 'desktop-token',
+    });
+    // The bridge's port may differ from the default the base CSP allows.
+    expect(debug.tauriConfig.app.security.devCsp).toMatch(/connect-src [^;]*http:\/\/127\.0\.0\.1:4319/);
+    expect(ordinary.tauriConfig.app.security.devCsp).not.toContain('127.0.0.1:4319');
+    expect(debug.manifest.frontendDebug).toEqual({ transport: 'desktop-renderer-bridge', url: 'http://127.0.0.1:4319' });
+    expect(JSON.stringify(debug.manifest)).not.toContain('desktop-token');
+    expect(debug.manifest.profileId).toBe(ordinary.manifest.profileId);
+    expect(() => createWorktreePlan({ root, buildApp: true, frontendDebug: true, platform: 'darwin' })).toThrow(/development instance/);
+
+    writeSession({ platform: 'ios', transport: 'ios-renderer-bridge' });
+    expect(() => createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true })).toThrow(/belongs to ios/);
+    writeSession({ pid: 2 ** 22 + 12345 });
+    expect(() => createWorktreePlan({ root, baseEnvironment: {}, frontendDebug: true })).toThrow(/no longer running/);
+  });
+
   it('refuses shared state aliases instead of following symlinked data directories', () => {
     const root = fixture();
     symlinkSync(fixture(), path.join(root, '.local-data'), 'dir');

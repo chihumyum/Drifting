@@ -95,6 +95,20 @@ updater artifacts and does not notarize or publish a release. `--online` remains
 an explicit opt-in; see [Sentry acceptance](sentry-observability.md#isolated-mac-test-package)
 for the separate diagnostic acceptance entry and evidence.
 
+## Frontend Debug for desktop acceptance
+
+DOM-level acceptance of a worktree profile goes through the desktop Frontend
+Debug bridge, with no iOS Simulator:
+
+```bash
+pnpm drifting frontend serve --platform desktop
+pnpm dev:worktree --no-watch --frontend-debug
+```
+
+`--frontend-debug` is the only way a debug endpoint reaches the renderer; see
+[Frontend Debug](frontend-debug.md#desktop-acceptance). `pnpm dev:seed` passes
+it through to the launch.
+
 ## `pnpm dev` in a linked worktree
 
 The shared profile (identity `cc.drifting.client`, port 5173, its application

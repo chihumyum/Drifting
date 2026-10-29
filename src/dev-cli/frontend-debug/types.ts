@@ -1,5 +1,5 @@
-export type FrontendDebugPlatform = 'android' | 'ios';
-export type FrontendDebugTransport = 'android-cdp' | 'ios-renderer-bridge';
+export type FrontendDebugPlatform = 'android' | 'ios' | 'desktop';
+export type FrontendDebugTransport = 'android-cdp' | 'ios-renderer-bridge' | 'desktop-renderer-bridge';
 export type FrontendDebugCommand =
   | 'snapshot'
   | 'query'
@@ -34,7 +34,7 @@ export interface FrontendDebugCapabilities {
   runtime: true;
   console: true;
   network: 'full' | 'resource-summary';
-  screenshot: 'webview+device' | 'device';
+  screenshot: 'webview+device' | 'device' | 'none';
   inputPath: 'cdp-webview' | 'synthetic-dom';
   nativeInput: false;
 }
@@ -117,7 +117,24 @@ export const FRONTEND_DEBUG_CAPABILITIES: Record<FrontendDebugPlatform, Frontend
       inputPath: 'synthetic-dom',
       nativeInput: false,
     },
+    // The desktop Tauri WebView uses the same renderer bridge as iOS, with no
+    // simulator behind it: the window's pixels are not captured.
+    desktop: {
+      dom: true,
+      runtime: true,
+      console: true,
+      network: 'resource-summary',
+      screenshot: 'none',
+      inputPath: 'synthetic-dom',
+      nativeInput: false,
+    },
   };
+
+export const FRONTEND_DEBUG_TRANSPORTS: Record<FrontendDebugPlatform, FrontendDebugTransport> = {
+  android: 'android-cdp',
+  ios: 'ios-renderer-bridge',
+  desktop: 'desktop-renderer-bridge',
+};
 
 export const FRONTEND_DEBUG_LIMITS = {
   requestBytes: 1_048_576,

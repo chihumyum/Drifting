@@ -132,6 +132,22 @@ async function streamEvents(
   return { channel, streamedEvents: count, stopped: true };
 }
 
+/** What a debug renderer needs: bridge platforms (iOS, desktop) poll the daemon. */
+export function frontendDebugRendererEnv(
+  session: Pick<FrontendDebugSessionDescriptor, 'platform' | 'transport' | 'host' | 'port' | 'token'>,
+): Record<string, string> {
+  return {
+    VITE_DRIFTING_FRONTEND_DEBUG: '1',
+    VITE_DRIFTING_FRONTEND_DEBUG_TRANSPORT: session.transport,
+    ...(session.platform !== 'android'
+      ? {
+          VITE_DRIFTING_FRONTEND_DEBUG_URL: `http://${session.host}:${session.port}`,
+          VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: session.token,
+        }
+      : {}),
+  };
+}
+
 function stringValue(input: Record<string, unknown>, key: string): string | undefined {
   return typeof input[key] === 'string' && input[key].trim() ? input[key].trim() : undefined;
 }
@@ -147,8 +163,8 @@ export async function executeFrontendCliCommand(input: {
   }
   if (input.action === 'serve') {
     const platform = stringValue(input.values, 'platform');
-    if (platform !== 'android' && platform !== 'ios')
-      throw new CliError('INVALID_PLATFORM', '--platform must be android or ios');
+    if (platform !== 'android' && platform !== 'ios' && platform !== 'desktop')
+      throw new CliError('INVALID_PLATFORM', '--platform must be android, ios or desktop');
     const daemon = await startFrontendDebugDaemon({
       platform: platform as FrontendDebugPlatform,
       ...(stringValue(input.values, 'device')
@@ -170,16 +186,7 @@ export async function executeFrontendCliCommand(input: {
         status: daemon.status(),
         sessionFile: FRONTEND_DEBUG_SESSION_PATH,
         artifactDirectory: session.artifactDirectory,
-        rendererEnv: {
-          VITE_DRIFTING_FRONTEND_DEBUG: '1',
-          VITE_DRIFTING_FRONTEND_DEBUG_TRANSPORT: session.transport,
-          ...(session.platform === 'ios'
-            ? {
-                VITE_DRIFTING_FRONTEND_DEBUG_URL: baseUrl(session),
-                VITE_DRIFTING_FRONTEND_DEBUG_TOKEN: session.token,
-              }
-            : {}),
-        },
+        rendererEnv: frontendDebugRendererEnv(session),
       },
     };
   }

@@ -12,6 +12,7 @@ import { BoundedTelemetryBuffer, redactDebugValue } from './redaction';
 import {
   FRONTEND_DEBUG_CAPABILITIES,
   FRONTEND_DEBUG_LIMITS,
+  FRONTEND_DEBUG_TRANSPORTS,
   type DebugArtifact,
   type FrontendDebugCommand,
   type FrontendDebugData,
@@ -74,11 +75,17 @@ function isPrivateIpv4(host: string): boolean {
   );
 }
 
-function rendererOriginAllowed(origin: string): boolean {
+function rendererOriginAllowed(origin: string, platform: FrontendDebugPlatform): boolean {
   if (origin === 'tauri://localhost') return true;
   try {
     const url = new URL(origin);
     const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
+    // A desktop worktree profile serves its renderer on a stable loopback port
+    // derived from the checkout (20000-39999), so any loopback port is allowed;
+    // the bearer token still guards every request.
+    if (platform === 'desktop') {
+      return url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+    }
     return (
       url.protocol === 'http:' &&
       (url.hostname === 'localhost' ||
@@ -92,10 +99,14 @@ function rendererOriginAllowed(origin: string): boolean {
   }
 }
 
-function setCors(request: IncomingMessage, response: ServerResponse): boolean {
+function setCors(
+  request: IncomingMessage,
+  response: ServerResponse,
+  platform: FrontendDebugPlatform,
+): boolean {
   const origin = request.headers.origin;
   if (!origin) return true;
-  if (!rendererOriginAllowed(origin)) return false;
+  if (!rendererOriginAllowed(origin, platform)) return false;
   response.setHeader('Access-Control-Allow-Origin', origin);
   response.setHeader('Vary', 'Origin');
   response.setHeader('Access-Control-Allow-Headers', 'authorization,content-type');
@@ -313,6 +324,8 @@ export async function startFrontendDebugDaemon(
     platform: FrontendDebugPlatform;
     deviceId?: string;
     port?: number;
+    /** Where the session descriptor and run evidence live; tests use their own. */
+    root?: string;
   },
   adapters: FrontendDebugDaemonPlatformAdapters = {},
 ): Promise<FrontendDebugDaemon> {
@@ -320,14 +333,21 @@ export async function startFrontendDebugDaemon(
   const port = input.port ?? 4318;
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535)
     throw new CliError('INVALID_PORT', '--port must be between 1 and 65535');
+  if (input.platform === 'desktop' && input.deviceId)
+    throw new CliError('DEVICE_UNSUPPORTED', '--device is not used by the desktop platform');
+  const root = input.root ?? FRONTEND_DEBUG_ROOT;
+  const sessionPath = path.join(root, 'session.json');
+  // Desktop attaches to the Tauri WebView on this machine; there is no device.
   const deviceId =
     input.platform === 'android'
       ? await (adapters.resolveAndroidEmulator ?? resolveAndroidEmulator)(input.deviceId)
-      : await (adapters.resolveIosSimulator ?? resolveIosSimulator)(input.deviceId);
+      : input.platform === 'ios'
+        ? await (adapters.resolveIosSimulator ?? resolveIosSimulator)(input.deviceId)
+        : 'desktop';
   const sessionId = `frontend-${randomUUID()}`;
   const runId = `run-${new Date().toISOString().replace(/[:.]/gu, '-')}-${randomUUID().slice(0, 8)}`;
   const token = randomBytes(32).toString('base64url');
-  const artifactDirectory = path.join(FRONTEND_DEBUG_ROOT, runId);
+  const artifactDirectory = path.join(root, runId);
   await mkdir(artifactDirectory, { recursive: true });
   const descriptor: FrontendDebugSessionDescriptor = {
     schemaVersion: 1,
@@ -339,11 +359,13 @@ export async function startFrontendDebugDaemon(
     token,
     platform: input.platform,
     deviceId,
-    transport: input.platform === 'android' ? 'android-cdp' : 'ios-renderer-bridge',
+    transport: FRONTEND_DEBUG_TRANSPORTS[input.platform],
     startedAt: new Date().toISOString(),
     artifactDirectory,
   };
   const android = input.platform === 'android' ? new AndroidCdpSession(deviceId) : null;
+  // iOS and desktop both drive the renderer through the polling bridge.
+  const bridge = input.platform !== 'android';
   const renderer = new RendererCommandQueue();
   const consoleEvents = new BoundedTelemetryBuffer();
   const networkEvents = new BoundedTelemetryBuffer();
@@ -362,8 +384,8 @@ export async function startFrontendDebugDaemon(
         input.platform === 'android' ? androidStatus?.connected === true : rendererConnected,
       rendererConnected,
       ...(input.platform === 'android' ? androidStatus : {}),
-      ...(input.platform === 'ios' && renderer.targetUrl ? { targetUrl: renderer.targetUrl } : {}),
-      ...(input.platform === 'ios' && renderer.lastSeenAt
+      ...(bridge && renderer.targetUrl ? { targetUrl: renderer.targetUrl } : {}),
+      ...(bridge && renderer.lastSeenAt
         ? { lastConnectedAt: new Date(renderer.lastSeenAt).toISOString() }
         : {}),
     };
@@ -390,6 +412,11 @@ export async function startFrontendDebugDaemon(
       artifacts.push(
         artifact('screenshot', webviewPath, 'image/png'),
         artifact('screenshot', devicePath, 'image/png'),
+      );
+    } else if (input.platform === 'desktop') {
+      throw new CliError(
+        'SCREENSHOT_UNSUPPORTED',
+        'Desktop frontend debug does not capture window pixels; use DOM evidence or a packaged app screenshot',
       );
     } else {
       const devicePath = path.join(artifactDirectory, `simulator-${stamp}.png`);
@@ -423,8 +450,10 @@ export async function startFrontendDebugDaemon(
       artifact('transcript', transcriptPath, 'application/json'),
     );
     try {
-      const captured = await screenshot();
-      artifacts.push(...(captured.artifacts ?? []));
+      if (FRONTEND_DEBUG_CAPABILITIES[input.platform].screenshot !== 'none') {
+        const captured = await screenshot();
+        artifacts.push(...(captured.artifacts ?? []));
+      }
     } catch (error) {
       transcript.push({
         at: new Date().toISOString(),
@@ -512,7 +541,7 @@ export async function startFrontendDebugDaemon(
   };
 
   const server = createServer(async (request, response) => {
-    if (!setCors(request, response)) {
+    if (!setCors(request, response, input.platform)) {
       sendJson(response, 403, {
         error: { code: 'ORIGIN_DENIED', message: 'Renderer origin is not allowed' },
       });
@@ -536,10 +565,10 @@ export async function startFrontendDebugDaemon(
         return;
       }
       if (request.method === 'POST' && url.pathname === '/renderer/next') {
-        if (input.platform !== 'ios')
+        if (!bridge)
           throw new CliError(
             'RENDERER_BRIDGE_DISABLED',
-            'Renderer bridge is only enabled for iOS Simulator',
+            'Renderer bridge is only enabled for iOS Simulator and desktop',
           );
         const body = await readJson(request);
         renderer.attachPoll(response, typeof body.url === 'string' ? body.url : undefined);
@@ -551,10 +580,10 @@ export async function startFrontendDebugDaemon(
         return;
       }
       if (request.method === 'POST' && url.pathname === '/renderer/telemetry') {
-        if (input.platform !== 'ios')
+        if (!bridge)
           throw new CliError(
             'RENDERER_BRIDGE_DISABLED',
-            'Renderer telemetry is only enabled for iOS Simulator',
+            'Renderer telemetry is only enabled for iOS Simulator and desktop',
           );
         const body = await readJson(request);
         const events = Array.isArray(body.events) ? body.events.slice(0, 128) : [];
@@ -631,8 +660,8 @@ export async function startFrontendDebugDaemon(
     server.once('error', reject);
     server.listen(port, host, () => resolve());
   });
-  await mkdir(FRONTEND_DEBUG_ROOT, { recursive: true });
-  await writeFile(FRONTEND_DEBUG_SESSION_PATH, `${JSON.stringify(descriptor, null, 2)}\n`, {
+  await mkdir(root, { recursive: true });
+  await writeFile(sessionPath, `${JSON.stringify(descriptor, null, 2)}\n`, {
     mode: 0o600,
   });
 
@@ -646,9 +675,9 @@ export async function startFrontendDebugDaemon(
     await new Promise<void>((resolve) => server.close(() => resolve()));
     try {
       const current = JSON.parse(
-        await readFile(FRONTEND_DEBUG_SESSION_PATH, 'utf8'),
+        await readFile(sessionPath, 'utf8'),
       ) as FrontendDebugSessionDescriptor;
-      if (current.sessionId === sessionId) await rm(FRONTEND_DEBUG_SESSION_PATH, { force: true });
+      if (current.sessionId === sessionId) await rm(sessionPath, { force: true });
     } catch {
       // A newer daemon may have replaced the descriptor.
     }
