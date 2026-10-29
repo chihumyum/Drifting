@@ -1792,18 +1792,19 @@
       "entityFilterActiveTitle": "仅显示与 \"{{label}}\" 关联的条目",
       "entityFilterTitle": "限定到某个实体",
       "clearEntityFilter": "清除关联过滤",
-      "entityFilterHint": "选择实体后只显示关联的备忘 / 材料",
+      "entityFilterAll": "关联 · 全部",
+      "entityFilterHint": "选择实体后只显示关联的 TODO / 素材",
       "todoEmptyHint": "点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO",
-      "newMaterialButton": "新建材料",
-      "noMaterials": "项目里还没有材料。",
-      "noFilteredMaterials": "当前过滤条件下没有匹配的材料。",
+      "newMaterialButton": "新建素材",
+      "noMaterials": "项目里还没有素材。",
+      "noFilteredMaterials": "当前过滤条件下没有匹配的素材。",
       "collapseDrawer": "收起抽屉",
       "expandDrawer": "展开抽屉",
       "orphans": "待整理",
       "resolved": "已解决",
-      "orphanHeader": "待整理 · 无关联材料",
+      "orphanHeader": "待整理 · 无关联素材",
       "resolvedHeader": "已解决 · TODO 归档",
-      "noOrphans": "所有材料都已关联到至少一个实体。",
+      "noOrphans": "所有素材都已关联到至少一个实体。",
       "noResolvedTodos": "暂无已完成的 TODO。",
       "reopenShort": "重开"
     }
@@ -2998,12 +2999,16 @@
     "title": "要素全景",
     "meta": "{{categories}} 类 · {{elements}} 要素",
     "linkHint": "选择第二个要素 / 章节 · ESC 取消",
+    "linkHintFrom": "从",
+    "linkHintTo": "连到…　选第二个要素或章节，Esc 取消",
     "focusOffTitle": "关闭聚焦 — 显示全部关联线",
     "focusOnTitle": "打开聚焦 — 只显示当前视口内 element 的关联线",
     "focusToggle": "聚焦 · {{state}}",
+    "focus": "聚焦",
     "stickyOffTitle": "关闭章节带粘附",
     "stickyOnTitle": "打开章节带粘附 — 平移时章节带停留在视口边缘，要素从其下穿过",
     "stickyToggle": "粘带 · {{state}}",
+    "sticky": "粘带",
     "stateOn": "开",
     "stateOff": "关",
     "resetTitle": "重置画布缩放与平移",
@@ -3021,7 +3026,8 @@
     "empty": {
       "noStorylines": "还没有故事线",
       "noCategories": "还没有要素类目",
-      "categoryEmpty": "空"
+      "categoryEmpty": "空",
+      "categoryNoElements": "还没有要素"
     }
   },
   "nodeCardPopover": {

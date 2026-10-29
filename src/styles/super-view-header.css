@@ -189,6 +189,77 @@
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
+/* Desktop (砂笔 + 素玻璃): the back button is round glass at the sidebar
+   toggles' size, its resting line only; the views are one of three on the
+   glass slider; the reading is index type, not uppercase. The paused mobile
+   shell keeps the segmented switcher and the filled hover above. */
+html:not([data-shell-mode='mobile']) .super-view-head__back.glass {
+  width: 28px;
+  height: 28px;
+  color: hsl(var(--ink-2));
+  transition: color 0.12s;
+}
+
+html:not([data-shell-mode='mobile']) .super-view-head__back.glass:hover {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+
+.super-view-head__views {
+  display: inline-flex;
+  align-items: center;
+}
+
+html:not([data-shell-mode='mobile']) .super-view-head .glass-slider {
+  height: 26px;
+}
+
+html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font: var(--ui-font-secondary, 11.5px)/1 var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option[aria-checked='true'] {
+  font-weight: 500;
+}
+
+html:not([data-shell-mode='mobile']) .super-view-head__meta {
+  font-size: var(--ui-font-caption, 10px);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* A short sentence for the mode the canvas is in (picking a relation's
+   other end): unframed index type; the source is its sand mark and name. */
+.super-view-head__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-caption, 10px)/1 var(--font-mono);
+  white-space: nowrap;
+}
+
+.super-view-head__hint-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: hsl(var(--ink-1));
+}
+
+.super-view-head__hint-source > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* The chip collection is the first header control allowed to yield space.
    Every chip keeps its natural width for measurement; only complete leading
    chips are revealed, so the trailing edge never shows a clipped half-chip. */
@@ -744,4 +815,282 @@ html[data-shell-mode='mobile'] .super-view-overlay {
   right: var(--safe-area-right);
   bottom: max(var(--super-view-bottom-inset), var(--safe-area-bottom));
   left: var(--safe-area-left);
+}
+
+/* ─── Desktop relation-type menu (砂笔 + 素玻璃) ─────────────────────
+   The menu shell with two parts parted by 8px of space, no rules: the
+   canvas filter as Chips, then the type definitions as menu rows (the row
+   under the pointer takes the menu row's glass ring). A type's colour is its
+   sand dash; pressing the dash opens a row of round glass, each holding a
+   seal of that colour, the chosen one its colour's still glass. Labels are
+   index type, not uppercase. Delete shows under the pointer only. The new
+   type is written in place, unboxed. Mobile keeps the menu above. */
+.relation-kind-menu--glass {
+  gap: 0;
+  padding: 10px 0 8px;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__head {
+  padding: 4px 14px 6px;
+  border-bottom: 0;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__title {
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-body, 12.5px);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__summary,
+.relation-kind-menu--glass .relation-kind-menu__visible-summary {
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+}
+
+.relation-kind-menu--glass .relation-kind-menu__visible-summary {
+  padding: 3px 0 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.relation-kind-menu--glass .relation-kind-menu__section--manage {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__section-label,
+.relation-kind-menu--glass .relation-kind-menu__group-label {
+  margin: 0;
+  padding: 8px 14px 4px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__group-label {
+  padding-top: 2px;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__chips {
+  padding: 2px 12px 4px;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__empty {
+  padding: 4px 14px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-secondary, 11.5px);
+}
+
+.relation-kind-menu--glass .relation-kind-menu__section-title-row {
+  padding-right: 8px;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__create {
+  color: hsl(var(--accent));
+}
+
+.relation-kind-menu--glass .relation-kind-menu__type-group + .relation-kind-menu__type-group {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.relation-kind-menu__row--glass {
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+}
+
+.relation-kind-menu__dash {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 0 2px;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+}
+
+.relation-kind-menu__row--glass button.relation-kind-menu__name:hover {
+  background: transparent;
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__name:disabled {
+  cursor: default;
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__name small {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+  font-weight: 400;
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__count {
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__delete {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.16s ease-out, color 0.12s;
+}
+
+.relation-kind-menu__row--glass:hover .relation-kind-menu__delete,
+.relation-kind-menu__row--glass:focus-within .relation-kind-menu__delete {
+  opacity: 1;
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__delete:hover:not(:disabled) {
+  color: hsl(var(--danger));
+}
+
+.relation-kind-menu__row--glass .relation-kind-menu__delete:disabled {
+  cursor: not-allowed;
+}
+
+.relation-kind-menu__row--glass:hover .relation-kind-menu__delete:disabled {
+  opacity: 0.35;
+}
+
+.relation-kind-menu__colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 14px 8px 38px;
+}
+
+.relation-kind-menu__color {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.relation-kind-menu__color > .sand {
+  position: static;
+  width: 11px;
+  height: 11px;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__other-toggle {
+  gap: 6px;
+  justify-content: flex-start;
+  min-height: var(--ui-row-height, 30px);
+  padding: 6px 14px;
+  border-radius: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-body, 12.5px);
+}
+
+.relation-kind-menu--glass .relation-kind-menu__other-toggle:hover,
+.relation-kind-menu--glass .relation-kind-menu__other-toggle[aria-expanded='true'] {
+  background: transparent;
+}
+
+.relation-kind-menu--glass .relation-kind-menu__other-toggle > span:nth-child(2) {
+  margin-left: auto;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 10px);
+}
+
+.relation-kind-menu__chevron {
+  color: hsl(var(--ink-3));
+  transition: transform var(--motion-structural) var(--motion-structural-ease);
+}
+
+.relation-kind-menu__other-toggle[aria-expanded='true'] .relation-kind-menu__chevron {
+  transform: rotate(180deg);
+}
+
+/* The new or renamed type, written in place: labels in index type above
+   single-line fields, direction as one of two, kinds as chips. */
+.relation-type-editor--glass {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 8px;
+  padding: 6px 14px 4px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.relation-type-editor--glass .relation-type-editor__grid {
+  gap: 10px 12px;
+}
+
+.relation-type-editor--glass .relation-type-editor__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 10px)/1.3 var(--font-mono);
+}
+
+.relation-type-editor--glass .ui-field {
+  min-height: 28px;
+}
+
+.relation-type-editor--glass .ui-field > input {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: var(--ui-font-secondary, 12px)/1.4 var(--font-sans);
+}
+
+.relation-type-editor--glass .glass-slider {
+  align-self: flex-start;
+  min-height: 28px;
+}
+
+.relation-type-editor__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.relation-type-editor--glass .relation-type-editor__error {
+  margin-top: 0;
+}
+
+.relation-type-editor__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }

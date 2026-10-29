@@ -64,7 +64,7 @@ export async function runStoryGraphCardScenarios() {
         const first = tiles.find(tile => tile.querySelector('.graph-tile__title')?.textContent === 'Synthetic chapter 0')!;
         const second = tiles.find(tile => tile.querySelector('.graph-tile__title')?.textContent === 'Synthetic chapter 1')!;
         if (tiles.length !== chapters || !first || !second) throw new Error('Story Graph card fixture did not mount.');
-        const drawer = host.querySelector<HTMLButtonElement>('.graph-head__unplaced-btn')!;
+        const drawer = host.querySelector<HTMLButtonElement>('.graph-head__unplaced > button')!;
         resetWork();
         for (let index = 0; index < 20; index++) flushSync(() => drawer.click());
         const drawerWork = { ...storyGraphCardWork };
@@ -100,9 +100,9 @@ export async function runStoryGraphCardScenarios() {
         checks.shiftClearsSource = !first.classList.contains('is-link-source');
         flushSync(() => second.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
         flushSync(() => first.click());
-        const pair = [...host.querySelectorAll('.graph-newedge__pair > span')].map(span => span.textContent);
+        const pair = [...document.querySelectorAll('.graph-newedge__pair > span, .relation-pair__end > span:last-child')].map(span => span.textContent);
         checks.latestPair = pair.join('|') === 'Synthetic chapter 1|Synthetic chapter 0'; escape();
-        checks.latestPair &&= !host.querySelector('.graph-newedge');
+        checks.latestPair &&= !document.querySelector('.graph-newedge, .relation-type-create-modal');
         flushSync(() => useDataStore.setState({ bookNodes: fixture.bookNodes.map((node, index) => index === 0 ? { ...node, title: 'Synthetic renamed chapter' } : node) }));
         checks.renamedCard = first.querySelector('.graph-tile__title')?.textContent === 'Synthetic renamed chapter';
         const targetLane = `card-storyline-${storylines - 1}`;

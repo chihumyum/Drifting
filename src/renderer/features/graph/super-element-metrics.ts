@@ -12,6 +12,10 @@ export const CELL_H = 56;
 // pill size.
 export const BAND_PILL_PX = 110;
 export const BAND_SLOT_PX = 120;
+// Desktop: like the Bottom Timeline, the band opens with a desk-coloured
+// rail holding the storyline names; chapters start after it. The paused
+// mobile shell has no rail.
+export const BAND_RAIL_PX = 104;
 
 // Group-header strip rendered between groups inside a category box. Pixels,
 // NOT cells — so headers don't gobble a full card row when the category
@@ -27,6 +31,9 @@ export const GROUP_HEADER_PX = 16;
 // the reason last-column cards covered the right border).
 export const CATEGORY_INNER_PAD_Y_TOP = 8;
 export const CATEGORY_INNER_PAD_Y_BOTTOM = 4;
+// Desktop: the category name is a taller plate set into the sand frame's top
+// edge (structure type), so the first card row starts a little lower.
+export const DESKTOP_CATEGORY_INNER_PAD_Y_TOP = 12;
 
 // Visible horizontal gap between two adjacent category boxes. Each box
 // renders inset by CATEGORY_GAP_X / 2 on its left and right edges; the
@@ -75,3 +82,10 @@ export const STICKY_PAD_CELLS_Y = 3;
 export const EDGE_SELECTED_WIDTH = 2.4;
 export const EDGE_DEFAULT_WIDTH = 1.6;
 export const EDGE_HIT_WIDTH = 10;
+// Desktop relation lines are a touch finer against the sand marks.
+export const DESKTOP_EDGE_SELECTED_WIDTH = 2.2;
+export const DESKTOP_EDGE_DEFAULT_WIDTH = 1.5;
+export const SUPER_ELEMENT_EDGE_WIDTHS = {
+  mobile: { selected: EDGE_SELECTED_WIDTH, normal: EDGE_DEFAULT_WIDTH },
+  desktop: { selected: DESKTOP_EDGE_SELECTED_WIDTH, normal: DESKTOP_EDGE_DEFAULT_WIDTH },
+} as const;

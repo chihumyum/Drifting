@@ -1792,6 +1792,7 @@
       "entityFilterActiveTitle": "Only show items linked to \"{{label}}\"",
       "entityFilterTitle": "Filter by entity",
       "clearEntityFilter": "Clear relation filter",
+      "entityFilterAll": "Relations · All",
       "entityFilterHint": "Choose an entity to show only linked memos / materials",
       "todoEmptyHint": "Click + to create a TODO, or promote one from an editor comment card",
       "newMaterialButton": "New material",
@@ -2998,12 +2999,16 @@
     "title": "Element overview",
     "meta": "{{categories}} categories · {{elements}} elements",
     "linkHint": "Choose a second element / chapter · Esc cancels",
+    "linkHintFrom": "From",
+    "linkHintTo": "to… pick a second element or chapter, Esc cancels",
     "focusOffTitle": "Turn focus off and show all relation lines",
     "focusOnTitle": "Turn focus on and show only relations for elements in the viewport",
     "focusToggle": "Focus · {{state}}",
+    "focus": "Focus",
     "stickyOffTitle": "Turn chapter band stickiness off",
     "stickyOnTitle": "Turn chapter band stickiness on so the band stays at the viewport edge while panning",
     "stickyToggle": "Sticky band · {{state}}",
+    "sticky": "Sticky band",
     "stateOn": "on",
     "stateOff": "off",
     "resetTitle": "Reset canvas zoom and pan",
@@ -3021,7 +3026,8 @@
     "empty": {
       "noStorylines": "No storylines yet",
       "noCategories": "No element categories yet",
-      "categoryEmpty": "Empty"
+      "categoryEmpty": "Empty",
+      "categoryNoElements": "No elements yet"
     }
   },
   "nodeCardPopover": {

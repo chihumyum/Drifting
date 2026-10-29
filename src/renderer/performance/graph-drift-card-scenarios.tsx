@@ -58,7 +58,7 @@ export async function runGraphDriftCardScenarios() {
             </SuperViewNavigationProvider></SuperViewRelationUiProvider>
           </WorkspaceNavigationProvider></MemoryRouter>));
           await pause(700);
-          const toggle = host.querySelector<HTMLButtonElement>(view === 'graph' ? '.graph-head__unplaced-btn' : '.super-element-toggle')!;
+          const toggle = host.querySelector<HTMLButtonElement>(view === 'graph' ? '.graph-head__unplaced > button' : '.super-element-toggle, [data-super-element-toggle="focus"]')!;
           resetWork(); for (let index = 0; index < 20; index++) flushSync(() => toggle.click());
           const closedWork = { ...graphDriftWork };
           resetWork(); flushSync(() => host.querySelector<HTMLButtonElement>('.drift-panel__tab')!.click());
@@ -136,7 +136,7 @@ export async function runGraphDriftCardScenarios() {
           }
           flushSync(() => second.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
           flushSync(() => first.click());
-          const pair = document.querySelector(view === 'graph' ? '.graph-newedge__pair' : '.relation-type-create-modal');
+          const pair = document.querySelector(view === 'graph' ? '.graph-newedge__pair, .relation-type-create-modal' : '.relation-type-create-modal');
           checks.latestPair = !!pair && pair.textContent?.includes('Synthetic drift 1') === true && pair.textContent?.includes('Synthetic drift 0') === true; escape();
           flushSync(() => useDataStore.setState({ bookNodes: fixture.bookNodes.map(node => node.id === 'synthetic-drift-0' ? { ...node, title: 'Synthetic renamed drift', summary: 'Synthetic renamed summary' } : node) }));
           checks.renamedCard = first.querySelector('.drift-card__title')?.textContent === 'Synthetic renamed drift';

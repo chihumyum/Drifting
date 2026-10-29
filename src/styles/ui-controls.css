@@ -2881,3 +2881,210 @@ svg.super-viewport-edges[data-panning='1'] {
     transition: none;
   }
 }
+
+/* ── Chip: one of a group of independent toggles ────────────────────
+ * Several at once may be on (which relation types the canvas draws, which
+ * material kinds the library lists). Choose-one is the glass slider, two
+ * states is the scope toggle; the chip is that toggle's family: index type
+ * that never changes, the resting glass line while off, the floating fill
+ * and still selected glass while on. The glass stays clear; a type's colour
+ * lives only in its sand dash, which fades while the chip is off. A drift's
+ * relation leads with the drift's eddy. Nothing to show (a count of 0) is
+ * fainter ink on a fainter line. Desktop only (`FilterChip look="glass"`).
+ *
+ * `.ui-word-toggle` is the same piece for a word beside them that is not one
+ * of a group: a two-state switch (聚焦, 粘带) or a word that opens a menu or
+ * popover (全部, 未放置), pressed or expanded while on or open. */
+.ui-chip,
+.ui-word-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-caption, 10px)/1 var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s, background-color var(--motion-glass-bleed) ease-out;
+}
+
+:is(.ui-chip, .ui-word-toggle):hover:not(:disabled) {
+  color: hsl(var(--ink-1));
+}
+
+:is(.ui-chip, .ui-word-toggle):is([aria-pressed='true'], [aria-expanded='true']) {
+  background: var(--glass-fill);
+  color: hsl(var(--ink-1));
+}
+
+.ui-word-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ui-chip > .kind-mark {
+  margin-inline: -2px -1px;
+  transition: opacity 0.2s ease-out;
+}
+
+.ui-chip[aria-pressed='false'] > .ui-chip__mark {
+  opacity: 0.35;
+}
+
+:is(.ui-chip__count, .ui-word-toggle__count) {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.ui-chip.is-empty {
+  --glass-g: 0.5;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+/* Relation-type list (RelationTypeField: the new-relation dialog, the
+   entity editors' relation cards). Desktop: the menu shell, one menu row per
+   type — its sand dash, the name, the roles in index type, a tick on the
+   chosen one. It keeps the suggestions' modal-safe stacking. */
+.relation-kind-suggestions.menu-surface {
+  gap: 0;
+  padding: 4px 0;
+  border: 1px solid var(--menu-surface-border);
+  border-radius: var(--menu-surface-radius);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+}
+
+.relation-kind-suggestions.menu-surface .relation-type-suggestions__option {
+  gap: 8px;
+}
+
+.relation-kind-suggestions.menu-surface .relation-type-suggestions__option > .kind-mark {
+  margin-top: 2px;
+}
+
+.relation-kind-suggestions.menu-surface .relation-type-suggestions__copy {
+  flex: 1;
+}
+
+.relation-type-suggestions__tick {
+  margin-top: 3px;
+  color: hsl(var(--ink-2));
+}
+
+/* Entity card popover (a chapter, drift or element clicked on a Super View
+   canvas). Desktop: a floating layer on the menu shell — desk colour, square,
+   the half-pixel hairline and the floating shadow — with no rules inside;
+   expanded it sits over the desk's mist like a dialog. The title leads with
+   the thing's own sand mark; the summary is written in the multi-line
+   field's slip; 展开编辑 is a text button and 在编辑器中打开 the one primary
+   button. Expanded, the text is a sheet of page colour inside the shell. */
+.entity-card-backdrop--mist {
+  background: color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent);
+}
+
+.entity-card-popover.entity-card-popover--float {
+  gap: 10px;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--menu-surface-radius);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  font-family: var(--font-sans);
+}
+
+.entity-card__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  min-height: 26px;
+  padding: 0 0 0 2px;
+}
+
+.entity-card__num {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 10px)/1 var(--font-mono);
+}
+
+.entity-card__title,
+.entity-card__title-input {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: hsl(var(--ink-1));
+  font: 500 var(--ui-font-body, 13px)/1.25 var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-card__title-input {
+  padding: 2px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+}
+
+.entity-card__slip {
+  flex: 1;
+  min-height: 0;
+}
+
+.entity-card__slip > textarea {
+  min-height: 92px;
+  max-height: min(42vh, 320px);
+  overflow-y: auto;
+  resize: none;
+  font-size: calc(var(--editor-font-size, 17.5px) - 4px);
+  line-height: 1.55;
+}
+
+.entity-card__page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px;
+  border-radius: 2px;
+  background: hsl(var(--page));
+}
+
+.entity-card__page > .entity-card__summary-line {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font: var(--ui-font-secondary, 13px)/1.45 var(--font-sans);
+}
+
+.entity-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.entity-card__meta {
+  margin-right: auto;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 10px)/1.3 var(--font-mono);
+}
+
+/* The chapter card's own rules (graph-view.css) give way inside the shell. */
+.entity-card.node-card .node-card__summary {
+  padding: 0;
+  min-height: 92px;
+}
+
+.entity-card.node-card .node-card__editor,
+.entity-card.node-card .node-card__loading {
+  padding: 0;
+}

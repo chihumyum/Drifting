@@ -49,74 +49,6 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-.graph-head__filters {
-  display: inline-flex;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  overflow: hidden;
-  background: hsl(var(--surface));
-  flex-shrink: 0;
-}
-.graph-head__filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  /* The parent strip owns the 1px border, so the inner chip is 2px
-     shorter than the shared outer control height. */
-  height: var(--graph-head-control-inner-height);
-  padding: 0 10px;
-  box-sizing: border-box;
-  background: transparent;
-  border: 0;
-  border-right: 1px solid hsl(var(--rule));
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: hsl(var(--ink-4));
-  cursor: pointer;
-  transition: color 0.12s;
-}
-.graph-head__filter:last-child {
-  border-right: 0;
-}
-.graph-head__filter.is-active {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-}
-/* Non-interactive variants. The hint sits to the LEFT of any chips
-   and the transit chip is the rightmost legend — both share the chip
-   grid (heights/borders) but reject pointer interactions. */
-.graph-head__filter.is-hint,
-.graph-head__filter.is-transit {
-  cursor: default;
-  color: hsl(var(--ink-3));
-}
-.graph-head__filter.is-hint {
-  font-style: italic;
-  letter-spacing: 0.06em;
-  text-transform: none;
-  font-size: 10.5px;
-}
-.graph-head__filter.is-transit {
-  background: transparent;
-}
-.graph-head__filter-dot {
-  width: 8px;
-  height: 2px;
-  border-radius: 1px;
-}
-/* Wrapping flex row that holds the right-side legend groups. Each
-   group is its own bordered .graph-head__filters strip; the gap here
-   is the whitespace separation between drift-only chips and regular
-   chips (and between each group and the management button). */
-.graph-head__legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 /* ---------------- Head-bar "未放置" popover (narrative mode) ----------
    Replaces the below-head drawer. Lives next to the view toggle in
    `.graph-head__left` and opens a popover anchored to its button. */
@@ -476,7 +408,7 @@
   text-overflow: ellipsis;
   transition: opacity 0.1s ease;
 }
-.graph-pin.is-editing .graph-pin__label {
+.graph-pin.is-editing .graph-pin__label:not(.glass) {
   cursor: text;
   user-select: text;
   border-color: hsl(var(--accent));
@@ -509,7 +441,7 @@
   pointer-events: none;
 }
 /* Bound pin — see .btl-pin.is-bound; same semantics in the graph axis. */
-.graph-pin.is-bound .graph-pin__label {
+.graph-pin.is-bound .graph-pin__label:not(.glass) {
   border-color: hsl(var(--accent) / 0.55);
   background: hsl(var(--accent) / 0.06);
   color: hsl(var(--ink-1));
@@ -519,7 +451,7 @@
 }
 /* The drift's own sand eddy marks the marker as bound to a drift node —
    mirrors the act rail's bound drift so the two read as one concept. */
-.graph-pin.is-bound .graph-pin__label::before {
+.graph-pin.is-bound .graph-pin__label:not(.glass)::before {
   content: '';
   display: inline-block;
   width: 11px;
@@ -529,7 +461,7 @@
   -webkit-mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
   mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
 }
-.graph-pin.is-bound .graph-pin__label:hover {
+.graph-pin.is-bound .graph-pin__label:not(.glass):hover {
   background: hsl(var(--accent) / 0.12);
 }
 .graph-pin.is-bound .graph-pin__line {
@@ -659,8 +591,7 @@
    Click an edge → select it. Selection highlights the edge (handled
    inline via path attrs) and applies `.is-edge-selected` to the two
    endpoint cards. Relation details/actions live in the shared body portal. */
-.graph-tile.is-edge-selected,
-.graph-drift__card.is-edge-selected {
+.graph-tile.is-edge-selected {
   border-color: hsl(var(--accent));
   border-width: 2px;
   box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18);
@@ -990,230 +921,7 @@
   color: hsl(var(--ink-3));
 }
 
-/* ============================================================
-   Drift drawer — a small floating tab pinned to the bottom-center
-   of the graph view. Clicking the tab opens a centered "hand" of
-   drift cards that rises just above it. The fixed wrapper sits
-   over the canvas; when the panel is open the canvas can still be
-   scrolled to reveal tiles that end up behind the panel.
-   ============================================================ */
-.graph-drift {
-  position: fixed;
-  left: 0;
-  right: 0;
-  /* Anchored above the BottomStatusBar so cards / tab don't get hidden
-     by the status bar. Same var as .graph-overlay so the two stay in
-     sync with the full-width status-strip inset. */
-  bottom: var(--super-view-bottom-inset);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  pointer-events: none; /* children opt in */
-  z-index: 260;
-}
-/* Rectangular tab — only visible when the panel is closed. No
-   arrow / chevron; the panel's own close button is the collapse
-   affordance once it's open. */
-.graph-drift__tab {
-  pointer-events: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-  padding: 6px 16px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 1px;
-  color: hsl(var(--ink-2));
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  box-shadow: none;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
-}
-.graph-drift__tab:hover {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-}
-.graph-drift__count {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-2));
-  padding: 1px 6px;
-  border-radius: 1px;
-  font-size: 9px;
-}
-.graph-drift__tab:hover .graph-drift__count {
-  background: hsl(var(--paper) / 0.2);
-  color: hsl(var(--paper));
-}
-/* Compact × close button centered above the open panel. */
-.graph-drift__close {
-  pointer-events: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-bottom: 6px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0;
-  opacity: 0;
-  transform: translateY(6px) scale(0.96);
-  box-shadow: none;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s,
-    opacity 0.16s,
-    transform 0.2s;
-}
-.graph-drift.is-open:not(.is-closing) .graph-drift__close {
-  pointer-events: auto;
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-.graph-drift.is-closing .graph-drift__close {
-  opacity: 0;
-  transform: translateY(6px) scale(0.96);
-}
-.graph-drift__close:hover {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-  transform: translateY(0);
-}
-
-/* The panel is viewport-bottom anchored and slides as a single hand. It
-   starts below the app frame, so cards enter from the window edge instead
-   of growing out of the old tab position. */
-.graph-drift__panel {
-  pointer-events: none;
-  width: 100vw;
-  max-width: 100vw;
-  overflow: visible;
-  background: transparent;
-  transform: translateY(calc(100% + 18px));
-  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
-}
-.graph-drift.is-open .graph-drift__panel {
-  transform: translateY(0);
-}
-.graph-drift.is-open:not(.is-closing) .graph-drift__panel {
-  pointer-events: auto;
-}
-.graph-drift.is-closing .graph-drift__panel {
-  pointer-events: none;
-  transform: translateY(calc(100% + 18px));
-}
-.graph-drift__hand {
-  display: flex;
-  justify-content: center; /* center the hand when it fits */
-  gap: 10px;
-  padding: 14px 22px 14px;
-  box-sizing: border-box;
-  max-height: min(25vh, 260px);
-  max-width: 90vw;
-  margin: 0 auto;
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: none;
-}
-.graph-drift__hand::-webkit-scrollbar {
-  display: none;
-}
-.graph-drift__empty {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 12.5px;
-  color: hsl(var(--ink-4));
-  padding: 20px 14px;
-}
-
-/* The transform transition only communicates drag reordering; the surface
-   itself stays flat and rectangular. */
-.graph-drift__card {
-  position: relative;
-  flex: 0 0 168px;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px 12px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 1px;
-  box-shadow: none;
-  cursor: grab;
-  user-select: none;
-  transition:
-    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.16s,
-    border-color 0.12s,
-    opacity 0.18s;
-  will-change: transform;
-}
-.graph-drift__card:active {
-  cursor: grabbing;
-}
-.graph-drift__card:hover {
-  background: hsl(var(--paper-deep));
-  border-color: hsl(var(--accent));
-}
-.graph-drift__card.is-link-source {
-  outline: 2px dashed hsl(var(--accent));
-  outline-offset: 2px;
-}
-/* Source card during drag — faded so the cursor's drag ghost is the
-   primary visible representation. The faded original stays in its
-   original DOM slot; on drop, the FLIP effect slides it to its new
-   slot for a Dock-like settling. */
-.graph-drift__card.is-dragged {
-  opacity: 0.2;
-}
-
-.graph-drift__card-num {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: hsl(var(--accent));
-}
-.graph-drift__card-title {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  color: hsl(var(--ink-1));
-  letter-spacing: -0.005em;
-  line-height: 1.2;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.graph-drift__card-summary {
-  flex: 1;
-  font-size: 10.5px;
-  line-height: 1.4;
-  color: hsl(var(--ink-3));
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-}
-
-/* Fixed-position glowing edges between drift cards and storyline tiles.
+/* Fixed-position edges between drift cards and storyline tiles.
    Above the graph-overlay (z-index 250) and the drift panel chrome
    (z-index 260), but below the new-edge dialog (z-index 280). */
 .graph-drift-edges {
@@ -1261,4 +969,270 @@
   to {
     stroke-dashoffset: -24;
   }
+}
+
+/* ─── Desktop (砂笔 + 素玻璃) ─────────────────────────────────────────
+   The story graph follows the Bottom Timeline: lane names sit in the desk-
+   coloured rail as sidebar cells (the storyline's sand dash, a ring of its
+   colour under the pointer); lanes are the page, parted by half-pixel desk
+   lines, with no reading line and no dotted rules. Each chapter is a slab of
+   glass on the page rimmed in its storyline's colour (`.glass--rest`): the
+   ends of a selected relation take the still selected glass, the picked
+   source of a new relation the dense held glass; drafts are a step lighter,
+   set-aside chapters faded and struck out. Act labels and time pins turn on
+   the timeline's glass; their lines are half-pixel desk lines and the drop
+   line while dragging is clear glass running with the distance. The paused
+   mobile shell keeps the tinted tiles and dotted lanes above. */
+html:not([data-shell-mode='mobile']) .graph-overlay {
+  --graph-guide-line: var(--workspace-ui-bg);
+  --graph-drop-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 50%);
+}
+
+html:not([data-shell-mode='mobile']) .graph-head__spread {
+  gap: 5px;
+}
+
+html:not([data-shell-mode='mobile']) .graph-axis-row {
+  border-bottom: 0;
+  box-shadow: inset 0 -0.5px 0 var(--graph-guide-line);
+}
+
+html:not([data-shell-mode='mobile']) .graph-axis-rail-cell {
+  border-right: 0;
+  background: var(--workspace-ui-bg);
+  font-size: var(--ui-font-caption, 10px);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+html:not([data-shell-mode='mobile']) .graph-rail__axis-add:hover:not(:disabled) {
+  background: transparent;
+}
+
+html:not([data-shell-mode='mobile']) .graph-rail-cell,
+html:not([data-shell-mode='mobile']) .graph-track-cell {
+  border-right: 0;
+  border-bottom: 0;
+}
+
+html:not([data-shell-mode='mobile']) .graph-lane-row + .graph-lane-row {
+  box-shadow: inset 0 0.5px 0 var(--graph-guide-line);
+}
+
+html:not([data-shell-mode='mobile']) .graph-track-cell::before {
+  content: none;
+}
+
+.graph-rail-cell--glass {
+  padding: 3px 4px;
+  background: var(--workspace-ui-bg);
+}
+
+.graph-rail-cell--glass > .graph-rail__main {
+  padding: 0 10px;
+}
+
+.graph-rail__cell {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 10px 0 8px;
+  border-radius: 2px;
+}
+
+.graph-rail__main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.graph-rail-cell--glass .graph-rail__name {
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: var(--ui-font-body, 13px);
+  font-weight: 500;
+  color: hsl(var(--ink-1));
+}
+
+.graph-rail-cell--glass .graph-rail__name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-rail-cell--glass .graph-rail__name > .kind-mark {
+  margin-left: -2px;
+}
+
+.graph-rail-cell--glass .graph-rail__meta {
+  padding-left: 18px;
+  font-size: var(--ui-font-caption, 10px);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.graph-tile.glass,
+.graph-tile.glass:hover,
+.graph-tile.glass.is-draft,
+.graph-tile.glass.is-discarded,
+.graph-tile.glass.is-edge-selected,
+.graph-tile.glass.is-link-source {
+  --glass-edge: 40%;
+  --glass-rim: 9px;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  box-shadow: none;
+  outline: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.graph-tile.glass .graph-tile__num {
+  font-size: var(--ui-font-caption, 10px);
+  letter-spacing: 0;
+}
+
+.graph-tile.glass .graph-tile__title {
+  font-size: var(--ui-font-secondary, 12.5px);
+}
+
+.graph-tile.glass .graph-tile__summary {
+  font-size: var(--ui-font-caption, 10.5px);
+  line-height: 1.35;
+}
+
+.graph-tile.glass.is-draft .graph-tile__title {
+  color: hsl(var(--ink-2));
+}
+
+.graph-tile.glass.is-discarded {
+  opacity: 0.55;
+}
+
+.graph-tile.glass.is-discarded:hover {
+  opacity: 0.8;
+}
+
+.graph-tile.glass.is-link-source {
+  --glass-g: 1.7;
+  --glass-sp: 1.3;
+}
+
+.graph-tile.glass.is-link-source::before {
+  opacity: 1;
+  animation-play-state: paused;
+}
+
+html:not([data-shell-mode='mobile']) .graph-pin__label.glass {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  letter-spacing: 0;
+}
+
+html:not([data-shell-mode='mobile']) .graph-pin.is-editing .graph-pin__label.glass {
+  overflow: visible;
+  background: var(--glass-fill);
+  color: hsl(var(--ink-1));
+  cursor: text;
+  user-select: text;
+}
+
+html:not([data-shell-mode='mobile']) .graph-pin.is-bound .graph-pin__label.glass {
+  font-family: var(--font-sans);
+  color: hsl(var(--ink-1));
+  cursor: pointer;
+}
+
+.graph-pin__label.glass > .kind-mark {
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: top;
+}
+
+.graph-pin__label.glass > .kind-mark > .sand {
+  top: 1px;
+}
+
+html:not([data-shell-mode='mobile']) .graph-pin__line,
+html:not([data-shell-mode='mobile']) .graph-pin.is-bound .graph-pin__line,
+html:not([data-shell-mode='mobile']) .graph-pin-line {
+  width: 0.5px;
+  background: var(--graph-guide-line);
+}
+
+html:not([data-shell-mode='mobile']) .graph-pin-line.is-dragging {
+  width: 4px;
+  margin-left: -2px;
+  background: linear-gradient(to right, transparent, var(--graph-drop-glass), transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: var(--glass-dense-gx) calc(var(--flow, 0) * 1.6px);
+  mask-position: var(--glass-dense-gx) calc(var(--flow, 0) * 1.6px);
+}
+
+/* Unplaced chapters (narrative): menu rows led by the chapter's seal; the
+   row under the pointer rings in its storyline's colour, held denser, and
+   drags onto the time axis. */
+.graph-head__unplaced-popover--rows {
+  display: block;
+  padding: 6px 0;
+}
+
+.graph-head__unplaced-row {
+  gap: 7px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
+}
+
+.graph-head__unplaced-row:active {
+  cursor: grabbing;
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item.graph-head__unplaced-row::before {
+  --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 50%, var(--glass-clear));
+}
+
+html:not([data-shell-mode='mobile']) .menu-surface__item.graph-head__unplaced-row:active::before {
+  --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 75%, var(--glass-clear));
+}
+
+.graph-head__unplaced-row .graph-head__unplaced-chip-num {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.graph-head__unplaced-popover--rows .graph-head__unplaced-empty {
+  padding: 10px 14px;
+  font-style: normal;
+  text-align: left;
+}
+
+/* Drift edges: no blurred halo; the dashes stand still until the pointer is
+   on the edge or on its drift card (`is-lit`), then flow at the glass's
+   pace. */
+html:not([data-shell-mode='mobile']) .graph-drift-edge__halo {
+  display: none;
+}
+
+html:not([data-shell-mode='mobile']) .graph-drift-edge__line {
+  animation-play-state: paused;
+}
+
+html:not([data-shell-mode='mobile']) .graph-drift-edge:is(:hover, .is-lit, .is-selected) .graph-drift-edge__line {
+  animation-play-state: running;
 }

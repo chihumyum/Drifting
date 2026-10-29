@@ -803,9 +803,11 @@ describe('workspace surface language acceptance', () => {
     );
 
     expect(relationTypeField).toContain('<AnchoredPopover');
+    // Modal-safe suggestions; on the desktop they sit on the menu shell.
     expect(relationTypeField).toContain(
-      'className="relation-kind-suggestions relation-type-suggestions"',
+      "'menu-surface relation-kind-suggestions relation-type-suggestions'",
     );
+    expect(relationTypeField).toContain("'relation-kind-suggestions relation-type-suggestions'");
     expect(relationTypeField).not.toContain("position: 'absolute'");
     expect(relationKindMenu).toContain('setRelationTypeColor(type.id, paletteColor)');
     expect(relationKindMenu).toContain('removeRelationTypeMeta(type.id)');

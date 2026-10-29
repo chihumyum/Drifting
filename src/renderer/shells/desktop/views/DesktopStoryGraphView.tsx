@@ -45,6 +45,11 @@ import type { GraphViewProps } from '../../../features/graph/graph-ui-components
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
+import { GlassSlider } from '../../../components/ui/GlassSlider';
+import { Button } from '../../../components/ui/Button';
+import { KindMark } from '../../../components/ui/KindMark';
+import { GhostIconButton } from '../../../components/ui/GhostIconButton';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../../components/ui/Modal';
 import { RelationTypeField } from '../../../components/ui/RelationTypeField';
 import {
   validateRelationAgainstType,
@@ -964,10 +969,23 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       },
     });
   }, [mobileLinkMode, linkSource, hoverDismiss]);
+  // A drift's edges flow only while the pointer is on the edge or on its
+  // card (desktop CSS); the card lights its own edges without a re-render.
+  const lightDriftEdges = useCallback((driftId: string | null) => {
+    document.querySelectorAll('.graph-drift-edge.is-lit').forEach((edge) => edge.classList.remove('is-lit'));
+    if (!driftId) return;
+    document.querySelectorAll(`.graph-drift-edge[data-ends~="${driftId}"]`)
+      .forEach((edge) => edge.classList.add('is-lit'));
+  }, []);
   const handleDriftPreviewEnter = useCallback<StoryGraphDriftCardsProps['onPreviewEnter']>((event, node) => {
+    lightDriftEdges(node.id);
     if (driftDrag.getSnapshot().dragged) return;
     hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
-  }, [driftDrag, hoverEnter]);
+  }, [driftDrag, hoverEnter, lightDriftEdges]);
+  const handleDriftPreviewLeave = useCallback(() => {
+    lightDriftEdges(null);
+    hoverLeave();
+  }, [hoverLeave, lightDriftEdges]);
   const handleDriftDoubleClick = useCallback<StoryGraphDriftCardsProps['onDoubleClick']>((node) => {
     openEntity({ entityType: 'node', id: node.id }, { preview: false });
     close();
@@ -1089,6 +1107,38 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
     total: bookNodes.filter(node => node.kind === 'chapter').length,
   });
 
+  const viewModeOptions = [
+    {
+      value: 'book' as const,
+      label: t('bottomTimeline.view.book'),
+      title: t('bottomTimeline.view.bookTitle'),
+    },
+    {
+      value: 'narrative' as const,
+      label: t('bottomTimeline.view.narrative'),
+      title: t('bottomTimeline.view.narrativeTitle'),
+    },
+  ];
+  const spreadTitle =
+    placedNodes.length < 2
+      ? t('bottomTimeline.spread.needTwo')
+      : t('bottomTimeline.spread.title', {
+          mode: isNarrative ? t('bottomTimeline.view.narrative') : t('bottomTimeline.view.book'),
+        });
+  // A chapter written as its sand seal in its storyline's colour (the link
+  // hint, the new-relation dialog, the relation details).
+  const chapterSeal = (id: string) => {
+    const node = nodeById.get(id);
+    const storylineId = node ? primaryStorylineId(node) : null;
+    return (
+      <KindMark
+        kind="chapter"
+        seed={id}
+        color={storylineId ? storylineById.get(storylineId)?.color : undefined}
+      />
+    );
+  };
+
   return (
     <SuperViewShell className="graph-overlay" data-view={viewMode}>
       <DesktopSuperViewHeader
@@ -1096,46 +1146,57 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         onBack={close}
         leftSlot={
           <>
-            <SegmentedControl
-              className="graph-head__view-toggle"
-              size="md"
-              value={viewMode}
-              onChange={setViewMode}
-              ariaLabel={t('bottomTimeline.view.toggleTitle')}
-              options={[
-                {
-                  value: 'book',
-                  label: t('bottomTimeline.view.book'),
-                  title: t('bottomTimeline.view.bookTitle'),
-                },
-                {
-                  value: 'narrative',
-                  label: t('bottomTimeline.view.narrative'),
-                  title: t('bottomTimeline.view.narrativeTitle'),
-                },
-              ]}
-            />
-            <button
-              type="button"
-              className="graph-head__spread-btn"
-              disabled={placedNodes.length < 2}
-              onClick={() => {
-                void handleSpread();
-              }}
-              title={
-                placedNodes.length < 2
-                  ? t('bottomTimeline.spread.needTwo')
-                  : t('bottomTimeline.spread.title', {
-                      mode: isNarrative
-                        ? t('bottomTimeline.view.narrative')
-                        : t('bottomTimeline.view.book'),
-                    })
-              }
-              aria-label={t('storyGraph.spreadAria')}
-            >
-              <BrushIcon name="spread" size={11} />
-              <span>{t('storyGraph.spread')}</span>
-            </button>
+            {/* Desktop: 书序／叙事时 is one of two on the glass slider and 打散
+                a text button with its sand icon; the paused mobile shell keeps
+                the segmented control and the bordered button. */}
+            {mobileShell ? (
+              <SegmentedControl
+                className="graph-head__view-toggle"
+                size="md"
+                value={viewMode}
+                onChange={setViewMode}
+                ariaLabel={t('bottomTimeline.view.toggleTitle')}
+                options={viewModeOptions}
+              />
+            ) : (
+              <GlassSlider
+                className="graph-head__view-toggle"
+                value={viewMode}
+                onChange={setViewMode}
+                ariaLabel={t('bottomTimeline.view.toggleTitle')}
+                options={viewModeOptions}
+              />
+            )}
+            {mobileShell ? (
+              <button
+                type="button"
+                className="graph-head__spread-btn"
+                disabled={placedNodes.length < 2}
+                onClick={() => {
+                  void handleSpread();
+                }}
+                title={spreadTitle}
+                aria-label={t('storyGraph.spreadAria')}
+              >
+                <BrushIcon name="spread" size={11} />
+                <span>{t('storyGraph.spread')}</span>
+              </button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="graph-head__spread"
+                disabled={placedNodes.length < 2}
+                onClick={() => {
+                  void handleSpread();
+                }}
+                title={spreadTitle}
+                aria-label={t('storyGraph.spreadAria')}
+              >
+                <BrushIcon name="spread" size={13} />
+                {t('storyGraph.spread')}
+              </Button>
+            )}
 
             {/* The 「+幕」act-create action moved into the act rail's head cell
                 (mirrors the narrative TIME plus), so it's no longer in the header. */}
@@ -1169,12 +1230,23 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                   : t('mobileWorkspace.superView.relationMode')}
               </button>
             )}
-            {nodeEdges.length === 0 && !mobileShell && (
-              <div className="graph-head__filters">
-                <div className="graph-head__filter is-hint" title={t('storyGraph.edge.hintTitle')}>
-                  {t('storyGraph.edge.hint')}
-                </div>
-              </div>
+            {/* Desktop: while a relation's source is picked, one unframed
+                sentence names it (its sand seal and title) where the
+                "Shift + click" hint otherwise sits; the source tile itself
+                holds the dense glass. */}
+            {!mobileShell && linkSource && !newEdgePair ? (
+              <span className="super-view-head__hint" role="status">
+                <span>{t('storyGraph.edge.linkSourcePrefix')}</span>
+                <span className="super-view-head__hint-source">
+                  {chapterSeal(linkSource)}
+                  <span>{nodeById.get(linkSource)?.title || t('common.untitled')}</span>
+                </span>
+                <span>{t('storyGraph.edge.linkSourceSuffix')}</span>
+              </span>
+            ) : nodeEdges.length === 0 && !mobileShell && (
+              <span className="super-view-head__hint" title={t('storyGraph.edge.hintTitle')}>
+                {t('storyGraph.edge.hint')}
+              </span>
             )}
           </>
         }
@@ -1195,6 +1267,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
           {actRailHeight > 0 && (
             <ActRail
               key={projectId}
+              glass={!mobileShell}
               className="actrail--sticky-top"
               acts={bookActs}
               chapters={placedNodes}
@@ -1301,6 +1374,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                       orderToPosition={orderToX}
                       positionToOrder={positionToOrder}
                       variant="graph"
+                      glass={!mobileShell}
                       pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
                       editOnMount={m.id === newlyAddedPinId}
                       onChange={(patch) => {
@@ -1388,6 +1462,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
           {lanesToRender.map((lane, rowIdx) => (
             <StoryGraphLaneRow
               key={lane.id}
+              glass={!mobileShell}
               lane={lane}
               nodes={positionedNodesByRow.get(rowIdx) ?? EMPTY_POSITIONED_NODES}
               chapterCount={lane.id === DEFAULT_LANE_ID ? placedNodes.length
@@ -1480,12 +1555,13 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                           : t('relationTypes.missing')}
                       </title>
                     </path>
+                    {/* Desktop edges are flat hairlines (1.5, 2.2 selected). */}
                     <path
                       d={d}
                       stroke={color}
-                      strokeWidth={selected ? 2.4 : 1.8}
+                      strokeWidth={mobileShell ? (selected ? 2.4 : 1.8) : selected ? 2.2 : 1.5}
                       fill="none"
-                      opacity={selected ? 1 : 0.85}
+                      opacity={selected ? 1 : mobileShell ? 0.85 : 0.8}
                       markerEnd={directed ? `url(#${markerId})` : undefined}
                       style={{ pointerEvents: 'none' }}
                     />
@@ -1527,7 +1603,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
         <StoryGraphDriftCards nodes={visibleDriftNodes} totalDrifts={driftNodes.length} drag={driftDrag}
           cardRefs={driftCardRefs} linkSourceId={linkSource} isNodeEdgeSelected={isNodeEdgeSelected}
           onClick={handleDriftClick} onDoubleClick={handleDriftDoubleClick}
-          onPreviewEnter={handleDriftPreviewEnter} onPreviewLeave={hoverLeave} />
+          onPreviewEnter={handleDriftPreviewEnter} onPreviewLeave={handleDriftPreviewLeave} />
       </DriftPanel>
 
       {/* Fixed-position SVG overlay for drift edges. Endpoints are in
@@ -1548,6 +1624,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
           sourceLabel={nodeById.get(selectedEdgeRelation.fromId)?.title || t('common.untitled')}
           targetLabel={nodeById.get(selectedEdgeRelation.toId)?.title || t('common.untitled')}
           color={resolveRelationTypeColor(selectedEdgeRelation.relationTypeId)}
+          sourceMark={chapterSeal(selectedEdgeRelation.fromId)}
+          targetMark={chapterSeal(selectedEdgeRelation.toId)}
           onDelete={() => {
             const id = selectedEdgeRelation.id;
             clearSelectedEdge();
@@ -1557,7 +1635,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       )}
 
       {/* Status banner when a relation-source tile has been picked. */}
-      {linkSource && !newEdgePair && (
+      {mobileShell && linkSource && !newEdgePair && (
         <div className="graph-linkbar">
           <span>{t('storyGraph.edge.linkSourcePrefix')}</span>
           <strong>{nodeById.get(linkSource)?.title || t('common.untitled')}</strong>
@@ -1569,8 +1647,115 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       )}
 
       {/* New-edge dialog: chooses a compatible project relation type and lets
-          the author make directed endpoint intent explicit. */}
-      {newEdgePair && (
+          the author make directed endpoint intent explicit. Desktop uses the
+          dialog shell: the two ends as their seals and titles around a swap
+          icon, the type as a select; the paused mobile shell keeps its own. */}
+      {newEdgePair && !mobileShell && (() => {
+        const fromId = newEdgeReversed ? newEdgePair.target : newEdgePair.source;
+        const toId = newEdgeReversed ? newEdgePair.source : newEdgePair.target;
+        const end = (id: string) => (
+          <span className="relation-pair__end">
+            {chapterSeal(id)}
+            <span>{nodeById.get(id)?.title || t('common.untitled')}</span>
+          </span>
+        );
+        return (
+          <ModalRoot onClose={closeNewEdgeDialog} ariaLabel={t('storyGraph.edge.newTitle')}>
+            <ModalCard width={newEdgeCreatingType ? 560 : 420} className="relation-type-create-modal">
+              <ModalHeader
+                title={t('storyGraph.edge.newTitle')}
+                onClose={closeNewEdgeDialog}
+                closeLabel={t('common.close')}
+              />
+              <ModalBody className="relation-pair-body">
+                <div className="relation-pair">
+                  {end(fromId)}
+                  <GhostIconButton
+                    className="relation-pair__swap"
+                    icon={<BrushIcon name="swap" size={15} />}
+                    title={t('relationTypes.swap')}
+                    aria-label={t('relationTypes.swap')}
+                    onClick={() => {
+                      setNewEdgeReversed((value) => !value);
+                      setNewEdgeTypeId(null);
+                      setNewEdgeCreatingType(false);
+                    }}
+                  />
+                  {end(toId)}
+                </div>
+                <div className="relation-pair__label">
+                  <span>{t('storyGraph.edge.kindLabel')}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="relation-pair__create"
+                    onClick={() => setNewEdgeCreatingType((value) => !value)}
+                  >
+                    {newEdgeCreatingType ? (
+                      t('relationTypes.chooseExisting')
+                    ) : (
+                      <>
+                        <BrushIcon name="plus" size={11} inline /> {t('relationTypes.createInline')}
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {newEdgeCreatingType ? (
+                  <RelationTypeEditor
+                    key={`node:node:${newEdgeReversed ? 'reversed' : 'forward'}`}
+                    initialSourceKinds={['node']}
+                    initialTargetKinds={['node']}
+                    onCancel={() => setNewEdgeCreatingType(false)}
+                    onSave={async (definition) => {
+                      const checked = validateRelationTypeDefinitionAgainstRelation(definition, {
+                        fromKind: 'node',
+                        fromId,
+                        toKind: 'node',
+                        toId,
+                      });
+                      if (!checked.ok) throw new Error(checked.message);
+                      const created = await relationTypeUsecases.createRelationType(definition);
+                      setNewEdgeTypeId(created.id);
+                      setNewEdgeCreatingType(false);
+                    }}
+                  />
+                ) : (
+                  <RelationTypeField
+                    autoFocus
+                    value={newEdgeTypeId}
+                    onChange={setNewEdgeTypeId}
+                    options={newEdgeTypeOptions}
+                    resolveOptionColor={resolveRelationTypeColor}
+                    placeholder={t('storyGraph.edge.kindPlaceholder')}
+                    ariaLabel={t('storyGraph.edge.kindLabel')}
+                    buttonClassName="relation-type-field__button relation-type-field__button--select ui-field glass glass--rest glass--small"
+                  />
+                )}
+              </ModalBody>
+              {!newEdgeCreatingType && (
+                <ModalActions>
+                  <Button variant="ghost" size="sm" onClick={closeNewEdgeDialog}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={!newEdgeTypeId}
+                    onClick={() => {
+                      if (!newEdgeTypeId) return;
+                      void createEdge(fromId, toId, newEdgeTypeId);
+                      closeNewEdgeDialog();
+                    }}
+                  >
+                    {t('storyGraph.edge.create')}
+                  </Button>
+                </ModalActions>
+              )}
+            </ModalCard>
+          </ModalRoot>
+        );
+      })()}
+      {newEdgePair && mobileShell && (
         <div
           className="graph-newedge-backdrop"
           onClick={(e) => {
@@ -1693,6 +1878,10 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               node={node}
               projectId={projectId}
               userId={user.id}
+              markColor={(() => {
+                const storylineId = primaryStorylineId(node);
+                return storylineId ? storylineById.get(storylineId)?.color : undefined;
+              })()}
               anchorRect={popover.anchor}
               onClose={() => setPopover(null)}
               onOpenInEditor={(id) => {

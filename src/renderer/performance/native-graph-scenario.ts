@@ -111,8 +111,8 @@ export async function runNativeGraphInteractions(fixture: NativeGraphFixture, re
       window.dispatchEvent(new PointerEvent(cancel ? 'pointercancel' : 'pointerup', { pointerId, ...point }));
       await waitFor(() => !document.querySelector('.chapter-lane-pointer-ghost'), 'pointer cleanup'); await pause(50);
     };
-    document.querySelector<HTMLButtonElement>('.graph-head__unplaced-btn')!.click();
-    const unplaced = await waitFor(() => [...document.querySelectorAll<HTMLElement>('.graph-head__unplaced-chip')].find(el => el.title === title(unplacedId)), 'unplaced chapter chip');
+    document.querySelector<HTMLButtonElement>('.graph-head__unplaced > button')!.click();
+    const unplaced = await waitFor(() => [...document.querySelectorAll<HTMLElement>('.graph-head__unplaced-chip, .graph-head__unplaced-row')].find(el => el.title === title(unplacedId)), 'unplaced chapter chip');
     await move(unplaced, lineIds[1], 2.5, 901);
     await waitFor(async () => (await snapshot()).nodes.find(node => node.id === unplacedId)?.narrativeOrder === 2.5, 'unplaced drop SQLite commit');
     await waitFor(() => tile(unplacedId), 'unplaced chapter becomes a placed card'); checks.unplacedDrop = true;
@@ -125,7 +125,7 @@ export async function runNativeGraphInteractions(fixture: NativeGraphFixture, re
     const createRelation = async (source: HTMLElement, target: HTMLElement, modalSelector: string, reverse = false) => {
       source.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })); await frames(); target.click();
       const modal = await waitFor(() => document.querySelector<HTMLElement>(modalSelector), 'relation dialog');
-      if (reverse) { modal.querySelector<HTMLButtonElement>('.graph-newedge__swap')!.click(); await frames(); }
+      if (reverse) { modal.querySelector<HTMLButtonElement>('.graph-newedge__swap, .relation-pair__swap')!.click(); await frames(); }
       modal.querySelector<HTMLButtonElement>('.relation-type-field__button')!.click();
       const option = await waitFor(() => [...document.querySelectorAll<HTMLButtonElement>('.relation-type-suggestions__option')].find(el => el.textContent?.includes('Synthetic graph link')), 'compatible graph relation type');
       ensure(option.closest('.relation-type-suggestions')?.parentElement === document.body, 'Relation selector lost its body portal');
@@ -135,8 +135,8 @@ export async function runNativeGraphInteractions(fixture: NativeGraphFixture, re
       await waitFor(() => !document.querySelector(modalSelector), 'relation dialog close');
     };
     // Directed relations cover a drift as either endpoint; the second uses the swap control.
-    await createRelation(drift(0)!, tile(placedId)!, '.graph-newedge');
-    await createRelation(drift(1)!, tile(unplacedId)!, '.graph-newedge', true);
+    await createRelation(drift(0)!, tile(placedId)!, '.graph-newedge, .relation-type-create-modal');
+    await createRelation(drift(1)!, tile(unplacedId)!, '.graph-newedge, .relation-type-create-modal', true);
     await waitFor(async () => (await snapshot()).relations.length === 2, 'Story Graph relation commits');
     await waitFor(() => document.querySelectorAll('.graph-drift-edge').length === 2, 'both special drift edge directions'); checks.storyRelations = true;
     const source = drift(0)!; const transfer = new DataTransfer();
