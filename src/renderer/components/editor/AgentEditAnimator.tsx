@@ -22,8 +22,12 @@ import {
   agentEditRectInScrollHost,
   agentEditRevealCount,
   agentEditRevealTiming,
+  agentRevealPieces,
+  agentRevealSteps,
   createAgentEditSeenTracker,
 } from './agent-edit-animation';
+import { recordAgentRecentChange } from '../../lib/agent-recent-changes';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 /** Displays committed Agent edits until viewed or acknowledged in the sidebar.
  * This layer owns presentation only; it never accepts, rejects or changes prose. */
@@ -213,12 +217,16 @@ function readProseStyle(el: HTMLElement): CSSProperties {
 }
 
 /**
- * One block's typewriter reveal (auto mode). The old text shows first (deletions
- * on a red ground); the deleted characters erase one by one, the inserted ones
- * type in one by one (green ground), then it fades onto the real block. Driven by
- * a single char counter `progress`:
+ * One block's reveal (auto mode). On the desktop each changed place plays in
+ * place, one character a step (agentRevealFrame): longer old words are deleted
+ * from the front until both sides are as long and then overwritten, shorter
+ * ones are overwritten and the rest of the new words inserted; new words show
+ * green, rewritten ones purple. The paused mobile shell keeps the typewriter:
+ * the deleted characters erase one by one (on a red ground), then the inserted
+ * ones type in (green ground), driven by one char counter `progress`:
  *   progress ∈ [0, delChars]            → erasing
  *   progress ∈ (delChars, delChars+ins] → typing
+ * Either way it then swaps (or fades) onto the real block.
  */
 function RevealOverlay({
   scrollEl,
@@ -258,7 +266,10 @@ function RevealOverlay({
     }
     return { delChars: d, insChars: i };
   }, [segs]);
-  const total = delChars + insChars;
+  const [mode] = useState<'overwrite' | 'typewriter'>(() =>
+    (getPlatformRuntime().isMobileShell ? 'typewriter' : 'overwrite'));
+  const steps = useMemo(() => agentRevealSteps(agentRevealPieces(segs)), [segs]);
+  const total = mode === 'overwrite' ? steps : delChars + insChars;
   const [countAtStart] = useState(revealCount);
   const { durationMs, exitMs } = agentEditRevealTiming(total, countAtStart);
 
@@ -362,7 +373,7 @@ function RevealOverlay({
       className={`agent-reveal agent-reveal--${change.op}${fading ? ' agent-reveal--fade' : ''}`}
       style={pos}
     >
-      <AgentRevealText segments={segs} progress={progress} showCaret={!fading} />
+      <AgentRevealText segments={segs} progress={progress} showCaret={!fading} mode={mode} />
     </div>
   );
 }
@@ -466,6 +477,9 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
       if (!id) return;
       const store = useAgentEditStore.getState();
       store.resolveBlocks(entityType, id, [c.blockId]);
+      // The desktop keeps what the Agent wrote coloured until the author's
+      // pointer rests on it (AgentRecentChangeHighlights).
+      if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, c);
       if (c.reviewId) {
         const current = useAgentEditStore.getState();
         const key = entityKey(entityType, id);

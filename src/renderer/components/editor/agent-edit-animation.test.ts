@@ -7,6 +7,9 @@ import {
   agentEditRectInScrollHost,
   agentEditRevealCount,
   agentEditRevealTiming,
+  agentRevealFrame,
+  agentRevealPieces,
+  agentRevealSteps,
   bulkAgentEditRevealChanges,
   createAgentEditSeenTracker,
 } from './agent-edit-animation';
@@ -202,5 +205,62 @@ describe('Agent edit commit animation planning', () => {
       expect.objectContaining({ op: 'new', oldText: '', newText: '删除' }),
       expect.objectContaining({ op: 'changed', oldText: '新', newText: '旧' }),
     ]);
+  });
+});
+
+describe('in-place reveal (desktop)', () => {
+  const seg = (kind: 'equal' | 'del' | 'ins', text: string) => ({ kind, text });
+  const text = (frame: ReturnType<typeof agentRevealFrame>) => frame.runs.map((run) => run.text).join('');
+  const caretAt = (frame: ReturnType<typeof agentRevealFrame>) =>
+    frame.runs.slice(0, frame.caret).map((run) => run.text).join('').length;
+
+  it('groups each changed place and marks added and rewritten words', () => {
+    const pieces = agentRevealPieces([seg('equal', '雾'), seg('del', '散了'), seg('ins', '还没有散'), seg('ins', '，灯熄了'),
+      seg('equal', '。'), seg('ins', '新'), seg('equal', '句'), seg('del', '删')]);
+    expect(pieces).toEqual([
+      { kind: 'equal', text: '雾' },
+      { kind: 'place', old: '散了', next: '还没有散，灯熄了', mark: 'chg' },
+      { kind: 'equal', text: '。' },
+      { kind: 'place', old: '', next: '新', mark: 'new' },
+      { kind: 'equal', text: '句' },
+      { kind: 'place', old: '删', next: '', mark: 'chg' },
+    ]);
+    // Each place takes as many steps as its longer side.
+    expect(agentRevealSteps(pieces)).toBe(8 + 1 + 1);
+  });
+
+  it('deletes longer old words from the front until both sides match, then overwrites', () => {
+    const pieces = agentRevealPieces([seg('equal', 'A'), seg('del', '一二三四五'), seg('ins', '甲乙'), seg('equal', 'Z')]);
+    expect(agentRevealSteps(pieces)).toBe(5);
+    expect(text(agentRevealFrame(pieces, 0))).toBe('A一二三四五Z');
+    expect(text(agentRevealFrame(pieces, 1))).toBe('A二三四五Z');
+    expect(text(agentRevealFrame(pieces, 3))).toBe('A四五Z');
+    expect(caretAt(agentRevealFrame(pieces, 3))).toBe(1);
+    // Now as long as the new words: overwrite one character a step.
+    expect(text(agentRevealFrame(pieces, 4))).toBe('A甲五Z');
+    expect(caretAt(agentRevealFrame(pieces, 4))).toBe(2);
+    const done = agentRevealFrame(pieces, 5);
+    expect(text(done)).toBe('A甲乙Z');
+    expect(done.caret).toBe(-1);
+    expect(done.runs.find((run) => run.text === '甲乙')?.mark).toBe('chg');
+  });
+
+  it('overwrites shorter old words first, then inserts the rest, pushing the text on', () => {
+    const pieces = agentRevealPieces([seg('del', '一二'), seg('ins', '甲乙丙丁'), seg('equal', '尾')]);
+    expect(text(agentRevealFrame(pieces, 1))).toBe('甲二尾');
+    expect(text(agentRevealFrame(pieces, 2))).toBe('甲乙尾');
+    expect(text(agentRevealFrame(pieces, 3))).toBe('甲乙丙尾');
+    expect(caretAt(agentRevealFrame(pieces, 3))).toBe(3);
+    expect(text(agentRevealFrame(pieces, 4))).toBe('甲乙丙丁尾');
+  });
+
+  it('plays the places one after another and keeps the paragraph length steady while overwriting', () => {
+    const pieces = agentRevealPieces([seg('del', '一'), seg('ins', '甲'), seg('equal', '，'), seg('ins', '新增')]);
+    expect(text(agentRevealFrame(pieces, 1))).toBe('甲，');
+    // The second place holds the caret at its start until it begins.
+    expect(caretAt(agentRevealFrame(pieces, 1))).toBe(2);
+    expect(text(agentRevealFrame(pieces, 2))).toBe('甲，新');
+    const runs = agentRevealFrame(pieces, 2).runs;
+    expect(runs[runs.length - 1]).toEqual({ text: '新', mark: 'new' });
   });
 });

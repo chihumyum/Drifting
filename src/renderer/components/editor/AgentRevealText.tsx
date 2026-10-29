@@ -1,29 +1,60 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { DiffSeg } from '../../lib/agent/block-diff';
-import { placeAgentRevealCaret } from './agent-edit-animation';
+import { agentRevealFrame, agentRevealPieces, placeAgentRevealCaret } from './agent-edit-animation';
 
 /** Keep the entire old/new phase in layout while revealing it. Laying out only
  * the visible prefix lets word wrapping, punctuation and text-wrap: pretty move
  * already-painted characters at every line end. Hidden text must reserve space;
- * only the active phase participates, never old and new text together. */
+ * only the active phase participates, never old and new text together.
+ *
+ * `overwrite` (the desktop) plays each changed place in place instead: the old
+ * words are deleted from the front or overwritten, and the new ones written
+ * over them, one character a step (agentRevealFrame); `progress` counts steps. */
 export function AgentRevealText({
   segments,
   progress,
   showCaret = true,
   classPrefix = 'agent-reveal',
+  mode = 'typewriter',
 }: {
   segments: readonly DiffSeg[];
   progress: number;
   showCaret?: boolean;
   classPrefix?: 'agent-reveal' | 'field-diff';
+  mode?: 'typewriter' | 'overwrite';
 }) {
   const boundaryRef = useRef<HTMLSpanElement>(null);
   const caretRef = useRef<HTMLSpanElement>(null);
+  const pieces = useMemo(() => (mode === 'overwrite' ? agentRevealPieces(segments) : null), [mode, segments]);
   useLayoutEffect(() => {
     if (caretRef.current && boundaryRef.current) {
-      placeAgentRevealCaret(caretRef.current, boundaryRef.current);
+      placeAgentRevealCaret(caretRef.current, boundaryRef.current, boundaryRef.current.dataset.caretEnd === 'true');
     }
   });
+
+  if (pieces) {
+    const { runs, caret } = agentRevealFrame(pieces, progress);
+    const hasCaret = showCaret && caret >= 0 && runs.length > 0;
+    // The caret measures the run it stands before, or the end of the last run.
+    const boundary = hasCaret ? Math.min(caret, runs.length - 1) : -1;
+    const caretAtEnd = hasCaret && caret >= runs.length;
+    return (
+      <>
+        {runs.map((run, index) => (
+          <span
+            key={index}
+            ref={index === boundary ? boundaryRef : undefined}
+            data-caret-end={index === boundary && caretAtEnd ? 'true' : undefined}
+            className={run.mark ? `${classPrefix}__${run.mark}` : undefined}
+          >
+            {run.text}
+          </span>
+        ))}
+        {hasCaret && <span ref={caretRef} className="agent-reveal__caret" style={{ visibility: 'hidden' }} />}
+      </>
+    );
+  }
+
   const deleted = segments.reduce(
     (sum, segment) => sum + (segment.kind === 'del' ? segment.text.length : 0),
     0,

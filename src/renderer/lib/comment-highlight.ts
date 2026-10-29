@@ -72,8 +72,8 @@ export type BlockLookup = (id: string) => HTMLElement | null;
 // the editor loads): the copy that is shown wins.
 const hiddenCopy = (el: HTMLElement) => el.closest('[aria-hidden="true"]') !== null;
 
-export function blockLookup(scrollEl: HTMLElement, comments: readonly Comment[]): BlockLookup {
-  if (comments.length > DIRECT_BLOCK_LOOKUP_LIMIT) {
+export function blockLookup(scrollEl: HTMLElement, wanted: { readonly length: number }): BlockLookup {
+  if (wanted.length > DIRECT_BLOCK_LOOKUP_LIMIT) {
     const blocks = new Map<string, HTMLElement>();
     scrollEl.querySelectorAll<HTMLElement>('[data-block-id]').forEach((el) => {
       const id = el.getAttribute('data-block-id');
@@ -93,7 +93,7 @@ export function blockLookup(scrollEl: HTMLElement, comments: readonly Comment[])
 // Map a plain-text char offset within `el` to a concrete DOM (text node, offset)
 // point, walking text nodes in document order. Clamps past-the-end to the last
 // text node so a slightly-stale offset still yields a valid point.
-function domPointAtOffset(el: HTMLElement, offset: number): { node: Node; offset: number } {
+export function domPointAtOffset(el: HTMLElement, offset: number): { node: Node; offset: number } {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   let remaining = Math.max(0, offset);
   let last: Text | null = null;

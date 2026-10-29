@@ -1,6 +1,6 @@
 """Covers for sand drawn under text in the prose editor.
 
-An inline span (an entity link, an Agent insertion or deletion) can only be
+An inline span (an entity link) can only be
 drawn once per line fragment through its background, and a background image
 cannot be tinted by CSS. So the colour comes from a plain CSS band and these
 covers lie over it: opaque everywhere except where the grains are, white for
@@ -8,15 +8,12 @@ the light theme and black for the dark. The span blends with the page
 (`darken` in light, `lighten` in dark), so the cover itself vanishes and only
 the band showing through the grains is left, in any colour CSS gives it.
 
-Reads the committed `sand/ul.png` and `sand/hl.png` and writes, beside the
-output directory given:
+Reads the committed `sand/ul.png` and writes, beside the output directory
+given:
 
-- `ul-cover.png`, `ul-cover-dark.png`: the dry underline (a link, a strike);
+- `ul-cover.png`, `ul-cover-dark.png`: the dry underline (a link);
 - `ul-loose-cover.png`, `ul-loose-cover-dark.png`: only scattered grains of
-  the underline (the dotted link band), five strokes wide and tiling sideways;
-- `hl-loose-cover.png`, `hl-loose-cover-dark.png`: only scattered grains of
-  the highlight swash (sand not yet pressed down: an Agent change waiting for
-  the author), three strokes wide and tiling sideways.
+  the underline (the dotted link band), five strokes wide and tiling sideways.
 
     python3 covergen.py out/
 """
@@ -135,11 +132,9 @@ def cover(alpha, rgb):
 
 
 underline = read_alpha(SAND / "ul.png")
-swash = read_alpha(SAND / "hl.png")
 shapes = {
     "ul": underline,
     "ul-loose": loose(underline, 7, 4021, 5, pitch=2.6, keep=0.55, radius=(0.5, 0.5)),
-    "hl-loose": loose(swash, 26, 1187, 3),
 }
 for name, alpha in shapes.items():
     write_png(OUT / f"{name}-cover.png", cover(alpha, (255, 255, 255)))

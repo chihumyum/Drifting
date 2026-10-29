@@ -46,6 +46,7 @@ describe('motion vocabulary', () => {
       motion.SELECTION_BAR_SETTLE_MS, motion.FORMATS_CLOSE_MS, motion.DOCK_COLLAPSE_DELAY_MS,
       motion.OPTIONS_CLOSE_MS, motion.DRAG_LEAVE_GRACE_MS, motion.PRESS_WINDOW_MS,
     ]).toEqual([220, 220, 180, 180, 140, 260, 160, 150, 1500]);
+    expect([motion.RECENT_CHANGE_DWELL_MS, motion.RECENT_CHANGE_FADE_MS]).toEqual([200, 300]);
   });
 
   it('samples the spring from rest to exactly its end, never past it', () => {

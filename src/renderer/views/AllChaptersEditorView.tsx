@@ -20,6 +20,7 @@ import {
   type AllChaptersDestination,
 } from '../components/editor/all-chapters-navigation';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
+import { AgentRecentChangeHighlights } from '../components/editor/AgentRecentChangeHighlights';
 import { CommentAnchorHighlights } from '../components/editor/CommentAnchorHighlights';
 import {
   useEditorSurfaceLifecycle,
@@ -1015,6 +1016,7 @@ export function AllChaptersEditorView() {
           targetKind="node"
           targetId={null}
         />
+        <AgentRecentChangeHighlights scrollEl={scrollEl} entityType="node" targetId={null} />
       </div>
 
       {find.open && (

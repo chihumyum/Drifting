@@ -109,34 +109,15 @@ describe('sand in prose (desktop)', () => {
     expect(rule(css, '.entity-link')).toContain('linear-gradient(');
   });
 
-  it('draws Agent changes as loose sand and a dry strike, in the reveal and the review', () => {
-    const css = source('src/styles/comments-review.css');
-    const inserted = rule(css, ":root:not([data-shell-mode='mobile']) .agent-reveal__ins,\n:root:not([data-shell-mode='mobile']) .agent-diff-ins,\n:root:not([data-shell-mode='mobile']) .agent-diff-changed");
-    expect(inserted).toContain('var(--prose-sand-hl-loose)');
-    expect(inserted).toContain('background-blend-mode: var(--prose-sand-cover-blend), normal, normal');
-    expect(inserted).toContain('color: inherit');
-    const deleted = rule(css, ":root:not([data-shell-mode='mobile']) .agent-reveal__del,\n:root:not([data-shell-mode='mobile']) .agent-diff-del");
-    expect(deleted).toContain('var(--prose-sand-ul)');
-    expect(deleted).toContain('text-decoration: none');
-    expect(css).toMatch(/:root:not\(\[data-shell-mode='mobile'\]\) \.agent-change-block,[\s\S]*?background-color: transparent;/);
-    // The mobile reveal keeps its tinted grounds.
-    expect(rule(css, '.agent-reveal__ins')).toContain('background: hsl(var(--story-3) / 0.18)');
-  });
-
-  it('generates the pointed-at swash from the resting one’s seed', () => {
-    expect(existsSync(resolve(process.cwd(), 'src/assets/design/sand/hl-hot.png'))).toBe(true);
-    expect(source('scripts/design-assets/README.md')).toContain('sand/hl-hot.png');
-    const gen = source('scripts/design-assets/gen.py');
-    expect(gen).toContain('mask_png("hl-hot.png", brush_stroke(720, 64, np.random.default_rng(11)');
-    expect(gen).toContain('keep=0.65, body=0.75');
-  });
-
   it('keeps the colourless covers generated and the material tokens per theme', () => {
-    for (const name of ['ul-cover', 'ul-cover-dark', 'ul-loose-cover', 'ul-loose-cover-dark', 'hl-loose-cover', 'hl-loose-cover-dark']) {
+    for (const name of ['ul-cover', 'ul-cover-dark', 'ul-loose-cover', 'ul-loose-cover-dark']) {
       expect(existsSync(resolve(process.cwd(), `src/assets/design/sand/${name}.png`)), name).toBe(true);
       expect(source('scripts/design-assets/README.md')).toContain(`sand/${name}.png`);
     }
     const materials = source('src/styles/materials.css');
+    // Agent changes are coloured ink now, not loose sand.
+    expect(existsSync(resolve(process.cwd(), 'src/assets/design/sand/hl-loose-cover.png'))).toBe(false);
+    expect(materials).not.toContain('--prose-sand-hl-loose');
     expect(materials).toContain('@property --prose-sand-a');
     expect(materials).toContain('--prose-sand-blend: darken;');
     expect(materials).toContain('--prose-sand-blend: lighten;');
