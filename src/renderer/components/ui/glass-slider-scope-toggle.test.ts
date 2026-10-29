@@ -39,7 +39,7 @@ describe('glass slider', () => {
   it('slides on the dock spring with no track, square like the panel-tab block, and stays put under reduced motion', () => {
     const controls = css('src/styles/ui-controls.css');
     expect(controls).toContain(
-      'transform var(--slider-ms) var(--slider-ease),\n    width var(--slider-ms) var(--slider-ease);',
+      'transform var(--slider-ms) var(--slider-ease),\n    width var(--slider-ms) var(--slider-ease),\n    height var(--slider-ms) var(--slider-ease);',
     );
     const track = controls.slice(controls.indexOf('.glass-slider {'), controls.indexOf('.glass-slider__thumb {'));
     expect(track).toContain('background: transparent;');
@@ -52,7 +52,47 @@ describe('glass slider', () => {
     // block uses, and the slider's glass runs with its travel like that block.
     expect(controls).toContain('.glass-slider > .glass-slider__thumb.glass {\n  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);\n  --glass-gy: -132px;');
     expect(controls).toContain('.scope-toggle.glass.glass--rest {\n  --glass-gx: -96px;\n  --glass-gy: -132px;');
-    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain('trackGlassFlow(track, () => element.getBoundingClientRect().left);');
+    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain(
+      'trackGlassFlow(track, () => (vertical ? element.getBoundingClientRect().top : element.getBoundingClientRect().left));',
+    );
+  });
+
+  it('folds into the chosen option alone when collapsed, opening the rest stacked on hover', () => {
+    const markup = renderToStaticMarkup(
+      createElement(GlassSlider<'all' | 'comment' | 'todo'>, {
+        ariaLabel: 'Type',
+        value: 'todo',
+        onChange: () => {},
+        collapsed: true,
+        onNaturalWidth: () => {},
+        options: [
+          { value: 'all', label: 'All' },
+          { value: 'comment', label: 'Notes' },
+          { value: 'todo', label: 'TODO' },
+        ],
+      }),
+    );
+    // One tab: the chosen option on the glass, a trigger for the stacked list.
+    expect(markup).toContain('class="glass-slider glass-slider--collapsed"');
+    expect(markup.match(/<button/g)).toHaveLength(1);
+    expect(markup).toContain('aria-haspopup="dialog" aria-expanded="false"');
+    expect(markup).toContain('>TODO</button>');
+    expect(markup).not.toContain('role="radio"');
+    expect(markup.match(/[" ]glass(?=[" ])/g)).toHaveLength(1);
+    // A hidden copy still measures every option side by side.
+    expect(markup).toContain('<span aria-hidden="true" class="glass-slider__measure">');
+    expect(markup.match(/<span class="glass-slider__option">/g)).toHaveLength(3);
+
+    const controls = css('src/styles/ui-controls.css');
+    expect(controls).toContain('.glass-slider--vertical {\n  flex-direction: column;');
+    expect(controls).toContain('.glass-slider__measure {\n  position: absolute;');
+    expect(controls).toContain('visibility: hidden;');
+    // The opened list sits on body yet keeps the panel header's size and voice.
+    expect(controls).toContain(":is(.workspace-panel-header-row, .glass-slider-popover) :is(.glass-slider__option, .scope-toggle)");
+    expect(css('src/styles/interface-fonts.css')).toContain(':is(.workspace-panel-header-row, .glass-slider-popover, .left-sb-inline-group-header) :is(button, span)');
+    const source = css('src/renderer/components/ui/GlassSlider.tsx');
+    expect(source).toContain('placement="bottom-start"');
+    expect(source).toContain('orientation="vertical"');
   });
 });
 
