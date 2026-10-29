@@ -2,7 +2,7 @@
 // macOS process RSS/CPU telemetry for the two PIDs attested by this owned App.
 // Does not read other apps, manipulate their UI, or claim RSS is JS heap size.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -10,7 +10,8 @@ const [directory] = process.argv.slice(2);
 if (!directory || process.platform !== 'darwin') throw new Error('Usage on macOS: node scripts/native-performance-process-sampler.mjs <profile/performance-audit>');
 const control = JSON.parse(readFileSync(path.join(directory, 'control.json'), 'utf8'));
 const manifest = JSON.parse(readFileSync(path.join(directory, '..', 'profile.json'), 'utf8'));
-const binary = path.join(manifest.cargoTargetDirectory, 'debug', 'drifting');
+const artifactFile = path.join(directory, 'artifact.json');
+const binary = existsSync(artifactFile) ? JSON.parse(readFileSync(artifactFile, 'utf8')).binaryPath : path.join(manifest.cargoTargetDirectory, 'debug', 'drifting');
 let stop = false;
 process.once('SIGINT', () => { stop = true; });
 process.once('SIGTERM', () => { stop = true; });

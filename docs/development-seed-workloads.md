@@ -72,6 +72,11 @@ journeys from unavailable or unmeasured surfaces.
 The [2026-10-29 diagnostic record](renderer-performance/stress-seed-audit-findings-2026-10-29.md)
 also provides a repeatable CPU/retention/persistence probe against the actual
 heavy library. Its Node results are separate from native UI acceptance.
+The [native continuation](renderer-performance/stress-seed-native-findings-2026-10-29.md)
+records the 25-tab run, real writes/relations/media, a watchdog-confirmed stall,
+post-restart canonical checks and the remaining coverage gaps. Use those concrete
+journeys when validating a performance implementation; keep its Debug numbers
+separate from any subsequent release baseline.
 
 When implementing a potentially expensive operation, add bounded development
 activity labels (`beginDevActivity`) and, where needed, a focused timing/counter

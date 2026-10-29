@@ -2,27 +2,27 @@
 
 ## Current acceptance state
 
-The 2026-10-29 audit is **waiting for access to the unlocked macOS desktop**.
-The current source was compiled into an isolated Debug app, and its stress
-database passed the seed's canonical-data and word-budget audit. Computer Use
-reported that macOS was locked and automatic unlock was paused after physical
-input. The launched WebView reported `visible: false`. No writing, navigation,
-relation, graph, material or Agent UI journey has yet been accepted. Hidden-page
-startup observations are not evidence of interactive performance or stability.
-
-The unattended continuation produced a [detailed diagnostic record](stress-seed-audit-findings-2026-10-29.md)
-and [source-matched Node evidence](acceptance/stress-seed-node-diagnostic.json)
-using a disposable backup of the real heavy library. It covers production
-projection, material conversion/search, 600-round Agent recovery, allocation/
-retention trends and authored prose/TODO/relation writes with SQLite reopen.
-A browser fallback reached the shelf, then its control channel timed out.
-These results do not close the pending native UI coverage below.
+The unlocked-desktop continuation on 2026-10-29 exercised the current isolated
+Debug app with the real stress library. The [native findings and coverage](stress-seed-native-findings-2026-10-29.md)
+record writing, relations, Review, 25 tabs, all three Super Views, search,
+materials, settings and a normal quit/restart. A one-second renderer stall was
+confirmed by the native watchdog. This is a diagnostic run with explicit gaps,
+not complete product acceptance or a release performance budget.
 
 The generated [observation report](acceptance/stress-seed-native-audit.json)
-records its source fingerprint, binary hash and available samples. Its status
-is deliberately `observations-only-coverage-must-be-reviewed`; a generated
-timing summary cannot certify that a user journey succeeded. Keep that report
-and this coverage statement together when continuing the audit.
+contains the captured source fingerprint and binary hash, 937 document-visible
+buckets, 916 comparable buckets and 328 input-to-second-rAF observations.
+The [read-only persistence report](acceptance/stress-seed-native-persistence.json)
+checks four canonical Yjs markers, word caches, Review/relations, material title,
+working memory and SQLite integrity after the native quit/restart.
+The report's `observations-only-coverage-must-be-reviewed` status is deliberate:
+measurements alone do not certify a journey.
+
+The earlier [Node diagnostic record](stress-seed-audit-findings-2026-10-29.md)
+and [Node evidence](acceptance/stress-seed-node-diagnostic.json) remain separate
+CPU/retention/domain evidence. In particular, they cover 600-round recovery,
+while native transcript interaction is still blocked by the unconfigured-Key
+panel guard. No paid model call was made.
 
 ## Opt-in collection
 
@@ -49,16 +49,34 @@ node scripts/native-performance-audit.mjs "$audit_dir" status
 node scripts/native-performance-audit.mjs "$audit_dir" mark chapter-long-write-1
 node scripts/native-performance-process-sampler.mjs "$audit_dir"
 node scripts/native-performance-audit.mjs "$audit_dir" summarize docs/renderer-performance/acceptance/stress-seed-native-audit.json
+# After the documented synthetic UI writes and a normal quit/restart:
+node --conditions=import --import=tsx scripts/verify-stress-native-session.ts "$profile_dir" docs/renderer-performance/acceptance/stress-seed-native-persistence.json
 ```
 
 `mark` only labels a measurement interval; it never changes the App. Perform
 all acceptance interactions in the current native app through Computer Use,
 verify the resulting visible state, and record the operation/sequence and
 outcome here. A two-second sample crossing a marker boundary can contain work
-from the previous operation. Exclude boundary samples for precise per-operation
-comparisons. Stop the app and relaunch after changing any observed source;
+from the previous operation. The summarizer excludes those buckets from latency,
+Fiber timing and function-counter comparisons. It also requires
+`browserVisible: true`; DOM focus alone never makes a hidden bucket eligible. Stop the app and relaunch after changing any observed source;
 `source.json` describes the source present at server start. Summaries exclude
 raw samples from earlier server launches in the same profile.
+
+When automation needs a registered `.app`, bundle the freshly built Debug
+binary with the same generated configuration and profile environment. Preserve
+`DRIFTING_DB_DIR` on launch, verify the database actually opened, sign with the
+normal development identity, and register its exact owned executable:
+
+```bash
+node scripts/native-performance-audit.mjs "$audit_dir" artifact "$owned_debug_binary"
+```
+
+The command rejects paths outside the profile's Cargo target. Do not use an old
+installed bundle as a substitute. If a window has DOM focus but remains hidden,
+use its native Window menu to move it onto the active display before measuring.
+The 2026-10-29 run needed this step; the hidden portion remains in raw evidence
+and is excluded from comparable interaction metrics.
 
 The process sampler obtains both PIDs from that app's development watchdog and
 verifies executable identity before sampling. It records only the owned native
@@ -72,8 +90,11 @@ which rotates the bearer token. Do not combine samples from unrelated WebViews.
   expose scheduling gaps. They do not measure compositor presentation or prove
   a specific number of visible frames per second. Hidden-page timer/frame
   results are excluded from latency summaries.
-- React 19 development's DevTools hook records commits and per-component render
-  phase self time. Top components are retained per two-second sample. Reused
+- A React root Profiler records `actualDuration`; this is render-phase work,
+  not the entire commit/layout/paint. The probe chains the existing development
+  DevTools hook for per-component render-phase self time. Function-entry counters
+  are separate and include Strict Mode double invocation. Top components are
+  retained per two-second sample. Reused
   Fiber subtrees are excluded using their render start timestamps. Fiber-walk
   and DOM-snapshot costs are recorded separately, but these are not the total
   probe overhead. Do not translate Strict Mode timings into release budgets.
@@ -81,8 +102,9 @@ which rotates the bearer token. Do not combine samples from unrelated WebViews.
   expensive updates. A mutation is neither a repaint nor a forced layout.
   Confirm layout, paint, GC or script hypotheses with native stack samples or
   an attended Web Inspector timeline before calling them measured causes.
-- Native IPC counts, completion durations, outstanding calls and returned row/
-  string sizes omit arguments and result text. Durations include scheduling
+- Observed SDK `invoke` calls provide IPC counts, completion durations and
+  returned row/string sizes without arguments or result text. Raw bridge calls
+  and the watchdog process probe are outside that wrapper. Durations include scheduling
   and delivery; they do not isolate SQLite execution time.
 - OS RSS includes resident process memory, not just JavaScript heap or physical
   footprint. An elevated post-close value alone does not establish a leak;
@@ -97,37 +119,28 @@ and keeps its automatic native WebContent stack samples. No artificial stall
 is needed for this audit. Avoid competing builds, seed import or other profiling
 work while measuring. Record any unavoidable external CPU pressure.
 
-## Native coverage to complete
+## Coverage and remaining work
 
-All rows below are pending actual unlocked-desktop interaction. Run affected
-warm paths at least five times, separate cold hydration from warm work, and
-record failures as well as successful operations. Use synthetic markers and
-verify persistence after restarting the same instance.
+The [native coverage table](stress-seed-native-findings-2026-10-29.md#实际覆盖与持久化)
+records each completed operation and its limits. Warm tab switching covered
+20 distinct documents across 25 switches; isolated long-document find covered
+six queries. Closing 25 tabs returned the live editor count to zero. A normal
+restart and read-only canonical reconstruction confirmed the synthetic writes.
 
-| Surface | Normal operations and checks |
-| --- | --- |
-| Shelf and project | Open the heavy project, return to the shelf, reopen; dashboard, project summary and loading/error state |
-| Left sidebar | Chapter/storyline, category/element and inspiration tabs; filter/search, collapse/expand, resize, selection and navigation |
-| Right sidebar | Every available panel/tab, outline, relations, comments/TODOs, materials and Agent; repeated open/close and panel splitting |
-| Writing | Shortest and 20k-word chapters, 50k inspiration, 10k element and note; type/paste, selection, formatting, undo/redo, find, durable save |
-| Many tabs | At least 20 documents, mixed entity types, warm switching, split view, close/reopen; editor/DOM counts and memory after idle and repeat cycles |
-| Structure | Storyline assignment, chapter/outline navigation, whole-book view if exposed, bottom timeline navigation and resizing |
-| Relations | Create and remove synthetic links through picker and graph; verify endpoints, selector updates and durable restore |
-| Review | Create/reply/resolve comments, create/edit/complete/reopen TODOs, verify anchors and persistence |
-| Materials | Long notes, folder navigation/filtering, image and PDF preview/open/close; edit notes, move items and verify saved state |
-| Story Super View | Open, pan/zoom, select/open entity, filters, relation controls, return to editor |
-| Element Super View | Categories, 300 elements and 200 inspirations; pan/zoom, filters, relation creation, selection and entity popovers |
-| Material Super View | All materials/TODOs, search with body matching, kind/entity filters, drawer, note edit and relation controls |
-| Agent | Short and 600-round histories, conversation switches, scroll, long tool-result expansion, draft editing and repeated panel close/reopen; no paid/live model call is needed |
-| Overlays | Global search, in-document find, history, trash/restore, import dialog and every settings rail reachable from the main UI; use synthetic files for any import/export |
-| Recovery | Save and restart; reopen prose, note, relation, comment/TODO and Agent history; compare counts and changed markers |
+Remaining acceptance includes IME composition, drag-to-split, full comment
+reply/resolve/reopen and relation removal, import/trash restore, large media
+files and a native 600-round transcript. The settings history management list
+is reachable, but the offline Agent panel does not expose transcript controls.
+Do not mark those rows passed based on Node recovery or a metadata list.
 
 ## Source hypotheses to investigate
 
-These are code leads, **not confirmed native performance defects**:
+The native report ranks the reproduced observations. Remaining source leads
+need targeted before/after evidence:
 
 - `NoteExcerpt` converts the entire note into Markdown/HTML and mounts that HTML
-  even for a CSS-clamped card. Check material Super View's DOM/commit/parse cost
+  even for a folded card. The native run found missing clamp styles as well.
+  Check material Super View's DOM/commit/parse cost
   with the 500k-word note corpus; CSS clipping does not bound DOM size.
 - `libraryItemMatchesQuery` extracts and lowercases every note body for each
   non-empty query. Check typing and filtering in material lists before proposing

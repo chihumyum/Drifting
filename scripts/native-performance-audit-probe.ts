@@ -40,6 +40,10 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
   let maxInFlight = 0;
   let nativeProcesses: unknown = null;
   let processInfoRequested = false;
+  // A background WKWebView can retain DOM focus. Focus alone is not proof of
+  // visible rendering; moving an occluded window to an active display fixes
+  // the collection environment, not a fallback to focus-based timings.
+  const active = () => document.visibilityState === 'visible';
   let errors: string[] = [];
   let pendingInputs = 0;
   let visibilityEpoch = 0;
@@ -48,11 +52,19 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
     frames = bucket(); input = bucket(); timer = bucket();
   });
   const win = window as unknown as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: unknown };
+  const renderHost = window as unknown as {
+    __DRIFTING_PERFORMANCE_AUDIT_COMMIT__?: (id: string, phase: string, duration: number) => void;
+    __DRIFTING_PERFORMANCE_AUDIT_RENDER__?: (name: string) => void;
+  };
+  let renderCalls = new Map<string, number>();
+  renderHost.__DRIFTING_PERFORMANCE_AUDIT_COMMIT__ = (_id, _phase, duration) => add(commits, duration);
+  renderHost.__DRIFTING_PERFORMANCE_AUDIT_RENDER__ = name => renderCalls.set(name, (renderCalls.get(name) ?? 0) + 1);
   const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (command: string, ...args: unknown[]) => Promise<unknown> } }).__TAURI_INTERNALS__;
   const readProcessInfo = tauri ? tauri.invoke.bind(tauri, 'dev_watchdog_process_info') : null;
-  if (tauri) {
-    const originalInvoke = tauri.invoke;
-    tauri.invoke = function(command, ...args) {
+  // Tauri freezes its injected bridge. Observe the SDK wrapper supplied by
+  // the Vite plugin; never replace native bridge properties.
+  const ipcHost = window as unknown as { __DRIFTING_PERFORMANCE_AUDIT_INVOKE__?: (command: string, operation: () => Promise<unknown>) => Promise<unknown> };
+  ipcHost.__DRIFTING_PERFORMANCE_AUDIT_INVOKE__ = function(command, operation) {
       const start = performance.now();
       inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
       const done = (result: unknown, failed: boolean) => {
@@ -65,19 +77,14 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
         ipc.set(command, item);
       };
       try {
-        return originalInvoke.call(this, command, ...args).then(result => { done(result, false); return result; }, error => { done(null, true); throw error; });
+        return operation().then(result => { done(result, false); return result; }, error => { done(null, true); throw error; });
       } catch (error) { done(null, true); throw error; }
     };
-  }
   // React 19 development's FiberRoot has ProfileMode enabled. Restrict work
   // to fibers whose render began since the previous commit; reused subtrees
   // otherwise retain old actualDuration values. Record observer overhead.
-  if (!win.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
-    win.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
-      supportsFiber: true, inject: () => 1,
-      onCommitFiberRoot(_id: number, root: { current: Fiber }, _priority: number, didError: boolean) {
+  const onCommitFiberRoot = (_id: number, root: { current: Fiber }, _priority: number, didError: boolean) => {
         const before = performance.now();
-        add(commits, root.current.actualDuration);
         if (didError) commitErrors++;
         const stack = [root.current];
         while (stack.length) {
@@ -98,9 +105,21 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
         }
         lastCommit = before;
         observationMs += performance.now() - before;
-      },
+  };
+  let reactHookAttached = false;
+  if (!win.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+    win.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      supportsFiber: true, inject: () => 1, onCommitFiberRoot,
       onCommitFiberUnmount() {},
     };
+    reactHookAttached = true;
+  } else {
+    const hook = win.__REACT_DEVTOOLS_GLOBAL_HOOK__ as { onCommitFiberRoot?: typeof onCommitFiberRoot };
+    const previous = hook.onCommitFiberRoot;
+    try {
+      hook.onCommitFiberRoot = function(...args) { previous?.apply(this, args); onCommitFiberRoot(...args); };
+      reactHookAttached = true;
+    } catch { /* A sealed external hook stays untouched; report unavailable. */ }
   }
   const observer = new MutationObserver(records => {
     for (const record of records) {
@@ -111,7 +130,7 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
   });
   observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
   const frame = (now: number) => {
-    if (document.visibilityState === 'visible') {
+    if (active()) {
       if (lastFrame) add(frames, now - lastFrame);
       lastFrame = now;
     } else lastFrame = 0;
@@ -119,10 +138,10 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
   };
   requestAnimationFrame(frame);
   for (const kind of ['pointerdown', 'keydown', 'beforeinput', 'wheel']) document.addEventListener(kind, () => {
-    if (document.visibilityState !== 'visible' || pendingInputs >= 20) return;
+    if (!active() || pendingInputs >= 20) return;
     const start = performance.now(); const epoch = visibilityEpoch; pendingInputs++;
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (document.visibilityState === 'visible' && epoch === visibilityEpoch) add(input, performance.now() - start);
+      if (active() && epoch === visibilityEpoch) add(input, performance.now() - start);
       pendingInputs--;
     }));
   }, { passive: true, capture: true });
@@ -140,7 +159,7 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
   let sending = false;
   setInterval(() => {
     const now = performance.now();
-    if (document.visibilityState === 'visible') add(timer, Math.max(0, now - lastTick - 250));
+    if (active()) add(timer, Math.max(0, now - lastTick - 250));
     lastTick = now;
     if (sending || now - windowStarted < 2000) return;
     if (readProcessInfo && !processInfoRequested && (!nativeProcesses || !(nativeProcesses as { webContentPid?: number }).webContentPid)) {
@@ -156,7 +175,9 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
     const before = performance.now();
     const data = {
       session, startedAt, at: Date.now(), startMs: windowStarted, endMs: now,
-      visible: document.visibilityState === 'visible', focused: document.hasFocus(),
+      visible: active(), browserVisible: document.visibilityState === 'visible', reactHookAttached, focused: document.hasFocus(),
+      activityBasis: active() ? 'document-visible' : 'inactive',
+      renderCalls: Object.fromEntries(renderCalls),
       frameGaps: frames, inputToTwoRaf: input, timerDelay: timer, reactCommits: commits,
       componentRenders: [...components].sort((a, b) => b[1].selfMs - a[1].selfMs).slice(0, 30).map(([name, values]) => ({ name, ...values })),
       mutations, commitErrors, errors,
@@ -171,6 +192,7 @@ export function installNativePerformanceAudit({ endpoint, token }: { endpoint: s
     mutations = { attributes: 0, characterData: 0, childList: 0, added: 0, removed: 0 };
     components = new Map(); errors = []; longTasks = bucket(); windowStarted = now;
     ipc = new Map(); maxInFlight = inFlight;
+    renderCalls = new Map();
     sending = true;
     void fetch(`${endpoint}/samples`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       .catch(() => {}).finally(() => { sending = false; });

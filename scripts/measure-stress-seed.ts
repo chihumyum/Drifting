@@ -28,7 +28,7 @@ async function main() {
   if (process.argv.includes('--check')) {
     const report = JSON.parse(readFileSync(output, 'utf8')) as {
       kind: string; status: string; source: { fingerprint: string }; checks: Record<string, boolean>;
-      scope: { nativeUi: string }; corpus: { chapters: number; inspirations: number; elements: number; notes: number; canonicalTurns: number };
+      scope: { nativeUi: string }; corpus: { chapters: number; inspirations: number; elements: number; notes: number; canonicalTurns: number; conversations: number };
       samples: Array<{ elapsedMs: number; cpuMs: number; maxTimerLatenessMs: number }>;
       summary: Array<{ name: string; samples: number }>;
       retention: unknown[]; agentRetention: unknown[];
@@ -39,9 +39,10 @@ async function main() {
     assert.equal(report.source.fingerprint, sourceFingerprint(), 'Diagnostic evidence is stale');
     assert(Object.values(report.checks).every(value => value === true));
     assert.deepEqual([report.corpus.chapters, report.corpus.inspirations, report.corpus.elements, report.corpus.notes, report.corpus.canonicalTurns], [100, 200, 300, 60, 600]);
+    assert(report.corpus.conversations >= 24, 'All seeded conversations must remain represented');
     assert(report.samples.every(sample => [sample.elapsedMs, sample.cpuMs, sample.maxTimerLatenessMs].every(value => Number.isFinite(value) && value >= 0)));
     for (const name of ['workspace-full-capture', 'workspace-covered-no-change', 'material-card-markdown-all-60', 'material-search-five-keystrokes',
-      'conversation-usage-summary-all-24', 'largest-conversation-display-projection', 'authored-create-todo', 'authored-replace-20k-chapter', 'authored-replace-20k-one-character']) {
+      'conversation-usage-summary-all', 'largest-conversation-display-projection', 'authored-create-todo', 'authored-replace-20k-chapter', 'authored-replace-20k-one-character']) {
       assert.equal(report.summary.find(row => row.name === name)?.samples, 5, name);
     }
     assert.equal(report.retention.length, 5); assert.equal(report.agentRetention.length, 20);
@@ -150,8 +151,8 @@ async function main() {
     await measure('material-search-five-keystrokes', () => queries.map(query => cold.data.libraryItems.filter(item => libraryItemMatchesQuery(item, query)).length));
     const materialProfile = await profile('material-cards', renderNotes);
     const conversations = createAgentConversationRepository();
-    await measure('conversation-list-24', () => conversations.listByProject(input.projectId));
-    await measure('conversation-usage-summary-all-24', () => conversations.usageByProject(input.projectId));
+    const conversationList = await measure('conversation-list', () => conversations.listByProject(input.projectId));
+    await measure('conversation-usage-summary-all', () => conversations.usageByProject(input.projectId));
     const chat = raw.prepare('SELECT id,runtime_session_id,length(messages_json) AS chars FROM agent_conversation WHERE deleted_at IS NULL ORDER BY length(messages_json) DESC LIMIT 1').get()!;
     const cached = await measure('largest-conversation-cache-read', () => conversations.get(String(chat.id)));
     assert(cached);
@@ -259,7 +260,7 @@ async function main() {
         cpu: cpus()[0].model, logicalCpus: cpus().length, memoryBytes: totalmem(), load: loadavg(), explicitGc: typeof globalThis.gc === 'function' },
       scope: { database: 'SQLite backup of isolated synthetic stress profile; original unchanged', nativeUi: 'not-run', browserUi: 'not-run',
         modelNetworkCalls: 0, timings: 'Node production-function diagnostics; excludes native IPC, React commits, browser DOM, layout, painting and physical input' },
-      corpus: { chapters: 100, inspirations: 200, elements: 300, notes: notes.length, noteHtmlCharacters: html.reduce((n, text) => n + text.length, 0),
+      corpus: { chapters: 100, inspirations: 200, elements: 300, notes: notes.length, conversations: conversationList.length, noteHtmlCharacters: html.reduce((n, text) => n + text.length, 0),
         noteHtmlTags: html.reduce((n, text) => n + (text.match(/<[a-z]/gu)?.length ?? 0), 0), cachedChatCharacters: chat.chars,
         chatDisplayMessages: cached.messages.length, canonicalTurns: snapshot.turns.length, projectedMessages: displayed.messages.length },
       summary, samples, retention, agentRetention, subscriptions, shelfStats: { nodes: shelf.nodes, words: shelf.words, chapters: 100, inspirations: 200 },

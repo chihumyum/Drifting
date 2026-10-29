@@ -1,0 +1,84 @@
+{
+  "kind": "native_stress_seed_persistence",
+  "generatedAt": "2026-10-29T05:01:08.339Z",
+  "status": "passed-read-only-reopen-checks",
+  "scriptSha256": "466eb87235da6bd911cf3254822a653dc20cd679fbb23319ee2f5010c2e9405a",
+  "checks": {
+    "chapter-20k-canonical-marker": true,
+    "chapter-20k-word-cache": true,
+    "idea-50k-canonical-marker": true,
+    "idea-50k-word-cache": true,
+    "element-10k-canonical-marker": true,
+    "material-note-canonical-marker": true,
+    "reviewMarkers": true,
+    "commentNodeAndElementRelations": true,
+    "graphRelation": true,
+    "elementRelation": true,
+    "materialTitle": true,
+    "agentWorkingMemory": true,
+    "sqliteIntegrity": true,
+    "foreignKeys": true
+  },
+  "bodies": [
+    {
+      "key": "chapter-20k",
+      "words": 20041,
+      "canonicalSha256": "1b67f52efde5f736b7d7e86038e4f0ebb4e23a94b303fed9a43a9a7f23dbe817"
+    },
+    {
+      "key": "idea-50k",
+      "words": 50021,
+      "canonicalSha256": "449c1f255dfc7bf4290e0a03e799e18ede2b22f1990e1dc11834cc5ea01d6e49"
+    },
+    {
+      "key": "element-10k",
+      "words": 10020,
+      "canonicalSha256": "33dbb714a3b0f0f3306d382c1821304b8a37b8ec42c2c230989f4facb582744f"
+    },
+    {
+      "key": "material-note",
+      "words": 10018,
+      "canonicalSha256": "f8b3286baa939affbfb1aee153b5f61e29abff9a9b3988c644ef3ebd48c9f105"
+    }
+  ],
+  "watchdog": {
+    "logSha256": "55eb7582d074f63bf0c7357b5b94afb08c525905c79408d673cf3ba77721e193",
+    "stalls": [
+      {
+        "event": "stall",
+        "at": "2026-10-29T12:29:26.767+08:00",
+        "nativeSilentMs": 1354,
+        "blocked": null,
+        "rendererBlockedMs": null,
+        "activities": []
+      },
+      {
+        "event": "stall-recovered",
+        "at": "2026-10-29T12:29:28.186+08:00",
+        "nativeSilentMs": 1419,
+        "blocked": "renderer",
+        "rendererBlockedMs": 1168,
+        "activities": [
+          {
+            "label": "markdown-projection",
+            "durationMs": 1482
+          }
+        ]
+      }
+    ],
+    "samples": [
+      {
+        "sha256": "62e5a7429bbaa8972e8dbdd969e3696303f4a05b65924b56bc8a0c9d062ab687",
+        "signals": {
+          "json": true,
+          "layout": true,
+          "gc": true
+        }
+      }
+    ]
+  },
+  "limits": [
+    "Checks existing synthetic UI writes only; does not author or repair prose.",
+    "RSS and native stack samples are not JavaScript heap snapshots or proof of a leak."
+  ]
+}

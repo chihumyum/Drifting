@@ -1,4 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
@@ -29,8 +30,12 @@ describe('native development performance audit', () => {
       expect(status).toMatchObject({ marker: 'materials-search-1', samples: 1, latest: { dom: { elements: 20 } } });
       expect(JSON.parse(readFileSync(path.join(directory, 'samples.jsonl'), 'utf8'))).toMatchObject({ marker: 'materials-search-1', at: 123 });
       expect(plugin.apply).toBe('serve');
-      expect(plugin.transform('app source', '/repo/src/renderer/main.tsx')).toMatch(/^import '\/scripts\/native-performance-audit-probe';/);
+      expect(plugin.transform('<StrictMode>app source</StrictMode>', '/repo/src/renderer/main.tsx')).toMatch(/^import '\/scripts\/native-performance-audit-probe';/);
+      expect(plugin.transform('<StrictMode>app source</StrictMode>', '/repo/src/renderer/main.tsx')).toContain('<AuditProfiler');
+      expect(plugin.transform('export function ChapterPanel() {\n  const { t } = useTranslation();\n}', '/repo/src/renderer/components/leftBars/ChapterPanel.tsx')).toContain('__DRIFTING_PERFORMANCE_AUDIT_RENDER__?.("ChapterPanel")');
       expect(plugin.transform('other source', '/repo/src/renderer/App.tsx')).toBeNull();
+      expect(plugin.resolveId('@tauri-apps/api/core')).toBe('\0native-performance-audit-tauri-core');
+      expect(plugin.load('\0native-performance-audit-tauri-core')).toContain('originalInvoke(command, args, options)');
     } finally {
       await server.close();
       rmSync(directory, { recursive: true, force: true });
@@ -46,14 +51,16 @@ describe('native development performance audit', () => {
     const listeners = new Map<string, () => void>();
     const frames: (() => void)[] = [];
     const failed = new Error('synthetic rejection');
-    const tauri = { invoke: async (command: string) => {
+    let previousCommits = 0;
+    const hook = { onCommitFiberRoot: (..._args: unknown[]) => { previousCommits++; } };
+    const tauri = Object.freeze({ invoke: async (command: string) => {
       if (command === 'failure') throw failed;
       return ['synthetic-private-result'];
-    } };
+    } });
     const original = tauri.invoke;
     const module = { exports: {} as { installNativePerformanceAudit: (config: object) => void } };
     const context = {
-      module, exports: module.exports, window: { __TAURI_INTERNALS__: tauri, addEventListener() {} },
+      module, exports: module.exports, window: { __TAURI_INTERNALS__: tauri, __REACT_DEVTOOLS_GLOBAL_HOOK__: hook, addEventListener() {} },
       crypto: { randomUUID: () => 'synthetic-session' }, performance: { now: () => now },
       document: { documentElement: {}, visibilityState: 'visible', hasFocus: () => true, addEventListener(kind: string, callback: () => void) { listeners.set(kind, callback); },
         getElementsByTagName: () => [], querySelectorAll: () => [] },
@@ -63,12 +70,22 @@ describe('native development performance audit', () => {
     };
     runInNewContext(code, context);
     module.exports.installNativePerformanceAudit({ endpoint: '/private-collector', token: 'synthetic-token' });
-    const instrumented = tauri.invoke;
+    const host = context.window as typeof context.window & { __DRIFTING_PERFORMANCE_AUDIT_INVOKE__: (command: string, operation: () => Promise<unknown>) => Promise<unknown> };
+    const instrumented = host.__DRIFTING_PERFORMANCE_AUDIT_INVOKE__;
     module.exports.installNativePerformanceAudit({ endpoint: '/duplicate', token: 'ignored' });
-    expect(tauri.invoke).toBe(instrumented);
-    expect(tauri.invoke).not.toBe(original);
-    expect(await tauri.invoke('rows')).toEqual(['synthetic-private-result']);
-    await expect(tauri.invoke('failure')).rejects.toBe(failed);
+    expect(host.__DRIFTING_PERFORMANCE_AUDIT_INVOKE__).toBe(instrumented);
+    expect(tauri.invoke).toBe(original);
+    hook.onCommitFiberRoot(1, { current: { tag: 0, type: { name: 'SyntheticComponent' }, actualDuration: 7, actualStartTime: 1, child: null, sibling: null } }, 0, false);
+    expect(previousCommits).toBe(1);
+    const renderHost = host as typeof host & {
+      __DRIFTING_PERFORMANCE_AUDIT_COMMIT__: (id: string, phase: string, ms: number) => void;
+      __DRIFTING_PERFORMANCE_AUDIT_RENDER__: (name: string) => void;
+    };
+    renderHost.__DRIFTING_PERFORMANCE_AUDIT_COMMIT__('app', 'update', 7);
+    renderHost.__DRIFTING_PERFORMANCE_AUDIT_RENDER__('ChapterPanel');
+    renderHost.__DRIFTING_PERFORMANCE_AUDIT_RENDER__('ChapterPanel');
+    expect(await instrumented('rows', () => original('rows'))).toEqual(['synthetic-private-result']);
+    await expect(instrumented('failure', () => original('failure'))).rejects.toBe(failed);
     now = 2001; tick();
     const data = JSON.parse(bodies[0]);
     expect(data.ipc).toEqual(expect.arrayContaining([
@@ -77,20 +94,51 @@ describe('native development performance audit', () => {
     ]));
     expect(bodies[0]).not.toContain('synthetic-private-result');
     expect(data.inFlight).toBe(0);
+    expect(data.reactHookAttached).toBe(true);
+    expect(data.reactCommits).toMatchObject({ count: 1, max: 7 });
+    expect(data.componentRenders).toContainEqual(expect.objectContaining({ name: 'SyntheticComponent', renders: 1, selfMs: 7 }));
+    expect(data.renderCalls).toEqual({ ChapterPanel: 2 });
     expect(data.supportedEntries).toEqual([]);
     // A pending input must not turn a background/locked interval into latency.
     await Promise.resolve(); await Promise.resolve();
     listeners.get('keydown')!();
     frames[1]();
-    context.document.visibilityState = 'hidden'; listeners.get('visibilitychange')!();
+    context.document.visibilityState = 'hidden'; context.document.hasFocus = () => true; listeners.get('visibilitychange')!();
     now = 10000; frames[2]();
-    context.document.visibilityState = 'visible'; listeners.get('visibilitychange')!();
+    tick();
+    expect(JSON.parse(bodies[1])).toMatchObject({ visible: false, browserVisible: false, focused: true, activityBasis: 'inactive' });
+    await Promise.resolve(); await Promise.resolve();
+    context.document.visibilityState = 'visible'; context.document.hasFocus = () => true; listeners.get('visibilitychange')!();
     listeners.get('keydown')!(); frames[3]();
     now = 10033; frames[4]();
     now = 12001; tick();
-    const resumed = JSON.parse(bodies[1]);
+    const resumed = JSON.parse(bodies[2]);
     expect(resumed.inputToTwoRaf).toMatchObject({ count: 1, max: 33 });
     expect(resumed.nativeProcesses).toBeNull();
-    expect(bodies[1]).not.toContain('synthetic-private-result');
+    expect(bodies[2]).not.toContain('synthetic-private-result');
+  });
+
+  it('excludes focus-only and marker-boundary buckets from native latency conclusions', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'drifting-perf-summary-'));
+    const audit = path.join(directory, 'audit');
+    mkdirSync(audit);
+    mkdirSync(path.join(directory, 'target', 'debug'), { recursive: true });
+    writeFileSync(path.join(directory, 'target', 'debug', 'drifting'), 'synthetic binary');
+    writeFileSync(path.join(directory, 'profile.json'), JSON.stringify({ cargoTargetDirectory: path.join(directory, 'target') }));
+    writeFileSync(path.join(audit, 'source.json'), JSON.stringify({ recordedAt: new Date(0).toISOString() }));
+    writeFileSync(path.join(audit, 'markers.jsonl'), JSON.stringify({ marker: 'writing', receivedAt: 1500 }));
+    const sample = (at: number, max: number, browserVisible: boolean) => ({ at, receivedAt: at, marker: 'writing', visible: true, browserVisible,
+      activityBasis: browserVisible ? 'document-visible' : 'document-focus', startMs: at - 2000, endMs: at,
+      ...Object.fromEntries(['frameGaps', 'inputToTwoRaf', 'timerDelay', 'reactCommits', 'longTasks'].map(key => [key, { count: 1, values: [max], max, dropped: 0, over50: 0, over100: 0, over1000: 0 }])),
+      dom: { elements: 10, editors: 1 }, mutations: {}, errors: [], componentRenders: [], renderCalls: { ChapterPanel: 2 }, commitErrors: 0, observerMs: 0, snapshotMs: 0 });
+    writeFileSync(path.join(audit, 'samples.jsonl'), [sample(2000, 9000, false), sample(3000, 5000, true), sample(5000, 17, true)].map(s => JSON.stringify(s)).join('\n'));
+    try {
+      const json = execFileSync(process.execPath, [new URL('../../../scripts/native-performance-audit.mjs', import.meta.url).pathname, audit, 'summarize'], { encoding: 'utf8' });
+      const report = JSON.parse(json);
+      expect(report.observations).toMatchObject({ samples: 3, visibleSamples: 2, focusOnlySamples: 1, comparableSamples: 1 });
+      expect(report.phases[0].metrics.frameGaps).toMatchObject({ count: 1, max: 17 });
+      expect(report.phases[0].renderCalls).toEqual({ ChapterPanel: 2 });
+      expect(json).not.toContain(directory);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 });

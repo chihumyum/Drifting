@@ -11,18 +11,46 @@ export function nativePerformanceAuditPlugin({ directory, origin }) {
   let marker = 'startup';
   let latest = null;
   let samples = 0;
+  let root = process.cwd();
   return {
     name: 'native-performance-audit', apply: 'serve', enforce: 'pre',
+    config() { return { optimizeDeps: { exclude: ['@tauri-apps/api/core'] } }; },
+    configResolved(config) { root = config.root; },
     transform(code, id) {
-      if (!id.split('?')[0].endsWith('/src/renderer/main.tsx')) return null;
-      return `import '/scripts/native-performance-audit-probe';\n${code}`;
+      const file = id.split('?')[0];
+      if (file.endsWith('/src/renderer/main.tsx')) {
+        const anchor = '<StrictMode>';
+        if (code.split(anchor).length !== 2) throw new Error('Audit root Profiler anchor drifted');
+        return `import '/scripts/native-performance-audit-probe';\nimport { Profiler as AuditProfiler } from 'react';\n${code}`
+          .replace('<StrictMode>', '<AuditProfiler id="app" onRender={(...args) => window.__DRIFTING_PERFORMANCE_AUDIT_COMMIT__?.(...args)}><StrictMode>')
+          .replace('</StrictMode>', '</StrictMode></AuditProfiler>');
+      }
+      const names = ['ChapterPanel', 'ElementPanel', 'DriftPanel', 'DesktopAgentPanel', 'DesktopAgentTranscript', 'DesktopSuperMemoMaterialView', 'DesktopStoryGraphView', 'DesktopSuperElementView'];
+      const name = names.find(name => file.endsWith(`/${name}.tsx`));
+      if (!name) return null;
+      const entry = code.indexOf(`function ${name}(`);
+      const anchor = '  const { t } = useTranslation();';
+      const at = code.indexOf(anchor, entry);
+      if (entry < 0 || at < 0) throw new Error(`Audit render counter anchor drifted: ${name}`);
+      return code.slice(0, at) + code.slice(at).replace(anchor, `${anchor}\n  window.__DRIFTING_PERFORMANCE_AUDIT_RENDER__?.(${JSON.stringify(name)});`);
     },
     // ReactDOM's imports execute before main's body. The probe must be a
     // dependency with a side effect, rather than just a main-body invocation.
     resolveId(id) {
       if (id === '/scripts/native-performance-audit-probe') return '\0native-performance-audit-probe';
+      if (id === '@tauri-apps/api/core') return '\0native-performance-audit-tauri-core';
     },
     load(id) {
+      if (id === '\0native-performance-audit-tauri-core') {
+        const original = `/@fs/${path.join(root, 'node_modules/@tauri-apps/api/core.js')}`;
+        return `export * from ${JSON.stringify(original)};
+import { invoke as originalInvoke } from ${JSON.stringify(original)};
+export function invoke(command, args, options) {
+  const operation = () => originalInvoke(command, args, options);
+  const observer = window.__DRIFTING_PERFORMANCE_AUDIT_INVOKE__;
+  return observer ? observer(command, operation) : operation();
+}`;
+      }
       if (id !== '\0native-performance-audit-probe') return null;
       return `import { installNativePerformanceAudit } from '/scripts/native-performance-audit-probe.ts';\ninstallNativePerformanceAudit(${JSON.stringify({ endpoint, token })});\nexport { installNativePerformanceAudit };`;
     },

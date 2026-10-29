@@ -1,5 +1,10 @@
 # Renderer performance work and evidence
 
+The 2026-10-29 [heavy-seed native audit](stress-seed-native-findings-2026-10-29.md)
+records a watchdog-confirmed stall during a long-document/whole-book transition,
+material-card rendering, search, 25 open tabs and canonical persistence checks.
+It includes exact coverage gaps and Debug measurement limits.
+
 The 2026-10-17 [IME text lookup](ime-text-lookup.md) fix ends each desktop editor
 surface with a zero-width caret candidate. Before the fix, the macOS input
 method's text lookups near a chapter's end walked one character at a time through
