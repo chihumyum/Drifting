@@ -2,8 +2,8 @@
    but geometry, states, and theme behavior stay centralized here. */
 
 /* Sidebar chrome shares typography-aware desktop rows and retains compact
-   mobile fallbacks. Feature components only own horizontal
-   padding and contents, so left and right panels cannot drift vertically. */
+   mobile fallbacks. Feature components only own the contents: height and
+   insets live here, so switching panels on either side moves nothing. */
 .workspace-panel-tab-row {
   box-sizing: border-box;
   height: var(--ui-row-height, 28px);
@@ -15,6 +15,7 @@
   align-items: center;
   min-height: var(--ui-control-height, 26px);
   padding-block: 3px;
+  padding-inline: 12px 10px;
 }
 
 /* On desktop the panel header (filters, sort, new under the tabs) is a
@@ -39,8 +40,10 @@ html[data-shell-mode='desktop'] .workspace-panel-header-row :is(.glass-slider__o
   padding: calc(2px * var(--panel-header-scale)) calc(8px * var(--panel-header-scale));
 }
 
+/* Agent's text actions fill the room inside the row's padding (the round glass
+   entry's height), so the Agent header is no taller than the others. */
 html[data-shell-mode='desktop'] .workspace-panel-header-row .agt-toolbar-action {
-  min-height: calc(var(--ui-control-height) * var(--panel-header-scale));
+  min-height: calc((var(--ui-control-height) - 2px) * var(--panel-header-scale));
 }
 
 .workspace-panel-title-block {

@@ -280,7 +280,6 @@ function Toolbar({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingInline: '12px 10px',
         gap: 6,
         flexShrink: 0,
         // Pin the toolbar to the top of the scroll container so the filter

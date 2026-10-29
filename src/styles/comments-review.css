@@ -2018,7 +2018,6 @@
   flex-wrap: wrap;
   gap: 4px;
   min-width: 0;
-  padding-inline: 12px 8px;
   background: var(--workspace-ui-bg);
 }
 

@@ -692,7 +692,6 @@
   flex: 0 0 auto;
   gap: 4px;
   min-width: 0;
-  padding-inline: 12px 8px;
   background: var(--workspace-ui-bg);
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);

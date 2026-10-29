@@ -407,7 +407,6 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
         alignItems: 'center',
         justifyContent: showMeta ? 'space-between' : 'flex-end',
         gap: 8,
-        paddingInline: '12px 10px',
         fontFamily: 'var(--font-mono)',
         fontSize: 'var(--ui-font-caption, 9.5px)',
         textTransform: 'uppercase',

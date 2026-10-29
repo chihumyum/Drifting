@@ -374,6 +374,18 @@ describe('workspace surface language acceptance', () => {
     // carry one) are no taller than 构想; every row centres its contents.
     expect(compactChrome).toContain('min-height: calc((var(--ui-control-height, 26px) + 4px) * var(--panel-header-scale));');
     expect(block(controls, '.workspace-panel-header-row {', '/* On desktop')).toContain('align-items: center;');
+    // Agent's text actions fill only the room inside the row's padding, so its
+    // header is no taller than the others.
+    expect(compactChrome).toContain('.workspace-panel-header-row .agt-toolbar-action {\n  min-height: calc((var(--ui-control-height) - 2px) * var(--panel-header-scale));');
+    // One inset for every panel header, so the last button never shifts when
+    // switching panels on either side.
+    expect(block(controls, '.workspace-panel-header-row {', '/* On desktop')).toContain('padding-inline: 12px 10px;');
+    expect(leftSubheader).not.toContain('paddingInline');
+    expect(library).not.toContain("paddingInline: '12px");
+    expect(block(agentCss, '.agt-panel-toolbar {', '.agt-panel-toolbar__right {')).not.toContain('padding-inline');
+    expect(
+      block(source('src/styles/comments-review.css'), '.review-panel__toolbar {', '.review-panel__create-actions {'),
+    ).not.toContain('padding-inline');
     expect(compactChrome).toContain('.workspace-panel-header-row .ghost-icon-button {\n  zoom: var(--panel-header-scale);');
     expect(leftHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(rightHeader).toContain('workspace-local-divider workspace-panel-tab-row');
