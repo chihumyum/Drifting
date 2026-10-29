@@ -2938,12 +2938,12 @@ svg.super-viewport-edges[data-panning='1'] {
 }
 
 :is(.ui-chip__count, .ui-word-toggle__count) {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  color: hsl(var(--ink-4));
 }
 
 .ui-chip.is-empty {
   --glass-g: 0.5;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  color: hsl(var(--ink-4));
 }
 
 /* Relation-type list (RelationTypeField: the new-relation dialog, the
@@ -2952,6 +2952,7 @@ svg.super-viewport-edges[data-panning='1'] {
    chosen one. It keeps the suggestions' modal-safe stacking. */
 .relation-kind-suggestions.menu-surface {
   gap: 0;
+  min-width: var(--menu-width-wide);
   padding: 4px 0;
   border: 1px solid var(--menu-surface-border);
   border-radius: var(--menu-surface-radius);
@@ -2960,6 +2961,7 @@ svg.super-viewport-edges[data-panning='1'] {
 }
 
 .relation-kind-suggestions.menu-surface .relation-type-suggestions__option {
+  flex-shrink: 0;
   gap: 8px;
 }
 
@@ -3088,4 +3090,11 @@ svg.super-viewport-edges[data-panning='1'] {
 .entity-card.node-card .node-card__editor,
 .entity-card.node-card .node-card__loading {
   padding: 0;
+}
+
+/* A glass field shows its caret as the still selected glass, so the form
+   controls' accent focus ring (index.css) stays off inside it. */
+html:not([data-shell-mode='mobile']) .ui-field > :is(input, textarea):focus-visible {
+  border-color: transparent;
+  box-shadow: none;
 }

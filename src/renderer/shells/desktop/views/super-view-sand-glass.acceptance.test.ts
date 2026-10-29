@@ -151,7 +151,15 @@ describe('Super View sand and glass acceptance', () => {
     expect(field).toContain('className="menu-surface__item relation-type-suggestions__option"');
     expect(field).toContain('<KindMark kind="storyline" color={resolveOptionColor(option.id)} />');
 
+    // The list scrolls rather than squeezing its rows, and is no narrower than a field.
+    const controls = source('src/styles/ui-controls.css');
+    expect(controls).toMatch(/\.relation-kind-suggestions\.menu-surface \.relation-type-suggestions__option \{\s*flex-shrink: 0;/);
+    expect(controls).toContain('min-width: var(--menu-width-wide);');
+    // A glass field's caret is its selected glass, not the accent focus ring.
+    expect(controls).toMatch(/\.ui-field > :is\(input, textarea\):focus-visible \{[^}]*box-shadow: none;/);
+
     const css = source('src/styles/super-view-header.css');
+    expect(css).toContain(".super-view-head__right > :not(.header-chip-strip, .super-view-head__hint)");
     const glassMenu = css.slice(css.indexOf('Desktop relation-type menu'));
     expect(glassMenu).not.toMatch(/border-top: 1px|border-bottom: 1px|text-transform: uppercase/);
   });

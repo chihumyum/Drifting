@@ -1030,7 +1030,13 @@ html:not([data-shell-mode='mobile']) .graph-track-cell::before {
 }
 
 .graph-rail-cell--glass > .graph-rail__main {
-  padding: 0 10px;
+  padding: 0 10px 0 8px;
+}
+
+/* A synthetic lane (本书, 未归属) has no mark: its name keeps the mark's
+   room, so every name and count in the rail start on one line. */
+.graph-rail-cell--glass > .graph-rail__main .graph-rail__name {
+  padding-left: 18px;
 }
 
 .graph-rail__cell {
