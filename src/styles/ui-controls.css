@@ -12,6 +12,7 @@
 
 .workspace-panel-header-row {
   box-sizing: border-box;
+  align-items: center;
   min-height: var(--ui-control-height, 26px);
   padding-block: 3px;
 }
@@ -19,10 +20,13 @@
 /* On desktop the panel header (filters, sort, new under the tabs) is a
    quarter roomier than the base control size: its height and padding, the
    icon buttons and the filter controls all grow by --panel-header-scale.
-   Words keep the interface text size. */
+   The height also fits the round glass entry to a whole-book view (a 26px
+   button with the 3px padding, 4px above the base control), so a panel with
+   one is exactly as tall as a panel without. Words keep the interface text
+   size. */
 html[data-shell-mode='desktop'] .workspace-panel-header-row {
   --panel-header-scale: 1.25;
-  min-height: calc(var(--ui-control-height, 26px) * var(--panel-header-scale));
+  min-height: calc((var(--ui-control-height, 26px) + 4px) * var(--panel-header-scale));
   padding-block: calc(3px * var(--panel-header-scale));
 }
 

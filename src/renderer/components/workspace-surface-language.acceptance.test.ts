@@ -370,7 +370,10 @@ describe('workspace surface language acceptance', () => {
     expect(library).not.toContain('ToolbarIconButton');
     expect(library).not.toContain('onMouseEnter={(e) => {');
     expect(compactChrome).toContain('--panel-header-scale: 1.25;');
-    expect(compactChrome).toContain('min-height: calc(var(--ui-control-height, 26px) * var(--panel-header-scale));');
+    // Tall enough for the round glass whole-book entry, so 章节 and 要素 (which
+    // carry one) are no taller than 构想; every row centres its contents.
+    expect(compactChrome).toContain('min-height: calc((var(--ui-control-height, 26px) + 4px) * var(--panel-header-scale));');
+    expect(block(controls, '.workspace-panel-header-row {', '/* On desktop')).toContain('align-items: center;');
     expect(compactChrome).toContain('.workspace-panel-header-row .ghost-icon-button {\n  zoom: var(--panel-header-scale);');
     expect(leftHeader).toContain('workspace-local-divider workspace-panel-tab-row');
     expect(rightHeader).toContain('workspace-local-divider workspace-panel-tab-row');
