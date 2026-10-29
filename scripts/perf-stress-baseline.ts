@@ -2,7 +2,8 @@
 /**
  * Heavy-seed interaction baseline for the macOS desktop app.
  *
- *   pnpm perf:stress [--release] [--foreground] [--instance <name>] [--label <name>]
+ *   pnpm perf:stress [--release] [--foreground] [--wait-idle <seconds>] [--inject-css <file>]
+ *                    [--instance <name>] [--label <name>]
  *   pnpm perf:stress --compare <a.json> <b.json>
  *
  * Launches an isolated, synthetic stress-seed instance (a Debug development
@@ -15,8 +16,11 @@
  * The instance database is restored to its post-seed snapshot before each run,
  * so runs start from the same library. Frame timing is only comparable while
  * the window is frontmost: --foreground brings it forward before each journey
- * and takes the screen for the whole run (about ten minutes); without it the
+ * and takes the screen for the whole run (about four minutes); without it the
  * report keeps CPU, RSS and completion times, and marks frames unfocused.
+ * --wait-idle starts only once nobody has touched the keyboard or pointer for
+ * that long, and abandons the run if someone does meanwhile. --inject-css
+ * applies an experimental stylesheet before the journeys, for A/B runs.
  */
 import { execFileSync, spawn, type SpawnOptions } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -68,10 +72,11 @@ const REQUIRED = new Set(['enter-local-mode', 'open-project', 'open-long-chapter
 
 interface Options {
   release: boolean; foreground: boolean; instance: string; label: string; output: string; keepState: boolean;
+  waitIdle: number; injectCss: string;
 }
 
 function parseArguments(args: string[]): Options | { compare: [string, string] } {
-  const options = { release: false, foreground: false, instance: 'perf-stress', label: '', output: '', keepState: false };
+  const options = { release: false, foreground: false, instance: 'perf-stress', label: '', output: '', keepState: false, waitIdle: 0, injectCss: '' };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === '--') continue;
@@ -79,6 +84,8 @@ function parseArguments(args: string[]): Options | { compare: [string, string] }
     if (argument === '--release') options.release = true;
     else if (argument === '--foreground') options.foreground = true;
     else if (argument === '--keep-state') options.keepState = true;
+    else if (argument === '--wait-idle') options.waitIdle = Number(args[++index]);
+    else if (argument === '--inject-css') options.injectCss = path.resolve(args[++index] ?? '');
     else if (argument === '--instance' || argument === '--label' || argument === '--output') {
       const value = args[++index];
       if (!value) throw new Error(`${argument} requires a value`);
@@ -136,6 +143,13 @@ function sample(pid: number): ProcessSample | null {
   return row ? { pid, cpuSeconds: row.cpuSeconds, rssMB: row.rssMB } : null;
 }
 
+/** Seconds since the last keyboard or pointer input on this Mac. */
+function userIdleSeconds(): number {
+  const text = execFileSync('/usr/sbin/ioreg', ['-c', 'IOHIDSystem', '-d', '4'], { encoding: 'utf8' });
+  const match = text.match(/"HIDIdleTime" = (\d+)/);
+  return match ? Number(match[1]) / 1e9 : 0;
+}
+
 function bringToFront(pid: number) {
   execFileSync('osascript', ['-e', `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`], { stdio: 'ignore' });
 }
@@ -170,6 +184,10 @@ async function main() {
   if ('compare' in parsed) { compareReports(...parsed.compare); return; }
   const options = parsed;
   if (process.platform !== 'darwin') throw new Error('perf:stress measures the macOS desktop app');
+  if (options.waitIdle > 0) {
+    console.log(`[perf:stress] waiting until nobody has used this Mac for ${options.waitIdle} s`);
+    while (userIdleSeconds() < options.waitIdle) await sleep(15_000);
+  }
 
   const daemon = await startFrontendDebugDaemon({ platform: 'desktop', port: await freePort() });
   const { host, port, token } = daemon.descriptor;
@@ -219,9 +237,17 @@ async function main() {
     const found = findAppProcesses(binary);
     if (!found) throw new Error(`No running ${path.relative(root, binary)}`);
     await evaluate(readFileSync(path.join(root, 'scripts/perf-stress-journeys.js'), 'utf8'));
+    if (options.injectCss) {
+      await evaluate(`(() => { const style = document.createElement('style'); style.dataset.perfStressExperiment = '1'; style.textContent = ${JSON.stringify(readFileSync(options.injectCss, 'utf8'))}; document.head.append(style); return 'injected'; })()`);
+    }
+    const runStarted = Date.now();
     let webPid: number | null = found.candidates.length === 1 ? found.candidates[0].pid : null;
     const results: Array<Record<string, unknown>> = [];
     for (const [name, journey, input] of JOURNEYS) {
+      // Someone came back to the Mac: stop rather than fight them for the screen.
+      if (options.waitIdle > 0 && userIdleSeconds() < Math.min(options.waitIdle, (Date.now() - runStarted) / 1000)) {
+        throw new Error('Input on this Mac during the run; abandoned');
+      }
       if (options.foreground) { bringToFront(found.app.pid); await sleep(400); }
       // Several WebContent processes may start with the app: keep the busiest.
       if (webPid === null && results.length > 0) {
@@ -256,6 +282,7 @@ async function main() {
       build: options.release ? 'release (Rust release, production renderer)' : 'debug (Rust debug, Vite development renderer, React Strict Mode)',
       recordedAt: new Date().toISOString(),
       foreground: options.foreground,
+      ...(options.injectCss ? { injectedCss: readFileSync(options.injectCss, 'utf8') } : {}),
       database,
       seed: 'stress',
       source: {
