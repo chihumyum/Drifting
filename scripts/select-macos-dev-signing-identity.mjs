@@ -118,6 +118,18 @@ export function selectVerifiedSigningIdentity({
   );
 }
 
+/**
+ * trustd answers a required OCSP check from its cache. Once the cached
+ * response has expired it fetches a fresh one during the evaluation, yet
+ * still fails that evaluation for want of a response
+ * (RevocationResponseRequired). The fresh response is cached, so a second
+ * evaluation decides on it; a revoked certificate fails both.
+ */
+export function verifyWithFreshResponse(verify) {
+  const first = verify();
+  return first.status === 0 ? first : verify();
+}
+
 export function resolveMacosDevSigningIdentity({
   requestedIdentity = process.env.DRIFTING_MACOS_DEV_SIGNING_IDENTITY,
   runCommand = commandResult,
@@ -164,7 +176,7 @@ export function resolveMacosDevSigningIdentity({
       verifyCertificate(candidate) {
         const certificatePath = path.join(temporaryDirectory, `${candidate.fingerprint}.cer`);
         writeFileSync(certificatePath, candidate.certificate.raw);
-        const verification = runCommand('security', [
+        const verification = verifyWithFreshResponse(() => runCommand('security', [
           'verify-cert',
           '-c',
           certificatePath,
@@ -175,7 +187,7 @@ export function resolveMacosDevSigningIdentity({
           '-R',
           'require',
           '-q',
-        ]);
+        ]));
         return verification.status === 0
           ? { ok: true }
           : { ok: false, reason: commandDiagnostic(verification) };

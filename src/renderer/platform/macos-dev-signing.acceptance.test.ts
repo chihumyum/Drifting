@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 // @ts-expect-error The executable Node selector intentionally lives outside the renderer TS graph.
 import * as signingSelector from '../../../scripts/select-macos-dev-signing-identity.mjs';
 
-const { parseSigningIdentities, selectVerifiedSigningIdentity } = signingSelector;
+const { parseSigningIdentities, selectVerifiedSigningIdentity, verifyWithFreshResponse } = signingSelector;
 
 const oldFingerprint = '1111111111111111111111111111111111111111';
 const newFingerprint = '2222222222222222222222222222222222222222';
@@ -88,5 +88,23 @@ describe('macOS development signing identity selection', () => {
       }),
     ).toThrow(/requested.*failed required OCSP revocation checking/iu);
     expect(verifyCertificate).toHaveBeenCalledTimes(1);
+  });
+
+  it('decides a required OCSP check on a fresh response once the cached one has expired', () => {
+    // First evaluation: trustd fetches a fresh response but still fails for
+    // want of one; the second decides on the response it cached.
+    const staleThenFresh = vi.fn()
+      .mockReturnValueOnce({ status: 1 })
+      .mockReturnValueOnce({ status: 0 });
+    expect(verifyWithFreshResponse(staleThenFresh)).toEqual({ status: 0 });
+    expect(staleThenFresh).toHaveBeenCalledTimes(2);
+
+    const fresh = vi.fn(() => ({ status: 0 }));
+    expect(verifyWithFreshResponse(fresh)).toEqual({ status: 0 });
+    expect(fresh).toHaveBeenCalledTimes(1);
+
+    const revoked = vi.fn(() => ({ status: 1, stderr: 'revoked' }));
+    expect(verifyWithFreshResponse(revoked)).toEqual({ status: 1, stderr: 'revoked' });
+    expect(revoked).toHaveBeenCalledTimes(2);
   });
 });
