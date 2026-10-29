@@ -69,7 +69,7 @@ describe('the manuscript tools in sand and glass', () => {
     const bar = source('src/renderer/features/editor/editor-selection-bar.ts');
     const css = reviewCss();
     expect(bar).toContain('bar.className = `${BAR_CLASS} editor-selection-bar glass glass--rest glass--surface`;');
-    expect(bar).toContain("element.className = 'editor-selection-bar__item glass';");
+    expect(bar).toContain("element.className = 'editor-selection-bar__item glass glass--small';");
     expect(bar).toContain('formats.className = `${BAR_CLASS} editor-selection-bar editor-selection-bar__formats glass glass--rest glass--surface`;');
     // Decoupled: the formats pill goes onto the body beside the bar.
     expect(bar).toContain('bar.append(format);');
@@ -82,7 +82,7 @@ describe('the manuscript tools in sand and glass', () => {
     expect(bar).toContain("element.setAttribute('aria-pressed', item.isActive?.(this.editor) ? 'true' : 'false');");
     expect(bar).toContain("format.setAttribute('aria-expanded', 'true');");
     for (const glyph of FORMAT_GLYPHS) expect(bar).toContain(`'${glyph}'`);
-    expect(bar).toContain('const SETTLE_MS = 180;');
+    expect(bar).toContain('}, SELECTION_BAR_SETTLE_MS);');
     const pill = rule(css, '.editor-selection-bar');
     expect(pill).toContain('flex-direction: row;');
     expect(pill).toContain('border-radius: 20px;');
@@ -93,8 +93,9 @@ describe('the manuscript tools in sand and glass', () => {
     expect(rule(css, '.editor-selection-bar__item')).toContain('border-radius: 14px;');
     expect(rule(css, '.editor-selection-bar__format')).toContain('border-radius: 50%;');
     expect(rule(css, '.editor-selection-bar__formats.is-open')).toContain('visibility: visible;');
-    // Small glass takes the dense patch; the paused phone keeps the desk surface.
-    expect(rule(css, '.editor-selection-bar > .glass:nth-of-type(4n + 1)')).toContain('--glass-gx: -96px;');
+    // Small glass takes the dense patch (`glass--small`, `glass--round`); the
+    // paused phone keeps the desk surface.
+    expect(css).not.toContain('.editor-selection-bar > .glass:nth-of-type');
     expect(rule(css, "html[data-shell-mode='mobile'] .editor-selection-bar")).toContain('background: var(--menu-surface-bg);');
   });
 
@@ -133,7 +134,7 @@ describe('the manuscript tools in sand and glass', () => {
     expect(workspace).toContain('<TimelineDrawer open={dockPane !== null}>');
     expect(workspace).toContain('ref={setPlotPlannerSlot}');
     expect(swap).toContain("const PANES: readonly BottomDockPane[] = ['timeline', 'planner'];");
-    expect(swap).toContain('duration: SIDEBAR_PUSH_MS, easing: SIDEBAR_PUSH_EASING');
+    expect(swap).toContain('duration: PUSH_MS, easing: PUSH_EASING');
     expect(swap).toContain("prefers-reduced-motion: reduce");
     // Only the focused editor portals its own chapter's grid into the dock.
     expect(node).toContain('plotPlannerOpen && isCommandActive && isActiveNodeReady && plotPlannerSlot &&');
@@ -156,7 +157,7 @@ describe('the manuscript tools in sand and glass', () => {
     expect(planner).not.toContain('box-shadow');
     expect(planner).not.toContain('border-bottom');
     expect(grid).toContain('className="pl-cell glass glass--rest glass--field"');
-    expect(grid).toContain('className="pl-head__text glass glass--field"');
+    expect(grid).toContain('className="pl-head__text glass glass--field glass--small"');
     expect(grid).toContain("data-ph={t('plotGrid.emptyCell')}");
     expect(rule(css, ".planner-wrap[data-presentation='desktop'] .pl-head--row")).toContain(
       'font-family: var(--font-structure, var(--font-sans));',

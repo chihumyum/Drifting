@@ -1,13 +1,11 @@
 import type { Editor } from '@tiptap/core';
 import { getBlockFormatItems, getInlineFormatItems, type BlockFormatItem } from '../../lib/slash-menu/block-format-items';
+import { FORMATS_CLOSE_MS, SELECTION_BAR_SETTLE_MS } from '../../lib/motion';
 
 // Kept as the root class so other surfaces (the touch shell's selection chip)
 // can tell a bar is showing.
 const BAR_CLASS = 'editor-comment-menu';
 const activeBarSlot: { owner: EditorSelectionBar | null } = { owner: null };
-// The bar waits for the selection to settle (a drag finished, a Shift+arrow
-// run paused) before floating in.
-const SETTLE_MS = 180;
 const GAP = 8;
 const MARGIN = 6;
 // Between the bar and the formats pill that unfolds beside it.
@@ -107,6 +105,8 @@ export class EditorSelectionBar {
     if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
     this.settleTimer = null;
   }
+  // The bar waits for the selection to settle (a drag finished, a Shift+arrow
+  // run paused) before floating in.
   private scheduleSettle(): void {
     this.cancelSettle();
     if (this.pointerDown || this.editor.state.selection.empty) return;
@@ -115,7 +115,7 @@ export class EditorSelectionBar {
       if (this.pointerDown || this.bar || !this.isEnabled() || !this.editor.view.hasFocus()) return;
       const options = this.resolve?.();
       if (options) this.open(options);
-    }, SETTLE_MS);
+    }, SELECTION_BAR_SETTLE_MS);
   }
 
   // ── The bar ───────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ export class EditorSelectionBar {
     };
     const button = (label: string): HTMLButtonElement => {
       const element = document.createElement('button'); element.type = 'button';
-      element.className = 'editor-selection-bar__item glass';
+      element.className = 'editor-selection-bar__item glass glass--small';
       element.textContent = label;
       // Keep the selection: pressing a button must not move the caret.
       element.addEventListener('mousedown', event => event.preventDefault());
@@ -226,7 +226,7 @@ export class EditorSelectionBar {
         this.hideTimer = null;
         if (this.bar !== bar) return;
         formats.classList.remove('is-open'); format.setAttribute('aria-expanded', 'false');
-      }, 140);
+      }, FORMATS_CLOSE_MS);
     };
     format.addEventListener('mouseenter', show); format.addEventListener('mouseleave', scheduleHide);
     format.addEventListener('click', show);

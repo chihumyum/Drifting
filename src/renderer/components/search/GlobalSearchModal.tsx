@@ -168,7 +168,7 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
     <div className="gsearch-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
       <div className="gsearch-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gsearch-header">
-          <label className="ui-field glass glass--rest glass--field">
+          <label className="ui-field glass glass--rest glass--field glass--small">
             <BrushIcon name="search" size={15} />
             <input
               ref={inputRef}

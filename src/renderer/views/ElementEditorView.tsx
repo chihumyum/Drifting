@@ -1054,7 +1054,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
             <ModalBody>
             {glass ? (
               <>
-                <label className="ui-field glass glass--rest glass--field">
+                <label className="ui-field glass glass--rest glass--field glass--small">
                   <input {...groupInputProps} />
                 </label>
                 <div className="entity-choice" role="listbox" aria-label={t('elementEditor.group.title', {
@@ -1219,7 +1219,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
             />
             <ModalBody>
             {glass ? (
-              <label className="ui-field glass glass--rest glass--field">
+              <label className="ui-field glass glass--rest glass--field glass--small">
                 <input {...newCategoryInputProps} />
               </label>
             ) : (

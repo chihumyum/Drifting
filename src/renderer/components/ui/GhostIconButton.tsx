@@ -47,7 +47,7 @@ export const GhostIconButton = forwardRef<HTMLButtonElement, GhostIconButtonProp
           `ghost-icon-button--${size}`,
           variant !== 'default' ? `ghost-icon-button--${variant}` : '',
           glass ? 'ghost-icon-button--glass glass' : '',
-          glass === 'round' ? 'glass--round' : '',
+          glass === 'round' ? 'glass--round' : glass ? 'glass--small' : '',
           className,
         ]
           .filter(Boolean)

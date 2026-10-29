@@ -353,7 +353,7 @@ export function EntityLinkChip({
   const deletedLabel = t('common.deleted_paren');
   const name = useDataStore((s) => entityRefName(s, refItem, deletedLabel));
   return (
-    <button type="button" className="agt-entity-chip glass glass--surface" onClick={() => onOpen(refItem)}>
+    <button type="button" className="agt-entity-chip glass glass--surface glass--small" onClick={() => onOpen(refItem)}>
       <KindMark kind={ENTITY_MARK[refItem.entityType]} seed={refItem.id} color="hsl(var(--accent))" />
       <span>{name}</span>
       <span className="agt-entity-chip__op">
@@ -441,8 +441,8 @@ export function RuntimeControlCard({
   const { t, i18n } = useTranslation();
   const glass = useAgentGlass();
   const cardClass = glass ? 'agt-control-card agt-control-card--glass glass glass--waiting' : 'agt-control-card';
-  const secondaryClass = glass ? 'agt-btn glass glass--rest' : undefined;
-  const primaryClass = glass ? 'agt-btn glass glass--primary glass--waiting' : 'agt-control-card__allow';
+  const secondaryClass = glass ? 'agt-btn glass glass--rest glass--small' : undefined;
+  const primaryClass = glass ? 'agt-btn glass glass--primary glass--waiting glass--small' : 'agt-control-card__allow';
   if (pending.requiresContinuation) {
     return (
       <div className={cardClass} role="status">

@@ -289,7 +289,7 @@ export function TimelinePin({
     >
       <div
         ref={labelRef}
-        className={`${classPrefix}__label${glass ? ` glass glass--rest${editing ? ' is-on' : ''}` : ''}`}
+        className={`${classPrefix}__label${glass ? ` glass glass--rest glass--small${editing ? ' is-on' : ''}` : ''}`}
         contentEditable={editing}
         suppressContentEditableWarning
         onMouseEnter={(event) => {

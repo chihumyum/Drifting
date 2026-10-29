@@ -141,7 +141,27 @@ describe('resting glass and switches', () => {
     expect(held).toBeGreaterThan(selected);
     const selectedBefore = materials.slice(materials.indexOf('.glass.is-on::before {'), held);
     expect(selectedBefore).toContain('animation-play-state: paused;');
-    expect(selectedBefore).toContain('box-shadow 0.28s ease-out');
+    expect(selectedBefore).toContain('box-shadow var(--motion-glass-settle) ease-out');
+  });
+
+  it('gives small glass the dense patch through one rule instead of a copy per control', async () => {
+    const materials = css('src/styles/materials.css');
+    expect(materials).toContain('--glass-dense-gx: -96px;');
+    expect(materials).toContain('--glass-dense-gy: -132px;');
+    const small = '.glass.glass--small,\n.glass.glass--round { --glass-gx: var(--glass-dense-gx); --glass-gy: var(--glass-dense-gy); }';
+    expect(materials).toContain(small);
+    // After the rotation, so it wins over every sibling patch.
+    expect(materials.indexOf(small)).toBeGreaterThan(materials.indexOf('.glass:nth-of-type(4n + 4)'));
+    // No stylesheet keeps its own copy of the dense patch.
+    const { readdirSync } = await import('node:fs');
+    for (const file of readdirSync(resolve(process.cwd(), 'src/styles'))) {
+      if (!file.endsWith('.css') || file === 'materials.css') continue;
+      expect(css(`src/styles/${file}`), file).not.toContain('-132px');
+    }
+    // The shared controls are small glass wherever they render.
+    expect(css('src/renderer/components/ui/Button.tsx')).toContain("default: 'glass glass--rest glass--small',");
+    expect(css('src/renderer/components/ui/GhostIconButton.tsx')).toContain("glass === 'round' ? 'glass--round' : glass ? 'glass--small' : '',");
+    expect(css('src/renderer/components/ui/GlassSelect.tsx')).toContain('`ui-select glass glass--rest glass--field glass--small ${className}`');
   });
 
   it('flows the selected bleed to a new sibling and keeps the new one on its line meanwhile', () => {
@@ -150,7 +170,7 @@ describe('resting glass and switches', () => {
     // …unless it was chosen by pressing it: then it eases straight from held
     // down to selected while the band flows in to meet it.
     expect(materials).toContain("[data-glass-waving='move'] .glass.is-on:not([data-wave-landed]) { --glass-g: 0.85; --glass-sp: 0; }");
-    expect(materials).toContain("[data-glass-waving='settle'] .glass-wave { opacity: 0; transition: opacity 0.28s ease-out; }");
+    expect(materials).toContain("[data-glass-waving='settle'] .glass-wave { opacity: 0; transition: opacity var(--motion-glass-settle) ease-out; }");
     // The band is drawn like the selected rim: strength 1, bleed 1, never flowing on its own.
     const wave = materials.slice(materials.indexOf('.glass-wave::before {'), materials.indexOf("[data-glass-waving='move']"));
     expect(wave).toContain('calc(var(--glass-edge) * 1.8)');
@@ -167,7 +187,7 @@ describe('resting glass and switches', () => {
     expect(controls).toContain('.ui-switch.is-on .ui-switch__tint {\n  opacity: 1;\n}');
     expect(controls).toContain('background: var(--switch-thumb-bg);');
     // Only the clear rim flows; the accent tint never animates.
-    expect(controls).toContain('animation: switch-rim-flow 15s linear infinite paused;');
+    expect(controls).toContain('animation: switch-rim-flow var(--motion-glass-drift) linear infinite paused;');
     expect(controls.slice(controls.indexOf('.ui-switch__tint {\n  --switch-tint'), controls.indexOf('.ui-switch.is-on .ui-switch__tint'))).not.toContain('animation');
   });
 });

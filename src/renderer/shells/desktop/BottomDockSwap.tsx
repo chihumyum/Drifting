@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { SIDEBAR_PUSH_EASING, SIDEBAR_PUSH_MS } from '../../lib/sidebar-push';
+import { PUSH_EASING, PUSH_MS } from '../../lib/motion';
 
 export type BottomDockPane = 'timeline' | 'planner';
 
@@ -40,7 +40,7 @@ export function BottomDockSwap({ show, children }: {
     const incoming = strip?.querySelector<HTMLElement>(`[data-dock-pane="${current}"]`);
     if (!leaving || !frame || !strip || !outgoing || !incoming) return undefined;
     const fromRight = PANES.indexOf(current) > PANES.indexOf(leaving);
-    const options: KeyframeAnimationOptions = { duration: SIDEBAR_PUSH_MS, easing: SIDEBAR_PUSH_EASING, fill: 'forwards' };
+    const options: KeyframeAnimationOptions = { duration: PUSH_MS, easing: PUSH_EASING, fill: 'forwards' };
     // Both panes sit side by side in PANES order on a strip twice as wide.
     const push = strip.animate(
       [{ transform: `translateX(${fromRight ? '0%' : '-50%'})` }, { transform: `translateX(${fromRight ? '-50%' : '0%'})` }],

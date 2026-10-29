@@ -1,3 +1,4 @@
+import { SPRING_K, SPRING_W } from '../../lib/motion';
 import {
   MOBILE_PLANNING_CONTEXT_MENU_MS,
   mobilePlanningEdgeAutoscrollDelta,
@@ -197,14 +198,14 @@ export function startChapterLanePointerDrag({
     if (!ghost) return;
     const dt = Math.min(1 / 30, (now - (lastStep || now)) / 1000) || 1 / 60;
     lastStep = now;
-    const kx = 150;
+    // Sideways the weighted spring (lib/motion.ts); across rows a stiffer one
+    // that snaps over with a barely visible give.
     const snapping = now < snapUntil;
     const ky = snapping ? 1100 : 700;
-    const dampX = 2 * Math.sqrt(kx);
     const dampY = 2 * Math.sqrt(ky) * (snapping ? 0.6 : 1);
     for (let substep = 0; substep < 4; substep += 1) {
       const h = dt / 4;
-      body.vx += (kx * (body.tx - body.x) - dampX * body.vx) * h;
+      body.vx += (SPRING_K * (body.tx - body.x) - 2 * SPRING_W * body.vx) * h;
       body.x += body.vx * h;
       body.vy += (ky * (body.ty - body.y) - dampY * body.vy) * h;
       body.y += body.vy * h;

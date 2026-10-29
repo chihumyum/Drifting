@@ -34,7 +34,7 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  transition: height 420ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: height var(--motion-structural) var(--motion-structural-ease);
 }
 
 /* While it slides the timeline is clipped by its own drawer; its top edge
@@ -189,8 +189,8 @@
   -webkit-mask-position: var(--edge-gx, 0px) var(--edge-gy, 0px);
   mask-position: var(--edge-gx, 0px) var(--edge-gy, 0px);
   opacity: 0;
-  animation: panel-tab-edge-drift 15s linear infinite paused;
-  transition: opacity 0.32s ease-out;
+  animation: panel-tab-edge-drift var(--motion-glass-drift) linear infinite paused;
+  transition: opacity var(--motion-flow-fade) ease-out;
 }
 
 .panel-tab-row__edge--top,
@@ -237,7 +237,7 @@
 .workspace-panel-tab-row:has(.app-panel-tab:hover) .panel-tab-row__edge::after {
   opacity: 0.8;
   animation-play-state: running;
-  transition-duration: 0.24s;
+  transition-duration: var(--motion-glass-bleed);
 }
 
 @keyframes panel-tab-edge-drift {
@@ -853,7 +853,7 @@
    pane; merging folds the closed pane's place away under it. The lines bleed
    glass while the divider moves (DesktopSidebarLayout). */
 .sidebar-pane--entering {
-  animation: sidebar-pane-in 420ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  animation: sidebar-pane-in var(--motion-structural) var(--motion-structural-ease) backwards;
 }
 
 @keyframes sidebar-pane-in {
@@ -867,7 +867,7 @@
   min-width: 0;
   overflow: hidden;
   background: var(--workspace-ui-bg);
-  animation: sidebar-pane-out 420ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation: sidebar-pane-out var(--motion-structural) var(--motion-structural-ease) forwards;
 }
 
 .sidebar-pane-ghost__head {

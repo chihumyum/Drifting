@@ -75,7 +75,7 @@ export function DriftPanel({
         {!mounted && (
           <button
             type="button"
-            className="drift-panel__tab glass glass--rest"
+            className="drift-panel__tab glass glass--rest glass--small"
             onClick={onOpen}
             title={t('driftPanel.expandTitle', { label: resolvedTabLabel })}
           >

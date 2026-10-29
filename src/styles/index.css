@@ -269,10 +269,10 @@
      outer shell animates `width` between 0 and the
      last expanded width; inner content is absolute-positioned at fixed
      width anchored to the outside edge so it actually slides off-screen
-     instead of just narrowing in place. The duration matches the
-     `COLLAPSE_ANIM_MS` constant in components/Sidebar.tsx. */
+     instead of just narrowing in place. It is the structural movement
+     (STRUCTURAL_MS in lib/motion.ts, which components/Sidebar.tsx waits out). */
   .sidebar-shell {
-    transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: width var(--motion-structural) var(--motion-structural-ease);
   }
   @media (prefers-reduced-motion: reduce) {
     .sidebar-shell {

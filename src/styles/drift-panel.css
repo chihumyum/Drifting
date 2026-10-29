@@ -63,13 +63,6 @@
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
-/* Small glass reads the dense patch of the texture (materials.md). */
-.drift-panel .drift-panel__tab.glass,
-.drift-panel .drift-panel__close.glass {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
-}
-
 /* Compact close button centered above the open panel: a round glass button
    on the paper fill, like the workspace's other round controls. */
 .drift-panel__close {

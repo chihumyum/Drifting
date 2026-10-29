@@ -3,10 +3,7 @@ import { useUiStore, SidebarType } from '../store/ui-store';
 import { clampSidebarWidth } from '../lib/layout-geometry';
 import { useSidebarMetricsStore } from '../store/sidebar-metrics-store';
 import { stepGlassFlow, trackGlassFlow } from '../lib/glass-flow';
-
-// Must match the `width` transition duration in index.css `.sidebar-shell`
-// so children stay mounted through the outgoing slide, then unmount cleanly.
-const COLLAPSE_ANIM_MS = 420;
+import { STRUCTURAL_MS } from '../lib/motion';
 
 interface SidebarProps {
   sidebarType: SidebarType; // 指定侧边栏类型
@@ -84,7 +81,8 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       setMountChildren(true);
       return undefined;
     }
-    const t = setTimeout(() => setMountChildren(false), COLLAPSE_ANIM_MS);
+    // The same structural length as `.sidebar-shell`'s width transition (index.css).
+    const t = setTimeout(() => setMountChildren(false), STRUCTURAL_MS);
     return () => clearTimeout(t);
   }, [isExpanded]);
 

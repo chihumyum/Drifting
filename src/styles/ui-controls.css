@@ -95,8 +95,8 @@ html[data-shell-mode='desktop'] .workspace-panel-header-row .agt-toolbar-action 
    its glass runs with the distance it travels (--flow) and never stirs
    under the pointer. */
 .panel-tab-tray > .panel-tab-tray__block.glass {
-  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);
-  --glass-gy: -132px;
+  --glass-gx: calc(var(--flow, 0) * 1.2px + var(--glass-dense-gx));
+  --glass-gy: var(--glass-dense-gy);
   position: absolute;
   top: 2px;
   bottom: 2px;
@@ -297,8 +297,8 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
     inset 0 0 0 0 var(--switch-rim);
   -webkit-mask-position: -14px -46px;
   mask-position: -14px -46px;
-  animation: switch-rim-flow 15s linear infinite paused;
-  transition: box-shadow 0.24s ease-out;
+  animation: switch-rim-flow var(--motion-glass-drift) linear infinite paused;
+  transition: box-shadow var(--motion-glass-bleed) ease-out;
 }
 
 .ui-switch:hover:not(:disabled)::before,
@@ -318,8 +318,8 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
     inset 0 0 0 1px color-mix(in srgb, var(--switch-tint) 62%, transparent),
     inset 0 0 calc(var(--switch-height) * 0.4) calc(var(--switch-height) * 0.1)
       color-mix(in srgb, var(--switch-tint) 55%, transparent);
-  -webkit-mask-position: -96px -132px;
-  mask-position: -96px -132px;
+  -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+  mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
   transition: opacity 0.22s ease-out;
 }
 
@@ -564,7 +564,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item::before {
   --glass-gx: -30px;
   --glass-gy: -64px;
   opacity: 0;
-  animation: glass-flow 15s linear infinite paused;
+  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
   transition: opacity 0.18s ease-out;
 }
 
@@ -2759,11 +2759,11 @@ svg.super-viewport-edges[data-panning='1'] {
   pointer-events: none;
 }
 
-/* Small slabs read their rim from the dense patch of the glass texture the
-   panel-tab block uses; elsewhere a slab this small shows almost none. */
+/* Small glass that moves: the dense patch (materials.css), carried along
+   by the distance the slider travels. */
 .glass-slider > .glass-slider__thumb.glass {
-  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);
-  --glass-gy: -132px;
+  --glass-gx: calc(var(--flow, 0) * 1.2px + var(--glass-dense-gx));
+  --glass-gy: var(--glass-dense-gy);
 }
 
 .glass-slider__thumb[data-visible='true'] {
@@ -2788,8 +2788,8 @@ svg.super-viewport-edges[data-panning='1'] {
 }
 
 .glass-slider--vertical > .glass-slider__thumb.glass {
-  --glass-gx: -96px;
-  --glass-gy: calc(var(--flow, 0) * 1.2px - 132px);
+  --glass-gx: var(--glass-dense-gx);
+  --glass-gy: calc(var(--flow, 0) * 1.2px + var(--glass-dense-gy));
 }
 
 /* Where the options don't fit side by side, only the chosen one stays, with
@@ -2863,11 +2863,6 @@ svg.super-viewport-edges[data-panning='1'] {
 
 .scope-toggle:hover:not(:disabled) {
   color: hsl(var(--ink-2));
-}
-
-.scope-toggle.glass.glass--rest {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
 }
 
 .scope-toggle[aria-pressed='true'] {

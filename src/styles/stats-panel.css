@@ -174,11 +174,6 @@
 }
 
 /* Into the entity's history: a secondary button, the resting glass line. */
-.stats-snapshot.glass {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
-}
-
 .stats-snapshot {
   display: flex;
   align-items: center;

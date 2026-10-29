@@ -242,8 +242,6 @@
   --actrail-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 50%);
 }
 .actrail--glass .actrail__label.glass {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
   padding: 2px 7px;
   border: 0;
   border-radius: 2px;
@@ -257,8 +255,6 @@
   outline: none;
 }
 .actrail--glass .actrail__edit-field {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
   border-radius: 2px;
   background: var(--glass-fill);
 }
@@ -285,7 +281,7 @@
   mask-position: var(--glass-gx) var(--glass-gy);
   opacity: 0;
   pointer-events: none;
-  animation: glass-flow 15s linear infinite paused;
+  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
   transition: opacity 0.24s ease-out;
 }
 .actrail--glass .actrail__divider:hover::before,

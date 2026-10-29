@@ -162,7 +162,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
               </div>
             ) : (
               <>
-                <label className="ui-field glass glass--rest glass--field">
+                <label className="ui-field glass glass--rest glass--field glass--small">
                   <BrushIcon name="search" size={15} />
                   <input
                     ref={searchRef}
@@ -203,7 +203,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
           </section>
           <section className="dialog-section">
             <span className="dialog-section__label">{t('patchCreateModal.patchTitle')}</span>
-            <label className="ui-field glass glass--rest glass--field">
+            <label className="ui-field glass glass--rest glass--field glass--small">
               <input
                 type="text"
                 value={title}

@@ -11,19 +11,17 @@ import {
   sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
 import { trackGlassFlow } from '../../lib/glass-flow';
-import { planSidebarPush, SIDEBAR_PUSH_EASING, SIDEBAR_PUSH_MS } from '../../lib/sidebar-push';
+import { planSidebarPush } from '../../lib/sidebar-push';
+import { PUSH_EASING, PUSH_MS, PUSH_OUTLINE_FADE_MS, STRUCTURAL_MS } from '../../lib/motion';
 
-// Splitting or merging a sidebar pushes the divider in from (or out to) the
-// side of the pane that arrives or leaves; matches `.sidebar-pane--entering`
-// and `.sidebar-pane-ghost` in desktop-shell.css.
-const SPLIT_ANIM_MS = 420;
-// A tab switch pushes the pane's strip of panels like heavy ice: slow to
-// start, then fast (the tab tray's glass block rides the same push).
-const PUSH_MS = SIDEBAR_PUSH_MS;
-const ICE_PUSH = SIDEBAR_PUSH_EASING;
-// The arriving panel's glass outline fades out whole after the push
-// (`.flow-line::after`'s opacity transition); they stay mounted until then.
-const OUTLINE_FADE_MS = 340;
+// Splitting or merging a sidebar is structural: it pushes the divider in
+// from (or out to) the side of the pane that arrives or leaves, over
+// STRUCTURAL_MS (`.sidebar-pane--entering` and `.sidebar-pane-ghost` in
+// desktop-shell.css). A tab switch pushes the pane's strip of panels like
+// heavy ice, PUSH_MS on PUSH_EASING (the tab tray's glass block rides the
+// same push); the arriving panel's glass outline then fades out whole
+// (`.flow-line::after`'s opacity transition), so the panels it pushed out
+// stay mounted for PUSH_OUTLINE_FADE_MS more.
 // Flex grow factors are scaled up so they never sum below 1 while a pane
 // grows from or folds to zero: below 1 flexbox leaves the rest empty.
 const GROW_SCALE = 100;
@@ -79,7 +77,7 @@ export function DesktopSidebarLayout({
     const timer = window.setTimeout(() => {
       setEntering(null);
       setLeaving(null);
-    }, SPLIT_ANIM_MS);
+    }, STRUCTURAL_MS);
     return () => window.clearTimeout(timer);
   }, [entering, leaving]);
 
@@ -234,7 +232,7 @@ function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
     for (const move of moves) {
       panels.get(move.key)?.animate(
         [{ transform: `translateX(${move.from}px)` }, { transform: `translateX(${move.to}px)` }],
-        { duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' },
+        { duration: PUSH_MS, easing: PUSH_EASING, fill: 'forwards' },
       );
     }
     const kept = new Set(moves.map((move) => move.key));
@@ -250,7 +248,7 @@ function SidebarPaneSlides({ order, tab, content, slideKey, stateKey }: {
     const timer = window.setTimeout(() => {
       setBehind([]);
       setPush(null);
-    }, PUSH_MS + OUTLINE_FADE_MS);
+    }, PUSH_MS + PUSH_OUTLINE_FADE_MS);
     return () => window.clearTimeout(timer);
   }, [push]);
 

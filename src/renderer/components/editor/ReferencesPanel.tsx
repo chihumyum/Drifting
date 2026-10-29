@@ -611,7 +611,7 @@ export function ReferencesPanel({
                 </div>
               )}
               {glass ? (
-                <label className="ui-field glass glass--rest glass--field">
+                <label className="ui-field glass glass--rest glass--field glass--small">
                   <BrushIcon name="search" size={12} />
                   <input
                     type="text"

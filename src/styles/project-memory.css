@@ -241,8 +241,6 @@
   background: transparent;
   color: hsl(var(--accent));
   font-weight: 500;
-  --glass-gx: -96px;
-  --glass-gy: -132px;
 }
 
 .pmem--glass .pmem__btn--primary.glass:disabled {

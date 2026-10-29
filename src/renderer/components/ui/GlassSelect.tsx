@@ -86,7 +86,7 @@ export function GlassSelect<T extends string>({
       <button
         ref={triggerRef}
         type="button"
-        className={`ui-select glass glass--rest glass--field ${className}`.trim()}
+        className={`ui-select glass glass--rest glass--field glass--small ${className}`.trim()}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
@@ -120,7 +120,7 @@ export function GlassSelect<T extends string>({
         <div ref={listRef}>
           {searchable && (
             <div className="ui-select__search">
-              <label className="ui-field ui-field--sm glass glass--rest glass--field">
+              <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small">
                 <BrushIcon name="search" size={14} />
                 <input
                   value={query}

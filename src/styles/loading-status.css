@@ -35,7 +35,7 @@ html:not([data-shell-mode='mobile']) .loading-status {
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-secondary, 13px);
   line-height: var(--ui-line-body, 20px);
-  animation: loading-status-appear 0.16s ease-out 0.24s both;
+  animation: loading-status-appear 0.16s ease-out var(--motion-loading-delay) both;
 }
 
 html:not([data-shell-mode='mobile']) .loading-status__spinner {

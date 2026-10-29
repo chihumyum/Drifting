@@ -549,7 +549,7 @@ function DialogActions({
 function GlassField({ glass, area = false, children }: { glass: boolean; area?: boolean; children: React.ReactNode }) {
   if (!glass) return <>{children}</>;
   return (
-    <label className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field`}>
+    <label className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field${area ? '' : ' glass--small'}`}>
       {children}
     </label>
   );

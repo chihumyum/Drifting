@@ -10,7 +10,7 @@ pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.
 pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/accent-color-preference.acceptance.test.ts
 pnpm test:renderer-architecture
 pnpm exec vitest run src/renderer/lib/sidebar-tabs.test.ts src/renderer/lib/sidebar-pane-events.test.ts src/renderer/store/ui-store.sidebar-tabs.test.ts src/renderer/lib/layout-geometry.test.ts src/renderer/shells/desktop/desktop-sidebar-tabs.acceptance.test.ts src/renderer/store/agent-chat-preparation.integration.test.ts
-pnpm exec vitest run src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts src/renderer/components/editor/entity-editor-glass.acceptance.test.ts src/renderer/components/BottomTimeline/timeline-drift-glass.acceptance.test.ts src/renderer/features/comments/review-stats-sand-glass.render.test.ts
+pnpm exec vitest run src/renderer/lib/motion.test.ts src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts src/renderer/components/editor/entity-editor-glass.acceptance.test.ts src/renderer/components/BottomTimeline/timeline-drift-glass.acceptance.test.ts src/renderer/features/comments/review-stats-sand-glass.render.test.ts
 pnpm exec vitest run src/renderer/features/library/material-sand-glass.acceptance.test.ts
 pnpm exec vitest run src/renderer/components/editor/paper-tools-sand-glass.acceptance.test.ts src/renderer/components/editor/outline-rail-model.test.ts src/renderer/components/editor/scroll-marker-model.test.ts src/renderer/store/ui-store.bottom-dock.test.ts
 node scripts/run-tab-reorder-acceptance.mjs --check
@@ -23,7 +23,8 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 
 ## 行为证据
 
-- **材料**：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动、选中态与按住态分开（按住在后、覆盖选中）以及水波层的样式约定。
+- **材料**：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动、选中态与按住态分开（按住在后、覆盖选中）、水波层的样式约定，以及小块玻璃（`.glass--small`、`.glass--round`）由一条规则取稠密纹理、写在轮换之后，其他样式表不再自写稠密坐标，共用的 `Button`、`GhostIconButton`、`GlassSelect` 带上小块修饰。
+- **动效模块**：`lib/motion.test.ts` 覆盖 `lib/motion.ts` 与 `materials.css` 里 `--motion-*` 的数值一致、设计系统点名的时长与弹簧参数、弹簧采样从 0 单调走到 1 不越过，以及侧栏、时间线、滑块、Dock 拖拽、水波与各 CSS 不再自带这些数值。Dock 药丸拖拽的无头浏览器验收（`node scripts/run-tab-reorder-acceptance.mjs`）把 `lib/motion.ts` 计入指纹，2026-10-29 收拢后重跑通过。
 - **水波**：`lib/glass-wave.test.ts` 覆盖水波从旧项出发、准确落在新项、途经各项依次亮起、远近决定时长、落定后进入 settle 再撤掉、按下选中的项不退回细线，以及减少动效时直接跳过；`hooks/useGlassWave.test.ts` 覆盖时间线水波只在同一泳道内流动、跨泳道不流动。
 - **Panel Tab 与面板 header**：`workspace-surface-language.acceptance.test.ts` 覆盖 Panel Tab 玻璃方块与 Panel 推进共用时长和曲线、方块的几何与随距离流动、悬停任一 Tab 时整栏 Header 四边流动，以及面板 header 的放大与统一的图标按钮。
 - **多选一与开关**：`glass-slider-scope-toggle.test.ts` 覆盖滑块没有轨道、方角、取稠密纹理并随移动流动，开关的同一个词与锁一样的玻璃状态。

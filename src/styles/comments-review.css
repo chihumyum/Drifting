@@ -725,11 +725,6 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
 .editor-selection-bar__format[aria-pressed='true'] {
   color: hsl(var(--ink-1));
 }
-/* Small glass: every button takes the dense patch, not the sparse first one. */
-.editor-selection-bar > .glass:nth-of-type(4n + 1) {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
-}
 .editor-comment-menu__chevron {
   opacity: 0.45;
 }
@@ -2213,7 +2208,7 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
   background: transparent;
   box-shadow: none;
 }
-.review-card--glass.glass:nth-of-type(2n + 1) { --glass-gx: -96px; --glass-gy: -132px; }
+.review-card--glass.glass:nth-of-type(2n + 1) { --glass-gx: var(--glass-dense-gx); --glass-gy: var(--glass-dense-gy); }
 .review-card--glass.glass:nth-of-type(2n) { --glass-gx: -168px; --glass-gy: -18px; }
 
 /* On the manuscript's edge a sticky note floats over the prose: the page at
@@ -2262,8 +2257,6 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
 /* Done is a round glass button; resolved it is the selected glass, and the
    brush tick is drawn into it (the author's mark, 0.38s like a sand frame). */
 .todo-status-toggle.todo-status-toggle--glass {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
   color: hsl(var(--ink-2));
 }
 .todo-status-toggle--glass:hover:not(:disabled) {
@@ -2358,8 +2351,6 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
 }
 .sticky-note-rail--glass .sticky-note-rail__toolbar .ghost-icon-button--glass,
 .sticky-note-rail--glass .sticky-note-rail__toolbar .ghost-icon-button--glass:hover:not(:disabled) {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
   background: var(--glass-fill);
   -webkit-backdrop-filter: blur(1.6px);
   backdrop-filter: blur(1.6px);
@@ -2373,8 +2364,8 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
   padding: 10px 11px;
   border: 0;
   background: transparent;
-  --glass-gx: -96px;
-  --glass-gy: -132px;
+  --glass-gx: var(--glass-dense-gx);
+  --glass-gy: var(--glass-dense-gy);
 }
 .sticky-note-stack--glass .sticky-note-stack__layers {
   z-index: -3;

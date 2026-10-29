@@ -884,7 +884,7 @@ export function AllChaptersEditorView() {
             {canInsertChapters && (
               <button
                 type="button"
-                className={`all-chap-empty__btn${desktopChrome ? ' glass glass--primary' : ''}`}
+                className={`all-chap-empty__btn${desktopChrome ? ' glass glass--primary glass--small' : ''}`}
                 onClick={() => void handleInsertAfter(null)}
               >
                 {t('chapterEnd.firstChapter')}
@@ -892,7 +892,7 @@ export function AllChaptersEditorView() {
             )}
             <button
               type="button"
-              className={`all-chap-empty__btn${desktopChrome ? ' glass glass--rest' : ''}`}
+              className={`all-chap-empty__btn${desktopChrome ? ' glass glass--rest glass--small' : ''}`}
               onClick={() => navigateToHome()}
             >
               {desktopChrome && <BrushIcon name="torii" size={15} />}

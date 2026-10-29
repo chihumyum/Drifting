@@ -102,7 +102,7 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
     expect(timeline).toContain('<GlassSlider\n              className="btl__view-toggle"');
     expect(timeline).toContain('<SegmentedControl\n              className="btl__view-toggle"');
     // 未归属 and 未放置: one word that never changes, resting glass, pressed or expanded.
-    expect(timeline.match(/: 'btl__toggle glass glass--rest'/g)).toHaveLength(2);
+    expect(timeline.match(/: 'btl__toggle glass glass--rest glass--small'/g)).toHaveLength(2);
     expect(timeline).toContain('aria-pressed={unaffiliatedVisible}');
     expect(timeline).toContain("{t('bottomTimeline.synthetic.unaffiliated')}");
     // 铺开 and 定位 are a panel header's plain icon buttons; the graph entry stays glass.
@@ -119,7 +119,8 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
 
     const toggle = block(css, '.btl__toggle {', '.btl__toggle-count {');
     expect(toggle).toContain('border-radius: 0;');
-    expect(toggle).toContain('--glass-gx: -96px;');
+    // Small glass: the dense patch comes from `glass--small`, not a rule of its own.
+    expect(toggle).not.toContain('--glass-gx');
     expect(toggle).toMatch(/\[aria-expanded='true'\]\s*\{\s*background: var\(--glass-fill\);/);
     expect(toggle).not.toMatch(/hsl\(var\(--(rule|surface|accent)\)/);
     expect(css).not.toContain('.btl__state-toggle');
@@ -133,7 +134,7 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
   it('makes the desktop act rail glass and leaves the paper chips to the paused shell', () => {
     const desktop = rail(true);
     expect(desktop).toContain('class="actrail actrail--glass"');
-    expect(desktop).toContain('class="actrail__label is-draggable glass glass--rest"');
+    expect(desktop).toContain('class="actrail__label is-draggable glass glass--rest glass--small"');
     expect(desktop).not.toContain('accent');
 
     const plain = rail(false);
@@ -148,12 +149,12 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
     expect(glass).toMatch(/\.actrail__rail-add:hover:not\(:disabled\) \{\s*background: transparent;/);
     expect(glass).not.toContain('hsl(var(--accent))');
     expect(source('src/renderer/components/BottomTimeline/ActRail.tsx')).toContain(
-      "className={glass ? 'actrail__edit-field glass glass--field' : 'actrail__edit-field'}",
+      "className={glass ? 'actrail__edit-field glass glass--field glass--small' : 'actrail__edit-field'}",
     );
   });
 
   it('carries the desktop time pin as the act chip and its drop line as flowing glass', () => {
-    expect(pin(null, true)).toContain('class="btl-pin__label glass glass--rest"');
+    expect(pin(null, true)).toContain('class="btl-pin__label glass glass--rest glass--small"');
     const bound = pin('drift-1', true);
     expect(bound).toContain('kind-mark kind-mark--drift');
     expect(bound).toContain('潮汐表');
@@ -188,7 +189,7 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
         }),
       );
     const closed = panel(false);
-    expect(closed).toContain('class="drift-panel__tab glass glass--rest"');
+    expect(closed).toContain('class="drift-panel__tab glass glass--rest glass--small"');
     expect(closed).toContain('kind-mark kind-mark--drift kind-mark--loose');
     expect(panel(true)).toContain('class="drift-panel__close glass glass--rest glass--round"');
 

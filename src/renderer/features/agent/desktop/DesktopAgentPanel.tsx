@@ -377,7 +377,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
 
       {!usable && <div style={hintBox} role="status">
         <div style={hintText}>{status === null && api.capability.available ? t('agentPanel.checking') : notConnectedText}</div>
-        <button type="button" className="agt-btn glass glass--primary" onClick={() => events.emit('settings:open', { railId: 'models' })}>
+        <button type="button" className="agt-btn glass glass--primary glass--small" onClick={() => events.emit('settings:open', { railId: 'models' })}>
           {t('agentPanel.setup.openSettings')}
         </button>
       </div>}

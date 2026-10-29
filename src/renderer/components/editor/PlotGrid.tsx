@@ -164,7 +164,7 @@ function DesktopHeaderLabel({
   }, [focusToken]);
   return (
     <div
-      className="pl-head__text glass glass--field"
+      className="pl-head__text glass glass--field glass--small"
       contentEditable
       suppressContentEditableWarning
       role="textbox"

@@ -981,10 +981,6 @@
 }
 .agt-round:hover:not(:disabled) { color: hsl(var(--ink-1)); }
 .agt-round:disabled { cursor: default; }
-.agt-composer .agt-round.glass,
-.agt-composer__tray .agt-cfg.glass,
-.agt-log--glass .agt-btn.glass,
-.agt-entity-links .agt-entity-chip.glass { --glass-gx: -96px; --glass-gy: -132px; }
 
 /* A text button made of glass (a card's actions, the setup hint). */
 .agt-btn {
@@ -1012,7 +1008,7 @@
 
 /* The transcript. Steps, task lists and the author's sent words carry the
    resting glass line; what is only read keeps it under the pointer. */
-.agt-log--glass > .glass:nth-of-type(2n + 1) { --glass-gx: -96px; --glass-gy: -132px; }
+.agt-log--glass > .glass:nth-of-type(2n + 1) { --glass-gx: var(--glass-dense-gx); --glass-gy: var(--glass-dense-gy); }
 .agt-log--glass > .glass:nth-of-type(2n) { --glass-gx: -168px; --glass-gy: -18px; }
 
 .agt-user-bubble {

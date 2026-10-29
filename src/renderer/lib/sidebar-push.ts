@@ -1,7 +1,6 @@
-// A tab switch pushes a pane's strip of panels like heavy ice: slow to start,
-// then fast. The glass block under the chosen panel tab rides the same push.
-export const SIDEBAR_PUSH_MS = 265;
-export const SIDEBAR_PUSH_EASING = 'cubic-bezier(0.8, 0, 0.66, 1)';
+// A tab switch pushes a pane's strip of panels like heavy ice (PUSH_MS and
+// PUSH_EASING in lib/motion.ts): slow to start, then fast. The glass block
+// under the chosen panel tab rides the same push.
 
 /** A panel on a sidebar pane's pushed strip and where it sits now, in px from the pane's left edge. */
 export interface StripPanel {
