@@ -22,7 +22,8 @@ minutes; the runner then launches its second process automatically. Quit that
 process when requested, too. An automation operator can supply these two native
 UI actions. The runner requires exit code zero after each Quit. It never replaces
 the shutdown path with `app.exit(0)`, which would skip the product's
-`ExitRequested(code=None)` persistence coordinator.
+persistence coordinator. On macOS, Quit reaches that coordinator through
+`applicationShouldTerminate:` (see [desktop quit persistence](../desktop-quit-persistence.md)).
 
 ## Isolation and provenance
 
