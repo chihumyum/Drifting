@@ -88,6 +88,7 @@ import type {
   SyncDomainMaterializationContext,
   SyncDomainMaterializationKernel,
 } from './sqlite-materializer';
+import { applyToStoredYjsDocument } from './yjs-validation-documents';
 
 type CborRecord = Readonly<Record<string, CanonicalCborValue>>;
 type FieldEffect = Extract<ReducerEffect, { type: 'field.set' }>;
@@ -818,14 +819,7 @@ async function validateExternalEffect(
       if (!ownerExists) {
         return [conflict(effect, 'yjs.missing-owner', 'Yjs document owner does not exist in this project')];
       }
-      const document = new Y.Doc();
-      const repository = createYjsRepository(context.tx);
-      const snapshot = await repository.getSnapshot(effect.target.id);
-      if (snapshot) Y.applyUpdate(document, snapshot.stateBlob);
-      for (const existing of await repository.listUpdates(effect.target.id)) {
-        Y.applyUpdate(document, existing.updateBlob);
-      }
-      Y.applyUpdate(document, update);
+      await applyToStoredYjsDocument(context.tx, effect.target.id, update);
       return [];
     } catch (error) {
       return [conflict(effect, 'yjs.invalid-update', error instanceof Error ? error.message : String(error))];
