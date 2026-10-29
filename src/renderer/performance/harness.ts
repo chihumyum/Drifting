@@ -174,6 +174,10 @@ async function run() {
 Object.assign(window, { __DRIFTING_PERFORMANCE_HARNESS__: {
   imeSelectionProbe,
   run,
+  async agentPanel() {
+    return { scenarios: [], agentPanel: await runAgentPanelScenarios(),
+      environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio } };
+  },
   async editorIme() {
     return { scenarios: [], editorIme: await runEditorImeScenarios(),
       agentDecorations: runAgentDecorationScenarios(), decorationReadiness: runDecorationReadinessScenario(),

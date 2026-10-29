@@ -87,7 +87,7 @@ function hydrateInWorker(snapshot: Uint8Array | null, updates: Uint8Array[]): Pr
   });
 }
 
-async function hydrateInline(snapshot: Uint8Array | null, updates: Uint8Array[]): Promise<string> {
+export async function hydrateInline(snapshot: Uint8Array | null, updates: Uint8Array[]): Promise<string> {
   const doc = new Y.Doc();
   try {
     if (snapshot) Y.applyUpdate(doc, snapshot, 'load');

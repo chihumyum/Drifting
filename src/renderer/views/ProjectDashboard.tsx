@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
 import { useDataStoreFields } from '../store/use-data-store-fields';
@@ -115,7 +115,7 @@ export interface ProjectDashboardProps {
   onOpenProjectView?: (view: 'graph' | 'element' | 'memo-material') => void;
 }
 
-export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = {}) {
+export const ProjectDashboard = memo(function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = {}) {
   const { t, i18n } = useTranslation();
   const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
@@ -1181,4 +1181,4 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
       </div>
     </div>
   );
-}
+});

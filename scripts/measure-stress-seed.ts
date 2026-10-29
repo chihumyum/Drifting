@@ -60,7 +60,7 @@ async function main() {
   const { OfflineProductDatabase } = await import('../src/dev-cli/offline-database');
   const { captureWorkspaceProjection } = await import('../src/renderer/services/workspace-projection.service');
   const { libraryItemMatchesQuery } = await import('../src/renderer/features/library/library-item-search');
-  const { noteToMarkdown } = await import('../src/renderer/lib/note-markdown');
+  const { noteMarkdownExcerpt } = await import('../src/renderer/lib/note-markdown');
   const { createAgentConversationRepository } = await import('../src/renderer/sqlite-repo/agent-conversation-repo');
   const { createAgentRuntimePersistenceRepository } = await import('../src/renderer/sqlite-repo/agent-runtime-persistence-repo');
   const { recoverAgentRuntimeSnapshot } = await import('../src/renderer/lib/agent/runtime/recovery');
@@ -142,7 +142,7 @@ async function main() {
     const notes = cold.data.libraryItems.filter(i => i.kind === 'text');
     assert.equal(notes.length, 60);
     const renderNotes = () => notes.map(note => {
-      const markdown = noteToMarkdown(note.bodyJson).replace(/^> \[!note\]\n/gmu, '');
+      const markdown = noteMarkdownExcerpt(note.bodyJson).replace(/^> \[!note\]\n/gmu, '');
       const escaped = markdown.replace(/&/gu, '&amp;').replace(/</gu, '&lt;');
       return String(marked.parse(escaped, { breaks: true, gfm: true, async: false })).replace(/==([^=\n<]+)==/gu, '<mark>$1</mark>');
     });
@@ -263,7 +263,7 @@ async function main() {
       corpus: { chapters: 100, inspirations: 200, elements: 300, notes: notes.length, conversations: conversationList.length, noteHtmlCharacters: html.reduce((n, text) => n + text.length, 0),
         noteHtmlTags: html.reduce((n, text) => n + (text.match(/<[a-z]/gu)?.length ?? 0), 0), cachedChatCharacters: chat.chars,
         chatDisplayMessages: cached.messages.length, canonicalTurns: snapshot.turns.length, projectedMessages: displayed.messages.length },
-      summary, samples, retention, agentRetention, subscriptions, shelfStats: { nodes: shelf.nodes, words: shelf.words, chapters: 100, inspirations: 200 },
+      summary, samples, retention, agentRetention, subscriptions, shelfStats: { nodes: shelf.nodes, words: shelf.words, chapters: shelf.chapters, inspirations: 200 },
       profiles: { material: materialProfile, recovery: recoveryProfile, display: displayProfile, wholeBodyWrite: writeProfile },
       writeProfileQueries,
       checks: { counts: true, canonicalRecovery: true, authoredTodoWrites: true, authoredChapterWriteAndYjsWords: true, authoredRelation: true, reopen: true, foreignKeys: true, integrity: true },

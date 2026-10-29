@@ -51,12 +51,26 @@ export async function runAgentPanelScenarios() {
     useSettingsStore.setState({ agentAuth: 'apikey' });
     useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: conversationId, prompt: 'Synthetic draft stays in the composer',
       refreshList: () => undefined, convList: [{ id: conversationId, title: 'Synthetic current conversation', mode: 'byok', updatedAt: '2026-01-01T00:00:00.000Z' }], starting: false, runningTurns: { [conversationId]: 'synthetic-panel-turn' },
-      runs: { [conversationId]: { projectId, runtimeSessionId: sessionId, transcript: AgentChatTranscript.from(history), journalScope: createAgentChatJournalScope(),
+      runs: { [conversationId]: { projectId, runtimeSessionId: sessionId, transcript: AgentChatTranscript.from([]), journalScope: createAgentChatJournalScope(),
         controlStatus: 'running', pendingControl: null, lastTerminal: null, longTaskPlanState: null, contextUsage: null,
         automaticContinuation: createInactiveAgentAutomaticContinuation() } } });
     render(); await frame();
-    check('full authenticated desktop panel mounts all 300 historical messages', host.querySelectorAll('.agent-md').length === 150 && Boolean(host.querySelector('textarea')));
+    flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs,
+      [conversationId]: { ...state.runs[conversationId], transcript: AgentChatTranscript.from(history) } } })));
+    await frame();
+    const initialAssistantNodes = host.querySelectorAll('.agent-md').length;
+    check('long transcript initially mounts a bounded recent page', host.querySelectorAll('.agent-md').length <= 64 && Boolean(host.querySelector('textarea')) && selectMessages(useAgentChatStore.getState()).length === 300);
     const initialBottom = bottom(); check('asynchronous authentication mounts history at the bottom', initialBottom);
+    const older = () => Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'agentPanel.history.loadEarlier');
+    const priorHeight = log().scrollHeight;
+    flushSync(() => older()!.click()); await frame();
+    check('loading older messages preserves scroll position and all canonical history', log().scrollHeight > priorHeight && log().scrollTop > 0 && selectMessages(useAgentChatStore.getState()).length === 300);
+    while (older()) { flushSync(() => older()!.click()); await frame(); }
+    check('all earlier history remains reachable on request', host.querySelectorAll('.agent-md').length === 150);
+    const initialJump = host.querySelector<HTMLButtonElement>('[title="agentPanel.jumpLatest"]');
+    if (initialJump) flushSync(() => initialJump.click());
+    await frame();
+
     emit({ type: 'text_delta', iteration: 1, text: 'Streaming tail\n\n' }); await frame();
     const stable = host.querySelector('.agent-md'); const composer = host.querySelector('textarea')!;
     composer.focus(); composer.setSelectionRange(3, 9);
@@ -103,11 +117,17 @@ export async function runAgentPanelScenarios() {
     emit({ type: 'permission_requested', request: { requestId: 'synthetic-permission', sessionId, turnId: 'synthetic-panel-turn', callId: 'synthetic-write', toolName: 'write_node', access: 'write', arguments: {}, argumentsHash: `sha256:${'b'.repeat(64)}`, revision: null, allowedScopes: ['once'] } });
     check('permission boundary displays pending card and full tail immediately', Boolean(host.querySelector('.agt-control-card')) && log().textContent?.includes('Permission tail'));
     emit({ type: 'cancellation_requested', reason: 'synthetic-author' });
-    check('cancellation control disables steering without erasing the draft', Array.from(host.querySelectorAll<HTMLButtonElement>('.agt-send')).some(button => button.disabled) && composer.value === 'Synthetic draft stays in the composer');
+    check('cancellation control disables steering without erasing the draft', host.querySelector<HTMLButtonElement>('[aria-label="agentPanel.composer.steer"]')?.disabled === true && composer.value === 'Synthetic draft stays in the composer');
     emit({ type: 'model_iteration_completed', iteration: 1, stopReason: 'end_turn' }); await frame();
     render(false); emit({ type: 'text_delta', iteration: 2, text: 'Stream survived panel closure.' }); render(); await frame();
     check('panel remount reads current canonical stream and retains draft', log().textContent?.includes('Stream survived panel closure.') && host.querySelector('textarea')?.value === 'Synthetic draft stays in the composer');
     const returningBottom = bottom(); check('panel remount positions the current transcript at bottom', returningBottom);
+    const retainedPage = host.querySelector('.agent-md');
+    flushSync(() => useAgentChatStore.setState(state => ({ runs: { ...state.runs, [conversationId]: {
+      ...state.runs[conversationId], transcript: state.runs[conversationId].transcript.append(...Array.from({ length: 64 }, (_, index) => ({ kind: 'assistant' as const, text: `Synthetic boundary message ${index}`, streaming: false }))),
+    } } })));
+    await frame();
+    check('appending across a block boundary retains the currently readable page', host.querySelector('.agent-md') === retainedPage);
     const oldRun = useAgentChatStore.getState().runs[conversationId];
     const otherId = 'synthetic-panel-other';
     flushSync(() => useAgentChatStore.setState(state => ({ activeConvId: otherId, runs: { ...state.runs,
@@ -128,12 +148,20 @@ export async function runAgentPanelScenarios() {
     check('conversation ownership prevents expanded details leaking to another session', host.querySelector('details') !== details && host.querySelector<HTMLDetailsElement>('details')?.open === false);
     for (let cycle = 0; cycle < 100; cycle++) {
       render(false); render(); await frame();
-      if (!host.querySelector('textarea') || (events.all.get('agent:auth-changed')?.length ?? 0) !== initialAuthListeners + 1) throw new Error(`Agent panel owner duplicated or missing at cycle ${cycle}`);
+      if (!host.querySelector('textarea') || (events.all.get('agent:auth-changed')?.length ?? 0) !== initialAuthListeners + 1) throw new Error(`Agent panel owner duplicated or missing at cycle ${cycle}: composer=${Boolean(host.querySelector('textarea'))}, authListeners=${events.all.get('agent:auth-changed')?.length ?? 0}, initial=${initialAuthListeners}`);
     }
+    const offlineRestore = installGeneralAgentTransport({ ...unsupportedGeneralAgentTransport,
+      capability: { ...unsupportedGeneralAgentTransport.capability, available: true },
+      authStatus: async () => ({ ok: true, value: { byokConnected: false, apiKeyConnected: false, hostedAvailable: false } }),
+    });
+    try {
+      events.emit('agent:auth-changed', undefined); await frame();
+      check('offline panel retains history and draft while disabling send', Boolean(host.querySelector('[title="agentPanel.toolbar.historyTitle"]')) && host.querySelector('textarea')?.value === 'Synthetic draft stays in the composer' && host.querySelector<HTMLButtonElement>('[aria-label="agentPanel.composer.send"]')?.disabled === true);
+    } finally { offlineRestore(); }
     render(false);
     const remainingAuthListeners = (events.all.get('agent:auth-changed')?.length ?? 0) - initialAuthListeners;
     check('repeated panel closure releases its authentication listener', remainingAuthListeners === 0);
-    return { checks, historyMessages: history.length, displayBatches: 20, streamEvents: 400, streaming, drafting, initialBottom, returningBottom, cycles: 100, remainingAuthListeners,
+    return { checks, historyWindowing: { initialAssistantNodes, canonicalMessages: history.length, allHistoryReachable: checks.includes('all earlier history remains reachable on request'), offlineHistory: checks.includes('offline panel retains history and draft while disabling send') }, historyMessages: history.length, displayBatches: 20, streamEvents: 400, streaming, drafting, initialBottom, returningBottom, cycles: 100, remainingAuthListeners,
       scope: 'Actual desktop panel and composer, production React, canonical synthetic journal and no persistence/model calls. Desktop Chromium scroll and selection; mobile and native acceptance remain separate.' };
   } finally {
     document.getSelection()?.removeAllRanges(); flushSync(() => root.unmount()); host.remove();

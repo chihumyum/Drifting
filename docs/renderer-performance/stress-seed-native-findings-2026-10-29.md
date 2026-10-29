@@ -1,5 +1,7 @@
 # 2026-10-29 重型 Seed 原生 App 走查
 
+> 后续修复及重新测量见[修复记录](stress-seed-performance-fixes-2026-10-29.md)。本文与 before JSON 保留原始观察时点。
+
 重型 Seed 已在当前隔离 Debug App 中完成主要工作区走查，**发现一次超过一秒的 renderer 阻塞，以及素材全文卡片、多标签后台更新、全文搜索结果规模等优化点**。未出现崩溃、未处理 JS 异常或持久化校验失败。Agent 长会话正文、中文输入法、拆分布局和导入/恢复等细项仍有覆盖缺口；这份记录不是“全 App 性能验收通过”。
 
 验收入口：默认 `pnpm dev:seed --no-watch` 使用 stress；`pnpm dev:seed:lite --no-watch` 用于快速验证功能。数据规模、字数定义及验收方法见[开发数据说明](../development-seed-workloads.md)和[完整配方](../worktree-development.md#seeded-profiles)。

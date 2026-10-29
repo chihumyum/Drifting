@@ -5,6 +5,16 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+export function nativePerformanceSourceFingerprint(root) {
+  const sourcePaths = ['src', 'src-tauri', 'crates', 'vendor', 'packages', 'vite-plugins', 'scripts', 'patches', 'drizzle',
+    'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'vite.renderer.config.ts', 'index.html', 'postcss.config.js', 'tailwind.config.js'];
+  const files = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...sourcePaths],
+    { cwd: root, encoding: 'utf8' }).trim().split('\n'))].filter(Boolean).sort();
+  const hash = createHash('sha256');
+  for (const file of files) hash.update(file).update('\0').update(readFileSync(path.join(root, file))).update('\0');
+  return { fingerprint: hash.digest('hex'), files: files.length };
+}
+
 export function nativePerformanceAuditPlugin({ directory, origin }) {
   const token = randomBytes(24).toString('hex');
   const endpoint = '/__drifting_performance_audit__';
@@ -58,17 +68,10 @@ export function invoke(command, args, options) {
       mkdirSync(directory, { recursive: true, mode: 0o700 });
       writeFileSync(path.join(directory, 'control.json'), JSON.stringify({ endpoint: `${origin}${endpoint}`, token }), { mode: 0o600 });
       const git = args => execFileSync('git', args, { cwd: server.config.root, encoding: 'utf8' }).trim();
-      const sourcePaths = ['src', 'src-tauri', 'crates', 'vendor', 'packages', 'vite-plugins', 'scripts', 'patches', 'drizzle',
-        'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'vite.renderer.config.ts', 'index.html', 'postcss.config.js', 'tailwind.config.js'];
-      const files = [...new Set([
-        ...git(['ls-files', '--cached', '--others', '--exclude-standard', '--', ...sourcePaths]).split('\n'),
-        'scripts/native-performance-audit-plugin.mjs', 'scripts/native-performance-audit-probe.ts', 'scripts/native-performance-audit.mjs', 'scripts/native-performance-process-sampler.mjs',
-      ])].filter(Boolean).sort();
-      const hash = createHash('sha256');
-      for (const file of files) hash.update(file).update('\0').update(readFileSync(path.join(server.config.root, file))).update('\0');
+      const capturedSource = nativePerformanceSourceFingerprint(server.config.root);
       writeFileSync(path.join(directory, 'source.json'), JSON.stringify({ head: git(['rev-parse', 'HEAD']),
-        dirty: Boolean(git(['status', '--porcelain', '--untracked-files=all', '--', ...sourcePaths])),
-        fingerprint: hash.digest('hex'), files: files.length, recordedAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
+        dirty: Boolean(git(['status', '--porcelain', '--untracked-files=all'])),
+        ...capturedSource, recordedAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
       const append = (file, data) => appendFileSync(path.join(directory, file), `${JSON.stringify({ ...data, receivedAt: Date.now() })}\n`, { mode: 0o600 });
       append('markers.jsonl', { marker });
       server.middlewares.use(async (req, res, next) => {

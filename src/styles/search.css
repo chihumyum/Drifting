@@ -115,6 +115,8 @@
 
 .gsearch-results {
   flex: 1;
+  min-height: 0;
+  overflow-anchor: none;
   overflow-y: auto;
   padding: 4px;
   font-size: var(--ui-font-body, 12.5px);
@@ -192,12 +194,13 @@
 }
 
 .gsearch-field-tag {
+  white-space: nowrap;
   font-size: var(--ui-font-caption, 10px);
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   background: var(--search-tag-bg);
   padding: 1px 4px;
   border-radius: 3px;
-  width: 28px;
+  min-width: 28px;
   text-align: center;
   flex-shrink: 0;
 }

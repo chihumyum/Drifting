@@ -13,6 +13,7 @@ export interface Occurrence {
 }
 
 export interface EntityGroup {
+  nodeKind?: BookNode['kind'];
   entityType: SearchableEntityType;
   entityId: string;
   entityTitle: string;
@@ -28,6 +29,7 @@ export interface GlobalSearchEntities {
   bookElementCategories: readonly BookElementCategory[];
 }
 export interface SearchDocument {
+  nodeKind?: BookNode['kind'];
   entityType: SearchableEntityType;
   entityId: string;
   entityTitle: string;
@@ -153,7 +155,7 @@ export function createGlobalSearchIndex() {
         return value.text;
       };
       for (const node of entities.bookNodes) {
-        documents.push({ entityType: 'node', entityId: node.id, entityTitle: node.title || labels.untitled,
+        documents.push({ entityType: 'node', nodeKind: node.kind, entityId: node.id, entityTitle: node.title || labels.untitled,
           fields: [
             { field: 'title', text: node.title || '' },
             { field: 'summary', text: node.summary || '' },
@@ -199,6 +201,6 @@ export function searchGlobalDocuments(documents: readonly SearchDocument[], quer
   const q = query.trim(); if (!q) return [];
   return documents.flatMap(doc => {
     const group = buildGroup(doc.entityType, doc.entityId, doc.entityTitle, doc.fields, q);
-    return group ? [group] : [];
+    return group ? [{ ...group, ...(doc.nodeKind ? { nodeKind: doc.nodeKind } : {}) }] : [];
   });
 }

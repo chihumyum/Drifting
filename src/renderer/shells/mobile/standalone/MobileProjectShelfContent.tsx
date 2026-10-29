@@ -246,7 +246,7 @@ export function MobileProjectShelfContent({
                     {project.summary || meta.subtitle || t('projectPicker.newBookSubtitle')}
                   </span>
                   <span className="m-shelf-pager__meta">
-                    {project.stats.nodes} {t('common.chapters')} ·{' '}
+                    {project.stats.chapters} {t('common.chapters')} ·{' '}
                     {project.stats.wordsReady
                       ? `${project.stats.words.toLocaleString()} ${t('common.words')}`
                       : t('common.counting')}{' '}
@@ -391,7 +391,7 @@ export function MobileProjectShelfContent({
                           : t('common.counting')}
                       </span>
                       <span>
-                        {project.stats.nodes} {t('common.chapters')}
+                        {project.stats.chapters} {t('common.chapters')}
                       </span>
                       <span>{lastEditedRel}</span>
                     </span>

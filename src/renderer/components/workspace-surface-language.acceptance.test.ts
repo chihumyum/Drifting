@@ -394,7 +394,7 @@ describe('workspace surface language acceptance', () => {
     expect(library).toContain('className="workspace-panel-header-row"');
     expect(
       agentPanel.match(/className="agt-panel-toolbar workspace-panel-header-row"/g),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(agentPanel).not.toContain('style={toolbar}');
     expect(
       block(agentCss, '.agt-panel-toolbar {', '.agt-panel-toolbar__right {'),

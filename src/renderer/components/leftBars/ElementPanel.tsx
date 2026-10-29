@@ -71,7 +71,7 @@ export function ElementPanel({
 }: ElementPanelProps = {}) {
   const { t } = useTranslation();
   const { bookElements, bookElementCategories } = useDataStoreFields('bookElements', 'bookElementCategories');
-  const { elementUi } = useUiStore();
+  const elementUi = useUiStore((s) => s.elementUi);
   const sidebarWidth = useLeftSidebarPanelWidth();
   const paneId = useSidebarPaneId();
   const showDate = presentation === 'desktop' && sidebarWidth >= DATE_HIDE_WIDTH;
