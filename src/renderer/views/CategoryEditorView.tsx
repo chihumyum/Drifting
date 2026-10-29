@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
+import { GlassSlider } from '../components/ui/GlassSlider';
+import { getPlatformRuntime } from '../platform/runtime';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
@@ -283,6 +285,35 @@ export function CategoryEditorView({
   }
 
   const categoryColor = curCategory.color || 'hsl(var(--accent))';
+  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
+  const glass = !getPlatformRuntime().isMobileShell;
+  const elementFilters = [
+    ['all', t('storylineEditor.filters.all'), cEls.length],
+    ['used', t('categoryEditor.filters.used'), usedCount],
+    ['unused', t('categoryEditor.filters.unused'), cEls.length - usedCount],
+  ] as const;
+  const nameField = (
+    <EntityTitleField
+      className="elem-hero__name"
+      value={displayedName}
+      onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}
+      onChange={(e) => setNameDraft(e.target.value)}
+      onCompositionStart={() => setIsComposingName(true)}
+      onCompositionEnd={(e) => { setIsComposingName(false); setNameDraft(e.currentTarget.value); }}
+      onBlur={() => { setIsEditingName(false); if (!isComposingName) void commitName(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+        if (e.key === 'Escape') {
+          setNameDraft(currentName);
+          e.currentTarget.blur();
+        }
+      }}
+      placeholder={t('categoryEditor.untitled')}
+    />
+  );
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -328,41 +359,41 @@ export function CategoryEditorView({
             {/* 一 · 概述 */}
             <section id="cat-overview">
               <div className="elem-hero">
-                <div
-                  className="elem-portrait elem-portrait--category"
-                  style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}
-                >
-                  <span className="elem-portrait__hint"><KindMark kind="element" color="currentColor" className="is-inline" />{curCategory.name}</span>
-                </div>
+                {!glass && (
+                  <div
+                    className="elem-portrait elem-portrait--category"
+                    style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}
+                  >
+                    <span className="elem-portrait__hint"><KindMark kind="element" color="currentColor" className="is-inline" />{curCategory.name}</span>
+                  </div>
+                )}
                 <div className="elem-hero__main">
-                  <EntityTitleField
-                    className="elem-hero__name"
-                    value={displayedName}
-                    onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    onCompositionStart={() => setIsComposingName(true)}
-                    onCompositionEnd={(e) => { setIsComposingName(false); setNameDraft(e.currentTarget.value); }}
-                    onBlur={() => { setIsEditingName(false); if (!isComposingName) void commitName(); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }
-                      if (e.key === 'Escape') {
-                        setNameDraft(currentName);
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder={t('categoryEditor.untitled')}
-                  />
+                  {glass ? (
+                    <div className="entity-hero__name-row">
+                      <KindMark kind="category" color={categoryColor} className="entity-hero__mark" />
+                      {nameField}
+                    </div>
+                  ) : nameField}
 
                   <div className="elem-hero__facts">
                     <div className="elem-hero__fact-k">{t('categoryEditor.labels.elementCount')}</div>
                     <div className="elem-hero__fact-v">{t('categoryEditor.meta.items', { count: cEls.length })}</div>
                     <div className="elem-hero__fact-k">{t('storylineEditor.labels.color')}</div>
                     <div className="elem-hero__fact-v">
-                      <div className="col-pick">
-                        {CATEGORY_COLORS.map((c) => (
+                      <div className={`col-pick${glass ? ' col-pick--glass' : ''}`}>
+                        {CATEGORY_COLORS.map((c, index) => glass ? (
+                          <button
+                            key={c}
+                            type="button"
+                            className="col-pick__dot glass glass--round"
+                            aria-pressed={c === curCategory.color}
+                            aria-label={`${t('storylineEditor.labels.color')} ${index + 1}`}
+                            style={{ '--glass-cc': c } as React.CSSProperties}
+                            onClick={() => void commitColor(c)}
+                          >
+                            <i className="sand sand--blob-2" style={{ '--sand-c': c } as React.CSSProperties} />
+                          </button>
+                        ) : (
                           <div
                             key={c}
                             className={`col-pick__sw${c === curCategory.color ? ' col-pick__sw--active' : ''}`}
@@ -437,42 +468,59 @@ export function CategoryEditorView({
                   <span className="page__scene-meta">{t('categoryEditor.meta.items', { count: cEls.length })}</span>
                 </h2>
 
-                <div className="mgr-toolbar">
-                  <div className="mgr-toolbar__chips">
-                    {([
-                      ['all',    t('storylineEditor.filters.all'),     cEls.length],
-                      ['used',   t('categoryEditor.filters.used'),   usedCount],
-                      ['unused', t('categoryEditor.filters.unused'),   cEls.length - usedCount],
-                    ] as const).map(([k, label, n]) => (
-                      <FilterChip
-                        key={k}
-                        shape="square"
-                        active={elementFilter === k}
-                        count={`· ${n}`}
-                        onClick={() => setElementFilter(k)}
-                      >
-                        {label}
-                      </FilterChip>
-                    ))}
-                  </div>
+                <div className={`mgr-toolbar${glass ? ' mgr-toolbar--glass' : ''}`}>
+                  {glass ? (
+                    <GlassSlider
+                      className="entity-slider"
+                      ariaLabel={t('categoryEditor.sections.elements')}
+                      value={elementFilter}
+                      onChange={setElementFilter}
+                      options={elementFilters.map(([k, label, n]) => ({
+                        value: k,
+                        label: <>{label}<span className="entity-slider__count">{n}</span></>,
+                      }))}
+                    />
+                  ) : (
+                    <div className="mgr-toolbar__chips">
+                      {elementFilters.map(([k, label, n]) => (
+                        <FilterChip
+                          key={k}
+                          shape="square"
+                          active={elementFilter === k}
+                          count={`· ${n}`}
+                          onClick={() => setElementFilter(k)}
+                        >
+                          {label}
+                        </FilterChip>
+                      ))}
+                    </div>
+                  )}
                   {/* DEFERRED: search / sort / batch / + new element */}
                 </div>
 
-                <div className="mgr-list">
+                <div className={`mgr-list${glass ? ' mgr-list--glass' : ''}`}>
                   {filteredEls.map((e) => {
                     const role = e.summary || '';
+                    const hasContent =
+                      Boolean(role) || Boolean(e.contentJson && e.contentJson !== '{}');
                     return (
                       <div
                         key={e.id}
-                        className="mgr-row"
-                        style={{ ['--s-color' as string]: categoryColor } as React.CSSProperties}
+                        className={`mgr-row${glass ? ' mgr-row--glass sand-cell' : ''}`}
+                        style={{ '--s-color': categoryColor, '--cell-c': categoryColor } as React.CSSProperties}
                         onClick={() => navigateToElement(e.id)}
                       >
-                        <div className="mgr-row__status" style={{ background: categoryColor }} />
+                        {glass ? (
+                          <KindMark kind="element" hollow={!hasContent} color={categoryColor} className="mgr-row__mark" />
+                        ) : (
+                          <div className="mgr-row__status" style={{ background: categoryColor }} />
+                        )}
                         <div className="mgr-row__num">e.{e.id.slice(0, 4)}</div>
                         <div className="mgr-row__body">
                           <div className="mgr-row__title">
-                            <KindMark kind="element" color="var(--s-color, hsl(var(--accent)))" className="mgr-row__title-mark" />
+                            {!glass && (
+                              <KindMark kind="element" color="var(--s-color, hsl(var(--accent)))" className="mgr-row__title-mark" />
+                            )}
                             <span>{e.name || t('common.untitled')}</span>
                           </div>
                           <div className={`mgr-row__summary${role ? '' : ' mgr-row__summary--empty'}`}>
@@ -484,6 +532,7 @@ export function CategoryEditorView({
                           <span className="mgr-row__wc-k">{t('categoryEditor.labels.role')}</span>
                         </div>
                         <div className="mgr-row__open" title={t('categoryEditor.actions.openElement')}><BrushIcon name="arrow-forward" size={14} /></div>
+                        {glass && <i className="cell-ring" aria-hidden="true" />}
                       </div>
                     );
                   })}

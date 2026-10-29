@@ -10,7 +10,7 @@ pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.
 pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/accent-color-preference.acceptance.test.ts
 pnpm test:renderer-architecture
 pnpm exec vitest run src/renderer/lib/sidebar-tabs.test.ts src/renderer/lib/sidebar-pane-events.test.ts src/renderer/store/ui-store.sidebar-tabs.test.ts src/renderer/lib/layout-geometry.test.ts src/renderer/shells/desktop/desktop-sidebar-tabs.acceptance.test.ts src/renderer/store/agent-chat-preparation.integration.test.ts
-pnpm exec vitest run src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts
+pnpm exec vitest run src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts src/renderer/components/editor/entity-editor-glass.acceptance.test.ts
 node scripts/run-tab-reorder-acceptance.mjs --check
 pnpm exec vitest run src/renderer/views/all-chapters-sand-glass.acceptance.test.ts src/renderer/features/agent/project-memory-glass.render.test.ts
 ```
@@ -27,6 +27,7 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 - **多选一与开关**：`glass-slider-scope-toggle.test.ts` 覆盖滑块没有轨道、方角、取稠密纹理并随移动流动，开关的同一个词与锁一样的玻璃状态。
 - **Dock**：`desktop-universal-create.acceptance.test.ts` 覆盖锁与 `+` 在药丸滚动区之外、展开后滚到当前药丸；`node scripts/run-tab-reorder-acceptance.mjs` 在无头浏览器里按正常与减少动效两套跑药丸拖拽：邻居先让位、落位、取消、Escape、拖出药丸行收拢原位、拖回再让位、WebKit 松手前的假“离开窗口”不收拢、外部放下保留分屏数据，`--check` 校验证据与源码一致。
 - **Agent 面板**：`features/agent/agent-glass.render.test.ts` 渲染真实的消息组件：Agent 工作时新出现的工具步骤带推波、从历史载入的不带，只读的步骤与任务清单悬停不变、能展开的步骤悬停流动，作者发出的话是对话框同款的圆角片，出错不垫底，请求授权的卡片与它的主按钮是等你处理的玻璃、主按钮排在最后，没有 `AgentGlassContext` 的移动端不带玻璃；`workspace-surface-language.acceptance.test.ts` 守着对话框的玻璃片、左下托盘、右下圆形按钮与「上提／弯杆上提」，以及 `materials.css` 里五种修饰的关键规则和 Dock 无色药丸取浅灰。
+- **实体编辑器**：`components/editor/entity-editor-glass.acceptance.test.ts` 渲染桌面与移动端的 `KvEditor`（桌面每行是输入片、只读是静止细线、移动端没有玻璃），并守着各编辑器的移动端门控、页头的大记号与圆形玻璃色板、清单的 cell 行与 `GlassSlider`、关联卡与就地选择器、平的提及行、补丁卡与推波、对话框的菜单行与玻璃卡，以及 `entity-editors.css` 的桌面规则不垫底、没有投影、没有左侧竖条。
 - **通览全书与稿纸页眉**：`views/all-chapters-sand-glass.acceptance.test.ts` 守着桌面上章与章之间不画线（只有移动端保留）、幕扉页是小字幕序加正文字体幕名与一笔干砂、没有章节时是主按钮加带鸟居的次按钮，页眉里的故事线是砂笔短横加墨色名字、不再重复「— 主线 —」也不用强调色，以及两种语言都有新文案。
 - **Project Memory**：`features/agent/project-memory-glass.render.test.ts` 渲染真实的编辑器：桌面上条目是一张只读细线卡、操作是带砂笔图标的文字按钮（删除为危险色、不带玻璃）、追加框是多行输入框的圆角片且「记下」是停用的主按钮，移动端不带任何玻璃与图标；同时守着 `project-memory.css` 的桌面规则不垫底色、不画分隔线、不加投影。
 - **悬停卡**：`menu-surface-style.acceptance.test.ts` 覆盖没有右键菜单、所有对象的操作在悬停卡里、滚动列表时卡片收起而不是跟着走、滚动中滑到指针下的行不弹卡。

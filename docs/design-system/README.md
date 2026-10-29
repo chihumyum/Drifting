@@ -43,7 +43,7 @@
 尚未补齐的部分（按影响排序）：
 
 1. **砂笔还没进正文。** 批注高亮、干笔下划线、故事线色带都在设计意图里，但编辑器里的批注高亮仍是平涂底色（`::highlight()` 只认背景色与文字装饰），砂笔目前只出现在记号、画框和图标上。
-2. **控件层还没进设置页与其余视图。** 控件的定义都在 [components.md](components.md)；设置页仍用自己的 `.set-btn`、`.set-input`、原生下拉与描边卡片，书架、实体编辑器与 Super View 仍有描边输入框与描边卡片，各自迁移时换成这里的定义（共用的 `Button` 已经跟着换了）。作品主页（Project Home）先整体重排结构，再按本设计系统重做。
+2. **控件层还没进设置页与其余视图。** 控件的定义都在 [components.md](components.md)；设置页仍用自己的 `.set-btn`、`.set-input`、原生下拉与描边卡片，书架与 Super View 仍有描边输入框与描边卡片，各自迁移时换成这里的定义（共用的 `Button` 已经跟着换了；实体编辑器已经换上，见 [components.md](components.md) 的「实体编辑器」）。作品主页（Project Home）先整体重排结构，再按本设计系统重做。
 3. **动效参数分散。** 时长与曲线散在 `tab-reorder.ts`、`sidebar-push.ts`、`glass-wave.ts`、`GlassSlider.tsx`、`TimelineDrawer.tsx`、`Sidebar.tsx`、`DesktopSidebarLayout.tsx` 与若干 CSS 里；`GlassSlider` 还要从药丸拖拽模块借弹簧曲线。应收拢成一个动效模块（[motion.md](motion.md) 末尾有清单）。
 4. **小块玻璃的纹理取样。** `.glass` 按兄弟序号在纹理图上取四块不同的位置，其中一块很稀；小控件取到它时几乎看不见边。目前只对筛选滑块与范围开关单独指定了稠密的一块，规则还没推广到所有小控件。
 5. **深色主题没有逐项复核。** 新加的 Panel Tab 方块、筛选滑块、Header 外框流动等主要在浅色下核对过。
