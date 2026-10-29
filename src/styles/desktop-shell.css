@@ -522,10 +522,14 @@
 }
 
 /* The lock and the plus sit either side of the pills' scroller (TopTimeline),
-   so only the pills scroll and nothing floats over them. */
+   so only the pills scroll and nothing floats over them. Outside the
+   scroller they must take the pointer themselves: the dock lets it through
+   everywhere else, and a lock it fell through would read as leaving the
+   dock and fold the pills back into marks. */
 .workspace-tab-dock__lock,
 .workspace-tab-dock .top-timeline-create-button {
   position: relative;
+  pointer-events: auto;
   display: grid;
   flex-shrink: 0;
   width: 30px;

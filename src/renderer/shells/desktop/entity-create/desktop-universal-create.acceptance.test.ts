@@ -49,7 +49,7 @@ describe('desktop universal create acceptance', () => {
       topTimeline.indexOf('    </div>\n\n    {expanded && <button'),
     );
     expect(shell).toContain(
-      '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {\n  position: relative;',
+      '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {\n  position: relative;\n  pointer-events: auto;',
     );
     expect(shell).not.toMatch(/\.workspace-tab-dock__lock[^{]*\{[^}]*position: sticky/);
     // Expanding the dock scrolls the current pill into view once the pills
