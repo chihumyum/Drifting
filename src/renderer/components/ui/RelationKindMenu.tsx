@@ -1,4 +1,4 @@
-import { useMemo, useState, type RefObject } from 'react';
+import { useMemo, useState, type CSSProperties, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ALL_ENTITY_KINDS,
@@ -12,11 +12,25 @@ import type {
 } from '../../domain/entity-relation-type';
 import type { EntityRelationLink } from '../../store/data-store';
 import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { AnchoredPopover } from './AnchoredPopover';
+import { Button } from './Button';
 import { FilterChip } from './FilterChip';
+import { GlassSlider } from './GlassSlider';
+import { KindMark } from './KindMark';
+import type { KindMarkKind } from './kind-mark';
 import { RELATION_TYPE_PALETTE } from './relation-type-color';
 import { requestConfirmation } from '../../store/confirmation-store';
 import { BrushIcon } from './BrushIcon';
+
+/** The sand mark of an entity kind a relation type may join, where it has one. */
+const KIND_MARK: Partial<Record<EntityRefSourceKind, KindMarkKind>> = {
+  node: 'chapter',
+  element: 'element',
+  category: 'category',
+  storyline: 'storyline',
+  library_item: 'material',
+};
 
 export interface RelationTypeMenuItem {
   type: EntityRelationType;
@@ -92,6 +106,10 @@ export function RelationTypeEditor({
         : [...STRUCTURAL_ENTITY_KINDS],
   );
   const [error, setError] = useState('');
+  // Desktop: written in place inside the menu, no box: single-line fields,
+  // direction as one of two, the allowed kinds as chips, cancel as a text
+  // button and save as the primary button.
+  const glass = !getPlatformRuntime().isMobileShell;
 
   const changeOrientation = (nextOrientation: 'directed' | 'symmetric') => {
     setOrientation(nextOrientation);
@@ -126,6 +144,114 @@ export function RelationTypeEditor({
     setTargetKinds(next);
     if (orientation === 'symmetric') setSourceKinds(next);
   };
+
+  const save = () => {
+    setError('');
+    void onSave({
+      name,
+      description,
+      orientation,
+      sourceRole,
+      targetRole: orientation === 'symmetric' ? sourceRole : targetRole,
+      sourceKinds,
+      targetKinds:
+        orientation === 'symmetric'
+          ? sourceKinds.filter((kind): kind is EntityRefTargetKind =>
+              STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind),
+            )
+          : targetKinds,
+    }).catch((reason) =>
+      setError(reason instanceof Error ? reason.message : String(reason)),
+    );
+  };
+
+  if (glass) {
+    const field = (label: string, input: string, onInput: (next: string) => void, autoFocus = false) => (
+      <label className="relation-type-editor__field">
+        <span>{label}</span>
+        <span className="ui-field glass glass--rest glass--field glass--small">
+          <input value={input} onChange={(event) => onInput(event.target.value)} autoFocus={autoFocus} />
+        </span>
+      </label>
+    );
+    const kindChip = (kind: EntityRefSourceKind, on: boolean, disabled: boolean, toggle: () => void) => {
+      const mark = KIND_MARK[kind];
+      return (
+        <FilterChip
+          key={kind}
+          look="glass"
+          active={on}
+          disabled={disabled}
+          onClick={toggle}
+          mark={mark && <KindMark kind={mark} seed={kind} className="ui-chip__mark" />}
+        >
+          {t(`relationTypes.entityKinds.${kind}`)}
+        </FilterChip>
+      );
+    };
+    return (
+      <div className="relation-type-editor relation-type-editor--glass">
+        <div className="relation-type-editor__grid">
+          {field(t('relationTypes.name'), name, setName, true)}
+          <div className="relation-type-editor__field">
+            <span>{t('relationTypes.direction')}</span>
+            <GlassSlider
+              ariaLabel={t('relationTypes.direction')}
+              value={orientation}
+              onChange={changeOrientation}
+              options={[
+                { value: 'directed', label: t('relationTypes.directed') },
+                { value: 'symmetric', label: t('relationTypes.symmetric') },
+              ]}
+            />
+          </div>
+          {field(
+            orientation === 'symmetric' ? t('relationTypes.endpointRole') : t('relationTypes.sourceRole'),
+            sourceRole,
+            setSourceRole,
+          )}
+          {orientation === 'directed' && field(t('relationTypes.targetRole'), targetRole, setTargetRole)}
+        </div>
+        {field(t('relationTypes.description'), description, setDescription)}
+        <div className="relation-type-editor__field">
+          <span>
+            {orientation === 'symmetric'
+              ? t('relationTypes.allowedEntities')
+              : t('relationTypes.allowedSources')}
+          </span>
+          <div className="relation-type-editor__chips">
+            {ALL_ENTITY_KINDS.map((kind) =>
+              kindChip(
+                kind,
+                sourceKinds.includes(kind),
+                orientation === 'symmetric' && !STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind),
+                () => toggleSourceKind(kind),
+              ),
+            )}
+          </div>
+        </div>
+        {orientation === 'directed' && (
+          <div className="relation-type-editor__field">
+            <span>{t('relationTypes.allowedTargets')}</span>
+            <div className="relation-type-editor__chips">
+              {STRUCTURAL_ENTITY_KINDS.map((kind) =>
+                kindChip(kind, targetKinds.includes(kind), false, () => toggleTargetKind(kind)),
+              )}
+            </div>
+          </div>
+        )}
+        {error && <div className="relation-type-editor__error">{error}</div>}
+        <div className="relation-type-editor__buttons">
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            {t('relationTypes.cancel')}
+          </Button>
+          <Button variant="primary" size="sm" onClick={save}>
+            {t('relationTypes.save')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relation-type-editor">
@@ -211,25 +337,7 @@ export function RelationTypeEditor({
         <button
           type="button"
           className="is-primary"
-          onClick={() => {
-            setError('');
-            void onSave({
-              name,
-              description,
-              orientation,
-              sourceRole,
-              targetRole: orientation === 'symmetric' ? sourceRole : targetRole,
-              sourceKinds,
-              targetKinds:
-                orientation === 'symmetric'
-                  ? sourceKinds.filter((kind): kind is EntityRefTargetKind =>
-                      STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind),
-                    )
-                  : targetKinds,
-            }).catch((reason) =>
-              setError(reason instanceof Error ? reason.message : String(reason)),
-            );
-          }}
+          onClick={save}
         >
           {t('relationTypes.save')}
         </button>
@@ -270,6 +378,9 @@ export function RelationKindMenu({
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [creatingType, setCreatingType] = useState(false);
   const [otherTypesOpen, setOtherTypesOpen] = useState(false);
+  // Desktop: the filter section's chips are Chips and the management rows are
+  // menu rows; colours are sand dashes, recoloured from a row of round glass.
+  const glass = !getPlatformRuntime().isMobileShell;
   const managesRelationTypes = Boolean(
     createRelationType && updateRelationType && deleteRelationType,
   );
@@ -321,6 +432,113 @@ export function RelationKindMenu({
         />
       );
     }
+    const deleteType = () =>
+      void (async () => {
+        if (type.locked) return;
+        const confirmed = await requestConfirmation(
+          t('relationTypes.confirmDelete', { name: presentation.name }),
+        );
+        if (!confirmed) return;
+        try {
+          await deleteRelationType!(type.id);
+          removeRelationTypeMeta(type.id);
+        } catch (reason) {
+          window.alert(reason instanceof Error ? reason.message : String(reason));
+        }
+      })();
+    const summary = `${
+      type.orientation === 'symmetric'
+        ? t('relationTypes.symmetricSummary', { role: presentation.sourceRole })
+        : `${presentation.sourceRole} → ${presentation.targetRole}`
+    }${type.locked ? ` · ${t('relationTypes.builtIn')}` : ''}`;
+    if (glass) {
+      const color = resolveRelationTypeColor(type.id);
+      return (
+        <div key={type.id} className="relation-kind-menu__type">
+          <div className="menu-surface__item relation-kind-menu__row--glass">
+            <button
+              type="button"
+              className="relation-kind-menu__dash"
+              title={t('edgeKindManager.changeColor')}
+              aria-label={t('edgeKindManager.changeColorLabel', { label: presentation.name })}
+              aria-expanded={isPickingTypeColor}
+              onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
+            >
+              <KindMark kind="storyline" color={color} />
+            </button>
+            <button
+              type="button"
+              className="relation-kind-menu__name"
+              disabled={type.locked}
+              title={type.locked ? t('relationTypes.builtIn') : undefined}
+              onClick={() => {
+                if (!type.locked) setEditingTypeId(type.id);
+              }}
+            >
+              {presentation.name}
+              <small>{summary}</small>
+            </button>
+            <span
+              className="relation-kind-menu__count"
+              title={t('relationTypes.usageSummary', {
+                canvas: canvasUsageCount,
+                project: projectUsageCount,
+              })}
+            >
+              {canvasUsageCount}/{projectUsageCount}
+            </span>
+            <button
+              type="button"
+              className="relation-kind-menu__delete"
+              disabled={type.locked || projectUsageCount > 0}
+              title={
+                type.locked
+                  ? t('relationTypes.builtInLocked')
+                  : projectUsageCount > 0
+                    ? t('relationTypes.inUse')
+                    : t('relationTypes.delete')
+              }
+              aria-label={t('relationTypes.delete')}
+              onClick={deleteType}
+            >
+              <BrushIcon name="trash" size={13} />
+            </button>
+          </div>
+          {isPickingTypeColor && (
+            <div className="relation-kind-menu__colors" role="listbox">
+              {RELATION_TYPE_PALETTE.map((paletteColor, index) => (
+                <button
+                  key={paletteColor}
+                  type="button"
+                  role="option"
+                  className="relation-kind-menu__color glass glass--round"
+                  aria-selected={paletteColor === color}
+                  aria-pressed={paletteColor === color}
+                  aria-label={`${t('edgeKindManager.changeColor')} ${index + 1}`}
+                  style={{ '--glass-cc': paletteColor } as CSSProperties}
+                  onClick={() => {
+                    setRelationTypeColor(type.id, paletteColor);
+                    setPickingColor(null);
+                  }}
+                >
+                  <i className="sand sand--blob-2" style={{ '--sand-c': paletteColor } as CSSProperties} />
+                </button>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  clearRelationTypeColor(type.id);
+                  setPickingColor(null);
+                }}
+              >
+                {t('edgeKindManager.resetColor')}
+              </Button>
+            </div>
+          )}
+        </div>
+      );
+    }
     return (
       <div key={type.id} className="relation-kind-menu__row relation-kind-menu__row--type">
         <button
@@ -370,14 +588,7 @@ export function RelationKindMenu({
           }}
         >
           {presentation.name}
-          <small>
-            {type.orientation === 'symmetric'
-              ? t('relationTypes.symmetricSummary', {
-                  role: presentation.sourceRole,
-                })
-              : `${presentation.sourceRole} → ${presentation.targetRole}`}
-            {type.locked ? ` · ${t('relationTypes.builtIn')}` : ''}
-          </small>
+          <small>{summary}</small>
         </button>
         <span
           className="relation-kind-menu__count"
@@ -399,21 +610,7 @@ export function RelationKindMenu({
                 ? t('relationTypes.inUse')
                 : t('relationTypes.delete')
           }
-          onClick={() =>
-            void (async () => {
-              if (type.locked) return;
-              const confirmed = await requestConfirmation(
-                t('relationTypes.confirmDelete', { name: presentation.name }),
-              );
-              if (!confirmed) return;
-              try {
-                await deleteRelationType!(type.id);
-                removeRelationTypeMeta(type.id);
-              } catch (reason) {
-                window.alert(reason instanceof Error ? reason.message : String(reason));
-              }
-            })()
-          }
+          onClick={deleteType}
         >
           <BrushIcon name="close" size={10} inline />
         </button>
@@ -429,7 +626,7 @@ export function RelationKindMenu({
       placement="bottom-end"
       role="menu"
       ariaLabel={t('edgeKindManager.title')}
-      className="menu-surface menu-surface--rich menu-surface--settings relation-kind-menu"
+      className={`menu-surface menu-surface--rich menu-surface--settings relation-kind-menu${glass ? ' relation-kind-menu--glass' : ''}`}
       maxHeight={480}
       dismissOnEscape={dismissOnEscape}
     >
@@ -468,16 +665,13 @@ export function RelationKindMenu({
               return (
                 <FilterChip
                   key={relationTypeId}
+                  look="glass"
                   size="sm"
                   active={active}
                   markerColor={resolveRelationTypeColor(relationTypeId)}
                   count={relationTypeCounts[relationTypeId] ?? 0}
-                  dimmed={!active}
-                  className={
-                    driftDerivedRelationTypeIds.has(relationTypeId)
-                      ? 'filter-chip--drift-edge'
-                      : ''
-                  }
+                  dimmed={!glass && !active}
+                  drift={driftDerivedRelationTypeIds.has(relationTypeId)}
                   onClick={() => onToggleRelationTypeId(relationTypeId)}
                   title={
                     active
@@ -497,9 +691,20 @@ export function RelationKindMenu({
         <section className="relation-kind-menu__section relation-kind-menu__section--manage">
           <div className="relation-kind-menu__section-title-row">
             <div className="relation-kind-menu__section-label">{t('relationTypes.title')}</div>
-            <button type="button" onClick={() => setCreatingType(true)}>
-              <BrushIcon name="plus" size={10} inline /> {t('relationTypes.create')}
-            </button>
+            {glass ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relation-kind-menu__create"
+                onClick={() => setCreatingType(true)}
+              >
+                <BrushIcon name="plus" size={11} inline /> {t('relationTypes.create')}
+              </Button>
+            ) : (
+              <button type="button" onClick={() => setCreatingType(true)}>
+                <BrushIcon name="plus" size={10} inline /> {t('relationTypes.create')}
+              </button>
+            )}
           </div>
           {creatingType && (
             <RelationTypeEditor
@@ -530,12 +735,13 @@ export function RelationKindMenu({
             <div className="relation-kind-menu__type-group relation-kind-menu__type-group--other">
               <button
                 type="button"
-                className="relation-kind-menu__other-toggle"
+                className={`relation-kind-menu__other-toggle${glass ? ' menu-surface__item' : ''}`}
                 aria-expanded={otherTypesOpen}
                 onClick={() => setOtherTypesOpen((current) => !current)}
               >
                 <span>{t('relationTypes.otherTypes')}</span>
                 <span>{resolvedTypeGroups.otherTypes.length}</span>
+                {glass && <BrushIcon name="chevron-down" size={11} className="relation-kind-menu__chevron" />}
               </button>
               {otherTypesOpen && resolvedTypeGroups.otherTypes.map(renderRelationType)}
             </div>

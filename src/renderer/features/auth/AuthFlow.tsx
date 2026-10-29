@@ -1,10 +1,13 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
   useRef,
   useState,
+  type ButtonHTMLAttributes,
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
@@ -17,7 +20,9 @@ import { platform } from '../../platform';
 import { OAUTH_PROVIDER_CONFIG, OAUTH_PROVIDERS, type SupportedOAuthProvider } from '../../lib/oauth-providers';
 import { isAppClosedForPublic } from '../../utils/appAccess';
 import { APP_CONFIG } from '../../lib/config';
+import { Button } from '../../components/ui/Button';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
+import { LoadingStatus } from '../../components/ui/LoadingStatus';
 import type { AuthEntryMode } from './auth-dialog-store';
 import '../../../styles/auth.css';
 import { BrushIcon } from '../../components/ui/BrushIcon';
@@ -29,6 +34,10 @@ import { BrushIcon } from '../../components/ui/BrushIcon';
 const SOCIAL_LOGIN_ENABLED: boolean = false;
 
 type Step = AuthEntryMode | 'otp' | 'forgot' | 'verify' | 'syncing';
+
+// The desktop dialog is built from the shared controls (single-line fields,
+// glass buttons, text buttons); the paused mobile page keeps its own look.
+const GlassControls = createContext(false);
 
 interface AuthFlowProps {
   initialMode?: AuthEntryMode;
@@ -161,6 +170,7 @@ export function AuthFlow({
     }
   };
 
+  const glass = presentation === 'dialog';
   const titles: Record<Step, string> = {
     signin: t('auth.titles.signin'),
     signup: t('auth.titles.signup'),
@@ -180,20 +190,20 @@ export function AuthFlow({
   if (step === 'syncing') {
     body = syncError ? (
       <div className="auth-flow__body" role="alert">
-        <p className="auth-flow__error">{syncError}</p>
+        <FlowError announce={false}>{syncError}</FlowError>
         <p className="auth-flow__lead">{t('auth.sync.failedDetail')}</p>
         <div className="auth-flow__actions">
-          <button type="button" className="auth-flow__button" onClick={() => onCompleteRef.current()}>
+          <FlowButton kind={glass ? 'text' : 'secondary'} onClick={() => onCompleteRef.current()}>
             {t('auth.sync.later')}
-          </button>
-          <button
-            type="button"
-            className="auth-flow__button auth-flow__button--primary"
-            onClick={() => void connect()}
-          >
+          </FlowButton>
+          <FlowButton kind="primary" onClick={() => void connect()}>
             {t('auth.sync.retry')}
-          </button>
+          </FlowButton>
         </div>
+      </div>
+    ) : glass ? (
+      <div className="auth-flow__body auth-flow__progress">
+        <LoadingStatus label={t('auth.sync.detail')} />
       </div>
     ) : (
       <div className="auth-flow__body auth-flow__progress" role="status" aria-live="polite">
@@ -212,11 +222,7 @@ export function AuthFlow({
     body = (
       <form className="auth-flow__body" onSubmit={submitCredentials}>
         {signin && <p className="auth-flow__lead">{t('settings.hosted.sign_in_sync_description')}</p>}
-        {error && (
-          <p className="auth-flow__error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <FlowError>{error}</FlowError>}
         {!signin && (
           <AuthField
             label={t('auth.fields.penName')}
@@ -244,9 +250,9 @@ export function AuthFlow({
           label={t('auth.fields.password')}
           aside={
             signin && (
-              <button type="button" className="auth-flow__link" onClick={() => go('forgot')}>
+              <FlowButton kind="link" onClick={() => go('forgot')}>
                 {t('auth.forgotPassword')}
-              </button>
+              </FlowButton>
             )
           }
           type="password"
@@ -258,19 +264,15 @@ export function AuthFlow({
           autoComplete={signin ? 'current-password' : 'new-password'}
           minLength={signin ? undefined : 10}
         />
-        <button
-          type="submit"
-          className="auth-flow__button auth-flow__button--primary auth-flow__button--block"
-          disabled={busy}
-        >
+        <FlowButton kind="primary" block type="submit" disabled={busy}>
           {busy
             ? t(signin ? 'auth.signingIn' : 'auth.creating')
             : t(signin ? 'auth.signIn' : 'auth.createAccount')}
-        </button>
+        </FlowButton>
         {signin && (
-          <button type="button" className="auth-flow__link auth-flow__link--center" onClick={() => go('otp')}>
+          <FlowButton kind="text" onClick={() => go('otp')}>
             {t('auth.useOtp')}
-          </button>
+          </FlowButton>
         )}
         {!signin && (
           <p className="auth-flow__legal">
@@ -316,42 +318,95 @@ export function AuthFlow({
   }
 
   return (
-    <div className={`auth-flow auth-flow--${presentation}`}>
-      <header className="auth-flow__head">
-        {back && (
-          <GhostIconButton
-            className="auth-flow__back"
-            icon={<BrushIcon name="arrow-back" size={16} />}
-            onClick={back}
-            title={t('auth.back')}
-            aria-label={t('auth.back')}
-          />
+    <GlassControls.Provider value={glass}>
+      <div className={`auth-flow auth-flow--${presentation}`}>
+        <header className="auth-flow__head">
+          {back && (
+            <GhostIconButton
+              className="auth-flow__back"
+              icon={<BrushIcon name="arrow-back" size={16} />}
+              onClick={back}
+              title={t('auth.back')}
+              aria-label={t('auth.back')}
+            />
+          )}
+          <h2 className="auth-flow__title">{titles[step]}</h2>
+          {onClose && !locked && (
+            <GhostIconButton
+              className="auth-flow__close"
+              icon={<BrushIcon name="close" size={16} />}
+              onClick={onClose}
+              title={t('common.close')}
+              aria-label={t('common.close')}
+            />
+          )}
+        </header>
+        {body}
+        {(step === 'signin' || step === 'signup') && (
+          <footer className="auth-flow__foot">
+            <span>{t(step === 'signin' ? 'auth.noAccount' : 'auth.hasAccount')}</span>
+            <FlowButton kind="foot" onClick={() => go(step === 'signin' ? 'signup' : 'signin')}>
+              {t(step === 'signin' ? 'auth.signUp' : 'auth.signIn')}
+            </FlowButton>
+          </footer>
         )}
-        <h2 className="auth-flow__title">{titles[step]}</h2>
-        {onClose && !locked && (
-          <GhostIconButton
-            className="auth-flow__close"
-            icon={<BrushIcon name="close" size={16} />}
-            onClick={onClose}
-            title={t('common.close')}
-            aria-label={t('common.close')}
-          />
-        )}
-      </header>
-      {body}
-      {(step === 'signin' || step === 'signup') && (
-        <footer className="auth-flow__foot">
-          <span>{t(step === 'signin' ? 'auth.noAccount' : 'auth.hasAccount')}</span>
-          <button
-            type="button"
-            className="auth-flow__link"
-            onClick={() => go(step === 'signin' ? 'signup' : 'signin')}
-          >
-            {t(step === 'signin' ? 'auth.signUp' : 'auth.signIn')}
-          </button>
-        </footer>
-      )}
-    </div>
+      </div>
+    </GlassControls.Provider>
+  );
+}
+
+type FlowButtonKind = 'primary' | 'secondary' | 'text' | 'link' | 'foot';
+
+/** One of the flow's buttons: a shared glass `Button` in the desktop dialog
+ * (primary, secondary, or a text button), the flow's own button on mobile. */
+function FlowButton({
+  kind,
+  block = false,
+  className = '',
+  type = 'button',
+  ...props
+}: { kind: FlowButtonKind; block?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const glass = useContext(GlassControls);
+  if (glass) {
+    const variant = kind === 'primary' ? 'primary' : kind === 'secondary' ? 'default' : 'ghost';
+    return (
+      <Button
+        type={type}
+        variant={variant}
+        size={kind === 'link' || kind === 'foot' ? 'sm' : 'md'}
+        className={[
+          `auth-flow__glass-button auth-flow__glass-button--${kind}`,
+          block ? 'auth-flow__glass-button--block' : '',
+          className,
+        ].filter(Boolean).join(' ')}
+        {...props}
+      />
+    );
+  }
+  const legacy = {
+    primary: 'auth-flow__button auth-flow__button--primary',
+    secondary: 'auth-flow__button',
+    text: 'auth-flow__link auth-flow__link--center',
+    link: 'auth-flow__link',
+    foot: 'auth-flow__link',
+  }[kind];
+  return (
+    <button
+      type={type}
+      className={[legacy, block ? 'auth-flow__button--block' : '', className].filter(Boolean).join(' ')}
+      {...props}
+    />
+  );
+}
+
+/** An error: the danger ink, and on the desktop its brush icon, never a red wash. */
+function FlowError({ children, announce = true }: { children: ReactNode; announce?: boolean }) {
+  const glass = useContext(GlassControls);
+  return (
+    <p className="auth-flow__error" role={announce ? 'alert' : undefined}>
+      {glass && <BrushIcon name="status-warning" size={13} />}
+      {children}
+    </p>
   );
 }
 
@@ -362,6 +417,8 @@ function AuthField({
   ...input
 }: { label: string; aside?: ReactNode } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
+  const glass = useContext(GlassControls);
+  const field = <input id={id} className={`auth-flow__input ${className}`.trim()} {...input} />;
   return (
     <div className="auth-flow__field">
       <div className="auth-flow__label-row">
@@ -370,7 +427,7 @@ function AuthField({
         </label>
         {aside}
       </div>
-      <input id={id} className={`auth-flow__input ${className}`.trim()} {...input} />
+      {glass ? <label className="ui-field glass glass--rest glass--field">{field}</label> : field}
     </div>
   );
 }
@@ -447,11 +504,7 @@ function OtpForm({
       <p className="auth-flow__lead">
         {stage === 'email' ? t('auth.otp.emailSub') : t('auth.otp.codeSub', { email })}
       </p>
-      {error && (
-        <p className="auth-flow__error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <FlowError>{error}</FlowError>}
       {stage === 'email' ? (
         <AuthField
           label={t('auth.fields.email')}
@@ -467,21 +520,18 @@ function OtpForm({
       ) : (
         <CodeField value={otp} onChange={setOtp} disabled={busy} />
       )}
-      <button
+      <FlowButton
+        kind="primary"
+        block
         type="submit"
-        className="auth-flow__button auth-flow__button--primary auth-flow__button--block"
         disabled={busy || (stage === 'code' && otp.length !== 6)}
       >
         {busy ? t('common.processing') : t(stage === 'email' ? 'auth.sendCode' : 'auth.signIn')}
-      </button>
+      </FlowButton>
       {stage === 'code' && (
-        <button
-          type="button"
-          className="auth-flow__link auth-flow__link--center"
-          onClick={() => setStage('email')}
-        >
+        <FlowButton kind="text" onClick={() => setStage('email')}>
           {t('auth.changeEmail')}
-        </button>
+        </FlowButton>
       )}
     </form>
   );
@@ -547,11 +597,7 @@ function ForgotForm({ initialEmail, onDone }: { initialEmail: string; onDone(): 
             ? t('auth.forgot.codeSub', { email })
             : t('auth.forgot.done')}
       </p>
-      {error && (
-        <p className="auth-flow__error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <FlowError>{error}</FlowError>}
       {phase === 'email' && (
         <AuthField
           label={t('auth.fields.email')}
@@ -591,9 +637,10 @@ function ForgotForm({ initialEmail, onDone }: { initialEmail: string; onDone(): 
           />
         </>
       )}
-      <button
+      <FlowButton
+        kind="primary"
+        block
         type="submit"
-        className="auth-flow__button auth-flow__button--primary auth-flow__button--block"
         disabled={busy || (phase === 'reset' && (otp.length !== 6 || password.length < 10))}
       >
         {busy
@@ -603,16 +650,11 @@ function ForgotForm({ initialEmail, onDone }: { initialEmail: string; onDone(): 
             : phase === 'reset'
               ? t('auth.forgot.resetSubmit')
               : t('auth.backToSignIn')}
-      </button>
+      </FlowButton>
       {phase === 'reset' && (
-        <button
-          type="button"
-          className="auth-flow__link auth-flow__link--center"
-          onClick={() => void sendCode()}
-          disabled={busy}
-        >
+        <FlowButton kind="text" onClick={() => void sendCode()} disabled={busy}>
           {t('auth.resend')}
-        </button>
+        </FlowButton>
       )}
     </form>
   );
@@ -682,27 +724,14 @@ function VerifyForm({
       <p className="auth-flow__lead">
         {sentOnce ? t('auth.verify.sent', { email }) : t('auth.verify.sending', { email })}
       </p>
-      {error && (
-        <p className="auth-flow__error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <FlowError>{error}</FlowError>}
       <CodeField value={otp} onChange={setOtp} disabled={busy} />
-      <button
-        type="submit"
-        className="auth-flow__button auth-flow__button--primary auth-flow__button--block"
-        disabled={busy || otp.length !== 6}
-      >
+      <FlowButton kind="primary" block type="submit" disabled={busy || otp.length !== 6}>
         {busy ? t('auth.verify.verifying') : t('auth.verify.submit')}
-      </button>
-      <button
-        type="button"
-        className="auth-flow__link auth-flow__link--center"
-        onClick={() => void sendOtp()}
-        disabled={busy}
-      >
+      </FlowButton>
+      <FlowButton kind="text" onClick={() => void sendOtp()} disabled={busy}>
         {t('auth.resend')}
-      </button>
+      </FlowButton>
     </form>
   );
 }

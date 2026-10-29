@@ -829,7 +829,7 @@
   flex-shrink: 0;
 }
 
-.agt-wm button {
+.agt-wm:not(.agt-wm--glass) button {
   border: 1px solid hsl(var(--rule));
   border-radius: 2px;
   background: hsl(var(--paper));
@@ -840,7 +840,7 @@
   cursor: pointer;
 }
 
-.agt-wm button:disabled {
+.agt-wm:not(.agt-wm--glass) button:disabled {
   cursor: default;
   opacity: 0.45;
 }
@@ -917,10 +917,10 @@
 }
 
 /* ---- sand and glass (the desktop panel) ---------------------------------
- * The desktop composer and transcript wear the design system's materials
- * (docs/design-system/components.md); the paused mobile shell keeps the
- * fallback look above. Glass texture patches: the dense ones, since the
- * sparse first patch all but hides a small control's rim. */
+ * The desktop composer, transcript, working memory, history and config menu
+ * wear the design system's materials (docs/design-system/components.md); the
+ * paused mobile shell keeps the fallback look above. Small glass reads the
+ * dense texture patch through glass--small (materials.css). */
 
 /* The composer: a rounded slip of paper with the resting glass line (glass
    glass--rest glass--field). No line between the text and its controls;
@@ -1059,4 +1059,243 @@
   border: 0;
   padding: 0 12px;
   background: transparent;
+}
+
+/* Working memory: Project Memory's language. The document is one read-only
+   card (the resting glass line, still under the pointer), its size against
+   the tidy-up thresholds a dry sand reading, its actions text buttons with
+   brush icons; editing writes on the composer's rounded slip with one
+   primary button. */
+.agt-wm.agt-wm--glass {
+  gap: 12px;
+  padding: 14px 12px;
+}
+.agt-wm__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.agt-wm__title {
+  color: hsl(var(--ink-1));
+  font: 500 var(--ui-font-secondary, 12px)/1.3 var(--font-mono);
+}
+.agt-wm__desc {
+  margin: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+  line-height: 1.55;
+}
+.agt-wm__reading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.agt-wm--glass .agt-wm__meta {
+  opacity: 1;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+}
+.agt-wm__card {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 2px;
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-secondary, 12.5px);
+  line-height: 1.65;
+}
+.agt-wm__slip {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  border-radius: 16px;
+  background: hsl(var(--page));
+}
+.agt-wm__card.glass,
+.agt-wm__slip.glass { --glass-gx: -168px; --glass-gy: -18px; }
+.agt-wm--glass .agt-wm__editor {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 15px;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font: var(--ui-font-secondary, 12px)/1.6 var(--font-mono);
+}
+.agt-wm--glass .agt-wm__footer {
+  justify-content: flex-start;
+  gap: 14px;
+}
+.agt-wm--glass [role='status'] {
+  flex: 1;
+  min-width: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-caption, 11px);
+}
+.agt-wm__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  font-size: var(--ui-font-secondary, 12px);
+  cursor: pointer;
+  transition: color 0.12s ease-out;
+}
+.agt-wm__text:hover:not(:disabled) { color: hsl(var(--ink-1)); }
+.agt-wm__text--danger,
+.agt-wm__text--danger:hover:not(:disabled) { color: hsl(var(--destructive)); }
+.agt-wm__text:disabled {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  cursor: default;
+}
+.agt-wm__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 12px;
+  text-align: center;
+}
+.agt-wm__empty [role='status'] { flex: none; }
+
+/* History and the config menu: the shared menu surface's rows (no fill; the
+   row under the pointer flows out in glass). The current conversation or
+   model is medium weight with a still ring, groups are separated by space,
+   and a row's own actions are flat brush icons that show under the pointer.
+   A running conversation keeps its accent dot. */
+.agt-history__row {
+  gap: 8px;
+  padding-right: 10px;
+}
+.agt-history__load {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agt-history__load:focus-visible { outline: none; }
+html:not([data-shell-mode='mobile']) .agt-history__row:has(:focus-visible)::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+.agt-history__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agt-history__time {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 var(--ui-font-caption, 10.5px)/1 var(--font-mono);
+}
+.agt-history__act,
+.agt-mem.agt-mem--glass .agt-mem__btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  transition: color 0.12s ease-out;
+}
+.agt-history__act:hover,
+.agt-mem.agt-mem--glass .agt-mem__btn:hover {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+.agt-mem.agt-mem--glass .agt-mem__btn--del:hover { color: hsl(var(--destructive)); }
+.agt-history__act,
+.agt-mem--glass .agt-mem__acts {
+  opacity: 0;
+  transition: opacity 0.12s ease-out, color 0.12s ease-out;
+}
+:is(.agt-history__row, .agt-mem--glass):is(:hover, :focus-within) :is(.agt-history__act, .agt-mem__acts),
+.agt-mem--pending .agt-mem__acts {
+  opacity: 1;
+}
+.agt-history__rename { padding: 3px 4px; }
+.agt-history__empty {
+  padding: 12px 14px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-body, 12px);
+}
+
+.agt-menu__item {
+  justify-content: space-between;
+  gap: 10px;
+}
+.agt-menu__item.agt-menu__item--back {
+  justify-content: flex-start;
+  gap: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+.agt-menu--glass .agt-menu__row {
+  padding: 6px 14px;
+  border-radius: 0;
+}
+/* The effort: a dropdown field of glass round a native select, whose list is
+   the system's and so never closes this menu as a click outside it. */
+.agt-menu__effort.ui-select {
+  flex: none;
+  width: 88px;
+  min-height: 26px;
+  font-size: var(--ui-font-secondary, 12px);
+}
+.agt-menu__effort-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0 26px 0 10px;
+  border: 0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.agt-menu__effort > .brush-icon {
+  margin-left: auto;
+  color: hsl(var(--ink-3));
+  pointer-events: none;
+}
+.agt-menu__effort:has(select:disabled) {
+  --glass-g: 0.5;
+  background: color-mix(in srgb, hsl(var(--page)) 45%, transparent);
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+.agt-menu__effort-select:disabled { cursor: default; }
+.agt-mem.agt-mem--glass {
+  gap: 8px;
+  padding: 6px 10px 6px 14px;
+  border-radius: 0;
+  cursor: default;
+}
+.agt-mem.agt-mem--glass:hover { background: transparent; }
+.agt-mem--glass .agt-mem__acts { gap: 6px; }
+/* Not yet in force: said in small mono type before the entry, no chip. */
+.agt-mem__pending {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 10.5px)/1 var(--font-mono);
 }

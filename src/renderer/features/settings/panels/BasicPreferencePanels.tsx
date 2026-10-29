@@ -2,13 +2,20 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore, type DateFormat, type LocaleCode, type ThemeMode } from '../../../store/settings-store';
 import { UI_LOCALE_OPTIONS } from '../../../lib/i18n';
 import { ACCENT_COLOR_DEFAULT_DARK, ACCENT_COLOR_DEFAULT_LIGHT } from '../../../lib/theme';
-import { getPlatformRuntime } from '../../../platform/runtime';
-import { SegmentedControl } from '../../../components/ui/SegmentedControl';
+import { GlassSlider } from '../../../components/ui/GlassSlider';
 import {
-  SettingsPanelHeader, SettingsRow, SettingsSectionHeader, SettingsSegment,
-  SettingsToggle, type SettingsRegisterRef,
+  SettingsButton,
+  SettingsColor,
+  SettingsPanelHeader,
+  SettingsRow,
+  SettingsSectionHeader,
+  SettingsSegment,
+  SettingsSelect,
+  SettingsToggle,
+  type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { settingsOnDesktop } from '../settings-on-desktop';
+import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
 
 export function AppearancePanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -30,11 +37,12 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
     accentColor ??
     (resolvedTheme === 'dark' ? ACCENT_COLOR_DEFAULT_DARK : ACCENT_COLOR_DEFAULT_LIGHT);
 
-  const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
-    { value: 'light', name: t('settings.appearance.light'), kind: 'LIGHT', tp: 'tp--light' },
-    { value: 'dark', name: t('settings.appearance.dark'), kind: 'DARK', tp: 'tp--dark' },
-    { value: 'system', name: t('settings.appearance.system'), kind: 'SYSTEM', tp: 'tp--system' },
+  const themes: { value: ThemeMode; name: string; kind: string; tp: string; icon: BrushIconName }[] = [
+    { value: 'light', name: t('settings.appearance.light'), kind: 'LIGHT', tp: 'tp--light', icon: 'enso' },
+    { value: 'dark', name: t('settings.appearance.dark'), kind: 'DARK', tp: 'tp--dark', icon: 'ink-disc' },
+    { value: 'system', name: t('settings.appearance.system'), kind: 'SYSTEM', tp: 'tp--system', icon: 'taiji' },
   ];
+  const desktop = settingsOnDesktop();
 
   return (
     <section className="set-panel" ref={registerRef} id="appearance">
@@ -46,49 +54,73 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.appearance.theme')} hint="THEME" />
-        <div className="set-theme-grid">
-          {themes.map((t) => (
-            <button
-              key={t.value}
-              className={
-                'set-theme-card' + (themeMode === t.value ? ' set-theme-card--active' : '')
-              }
-              onClick={() => setThemeMode(t.value)}
-            >
-              <div className={'set-theme-card__preview ' + t.tp}>
-                <div className="set-theme-card__preview-bar">
-                  <span className="set-theme-card__preview-light" />
-                  <span className="set-theme-card__preview-light" />
-                  <span className="set-theme-card__preview-light" />
-                </div>
-                <div className="set-theme-card__preview-body">
-                  <div className="set-theme-card__preview-rail" />
-                  <div className="set-theme-card__preview-lines">
-                    <div className="set-theme-card__preview-line" />
-                    <div className="set-theme-card__preview-line" />
-                    <div className="set-theme-card__preview-line" />
+        {desktop ? (
+          // The interface itself is the preview: one choice, like the account menu.
+          <SettingsRow
+            label={t('settings.appearance.theme')}
+            desc={t('settings.appearance.theme_desc')}
+            control={
+              <GlassSlider
+                value={themeMode}
+                onChange={setThemeMode}
+                ariaLabel={t('settings.appearance.theme')}
+                options={themes.map((theme) => ({
+                  value: theme.value,
+                  label: (
+                    <span className="set-choice-label">
+                      <BrushIcon name={theme.icon} size={13} />
+                      {theme.name}
+                    </span>
+                  ),
+                }))}
+              />
+            }
+          />
+        ) : (
+          <div className="set-theme-grid">
+            {themes.map((t) => (
+              <button
+                key={t.value}
+                className={
+                  'set-theme-card' + (themeMode === t.value ? ' set-theme-card--active' : '')
+                }
+                onClick={() => setThemeMode(t.value)}
+              >
+                <div className={'set-theme-card__preview ' + t.tp}>
+                  <div className="set-theme-card__preview-bar">
+                    <span className="set-theme-card__preview-light" />
+                    <span className="set-theme-card__preview-light" />
+                    <span className="set-theme-card__preview-light" />
                   </div>
-                  <div className="set-theme-card__preview-aux" />
+                  <div className="set-theme-card__preview-body">
+                    <div className="set-theme-card__preview-rail" />
+                    <div className="set-theme-card__preview-lines">
+                      <div className="set-theme-card__preview-line" />
+                      <div className="set-theme-card__preview-line" />
+                      <div className="set-theme-card__preview-line" />
+                    </div>
+                    <div className="set-theme-card__preview-aux" />
+                  </div>
                 </div>
-              </div>
-              <div className="set-theme-card__meta">
-                <span className="set-theme-card__name">{t.name}</span>
-                <span className="set-theme-card__kind">{t.kind}</span>
-              </div>
-              <div className="set-theme-card__check"><BrushIcon name="check" size={10} /></div>
-            </button>
-          ))}
-        </div>
+                <div className="set-theme-card__meta">
+                  <span className="set-theme-card__name">{t.name}</span>
+                  <span className="set-theme-card__kind">{t.kind}</span>
+                </div>
+                <div className="set-theme-card__check"><BrushIcon name="check" size={10} /></div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {!getPlatformRuntime().isMobileShell && (
+      {desktop && (
         <div className="set-sec">
           <SettingsSectionHeader title={t('settings.appearance.interface_text_size')} />
           <SettingsRow
             label={t('settings.appearance.interface_text_size')}
             desc={t('settings.appearance.interface_text_size_desc')}
             control={
-              <SegmentedControl
+              <SettingsSegment
                 value={interfaceTextSize}
                 onChange={setInterfaceTextSize}
                 ariaLabel={t('settings.appearance.interface_text_size')}
@@ -109,25 +141,17 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
           label={t('settings.appearance.accent_color')}
           desc={t('settings.appearance.accent_color_desc')}
           control={
-            <div className="set-color-picker">
-              <input
-                className="set-color-picker__input"
-                type="color"
-                value={displayedAccentColor}
-                aria-label={t('settings.appearance.accent_color')}
-                onChange={(event) => setAccentColor(event.target.value)}
-              />
-              <span className="set-color-picker__value">{displayedAccentColor.toUpperCase()}</span>
+            <SettingsColor
+              value={displayedAccentColor}
+              onChange={setAccentColor}
+              ariaLabel={t('settings.appearance.accent_color')}
+            >
               {accentColor && (
-                <button
-                  type="button"
-                  className="set-btn set-btn--ghost"
-                  onClick={() => setAccentColor(null)}
-                >
+                <SettingsButton variant="ghost" size="sm" onClick={() => setAccentColor(null)}>
                   {t('settings.appearance.accent_reset')}
-                </button>
+                </SettingsButton>
               )}
-            </div>
+            </SettingsColor>
           }
         />
       </div>
@@ -190,21 +214,36 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.language.ui_locale')} hint="UI LOCALE" />
-        <div className="set-locales">
-          {UI_LOCALE_OPTIONS.map((l) => (
-            <button
-              key={l.code}
-              className={
-                'set-locale' + (normalizedUiLocale === l.code ? ' set-locale--active' : '')
-              }
-              onClick={() => setUiLocale(l.code)}
-            >
-              <span className="set-locale__code">{l.code}</span>
-              <span className="set-locale__name">{l.name}</span>
-              <span className="set-locale__native">{l.native}</span>
-            </button>
-          ))}
-        </div>
+        {settingsOnDesktop() ? (
+          <SettingsRow
+            label={t('settings.language.ui_locale')}
+            desc={t('settings.language.ui_locale_desc')}
+            control={
+              <SettingsSegment
+                value={normalizedUiLocale}
+                onChange={setUiLocale}
+                ariaLabel={t('settings.language.ui_locale')}
+                options={UI_LOCALE_OPTIONS.map((locale) => ({ value: locale.code, label: locale.name }))}
+              />
+            }
+          />
+        ) : (
+          <div className="set-locales">
+            {UI_LOCALE_OPTIONS.map((l) => (
+              <button
+                key={l.code}
+                className={
+                  'set-locale' + (normalizedUiLocale === l.code ? ' set-locale--active' : '')
+                }
+                onClick={() => setUiLocale(l.code)}
+              >
+                <span className="set-locale__code">{l.code}</span>
+                <span className="set-locale__name">{l.name}</span>
+                <span className="set-locale__native">{l.native}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="set-sec">
@@ -213,24 +252,25 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
           label={t('settings.language.manuscript_default')}
           desc={t('settings.language.manuscript_default_desc')}
           control={
-            <select
-              className="set-input"
-              style={{ minWidth: 220 }}
+            <SettingsSelect<LocaleCode>
               value={manuscriptLocale}
-              onChange={(e) => setManuscriptLocale(e.target.value as LocaleCode)}
-            >
-              {manuscriptLocales.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.name} · {l.code}
-                </option>
-              ))}
-            </select>
+              onChange={setManuscriptLocale}
+              ariaLabel={t('settings.language.manuscript_default')}
+              width={220}
+              options={manuscriptLocales.map((l) => ({ value: l.code, label: `${l.name} · ${l.code}` }))}
+            />
           }
         />
         <SettingsRow
           label={t('settings.language.spellcheck')}
           desc={t('settings.language.spellcheck_desc')}
-          control={<SettingsToggle on={spellcheck} onChange={setSpellcheck} />}
+          control={
+            <SettingsToggle
+              on={spellcheck}
+              onChange={setSpellcheck}
+              aria-label={t('settings.language.spellcheck')}
+            />
+          }
         />
         <SettingsRow
           label={t('settings.language.date_format')}
@@ -238,6 +278,7 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
           control={
             <SettingsSegment<DateFormat>
               value={dateFormat}
+              ariaLabel={t('settings.language.date_format')}
               options={[
                 { value: 'cjk', label: t('settings.language.date_cjk') },
                 { value: 'iso', label: 'ISO' },

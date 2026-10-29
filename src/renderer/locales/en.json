@@ -254,6 +254,7 @@
       "title": "You decide the light at your desk.",
       "sub": "Pick the brightness and accent that feel best for the writing surface.",
       "theme": "Theme",
+      "theme_desc": "Light, dark, or follow the system.",
       "light": "Light",
       "dark": "Dark",
       "system": "Follow system",
@@ -389,6 +390,7 @@
       "title": "What language the UI speaks.",
       "sub": "UI language only — manuscript language is configured below.",
       "ui_locale": "UI language",
+      "ui_locale_desc": "Only the interface text; the manuscript language is set separately below.",
       "manuscript": "Manuscript",
       "manuscript_default": "Default manuscript language",
       "manuscript_default_desc": "Affects spellcheck, line-breaking, and AI writing language.",
@@ -466,6 +468,7 @@
       "title": "Writing without leaving the keyboard.",
       "sub": "Click any shortcut to rebind it. Press Esc to cancel recording.",
       "allActions": "All actions · {{count}} ACTIONS",
+      "allActionsShort": "All actions · {{count}}",
       "recording": "Recording",
       "resetOneTitle": "Double-click to restore default",
       "pressNewCombo": "Press new combo…",
@@ -574,7 +577,6 @@
       "kicker": "ABOUT",
       "title": "Drifting",
       "sub": "The ultimate writing experience",
-      "cnName": "构想",
       "version": "Version",
       "channel": "Channel",
       "channelDev": "Development",
@@ -1320,8 +1322,7 @@
     "done": "Done",
     "emptyCell": "Write something…",
     "fit": "Fit",
-    "fitTitle": "Fit to the window: size the whole table to fill it; new rows and columns then overflow instead of squeezing",
-    "noChapter": "The plot planner follows the chapter in front; this page has none."
+    "fitTitle": "Fit to the window: size the whole table to fill it; new rows and columns then overflow instead of squeezing"
   },
   "editorMainArea": {
     "openDashboard": "Open project home",
@@ -1792,6 +1793,7 @@
       "entityFilterActiveTitle": "Only show items linked to \"{{label}}\"",
       "entityFilterTitle": "Filter by entity",
       "clearEntityFilter": "Clear relation filter",
+      "entityFilterAll": "Relations · All",
       "entityFilterHint": "Choose an entity to show only linked memos / materials",
       "todoEmptyHint": "Click + to create a TODO, or promote one from an editor comment card",
       "newMaterialButton": "New material",
@@ -1986,6 +1988,49 @@
       "summaryLabel": "Summary",
       "summaryPlaceholder": "Describe the book in one or two sentences.",
       "createSubmit": "Create"
+    },
+    "desk": {
+      "allBooks": "All books",
+      "count_one": "{{count}} book",
+      "count_other": "{{count}} books",
+      "filterLabel": "Filter books",
+      "viewLabel": "View",
+      "search": "Search books",
+      "newBook": "New book",
+      "newCard": "New book",
+      "newCardSub": "Start from a blank page",
+      "empty": "No books on the shelf yet.",
+      "noMatch": "No books match.",
+      "open": "Open “{{name}}”",
+      "moveToTrash": "Move to Recently Deleted",
+      "untitled": "Untitled",
+      "progress": "Progress",
+      "goal": "{{pct}}% · goal {{target}} words",
+      "wordsUnit": "words",
+      "chaptersUnit_one": "chapter",
+      "chaptersUnit_other": "chapters",
+      "storylinesUnit_one": "storyline",
+      "storylinesUnit_other": "storylines",
+      "elementsUnit_one": "element",
+      "elementsUnit_other": "elements",
+      "storylineCount_one": "{{count}} storyline",
+      "storylineCount_other": "{{count}} storylines",
+      "localLibrary": "Local library",
+      "trashEntry": "Recently Deleted",
+      "trashTitle": "Move “{{name}}” to Recently Deleted?",
+      "form": {
+        "createTitle": "New book",
+        "editTitle": "Edit “{{name}}”",
+        "nameLabel": "Title",
+        "summaryLabel": "Summary"
+      },
+      "trashList": {
+        "title": "Recently Deleted",
+        "sub": "Books stay here for 30 days and are then permanently deleted, including their Hosted data.",
+        "subLocal": "Books stay here for 30 days and are then permanently deleted.",
+        "empty": "No recently deleted books.",
+        "confirmTitle": "Permanently delete “{{name}}”?"
+      }
     }
   },
   "dashboard": {
@@ -2998,12 +3043,16 @@
     "title": "Element overview",
     "meta": "{{categories}} categories · {{elements}} elements",
     "linkHint": "Choose a second element / chapter · Esc cancels",
+    "linkHintFrom": "From",
+    "linkHintTo": "to… pick a second element or chapter, Esc cancels",
     "focusOffTitle": "Turn focus off and show all relation lines",
     "focusOnTitle": "Turn focus on and show only relations for elements in the viewport",
     "focusToggle": "Focus · {{state}}",
+    "focus": "Focus",
     "stickyOffTitle": "Turn chapter band stickiness off",
     "stickyOnTitle": "Turn chapter band stickiness on so the band stays at the viewport edge while panning",
     "stickyToggle": "Sticky band · {{state}}",
+    "sticky": "Sticky band",
     "stateOn": "on",
     "stateOff": "off",
     "resetTitle": "Reset canvas zoom and pan",
@@ -3021,7 +3070,8 @@
     "empty": {
       "noStorylines": "No storylines yet",
       "noCategories": "No element categories yet",
-      "categoryEmpty": "Empty"
+      "categoryEmpty": "Empty",
+      "categoryNoElements": "No elements yet"
     }
   },
   "nodeCardPopover": {

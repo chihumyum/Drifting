@@ -82,6 +82,9 @@ describe('account sign-in entry', () => {
     expect(flow).toContain("t('settings.hosted.sign_in_sync_description')");
     expect(flow).toContain('await finishHostedSignIn(controller.signal);');
     expect(flow).not.toMatch(/kicker|hero|si-tabs/);
+    // The desktop dialog uses the shared controls; the paused mobile page keeps its own.
+    expect(flow).toContain("const glass = presentation === 'dialog';");
+    expect(flow).toContain('<GlassControls.Provider value={glass}>');
     for (const locale of [zh, en]) {
       expect(locale.auth).not.toHaveProperty('hero');
       expect(locale.auth).not.toHaveProperty('controls');

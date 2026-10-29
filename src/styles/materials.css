@@ -43,6 +43,7 @@
   --pigment: 0.85;
   --pigment-blend: multiply;
   --pigment-lift: 0%;
+  --glass-bleed-lift: 0%;
   /* Sand in the prose (see "Sand in prose" below): light themes deepen the
      story colours so they hold on the paper; dark themes lay sand on lifted
      and a little thinner. A span's cover turns to the page colour through
@@ -60,10 +61,14 @@
   --prose-sand-hl-loose: url('../assets/design/sand/hl-loose-cover.png');
 }
 
+/* On the dark a tinted bleed at the ring's own strength reads as mud (a
+   storyline's red turns rust), so the bleed, not the line, is lifted toward
+   white and glows in its own colour. */
 .dark {
   --glass-clear: #6b6d67;
   --pigment-blend: normal;
   --pigment-lift: 14%;
+  --glass-bleed-lift: 45%;
   --prose-sand-strength: 0.72;
   --prose-sand-deepen: 0%;
   --prose-sand-blend: lighten;
@@ -100,6 +105,7 @@
 
 .glass::before {
   --glass-ring: color-mix(in srgb, var(--glass-cc) min(100%, calc(var(--glass-edge) * 1.8 * var(--glass-g))), transparent);
+  --glass-bleed: color-mix(in srgb, color-mix(in srgb, var(--glass-cc), white var(--glass-bleed-lift)) min(100%, calc(var(--glass-edge) * 1.8 * var(--glass-g))), transparent);
   content: '';
   position: absolute;
   inset: 0;
@@ -108,7 +114,7 @@
   pointer-events: none;
   box-shadow:
     inset 0 0 0 1px var(--glass-ring),
-    inset 0 0 calc(var(--glass-rim) * var(--glass-sp)) calc(1px * var(--glass-sp)) var(--glass-ring);
+    inset 0 0 calc(var(--glass-rim) * var(--glass-sp)) calc(1px * var(--glass-sp)) var(--glass-bleed);
   -webkit-mask-image: var(--glass-texture);
   mask-image: var(--glass-texture);
   -webkit-mask-size: 150px 150px;

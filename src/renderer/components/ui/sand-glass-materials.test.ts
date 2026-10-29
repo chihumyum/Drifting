@@ -189,5 +189,48 @@ describe('resting glass and switches', () => {
     // Only the clear rim flows; the accent tint never animates.
     expect(controls).toContain('animation: switch-rim-flow var(--motion-glass-drift) linear infinite paused;');
     expect(controls.slice(controls.indexOf('.ui-switch__tint {\n  --switch-tint'), controls.indexOf('.ui-switch.is-on .ui-switch__tint'))).not.toContain('animation');
+    // The track is small glass: its line reads the dense patch and drifts from there.
+    const track = controls.slice(controls.indexOf('.ui-switch::before {\n  --switch-rim'), controls.indexOf('.ui-switch:hover:not(:disabled)::before'));
+    expect(track).toContain('mask-position: var(--glass-dense-gx) var(--glass-dense-gy);');
+    expect(controls).toContain('mask-position: calc(var(--glass-dense-gx) + 150px) calc(var(--glass-dense-gy) + 150px);');
+  });
+});
+
+describe('the dark theme', () => {
+  const css = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
+
+  it('casts every lifted surface\'s shadow in black, never in the near-white ink', async () => {
+    const tokens = css('src/styles/index.css');
+    const dark = tokens.slice(tokens.indexOf('  .dark {'));
+    expect(tokens.slice(0, tokens.indexOf('  .dark {'))).toContain('--shadow-ink: 30 6% 12%;');
+    expect(dark).toContain('--shadow-ink: 0 0% 0%;');
+    expect(dark).toContain('0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);');
+    expect(css('src/styles/desktop-shell.css')).toContain('.dark .app-tab--drag-ghost {\n  filter: drop-shadow(0 8px 12px hsl(var(--shadow-ink) / 0.4));');
+    // A shadow drawn in the ink glows on the dark. Hairlines (a zero-blur
+    // half-pixel ring) and inset lines stay ink. The second batch's surfaces
+    // (Super View, settings, the shelf) and the paused mobile shell move with
+    // their own migrations.
+    const pending = new Set(['graph-view.css', 'super-view-header.css', 'settings.css', 'project-picker.css']);
+    const { readdirSync } = await import('node:fs');
+    for (const file of readdirSync(resolve(process.cwd(), 'src/styles'))) {
+      if (!file.endsWith('.css') || file.startsWith('mobile-') || pending.has(file)) continue;
+      const text = css(`src/styles/${file}`).replace(/\/\*[\s\S]*?\*\//gu, '');
+      for (const declaration of text.matchAll(/(?:box-shadow|filter|--[\w-]*shadow)\s*:([^;]+);/gu)) {
+        for (const layer of declaration[1].split(',')) {
+          if (!layer.includes('var(--ink-1)')) continue;
+          expect(/^\s*(inset\b|0 0 0 0\.5px)/u.test(layer), `${file}: ${layer.trim()}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('lifts a coloured bleed toward white on the dark, leaving the line alone', () => {
+    const materials = css('src/styles/materials.css');
+    expect(materials).toContain('--glass-bleed-lift: 0%;');
+    expect(materials.slice(materials.indexOf('.dark {'))).toContain('--glass-bleed-lift: 45%;');
+    expect(materials).toContain('color-mix(in srgb, color-mix(in srgb, var(--glass-cc), white var(--glass-bleed-lift))');
+    const glass = materials.slice(materials.indexOf('.glass::before {'), materials.indexOf('.glass:nth-of-type(4n + 1)'));
+    expect(glass).toContain('inset 0 0 0 1px var(--glass-ring),');
+    expect(glass).toContain('calc(1px * var(--glass-sp)) var(--glass-bleed);');
   });
 });

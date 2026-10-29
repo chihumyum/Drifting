@@ -12,6 +12,16 @@ import { getDriftingAgentExtensionPlatform } from '../../lib/agent/useDriftingAg
 import { platform } from '../../platform';
 import { useProjectStore } from '../../store/project-store';
 import { requestConfirmation } from '../../store/confirmation-store';
+import { BrushIcon, type BrushIconName } from '../ui/BrushIcon';
+import { EmptyState } from '../ui/EmptyState';
+import { Switch } from '../ui/Switch';
+import {
+  SettingsButton,
+  SettingsConfigField,
+  SettingsField,
+  SettingsNote,
+  SettingsSelect,
+} from '../../features/settings/SettingsPrimitives';
 
 interface ServerForm {
   id: string;
@@ -35,6 +45,20 @@ const EMPTY_FORM: ServerForm = {
   url: '',
   publicValues: '',
   secretValues: '',
+};
+
+/** Health is a sand status icon and one word in index type, no chip. */
+const HEALTH_ICON: Record<string, BrushIconName> = {
+  healthy: 'status-done',
+  connecting: 'loader',
+  degraded: 'status-warning',
+  failed: 'status-stopped',
+  disabled: 'minus',
+};
+
+const TRANSPORT_LABEL: Record<ServerForm['transport'], string> = {
+  streamable_http: 'Streamable HTTP',
+  stdio: 'stdio (desktop)',
 };
 
 const POLICY_OPTIONS: Array<{ value: string; labelKey: string }> = [
@@ -239,22 +263,25 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
             <div className="set-sec__title">{t('settings.agent.extensions.title')}</div>
             <div className="set-row__desc">{t('settings.agent.extensions.desc')}</div>
           </div>
-          <button
-            type="button"
-            className="set-btn"
+          <SettingsButton
+            variant="ghost"
+            size="sm"
             disabled={!projectId || busy}
             onClick={() => setForm({ ...EMPTY_FORM })}
           >
+            <BrushIcon name="plus" size={12} />
             {t('settings.agent.extensions.add')}
-          </button>
+          </SettingsButton>
         </div>
 
-        {error && <div className="set-agent-ext__error">{error}</div>}
-        {!projectId && (
-          <div className="set-agent-ext__empty">{t('settings.agent.extensions.noProject')}</div>
+        {error && (
+          <SettingsNote icon="status-stopped" tone="error" role="alert">
+            {error}
+          </SettingsNote>
         )}
+        {!projectId && <EmptyState density="compact" message={t('settings.agent.extensions.noProject')} />}
         {projectId && servers.length === 0 && !form && (
-          <div className="set-agent-ext__empty">{t('settings.agent.extensions.empty')}</div>
+          <EmptyState density="compact" message={t('settings.agent.extensions.empty')} />
         )}
 
         <div className="set-agent-ext__servers">
@@ -262,44 +289,30 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
             const live = statuses.find((status) => status.serverId === server.id);
             const status = server.enabled ? (live?.status ?? server.healthStatus) : 'disabled';
             return (
-              <div className="set-agent-ext__server" key={server.id}>
+              // A card that is not a button: the resting line, flowing under the pointer.
+              <div className="set-agent-ext__server glass glass--rest glass--surface" key={server.id}>
                 <div className="set-agent-ext__server-head">
-                  <div>
+                  <div className="set-agent-ext__identity">
                     <div className="set-agent-ext__name">{server.name}</div>
-                    <div className="set-agent-ext__meta">
-                      {server.transport === 'stdio' ? 'STDIO · DESKTOP' : 'STREAMABLE HTTP'}
-                    </div>
+                    <div className="set-agent-ext__meta">{TRANSPORT_LABEL[server.transport]}</div>
                   </div>
                   <span className={`set-agent-ext__health set-agent-ext__health--${status}`}>
+                    <BrushIcon
+                      name={HEALTH_ICON[status] ?? 'status-warning'}
+                      size={13}
+                      className={status === 'connecting' ? 'ui-spin' : undefined}
+                    />
                     {status}
                   </span>
+                  <Switch
+                    checked={server.enabled}
+                    disabled={busy}
+                    aria-label={`${server.enabled ? t('settings.agent.extensions.disable') : t('settings.agent.extensions.enable')} ${server.name}`}
+                    onCheckedChange={() => toggleServer(server)}
+                  />
                 </div>
                 <div className="set-agent-ext__message">
                   {live?.message || server.healthMessage || t('settings.agent.extensions.notChecked')}
-                </div>
-                <div className="set-agent-ext__actions">
-                  <button className="set-btn" disabled={busy} onClick={() => editServer(server)}>
-                    {t('settings.common.edit')}
-                  </button>
-                  <button
-                    className="set-btn"
-                    disabled={busy || !server.enabled}
-                    onClick={() => void mutate(() => extensionPlatform.manager.reconnect(projectId, server.id))}
-                  >
-                    {t('settings.agent.extensions.reconnect')}
-                  </button>
-                  <button className="set-btn" disabled={busy} onClick={() => toggleServer(server)}>
-                    {server.enabled
-                      ? t('settings.agent.extensions.disable')
-                      : t('settings.agent.extensions.enable')}
-                  </button>
-                  <button
-                    className="set-btn set-btn--danger"
-                    disabled={busy}
-                    onClick={() => void deleteServer(server)}
-                  >
-                    {t('settings.common.delete')}
-                  </button>
                 </div>
 
                 {server.discoveredTools.length > 0 && (
@@ -312,148 +325,171 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
                           : `${policy.access}:${policy.approval}`
                         : 'write:ask';
                       return (
-                        <label className="set-agent-ext__tool" key={tool.name}>
+                        <div className="set-agent-ext__tool" key={tool.name}>
                           <span>
                             <strong>{tool.name}</strong>
                             <small>{tool.description}</small>
                           </span>
-                          <select
-                            className="set-input"
+                          <SettingsSelect
+                            few
                             value={value}
                             disabled={busy}
-                            onChange={(event) =>
-                              updateToolPolicy(server, tool.name, event.target.value)
-                            }
-                          >
-                            {POLICY_OPTIONS.map((option) => (
-                              <option value={option.value} key={option.value}>
-                                {t(option.labelKey)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                            ariaLabel={tool.name}
+                            onChange={(next) => updateToolPolicy(server, tool.name, next)}
+                            options={POLICY_OPTIONS.map((option) => ({
+                              value: option.value,
+                              label: t(option.labelKey),
+                            }))}
+                          />
+                        </div>
                       );
                     })}
                   </div>
                 )}
+
+                <div className="set-agent-ext__actions">
+                  <SettingsButton variant="ghost" size="sm" disabled={busy} onClick={() => editServer(server)}>
+                    {t('settings.common.edit')}
+                  </SettingsButton>
+                  <SettingsButton
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy || !server.enabled}
+                    onClick={() => void mutate(() => extensionPlatform.manager.reconnect(projectId, server.id))}
+                  >
+                    {t('settings.agent.extensions.reconnect')}
+                  </SettingsButton>
+                  <span className="set-agent-ext__spacer" />
+                  <SettingsButton variant="danger" size="sm" disabled={busy} onClick={() => void deleteServer(server)}>
+                    {t('settings.common.delete')}
+                  </SettingsButton>
+                </div>
               </div>
             );
           })}
         </div>
 
         {form && (
-          <div className="set-agent-ext__form">
+          <div className="set-agent-ext__form glass glass--rest glass--surface">
             <div className="set-agent-ext__form-title">
               {form.id
                 ? t('settings.agent.extensions.editTitle')
                 : t('settings.agent.extensions.addTitle')}
             </div>
-            <label>
+            <div className="set-agent-ext__field">
               <span>{t('settings.agent.extensions.name')}</span>
-              <input
-                className="set-input set-input--wide"
+              <SettingsField
+                wide
+                aria-label={t('settings.agent.extensions.name')}
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
-            </label>
-            <label>
+            </div>
+            <div className="set-agent-ext__field">
               <span>{t('settings.agent.extensions.transport')}</span>
-              <select
-                className="set-input set-input--wide"
+              <SettingsSelect<ServerForm['transport']>
+                few
+                ariaLabel={t('settings.agent.extensions.transport')}
                 value={form.transport}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    transport: event.target.value as ServerForm['transport'],
-                    publicValues: '',
-                    secretValues: '',
-                  })
+                onChange={(transport) =>
+                  setForm({ ...form, transport, publicValues: '', secretValues: '' })
                 }
-              >
-                <option value="streamable_http">Streamable HTTP</option>
-                <option value="stdio">stdio (desktop)</option>
-              </select>
-            </label>
+                options={[
+                  { value: 'streamable_http', label: TRANSPORT_LABEL.streamable_http },
+                  { value: 'stdio', label: TRANSPORT_LABEL.stdio },
+                ]}
+              />
+            </div>
             {form.transport === 'stdio' ? (
               <>
-                <label>
+                <div className="set-agent-ext__field">
                   <span>{t('settings.agent.extensions.command')}</span>
-                  <input
-                    className="set-input set-input--wide set-input--mono"
+                  <SettingsField
+                    wide
+                    mono
+                    aria-label={t('settings.agent.extensions.command')}
                     placeholder="/absolute/path/to/executable"
                     value={form.command}
                     onChange={(event) => setForm({ ...form, command: event.target.value })}
                   />
-                </label>
-                <label>
+                </div>
+                <div className="set-agent-ext__field">
                   <span>{t('settings.agent.extensions.args')}</span>
-                  <textarea
-                    className="set-input set-input--wide set-input--mono"
+                  <SettingsConfigField
                     rows={3}
+                    aria-label={t('settings.agent.extensions.args')}
                     value={form.args}
                     onChange={(event) => setForm({ ...form, args: event.target.value })}
                   />
-                </label>
-                <label>
+                </div>
+                <div className="set-agent-ext__field">
                   <span>{t('settings.agent.extensions.cwd')}</span>
-                  <input
-                    className="set-input set-input--wide set-input--mono"
+                  <SettingsField
+                    wide
+                    mono
+                    aria-label={t('settings.agent.extensions.cwd')}
                     value={form.cwd}
                     onChange={(event) => setForm({ ...form, cwd: event.target.value })}
                   />
-                </label>
+                </div>
               </>
             ) : (
-              <label>
+              <div className="set-agent-ext__field">
                 <span>{t('settings.agent.extensions.url')}</span>
-                <input
-                  className="set-input set-input--wide set-input--mono"
+                <SettingsField
+                  wide
+                  mono
+                  aria-label={t('settings.agent.extensions.url')}
                   placeholder="https://example.com/mcp"
                   value={form.url}
                   onChange={(event) => setForm({ ...form, url: event.target.value })}
                 />
-              </label>
+              </div>
             )}
-            <label>
+            <div className="set-agent-ext__field">
               <span>
                 {form.transport === 'stdio'
                   ? t('settings.agent.extensions.publicEnv')
                   : t('settings.agent.extensions.publicHeaders')}
               </span>
-              <textarea
-                className="set-input set-input--wide set-input--mono"
+              <SettingsConfigField
                 rows={3}
+                aria-label={
+                  form.transport === 'stdio'
+                    ? t('settings.agent.extensions.publicEnv')
+                    : t('settings.agent.extensions.publicHeaders')
+                }
                 placeholder="NAME=value"
                 value={form.publicValues}
                 onChange={(event) => setForm({ ...form, publicValues: event.target.value })}
               />
-            </label>
-            <label>
+            </div>
+            <div className="set-agent-ext__field">
               <span>
                 {form.transport === 'stdio'
                   ? t('settings.agent.extensions.secretEnv')
                   : t('settings.agent.extensions.secretHeaders')}
               </span>
-              <textarea
-                className="set-input set-input--wide set-input--mono"
+              <SettingsConfigField
                 rows={3}
+                aria-label={
+                  form.transport === 'stdio'
+                    ? t('settings.agent.extensions.secretEnv')
+                    : t('settings.agent.extensions.secretHeaders')
+                }
                 placeholder="TOKEN=secret value"
                 value={form.secretValues}
                 onChange={(event) => setForm({ ...form, secretValues: event.target.value })}
               />
               <small>{t('settings.agent.extensions.secretHint')}</small>
-            </label>
+            </div>
             <div className="set-agent-ext__actions">
-              <button
-                className="set-btn set-btn--primary"
-                disabled={busy || !form.name.trim()}
-                onClick={saveForm}
-              >
+              <SettingsButton variant="primary" disabled={busy || !form.name.trim()} onClick={saveForm}>
                 {t('settings.common.save')}
-              </button>
-              <button className="set-btn" disabled={busy} onClick={() => setForm(null)}>
+              </SettingsButton>
+              <SettingsButton variant="ghost" disabled={busy} onClick={() => setForm(null)}>
                 {t('settings.common.cancel')}
-              </button>
+              </SettingsButton>
             </div>
           </div>
         )}
@@ -467,7 +503,7 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
           </div>
         </div>
         {grants.length === 0 ? (
-          <div className="set-agent-ext__empty">{t('settings.agent.extensions.noGrants')}</div>
+          <EmptyState density="compact" message={t('settings.agent.extensions.noGrants')} />
         ) : (
           <div className="set-agent-ext__grants">
             {grants.map((grant) => (
@@ -479,9 +515,9 @@ export function AgentExtensionsSettings({ open }: { open: boolean }) {
                   </small>
                 </span>
                 {grant.status === 'active' && (
-                  <button className="set-btn" disabled={busy} onClick={() => revokeGrant(grant.id)}>
+                  <SettingsButton variant="ghost" size="sm" disabled={busy} onClick={() => revokeGrant(grant.id)}>
                     {t('settings.agent.extensions.revoke')}
-                  </button>
+                  </SettingsButton>
                 )}
               </div>
             ))}

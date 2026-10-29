@@ -803,9 +803,11 @@ describe('workspace surface language acceptance', () => {
     );
 
     expect(relationTypeField).toContain('<AnchoredPopover');
+    // Modal-safe suggestions; on the desktop they sit on the menu shell.
     expect(relationTypeField).toContain(
-      'className="relation-kind-suggestions relation-type-suggestions"',
+      "'menu-surface relation-kind-suggestions relation-type-suggestions'",
     );
+    expect(relationTypeField).toContain("'relation-kind-suggestions relation-type-suggestions'");
     expect(relationTypeField).not.toContain("position: 'absolute'");
     expect(relationKindMenu).toContain('setRelationTypeColor(type.id, paletteColor)');
     expect(relationKindMenu).toContain('removeRelationTypeMeta(type.id)');
@@ -877,7 +879,7 @@ describe('workspace surface language acceptance', () => {
     expect(block(dashboard, '.dash-hero {', '.dash-hero__kicker {')).toMatch(
       /border-radius:\s*2px;[\s\S]*?box-shadow:\s*none;/,
     );
-    expect(block(picker, '.pp-card {', '.pp-card:hover {')).toMatch(
+    expect(block(picker, '.pp-card {', '.pp-card__body {')).toMatch(
       /border-radius:\s*2px;[\s\S]*?box-shadow:\s*none;/,
     );
     expect(block(agent, '.agt-composer {', '.agt-composer:focus-within {')).toContain(
@@ -1038,7 +1040,7 @@ describe('workspace surface language acceptance', () => {
     const subHeader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     expect(subHeader).toContain('icon = <BrushIcon name="new-storyline" size={12} />;');
     expect(subHeader).toContain('icon = <BrushIcon name="new-category" size={12} />;');
-    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={11} />');
+    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={13} />');
     expect(source('src/renderer/features/agent/AgentComposerConfig.tsx')).toContain('<BrushIcon name="dharma-wheel" size={16} />');
     expect(source('src/renderer/components/leftBars/AgentChangeIndicator.tsx')).toContain('<BrushIcon name="check" size={10} />');
   });

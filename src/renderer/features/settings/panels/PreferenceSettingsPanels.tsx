@@ -26,6 +26,10 @@ import {
   type EntityLinkHighlightMode,
 } from '../../../lib/entity-link-appearance';
 import {
+  SettingsButton,
+  SettingsColor,
+  SettingsField,
+  SettingsNote,
   SettingsPanelHeader,
   SettingsRow,
   SettingsSectionHeader,
@@ -33,6 +37,22 @@ import {
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
+import { settingsOnDesktop } from '../settings-on-desktop';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { GlassSelect } from '../../../components/ui/GlassSelect';
+import { KindMark } from '../../../components/ui/KindMark';
+import type { KindMarkKind } from '../../../components/ui/kind-mark';
+
+/** Each kind's highlight colour is shown in the kind's own sand mark; a patch
+ * has none of its own and takes a round seal. */
+const ENTITY_LINK_KIND_MARK: Record<EntityLinkColorKind, { kind: KindMarkKind; seed?: string }> = {
+  element: { kind: 'element' },
+  chapter: { kind: 'chapter' },
+  drift: { kind: 'drift' },
+  patch: { kind: 'chapter', seed: 'patch' },
+  category: { kind: 'category' },
+  storyline: { kind: 'storyline' },
+};
 
 function formatFontFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -57,6 +77,8 @@ function EditorFontControl() {
     tone: 'error' | 'success';
     text: string;
   } | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const desktop = settingsOnDesktop();
 
   useEffect(() => {
     let cancelled = false;
@@ -210,6 +232,34 @@ function EditorFontControl() {
     },
   ];
 
+  const knownSystemFont = systemFonts.some((font) => font.family === editorSystemFontFamily);
+  const systemFontOptions = systemFonts.map((font) => {
+    const localizedAlias = i18n.resolvedLanguage?.startsWith('zh')
+      ? font.aliases.find((alias) => /[\u3400-\u9fff]/u.test(alias))
+      : undefined;
+    const label = localizedAlias ? `${localizedAlias} — ${font.family}` : font.family;
+    return { value: font.family, label, searchText: label };
+  });
+  const manualField = (
+    <>
+      <SettingsField
+        className="set-font-tool__input"
+        small={desktop}
+        value={systemFamilyDraft}
+        maxLength={128}
+        placeholder={t('settings.editor.font_system_manual_placeholder')}
+        aria-label={t('settings.editor.font_system_manual_placeholder')}
+        onChange={(event) => setSystemFamilyDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') applySystemFont();
+        }}
+      />
+      <SettingsButton size="sm" disabled={fontBusy} onClick={applySystemFont}>
+        {t('settings.editor.font_use')}
+      </SettingsButton>
+    </>
+  );
+
   return (
     <div className="set-font-control">
       <div
@@ -224,8 +274,9 @@ function EditorFontControl() {
             role="radio"
             aria-checked={editorFontSource === option.source}
             className={
-              'set-font-option' +
-              (editorFontSource === option.source ? ' set-font-option--active' : '')
+              desktop
+                ? 'set-font-card glass glass--rest' + (editorFontSource === option.source ? ' is-on' : '')
+                : 'set-font-option' + (editorFontSource === option.source ? ' set-font-option--active' : '')
             }
             disabled={option.disabled || fontBusy}
             onClick={() => setEditorFontSource(option.source)}
@@ -250,58 +301,61 @@ function EditorFontControl() {
             </span>
           </div>
           <div className="set-font-tool__actions">
-            <select
-              className="set-input set-font-tool__select"
-              aria-label={t('settings.editor.font_system_placeholder')}
-              value={
-                systemFonts.some((font) => font.family === editorSystemFontFamily)
-                  ? editorSystemFontFamily
-                  : ''
-              }
-              disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
-              onChange={(event) => selectKnownSystemFont(event.target.value)}
-            >
-              <option value="">
-                {loadingSystemFonts
-                  ? t('settings.editor.font_system_loading')
-                  : t('settings.editor.font_system_placeholder')}
-              </option>
-              {systemFonts.map((font) => {
-                const localizedAlias = i18n.resolvedLanguage?.startsWith('zh')
-                  ? font.aliases.find((alias) => /[\u3400-\u9fff]/u.test(alias))
-                  : undefined;
-                return (
-                  <option key={font.family} value={font.family}>
-                    {localizedAlias ? `${localizedAlias} — ${font.family}` : font.family}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-          <details className="set-font-tool__manual">
-            <summary>{t('settings.editor.font_system_manual')}</summary>
-            <div className="set-font-tool__manual-actions">
-              <input
-                className="set-input set-font-tool__input"
-                value={systemFamilyDraft}
-                maxLength={128}
-                placeholder={t('settings.editor.font_system_manual_placeholder')}
-                aria-label={t('settings.editor.font_system_manual_placeholder')}
-                onChange={(event) => setSystemFamilyDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') applySystemFont();
-                }}
-              />
-              <button
-                type="button"
-                className="set-btn"
-                disabled={fontBusy}
-                onClick={applySystemFont}
+            {desktop ? (
+              <span className="set-font-tool__select">
+                <GlassSelect
+                  value={knownSystemFont ? editorSystemFontFamily : null}
+                  options={systemFontOptions}
+                  onChange={selectKnownSystemFont}
+                  ariaLabel={t('settings.editor.font_system_placeholder')}
+                  placeholder={
+                    loadingSystemFonts
+                      ? t('settings.editor.font_system_loading')
+                      : t('settings.editor.font_system_placeholder')
+                  }
+                  disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
+                />
+              </span>
+            ) : (
+              <select
+                className="set-input set-font-tool__select"
+                aria-label={t('settings.editor.font_system_placeholder')}
+                value={knownSystemFont ? editorSystemFontFamily : ''}
+                disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
+                onChange={(event) => selectKnownSystemFont(event.target.value)}
               >
-                {t('settings.editor.font_use')}
-              </button>
+                <option value="">
+                  {loadingSystemFonts
+                    ? t('settings.editor.font_system_loading')
+                    : t('settings.editor.font_system_placeholder')}
+                </option>
+                {systemFontOptions.map((font) => (
+                  <option key={font.value} value={font.value}>
+                    {font.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          {desktop ? (
+            <div className="set-font-tool__manual">
+              <SettingsButton
+                variant="ghost"
+                size="sm"
+                aria-expanded={manualOpen}
+                onClick={() => setManualOpen((open) => !open)}
+              >
+                <BrushIcon name={manualOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+                {t('settings.editor.font_system_manual')}
+              </SettingsButton>
+              {manualOpen && <div className="set-font-tool__manual-actions">{manualField}</div>}
             </div>
-          </details>
+          ) : (
+            <details className="set-font-tool__manual">
+              <summary>{t('settings.editor.font_system_manual')}</summary>
+              <div className="set-font-tool__manual-actions">{manualField}</div>
+            </details>
+          )}
         </div>
 
         <div className="set-font-tool">
@@ -314,27 +368,17 @@ function EditorFontControl() {
             </span>
           </div>
           <div className="set-font-tool__actions">
-            <button
-              type="button"
-              className="set-btn"
-              disabled={fontBusy}
-              onClick={() => fileInputRef.current?.click()}
-            >
+            <SettingsButton disabled={fontBusy} onClick={() => fileInputRef.current?.click()}>
               {fontBusy
                 ? t('settings.editor.font_importing')
                 : importedFont
                   ? t('settings.editor.font_replace')
                   : t('settings.editor.font_import')}
-            </button>
+            </SettingsButton>
             {importedFont && (
-              <button
-                type="button"
-                className="set-btn set-btn--ghost"
-                disabled={fontBusy}
-                onClick={() => void removeImportedFont()}
-              >
+              <SettingsButton variant="ghost" disabled={fontBusy} onClick={() => void removeImportedFont()}>
                 {t('settings.editor.font_remove')}
-              </button>
+              </SettingsButton>
             )}
           </div>
           <input
@@ -351,7 +395,17 @@ function EditorFontControl() {
         </div>
       </div>
 
-      {fontMessage && (
+      {fontMessage && desktop && (
+        <SettingsNote
+          className="set-font-message"
+          icon={fontMessage.tone === 'error' ? 'status-stopped' : 'check'}
+          tone={fontMessage.tone === 'error' ? 'error' : undefined}
+          role={fontMessage.tone === 'error' ? 'alert' : 'status'}
+        >
+          {fontMessage.text}
+        </SettingsNote>
+      )}
+      {fontMessage && !desktop && (
         <div
           className={`set-font-message set-font-message--${fontMessage.tone}`}
           role={fontMessage.tone === 'error' ? 'alert' : 'status'}
@@ -413,6 +467,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
   // readable sample while scaling that range into a visible 78–100% miniature
   // so the paper-width control still has immediate feedback on mobile.
   const mobilePreviewWidth = 78 + ((maxLineWidth - 480) / (1280 - 480)) * 22;
+  const desktop = settingsOnDesktop();
   const previewStyle = {
     '--set-mobile-preview-width': `${mobilePreviewWidth.toFixed(2)}%`,
   } as CSSProperties;
@@ -450,9 +505,9 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           title={t('settings.editor.typesetting')}
           hint="TYPESETTING"
           action={
-            <button type="button" className="set-btn set-btn--ghost" onClick={resetEditorStyle}>
+            <SettingsButton variant="ghost" size="sm" onClick={resetEditorStyle}>
               {t('settings.editor.reset_style')}
-            </button>
+            </SettingsButton>
           }
         />
         <SettingsRow
@@ -496,6 +551,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           control={
             <SettingsSegment<EditorTextWrap>
               value={editorTextWrap}
+              ariaLabel={t('settings.editor.text_wrap')}
               options={[
                 { value: 'stable', label: t('settings.editor.text_wrap_stable') },
                 { value: 'pretty', label: t('settings.editor.text_wrap_pretty') },
@@ -510,6 +566,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           control={
             <SettingsSegment<ParagraphIndent>
               value={paragraphIndent}
+              ariaLabel={t('settings.editor.indent')}
               options={[
                 { value: 'none', label: t('settings.editor.indent_none') },
                 { value: 'one', label: t('settings.editor.indent_one') },
@@ -525,6 +582,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           control={
             <SettingsSegment<string>
               value={String(editorIndentStep)}
+              ariaLabel={t('settings.editor.tab_indent')}
               options={['1', '2', '3', '4'].map((v) => ({
                 value: v,
                 label: t('settings.editor.chars_count', { count: v }),
@@ -572,7 +630,13 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
         <SettingsRow
           label={t('settings.editor.typewriter_mode')}
           desc={t('settings.editor.typewriter_mode_desc')}
-          control={<SettingsToggle on={typewriterMode} onChange={setTypewriterMode} />}
+          control={
+            <SettingsToggle
+              on={typewriterMode}
+              onChange={setTypewriterMode}
+              aria-label={t('settings.editor.typewriter_mode')}
+            />
+          }
         />
         <SettingsRow
           label={t('settings.editor.typewriter_position')}
@@ -594,16 +658,11 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
           label={t('settings.editor.caret_color')}
           desc={t('settings.editor.caret_color_desc')}
           control={
-            <div className="set-color-picker">
-              <input
-                className="set-color-picker__input"
-                type="color"
-                value={caretColor}
-                aria-label={t('settings.editor.caret_color')}
-                onChange={(event) => setCaretColor(event.target.value)}
-              />
-              <span className="set-color-picker__value">{caretColor.toUpperCase()}</span>
-            </div>
+            <SettingsColor
+              value={caretColor}
+              onChange={setCaretColor}
+              ariaLabel={t('settings.editor.caret_color')}
+            />
           }
         />
         <SettingsRow
@@ -614,6 +673,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
             <div className="set-entity-link-style">
               <SettingsSegment<EntityLinkColorMode>
                 value={entityLinkColorMode}
+                ariaLabel={t('settings.editor.entity_link_style')}
                 options={[
                   {
                     value: 'contextual',
@@ -636,25 +696,29 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
               />
               {entityLinkColorMode === 'kind' && (
                 <div className="set-entity-link-colors">
-                  {ENTITY_LINK_COLOR_KINDS.map((kind) => (
-                    <label key={kind} className="set-entity-link-color">
-                      <span className="set-entity-link-color__label">
-                        {entityLinkKindLabels[kind]}
-                      </span>
-                      <span className="set-color-picker">
-                        <input
-                          className="set-color-picker__input"
-                          type="color"
-                          value={entityLinkKindColors[kind]}
-                          aria-label={entityLinkKindLabels[kind]}
-                          onChange={(event) => setEntityLinkKindColor(kind, event.target.value)}
-                        />
-                        <span className="set-color-picker__value">
-                          {entityLinkKindColors[kind].toUpperCase()}
+                  {ENTITY_LINK_COLOR_KINDS.map((kind) => {
+                    // A label may not hold the swatch's own label on the desktop.
+                    const Row = desktop ? 'div' : 'label';
+                    return (
+                      <Row key={kind} className="set-entity-link-color">
+                        <span className="set-entity-link-color__label">
+                          {entityLinkKindLabels[kind]}
                         </span>
-                      </span>
-                    </label>
-                  ))}
+                        <SettingsColor
+                          value={entityLinkKindColors[kind]}
+                          onChange={(next) => setEntityLinkKindColor(kind, next)}
+                          ariaLabel={entityLinkKindLabels[kind]}
+                          mark={
+                            <KindMark
+                              kind={ENTITY_LINK_KIND_MARK[kind].kind}
+                              seed={ENTITY_LINK_KIND_MARK[kind].seed}
+                              color={entityLinkKindColors[kind]}
+                            />
+                          }
+                        />
+                      </Row>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -667,6 +731,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
             control={
               <SettingsSegment<EntityLinkHighlightMode>
                 value={entityLinkHighlightMode}
+                ariaLabel={t('settings.editor.entity_link_highlight')}
                 options={[
                   { value: 'band', label: t('settings.editor.entity_link_highlight_band') },
                   { value: 'text', label: t('settings.editor.entity_link_highlight_text') },
@@ -684,6 +749,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
             control={
               <SettingsSegment<EntityLinkBandStyle>
                 value={entityLinkBandStyle}
+                ariaLabel={t('settings.editor.entity_link_band_style')}
                 options={[
                   { value: 'wash', label: t('settings.editor.entity_link_band_style_wash') },
                   { value: 'dots', label: t('settings.editor.entity_link_band_style_dots') },
@@ -696,7 +762,13 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
         <SettingsRow
           label={t('settings.editor.auto_element_link')}
           desc={t('settings.editor.auto_element_link_desc')}
-          control={<SettingsToggle on={autoElementLinkEnabled} onChange={setAutoElementLinkEnabled} />}
+          control={
+            <SettingsToggle
+              on={autoElementLinkEnabled}
+              onChange={setAutoElementLinkEnabled}
+              aria-label={t('settings.editor.auto_element_link')}
+            />
+          }
         />
         <SettingsRow
           label={t('settings.editor.autosave')}
@@ -706,7 +778,9 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
               {t('settings.editor.autosave_desc_b')}
             </>
           }
-          control={<SettingsToggle on={autosave} onChange={setAutosave} />}
+          control={
+            <SettingsToggle on={autosave} onChange={setAutosave} aria-label={t('settings.editor.autosave')} />
+          }
         />
       </div>
     </section>

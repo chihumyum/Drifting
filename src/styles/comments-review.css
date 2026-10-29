@@ -397,7 +397,7 @@
   border: 1px solid hsl(var(--rule));
   border-radius: 2px;
   background: hsl(var(--surface));
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.32);
+  box-shadow: 0 12px 26px -14px hsl(var(--shadow-ink) / 0.32);
   pointer-events: auto;
 }
 .agent-review-all__count {
@@ -702,7 +702,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 24px 60px -20px hsl(var(--ink-1) / 0.45);
+  box-shadow: 0 24px 60px -20px hsl(var(--shadow-ink) / 0.45);
 }
 .snapshot-modal__head {
   display: flex;
@@ -1300,7 +1300,7 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
   border: 1px solid hsl(var(--rule));
   border-radius: 10px;
   background: hsl(var(--page));
-  box-shadow: 0 12px 36px hsl(var(--ink-1) / 0.14);
+  box-shadow: 0 12px 36px hsl(var(--shadow-ink) / 0.14);
   font-family: var(--font-ui);
   color: hsl(var(--ink-2));
 }

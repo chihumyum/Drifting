@@ -8,7 +8,13 @@ import {
   type HostedAvatarSource,
 } from '../../../lib/hosted-account';
 import { AccountAvatar } from '../../../components/ui/AccountAvatar';
-import { SettingsRow, SettingsSectionHeader } from '../SettingsPrimitives';
+import {
+  SettingsButton,
+  SettingsField,
+  SettingsRow,
+  SettingsSectionHeader,
+} from '../SettingsPrimitives';
+import { settingsOnDesktop } from '../settings-on-desktop';
 import { HostedPasswordDialog } from './HostedPasswordDialog';
 import { HostedAvatarCropDialog } from './HostedAvatarCropDialog';
 
@@ -87,10 +93,14 @@ export function HostedAccountDetails({
             control={
               <>
                 <span className="set-account-avatar" aria-label={t('settings.hosted.avatar')}>
-                  <AccountAvatar
-                    image={displayImage}
-                    initial={(displayName || user.email)[0].toUpperCase()}
-                  />
+                  {/* The desktop's name seal: the initial carved out of one sand seal. */}
+                  {settingsOnDesktop() && <i className="sand sand--blob-0" aria-hidden="true" />}
+                  <b>
+                    <AccountAvatar
+                      image={displayImage}
+                      initial={(displayName || user.email)[0].toUpperCase()}
+                    />
+                  </b>
                 </span>
                 <input
                   ref={fileInput}
@@ -109,22 +119,13 @@ export function HostedAccountDetails({
                       });
                   }}
                 />
-                <button
-                  ref={avatarButton}
-                  type="button"
-                  className="set-btn"
-                  onClick={() => fileInput.current?.click()}
-                >
+                <SettingsButton ref={avatarButton} onClick={() => fileInput.current?.click()}>
                   {t('settings.hosted.choose_avatar')}
-                </button>
+                </SettingsButton>
                 {displayImage && (
-                  <button
-                    type="button"
-                    className="set-btn set-btn--ghost"
-                    onClick={() => setImage(null)}
-                  >
+                  <SettingsButton variant="ghost" onClick={() => setImage(null)}>
                     {t('settings.hosted.remove_avatar')}
-                  </button>
+                  </SettingsButton>
                 )}
               </>
             }
@@ -132,9 +133,8 @@ export function HostedAccountDetails({
           <SettingsRow
             label={<label htmlFor="hosted-name">{t('settings.hosted.display_name')}</label>}
             control={
-              <input
+              <SettingsField
                 id="hosted-name"
-                className="set-input"
                 autoComplete="nickname"
                 required
                 maxLength={HOSTED_NAME_MAX_LENGTH}
@@ -144,17 +144,11 @@ export function HostedAccountDetails({
             }
           />
           <div className="set-account-actions">
-            <button
-              className="set-btn set-btn--primary"
-              type="submit"
-              disabled={!dirty || !displayName.trim()}
-            >
+            <SettingsButton variant="primary" type="submit" disabled={!dirty || !displayName.trim()}>
               {t('settings.hosted.save_profile')}
-            </button>
+            </SettingsButton>
             {dirty && (
-              <button
-                type="button"
-                className="set-btn"
+              <SettingsButton
                 onClick={() => {
                   setName(null);
                   setImage(undefined);
@@ -162,7 +156,7 @@ export function HostedAccountDetails({
                 }}
               >
                 {t('common.cancel')}
-              </button>
+              </SettingsButton>
             )}
           </div>
         </fieldset>
@@ -170,9 +164,7 @@ export function HostedAccountDetails({
       <SettingsRow
         label={t('settings.hosted.password_title')}
         control={
-          <button
-            type="button"
-            className="set-btn"
+          <SettingsButton
             disabled={disabled || busy}
             onClick={() => {
               setNotice(null);
@@ -180,7 +172,7 @@ export function HostedAccountDetails({
             }}
           >
             {t('settings.hosted.change_password')}
-          </button>
+          </SettingsButton>
         }
       />
       {passwordOpen && (

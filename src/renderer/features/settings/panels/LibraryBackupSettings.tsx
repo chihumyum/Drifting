@@ -9,7 +9,7 @@ import {
 import { useAuthStore } from '../../../store/auth';
 import { requestConfirmation } from '../../../store/confirmation-store';
 import { useProductSyncAuthority } from '../../../sync/product-authority-react';
-import { SettingsRow } from '../SettingsPrimitives';
+import { SettingsButton, SettingsRow } from '../SettingsPrimitives';
 
 type Busy = 'export' | 'inspect' | 'restore' | null;
 
@@ -110,30 +110,30 @@ export function LibraryBackupSettings() {
         label={t('settings.sync.backup.exportTitle')}
         desc={blockedReason ?? t('settings.sync.backup.exportDesc')}
         control={
-          <button className="set-btn" onClick={exportBackup} disabled={busy !== null || !localOnly}>
+          <SettingsButton onClick={exportBackup} disabled={busy !== null || !localOnly}>
             {busy === 'export' ? t('settings.sync.backup.exporting') : t('settings.sync.backup.exportButton')}
-          </button>
+          </SettingsButton>
         }
       />
       <SettingsRow
         label={t('settings.sync.backup.restoreTitle')}
         desc={blockedReason ?? t('settings.sync.backup.restoreDesc')}
         control={
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="set-btn" onClick={restoreBackup} disabled={busy !== null || !localOnly}>
+          <div className="set-actions set-actions--end">
+            <SettingsButton onClick={restoreBackup} disabled={busy !== null || !localOnly}>
               {busy === 'restore'
                 ? t('settings.sync.backup.restoring')
                 : busy === 'inspect'
                   ? t('settings.sync.backup.inspecting')
                   : t('settings.sync.backup.restoreButton')}
-            </button>
-            <button
-              className="set-btn"
+            </SettingsButton>
+            <SettingsButton
+              variant="ghost"
               onClick={() => void libraryBackupService.openSafetyDirectory().catch((error: unknown) => setMessage(describeError(error)))}
               disabled={busy !== null}
             >
               {t('settings.sync.backup.openSafety')}
-            </button>
+            </SettingsButton>
           </div>
         }
       />

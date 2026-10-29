@@ -386,7 +386,7 @@ function SetHead({
       <div className="set-head__left">
         <button
           type="button"
-          className="set-head__back"
+          className="set-head__back glass glass--rest glass--round"
           onClick={onClose}
           title={t('navigation.back')}
           aria-label={t('navigation.back')}
@@ -396,17 +396,17 @@ function SetHead({
         <div className="set-head__title">{t('settings.title')}</div>
       </div>
 
-      <div className="set-head__search">
-        <BrushIcon name="search" size={11} />
+      <label className="set-head__search ui-field ui-field--sm glass glass--rest glass--field glass--small">
+        <BrushIcon name="search" size={13} />
         <input
           ref={searchInputRef}
           placeholder={t('settings.search_placeholder')}
+          aria-label={t('settings.search_placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <kbd>⌘F</kbd>
-      </div>
-
+        <span className="ui-field__meta">⌘F</span>
+      </label>
     </div>
   );
 }

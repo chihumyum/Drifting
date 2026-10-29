@@ -29,6 +29,8 @@ export function StoryGraphDriftEdges({ edges, driftCardRefs, tileRefs, viewportR
   const layoutRevision = useMemo(() => ({ revision, dragSnapshot }), [revision, dragSnapshot]);
   const measure = useCallback(() => measureGraphEdges(edges, (_kind, id) =>
     driftCardRefs.current.get(id) ?? tileRefs.current.get(id)), [edges, driftCardRefs, tileRefs]);
+  // Each edge names its two ends so a hovered drift card can light its own.
+  const endsById = useMemo(() => new Map(edges.map((edge) => [edge.id, `${edge.fromId} ${edge.toId}`])), [edges]);
   const geometry = useMeasuredGraphEdges({ measure, equals: sameGraphEdgeGeometry, revision: layoutRevision,
     animationWindowMs: 500, layerRef, panningRef, viewportRef });
   return (
@@ -55,7 +57,7 @@ export function StoryGraphDriftEdges({ edges, driftCardRefs, tileRefs, viewportR
         });
         const selected = selectedEdgeId === g.id;
         return (
-          <g key={g.id} className={`graph-drift-edge${selected ? ' is-selected' : ''}`}>
+          <g key={g.id} className={`graph-drift-edge${selected ? ' is-selected' : ''}`} data-ends={endsById.get(g.id)}>
             {g.directed && (
               <defs>
                 <RelationArrowMarker id={markerId} color={g.color} />

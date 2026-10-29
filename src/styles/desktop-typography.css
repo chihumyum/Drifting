@@ -57,13 +57,7 @@ html[data-shell-mode='desktop'] :is(.set-sec__title, .menu-surface__section-labe
   font-weight: 500;
 }
 
-html[data-shell-mode='desktop'] .set-sec__title {
-  color: hsl(var(--ink-2));
-}
-
-html[data-shell-mode='desktop']:not([data-interface-text-size='small']) .set-sec__title {
-  font-size: var(--ui-font-heading);
-}
+/* Settings section titles are index type, sized in settings.css. */
 
 html[data-shell-mode='desktop'] .set-row__control {
   flex-wrap: wrap;

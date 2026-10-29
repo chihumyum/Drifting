@@ -4,6 +4,7 @@ import { useAuthStore } from '../../../store/auth';
 import { validateHostedPassword } from '../../../lib/hosted-account';
 import { Button } from '../../../components/ui/Button';
 import { ModalActions, ModalBody, ModalHeader } from '../../../components/ui/Modal';
+import { SettingsField } from '../SettingsPrimitives';
 import { HostedAccountDialog } from './HostedAccountDialog';
 
 export function HostedPasswordDialog({
@@ -73,9 +74,8 @@ export function HostedPasswordDialog({
             disabled={disabled || busy}
           >
             <label htmlFor="hosted-current-password">{t('settings.hosted.current_password')}</label>
-            <input
+            <SettingsField
               id="hosted-current-password"
-              className="set-input"
               data-dialog-autofocus
               type="password"
               autoComplete="current-password"
@@ -84,9 +84,8 @@ export function HostedPasswordDialog({
               onChange={(event) => setCurrent(event.target.value)}
             />
             <label htmlFor="hosted-new-password">{t('settings.hosted.new_password')}</label>
-            <input
+            <SettingsField
               id="hosted-new-password"
-              className="set-input"
               type="password"
               autoComplete="new-password"
               required
@@ -100,9 +99,8 @@ export function HostedPasswordDialog({
               {t('settings.hosted.password_description')}
             </p>
             <label htmlFor="hosted-confirm-password">{t('settings.hosted.confirm_password')}</label>
-            <input
+            <SettingsField
               id="hosted-confirm-password"
-              className="set-input"
               type="password"
               autoComplete="new-password"
               required

@@ -254,6 +254,7 @@
       "title": "书桌的光线，由你决定。",
       "sub": "挑一个最合眼的写作界面明度与强调色。",
       "theme": "主题",
+      "theme_desc": "浅色、深色，或跟随系统。",
       "light": "浅色",
       "dark": "深色",
       "system": "跟随系统",
@@ -389,6 +390,7 @@
       "title": "界面用什么语言对你说话。",
       "sub": "这只关乎界面文本——稿件语言在下方独立设置。",
       "ui_locale": "界面语言",
+      "ui_locale_desc": "这只关乎界面文本，稿件语言在下方独立设置。",
       "manuscript": "写作语言",
       "manuscript_default": "手稿默认语言",
       "manuscript_default_desc": "影响拼写检查、断行与 AI 写作语言。",
@@ -466,6 +468,7 @@
       "title": "手不离键盘的写作。",
       "sub": "点击任意快捷键即可重新绑定。按 Esc 取消录制。",
       "allActions": "所有动作 · {{count}} ACTIONS",
+      "allActionsShort": "所有动作 · {{count}}",
       "recording": "录制中",
       "resetOneTitle": "双击恢复默认",
       "pressNewCombo": "按下新组合键…",
@@ -572,9 +575,8 @@
     },
     "about": {
       "kicker": "关于 · ABOUT",
-      "title": "Drifting · 构想",
+      "title": "Drifting",
       "sub": "终极写作体验",
-      "cnName": "构想",
       "version": "版本",
       "channel": "通道",
       "channelDev": "开发",
@@ -1320,8 +1322,7 @@
     "done": "完成",
     "emptyCell": "写点什么…",
     "fit": "适应",
-    "fitTitle": "适应窗口：让整张表正好填满，之后加行加列只溢出不挤压",
-    "noChapter": "情节规划跟着当前章节；这一页没有情节规划。"
+    "fitTitle": "适应窗口：让整张表正好填满，之后加行加列只溢出不挤压"
   },
   "editorMainArea": {
     "openDashboard": "打开项目主页",
@@ -1792,18 +1793,19 @@
       "entityFilterActiveTitle": "仅显示与 \"{{label}}\" 关联的条目",
       "entityFilterTitle": "限定到某个实体",
       "clearEntityFilter": "清除关联过滤",
-      "entityFilterHint": "选择实体后只显示关联的备忘 / 材料",
+      "entityFilterAll": "关联 · 全部",
+      "entityFilterHint": "选择实体后只显示关联的 TODO / 素材",
       "todoEmptyHint": "点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO",
-      "newMaterialButton": "新建材料",
-      "noMaterials": "项目里还没有材料。",
-      "noFilteredMaterials": "当前过滤条件下没有匹配的材料。",
+      "newMaterialButton": "新建素材",
+      "noMaterials": "项目里还没有素材。",
+      "noFilteredMaterials": "当前过滤条件下没有匹配的素材。",
       "collapseDrawer": "收起抽屉",
       "expandDrawer": "展开抽屉",
       "orphans": "待整理",
       "resolved": "已解决",
-      "orphanHeader": "待整理 · 无关联材料",
+      "orphanHeader": "待整理 · 无关联素材",
       "resolvedHeader": "已解决 · TODO 归档",
-      "noOrphans": "所有材料都已关联到至少一个实体。",
+      "noOrphans": "所有素材都已关联到至少一个实体。",
       "noResolvedTodos": "暂无已完成的 TODO。",
       "reopenShort": "重开"
     }
@@ -1986,6 +1988,44 @@
       "summaryLabel": "梗概 · SUMMARY",
       "summaryPlaceholder": "一两句话说明这本书是什么。",
       "createSubmit": "新建"
+    },
+    "desk": {
+      "allBooks": "全部作品",
+      "count": "{{count}} 本",
+      "filterLabel": "筛选作品",
+      "viewLabel": "视图",
+      "search": "搜索作品",
+      "newBook": "新建作品",
+      "newCard": "新建一本",
+      "newCardSub": "从一张白纸开始",
+      "empty": "书架上还没有作品。",
+      "noMatch": "没有符合的作品。",
+      "open": "打开《{{name}}》",
+      "moveToTrash": "移到最近删除",
+      "untitled": "未命名",
+      "progress": "进度",
+      "goal": "{{pct}}% · 目标 {{target}} 字",
+      "wordsUnit": "字",
+      "chaptersUnit": "章",
+      "storylinesUnit": "条故事线",
+      "elementsUnit": "个要素",
+      "storylineCount": "{{count}} 条故事线",
+      "localLibrary": "本地书库",
+      "trashEntry": "最近删除",
+      "trashTitle": "把《{{name}}》移到最近删除？",
+      "form": {
+        "createTitle": "新建一本书",
+        "editTitle": "编辑《{{name}}》",
+        "nameLabel": "书名",
+        "summaryLabel": "梗概"
+      },
+      "trashList": {
+        "title": "最近删除",
+        "sub": "作品在这里保留 30 天，到期后自动永久删除，包括 Hosted 上的数据。",
+        "subLocal": "作品在这里保留 30 天，到期后自动永久删除。",
+        "empty": "最近没有删除的作品。",
+        "confirmTitle": "永久删除《{{name}}》？"
+      }
     }
   },
   "dashboard": {
@@ -2998,12 +3038,16 @@
     "title": "要素全景",
     "meta": "{{categories}} 类 · {{elements}} 要素",
     "linkHint": "选择第二个要素 / 章节 · ESC 取消",
+    "linkHintFrom": "从",
+    "linkHintTo": "连到…　选第二个要素或章节，Esc 取消",
     "focusOffTitle": "关闭聚焦 — 显示全部关联线",
     "focusOnTitle": "打开聚焦 — 只显示当前视口内 element 的关联线",
     "focusToggle": "聚焦 · {{state}}",
+    "focus": "聚焦",
     "stickyOffTitle": "关闭章节带粘附",
     "stickyOnTitle": "打开章节带粘附 — 平移时章节带停留在视口边缘，要素从其下穿过",
     "stickyToggle": "粘带 · {{state}}",
+    "sticky": "粘带",
     "stateOn": "开",
     "stateOff": "关",
     "resetTitle": "重置画布缩放与平移",
@@ -3021,7 +3065,8 @@
     "empty": {
       "noStorylines": "还没有故事线",
       "noCategories": "还没有要素类目",
-      "categoryEmpty": "空"
+      "categoryEmpty": "空",
+      "categoryNoElements": "还没有要素"
     }
   },
   "nodeCardPopover": {

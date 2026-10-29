@@ -4,6 +4,7 @@ import type { Project } from '../domain/project';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
 import { initDatabase } from '../lib/db';
 import { readProjectStats } from '../sqlite-repo/project-stats-repo';
+import { readProjectCover } from '../sqlite-repo/project-cover-repo';
 import type { ProjectSummary } from '../domain/project-summary';
 import { v7 as uuidv7 } from 'uuid';
 import { withAtomicSyncTransaction } from './sync-helpers';
@@ -51,7 +52,8 @@ function sortProjectSummaries(a: ProjectSummary, b: ProjectSummary): number {
 
 async function buildLocalProjectSummaries(projects: Project[]): Promise<ProjectSummary[]> {
   // Bound gateway work when a library contains many projects. Each project
-  // returns one aggregate row, never its node/entity inventory.
+  // returns one aggregate row and its cover's storylines, never its
+  // node/entity inventory.
   const summaries: ProjectSummary[] = new Array(projects.length);
   let cursor = 0;
   await Promise.all(
@@ -59,11 +61,10 @@ async function buildLocalProjectSummaries(projects: Project[]): Promise<ProjectS
       while (cursor < projects.length) {
         const index = cursor++;
         const project = projects[index];
-        summaries[index] = {
-          ...project,
-          stats: await readProjectStats(project.id),
-          source: 'local',
-        };
+        // One after the other, so the workers stay the bound on gateway work.
+        const stats = await readProjectStats(project.id);
+        const cover = await readProjectCover(project.id);
+        summaries[index] = { ...project, stats, cover, source: 'local' };
       }
     }),
   );

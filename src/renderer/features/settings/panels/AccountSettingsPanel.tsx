@@ -10,11 +10,13 @@ import { disconnectHosted } from '../../../sync/hosted/disconnect';
 import { formatStorageBytes, readHostedUsage, type HostedUsage } from '../../../sync/hosted/quota';
 import { HostedAccountDetails } from './HostedAccountDetails';
 import {
+  SettingsButton,
   SettingsPanelHeader,
   SettingsRow,
   SettingsSectionHeader,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
+import { settingsOnDesktop } from '../settings-on-desktop';
 
 export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -81,21 +83,13 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           desc={t(`settings.hosted.session.${status}`)}
           control={
             accountReady ? (
-              <button
-                className="set-btn"
-                disabled={busy}
-                onClick={() => void run(() => useAuthStore.getState().logout())}
-              >
+              <SettingsButton disabled={busy} onClick={() => void run(() => useAuthStore.getState().logout())}>
                 {t('settings.hosted.sign_out')}
-              </button>
+              </SettingsButton>
             ) : (
-              <button
-                className="set-btn set-btn--primary"
-                disabled={busy}
-                onClick={() => openSignIn()}
-              >
+              <SettingsButton variant="primary" disabled={busy} onClick={() => openSignIn()}>
                 {t('settings.hosted.sign_in')}
-              </button>
+              </SettingsButton>
             )
           }
         />
@@ -109,8 +103,8 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
               : t('settings.hosted.connect_description')
           }
           control={
-            <button
-              className="set-btn set-btn--primary"
+            <SettingsButton
+              variant="primary"
               disabled={busy || !accountReady || paused}
               onClick={() => void run(synchronizeHostedNow)}
             >
@@ -121,7 +115,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
                     ? 'settings.hosted.sync_now'
                     : 'settings.hosted.connect',
               )}
-            </button>
+            </SettingsButton>
           }
         />
         {connected && authority.activeSyncGenerations > 0 && (
@@ -129,13 +123,9 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
             label={t(paused ? 'settings.hosted.paused' : 'settings.hosted.automatic')}
             desc={t('settings.hosted.automatic_description')}
             control={
-              <button
-                className="set-btn"
-                disabled={busy}
-                onClick={() => void run(() => productSyncCommands.setPaused(!paused))}
-              >
+              <SettingsButton disabled={busy} onClick={() => void run(() => productSyncCommands.setPaused(!paused))}>
                 {t(paused ? 'settings.hosted.resume' : 'settings.hosted.pause')}
-              </button>
+              </SettingsButton>
             }
           />
         )}
@@ -163,7 +153,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           />
         )}
         {connected && failure?.lastErrorCode === 'QUOTA_EXCEEDED' && (
-          <p role="alert">{t('settings.hosted.quota_blocked')}</p>
+          <p role="alert" className="set-account-message">{t('settings.hosted.quota_blocked')}</p>
         )}
         {connected && usage && (
           <SettingsRow
@@ -173,20 +163,41 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
               quota: formatStorageBytes(usage.quotaBytes),
             })}
             control={
-              <span
-                className="set-meter"
-                role="meter"
-                aria-label={t('settings.hosted.storage')}
-                aria-valuemin={0}
-                aria-valuemax={usage.quotaBytes}
-                aria-valuenow={Math.min(usage.usedBytes, usage.quotaBytes)}
-              >
+              settingsOnDesktop() ? (
+                // The progress hairline, and the share read beneath it.
+                <span className="set-storage">
+                  <span
+                    className="ui-progress"
+                    role="meter"
+                    aria-label={t('settings.hosted.storage')}
+                    aria-valuemin={0}
+                    aria-valuemax={usage.quotaBytes}
+                    aria-valuenow={Math.min(usage.usedBytes, usage.quotaBytes)}
+                  >
+                    <span
+                      className="ui-progress__fill"
+                      data-full={usageRatio >= 0.9 ? 'true' : undefined}
+                      style={{ width: `${Math.round(usageRatio * 100)}%` }}
+                    />
+                  </span>
+                  <span className="set-storage__share">{Math.round(usageRatio * 100)}%</span>
+                </span>
+              ) : (
                 <span
-                  className="set-meter__fill"
-                  data-full={usageRatio >= 0.9 ? 'true' : undefined}
-                  style={{ width: `${Math.round(usageRatio * 100)}%` }}
-                />
-              </span>
+                  className="set-meter"
+                  role="meter"
+                  aria-label={t('settings.hosted.storage')}
+                  aria-valuemin={0}
+                  aria-valuemax={usage.quotaBytes}
+                  aria-valuenow={Math.min(usage.usedBytes, usage.quotaBytes)}
+                >
+                  <span
+                    className="set-meter__fill"
+                    data-full={usageRatio >= 0.9 ? 'true' : undefined}
+                    style={{ width: `${Math.round(usageRatio * 100)}%` }}
+                  />
+                </span>
+              )
             }
           />
         )}
@@ -195,18 +206,19 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
             label={t('settings.hosted.disconnect')}
             desc={t('settings.hosted.disconnect_description')}
             control={
-              <button
-                className="set-btn"
+              <SettingsButton
                 disabled={busy || (connected && (paused || !accountReady))}
                 onClick={() => void run(disconnectHosted)}
               >
                 {t('settings.hosted.disconnect')}
-              </button>
+              </SettingsButton>
             }
           />
         )}
-        {(connected || hostedTransition) && authority.errorCode && <p role="alert">{authority.errorCode}</p>}
-        {message && <p role="status">{message}</p>}
+        {(connected || hostedTransition) && authority.errorCode && (
+          <p role="alert" className="set-account-message">{authority.errorCode}</p>
+        )}
+        {message && <p role="status" className="set-account-message">{message}</p>}
       </div>
     </section>
   );

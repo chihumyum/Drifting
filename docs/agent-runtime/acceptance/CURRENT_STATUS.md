@@ -215,7 +215,9 @@ pnpm agent:capabilities:check
   Memory even before a provider credential is connected. Concurrent Agent/user
   edits fail closed and preserve an unsaved author draft. The mobile Agent
   panel also exposes this UI through its Working Memory tab, rendering the same
-  shared `AgentWorkingMemoryView`.
+  shared `AgentWorkingMemoryView`; the desktop draws it in sand and glass
+  (`docs/design-system/components.md`), the paused mobile shell keeps its
+  outlined fallback. Cancelling an edit drops the draft.
 - `generate_element_images` (experimental, 2026-10-26) generates concept image
   candidates for one element (any kind: person, place, object, idea) through the ChatGPT subscription into the
   device-local generation inbox. It is a write-class tool (absent from

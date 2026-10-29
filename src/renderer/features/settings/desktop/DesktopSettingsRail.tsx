@@ -23,7 +23,8 @@ export function DesktopSettingsRail<Id extends string>({
 }) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.hostedUser);
-  const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
+  const name = user?.name ?? user?.email ?? t('settings.local_user');
+  const initial = name.slice(0, 1).toUpperCase();
   const groups: { name: string; items: typeof items }[] = [];
   for (const item of items) {
     const group = groups[groups.length - 1];
@@ -34,11 +35,13 @@ export function DesktopSettingsRail<Id extends string>({
   return (
     <nav className="set-rail" aria-label={t('settings.title')}>
       <div className="set-rail__who">
-        <div className="set-rail__who-avatar"><AccountAvatar image={user?.image} initial={initial} /></div>
+        {/* A name seal: the initial carved out of one sand seal, or the avatar. */}
+        <div className="set-rail__who-avatar">
+          <i className="sand sand--blob-0" aria-hidden="true" />
+          <b><AccountAvatar image={user?.image} initial={initial} /></b>
+        </div>
         <div className="set-rail__who-body">
-          <div className="set-rail__who-name">
-            {user?.name ?? user?.email ?? t('settings.local_user')}
-          </div>
+          <div className="set-rail__who-name">{name}</div>
           <div className="set-rail__who-meta">{t('settings.models.sidebarMeta')}</div>
         </div>
       </div>
@@ -52,7 +55,11 @@ export function DesktopSettingsRail<Id extends string>({
               <div key={item.id}>
                 <button
                   type="button"
-                  className={'set-rail__item' + (selected ? ' set-rail__item--active' : '')}
+                  className={
+                    'set-rail__item' +
+                    (selected ? ' set-rail__item--active' : '') +
+                    (selected && !activeSection ? ' is-current' : '')
+                  }
                   aria-current={selected && !activeSection ? 'location' : undefined}
                   aria-controls={item.id}
                   onClick={() => onSelect(item.id)}
@@ -71,7 +78,7 @@ export function DesktopSettingsRail<Id extends string>({
                       <li key={section.id}>
                         <button
                           type="button"
-                          className={'set-rail__section' + (selected && activeSection === section.id ? ' set-rail__section--active' : '')}
+                          className={'set-rail__section' + (selected && activeSection === section.id ? ' set-rail__section--active is-current' : '')}
                           aria-current={selected && activeSection === section.id ? 'location' : undefined}
                           aria-controls={section.id}
                           onClick={() => onSelect(item.id, section)}

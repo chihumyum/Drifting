@@ -35,6 +35,11 @@ it('loads the owned shelf with bounded aggregate work and preserves updated-date
   expect(summaries.some(project => project.id === 'foreign-account')).toBe(false);
   expect(summaries.every(project => project.source === 'local' && project.stats.wordsReady)).toBe(true);
   expect(useProjectStore.getState().projects).toEqual(summaries);
-  expect(query).toHaveBeenCalledTimes(15); // one project inventory, one row per project
+  // One project inventory, then per project its aggregate row and its cover's storylines.
+  expect(query).toHaveBeenCalledTimes(1 + 14 * 2);
+  expect(summaries.find(project => project.id === 'synthetic-workspace')?.cover.storylines).toEqual([
+    { color: '#778899', chapters: [0] },
+    { color: '#778899', chapters: [] },
+  ]);
   expect(maximum).toBe(4);
 });

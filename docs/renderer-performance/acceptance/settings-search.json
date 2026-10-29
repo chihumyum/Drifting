@@ -1,7 +1,7 @@
 {
   "kind": "settings-body-search-browser",
-  "generatedAt": "2026-10-02T20:06:12.252Z",
-  "sourceSha256": "bbb4533b630bf91b2698f8e49e221dc7dbc9e153610d3793dda9adf93697a9e2",
+  "generatedAt": "2026-10-29T14:22:36.423Z",
+  "sourceSha256": "427ed2032d9f2a5330b63926e207f73a19dcdc6c7297a569c2fad071785c305d",
   "status": "passed",
   "synthetic": true,
   "checks": [
