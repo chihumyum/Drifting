@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import type { Comment } from '../../domain/comment';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
-import { createAgentMarkerSelector, createCommentMarkerSelector, sameScrollMarkers } from './scroll-marker-model';
+import { createAgentMarkerSelector, createCommentMarkerSelector, sameScrollMarkers, scrollMarkerSeal, SCROLL_MARKER_SEALS } from './scroll-marker-model';
 
 function comment(patch: Partial<Comment> = {}): Comment {
   return { id: 'c', projectId: 'p', kind: 'note', targetKind: 'node', targetId: 'n', targetBlockId: 'b',
@@ -69,5 +69,22 @@ describe('scoped scrollbar marker projections', () => {
     expect(select([change({ op: 'deleted' })])).toHaveLength(1);
     expect(select([change({ op: 'deleted', field: { kind: 'summary', label: 'Summary' } })])).toEqual([]);
     expect(select([change({ op: 'deleted', afterPrevId: 'current' })])[0].blockIds).toEqual(['current']);
+  });
+});
+
+describe('scrollMarkerSeal', () => {
+  it('presses each tick once: the same key always gets the same seal and turn', () => {
+    expect(scrollMarkerSeal('c:comment-1')).toEqual(scrollMarkerSeal('c:comment-1'));
+    const seal = scrollMarkerSeal('a:changed:block-9');
+    expect(seal.shape).toBeGreaterThanOrEqual(0);
+    expect(seal.shape).toBeLessThan(SCROLL_MARKER_SEALS);
+    expect(seal.turn).toBeGreaterThanOrEqual(0);
+    expect(seal.turn).toBeLessThan(360);
+  });
+
+  it('varies across ticks so the seals do not all look alike', () => {
+    const seals = Array.from({ length: 24 }, (_, index) => scrollMarkerSeal(`c:comment-${index}`));
+    expect(new Set(seals.map(seal => seal.shape)).size).toBeGreaterThan(3);
+    expect(new Set(seals.map(seal => seal.turn)).size).toBeGreaterThan(12);
   });
 });

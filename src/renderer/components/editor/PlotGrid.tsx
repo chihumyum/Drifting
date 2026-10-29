@@ -40,8 +40,11 @@ import '../../../styles/plot-planner.css';
 import { BrushIcon } from '../ui/BrushIcon';
 
 /**
- * The shared Plot Grid surface: one contiguous hairline table that fills its
- * host. Desktop writes straight into the cells and edits headers inline; the
+ * The shared Plot Grid surface: one contiguous grid that fills its host. On
+ * desktop it is drawn as the chapter's own little timeline — each row a lane
+ * named on the left, each column a beat along the top, each cell a slip of
+ * paper written straight into; the phone keeps its hairline table. Desktop
+ * edits headers inline; the
  * mobile paper tool hands cell and header presses to its own sheets through
  * `onCellPress` / `onHeaderPress` and drives structure through `apiRef`.
  * Every host action is expressed in SCREEN axes so a transposed view keeps
@@ -161,7 +164,7 @@ function DesktopHeaderLabel({
   }, [focusToken]);
   return (
     <div
-      className="pl-head__text"
+      className="pl-head__text glass glass--field"
       contentEditable
       suppressContentEditableWarning
       role="textbox"
@@ -253,12 +256,15 @@ export function PlotGridEditor({
   const rowHeaderW = useMemo(() => {
     const placeholder = t('plotGrid.rowPlaceholder');
     const labels = view.rows.map((row) => row.label || placeholder);
+    // Desktop lane names are set in the serif structure face.
     const family =
       typeof getComputedStyle === 'function'
-        ? getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim()
+        ? getComputedStyle(document.documentElement).getPropertyValue(mobile ? '--font-sans' : '--font-structure').trim()
         : '';
-    const font = `${mobile ? 12 : 12.5}px ${family || 'sans-serif'}`;
-    return resolvePlotGridRowHeaderWidth(measureWidestLabel(labels, font), presentation);
+    const font = mobile ? `12px ${family || 'sans-serif'}` : `500 12.5px ${family || 'serif'}`;
+    // Desktop lane names sit 14px in from the edge, 8px short of the beats,
+    // inside the label's own 4px each side.
+    return resolvePlotGridRowHeaderWidth(measureWidestLabel(labels, font), presentation, mobile ? undefined : 30);
   }, [mobile, presentation, t, view.rows]);
   const layout = useMemo(
     () =>
@@ -674,10 +680,11 @@ export function PlotGridEditor({
                 return (
                   <td className="pl-cell-td" key={col.id}>
                     <div
-                      className="pl-cell"
+                      className="pl-cell glass glass--rest glass--field"
                       contentEditable
                       suppressContentEditableWarning
                       role="textbox"
+                      data-ph={t('plotGrid.emptyCell')}
                       data-selected={isSelected ? 'true' : 'false'}
                       // Seed / re-sync from the draft in the commit phase; typing
                       // stays uncontrolled so the caret never jumps.

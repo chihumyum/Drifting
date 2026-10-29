@@ -7,7 +7,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 1. **Workspace plane**：编辑器周围区域、左右栏与可选的 Bottom Timeline dock 共同组成一张连续桌面；没有标题栏、文档 Tab 栏、editor top bar 或底部状态栏。它们全部使用从 editor 稿纸外侧提取的不透明 `--workspace-ui-bg: hsl(var(--paper-deep))`；一级模块不再用不同底色假装处于不同高度。
 2. **Manuscript page**：`.page` 使用现有 `--page` 与 `--page-elevation`，圆角上限由 `--workspace-corner-radius: 2px` 控制。无论左右栏是否打开，它始终是主界面唯一抬起的一级工作面。
 3. **Borders and internal levels**：细灰黑 `--workspace-border` 只表达左右栏与 Bottom Timeline 的一级模块边界。三方交点没有渐变、阴影或额外装饰。侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline；左右栏显示双列时，两列之间也用同一条 `--workspace-local-border` hairline，同时保留较宽的透明拖拽热区。panel header 直接衔接 content，不再重复画第二条线，侧栏 footer 顶线则再弱一级。Bottom Timeline header 保持 `--workspace-ui-bg`，幕/叙事时 rail 使用稍浅的 `--paper`，故事线轨道使用 `--page`；幕边界、时间点和相邻故事线轨道的静态 guide 使用 header 的 `--workspace-ui-bg`，厚度统一为 `0.5px`。
-4. **Floating layers**：菜单、悬停卡、选区浮条、对话框、全局搜索、稿纸内查找条与通知中心是从桌面掀起的一块：侧栏同色的不透明 `--workspace-ui-bg`、直角、`0.5px` 墨色 hairline 加浮起投影（`--menu-surface-*`）。它们整体没有玻璃。对话框与全局搜索背后不压暗，只蒙一层桌面颜色的薄雾。
+4. **Floating layers**：菜单、悬停卡、对话框、全局搜索、稿纸内查找条与通知中心是从桌面掀起的一块：侧栏同色的不透明 `--workspace-ui-bg`、直角、`0.5px` 墨色 hairline 加浮起投影（`--menu-surface-*`）。它们整体没有玻璃。选区浮条不在其中：它是浮在稿纸上的玻璃长药丸，和稿纸工具栏同一种，不带投影（2026-10-29）。对话框与全局搜索背后不压暗，只蒙一层桌面颜色的薄雾。
 
 因此普通编辑状态只出现一块抬起的一级工作面：稿纸。左右栏、时间线、稿纸角上的按钮与稿纸顶边的标签记号都不是额外的“岛”。
 
@@ -19,17 +19,17 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 | 形状 | 给谁用 |
 | --- | --- |
-| 圆形 | 单独存在的工作区级玻璃按钮（侧栏开关、锁、`+`、时间线开关、全书视图入口、稿纸工具栏里的按钮）；Agent 对话框里的停止、补充、发送与托盘里的按钮；圆形砂印；头像、状态点、加载转圈、Switch 圆钮 |
-| 胶囊 | 一排玻璃控件合成的一条：Dock 药丸、稿纸工具栏长药丸、Agent 对话框左下的托盘、Switch 轨道 |
+| 圆形 | 单独存在的工作区级玻璃按钮（侧栏开关、锁、`+`、时间线开关、全书视图入口、稿纸工具栏里的按钮、选区浮条格式条里的符号）；Agent 对话框里的停止、补充、发送与托盘里的按钮；圆形砂印；头像、状态点、加载转圈、Switch 圆钮 |
+| 胶囊 | 一排玻璃控件合成的一条：Dock 药丸、稿纸工具栏长药丸、选区浮条与它的格式条（以及里面的短药丸）、Agent 对话框左下的托盘、Switch 轨道 |
 | 大圆角 `16px` | 作者写字的那张片：Agent 对话框，以及记录里作者已经发出的话（同一张稿纸色圆角片） |
-| 直角方块 | 垫在一排文字下表示选中的玻璃方块（Panel Tab 方块、筛选滑块、范围开关）；菜单、悬停卡、选区浮条、对话框、全局搜索与查找条；菜单与悬停卡里的行 |
+| 直角方块 | 垫在一排文字下表示选中的玻璃方块（Panel Tab 方块、筛选滑块、范围开关）；菜单、悬停卡、对话框、全局搜索与查找条；菜单与悬停卡里的行 |
 | 小圆角 `1–3px` | 其余一切：按钮、单行输入框与下拉选择的触发器、标签、chip、popover、toast、内容卡片、时间线章节块（`1px`）、稿纸（`2px`） |
 
 - 通用圆角阶梯限定为 `1px / 2px / 3px`（大圆角只给上表那一处）；`--radius`、`--radius-xs`、`--radius-sm`、`--radius-md` 与 `--radius-lg` 不再制造“软卡片”层级。顶层工作面使用直角或最多 `2px` 圆角，更大的圆角不用于页面模块、栏、dock 或内容列表容器。
 - 圆形与胶囊只给上表列出的玻璃控件与语义形状；面板里的普通图标按钮不因此获得圆形外壳。滚动条 thumb 沿用平台形状。
 - 页面卡片不依靠 hover 上浮、scale 或大面积阴影表达可点击性；改用边框、背景 wash、文字颜色或玻璃边。
 - 禁止 inset-left vertical accent bar；强调状态使用背景 wash、细分隔线、字重、语义颜色或玻璃。Graph tile 仍可用覆盖块面的低浓度语义 wash；Bottom Timeline 的故事线名称 rail 与桌面 UI 使用同一底灰，颜色只留给真正承载故事线语义的 marker 与 clip。幕/叙事时 rail 内及故事线轨道里的静态竖线统一取 header 的 `--workspace-ui-bg`；相邻故事线轨道之间也用同色 `0.5px` 横线分隔。
-- Plot Planner 是连续的 mini-Excel：单元格共享 hairline 网格，不是带 gap、阴影和 hover lift 的卡片集合。
+- Plot Planner 是一张连续的网格，不是带 gap、阴影和 hover lift 的卡片集合。桌面上它和 Bottom Timeline 共用稿纸下面同一个位置，画成这一章自己的小时间线：泳道名在桌面色的栏里，泳道是稿纸白、之间是桌面色 `0.5px` 线，每格是一张带静止细玻璃线的纸条（见 [components.md](components.md)）。暂停中的移动端保留共享 hairline 网格的 mini-Excel。
 
 ## 强调色
 

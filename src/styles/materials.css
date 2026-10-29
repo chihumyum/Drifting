@@ -599,6 +599,15 @@
 .brush-icon--name-seal { -webkit-mask-image: url('../assets/design/icons/name-seal.png'); mask-image: url('../assets/design/icons/name-seal.png'); }
 .brush-icon--inkstone { -webkit-mask-image: url('../assets/design/icons/inkstone.png'); mask-image: url('../assets/design/icons/inkstone.png'); }
 .brush-icon--grip { -webkit-mask-image: url('../assets/design/icons/grip.png'); mask-image: url('../assets/design/icons/grip.png'); }
+.brush-icon--fmt-bold { -webkit-mask-image: url('../assets/design/icons/fmt-bold.png'); mask-image: url('../assets/design/icons/fmt-bold.png'); }
+.brush-icon--fmt-h1 { -webkit-mask-image: url('../assets/design/icons/fmt-h1.png'); mask-image: url('../assets/design/icons/fmt-h1.png'); }
+.brush-icon--fmt-h2 { -webkit-mask-image: url('../assets/design/icons/fmt-h2.png'); mask-image: url('../assets/design/icons/fmt-h2.png'); }
+.brush-icon--fmt-h3 { -webkit-mask-image: url('../assets/design/icons/fmt-h3.png'); mask-image: url('../assets/design/icons/fmt-h3.png'); }
+.brush-icon--fmt-italic { -webkit-mask-image: url('../assets/design/icons/fmt-italic.png'); mask-image: url('../assets/design/icons/fmt-italic.png'); }
+.brush-icon--fmt-paragraph { -webkit-mask-image: url('../assets/design/icons/fmt-paragraph.png'); mask-image: url('../assets/design/icons/fmt-paragraph.png'); }
+.brush-icon--fmt-quote { -webkit-mask-image: url('../assets/design/icons/fmt-quote.png'); mask-image: url('../assets/design/icons/fmt-quote.png'); }
+.brush-icon--fmt-strike { -webkit-mask-image: url('../assets/design/icons/fmt-strike.png'); mask-image: url('../assets/design/icons/fmt-strike.png'); }
+.brush-icon--fmt-underline { -webkit-mask-image: url('../assets/design/icons/fmt-underline.png'); mask-image: url('../assets/design/icons/fmt-underline.png'); }
 .brush-icon--hook { -webkit-mask-image: url('../assets/design/icons/hook.png'); mask-image: url('../assets/design/icons/hook.png'); }
 .brush-icon--lift { -webkit-mask-image: url('../assets/design/icons/lift.png'); mask-image: url('../assets/design/icons/lift.png'); }
 .brush-icon--lift-bent { -webkit-mask-image: url('../assets/design/icons/lift-bent.png'); mask-image: url('../assets/design/icons/lift-bent.png'); }

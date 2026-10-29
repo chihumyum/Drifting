@@ -43,6 +43,27 @@
   overflow: hidden;
 }
 
+/* The dock holds the Bottom Timeline or the plot planner. Swapping them pushes
+   one strip twice the dock's width (BottomDockSwap); only then is it clipped,
+   so the timeline's top-edge handle is never cut off at rest. */
+.bottom-dock-swap.is-swapping {
+  overflow: hidden;
+}
+.bottom-dock-swap__strip {
+  display: flex;
+  align-items: flex-start;
+}
+.bottom-dock-swap.is-swapping > .bottom-dock-swap__strip {
+  width: 200%;
+}
+.bottom-dock-swap__pane {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+.bottom-dock-swap.is-swapping .bottom-dock-swap__pane {
+  flex-basis: 50%;
+}
+
 .desktop-workspace-dock__flow {
   top: 0;
   z-index: 30;
