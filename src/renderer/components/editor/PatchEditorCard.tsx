@@ -25,6 +25,7 @@ import {
 } from '../../usecase/synced-entity-commands';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { BrushIcon } from '../ui/BrushIcon';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 const log = loglevel.getLogger('PatchEditorCard');
 log.setLevel(loglevel.levels.ERROR);
@@ -347,23 +348,31 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       ? t('patchEditorCard.anchor.invalidJumpTitle', { label: anchorLabel })
       : t('patchEditorCard.anchor.jumpTitle', { label: anchorLabel });
 
+  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
+  const glass = !getPlatformRuntime().isMobileShell;
+  const reviewTag = isDeleting
+    ? t('patchEditorCard.review.agentDelete')
+    : isChanged
+      ? t('patchEditorCard.review.agentChange')
+      : t('patchEditorCard.review.agentAdd');
+  const reviewClass = !reviewMode
+    ? ''
+    : glass
+      ? `${isDeleting ? ' patch-card--agent-delete' : ' patch-card--agent-add'} glass-sweep`
+      : isDeleting ? ' patch-card--removing' : ' patch-card--proposed';
   return (
     <div
       ref={cardRef}
-      className={`patch-card${sourceMissing ? ' patch-card--source-missing' : ''}${
-        patch.invalidatedAt ? ' patch-card--invalidated' : ''
-      }${reviewMode ? (isDeleting ? ' patch-card--removing' : ' patch-card--proposed') : ''}`}
+      className={`patch-card${glass ? ' patch-card--glass glass glass--rest glass--surface' : ''}${
+        sourceMissing ? ' patch-card--source-missing' : ''
+      }${patch.invalidatedAt ? ' patch-card--invalidated' : ''}${reviewClass}`}
     >
-      {reviewMode && (
+      {reviewMode && !glass && (
         <div className="patch-card__review">
           <span
             className={`patch-card__review-tag${isDeleting ? ' patch-card__review-tag--del' : ''}`}
           >
-            {isDeleting
-              ? t('patchEditorCard.review.agentDelete')
-              : isChanged
-                ? t('patchEditorCard.review.agentChange')
-                : t('patchEditorCard.review.agentAdd')}
+            {reviewTag}
           </span>
         </div>
       )}
@@ -388,10 +397,37 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           placeholder={t('patchEditorCard.titlePlaceholder')}
           className="patch-card__title"
         />
+        {reviewMode && glass && (
+          <span className={`patch-card__agent-tag${isDeleting ? ' patch-card__agent-tag--del' : ''}`}>
+            {reviewTag}
+          </span>
+        )}
         {/* Invalidated — the anchored source text was deleted from its chapter,
             so this patch is excluded from consistency review until fixed. When a
             text snapshot exists the badge expands it (点击查看原文快照). */}
-        {patch.invalidatedAt &&
+        {patch.invalidatedAt && glass &&
+          (anchorSnapshotText ? (
+            <button
+              type="button"
+              className="patch-card__invalid"
+              title={t('patchEditorCard.invalid.viewSnapshotTitle')}
+              aria-expanded={snapshotOpen}
+              onClick={() => {
+                setCollapsed(false);
+                setSnapshotOpen((v) => !v);
+              }}
+            >
+              <BrushIcon name="status-warning" size={11} />
+              {t('patchEditorCard.invalid.label')}
+              <BrushIcon name={snapshotOpen ? 'chevron-down' : 'chevron-right'} size={8} />
+            </button>
+          ) : (
+            <span className="patch-card__invalid" title={t('patchEditorCard.invalid.title')}>
+              <BrushIcon name="status-warning" size={11} />
+              {t('patchEditorCard.invalid.label')}
+            </span>
+          ))}
+        {patch.invalidatedAt && !glass &&
           (anchorSnapshotText ? (
             <button
               type="button"
@@ -479,6 +515,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                       aria-selected={current}
                       className={
                         'patch-card__anchor-pop-item' +
+                        (glass ? ' menu-surface__item' : '') +
                         (current ? ' patch-card__anchor-pop-item--current' : '')
                       }
                       onClick={() => void handleChangeAnchor(n.id)}
@@ -510,6 +547,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                 aria-selected={!patch.sourceNodeId}
                 className={
                   'patch-card__anchor-pop-item patch-card__anchor-pop-item--detach' +
+                  (glass ? ' menu-surface__item' : '') +
                   (!patch.sourceNodeId ? ' patch-card__anchor-pop-item--current' : '')
                 }
                 onClick={() => void handleChangeAnchor(null)}
@@ -533,7 +571,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         </button>
       </div>
       {!collapsed && snapshotOpen && snapshotText && (
-        <div className="patch-card__snapshot">
+        <div className={`patch-card__snapshot${glass ? ' glass glass--rest glass--still' : ''}`}>
           {invalidSnapshot && (
             <div className="patch-card__snapshot-kicker">
               {t('patchEditorCard.snapshot.kicker')}

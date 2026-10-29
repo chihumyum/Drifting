@@ -23,10 +23,46 @@
   animation: loading-status-spin 0.8s linear infinite;
 }
 
+.loading-status__brush {
+  display: none;
+}
+
+/* Desktop: the brush loader in the secondary ink, turning evenly, shown only
+   once the wait passes 240ms (a quick read never flashes it). The paused
+   mobile shell keeps the ring above. */
+html:not([data-shell-mode='mobile']) .loading-status {
+  gap: 10px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: var(--ui-line-body, 20px);
+  animation: loading-status-appear 0.16s ease-out 0.24s both;
+}
+
+html:not([data-shell-mode='mobile']) .loading-status__spinner {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 0;
+  color: hsl(var(--ink-3));
+  animation: loading-status-spin 0.9s linear infinite;
+}
+
+html:not([data-shell-mode='mobile']) .loading-status__brush {
+  display: block;
+}
+
 @keyframes loading-status-spin {
   to { transform: rotate(360deg); }
 }
 
+@keyframes loading-status-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .loading-status__spinner { animation: none; }
+  html:not([data-shell-mode='mobile']) .loading-status__spinner { animation: none; }
 }

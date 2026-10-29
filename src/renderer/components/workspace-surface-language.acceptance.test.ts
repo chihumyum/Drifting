@@ -879,7 +879,10 @@ describe('workspace surface language acceptance', () => {
     expect(block(agent, '.agt-composer {', '.agt-composer:focus-within {')).toContain(
       'border-radius: 2px;',
     );
-    expect(block(search, '.gsearch-modal {', '.gsearch-header {')).toContain('border-radius: 2px;');
+    // Global search is a floating layer: the menu shell's square corner and shadow.
+    expect(block(search, '.gsearch-modal {', '.gsearch-header {')).toContain(
+      'border-radius: var(--menu-surface-radius);',
+    );
     expect(block(review, '.review-card--sticky {', '.review-card--manual')).toMatch(
       /border-radius:\s*var\(--radius-sm\);[\s\S]*?box-shadow:\s*none;/,
     );
@@ -1045,7 +1048,7 @@ describe('workspace surface language acceptance', () => {
     const generator = source('scripts/design-assets/brushicons.py');
     expect(generator).toContain('masks[name] = grain_fine(draw(rng), rng)');
     expect(source('src/renderer/components/notifications/NotificationPill.tsx')).toContain(
-      "<BrushIcon name=\"loader\" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />",
+      '<BrushIcon name="loader" size={size} className="ui-spin" />',
     );
   });
 
