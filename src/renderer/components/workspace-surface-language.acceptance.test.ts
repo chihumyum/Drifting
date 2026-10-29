@@ -406,7 +406,10 @@ describe('workspace surface language acceptance', () => {
       'font: var(--ui-font-secondary, 9.5px)/var(--ui-line-caption, 1) var(--font-mono);',
     );
     expect(agentCss).toContain('font: var(--ui-font-secondary, 11.5px)/var(--ui-line-caption, 1.5) var(--font-sans);');
-    expect(rightHeader).toContain('className="workspace-panel-title-block"');
+    // Stats' title is the same one-row header as every other panel's.
+    expect(rightHeader).toContain('className="workspace-panel-header-row"');
+    expect(rightHeader).not.toContain('workspace-panel-title-block');
+    expect(controls).not.toContain('.workspace-panel-title-block');
     expect(leftSubheader).not.toContain('workspace-local-divider');
     expect(review).not.toContain('workspace-local-divider');
     expect(library).not.toContain('workspace-local-divider');

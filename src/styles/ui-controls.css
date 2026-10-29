@@ -46,10 +46,6 @@ html[data-shell-mode='desktop'] .workspace-panel-header-row .agt-toolbar-action 
   min-height: calc((var(--ui-control-height) - 2px) * var(--panel-header-scale));
 }
 
-.workspace-panel-title-block {
-  padding: 6px 12px 5px;
-}
-
 .left-panel-view-mode-text {
   appearance: none;
   min-width: 0;

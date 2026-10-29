@@ -4,7 +4,6 @@ import type { RightSidebarTab, SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarSplitButton } from '../SidebarSplitButton';
 import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
 import { PanelTab, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
-import { LabelMono } from '../ui/LabelMono';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
 import { getPlatformRuntime } from '../../platform/runtime';
@@ -50,32 +49,48 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
   );
 }
 
+// Stats has no controls, but its header is still the one-row panel header:
+// the subject on the left (named like an Agent conversation), what the numbers
+// cover on the right in the muted index voice.
 export function RightSidebarTitle({ kicker, title }: { kicker: string; title: string }) {
   return (
     <div
-      className="workspace-panel-title-block"
+      className="workspace-panel-header-row"
       style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 8,
         background: 'var(--workspace-ui-bg)',
         flexShrink: 0,
       }}
     >
-      <LabelMono tone="ink-4" style={{ display: 'block', marginBottom: 3 }}>
-        {kicker}
-      </LabelMono>
-      <div
+      <span
         style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 16,
-          fontWeight: 500,
-          color: 'hsl(var(--ink-1))',
-          lineHeight: 1.25,
+          flex: '1 1 auto',
+          minWidth: 0,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
+          fontSize: 'var(--ui-font-secondary, 10px)',
+          fontWeight: 500,
+          color: 'hsl(var(--ink-2))',
         }}
       >
         {title || '—'}
-      </div>
+      </span>
+      <span
+        style={{
+          flex: '0 1 auto',
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 'var(--ui-font-caption, 9.5px)',
+          color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
+        }}
+      >
+        {kicker}
+      </span>
     </div>
   );
 }
