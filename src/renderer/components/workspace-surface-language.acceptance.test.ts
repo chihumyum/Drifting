@@ -333,15 +333,14 @@ describe('workspace surface language acceptance', () => {
 
     // The block and the panel share one push, so they land together.
     expect(tabs).toContain('className="panel-tab-tray__block glass is-on"');
-    expect(tabs).toContain('${SIDEBAR_PUSH_MS}ms ${SIDEBAR_PUSH_EASING}');
+    expect(tabs).toContain('${PUSH_MS}ms ${PUSH_EASING}');
     expect(tabs).toContain('trackGlassFlow(tray');
-    expect(layout).toContain('const PUSH_MS = SIDEBAR_PUSH_MS;');
-    expect(layout).toContain('const ICE_PUSH = SIDEBAR_PUSH_EASING;');
+    expect(layout).toContain("{ duration: PUSH_MS, easing: PUSH_EASING, fill: 'forwards' }");
     // Square, the tab's whole share of the row, 2px short of top and bottom;
     // its glass runs only with its own travel.
     expect(block_).toContain('border-radius: 0;');
     expect(block_).toMatch(/top: 2px;[\s\S]*bottom: 2px;/);
-    expect(block_).toContain('--glass-gx: calc(var(--flow, 0) * 1.2px - 96px);');
+    expect(block_).toContain('--glass-gx: calc(var(--flow, 0) * 1.2px + var(--glass-dense-gx));');
     expect(block_).toContain('pointer-events: none;');
     // The tabs stay words; hovering any tab stirs the header region's edges.
     expect(source('src/renderer/components/leftBars/LeftSidebarHeader.tsx')).toContain('<PanelTabRowEdges />');
@@ -469,13 +468,12 @@ describe('workspace surface language acceptance', () => {
     expect(layout).toContain("aria-hidden={slide.role === 'out' ? true : undefined}");
     // One strip of panels, moved from where each panel is right now
     // (planSidebarPush), 265 ms on the slow-then-fast ice curve.
-    const push = source('src/renderer/lib/sidebar-push.ts');
-    expect(push).toContain('export const SIDEBAR_PUSH_MS = 265;');
-    expect(push).toContain("export const SIDEBAR_PUSH_EASING = 'cubic-bezier(0.8, 0, 0.66, 1)';");
-    expect(layout).toContain('const PUSH_MS = SIDEBAR_PUSH_MS;');
-    expect(layout).toContain('const ICE_PUSH = SIDEBAR_PUSH_EASING;');
+    const motion = source('src/renderer/lib/motion.ts');
+    expect(motion).toContain('export const PUSH_MS = 265;');
+    expect(motion).toContain("export const PUSH_EASING = 'cubic-bezier(0.8, 0, 0.66, 1)';");
+    expect(layout).toContain("import { PUSH_EASING, PUSH_MS, PUSH_OUTLINE_FADE_MS, STRUCTURAL_MS } from '../../lib/motion';");
     expect(layout).toContain('const moves = planSidebarPush(now, target, strip.clientWidth, push.dir);');
-    expect(layout).toContain("{ duration: PUSH_MS, easing: ICE_PUSH, fill: 'forwards' }");
+    expect(layout).toContain("{ duration: PUSH_MS, easing: PUSH_EASING, fill: 'forwards' }");
     expect(shell).not.toContain('@keyframes sidebar-push-');
     // The arriving panel alone is outlined on all four sides (its shared
     // edge included) by lines that bleed glass with the push.
@@ -636,8 +634,8 @@ describe('workspace surface language acceptance', () => {
     const defaults = block(store, 'sidebars: {', 'setTheme:');
 
     expect(defaults.match(/isOpen:\s*false/g)).toHaveLength(2);
-    expect(css).toContain('transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1);');
-    expect(source('src/renderer/components/Sidebar.tsx')).toContain('const COLLAPSE_ANIM_MS = 420;');
+    expect(css).toContain('transition: width var(--motion-structural) var(--motion-structural-ease);');
+    expect(source('src/renderer/components/Sidebar.tsx')).toContain('setTimeout(() => setMountChildren(false), STRUCTURAL_MS);');
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.sidebar-shell\s*\{\s*transition:\s*none;/,
     );
@@ -1192,8 +1190,8 @@ describe('workspace surface language acceptance', () => {
     expect(materials).toContain('.glass--primary:disabled::before { animation: none; }');
     expect(materials).toContain('.glass--waiting::before { opacity: 1; animation-play-state: running; }');
     expect(materials).toContain('.glass--waiting:hover::before { animation-play-state: paused; }');
-    expect(materials).toContain('animation: glass-sweep 1.125s cubic-bezier(0.4, 0.1, 0.35, 1) both;');
-    expect(block(materials, '.glass-sweep.glass--rest::before {', '}')).toContain('glass-sweep-line 1.125s ease-out backwards;');
+    expect(materials).toContain('animation: glass-sweep var(--motion-sweep) var(--motion-sweep-ease) both;');
+    expect(block(materials, '.glass-sweep.glass--rest::before {', '}')).toContain('glass-sweep-line var(--motion-sweep) ease-out backwards;');
     expect(block(materials, '@keyframes glass-sweep-line {', '100%')).toContain('0%, 40% { opacity: 0; }');
 
     // Glass with no colour of its own is the clear glass, the dock's pills too.

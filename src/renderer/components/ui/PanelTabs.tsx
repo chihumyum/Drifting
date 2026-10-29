@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { trackGlassFlow } from '../../lib/glass-flow';
-import { SIDEBAR_PUSH_EASING, SIDEBAR_PUSH_MS } from '../../lib/sidebar-push';
+import { PUSH_EASING, PUSH_MS } from '../../lib/motion';
 
 interface PanelTabTrayProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
@@ -56,7 +56,7 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
     }
     const slide = move && previous !== null && !reducedMotion();
     block.style.transition = slide
-      ? `transform ${SIDEBAR_PUSH_MS}ms ${SIDEBAR_PUSH_EASING}, width ${SIDEBAR_PUSH_MS}ms ${SIDEBAR_PUSH_EASING}`
+      ? `transform ${PUSH_MS}ms ${PUSH_EASING}, width ${PUSH_MS}ms ${PUSH_EASING}`
       : 'none';
     block.style.transform = `translateX(${next.x}px)`;
     block.style.width = `${next.width}px`;

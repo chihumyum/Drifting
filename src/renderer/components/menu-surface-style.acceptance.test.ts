@@ -119,7 +119,8 @@ describe('shared menu surface style', () => {
     expect(card).toContain('export function HoverCardShell(');
     expect(card).toContain('<HoverCardActions groups={groups} onDone={onDismiss} />');
     expect(rule(controls, '.hover-card--interactive {')).toContain('pointer-events: auto;');
-    expect(source('src/renderer/features/entities/hover/entity-hover-card-model.ts')).toContain('const HOVER_CARD_GRACE_MS = 220;');
+    expect(source('src/renderer/features/entities/hover/entity-hover-card-model.ts')).toContain('}, HOVER_CARD_GRACE_MS);');
+    expect(source('src/renderer/lib/motion.ts')).toContain('export const HOVER_CARD_GRACE_MS = 220;');
     // Scrolling the list under a card closes it instead of carrying it along,
     // and rows that slide under a resting pointer do not open theirs.
     expect(card).toContain('scroller.contains(anchor)');
@@ -155,7 +156,7 @@ describe('shared menu surface style', () => {
     // The editor's selection actions float over the selection as one bar.
     const bar = source('src/renderer/features/editor/editor-selection-bar.ts');
     expect(bar).toContain("bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-orientation', 'horizontal');");
-    expect(bar).toContain('const SETTLE_MS = 180;');
+    expect(bar).toContain('}, SELECTION_BAR_SETTLE_MS);');
     expect(source('src/renderer/hooks/useEntityEditor.ts')).not.toContain('contextmenu:');
     expect(rule(source('src/styles/comments-review.css'), '.editor-selection-bar {')).toContain('flex-direction: row;');
   });
@@ -343,9 +344,9 @@ describe('floating layers, dialogs and the controls inside them', () => {
     const controls = source('src/styles/ui-controls.css');
     const confirm = source('src/renderer/components/modals/ConfirmationDialog.tsx');
 
-    expect(button).toContain("default: 'glass glass--rest',");
-    expect(button).toContain("primary: 'glass glass--primary',");
-    expect(button).toContain("danger: 'glass glass--rest',");
+    expect(button).toContain("default: 'glass glass--rest glass--small',");
+    expect(button).toContain("primary: 'glass glass--primary glass--small',");
+    expect(button).toContain("danger: 'glass glass--rest glass--small',");
     expect(button).toContain("ghost: '',");
     expect(button).toContain('!getPlatformRuntime().isMobileShell');
     const glassButton = rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {");
@@ -375,7 +376,7 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(rule(controls, "html:not([data-shell-mode='mobile']) .empty-state {")).toContain('font-style: normal;');
     expect(source('src/renderer/components/ui/EmptyState.tsx')).toContain('hollow');
     expect(source('src/renderer/components/ui/LoadingStatus.tsx')).toContain('name="loader"');
-    expect(loading).toContain('animation: loading-status-appear 0.16s ease-out 0.24s both;');
+    expect(loading).toContain('animation: loading-status-appear 0.16s ease-out var(--motion-loading-delay) both;');
   });
 
   it('builds every dialog in scope from the shared shell and controls', () => {

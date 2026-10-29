@@ -6,8 +6,9 @@ import { canonicalWordCount, isChapter } from '../../../domain/book-node';
 import { parseKv } from '../../../domain/kv';
 import { resolvePrimaryStorylineId } from '../../../domain/node-storyline-state';
 import { useDataStore } from '../../../store/data-store';
+import { HOVER_CARD_GRACE_MS, HOVER_PREVIEW_DELAY_MS, SCROLL_REST_MS } from '../../../lib/motion';
 
-export const HOVER_PREVIEW_DELAY_MS = 220;
+export { HOVER_PREVIEW_DELAY_MS };
 
 export interface EntityHoverTarget {
   kind: StructuralEntityKind;
@@ -185,8 +186,7 @@ export function buildEntityHoverCardContent(
   return null;
 }
 
-// Leaving a row gives the pointer this long to reach its card's actions.
-const HOVER_CARD_GRACE_MS = 220;
+// Leaving a row gives the pointer HOVER_CARD_GRACE_MS to reach its card's actions.
 
 /**
  * Shared hover-intent state for sidebar rows, timeline clips, cards and
@@ -196,8 +196,8 @@ const HOVER_CARD_GRACE_MS = 220;
  * closes at once, for clicks and drags; `open` shows at once.
  */
 // Rows that slide under a resting pointer while a list scrolls are not being
-// pointed at: a card waits for the pointer itself to move onto a row.
-const SCROLL_REST_MS = 180;
+// pointed at: a card waits for the pointer itself to move onto a row
+// (SCROLL_REST_MS after the scroll stops).
 let lastScrollAt = Number.NEGATIVE_INFINITY;
 let watchingScroll = false;
 function watchScroll() {

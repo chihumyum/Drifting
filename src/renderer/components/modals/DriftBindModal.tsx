@@ -91,7 +91,7 @@ export function DriftBindModal() {
           closeLabel={t('common.close')}
         />
         <ModalBody className="drift-bind-modal__body">
-          <label className="ui-field glass glass--rest glass--field">
+          <label className="ui-field glass glass--rest glass--field glass--small">
             <BrushIcon name="search" size={15} />
             <input
               autoFocus

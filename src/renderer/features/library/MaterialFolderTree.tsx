@@ -829,5 +829,5 @@ function NameInput({
       onBlur={() => finish(value)}
     />
   );
-  return glass ? <span className="material-tree__rename-field glass glass--rest glass--field">{input}</span> : input;
+  return glass ? <span className="material-tree__rename-field glass glass--rest glass--field glass--small">{input}</span> : input;
 }

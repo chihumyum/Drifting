@@ -88,9 +88,9 @@ describe('the desktop Agent transcript in sand and glass', () => {
       ([, className, label]) => [label, className],
     );
     expect(buttons).toEqual([
-      ['agentPanel.control.deny', 'agt-btn glass glass--rest'],
-      ['agentPanel.control.allow.session', 'agt-btn glass glass--rest'],
-      ['agentPanel.control.allow.once', 'agt-btn glass glass--primary glass--waiting'],
+      ['agentPanel.control.deny', 'agt-btn glass glass--rest glass--small'],
+      ['agentPanel.control.allow.session', 'agt-btn glass glass--rest glass--small'],
+      ['agentPanel.control.allow.once', 'agt-btn glass glass--primary glass--waiting glass--small'],
     ]);
   });
 

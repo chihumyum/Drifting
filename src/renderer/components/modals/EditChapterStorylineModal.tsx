@@ -155,7 +155,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                   </button>
                   <button
                     type="button"
-                    className="scope-toggle glass glass--rest"
+                    className="scope-toggle glass glass--rest glass--small"
                     aria-pressed={isMain}
                     disabled={!selected}
                     onClick={() => handleSelectDraftMain(storyline.id)}

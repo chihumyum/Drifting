@@ -322,7 +322,7 @@ export function LibraryItemCard({
           <div className="library-item-card__title-row">
             <KindMark kind="material" color="hsl(var(--ink-3))" />
             {editing ? (
-              <span className="library-item-card__title-field glass glass--rest glass--field">{titleInput}</span>
+              <span className="library-item-card__title-field glass glass--rest glass--field glass--small">{titleInput}</span>
             ) : (
               <span
                 className="library-item-card__title"

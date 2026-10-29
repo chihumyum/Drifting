@@ -311,8 +311,6 @@
 }
 .planner-wrap[data-presentation='desktop'] .pl-head__text.glass {
   --glass-rim: 5px;
-  --glass-gx: -96px;
-  --glass-gy: -132px;
 }
 .planner-wrap[data-presentation='desktop'] .pl-cell-td {
   padding: 3px 5px;
@@ -332,10 +330,10 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
-/* Small glass: the slips take the dense patches, a different one each beat. */
+/* The slips take the dense patches, a different one each beat. */
 .planner-wrap[data-presentation='desktop'] .pl-cell.glass {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
+  --glass-gx: var(--glass-dense-gx);
+  --glass-gy: var(--glass-dense-gy);
 }
 .planner-wrap[data-presentation='desktop'] td:nth-child(3n) .pl-cell.glass {
   --glass-gx: -168px;

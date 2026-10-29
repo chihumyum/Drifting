@@ -164,15 +164,15 @@ describe('materials in sand and glass on the desktop', () => {
     expect(tree).toContain("${desktop ? ' sand-cell' : ''}");
     expect(tree).toContain("{desktop && <i className=\"cell-ring\" aria-hidden=\"true\" />}");
     expect(tree).toContain('<i className="material-tree__drop-ring" aria-hidden="true" />');
-    expect(tree).toContain('className="material-tree__rename-field glass glass--rest glass--field"');
+    expect(tree).toContain('className="material-tree__rename-field glass glass--rest glass--field glass--small"');
     const washes = block(css, '.material-tree--desktop .material-tree__row:hover,', '}');
     expect(washes).toContain('background: transparent;');
 
     expect(picker).toContain("glass && current ? 'is-on' : ''");
     expect(picker).toContain('<Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>');
-    expect(dialogs).toContain("className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field`}");
+    expect(dialogs).toContain("className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field${area ? '' : ' glass--small'}`}");
     expect(dialogs).toContain("variant={glass ? 'ghost' : 'default'}");
-    expect(picker).toContain('<label className="ui-field glass glass--rest glass--field">');
+    expect(picker).toContain('<label className="ui-field glass glass--rest glass--field glass--small">');
     expect(css).not.toContain('.material-field {');
 
     const docs = designSystemDocs();

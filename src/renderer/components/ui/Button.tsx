@@ -12,9 +12,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * secondary's clear line with the danger ink, ghost a text button with no
  * glass. The paused mobile shell keeps the older filled buttons. */
 const GLASS: Record<NonNullable<ButtonProps['variant']>, string> = {
-  default: 'glass glass--rest',
-  primary: 'glass glass--primary',
-  danger: 'glass glass--rest',
+  default: 'glass glass--rest glass--small',
+  primary: 'glass glass--primary glass--small',
+  danger: 'glass glass--rest glass--small',
   ghost: '',
 };
 

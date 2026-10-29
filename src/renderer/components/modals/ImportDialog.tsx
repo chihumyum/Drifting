@@ -383,7 +383,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                     )}
                   </span>
                   <span className="import-dialog__format">{fmt ?? '?'}</span>
-                  <label className="ui-field ui-field--sm glass glass--rest glass--field" title={it.error ?? it.filename}>
+                  <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small" title={it.error ?? it.filename}>
                     <input
                       value={it.title ?? it.filename}
                       placeholder={it.filename}

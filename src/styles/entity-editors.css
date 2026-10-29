@@ -1219,10 +1219,6 @@ button.patch-card__invalid {
   background: transparent;
   cursor: pointer;
 }
-.col-pick__dot.glass {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
-}
 .col-pick__dot > .sand {
   width: 15px;
   height: 15px;

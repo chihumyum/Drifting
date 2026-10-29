@@ -43,7 +43,7 @@ describe('Project Memory in sand and glass', () => {
     expect(html).toContain('<ol class="pmem__list glass glass--rest glass--still">');
     expect(html).toContain('class="pmem__composer glass glass--rest glass--field"');
     // The one primary, faint while the slip is empty.
-    expect(html).toMatch(/class="pmem__btn pmem__btn--primary glass glass--primary" disabled=""/u);
+    expect(html).toMatch(/class="pmem__btn pmem__btn--primary glass glass--primary glass--small" disabled=""/u);
   });
 
   it('acts on an entry with text buttons and brush icons, delete in the danger ink', () => {

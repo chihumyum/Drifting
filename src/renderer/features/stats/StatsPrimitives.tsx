@@ -508,7 +508,7 @@ export function SnapshotEntryButton({
     return (
       <button
         type="button"
-        className="stats-snapshot glass glass--rest"
+        className="stats-snapshot glass glass--rest glass--small"
         onClick={open}
         title={t('rightSidebar.stats.snapshotTitle')}
       >

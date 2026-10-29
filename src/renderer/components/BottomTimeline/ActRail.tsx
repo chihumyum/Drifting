@@ -482,7 +482,7 @@ export function ActRail({
               {isEditing ? (
                 // A glass input carries its rim on a wrapper: an <input> has
                 // no ::before of its own. Focused, it is the still selected glass.
-                <span className={glass ? 'actrail__edit-field glass glass--field' : 'actrail__edit-field'}>
+                <span className={glass ? 'actrail__edit-field glass glass--field glass--small' : 'actrail__edit-field'}>
                   <input
                     ref={editInputRef}
                     className="actrail__edit"
@@ -503,7 +503,7 @@ export function ActRail({
               ) : (
                 <span
                   className={`actrail__label${draggable ? ' is-draggable' : ''}${
-                    glass ? ' glass glass--rest' : ''
+                    glass ? ' glass glass--rest glass--small' : ''
                   }`}
                   role="button"
                   tabIndex={0}

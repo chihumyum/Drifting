@@ -162,7 +162,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
               <div className="agt-control-card__actions">
                 <button
                   type="button"
-                  className="agt-btn glass glass--primary glass--waiting"
+                  className="agt-btn glass glass--primary glass--waiting glass--small"
                   disabled={!canRun}
                   onClick={() => { if (canRun) void continueTask(); }}
                 >

@@ -10,7 +10,8 @@ import {
 } from 'react';
 import { trackGlassFlow } from '../../lib/glass-flow';
 import { clampDimension, parsePersistedDimension, verticalDockBounds } from '../../lib/layout-geometry';
-import { planSidebarPush, SIDEBAR_PUSH_EASING, SIDEBAR_PUSH_MS } from '../../lib/sidebar-push';
+import { PUSH_EASING, PUSH_MS, PUSH_OUTLINE_FADE_MS } from '../../lib/motion';
+import { planSidebarPush } from '../../lib/sidebar-push';
 import {
   BOTTOM_PANEL_DEFAULT_HEIGHT,
   BottomPanelContext,
@@ -28,8 +29,6 @@ const HEIGHT_STORAGE_KEY = 'timeline-total-height';
 const MIN_HEIGHT = 180;
 // Keep at least this much of the paper above the panel.
 const MIN_PAPER_HEIGHT = 240;
-// The arriving pane's outline fades out whole after it lands, as in the sidebars.
-const OUTLINE_FADE_MS = 340;
 
 function readStoredHeight(): number {
   const stored = typeof localStorage === 'undefined'
@@ -182,7 +181,7 @@ export function BottomPanel({ show, children }: {
     for (const move of moves) {
       panes.get(move.key as BottomPanelPane)?.animate(
         [{ transform: `translateY(${move.from}px)` }, { transform: `translateY(${move.to}px)` }],
-        { duration: SIDEBAR_PUSH_MS, easing: SIDEBAR_PUSH_EASING, fill: 'forwards' },
+        { duration: PUSH_MS, easing: PUSH_EASING, fill: 'forwards' },
       );
     }
     const kept = new Set(moves.map((move) => move.key));
@@ -201,7 +200,7 @@ export function BottomPanel({ show, children }: {
       stripRef.current?.style.removeProperty('--flowa');
       setBehind([]);
       setPush(null);
-    }, SIDEBAR_PUSH_MS + OUTLINE_FADE_MS);
+    }, PUSH_MS + PUSH_OUTLINE_FADE_MS);
     return () => window.clearTimeout(timer);
   }, [push]);
 

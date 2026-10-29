@@ -3,14 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { formatAccelerator } from '../../lib/shortcuts';
 import { useShortcutsStore } from '../../store/shortcuts-store';
 import { useUiStore } from '../../store/ui-store';
+import { DOCK_COLLAPSE_DELAY_MS } from '../../lib/motion';
 import { TopTimeline } from '../topBars/TopTimeline/TopTimeline';
 import { useTimelineToggleHostedByEditor } from '../editor/editor-corner';
 import { BrushIcon } from '../ui/BrushIcon';
 import { GhostIconButton } from '../ui/GhostIconButton';
-
-// Leaving the dock collapses it after a short grace period, so a pointer that
-// overshoots a pill does not snap the strip back to dots.
-const COLLAPSE_DELAY_MS = 260;
 
 /**
  * The dock along the paper's top, on the line of the traffic lights and the
@@ -49,7 +46,8 @@ export function WorkspaceTabDock() {
       }}
       onPointerLeave={() => {
         clearTimer();
-        collapseTimer.current = window.setTimeout(() => setHovered(false), COLLAPSE_DELAY_MS);
+        // After a grace, so a pointer that overshoots a pill does not snap the strip back to dots.
+        collapseTimer.current = window.setTimeout(() => setHovered(false), DOCK_COLLAPSE_DELAY_MS);
       }}
       onFocusCapture={() => setFocused(true)}
       onBlurCapture={(event) => {

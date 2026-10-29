@@ -1,8 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { flowGlassSelection, restGlassWave } from '../lib/glass-wave';
-
-// A press counts toward the selection it makes for this long.
-const PRESS_WINDOW_MS = 1500;
+import { PRESS_WINDOW_MS } from '../lib/motion';
 
 /** The element matching `group` that holds both items' wave layers, if they share one. */
 export function sharedWaveGroup(container: HTMLElement, from: string, to: string, group: string) {

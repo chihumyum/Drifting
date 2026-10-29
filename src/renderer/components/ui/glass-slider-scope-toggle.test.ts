@@ -46,11 +46,10 @@ describe('glass slider', () => {
     const thumb = controls.slice(controls.indexOf('.glass-slider__thumb {'), controls.indexOf('.glass-slider__thumb[data-visible'));
     expect(thumb).toContain('border-radius: 0;');
     expect(controls).toContain(".glass-slider[data-placed='true'] .glass-slider__thumb {\n    transition: none;");
-    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain("import { springEasing } from '../topBars/TopTimeline/tab-reorder';");
-    // Small slabs read their rim from the dense texture patch the panel-tab
+    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain("'--slider-ms': `${SPRING_MS}ms`,\n          '--slider-ease': weightedEasing(),");
+    // Small glass reads its rim from the dense texture patch the panel-tab
     // block uses, and the slider's glass runs with its travel like that block.
-    expect(controls).toContain('.glass-slider > .glass-slider__thumb.glass {\n  --glass-gx: calc(var(--flow, 0) * 1.2px - 96px);\n  --glass-gy: -132px;');
-    expect(controls).toContain('.scope-toggle.glass.glass--rest {\n  --glass-gx: -96px;\n  --glass-gy: -132px;');
+    expect(controls).toContain('.glass-slider > .glass-slider__thumb.glass {\n  --glass-gx: calc(var(--flow, 0) * 1.2px + var(--glass-dense-gx));\n  --glass-gy: var(--glass-dense-gy);');
     expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain(
       'trackGlassFlow(track, () => (vertical ? element.getBoundingClientRect().top : element.getBoundingClientRect().left));',
     );
@@ -115,7 +114,7 @@ describe('scope toggle', () => {
     const on = renderToStaticMarkup(createElement(ScopeToggle, { pressed: true, onToggle: () => {} }));
     const word = (markup: string) => markup.replace(/<[^>]+>/g, '');
     expect(word(off)).toBe(word(on));
-    expect(off).toContain('class="scope-toggle glass glass--rest"');
+    expect(off).toContain('class="scope-toggle glass glass--rest glass--small"');
     expect(off).toContain('aria-pressed="false"');
     expect(on).toContain('aria-pressed="true"');
     expect(css('src/styles/ui-controls.css')).toContain(".scope-toggle[aria-pressed='true'] {\n  background: var(--glass-fill);");

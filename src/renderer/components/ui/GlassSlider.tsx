@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { trackGlassFlow } from '../../lib/glass-flow';
-import { springEasing } from '../topBars/TopTimeline/tab-reorder';
+import { OPTIONS_CLOSE_MS, SPRING_MS, weightedEasing } from '../../lib/motion';
 import { AnchoredPopover } from './AnchoredPopover';
 
 export interface GlassSliderOption<T extends string> {
@@ -29,22 +29,6 @@ interface GlassSliderProps<T extends string> {
   collapsed?: boolean;
   /** Reports the width the options need side by side, collapsed or not. */
   onNaturalWidth?: (width: number) => void;
-}
-
-// The slider moves with the weight of the bottom timeline's glass clips: the
-// same critically damped spring the dock's tabs use, over the same 520 ms.
-const SLIDE_MS = 520;
-// Long enough to cross the gap between the collapsed tab and its options.
-const HOVER_CLOSE_MS = 160;
-let slideEase: string | null = null;
-function slideEasing() {
-  if (slideEase === null) {
-    const linear = springEasing();
-    slideEase = typeof CSS !== 'undefined' && CSS.supports?.('transition-timing-function', linear)
-      ? linear
-      : 'cubic-bezier(0.25, 1, 0.5, 1)';
-  }
-  return slideEase;
 }
 
 /**
@@ -176,8 +160,10 @@ function GlassSliderTrack<T extends string>({
           '--slider-y': `${thumb?.y ?? 0}px`,
           '--slider-w': `${thumb?.w ?? 0}px`,
           '--slider-h': `${thumb?.h ?? 0}px`,
-          '--slider-ms': `${SLIDE_MS}ms`,
-          '--slider-ease': slideEasing(),
+          // The weight of the bottom timeline's glass clips: the weighted
+          // spring the dock's tabs use (lib/motion.ts).
+          '--slider-ms': `${SPRING_MS}ms`,
+          '--slider-ease': weightedEasing(),
         } as CSSProperties
       }
     >
@@ -222,7 +208,7 @@ function CollapsedGlassSlider<T extends string>({
   };
   const hideSoon = () => {
     clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), HOVER_CLOSE_MS);
+    closeTimer.current = setTimeout(() => setOpen(false), OPTIONS_CLOSE_MS);
   };
   const close = () => {
     clearTimeout(closeTimer.current);

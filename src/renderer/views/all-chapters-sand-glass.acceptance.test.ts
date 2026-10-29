@@ -40,8 +40,8 @@ describe('通览全书 in sand and glass', () => {
   });
 
   it('offers one primary and a secondary glass button when the book is empty', () => {
-    expect(view).toContain("all-chap-empty__btn${desktopChrome ? ' glass glass--primary' : ''}");
-    expect(view).toContain("all-chap-empty__btn${desktopChrome ? ' glass glass--rest' : ''}");
+    expect(view).toContain("all-chap-empty__btn${desktopChrome ? ' glass glass--primary glass--small' : ''}");
+    expect(view).toContain("all-chap-empty__btn${desktopChrome ? ' glass glass--rest glass--small' : ''}");
     expect(view).toContain('<BrushIcon name="torii" size={15} />');
     // No hand-written outlined buttons in the view itself.
     expect(view).not.toContain("border: '1px solid hsl(var(--rule))'");

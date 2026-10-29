@@ -1,3 +1,5 @@
+import { WAVE_BASE_MS, WAVE_MAX_ITEMS, WAVE_PER_ITEM_MS, WAVE_SETTLE_MS } from './motion';
+
 /**
  * A selection that flows between siblings of one glass family (the dock's
  * pills). When the selected item changes, its still bleed travels from the
@@ -36,16 +38,12 @@ export interface WaveWindow {
   b1: number;
 }
 
-const BASE_MS = 230;
-const PER_ITEM_MS = 70;
-const SETTLE_MS = 300;
-
 const outCubic = (t: number) => 1 - (1 - t) ** 3;
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** How long the band takes to cross `distance` px between items `pitch` px apart. */
 export function waveDuration(distance: number, pitch: number) {
-  return BASE_MS + PER_ITEM_MS * Math.min(4, Math.abs(distance) / Math.max(1, pitch));
+  return WAVE_BASE_MS + WAVE_PER_ITEM_MS * Math.min(WAVE_MAX_ITEMS, Math.abs(distance) / Math.max(1, pitch));
 }
 
 /**
@@ -194,7 +192,7 @@ export function flowGlassSelection(container: HTMLElement, from: string, to: str
       state.settle = undefined;
       container.removeAttribute('data-glass-waving');
       clearLanded(container);
-    }, SETTLE_MS);
+    }, WAVE_SETTLE_MS);
   };
   state.raf = requestAnimationFrame(tick);
 }

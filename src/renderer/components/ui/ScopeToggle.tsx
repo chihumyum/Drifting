@@ -22,7 +22,7 @@ export function ScopeToggle({
   return (
     <button
       type="button"
-      className={`scope-toggle glass glass--rest${className ? ` ${className}` : ''}`}
+      className={`scope-toggle glass glass--rest glass--small${className ? ` ${className}` : ''}`}
       aria-pressed={pressed}
       disabled={disabled}
       title={t(pressed ? 'scopeToggle.hintOn' : 'scopeToggle.hintOff')}

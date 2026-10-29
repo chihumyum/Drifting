@@ -1,14 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { trackGlassFlow } from '../../lib/glass-flow';
-
-// Must match `.desktop-workspace-dock` height transition in desktop-shell.css.
-const SLIDE_MS = 420;
+import { STRUCTURAL_MS } from '../../lib/motion';
 
 /**
  * The Bottom Panel (the timeline or the plot planner) slides up from under
- * the paper and back down, like the sidebars: its top edge and lane dividers
- * bleed glass while it moves (lib/glass-flow.ts). It stays mounted through
- * the outgoing slide.
+ * the paper and back down, like the sidebars (a structural movement:
+ * STRUCTURAL_MS, the same as the `.desktop-workspace-dock` height
+ * transition): its top edge and lane dividers bleed glass while it moves
+ * (lib/glass-flow.ts). It stays mounted through the outgoing slide.
  */
 export function TimelineDrawer({ open, children }: { open: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -38,7 +37,7 @@ export function TimelineDrawer({ open, children }: { open: boolean; children: Re
       el.classList.remove('is-sliding');
       if (open) el.style.height = '';
       else setMounted(false);
-    }, SLIDE_MS);
+    }, STRUCTURAL_MS);
     return () => window.clearTimeout(timer);
   }, [open]);
 

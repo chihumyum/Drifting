@@ -107,7 +107,7 @@ export function ProjectMemoryEditor({
                       </button>
                       <button
                         type="button"
-                        className={withGlass('pmem__btn pmem__btn--primary', 'glass glass--primary')}
+                        className={withGlass('pmem__btn pmem__btn--primary', 'glass glass--primary glass--small')}
                         disabled={busy || !editingBody.trim()}
                         onClick={() => void saveEdit()}
                       >
@@ -166,7 +166,7 @@ export function ProjectMemoryEditor({
         <div className="pmem__actions">
           <button
             type="button"
-            className={withGlass('pmem__btn pmem__btn--primary', 'glass glass--primary')}
+            className={withGlass('pmem__btn pmem__btn--primary', 'glass glass--primary glass--small')}
             disabled={busy || !draft.trim()}
             onClick={() => void add()}
           >

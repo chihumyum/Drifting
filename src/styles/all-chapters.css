@@ -91,8 +91,6 @@
   font-size: var(--ui-font-secondary, 13px);
   font-weight: 500;
   white-space: nowrap;
-  --glass-gx: -96px;
-  --glass-gy: -132px;
 }
 
 .all-chap-empty__btn.glass--rest:hover {

@@ -1,3 +1,7 @@
+// Tabs move with the weighted spring (lib/motion.ts), the same weight as the
+// bottom timeline's glass clips (chapter-lane-drag.ts).
+import { DRAG_LEAVE_GRACE_MS, SPRING_K, SPRING_MS, SPRING_W, weightedEasing } from '../../../lib/motion';
+
 /** Fixed, untransformed slot geometry prevents animated neighbours from
  * changing their own hit targets. The trailing Create tab is not in widths. */
 export function projectTabReorder(widths: readonly number[], from: number, left: number) {
@@ -25,39 +29,6 @@ export function tabDragScrollSpeed(x: number, width: number) {
   if (x < edge) return -600 * Math.max(0, Math.min(1, (edge - x) / edge));
   if (x > width - edge) return 600 * Math.max(0, Math.min(1, (x - width + edge) / edge));
   return 0;
-}
-
-// Tabs move with the weight of the bottom timeline's glass clips: a
-// critically damped spring of the same stiffness (chapter-lane-drag.ts).
-const SPRING_K = 150;
-const SPRING_W = Math.sqrt(SPRING_K);
-const SPRING_MS = 520;
-// How long a reported leave of the window waits for a dragover or drop that
-// proves the drag is still here.
-const LEAVE_GRACE_MS = 150;
-
-/** Progress of the spring at `t` seconds, normalised to land exactly on 1. */
-function springProgress(t: number) {
-  const settle = 1 - (1 + SPRING_W * SPRING_MS / 1000) * Math.exp(-SPRING_W * SPRING_MS / 1000);
-  return (1 - (1 + SPRING_W * t) * Math.exp(-SPRING_W * t)) / settle;
-}
-
-/** The spring as a CSS `linear()` easing over SPRING_MS, where supported. */
-export function springEasing() {
-  const points = Array.from({ length: 25 }, (_, index) =>
-    Number(springProgress((index / 24) * SPRING_MS / 1000).toFixed(4)));
-  return `linear(${points.join(', ')})`;
-}
-
-let easing: string | null = null;
-function weightedEasing() {
-  if (easing === null) {
-    const linear = springEasing();
-    easing = typeof CSS !== 'undefined' && CSS.supports?.('animation-timing-function', linear)
-      ? linear
-      : 'cubic-bezier(0.25, 1, 0.5, 1)';
-  }
-  return easing;
 }
 
 // A blank drag image: the pill itself follows the pointer instead (`Ghost`).
@@ -298,7 +269,7 @@ export function installTabReorder(container: HTMLElement, commit: (from: number,
     // WebKit sends the same kind of leave just before a drop, so wait: a
     // drag still over the window keeps sending dragover (or drops) first.
     clearTimeout(leaving);
-    leaving = window.setTimeout(leftWindow, LEAVE_GRACE_MS);
+    leaving = window.setTimeout(leftWindow, DRAG_LEAVE_GRACE_MS);
   }
   // The pill is as far from the row as it gets, so its slot closes.
   function leftWindow() {

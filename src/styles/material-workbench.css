@@ -1602,8 +1602,8 @@
   mask-image: var(--glass-texture);
   -webkit-mask-size: 150px 150px;
   mask-size: 150px 150px;
-  -webkit-mask-position: -96px -132px;
-  mask-position: -96px -132px;
+  -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+  mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
 }
 
 /* A highlight is a dry swash of the highlighter, drawn again on every line
@@ -2063,10 +2063,10 @@
   mask-image: var(--glass-texture);
   -webkit-mask-size: 150px 150px;
   mask-size: 150px 150px;
-  --glass-gx: -96px;
-  --glass-gy: -132px;
+  --glass-gx: var(--glass-dense-gx);
+  --glass-gy: var(--glass-dense-gy);
   opacity: 0;
-  animation: glass-flow 15s linear infinite paused;
+  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
   transition: opacity 0.24s ease-out;
 }
 

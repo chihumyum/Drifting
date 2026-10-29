@@ -175,7 +175,7 @@ describe('the stats panel in sand and glass', () => {
     expect(section).not.toContain('border');
     expect(renderToStaticMarkup(createElement(Notes, { children: '正文尚未 @ 提及任何要素。' }))).toContain('class="stats-note"');
     expect(renderToStaticMarkup(createElement(SnapshotEntryButton, { entityKind: 'node', entityId: 'n1' })))
-      .toContain('class="stats-snapshot glass glass--rest"');
+      .toContain('class="stats-snapshot glass glass--rest glass--small"');
   });
 
   it('leaves the paused mobile shell its inline fallback', () => {

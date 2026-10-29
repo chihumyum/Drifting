@@ -97,7 +97,7 @@ export function MaterialFolderPicker({
                 void createAndPick();
               }}
             >
-              <label className="ui-field glass glass--rest glass--field">
+              <label className="ui-field glass glass--rest glass--field glass--small">
                 <input
                   value={name}
                   onChange={(event) => setName(event.target.value)}

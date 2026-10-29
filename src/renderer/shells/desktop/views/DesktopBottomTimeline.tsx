@@ -1143,7 +1143,7 @@ export function DesktopBottomTimeline({
               className={
                 isMobilePresentation
                   ? `btl__unaffiliated-toggle${unaffiliatedVisible ? ' is-active' : ''}`
-                  : 'btl__toggle glass glass--rest'
+                  : 'btl__toggle glass glass--rest glass--small'
               }
               aria-pressed={unaffiliatedVisible}
               onClick={() => {
@@ -1187,7 +1187,7 @@ export function DesktopBottomTimeline({
                 className={
                   isMobilePresentation
                     ? `btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`
-                    : 'btl__toggle glass glass--rest'
+                    : 'btl__toggle glass glass--rest glass--small'
                 }
                 onClick={() => setUnplacedPopoverOpen((v) => !v)}
                 title={t('bottomTimeline.unplaced.title')}

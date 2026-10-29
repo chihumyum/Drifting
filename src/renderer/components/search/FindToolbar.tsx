@@ -38,7 +38,7 @@ export const FindToolbar = forwardRef<HTMLInputElement, FindToolbarProps>(functi
 ) {
   return (
     <div className="editor-find-panel">
-      <label className="ui-field glass glass--rest glass--field">
+      <label className="ui-field glass glass--rest glass--field glass--small">
         <input
           ref={ref}
           className="editor-find-input"
