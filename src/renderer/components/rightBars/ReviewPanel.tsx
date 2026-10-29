@@ -15,6 +15,7 @@ import { ReviewItemCard } from '../../features/comments/ReviewItemCard';
 import {
   groupReviewItems,
   reviewGroupTitle,
+  reviewTargetColor,
   type ReviewGroup,
   type ReviewGroupData,
 } from '../../features/comments/review-groups';
@@ -29,6 +30,7 @@ import {
   removeCommentFromStickyNoteRail,
   useStickyNoteRailRegistryRevision,
 } from '../../hooks/useEntityStickyNoteRail';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { type ReviewGroupMode, type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
@@ -80,6 +82,10 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const storylines = useDataStore((state) => state.storylines);
   const bookElementCategories = useDataStore((state) => state.bookElementCategories);
   const libraryItems = useDataStore((state) => state.libraryItems);
+  const primaryStorylineByNode = useDataStore((state) => state.primaryStorylineByNode);
+  // Desktop group marks carry their thing's colour, as in the left sidebar;
+  // the paused mobile shell keeps them in neutral ink.
+  const glass = !getPlatformRuntime().isMobileShell;
   const groupData = useMemo<ReviewGroupData>(
     () => ({ bookNodes, bookElements, storylines, bookElementCategories, libraryItems }),
     [bookElementCategories, bookElements, bookNodes, libraryItems, storylines],
@@ -301,13 +307,19 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
         : t(group.targetKind === 'patch' ? 'reviewPanel.groups.patch' : 'reviewPanel.groups.deleted');
     const mark =
       group.targetKind && group.targetKind !== 'patch'
-        ? <KindMark kind={kindMarkOfTarget(group.targetKind, named?.isDrift)} seed={group.targetId ?? ''} color="hsl(var(--ink-3))" />
+        ? <KindMark
+            kind={kindMarkOfTarget(group.targetKind, named?.isDrift)}
+            seed={group.targetId ?? ''}
+            color={glass && group.targetId
+              ? reviewTargetColor(groupData, primaryStorylineByNode, group.targetKind, group.targetId)
+              : 'hsl(var(--ink-3))'}
+          />
         : <BrushIcon name="enso" size={12} />;
     const openable = Boolean(named && group.targetKind && OPENABLE_GROUP_KINDS.has(group.targetKind));
     const toggle = () =>
       setCollapsedGroups(collapsed ? collapsedGroups.filter((key) => key !== collapseKey) : [...collapsedGroups, collapseKey]);
     return (
-      <div key={collapseKey} className="review-group">
+      <div key={collapseKey} className={`review-group${glass ? ' review-group--glass' : ''}`}>
         <div className="review-group__header">
           <button
             type="button"
@@ -429,11 +441,14 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
         {renderItems(openItems, 'open')}
         {resolvedItems.length > 0 && (
           <details
-            className="review-panel__resolved"
+            className={`review-panel__resolved${glass ? ' review-panel__resolved--glass' : ''}`}
             open={resolvedExpanded}
             onToggle={(event) => setResolvedExpanded(event.currentTarget.open)}
           >
-            <summary>{t('reviewPanel.resolved', { count: resolvedItems.length })}</summary>
+            <summary>
+              {glass && <BrushIcon name="chevron-right" size={11} className="review-panel__resolved-chevron" />}
+              {t('reviewPanel.resolved', { count: resolvedItems.length })}
+            </summary>
             <div className="review-panel__resolved-list">{renderItems(resolvedItems, 'resolved')}</div>
           </details>
         )}

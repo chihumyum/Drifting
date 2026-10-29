@@ -169,6 +169,13 @@
   color: hsl(var(--ink-4));
 }
 
+/* The rename input's wrapper fills the band, so the input still spans it. */
+.actrail__edit-field {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .actrail__edit {
   width: 100%;
   min-width: 48px;
@@ -221,4 +228,94 @@
 .actrail__divider:focus-visible {
   outline: 2px solid hsl(var(--accent) / 0.65);
   outline-offset: 2px;
+}
+
+/* ── Desktop Bottom Timeline: glass (`glass` prop → `.actrail--glass`) ──
+ * The act chip is a resting glass chip, no fill, in the act's colour when it
+ * has one (dense patch of the texture, like every small slab); it flows under
+ * the pointer and thickens while held to drag. Renamed, its field is the
+ * still selected glass on the floating fill. A boundary under the pointer
+ * bleeds a strip of slowly flowing clear glass; the drop line while dragging
+ * is the same strip, its texture running with the distance moved (--flow).
+ * The ＋ is a panel header's plain icon button. No accent anywhere. */
+.actrail--glass {
+  --actrail-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 50%);
+}
+.actrail--glass .actrail__label.glass {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+.actrail--glass .actrail__band.has-color .actrail__label.glass {
+  --glass-cc: var(--act-color);
+}
+.actrail--glass .actrail__label:focus-visible,
+.actrail--glass .actrail__divider:focus-visible {
+  outline: none;
+}
+.actrail--glass .actrail__edit-field {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  border-radius: 2px;
+  background: var(--glass-fill);
+}
+.actrail--glass .actrail__edit {
+  padding: 2px 7px;
+  outline: none;
+  background: transparent;
+}
+.actrail--glass .actrail__divider::before {
+  --glass-gx: -96px;
+  --glass-gy: 0px;
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 3px;
+  background: linear-gradient(to right, transparent, var(--actrail-glass), transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: var(--glass-gx) var(--glass-gy);
+  mask-position: var(--glass-gx) var(--glass-gy);
+  opacity: 0;
+  pointer-events: none;
+  animation: glass-flow 15s linear infinite paused;
+  transition: opacity 0.24s ease-out;
+}
+.actrail--glass .actrail__divider:hover::before,
+.actrail--glass .actrail__divider:focus-visible::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+/* The static boundary line stays as it is under the pointer. */
+.actrail--glass .actrail__divider:hover::after {
+  width: 0.5px;
+  background: var(--btl-guide-line, hsl(var(--rule)));
+}
+.actrail--glass .actrail__ghost {
+  width: 4px;
+  margin-left: -2px;
+  opacity: 1;
+  background: linear-gradient(to right, transparent, var(--actrail-glass), transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: -96px calc(var(--flow, 0) * 1.6px);
+  mask-position: -96px calc(var(--flow, 0) * 1.6px);
+}
+.actrail--glass .actrail__rail-add:hover:not(:disabled) {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actrail--glass .actrail__divider::before {
+    animation: none;
+  }
 }

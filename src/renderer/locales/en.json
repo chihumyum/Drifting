@@ -2514,7 +2514,8 @@
       "unaffiliated": "Unaffiliated"
     },
     "storyline": {
-      "openTitle": "Open \"{{name}}\""
+      "openTitle": "Open \"{{name}}\"",
+      "chapterCount": "{{count}} ch"
     },
     "menu": {
       "moveToUnaffiliated": "Move to unaffiliated",

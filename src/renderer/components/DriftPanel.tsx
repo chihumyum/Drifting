@@ -2,9 +2,13 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import '../../styles/drift-panel.css';
 import { BrushIcon } from './ui/BrushIcon';
+import { KindMark } from './ui/KindMark';
 
 // Shared drift-panel UX: bottom-anchored tab → slide-up panel with cards →
-// close button → slide-down. Used by StoryGraphView (drift↔node) and
+// close button → slide-down. Everything here floats over the graph, so it is
+// floating glass: the tab is a resting glass chip on the paper fill with the
+// drift's sand eddy, the close is a round glass button, and the cards (drawn
+// by the parent) are resting glass slabs on the same fill. Used by StoryGraphView (drift↔node) and
 // SuperElementView (drift↔element); the only thing the two views differ on
 // is what the cards connect to. Card rendering itself lives in the parent
 // (as children) — that lets each view keep its own click / drag / popover
@@ -71,10 +75,11 @@ export function DriftPanel({
         {!mounted && (
           <button
             type="button"
-            className="drift-panel__tab"
+            className="drift-panel__tab glass glass--rest"
             onClick={onOpen}
             title={t('driftPanel.expandTitle', { label: resolvedTabLabel })}
           >
+            <KindMark kind="drift" loose />
             <span>{resolvedTabLabel}</span>
             <span className="drift-panel__count">{count}</span>
           </button>
@@ -83,7 +88,7 @@ export function DriftPanel({
           <>
             <button
               type="button"
-              className="drift-panel__close"
+              className="drift-panel__close glass glass--rest glass--round"
               onClick={onClose}
               disabled={closeDisabled}
               title={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
