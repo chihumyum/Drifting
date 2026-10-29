@@ -275,7 +275,7 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
     const mark =
       group.targetKind && group.targetKind !== 'patch'
         ? <KindMark kind={kindMarkOfTarget(group.targetKind, named?.isDrift)} seed={group.targetId ?? ''} color="hsl(var(--ink-3))" />
-        : '○';
+        : <BrushIcon name="enso" size={12} />;
     const openable = Boolean(named && group.targetKind && OPENABLE_GROUP_KINDS.has(group.targetKind));
     const toggle = () =>
       setCollapsedGroups(collapsed ? collapsedGroups.filter((key) => key !== collapseKey) : [...collapsedGroups, collapseKey]);

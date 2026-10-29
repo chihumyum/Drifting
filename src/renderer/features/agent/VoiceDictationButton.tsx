@@ -128,7 +128,7 @@ export function VoiceDictationButton({
               onClick={dismissError}
               aria-label={t('common.close')}
             >
-              ×
+              <BrushIcon name="close" size={10} inline />
             </button>
           )}
         </span>

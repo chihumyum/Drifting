@@ -193,10 +193,10 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
 
     const compareCount = (serverCount: number, sqliteCount: number) => {
       if (serverCount === sqliteCount) {
-        return <span className="text-green-600">✓ 一致</span>;
+        return <span className="text-green-600">一致</span>;
       }
       return (
-        <span className="text-red-600">✗ 不一致 (差异: {Math.abs(serverCount - sqliteCount)})</span>
+        <span className="text-red-600">不一致 (差异: {Math.abs(serverCount - sqliteCount)})</span>
       );
     };
 
@@ -235,7 +235,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
 
         {/* 详细差异 */}
         <div className="mt-4 rounded-[2px] border border-yellow-200 bg-yellow-50 p-4">
-          <h4 className="font-medium text-yellow-800 mb-2">⚠️ 同步建议</h4>
+          <h4 className="font-medium text-yellow-800 mb-2">同步建议</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
             {serverData.projects?.length > sqliteData.projects?.length && (
               <li>
@@ -257,7 +257,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
             )}
             {serverData.projects?.length === sqliteData.projects?.length &&
               serverData.nodes?.length === sqliteData.nodes?.length && (
-                <li className="text-green-700">✓ 数据已同步</li>
+                <li className="text-green-700">数据已同步</li>
               )}
           </ul>
         </div>

@@ -160,7 +160,10 @@ export class EditorSelectionBar {
     };
     const format = button(options.labels.format); format.classList.add('has-flyout');
     format.setAttribute('aria-haspopup', 'true');
-    const chevron = document.createElement('span'); chevron.className = 'editor-comment-menu__chevron'; chevron.textContent = '▾';
+    // The same brush chevron as BrushIcon renders, built by hand outside React.
+    const chevron = document.createElement('i'); chevron.setAttribute('aria-hidden', 'true');
+    chevron.className = 'brush-icon brush-icon--chevron-down is-inline editor-comment-menu__chevron';
+    chevron.style.setProperty('--brush-icon-size', '8px');
     format.appendChild(chevron);
     const formats = document.createElement('div');
     formats.className = `${BAR_CLASS} editor-selection-bar editor-selection-bar__formats`;

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ContextMenuSurface } from '../ui/ContextMenuSurface';
+import { BrushIcon } from '../ui/BrushIcon';
 
 // In-place combobox for changing an element's secondary group (groupName)
 // within its category. Replaces the old jump-to-editor + modal flow — opened
@@ -104,7 +105,7 @@ export function ElementGroupPicker({
         onClick={() => pick(null)}
       >
         <span>{t('elementGroupPicker.noGroup')}</span>
-        {current == null && <span aria-hidden>✓</span>}
+        {current == null && <BrushIcon name="check" size={11} inline />}
       </button>
 
       {filtered.length > 0 && <div className="menu-surface__divider" />}
@@ -120,7 +121,7 @@ export function ElementGroupPicker({
           <span style={{ overflowWrap: 'anywhere' }}>
             {name}
           </span>
-          {current === name && <span aria-hidden>✓</span>}
+          {current === name && <BrushIcon name="check" size={11} inline />}
         </button>
       ))}
     </ContextMenuSurface>

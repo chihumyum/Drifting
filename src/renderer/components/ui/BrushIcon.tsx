@@ -6,9 +6,13 @@ import type { CSSProperties } from 'react';
  */
 export type BrushIconName =
   | 'arrow-back'
+  | 'arrow-down'
   | 'arrow-forward'
+  | 'arrow-in'
+  | 'arrow-out'
   | 'bamboo'
   | 'books'
+  | 'both-ways'
   | 'branch'
   | 'brush-laid'
   | 'brush-lifted'
@@ -38,9 +42,12 @@ export type BrushIconName =
   | 'furin'
   | 'gate-in'
   | 'gate-out'
+  | 'grip'
+  | 'hook'
   | 'image'
   | 'image-plus'
   | 'ink-disc'
+  | 'inkstone'
   | 'jizo'
   | 'knot-links'
   | 'knots'
@@ -58,6 +65,7 @@ export type BrushIconName =
   | 'moon-right-hollow'
   | 'more'
   | 'movable-type'
+  | 'name-seal'
   | 'new-category'
   | 'new-storyline'
   | 'open-book'
@@ -77,10 +85,16 @@ export type BrushIconName =
   | 'status-stopped'
   | 'status-warning'
   | 'sticky-note'
+  | 'stitched'
   | 'stones-triad'
   | 'stop'
+  | 'swap'
   | 'taiji'
+  | 'task-doing'
+  | 'task-done'
+  | 'task-todo'
   | 'tea'
+  | 'thinking'
   | 'toc-raked'
   | 'torii'
   | 'trash'
@@ -91,11 +105,14 @@ export type BrushIconName =
 export function BrushIcon({
   name,
   size = 16,
+  inline = false,
   className,
   style,
 }: {
   name: BrushIconName;
   size?: number;
+  /** Sits in a line of text (a label's leading plus, a trailing arrow) instead of standing as a block. */
+  inline?: boolean;
   /** Extra classes, e.g. a spinner's rotation or a disclosure chevron's turn. */
   className?: string;
   style?: CSSProperties;
@@ -103,7 +120,7 @@ export function BrushIcon({
   return (
     <i
       aria-hidden="true"
-      className={`brush-icon brush-icon--${name}${className ? ` ${className}` : ''}`}
+      className={`brush-icon brush-icon--${name}${inline ? ' is-inline' : ''}${className ? ` ${className}` : ''}`}
       style={{ '--brush-icon-size': `${size}px`, ...style } as CSSProperties}
     />
   );

@@ -22,21 +22,13 @@ import {
 } from './desktop-universal-create';
 import '../../../../styles/desktop-universal-create.css';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { KindMark } from '../../../components/ui/KindMark';
 
 const log = loglevel.getLogger('DesktopUniversalCreateView');
 
 interface DesktopUniversalCreateViewProps {
   tab: CreateTab;
 }
-
-// The workspace tab characters are the entity glyph language everywhere.
-const KIND_GLYPHS = {
-  chapter: '§',
-  drift: '❦',
-  element: '◆',
-  storyline: '¶',
-  category: '⌘',
-} as const;
 
 const KIND_ORDER: UniversalCreateEntityKind[] = [
   'chapter',
@@ -220,8 +212,9 @@ export function DesktopUniversalCreateView({ tab }: DesktopUniversalCreateViewPr
                   disabled={isCreating}
                   onClick={() => selectKind(kind)}
                 >
+                  {/* The kind's sand mark, the same one its tabs and list cells carry. */}
                   <span className="universal-create__kind-glyph" aria-hidden="true">
-                    {KIND_GLYPHS[kind]}
+                    <KindMark kind={kind} seed={kind} />
                   </span>
                   <span className="universal-create__kind-copy">
                     <strong>{t(`universalCreate.kinds.${kind}.label`)}</strong>

@@ -15,6 +15,9 @@ import {
   describeAgentToolActivity,
   shouldDisplayAgentToolActivity,
 } from '../../lib/agent/agent-tool-activity';
+import { BrushIcon, type BrushIconName } from '../../components/ui/BrushIcon';
+import { KindMark } from '../../components/ui/KindMark';
+import type { KindMarkKind } from '../../components/ui/kind-mark';
 
 export const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
 
@@ -62,7 +65,7 @@ function mdToHtml(text: string): string {
 
 function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
   const { t, i18n } = useTranslation();
-  const icon = msg.status === 'running' ? '◌' : msg.status === 'ok' ? '✓' : '✗';
+  const icon: BrushIconName = msg.status === 'running' ? 'loader' : msg.status === 'ok' ? 'status-done' : 'status-stopped';
   const semanticActivity = useMemo(
     () =>
       msg.phase === 'arguments' && msg.input === undefined
@@ -97,13 +100,19 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
     return null;
   const summary = (
     <>
-      <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
+      <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>
+        <BrushIcon
+          name={icon}
+          size={10}
+          inline
+          style={msg.status === 'running' ? { animation: 'drift-spin 0.9s linear infinite' } : undefined}
+        />
+      </span>
       {semanticTool ? (
         <span style={toolActivity}>{semanticActivity}</span>
       ) : (
         <code style={toolName}>{msg.name}</code>
       )}
-      {msg.status === 'running' && <span style={{ opacity: 0.5 }}>…</span>}
     </>
   );
   return (
@@ -151,7 +160,8 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
           setOpen((o) => !o);
         }}
       >
-        💭 {msg.streaming ? t('agentPanel.thinking.streaming') : t('agentPanel.thinking.done')}
+        <BrushIcon name="thinking" size={12} inline className={msg.streaming ? undefined : 'brush-icon--still'} />{' '}
+        {msg.streaming ? t('agentPanel.thinking.streaming') : t('agentPanel.thinking.done')}
       </summary>
       <div style={thinkingBody}>{msg.text}</div>
     </details>
@@ -290,11 +300,11 @@ const UserBubble = memo(function UserBubble({ msg }: { msg: Extract<ChatMsg, { k
   );
 });
 
-const ENTITY_GLYPH: Record<ActivityEntityType, string> = {
-  node: '§',
-  element: '◆',
-  storyline: '◈',
-  category: '▣',
+const ENTITY_MARK: Record<ActivityEntityType, KindMarkKind> = {
+  node: 'chapter',
+  element: 'element',
+  storyline: 'storyline',
+  category: 'category',
 };
 
 function entityRefName(
@@ -329,7 +339,7 @@ export function EntityLinkChip({
   const name = useDataStore((s) => entityRefName(s, refItem, deletedLabel));
   return (
     <button type="button" className="agt-entity-chip" onClick={() => onOpen(refItem)}>
-      <span className="agt-entity-chip__glyph">{ENTITY_GLYPH[refItem.entityType]}</span>
+      <KindMark kind={ENTITY_MARK[refItem.entityType]} seed={refItem.id} color="hsl(var(--accent))" />
       <span>{name}</span>
       <span className="agt-entity-chip__op">
         {refItem.op === 'create' ? t('agentPanel.entity.created') : t('agentPanel.entity.edited')}
@@ -393,7 +403,7 @@ export const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) 
     case 'usage':
       return <UsageRow msg={msg} />;
     case 'error':
-      return <div style={errorBubble}>⚠ {msg.text}</div>;
+      return <div style={errorBubble}><BrushIcon name="status-warning" size={12} inline /> {msg.text}</div>;
     default:
       return null;
   }
@@ -501,14 +511,14 @@ function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items
         </span>
       </div>
       {items.map((t, i) => {
-        const icon = t.status === 'completed' ? '☑' : t.status === 'in_progress' ? '▸' : '☐';
+        const icon: BrushIconName = t.status === 'completed' ? 'task-done' : t.status === 'in_progress' ? 'task-doing' : 'task-todo';
         const label = t.status === 'in_progress' && t.activeForm ? t.activeForm : t.content;
         return (
           <div key={i} style={todoItem}>
             <span
               style={{ width: 14, flexShrink: 0, opacity: t.status === 'completed' ? 0.5 : 0.85 }}
             >
-              {icon}
+              <BrushIcon name={icon} size={11} inline />
             </span>
             <span
               style={{

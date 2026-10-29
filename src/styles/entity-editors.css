@@ -283,10 +283,8 @@
 .refs-card__arrow {
   flex-shrink: 0;
   width: 14px;
-  text-align: center;
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 12px;
+  display: flex;
+  justify-content: center;
   color: hsl(var(--ink-5));
   opacity: 0;
   transition:
@@ -873,10 +871,6 @@
 
 /* List chrome stays on the unified UI face even when its authored title and
    summary use the selected content font. */
-.page--entity .mgr-row__title-mark {
-  font-family: var(--font-ui);
-}
-
 /* ============================================================
    Color picker — swatch row used in storyline / category hero
    ============================================================ */
@@ -906,15 +900,12 @@
   box-shadow: 0 0 0 1.5px var(--c);
 }
 .col-pick__sw--active::after {
-  content: '✓';
+  content: '';
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  color: hsl(var(--paper));
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
+  background: hsl(var(--paper));
+  -webkit-mask: url('../assets/design/icons/check.png') center / 11px 11px no-repeat;
+  mask: url('../assets/design/icons/check.png') center / 11px 11px no-repeat;
 }
 
 /* ============================================================
@@ -1069,9 +1060,7 @@
   text-overflow: ellipsis;
 }
 .mgr-row__title-mark {
-  font-style: italic;
-  color: var(--s-color, hsl(var(--accent)));
-  font-size: 15px;
+  align-self: center;
 }
 .mgr-row__summary {
   font-family: var(--font-sans);
@@ -1156,9 +1145,6 @@
   align-self: center;
   border-radius: 2px;
   color: hsl(var(--ink-4));
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 16px;
   transition:
     color 0.12s,
     background 0.12s;

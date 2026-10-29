@@ -140,12 +140,12 @@
 }
 /* ⚓ — the act binds a drift as its notes; click opens it. */
 .actrail__anchor {
+  display: inline-flex;
   align-self: center;
   border: 0;
   background: none;
   padding: 0;
   margin-right: 1px;
-  font-size: 10px;
   line-height: 1;
   color: hsl(var(--accent));
   cursor: pointer;

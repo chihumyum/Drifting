@@ -77,10 +77,9 @@
 }
 
 .relation-edge-popover__flow b {
+  display: flex;
+  justify-content: center;
   color: hsl(var(--ink-3));
-  font-size: 15px;
-  font-weight: 400;
-  text-align: center;
 }
 
 .relation-edge-popover__description {

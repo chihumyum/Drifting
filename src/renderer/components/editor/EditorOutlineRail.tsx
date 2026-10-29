@@ -14,6 +14,7 @@ import { useSettingsStore } from '../../store/settings-store';
 import { useEditorRailPresentation } from './editor-rail-presentation';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 import { EMPTY_OUTLINE_VIEWPORT, OutlineViewportController } from './outline-viewport';
+import { BrushIcon } from '../ui/BrushIcon';
 
 import {
   flattenOutlineEntries,
@@ -271,7 +272,7 @@ function VisibleEditorOutlineRail({
                 onFocus={(event) => openOmissionReveal(label, event.currentTarget)}
                 onBlur={scheduleRevealClose}
               >
-                <span aria-hidden>…</span>
+                <BrushIcon name="more" size={12} />
               </button>
             );
           }

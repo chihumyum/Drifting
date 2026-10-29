@@ -39,6 +39,7 @@ import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
+import { BrushIcon } from '../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('StorylineEditorView');
 log.setLevel(loglevel.levels.WARN);
@@ -566,7 +567,7 @@ export function StorylineEditorView({
                             <span className="mgr-row__wc-k">{t('common.words')}</span>
                           )}
                         </div>
-                        <div className="mgr-row__open" title={t('storylineEditor.actions.openChapter')}>→</div>
+                        <div className="mgr-row__open" title={t('storylineEditor.actions.openChapter')}><BrushIcon name="arrow-forward" size={14} /></div>
                       </div>
                     );
                   })}

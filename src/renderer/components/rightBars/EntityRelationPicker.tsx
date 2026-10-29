@@ -4,6 +4,7 @@ import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { isChapter } from '../../domain/book-node';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { StructuralEntityKind } from '../../domain/entity-kinds';
+import { BrushIcon } from '../ui/BrushIcon';
 
 // Picker only emits structural-entity targets (memo / material can't be
 // the toKind of a relation — see domain/entity-kinds.ts). Narrowing here
@@ -249,7 +250,7 @@ export function EntityRelationPicker({
               cursor: 'pointer',
             }}
           >
-            {open ? t('relationPicker.collapse') : t('relationPicker.addRelation')}
+            {open ? t('relationPicker.collapse') : <><BrushIcon name="plus" size={10} inline /> {t('relationPicker.addRelation')}</>}
           </button>
           {trailingAction}
         </div>
@@ -459,7 +460,7 @@ function Chip({
             e.currentTarget.style.color = 'hsl(var(--ink-4))';
           }}
         >
-          ×
+          <BrushIcon name="close" size={10} inline />
         </button>
       </div>
     );
@@ -501,7 +502,7 @@ function Chip({
       )}
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{target.label}</span>
       <span style={{ color: 'var(--ui-text-muted, hsl(var(--ink-4)))', fontFamily: 'var(--font-mono)', fontSize: 'var(--ui-font-caption, 10px)' }}>
-        {selected ? '×' : '+'}
+        <BrushIcon name={selected ? 'close' : 'plus'} size={10} inline />
       </span>
     </button>
   );

@@ -188,7 +188,7 @@ export function NodeCardPopover({
                 onClick={() => setMode('upgrade')}
                 title={t('nodeCardPopover.expandTitle')}
               >
-                {t('nodeCardPopover.expand')} ↗
+                {t('nodeCardPopover.expand')} <BrushIcon name="arrow-out" size={10} inline />
               </button>
               <button
                 type="button"
@@ -196,7 +196,7 @@ export function NodeCardPopover({
                 onClick={() => onOpenInEditor(node.id)}
                 title={t('nodeCardPopover.openFullTitle')}
               >
-                {t('nodeCardPopover.openInEditor')} →
+                {t('nodeCardPopover.openInEditor')} <BrushIcon name="arrow-forward" size={10} inline />
               </button>
             </div>
           </>
@@ -211,7 +211,7 @@ export function NodeCardPopover({
                 onClick={() => setMode('default')}
                 title={t('nodeCardPopover.collapseTitle')}
               >
-                ↙ {t('nodeCardPopover.collapse')}
+                <BrushIcon name="arrow-in" size={10} inline /> {t('nodeCardPopover.collapse')}
               </button>
               <button
                 type="button"
@@ -219,7 +219,7 @@ export function NodeCardPopover({
                 onClick={() => onOpenInEditor(node.id)}
                 title={t('nodeCardPopover.openFullTitle')}
               >
-                {t('nodeCardPopover.fullEditor')} →
+                {t('nodeCardPopover.fullEditor')} <BrushIcon name="arrow-forward" size={10} inline />
               </button>
               <GhostIconButton
                 className="node-card__close"

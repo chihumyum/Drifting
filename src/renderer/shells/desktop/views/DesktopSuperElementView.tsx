@@ -62,6 +62,7 @@ import {
   type SuperViewPinchOrigin,
 } from '../../../features/graph/super-view-canvas-gesture';
 import { getPlatformRuntime } from '../../../platform/runtime';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 // localStorage key for the viewport (pan + zoom) per project. Restoring on
 // re-entry preserves the user's mental map — they don't have to re-pan to
@@ -1663,7 +1664,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                         setPendingLinkCreatingType(false);
                       }}
                     >
-                      ⇄ {t('superElement.relationVerb')}
+                      <BrushIcon name="swap" size={10} inline /> <BrushIcon name="arrow-down" size={10} inline />{' '}
+                      {t('superElement.relationVerb')}
                     </button>
                   </div>
                   <div>
@@ -1697,9 +1699,13 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                       className="relation-type-modal__create"
                       onClick={() => setPendingLinkCreatingType((value) => !value)}
                     >
-                      {pendingLinkCreatingType
-                        ? t('relationTypes.chooseExisting')
-                        : `＋ ${t('relationTypes.createInline')}`}
+                      {pendingLinkCreatingType ? (
+                        t('relationTypes.chooseExisting')
+                      ) : (
+                        <>
+                          <BrushIcon name="plus" size={10} inline /> {t('relationTypes.createInline')}
+                        </>
+                      )}
                     </button>
                   </div>
                   {pendingLinkCreatingType ? (

@@ -1028,4 +1028,98 @@ describe('workspace surface language acceptance', () => {
       "<BrushIcon name=\"loader\" size={size} style={{ animation: 'drift-spin 0.9s linear infinite' }} />",
     );
   });
+
+  it('keeps characters from standing in for icons on the desktop', () => {
+    // Characters that only ever serve as icons: chevrons, ticks and crosses,
+    // list, kind and status glyphs, swap and turn arrows.
+    const iconOnly = /[▸▾▴▶◀◂►▹▿◃▵✓✔✗✘☑☐☒✕✖＋☰◌●○◉◆◇◈▣❦¶⚓⚠✦✎✏⇄⇅↔↗↘↙↖↳↺↻⌫☀⚷⌁⌨💭›‹]/u;
+    // Characters that are an icon when they stand alone as a node's whole
+    // text or a one-character string; inside a sentence they are punctuation.
+    const lone = /^\s*[×+→←↑↓…]\s*$|>\s*[×+→←↑↓…]\s*<|['"`][×→←↓§⌘]['"`]/u;
+    const allowed: [string, RegExp][] = [
+      // Project Home's 「全部章节」 waits for the Home page rework.
+      ['views/ProjectDashboard.tsx', /☰/u],
+      // Only rendered in the paused mobile shell (`mobileActions={mobileShell}`).
+      ['features/library/LibraryItemCard.tsx', /^\s*\w+: '[＋→↗×]',$/u],
+      // Shortcut text: the plus between two keys.
+      ['features/settings/panels/ControlSettingsPanels.tsx', /kbd--plus/],
+    ];
+    const withoutComments = (text: string) =>
+      text
+        .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[]).filter(
+      (file) =>
+        /\.tsx?$/.test(file) &&
+        !file.includes('.test.') &&
+        !file.startsWith('shells/mobile/') &&
+        !file.startsWith('performance/') &&
+        (!file.startsWith('lib/') || /^lib\/(extensions|slash-menu)\//.test(file)),
+    );
+    expect(files.length).toBeGreaterThan(100);
+    const found: string[] = [];
+    for (const file of files) {
+      withoutComments(source(`src/renderer/${file}`)).split('\n').forEach((line, index) => {
+        if (!iconOnly.test(line) && !lone.test(line)) return;
+        if (allowed.some(([path, pattern]) => path === file && pattern.test(line))) return;
+        found.push(`${file}:${index + 1}: ${line.trim()}`);
+      });
+    }
+    expect(found).toEqual([]);
+
+    // Nor in generated content: the drift a time marker is bound to shows as
+    // the drift's sand eddy, a deep link carries the brush hook.
+    const stylesheets = (readdirSync(resolve(process.cwd(), 'src/styles')) as string[]).filter(
+      (file) => file.endsWith('.css') && file !== 'mobile-workspace.css',
+    );
+    const generated: string[] = [];
+    for (const file of stylesheets) {
+      for (const match of withoutComments(source(`src/styles/${file}`)).matchAll(/content:\s*(['"])(.*?)\1/g)) {
+        if (iconOnly.test(match[2]) || /^[×+→←↑↓]$/u.test(match[2])) generated.push(`${file}: ${match[0]}`);
+      }
+    }
+    expect(generated).toEqual([]);
+    expect(source('src/styles/bottom-timeline.css')).toContain("mask: url('../assets/design/sand/mark-spiral.png')");
+    expect(source('src/styles/index.css')).toContain("mask: url('../assets/design/icons/hook.png')");
+
+    // Nor folded into a label: the button draws the icon, the string keeps the words.
+    const labels: string[] = [];
+    const walk = (value: unknown, path: string) => {
+      if (typeof value === 'string') {
+        if (/^[＋+✓●○↓↑→↗⇄☰⚓]\s|\s[↗→]$/u.test(value) && !/^(agentPanel\.mobile|mobileTimeline)\./.test(path)) {
+          labels.push(`${path}: ${value}`);
+        }
+      } else if (value && typeof value === 'object') {
+        for (const [key, child] of Object.entries(value)) walk(child, path ? `${path}.${key}` : key);
+      }
+    };
+    for (const locale of ['en', 'zh-CN']) walk(JSON.parse(source(`src/renderer/locales/${locale}.json`)), '');
+    expect(labels).toEqual([]);
+
+    // The places the author picked brush icons for.
+    const settingsModal = source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
+    expect(settingsModal).toContain("icon: 'name-seal'");
+    expect(settingsModal).toContain("icon: 'inkstone'");
+    // About carries no icon, and nothing calls Drifting 「渡」.
+    expect(block(settingsModal, "id: 'about'", '}')).toContain('icon: null');
+    expect(settingsModal).not.toContain('渡');
+    expect(source('src/renderer/locales/zh-CN.json')).not.toMatch(/渡口|渡舟/u);
+    const messages = source('src/renderer/features/agent/AgentMessageViews.tsx');
+    expect(messages).toContain(
+      "<BrushIcon name=\"thinking\" size={12} inline className={msg.streaming ? undefined : 'brush-icon--still'} />",
+    );
+    expect(messages).toContain("t.status === 'completed' ? 'task-done' : t.status === 'in_progress' ? 'task-doing' : 'task-todo'");
+    expect(messages).toContain("msg.status === 'running' ? 'loader' : msg.status === 'ok' ? 'status-done' : 'status-stopped'");
+    expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).toContain('<BrushIcon name="stitched" size={11} />');
+    expect(source('src/renderer/components/graph/RelationEdgePopover.tsx')).toContain(
+      "const flowIcon = orientation === 'symmetric' ? 'both-ways' : 'arrow-forward';",
+    );
+    expect(source('src/renderer/components/editor/PlotGrid.tsx')).toContain('<BrushIcon name="grip" size={12} />');
+    expect(source('src/renderer/components/BottomTimeline/ActRail.tsx')).toContain(
+      '<KindMark kind="drift" color="hsl(var(--accent))" />',
+    );
+    const css = source('src/styles/materials.css');
+    expect(css).toContain('animation: brush-thinking 720ms steps(6, jump-none) infinite alternate;');
+    expect(source('scripts/design-assets/brushicons.py')).toContain('STRIPS = {"thinking": (thinking, 4102)}');
+  });
 });

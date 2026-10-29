@@ -24,6 +24,7 @@ import {
   updateElementPatchWithSync,
 } from '../../usecase/synced-entity-commands';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('PatchEditorCard');
 log.setLevel(loglevel.levels.ERROR);
@@ -373,7 +374,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           className="patch-card__toggle"
           aria-label={collapsed ? t('patchEditorCard.actions.expand') : t('patchEditorCard.actions.collapse')}
         >
-          {collapsed ? '▸' : '▾'}
+          <BrushIcon name={collapsed ? 'chevron-right' : 'chevron-down'} size={9} inline />
         </button>
         {/* Title leads the row — it's the patch's primary identifier. */}
         <input
@@ -402,7 +403,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                 setSnapshotOpen((v) => !v);
               }}
             >
-              {t('patchEditorCard.invalid.label')} {snapshotOpen ? '▾' : '▸'}
+              {t('patchEditorCard.invalid.label')} <BrushIcon name={snapshotOpen ? 'chevron-down' : 'chevron-right'} size={8} inline />
             </button>
           ) : (
             <span
@@ -414,7 +415,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           ))}
         {/* Source-chapter anchor — SECONDARY, sits after the title. Click
             semantics fork on whether the original block still exists (see
-            handleAnchorClick); the ✎ re-anchors. */}
+            handleAnchorClick); the edit brush re-anchors. */}
         {patch.sourceNodeId ? (
           <button
             type="button"
@@ -428,7 +429,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           >
             {sourceMissing && hasSnapshot && (
               <span className="patch-card__anchor-disclosure" aria-hidden>
-                {snapshotOpen ? '▾' : '▸'}
+                <BrushIcon name={snapshotOpen ? 'chevron-down' : 'chevron-right'} size={8} inline />
               </span>
             )}
             {anchorLabel}
@@ -449,7 +450,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             aria-expanded={anchorEditing}
             aria-haspopup="listbox"
           >
-            ✎
+            <BrushIcon name="edit" size={11} inline />
           </button>
           <AnchoredPopover
             anchorRef={anchorButtonRef}
@@ -482,7 +483,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                       }
                       onClick={() => void handleChangeAnchor(n.id)}
                     >
-                      <span className="patch-card__anchor-pop-mark">{current ? '✓' : ''}</span>
+                      <span className="patch-card__anchor-pop-mark">{current && <BrushIcon name="check" size={10} inline />}</span>
                       {/* Title + summary preview so the user can recognize the
                           chapter without leaving to recall its contents. */}
                       <span className="patch-card__anchor-pop-body">
@@ -514,7 +515,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                 onClick={() => void handleChangeAnchor(null)}
               >
                 <span className="patch-card__anchor-pop-mark">
-                  {!patch.sourceNodeId ? '✓' : ''}
+                  {!patch.sourceNodeId && <BrushIcon name="check" size={10} inline />}
                 </span>
                 <span className="patch-card__anchor-pop-title">
                   {t('patchEditorCard.anchor.noChapter')}
@@ -528,7 +529,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           className="patch-card__delete"
           aria-label={t('patchEditorCard.actions.deletePatch')}
         >
-          ×
+          <BrushIcon name="close" size={10} inline />
         </button>
       </div>
       {!collapsed && snapshotOpen && snapshotText && (

@@ -661,9 +661,14 @@ html[data-entity-link-style='prose'] .entity-link--deep::after {
 
 /* Deep-link indicator (mention points at a specific block of the target). */
 .entity-link--deep::after {
-  content: '↳';
-  font-size: 0.75em;
+  content: '';
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
   margin-left: 1px;
+  background: currentColor;
+  -webkit-mask: url('../assets/design/icons/hook.png') center / 100% 100% no-repeat;
+  mask: url('../assets/design/icons/hook.png') center / 100% 100% no-repeat;
   opacity: 0.6;
 }
 

@@ -57,6 +57,7 @@ import {
   ModalRoot,
 } from '../components/ui/Modal';
 import { HostedQuotaExceededError } from '../sync/hosted/quota';
+import { BrushIcon } from '../components/ui/BrushIcon';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -735,7 +736,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                               lineHeight: 1,
                             }}
                           >
-                            ×
+                            <BrushIcon name="close" size={10} inline />
                           </button>
                         </span>
                       ))}
@@ -1045,7 +1046,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                     color: 'hsl(var(--accent))',
                   }}
                 >
-                  {t('elementEditor.group.create', { name: groupQuery })}
+                  <BrushIcon name="plus" size={11} inline /> {t('elementEditor.group.create', { name: groupQuery })}
                 </button>
               )}
             </div>

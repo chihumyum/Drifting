@@ -1138,7 +1138,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
             </button>
 
             {/* The 「+幕」act-create action moved into the act rail's head cell
-                (mirrors the narrative TIME ＋), so it's no longer in the header. */}
+                (mirrors the narrative TIME plus), so it's no longer in the header. */}
 
             {/* Unplaced chapters — narrative mode only. Same role as the
                 equivalent control in BottomTimeline: surface chapters
@@ -1253,7 +1253,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                     handleAddPin();
                   }}
                 >
-                  +
+                  <BrushIcon name="plus" size={10} />
                 </button>
               </div>
               <div
@@ -1563,7 +1563,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
           <strong>{nodeById.get(linkSource)?.title || t('common.untitled')}</strong>
           <span>{t('storyGraph.edge.linkSourceSuffix')}</span>
           <button onClick={() => setLinkSource(null)} title={t('common.cancel')}>
-            ×
+            <BrushIcon name="close" size={10} inline />
           </button>
         </div>
       )}
@@ -1594,7 +1594,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                 }}
                 title={t('relationTypes.swap')}
               >
-                ⇄
+                <BrushIcon name="swap" size={12} inline />
               </button>
               <span>
                 {nodeById.get(newEdgeReversed ? newEdgePair.source : newEdgePair.target)?.title ||
@@ -1608,9 +1608,13 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
                 className="relation-type-modal__create"
                 onClick={() => setNewEdgeCreatingType((value) => !value)}
               >
-                {newEdgeCreatingType
-                  ? t('relationTypes.chooseExisting')
-                  : `＋ ${t('relationTypes.createInline')}`}
+                {newEdgeCreatingType ? (
+                  t('relationTypes.chooseExisting')
+                ) : (
+                  <>
+                    <BrushIcon name="plus" size={10} inline /> {t('relationTypes.createInline')}
+                  </>
+                )}
               </button>
             </div>
             {newEdgeCreatingType ? (

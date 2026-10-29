@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { AccountAvatar } from '../../../components/ui/AccountAvatar';
+import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
 import { useAuthStore } from '../../../store/auth';
 import type { SettingsNavigationSection } from './settings-section-navigation';
 
 interface SettingsRailItem<Id extends string> {
   id: Id;
   group: string;
-  glyph: string;
+  icon: BrushIconName | null;
   label: string;
   badge?: { text: string; tone?: 'accent' | 'warn' };
   sections: SettingsNavigationSection[];
@@ -56,7 +57,7 @@ export function DesktopSettingsRail<Id extends string>({
                   aria-controls={item.id}
                   onClick={() => onSelect(item.id)}
                 >
-                  <span className="set-rail__glyph" aria-hidden="true">{item.glyph}</span>
+                  <span className="set-rail__glyph" aria-hidden="true">{item.icon && <BrushIcon name={item.icon} size={14} />}</span>
                   <span className="set-rail__label">{item.label}</span>
                   {item.badge && (
                     <span className={'set-rail__badge' + (item.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')}>

@@ -442,7 +442,7 @@
 }
 
 .dash-continue__resume-arrow {
-  font-size: 16px;
+  display: inline-block;
 }
 
 .dash-today {

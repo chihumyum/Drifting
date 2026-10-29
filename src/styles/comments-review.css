@@ -1208,8 +1208,6 @@
 }
 .editor-comment-menu__chevron {
   opacity: 0.45;
-  font-size: 10px;
-  line-height: 1;
 }
 /* Between block transforms and inline marks. */
 .editor-selection-bar__sep {

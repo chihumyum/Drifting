@@ -38,6 +38,8 @@ import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
+import { BrushIcon } from '../components/ui/BrushIcon';
+import { KindMark } from '../components/ui/KindMark';
 
 const log = loglevel.getLogger('CategoryEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -330,7 +332,7 @@ export function CategoryEditorView({
                   className="elem-portrait elem-portrait--category"
                   style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}
                 >
-                  <span className="elem-portrait__hint">◆ {curCategory.name}</span>
+                  <span className="elem-portrait__hint"><KindMark kind="element" color="currentColor" className="is-inline" />{curCategory.name}</span>
                 </div>
                 <div className="elem-hero__main">
                   <EntityTitleField
@@ -470,7 +472,7 @@ export function CategoryEditorView({
                         <div className="mgr-row__num">e.{e.id.slice(0, 4)}</div>
                         <div className="mgr-row__body">
                           <div className="mgr-row__title">
-                            <span className="mgr-row__title-mark">◆</span>
+                            <KindMark kind="element" color="var(--s-color, hsl(var(--accent)))" className="mgr-row__title-mark" />
                             <span>{e.name || t('common.untitled')}</span>
                           </div>
                           <div className={`mgr-row__summary${role ? '' : ' mgr-row__summary--empty'}`}>
@@ -481,7 +483,7 @@ export function CategoryEditorView({
                           <span className="mgr-row__wc-v">{role ? '·' : '—'}</span>
                           <span className="mgr-row__wc-k">{t('categoryEditor.labels.role')}</span>
                         </div>
-                        <div className="mgr-row__open" title={t('categoryEditor.actions.openElement')}>→</div>
+                        <div className="mgr-row__open" title={t('categoryEditor.actions.openElement')}><BrushIcon name="arrow-forward" size={14} /></div>
                       </div>
                     );
                   })}

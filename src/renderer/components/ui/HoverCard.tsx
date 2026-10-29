@@ -5,6 +5,7 @@ import {
   type EntityHoverCardPlacement,
   type EntityHoverCardPosition,
 } from './entity-hover-card-position';
+import { BrushIcon } from './BrushIcon';
 
 /**
  * One thing that can be done to whatever a hover card describes. Drifting
@@ -272,7 +273,7 @@ function HoverActionButton({ action, expanded, onChoose }: {
       onClick={onChoose}
     >
       {action.label}
-      {action.choices && <span className="hover-card__action-chevron" aria-hidden="true">{expanded ? '▴' : '▾'}</span>}
+      {action.choices && <span className="hover-card__action-chevron" aria-hidden="true"><BrushIcon name={expanded ? 'chevron-up' : 'chevron-down'} size={9} /></span>}
     </button>
   );
 }

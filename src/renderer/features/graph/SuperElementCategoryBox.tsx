@@ -4,6 +4,7 @@ import type { BookElement } from '../../domain/book-element';
 import type { LayoutPlacement } from '../../lib/super-element-layout';
 import type { SuperElementCategoryModel as CategoryRenderModel } from './super-element-category-model';
 import { CELL_W, CELL_H, GROUP_HEADER_PX, CATEGORY_GAP_X, cardColStep } from './super-element-metrics';
+import { KindMark } from '../../components/ui/KindMark';
 
 /**
  * Renders one category box at its assigned grid position. Internal layout
@@ -262,9 +263,7 @@ function CategoryBox({
                   flexShrink: 0,
                 }}
               >
-                <span aria-hidden style={{ color: accent, marginRight: 4, fontStyle: 'italic' }}>
-                  ◆
-                </span>
+                <KindMark kind="element" color={accent} className="is-inline" />
                 {element.name}
               </div>
               {element.summary && (

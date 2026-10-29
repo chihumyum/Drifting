@@ -61,6 +61,20 @@ locate.png                  a drop-shaped pin standing on its point, a white eye
 new-storyline.png           a lane drawn as one level stroke, a plus above it
 new-category.png            the element category's own sand corner, a plus beside it
 
+Where a character used to stand in for an icon (fine grain too):
+
+arrow-down / -out / -in     the forward arrow turned down, up-right, down-left
+both-ways.png               one shaft, a head at each end (a symmetric relation)
+swap.png                    an arrow out above, one back below (swap a relation's ends)
+stitched.png                线装册: a bound booklet (Agent conversation history)
+task-todo / -doing / -done  an empty box, a dot in it, a tick flicked out of it
+name-seal.png               名章: an upright seal, a head and shoulders cut white (account)
+inkstone.png                砚: a slab, its well inked solid (models and API)
+grip.png                    three short slants in a corner (a resize grip)
+hook.png                    ↳: one stroke down and round, a head at its end (a deep link)
+thinking.png                砂聚成点: six frames side by side, loose grains pressing into a
+                            dot; CSS plays them back and forth while the Agent thinks
+
 moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
                             inside cleared, the rim as thin, light and sandy as
                             the moon's faint outer ring: shown while that
@@ -837,6 +851,122 @@ def new_category(rng):
     p = new(); plus_at(p, rng, 74, 26, 14, th=T * 0.95)
     return a, p
 
+# ── Characters that stood in for icons ──
+
+def arrow_at(a, rng, deg, cx=48, cy=48, half=34, head=26):
+    """The forward arrow's 「く」 head and shaft, turned to deg (0 = right, 90 = down)."""
+    hx = cx + half
+    headpts = poly((hx - head, cy - head), (hx, cy), (hx - head, cy + head), n=24)
+    brush(a, _rot(headpts, deg, (cx, cy)), G, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    brush(a, _rot(line((hx - 2, cy), (cx - half, cy)), deg, (cx, cy)), G, rng, load0=1.0, dry=0.35, taper=(0.04, 0.15))
+
+def arrow_down(rng):
+    a = new(); arrow_at(a, rng, 90); return a
+
+def arrow_out(rng):
+    a = new(); arrow_at(a, rng, -45, half=32, head=22); return a
+
+def arrow_in(rng):
+    a = new(); arrow_at(a, rng, 135, half=32, head=22); return a
+
+def both_ways(rng):
+    """One shaft, a 「く」 head at each end."""
+    a = new()
+    brush(a, line((14, 48), (82, 48)), G, rng, load0=1.0, dry=0.3, taper=(0.04, 0.04))
+    brush(a, poly((36, 26), (12, 48), (36, 70), n=20), G, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    brush(a, poly((60, 26), (84, 48), (60, 70), n=20), G, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    return a
+
+def swap(rng):
+    """An arrow out above, one back below."""
+    a = new()
+    brush(a, line((14, 32), (80, 32)), G * 0.95, rng, load0=1.0, dry=0.3, taper=(0.04, 0.04))
+    brush(a, poly((62, 16), (82, 32), (62, 48), n=16), G * 0.95, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    brush(a, line((82, 64), (16, 64)), G * 0.95, rng, load0=1.0, dry=0.3, taper=(0.04, 0.04))
+    brush(a, poly((34, 48), (14, 64), (34, 80), n=16), G * 0.95, rng, load0=1.0, dry=0.25, taper=(0.1, 0.1))
+    return a
+
+def stitched(rng):
+    """线装册: a bound booklet, three stitches through its spine."""
+    a = new()
+    brush(a, poly((20, 10), (78, 10), (78, 86), (20, 86), (20, 10), n=22), G * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    for y in (26, 48, 70):
+        brush(a, line((20, y), (34, y), 8), G * 0.75, rng, load0=1.0, dry=0.1, taper=(0.0, 0.1))
+    brush(a, line((48, 24), (48, 64), 16), G * 0.6, rng, load0=0.9, dry=0.3, taper=(0.06, 0.2))
+    brush(a, line((62, 24), (62, 50), 14), G * 0.6, rng, load0=0.9, dry=0.3, taper=(0.06, 0.2))
+    return a
+
+def _task_box(a, rng):
+    brush(a, poly((18, 18), (78, 18), (78, 78), (18, 78), (18, 18), n=22), G * 0.9, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+
+def task_todo(rng):
+    a = new(); _task_box(a, rng); return a
+
+def task_doing(rng):
+    a = new(); _task_box(a, rng); disc(a, 48, 48, 11, rng); return a
+
+def task_done(rng):
+    a = new(); _task_box(a, rng)
+    brush(a, line((30, 46), (44, 62), 12), G * 1.05, rng, load0=1.0, dry=0.0, taper=(0.3, 0.0))
+    brush(a, curve([(44, 62), (62, 38), (88, 8)]), G * 1.1, rng, load0=1.0, dry=0.4, taper=(0.0, 0.6))
+    return a
+
+def name_seal(rng):
+    """名章: an upright seal, a head and shoulders cut white out of it."""
+    a = new()
+    c, s = np.cos(0.04), np.sin(0.04)
+    R = lambda x, y: (48 + (x - 48) * c - (y - 48) * s, 48 + (x - 48) * s + (y - 48) * c)
+    fill_poly(a, [R(22, 8), R(74, 8), R(74, 88), R(22, 88)], rng, rough=0.9)
+    cut = new()
+    disc(cut, 48, 36, 11, np.random.default_rng(23), wob=0.04)
+    fill_poly(cut, arc(48, 82, 20, 22, 180, 360, 30), np.random.default_rng(24), rough=0.3)
+    erase(a, np.clip(cut * 1.3, 0, 1))
+    return a
+
+def inkstone(rng):
+    """砚: a rounded slab seen from above, its well inked solid at the top."""
+    a = new()
+    rim = arc(48, 30, 30, 22, 180, 360, 30) + line((78, 30), (78, 70), 14)[1:] + arc(48, 70, 30, 18, 0, 180, 30)[1:] + line((18, 70), (18, 30), 14)[1:]
+    brush(a, rim, G * 0.85, rng, load0=1.0, dry=0.15, taper=(0.02, 0.02))
+    fill_poly(a, arc(48, 34, 20, 13, 180, 360, 24) + arc(48, 34, 20, 6, 0, 180, 24), rng, rough=0.6)
+    return a
+
+def grip(rng):
+    """Three short slants in the corner, shorter towards it."""
+    a = new()
+    for L in (62, 40, 18):
+        o = 86 - L
+        brush(a, line((86, o), (o, 86)), G * 0.85, rng, load0=1.0, dry=0.3, taper=(0.08, 0.15))
+    return a
+
+def hook(rng):
+    """One stroke down and round to the right, a head where it ends."""
+    a = new()
+    path = line((24, 10), (24, 50), 20) + arc(44, 50, 20, 20, 180, 90, 20)[1:] + line((44, 70), (82, 70), 20)[1:]
+    brush(a, path, G, rng, load0=1.0, dry=0.3, taper=(0.06, 0.0))
+    brush(a, poly((62, 48), (84, 70), (62, 92), n=16), G, rng, load0=1.0, dry=0.2, taper=(0.1, 0.1))
+    return a
+
+def thinking(rng):
+    """砂聚成点: loose grains drawn in from all round until they press into one
+    dot. Six frames, laid side by side and played back and forth."""
+    pr = np.random.default_rng(77)
+    n = 30
+    ang = pr.uniform(0, 2 * np.pi, n); rad = pr.uniform(18, 40, n); size = pr.uniform(2.4, 3.8, n)
+    frames = []
+    for f in range(6):
+        u = f / 5
+        a = new()
+        k = 1 - u ** 1.4
+        for i in range(n):
+            r = rad[i] * k + (1 - k) * 6
+            th = ang[i] + u * 1.1
+            disc(a, 48 + r * np.cos(th), 48 + r * np.sin(th), size[i] * (1 - 0.3 * u), rng, wob=0.04)
+        if u > 0.5:
+            disc(a, 48, 48, 4 + 10 * (u - 0.5) * 2, rng)
+        frames.append(a)
+    return frames
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -861,7 +991,13 @@ OBJECTS = {
     "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104),
     "spread": (spread, 3001), "locate": (locate, 3004), "new-storyline": (new_storyline, 3007),
     "new-category": (new_category, 3008),
+    "arrow-down": (arrow_down, 4001), "arrow-out": (arrow_out, 4002), "arrow-in": (arrow_in, 4003),
+    "both-ways": (both_ways, 4005), "swap": (swap, 4007), "stitched": (stitched, 4012),
+    "task-todo": (task_todo, 4013), "task-doing": (task_doing, 4014), "task-done": (task_done, 4015),
+    "name-seal": (name_seal, 4019), "inkstone": (inkstone, 4020), "grip": (grip, 4025), "hook": (hook, 4026),
 }
+# Frames drawn with one rng, each finished with fine grain, then laid side by side.
+STRIPS = {"thinking": (thinking, 4102)}
 masks = {}
 for name, (draw, seed) in ICONS.items():
     rng = np.random.default_rng(seed)
@@ -877,6 +1013,9 @@ for name, (draw, seed) in OBJECTS.items():
         masks[name] = np.maximum(base, grain_fine(extra, rng))
     else:
         masks[name] = grain_fine(out, rng)
+for name, (draw, seed) in STRIPS.items():
+    rng = np.random.default_rng(seed)
+    masks[name] = np.hstack([grain_fine(f, rng) for f in draw(rng)])
 # A closed sidebar's crescent: the committed solid moon, its inside cleared.
 def _blur(a, r):
     pad = np.pad(a, r, mode="edge"); h, w = a.shape; out = np.zeros_like(a)

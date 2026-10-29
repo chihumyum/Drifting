@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { KvEntry, KvList } from '../../domain/kv';
 import { parseKv, stringifyKv } from '../../domain/kv';
+import { BrushIcon } from '../ui/BrushIcon';
 
 interface Props {
   // JSON-stringified KvList from the entity. Re-seeded into local edit state
@@ -133,7 +134,7 @@ export function KvEditor({
       )}
       {!readOnly && (
         <button type="button" className="kv-editor__add" onClick={handleAdd}>
-          {t('kvEditor.addField')}
+          <BrushIcon name="plus" size={10} inline /> {t('kvEditor.addField')}
         </button>
       )}
     </div>
@@ -192,7 +193,7 @@ function KvRow({
           title={t('kvEditor.removeRow')}
           aria-label={t('kvEditor.removeRow')}
         >
-          ×
+          <BrushIcon name="close" size={10} inline />
         </button>
       )}
     </div>

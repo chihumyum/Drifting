@@ -2,7 +2,7 @@
    Universal create — the fork page behind a new workspace tab.
 
    空阔文房: paper ground, a serif masthead, and the five entity kinds as a
-   typographic ladder led by their workspace tab characters (§ ❦ ¶ ◆ ⌘)
+   typographic ladder led by the sand marks their workspace tabs carry
    instead of a boxed control grid. Chrome stays quiet; the choice reads
    like a table of contents.
    ============================================================================ */
@@ -104,17 +104,18 @@
 }
 
 .universal-create__kind-glyph {
-  font-family: var(--font-content);
-  font-size: 24px;
-  line-height: 1;
-  color: hsl(var(--ink-4));
-  text-align: center;
-  transition: color 120ms ease;
+  --sand-c: hsl(var(--ink-4));
+  display: flex;
+  justify-content: center;
+}
+
+.universal-create__kind-glyph > .kind-mark {
+  transform: scale(1.5);
 }
 
 .universal-create__kind:hover .universal-create__kind-glyph,
 .universal-create__kind:focus-visible .universal-create__kind-glyph {
-  color: hsl(var(--ink-1));
+  --sand-c: hsl(var(--ink-1));
 }
 
 .universal-create__kind-copy {

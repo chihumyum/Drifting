@@ -629,7 +629,7 @@ function TodoRail({
             style={ghostBtnStyle}
             title={t('memoMaterial.dialog.newTodo')}
           >
-            ＋
+            <BrushIcon name="plus" size={11} inline />
           </button>
         }
       />
@@ -861,7 +861,7 @@ function LibraryItemMain({
             letterSpacing: '0.08em',
           }}
         >
-          {t('memoMaterial.super.newMaterialButton')}
+          <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
         </button>
       </div>
 
@@ -903,7 +903,7 @@ function LibraryItemMain({
                     letterSpacing: '0.08em',
                   }}
                 >
-                  {t('memoMaterial.super.newMaterialButton')}
+                  <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
                 </button>
               </>
             ) : (
@@ -1384,7 +1384,7 @@ function ResolvedTodoRow({
           cursor: 'pointer',
         }}
       >
-        ×
+        <BrushIcon name="close" size={10} inline />
       </button>
     </div>
   );

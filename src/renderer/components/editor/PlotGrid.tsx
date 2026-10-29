@@ -710,10 +710,7 @@ export function PlotGridEditor({
           aria-label={t('plotGrid.resize')}
           onPointerDown={onGripPointerDown}
         >
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-            <line x1="11" y1="4" x2="4" y2="11" />
-            <line x1="11" y1="8" x2="8" y2="11" />
-          </svg>
+          <BrushIcon name="grip" size={12} />
         </button>
       )}
       </div>

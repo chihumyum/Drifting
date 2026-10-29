@@ -47,6 +47,7 @@ import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButt
 import { useSidebarPaneId } from '../../../lib/sidebar-pane-context';
 import { createAgentChatViewSource } from '../../../store/agent-chat-view-source';
 import { AgentChatViewContext, useAgentChatViewStore } from '../AgentChatViewContext';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const paneId = useSidebarPaneId();
@@ -331,7 +332,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                 aria-expanded={showHistory}
                 aria-haspopup="dialog"
               >
-                ☰ {t('agentPanel.toolbar.history')}
+                <BrushIcon name="stitched" size={11} /> {t('agentPanel.toolbar.history')}
                 {convList.length ? ` · ${convList.length}` : ''}
               </button>
               <button
@@ -340,7 +341,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                 onClick={handleNew}
                 title={t('agentPanel.toolbar.newTitle')}
               >
-                ＋ {t('agentPanel.newConversation')}
+                <BrushIcon name="plus" size={10} /> {t('agentPanel.newConversation')}
               </button>
             </>
           )}
@@ -411,7 +412,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                   title={t('agentPanel.history.rename')}
                   onClick={(e) => beginItemRename(c, e)}
                 >
-                  ✎
+                  <BrushIcon name="edit" size={11} inline />
                 </button>
                 <button
                   type="button"
@@ -419,7 +420,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                   title={t('agentPanel.history.delete')}
                   onClick={(e) => handleDelete(c.id, e)}
                 >
-                  ×
+                  <BrushIcon name="close" size={10} inline />
                 </button>
               </div>
             ),
@@ -671,7 +672,6 @@ const panelCss = `
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
 .agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 1px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: var(--agent-font-secondary, 11.5px); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
-.agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-sans); font-style: italic; }
 .agt-entity-chip__op { font-size: var(--agent-font-caption, 10.5px); opacity: 0.55; }
 .agt-history__running-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtHistoryRunPulse 1.4s ease-in-out infinite; }
 @keyframes agtHistoryRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }

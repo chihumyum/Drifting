@@ -223,10 +223,10 @@
       "manage_payment_desc": "跳转到 Stripe 安全门户。",
       "open_portal": "打开门户",
       "plans": {
-        "free_label": "渡口（免费）",
+        "free_label": "免费",
         "pro_label": "Drifting Pro",
         "studio_label": "Studio",
-        "free_name": "渡口",
+        "free_name": "免费",
         "free_feature_1": "1 个项目 · 50,000 字",
         "free_feature_2": "基础任务自动化 · 50 次/月",
         "free_feature_4": "无 BYOK",
@@ -636,9 +636,9 @@
       "notConnected": "未连接",
       "keyPlaceholder": "粘贴密钥...",
       "testing": "测试中…",
-      "available": "✓ 可用",
+      "available": "可用",
       "editKey": "编辑密钥",
-      "currentByok": "✓ 当前 BYOK",
+      "currentByok": "当前 BYOK",
       "setCurrent": "设为当前",
       "invalidKey": "密钥无效",
       "requestFailed": "请求失败（provider 不可用或网络问题）"
@@ -670,8 +670,8 @@
       "hostedSignedOut": "未登录",
       "hostedReadyDesc": "已登录 Drifting，可用托管额度调用 Agent。",
       "hostedSignedOutDesc": "托管 Agent 需要先登录 Drifting 账号（在「账户」中登录）。",
-      "hostedAvailable": "● 可用",
-      "hostedUnavailable": "○ 未就绪",
+      "hostedAvailable": "可用",
+      "hostedUnavailable": "未就绪",
       "pasteApiKey": "粘贴所选 provider 的 API Key：",
       "filled": "已填写",
       "notFilled": "未填写",
@@ -1185,7 +1185,7 @@
     "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
   },
   "relationPicker": {
-    "addRelation": "＋ 关联",
+    "addRelation": "关联",
     "collapse": "收起",
     "searchPlaceholder": "搜索章节 / 要素 / 故事线…",
     "jumpTo": "跳转至 {{label}}",
@@ -1265,7 +1265,7 @@
     "templateValuePlaceholder": "默认值 / 提示 · value",
     "empty": "— 尚无 KV 字段 —",
     "templateEmpty": "— 尚未定义任何模版字段。新建子项时不会自动填充任何 KV —",
-    "addField": "+ 新增字段",
+    "addField": "新增字段",
     "removeRow": "移除这一行"
   },
   "patchCreateModal": {
@@ -1750,7 +1750,7 @@
       "generating": "生成预览中…",
       "open": "打开",
       "expandFullscreenTitle": "展开全屏 (Stage 2)",
-      "fullscreen": "全屏 ↗",
+      "fullscreen": "全屏",
       "closeEsc": "关闭 (Esc)",
       "noImage": "无法预览图片",
       "noPdf": "无法预览 PDF",
@@ -1793,7 +1793,7 @@
       "clearEntityFilter": "清除关联过滤",
       "entityFilterHint": "选择实体后只显示关联的备忘 / 材料",
       "todoEmptyHint": "点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO",
-      "newMaterialButton": "＋ 新建材料",
+      "newMaterialButton": "新建材料",
       "noMaterials": "项目里还没有材料。",
       "noFilteredMaterials": "当前过滤条件下没有匹配的材料。",
       "collapseDrawer": "收起抽屉",
@@ -1981,7 +1981,7 @@
       "createTitle": "新建",
       "createTitleEm": "一本书",
       "nameLabel": "名字 · TITLE",
-      "namePlaceholder": "例：渡舟",
+      "namePlaceholder": "例：北岬灯塔",
       "summaryLabel": "梗概 · SUMMARY",
       "summaryPlaceholder": "一两句话说明这本书是什么。",
       "createSubmit": "新建"
@@ -2664,7 +2664,7 @@
     "relationKind": {
       "placeholder": "关系类型…",
       "editTitle": "点击编辑关系类型",
-      "empty": "＋ 关系类型"
+      "empty": "关系类型"
     },
     "deleted": {
       "element": "(已删除要素)",
@@ -2685,10 +2685,10 @@
       "outgoing": "引用其他"
     },
     "actions": {
-      "add": "＋ 新增",
+      "add": "新增",
       "remove": "移除关联",
       "jump": "跳转到该实体",
-      "linkEntity": "＋ 关联实体"
+      "linkEntity": "关联实体"
     },
     "filters": {
       "all": "全部"
@@ -2905,7 +2905,7 @@
     }
   },
   "patchesSection": {
-    "add": "＋ 新建",
+    "add": "新建",
     "empty": "— 尚无补丁。在章节里选中文本，点浮条上的「新建补丁」可锚定到此要素 —"
   },
   "edgeKindManager": {
@@ -3011,7 +3011,7 @@
       "chapter": "章节"
     },
     "manualRelationTitle": "新建手动关联",
-    "relationVerb": "↓ 引用",
+    "relationVerb": "引用",
     "unnamedCategory": "未命名分类",
     "uncategorized": "未分类",
     "startEdgeFromElement": "从此要素新建关联",
@@ -3241,19 +3241,19 @@
     },
     "alias": {
       "remove": "移除别名",
-      "addFirst": "+ 添加别名",
-      "add": "+ 别名"
+      "addFirst": "添加别名",
+      "add": "别名"
     },
     "group": {
       "title": "分组 · {{category}}",
       "placeholder": "搜索或新建分组…（留空 = 不分组）",
       "noGroup": "（不分组）",
       "empty": "此类目下还没有分组。",
-      "create": "＋ 新建分组「{{name}}」"
+      "create": "新建分组「{{name}}」"
     },
     "category": {
       "change": "Change Category",
-      "newOption": "+ New Category",
+      "newOption": "新建类目…",
       "newTitle": "New Category",
       "namePlaceholder": "Category name…",
       "create": "Create"

@@ -97,7 +97,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
               <span>{t('agentPanel.config.switchModel')}</span>
               <span className="agt-menu__val">
                 {modelShort}
-                <span className="agt-menu__caret">›</span>
+                <BrushIcon name="chevron-right" size={9} inline className="agt-menu__caret" />
               </span>
             </button>
             <div className="agt-menu__divider" />
@@ -163,14 +163,14 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
               <span>{t('agentPanel.config.manageMemory')}</span>
               <span className="agt-menu__val">
                 {visibleMemories.length || t('agentPanel.common.none')}
-                <span className="agt-menu__caret">›</span>
+                <BrushIcon name="chevron-right" size={9} inline className="agt-menu__caret" />
               </span>
             </button>
           </>
         ) : view === 'model' ? (
           <>
             <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
-              ‹ {t('agentPanel.config.model')}
+              <BrushIcon name="chevron-left" size={9} /> {t('agentPanel.config.model')}
             </button>
             {AGENT_PROVIDER_OPTIONS.map(({ value }) => agentProviderOption(value)).map((provider) => (
               <div key={provider.value}>
@@ -207,7 +207,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                       })}
                     </span>
                     {provider.value === agentProvider && m.value === agentModel && (
-                      <span className="agt-menu__check">●</span>
+                      <BrushIcon name="check" size={11} className="agt-menu__check" />
                     )}
                   </button>
                 ))}
@@ -217,7 +217,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
         ) : (
           <>
             <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
-              ‹ {t('agentPanel.config.memory')}
+              <BrushIcon name="chevron-left" size={9} /> {t('agentPanel.config.memory')}
             </button>
             {visibleMemories.length === 0 ? (
               <div className="agt-menu__row agt-menu__row--empty">
@@ -243,7 +243,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                           title={t('agentPanel.config.approveMemory')}
                           onClick={() => void memory.approve(m.id)}
                         >
-                          ✓
+                          <BrushIcon name="check" size={11} />
                         </button>
                       )}
                       <button
@@ -256,7 +256,7 @@ export function AgentComposerConfig({ preserveInputFocus = false }: { preserveIn
                           )
                         }
                       >
-                        ✕
+                        <BrushIcon name="close" size={10} />
                       </button>
                     </div>
                   </div>

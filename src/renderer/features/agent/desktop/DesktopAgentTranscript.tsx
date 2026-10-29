@@ -7,6 +7,7 @@ import { selectAutomaticContinuation, selectAgentTaskContinuationReason, selectC
 import { useAgentChatViewStore } from '../AgentChatViewContext';
 import { useAgentActivityStore } from '../../../store/agent-activity-store';
 import { useWorkspaceNavigator } from '../../workspace/navigation/WorkspaceNavigationContext';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { collectTurnEntityRefs, type ToolEntityRef } from '../../../lib/agent/tool-entity-ref';
 import { EntityLinkChip, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX, fmtCost, fmtTokens } from '../AgentMessageViews';
 
@@ -162,7 +163,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle>(fun
             onClick={jumpToBottom}
             title={t('agentPanel.jumpLatest')}
           >
-            ↓
+            <BrushIcon name="arrow-down" size={13} inline />
           </button>
         )}
       </div>

@@ -517,13 +517,17 @@
   letter-spacing: 0;
   cursor: pointer;
 }
-/* ⚓ marks the marker as bound to a drift node — mirrors the act rail's bound
-   drift glyph so the two read as one concept. */
+/* The drift's own sand eddy marks the marker as bound to a drift node —
+   mirrors the act rail's bound drift so the two read as one concept. */
 .graph-pin.is-bound .graph-pin__label::before {
-  content: '⚓';
+  content: '';
+  display: inline-block;
+  width: 11px;
+  height: 8px;
   margin-right: 4px;
-  font-size: 9px;
-  color: hsl(var(--accent));
+  background: hsl(var(--accent));
+  -webkit-mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
+  mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
 }
 .graph-pin.is-bound .graph-pin__label:hover {
   background: hsl(var(--accent) / 0.12);

@@ -16,6 +16,7 @@ import { AnchoredPopover } from './AnchoredPopover';
 import { FilterChip } from './FilterChip';
 import { RELATION_TYPE_PALETTE } from './relation-type-color';
 import { requestConfirmation } from '../../store/confirmation-store';
+import { BrushIcon } from './BrushIcon';
 
 export interface RelationTypeMenuItem {
   type: EntityRelationType;
@@ -355,7 +356,7 @@ export function RelationKindMenu({
                 setPickingColor(null);
               }}
             >
-              ↺
+              <BrushIcon name="rotate" size={11} inline />
             </button>
           </div>
         )}
@@ -414,7 +415,7 @@ export function RelationKindMenu({
             })()
           }
         >
-          ×
+          <BrushIcon name="close" size={10} inline />
         </button>
       </div>
     );
@@ -497,7 +498,7 @@ export function RelationKindMenu({
           <div className="relation-kind-menu__section-title-row">
             <div className="relation-kind-menu__section-label">{t('relationTypes.title')}</div>
             <button type="button" onClick={() => setCreatingType(true)}>
-              ＋ {t('relationTypes.create')}
+              <BrushIcon name="plus" size={10} inline /> {t('relationTypes.create')}
             </button>
           </div>
           {creatingType && (

@@ -20,6 +20,7 @@ import {
   SettingsSegment,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 const fmtUsageTok = (n: number): string =>
   n >= 1_000_000
@@ -374,7 +375,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
                   e.currentTarget.style.background = 'transparent';
                 }}
               >
-                ×
+                <BrushIcon name="close" size={10} inline />
               </button>
             </div>
           ))}

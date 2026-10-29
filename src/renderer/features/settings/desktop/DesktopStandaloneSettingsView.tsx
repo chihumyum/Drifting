@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { StandaloneSettingsPanel } from '../StandaloneSettingsPanel';
 import { hostedAccountSettingsEnabled, withoutHostedAccountSettings } from '../hosted-settings-policy';
-import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
 
 type StandaloneSettingsId =
   | 'account'
@@ -16,7 +16,7 @@ type StandaloneSettingsId =
 
 interface StandaloneSettingsItem {
   id: StandaloneSettingsId;
-  glyph: string;
+  icon: BrushIconName | null;
   labelKey: string;
 }
 
@@ -26,26 +26,26 @@ interface StandaloneSettingsGroup {
 }
 
 const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
-  { labelKey: 'settings.groups.account', items: [{ id: 'account', glyph: '◌', labelKey: 'settings.rail.account' }] },
+  { labelKey: 'settings.groups.account', items: [{ id: 'account', icon: 'name-seal', labelKey: 'settings.rail.account' }] },
   {
     labelKey: 'settings.groups.preferences',
     items: [
-      { id: 'appearance', glyph: '☀', labelKey: 'settings.rail.appearance' },
-      { id: 'language', glyph: '文', labelKey: 'settings.rail.language' },
+      { id: 'appearance', icon: 'taiji', labelKey: 'settings.rail.appearance' },
+      { id: 'language', icon: 'wen', labelKey: 'settings.rail.language' },
     ],
   },
   {
     labelKey: 'settings.groups.control',
     items: [
-      { id: 'sync', glyph: '⇅', labelKey: 'settings.rail.sync' },
-      { id: 'updates', glyph: '↻', labelKey: 'settings.rail.updates' },
+      { id: 'sync', icon: 'cloud', labelKey: 'settings.rail.sync' },
+      { id: 'updates', icon: 'rotate', labelKey: 'settings.rail.updates' },
     ],
   },
   {
     labelKey: 'settings.groups.about',
     items: [
-      { id: 'privacy', glyph: '⚷', labelKey: 'settings.rail.privacy' },
-      { id: 'about', glyph: '渡', labelKey: 'settings.rail.about_app' },
+      { id: 'privacy', icon: 'lock-shut', labelKey: 'settings.rail.privacy' },
+      { id: 'about', icon: null, labelKey: 'settings.rail.about_app' },
     ],
   },
 ];
@@ -117,7 +117,7 @@ export function DesktopStandaloneSettingsView() {
                   }
                 >
                   <span className="set-rail__glyph" aria-hidden="true">
-                    {item.glyph}
+                    {item.icon && <BrushIcon name={item.icon} size={14} />}
                   </span>
                   <span className="set-rail__label">{t(item.labelKey)}</span>
                 </button>

@@ -5,6 +5,8 @@ import { useGlobalSearchResults } from './use-global-search-results';
 import type { SearchableEntityType, Field, Occurrence, EntityGroup } from './global-search-model';
 import '../../../styles/search.css';
 import { BrushIcon } from '../ui/BrushIcon';
+import { KindMark } from '../ui/KindMark';
+import type { KindMarkKind } from '../ui/kind-mark';
 
 interface GlobalSearchModalProps { isOpen: boolean; onClose(): void }
 
@@ -22,11 +24,11 @@ const ENTITY_LABEL_KEY: Record<SearchableEntityType, string> = {
   category: 'globalSearch.entity.category',
 };
 
-const ENTITY_ICON: Record<SearchableEntityType, string> = {
-  node: '§',
-  storyline: '¶',
-  element: '◆',
-  category: '⌘',
+const ENTITY_MARK: Record<SearchableEntityType, KindMarkKind> = {
+  node: 'chapter',
+  storyline: 'storyline',
+  element: 'element',
+  category: 'category',
 };
 
 const FIELD_LABEL_KEY: Record<Field, string> = {
@@ -193,7 +195,7 @@ function GlobalSearchSession({ projectId, onClose }: { projectId: string; onClos
           {groups.map((g, gi) => (
             <div key={`${g.entityType}:${g.entityId}`} className="gsearch-group">
               <div className="gsearch-group-header" onClick={() => choose(g)}>
-                <span className="gsearch-group-icon">{ENTITY_ICON[g.entityType]}</span>
+                <span className="gsearch-group-icon"><KindMark kind={ENTITY_MARK[g.entityType]} seed={g.entityId} /></span>
                 <span className="gsearch-group-title">
                   {highlight(g.entityTitle, query)}
                 </span>

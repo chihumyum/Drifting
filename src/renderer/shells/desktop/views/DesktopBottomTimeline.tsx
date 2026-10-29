@@ -1129,7 +1129,7 @@ export function DesktopBottomTimeline({
               handleAddPin();
             }}
           >
-            +
+            <BrushIcon name="plus" size={10} />
           </button>
         </div>
         <div
@@ -1237,7 +1237,7 @@ export function DesktopBottomTimeline({
               >
                 <span>{t('bottomTimeline.unplaced.label')}</span>
                 <span className="btl__unplaced-count">{unplacedNodes.length}</span>
-                <span className="btl__unplaced-arrow">▾</span>
+                <BrushIcon name="chevron-down" size={8} className="btl__unplaced-arrow" />
               </button>
               <AnchoredPopover
                 anchorRef={unplacedBtnRef}
@@ -1308,7 +1308,7 @@ export function DesktopBottomTimeline({
         <div className="btl__head-right">
           {/* New-storyline action lives on the ChapterPanel subheader's primary
               create button now; the 「+幕」act-create action moved into the
-              act rail's head cell (mirrors the narrative TIME ＋). The header
+              act rail's head cell (mirrors the narrative TIME plus). The header
               keeps only the layout / navigation controls below. */}
           <button
             className="btl__head-btn"
@@ -1411,7 +1411,7 @@ export function DesktopBottomTimeline({
       >
         {/* Act rail (幕) — book mode, always present (empty rail when no acts).
             Lives inside the scroll container in track coordinate space so the
-            bands align with the chapter columns and scroll with them. The ＋
+            bands align with the chapter columns and scroll with them. The plus
             in its head cell is the create entry. */}
         {actRailHeight > 0 && (
           <ActRail

@@ -8,6 +8,7 @@ import {
   SettingsPanelHeader, SettingsRow, SettingsSectionHeader, SettingsSegment,
   SettingsToggle, type SettingsRegisterRef,
 } from '../SettingsPrimitives';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 export function AppearancePanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -74,7 +75,7 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
                 <span className="set-theme-card__name">{t.name}</span>
                 <span className="set-theme-card__kind">{t.kind}</span>
               </div>
-              <div className="set-theme-card__check">✓</div>
+              <div className="set-theme-card__check"><BrushIcon name="check" size={10} /></div>
             </button>
           ))}
         </div>

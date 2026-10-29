@@ -26,6 +26,7 @@ import { getPlatformRuntime } from '../platform/runtime';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 import { BrushIcon } from '../components/ui/BrushIcon';
+import { KindMark } from '../components/ui/KindMark';
 
 const log = loglevel.getLogger('ProjectDashboard');
 type DashboardView = 'overview' | 'structure';
@@ -523,7 +524,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                 {t('dashboard.actions.storyGraph')}
               </button>
               <button className="dash-hero__btn" onClick={openElementOverview}>
-                <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>◆</span>
+                <KindMark kind="element" />
                 {t('dashboard.actions.elementOverview')}
               </button>
               <button className="dash-hero__btn" onClick={openAllChapters}>
@@ -654,7 +655,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                     </div>
                     <div className="dash-continue__resume">
                       {t('dashboard.continue.resume')}
-                      <span className="dash-continue__resume-arrow">→</span>
+                      <BrushIcon name="arrow-forward" size={13} className="dash-continue__resume-arrow" />
                     </div>
                   </div>
                 </article>
@@ -669,7 +670,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                   <div className="dash-continue__foot">
                     <div className="dash-continue__resume" onClick={handleCreateStoryline}>
                       {t('dashboard.actions.newStoryline')}
-                      <span className="dash-continue__resume-arrow">→</span>
+                      <BrushIcon name="arrow-forward" size={13} className="dash-continue__resume-arrow" />
                     </div>
                   </div>
                 </article>
@@ -722,7 +723,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
             <section className="dash-section">
               <div className="dash-section__head">
                 <div className="dash-section__title">
-                  <span className="dash-section__title-mark" aria-hidden="true" style={{ fontSize: 17, lineHeight: 1 }}>¶</span>
+                  <KindMark kind="storyline" color="hsl(var(--accent))" className="dash-section__title-mark" />
                   <span className="dash-section__title-cn">
                     {t('dashboard.sections.storylines')}
                   </span>
@@ -858,7 +859,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
               <section className="dash-section" style={{ marginBottom: 0 }}>
                 <div className="dash-section__head">
                   <div className="dash-section__title">
-                    <span className="dash-section__title-mark" aria-hidden="true" style={{ fontSize: 17, lineHeight: 1 }}>◆</span>
+                    <KindMark kind="element" color="hsl(var(--accent))" className="dash-section__title-mark" />
                     <span className="dash-section__title-cn">
                       {t('dashboard.sections.elementCategories')}
                     </span>
@@ -942,7 +943,7 @@ export function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = 
                   </div>
                   <div className="dash-section__actions">
                     <button className="dash-section__btn" onClick={openAllChapters}>
-                      {t('dashboard.actions.allChapters')} →
+                      {t('dashboard.actions.allChapters')} <BrushIcon name="arrow-forward" size={10} inline />
                     </button>
                   </div>
                 </div>

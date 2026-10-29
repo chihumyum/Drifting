@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { events } from '../../lib/events';
 import type { SnapshotEntityKind } from '../../lib/yjs-doc-id';
+import { BrushIcon } from '../../components/ui/BrushIcon';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small shared bits
@@ -326,7 +327,7 @@ export function SnapshotEntryButton({
         e.currentTarget.style.color = 'hsl(var(--ink-2))';
       }}
     >
-      ↺ {t('rightSidebar.stats.snapshotButton')}
+      <BrushIcon name="rotate" size={10} inline /> {t('rightSidebar.stats.snapshotButton')}
     </button>
   );
 }

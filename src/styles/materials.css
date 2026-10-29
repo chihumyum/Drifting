@@ -269,6 +269,12 @@
   height: 14px;
 }
 
+/* In a line of text, ahead of a name, where a kind character used to stand. */
+.kind-mark.is-inline {
+  vertical-align: -0.2em;
+  margin-inline-end: 0.3em;
+}
+
 .kind-mark > .sand { position: absolute; }
 .kind-mark--chapter > .sand { inset: 2px; }
 .kind-mark--element > .sand { inset: 2.5px; }
@@ -309,6 +315,11 @@
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
+}
+/* In a line of text, where a character used to stand: centred on the letters. */
+.brush-icon.is-inline {
+  display: inline-block;
+  vertical-align: -0.125em;
 }
 
 .brush-icon--moon-left { -webkit-mask-image: url('../assets/design/icons/moon-left.png'); mask-image: url('../assets/design/icons/moon-left.png'); }
@@ -393,6 +404,37 @@
 .brush-icon--locate { -webkit-mask-image: url('../assets/design/icons/locate.png'); mask-image: url('../assets/design/icons/locate.png'); }
 .brush-icon--new-storyline { -webkit-mask-image: url('../assets/design/icons/new-storyline.png'); mask-image: url('../assets/design/icons/new-storyline.png'); }
 .brush-icon--new-category { -webkit-mask-image: url('../assets/design/icons/new-category.png'); mask-image: url('../assets/design/icons/new-category.png'); }
+.brush-icon--arrow-down { -webkit-mask-image: url('../assets/design/icons/arrow-down.png'); mask-image: url('../assets/design/icons/arrow-down.png'); }
+.brush-icon--arrow-out { -webkit-mask-image: url('../assets/design/icons/arrow-out.png'); mask-image: url('../assets/design/icons/arrow-out.png'); }
+.brush-icon--arrow-in { -webkit-mask-image: url('../assets/design/icons/arrow-in.png'); mask-image: url('../assets/design/icons/arrow-in.png'); }
+.brush-icon--both-ways { -webkit-mask-image: url('../assets/design/icons/both-ways.png'); mask-image: url('../assets/design/icons/both-ways.png'); }
+.brush-icon--swap { -webkit-mask-image: url('../assets/design/icons/swap.png'); mask-image: url('../assets/design/icons/swap.png'); }
+.brush-icon--stitched { -webkit-mask-image: url('../assets/design/icons/stitched.png'); mask-image: url('../assets/design/icons/stitched.png'); }
+.brush-icon--task-todo { -webkit-mask-image: url('../assets/design/icons/task-todo.png'); mask-image: url('../assets/design/icons/task-todo.png'); }
+.brush-icon--task-doing { -webkit-mask-image: url('../assets/design/icons/task-doing.png'); mask-image: url('../assets/design/icons/task-doing.png'); }
+.brush-icon--task-done { -webkit-mask-image: url('../assets/design/icons/task-done.png'); mask-image: url('../assets/design/icons/task-done.png'); }
+.brush-icon--name-seal { -webkit-mask-image: url('../assets/design/icons/name-seal.png'); mask-image: url('../assets/design/icons/name-seal.png'); }
+.brush-icon--inkstone { -webkit-mask-image: url('../assets/design/icons/inkstone.png'); mask-image: url('../assets/design/icons/inkstone.png'); }
+.brush-icon--grip { -webkit-mask-image: url('../assets/design/icons/grip.png'); mask-image: url('../assets/design/icons/grip.png'); }
+.brush-icon--hook { -webkit-mask-image: url('../assets/design/icons/hook.png'); mask-image: url('../assets/design/icons/hook.png'); }
+/* Thinking: six frames side by side, grains pressing into a dot and loosening
+ * again, played back and forth the way a terminal spinner cycles its glyphs.
+ * `.brush-icon--still` holds the gathered dot once the thought is done. */
+.brush-icon--thinking {
+  -webkit-mask-image: url('../assets/design/icons/thinking.png');
+  mask-image: url('../assets/design/icons/thinking.png');
+  -webkit-mask-size: 600% 100%;
+  mask-size: 600% 100%;
+  -webkit-mask-position: 100% 0;
+  mask-position: 100% 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .brush-icon--thinking:not(.brush-icon--still) { animation: brush-thinking 720ms steps(6, jump-none) infinite alternate; }
+}
+@keyframes brush-thinking {
+  from { -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+  to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+}
 
 /* ── Cells ──────────────────────────────────────────────────────────
  * A list cell (`.sand-cell`) has no hover wash. Under the pointer its

@@ -20,7 +20,7 @@ import {
   hostedAccountSettingsEnabled,
   withoutHostedAccountSettings,
 } from '../hosted-settings-policy';
-import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
 
 interface DesktopSettingsModalProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ type RailId =
 interface RailDef {
   id: RailId;
   group: string;
-  glyph: string;
+  icon: BrushIconName | null;
   label: string;
   badge?: { text: string; tone?: 'accent' | 'warn' };
 }
@@ -55,7 +55,7 @@ interface RailDef {
 interface RailBaseDef {
   id: RailId;
   groupKey: string;
-  glyph: string;
+  icon: BrushIconName | null;
   labelKey: string;
 }
 
@@ -63,64 +63,64 @@ const RAIL_BASE: RailBaseDef[] = [
   {
     id: 'account',
     groupKey: 'settings.groups.account',
-    glyph: '◌',
+    icon: 'name-seal',
     labelKey: 'settings.rail.account',
   },
-  { id: 'trash', groupKey: 'settings.groups.account', glyph: '⌫', labelKey: 'settings.rail.trash' },
+  { id: 'trash', groupKey: 'settings.groups.account', icon: 'trash', labelKey: 'settings.rail.trash' },
   {
     id: 'appearance',
     groupKey: 'settings.groups.preferences',
-    glyph: '☀',
+    icon: 'taiji',
     labelKey: 'settings.rail.appearance',
   },
   {
     id: 'editor',
     groupKey: 'settings.groups.preferences',
-    glyph: '§',
+    icon: 'edit',
     labelKey: 'settings.rail.editor',
   },
   {
     id: 'language',
     groupKey: 'settings.groups.preferences',
-    glyph: '文',
+    icon: 'wen',
     labelKey: 'settings.rail.language',
   },
   {
     id: 'models',
     groupKey: 'settings.groups.intelligence',
-    glyph: '◇',
+    icon: 'inkstone',
     labelKey: 'settings.rail.models',
   },
   {
     id: 'copilot',
     groupKey: 'settings.groups.intelligence',
-    glyph: '⌁',
+    icon: 'jizo',
     labelKey: 'settings.rail.copilot',
   },
   {
     id: 'agent',
     groupKey: 'settings.groups.intelligence',
-    glyph: '✦',
+    icon: 'shikigami',
     labelKey: 'settings.rail.agent',
   },
-  { id: 'keys', groupKey: 'settings.groups.control', glyph: '⌨', labelKey: 'settings.rail.keys' },
-  { id: 'sync', groupKey: 'settings.groups.control', glyph: '⇅', labelKey: 'settings.rail.sync' },
+  { id: 'keys', groupKey: 'settings.groups.control', icon: 'movable-type', labelKey: 'settings.rail.keys' },
+  { id: 'sync', groupKey: 'settings.groups.control', icon: 'cloud', labelKey: 'settings.rail.sync' },
   {
     id: 'updates',
     groupKey: 'settings.groups.control',
-    glyph: '↻',
+    icon: 'rotate',
     labelKey: 'settings.rail.updates',
   },
   {
     id: 'privacy',
     groupKey: 'settings.groups.about',
-    glyph: '⚷',
+    icon: 'lock-shut',
     labelKey: 'settings.rail.privacy',
   },
   {
     id: 'about',
     groupKey: 'settings.groups.about',
-    glyph: '渡',
+    icon: null,
     labelKey: 'settings.rail.about_app',
   },
 ];
@@ -151,7 +151,7 @@ function useRail(): RailDef[] {
         group: t(
           r.id === 'trash' && !accountSettingsEnabled ? 'settings.groups.localData' : r.groupKey,
         ),
-        glyph: r.glyph,
+        icon: r.icon,
         label: t(r.labelKey),
       };
       return base;

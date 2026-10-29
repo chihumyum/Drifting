@@ -1808,7 +1808,7 @@ svg.super-viewport-edges[data-panning='1'] {
 }
 
 .hover-card__action-chevron {
-  font-size: 9px;
+  display: inline-flex;
   opacity: 0.5;
 }
 

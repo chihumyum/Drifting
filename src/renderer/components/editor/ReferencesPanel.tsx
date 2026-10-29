@@ -17,6 +17,7 @@ import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { validateRelationAgainstType } from '../../domain/entity-relation-type';
 import { getDb, getDbIfInitialized } from '../../lib/db';
 import { ReferenceIndexNotice } from './ReferenceIndexNotice';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('ReferencesPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -537,7 +538,7 @@ export function ReferencesPanel({
               onClick={() => setShowLinkPicker((v) => !v)}
               className="refs-section__action"
             >
-              {showLinkPicker ? t('common.cancel') : t('referencesPanel.actions.add')}
+              {showLinkPicker ? t('common.cancel') : <><BrushIcon name="plus" size={10} inline /> {t('referencesPanel.actions.add')}</>}
             </button>
           </div>
 
@@ -581,7 +582,7 @@ export function ReferencesPanel({
                     {pendingReversed
                       ? t('relationTypes.pendingIncoming')
                       : t('relationTypes.pendingOutgoing')}{' '}
-                    · ⇄
+                    · <BrushIcon name="swap" size={10} inline />
                   </button>
                   <RelationTypeField
                     value={pendingTypeId}
@@ -637,7 +638,7 @@ export function ReferencesPanel({
                     <span className="refs-card__kind-dot" />
                     {labelForKind(rel.otherKind)}
                     <span className="refs-rel-card__dir">
-                      {rel.direction === 'outgoing' ? '→' : '←'}
+                      <BrushIcon name={rel.direction === 'outgoing' ? 'arrow-forward' : 'arrow-back'} size={9} inline />
                     </span>
                   </span>
                   <button
@@ -646,7 +647,7 @@ export function ReferencesPanel({
                     className="refs-rel-card__remove"
                     aria-label={t('referencesPanel.actions.remove')}
                   >
-                    ×
+                    <BrushIcon name="close" size={9} inline />
                   </button>
                 </div>
                 <button
@@ -680,7 +681,7 @@ export function ReferencesPanel({
                       title={t('relationTypes.swap')}
                       onClick={() => void handleUpdateType(rel, rel.relationTypeId, true)}
                     >
-                      ⇄
+                      <BrushIcon name="swap" size={11} inline />
                     </button>
                   )}
                 </div>
@@ -691,7 +692,7 @@ export function ReferencesPanel({
               onClick={() => setShowLinkPicker(true)}
               className="refs-rel-card refs-rel-card--add"
             >
-              {t('referencesPanel.actions.linkEntity')}
+              <BrushIcon name="plus" size={10} inline /> {t('referencesPanel.actions.linkEntity')}
             </button>
           </div>
         </section>
@@ -727,7 +728,7 @@ export function ReferencesPanel({
                       spans: g.spanCount,
                     })}
                   </span>
-                  <span className="refs-card__arrow">↗</span>
+                  <span className="refs-card__arrow"><BrushIcon name="arrow-out" size={11} /></span>
                 </div>
               ))}
             </div>
@@ -762,7 +763,7 @@ export function ReferencesPanel({
                   <span className="refs-card__meta">
                     {t('referencesPanel.meta.spans', { count: g.spanCount })}
                   </span>
-                  <span className="refs-card__arrow">↗</span>
+                  <span className="refs-card__arrow"><BrushIcon name="arrow-out" size={11} /></span>
                 </div>
               ))}
             </div>

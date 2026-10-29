@@ -10,6 +10,7 @@ import { eventBus } from '../../lib/events';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { PatchEditorCard } from './PatchEditorCard';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('PatchesSection');
 log.setLevel(loglevel.levels.ERROR);
@@ -85,7 +86,7 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
         <span className="refs-section__title">{t('elementEditor.sections.patches')}</span>
         <span className="refs-section__count">{patches.length}</span>
         <button type="button" onClick={handleAddFloating} className="refs-section__action">
-          {t('patchesSection.add')}
+          <BrushIcon name="plus" size={10} inline /> {t('patchesSection.add')}
         </button>
       </div>
       {patches.length === 0 ? (

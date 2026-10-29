@@ -247,8 +247,7 @@
   opacity: 0.52;
 }
 .agt-menu__caret {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  margin-inline-start: 4px;
   color: hsl(var(--ink-4));
 }
 .agt-menu__divider {
@@ -301,7 +300,6 @@
   font-weight: 500;
 }
 .agt-menu__check {
-  font-size: 9px;
   flex-shrink: 0;
 }
 
@@ -772,6 +770,7 @@
   appearance: none;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   min-height: 20px;
   padding: 2px 4px;
   border: 0;

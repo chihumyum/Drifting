@@ -121,7 +121,7 @@
 
 /* ---------------- Unplaced popover (narrative view, head-right) ----------
    Replaces the old vertical-stack drawer that took half the timeline's
-   height with a compact "未放置 N ▾" button that opens a popover panel
+   height with a compact "未放置 N" button and a chevron that opens a popover panel
    anchored to the head bar. Chips inside the popover are draggable just
    like before — the drag handlers don't care where the chip came from. */
 .btl__unplaced {
@@ -163,7 +163,6 @@
   text-align: center;
 }
 .btl__unplaced-arrow {
-  font-size: var(--ui-font-caption, 8px);
   margin-left: 1px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
@@ -565,13 +564,17 @@
   color: hsl(var(--ink-1));
   cursor: pointer;
 }
-/* ⚓ marks the marker as bound to a drift node — same glyph the act rail uses
-   for its bound drift, so the two read as one concept. */
+/* The drift's own sand eddy marks the marker as bound to a drift node — the
+   same mark the act rail shows for its bound drift, so the two read as one. */
 .btl-pin.is-bound .btl-pin__label::before {
-  content: '⚓';
+  content: '';
+  display: inline-block;
+  width: 11px;
+  height: 8px;
   margin-right: 4px;
-  font-size: 9px;
-  color: hsl(var(--accent));
+  background: hsl(var(--accent));
+  -webkit-mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
+  mask: url('../assets/design/sand/mark-spiral.png') center / 100% 100% no-repeat;
 }
 .btl-pin.is-bound .btl-pin__label:hover {
   background: hsl(var(--accent) / 0.12);

@@ -229,14 +229,11 @@
   outline-offset: -1px;
 }
 .set-rail__glyph {
+  display: flex;
+  justify-content: center;
   width: 16px;
-  text-align: center;
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 13px;
   color: hsl(var(--ink-4));
   flex-shrink: 0;
-  line-height: 1;
 }
 .set-rail__item--active .set-rail__glyph {
   color: hsl(var(--accent));

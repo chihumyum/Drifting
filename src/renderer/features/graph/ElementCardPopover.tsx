@@ -15,6 +15,7 @@ import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { EditorDocumentLoadError } from '../../components/editor/EditorDocumentLoadError';
 import loglevel from 'loglevel';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+import { KindMark } from '../../components/ui/KindMark';
 
 const log = loglevel.getLogger('ElementCardPopover');
 log.setLevel(loglevel.levels.WARN);
@@ -214,18 +215,7 @@ export function ElementCardPopover({
             flexShrink: 0,
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontStyle: 'italic',
-              color: accentColor,
-              fontSize: 12,
-              lineHeight: 1,
-            }}
-          >
-            ◆
-          </span>
+          <KindMark kind="element" color={accentColor} />
           <input
             type="text"
             value={nameDraft}
@@ -318,7 +308,7 @@ export function ElementCardPopover({
                 title={t('nodeCardPopover.expandTitle')}
                 style={popoverBtnStyle}
               >
-                {t('nodeCardPopover.expand')} ↗
+                {t('nodeCardPopover.expand')} <BrushIcon name="arrow-out" size={10} inline />
               </button>
               <div style={{ flex: 1 }} />
               <button
@@ -327,7 +317,7 @@ export function ElementCardPopover({
                 title={t('nodeCardPopover.openFullTitle')}
                 style={{ ...popoverBtnStyle, ...popoverPrimaryBtnStyle }}
               >
-                {t('nodeCardPopover.openInEditor')} →
+                {t('nodeCardPopover.openInEditor')} <BrushIcon name="arrow-forward" size={10} inline />
               </button>
             </div>
           </>
@@ -396,7 +386,7 @@ export function ElementCardPopover({
                 title={t('nodeCardPopover.collapseTitle')}
                 style={popoverBtnStyle}
               >
-                ↙ {t('nodeCardPopover.collapse')}
+                <BrushIcon name="arrow-in" size={10} inline /> {t('nodeCardPopover.collapse')}
               </button>
               <span
                 style={{
@@ -417,7 +407,7 @@ export function ElementCardPopover({
                 title={t('nodeCardPopover.openFullTitle')}
                 style={{ ...popoverBtnStyle, ...popoverPrimaryBtnStyle }}
               >
-                {t('nodeCardPopover.fullEditor')} →
+                {t('nodeCardPopover.fullEditor')} <BrushIcon name="arrow-forward" size={10} inline />
               </button>
             </div>
           </>

@@ -23,6 +23,7 @@ import { canUseHostedService } from '../lib/config';
 import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 import { BrushIcon } from '../components/ui/BrushIcon';
+import { KindMark } from '../components/ui/KindMark';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -64,7 +65,7 @@ function hashToColor(id: string): string {
 
 function glyphFor(name: string): string {
   const trimmed = (name || '').trim();
-  if (!trimmed) return '◇';
+  if (!trimmed) return '';
   // Match first letter / CJK char with Unicode aware regex
   const m = trimmed.match(/[\p{L}\p{N}]/u);
   return (m ? m[0] : trimmed[0]).toUpperCase();
@@ -721,7 +722,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
       style={{ ['--pp-c' as string]: `var(${colorToken})` }}
     >
       <div className="pp-card__cover" aria-hidden="true">
-        <span className="pp-card__cover-glyph">{glyph}</span>
+        <span className="pp-card__cover-glyph">{glyph || <KindMark kind="all" />}</span>
         <span className="pp-card__cover-label">{categoryLabel}</span>
       </div>
       <div className="pp-card__body">
@@ -808,7 +809,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
       className="pp-list__row"
       style={{ ['--pp-c' as string]: `var(${colorToken})` }}
     >
-      <span className="pp-list__glyph">{glyph}</span>
+      <span className="pp-list__glyph">{glyph || <KindMark kind="all" />}</span>
       <div className="pp-list__title">
         <span className="pp-list__title-main">
           <em>《</em>

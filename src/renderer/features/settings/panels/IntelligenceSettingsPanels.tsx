@@ -24,6 +24,7 @@ import {
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
+import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 function ProviderRow({
   credentialsActive,
@@ -200,12 +201,12 @@ function ProviderRow({
             </button>
             {testState === 'ok' && (
               <span className="set-mono" style={{ color: '#2e7d52' }}>
-                {t('settings.byokProvider.available')}
+                <BrushIcon name="check" size={11} inline /> {t('settings.byokProvider.available')}
               </span>
             )}
             {testState === 'fail' && (
               <span className="set-mono" style={{ color: '#c0392b' }}>
-                ✗ {testMsg}
+                <BrushIcon name="status-stopped" size={11} inline /> {testMsg}
               </span>
             )}
             <button
@@ -413,12 +414,12 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
             </button>
             {startError && (
               <span className="set-mono" style={{ color: '#c0392b' }}>
-                ✗ {startError}
+                <BrushIcon name="status-stopped" size={11} inline /> {startError}
               </span>
             )}
             {failureKey && (
               <span className="set-mono" style={{ color: '#c0392b' }}>
-                ✗ {t(`settings.codexSubscription.failure.${failureKey}`)}
+                <BrushIcon name="status-stopped" size={11} inline /> {t(`settings.codexSubscription.failure.${failureKey}`)}
               </span>
             )}
             {login?.phase === 'cancelled' && (

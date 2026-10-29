@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { EntityRelationType } from '../../domain/entity-relation-type';
 import type { EntityRelationLink } from '../../store/data-store';
 import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
+import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
 import { computeAnchoredPopoverPosition } from '../ui/anchored-popover-position';
 import '../../../styles/relation-edge-popover.css';
@@ -63,7 +64,7 @@ export function RelationEdgePopover({
 
   const orientation = relationType.orientation;
   const presentation = presentRelationType(relationType);
-  const flowGlyph = orientation === 'symmetric' ? '↔' : '→';
+  const flowIcon = orientation === 'symmetric' ? 'both-ways' : 'arrow-forward';
 
   return createPortal(
     <div
@@ -94,7 +95,7 @@ export function RelationEdgePopover({
           <strong>{sourceLabel}</strong>
           <small>{t(`relationTypes.entityKinds.${relation.fromKind}`)}</small>
         </div>
-        <b aria-hidden>{flowGlyph}</b>
+        <b aria-hidden><BrushIcon name={flowIcon} size={15} /></b>
         <div>
           <span>{presentation.targetRole}</span>
           <strong>{targetLabel}</strong>

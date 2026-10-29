@@ -17,6 +17,8 @@ import {
   type HoverAction,
   type HoverActionGroup,
 } from '../ui/HoverCard';
+import { BrushIcon } from '../ui/BrushIcon';
+import { KindMark } from '../ui/KindMark';
 import '../../../styles/act-rail.css';
 
 // ActRail — the 幕 strip that replaced FullBookLane in book mode.
@@ -253,7 +255,7 @@ export function ActRail({
               onAddAct();
             }}
           >
-            +
+            <BrushIcon name="plus" size={10} inline />
           </button>
         )}
       </div>
@@ -450,7 +452,7 @@ export function ActRail({
           // The chip's accessible name; the pointer gets its hover card.
           const chipTitle = `${seg.act.name} · ${t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}${
             seg.act.driftNodeId
-              ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
+              ? `\n${driftTitleById?.(seg.act.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
               : ''
           }`;
           // Every act chip owns a movable boundary. A head-anchored first act
@@ -549,7 +551,7 @@ export function ActRail({
                       onClick={(e) => {
                         // Drag still arms via the chip's onPointerDown (the
                         // 4px threshold keeps this a plain click → open drift;
-                        // a drag from the ⚓ moves the act instead).
+                        // a drag from the drift mark moves the act instead).
                         e.stopPropagation();
                         if (suppressTouchClickRef.current) {
                           suppressTouchClickRef.current = false;
@@ -565,7 +567,7 @@ export function ActRail({
                         });
                       }}
                     >
-                      ⚓
+                      <KindMark kind="drift" color="hsl(var(--accent))" />
                     </button>
                   )}
                   <span className="actrail__name">{seg.act.name}</span>
@@ -623,7 +625,7 @@ export function ActRail({
             title={cardAct.name}
             detail={
               cardAct.driftNodeId
-                ? `⚓ ${driftTitleById?.(cardAct.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
+                ? <><KindMark kind="drift" color="hsl(var(--accent))" /> {driftTitleById?.(cardAct.driftNodeId) ?? t('bottomTimeline.act.actNote')}</>
                 : undefined
             }
           />

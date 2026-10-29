@@ -223,10 +223,10 @@
       "manage_payment_desc": "Open the secure Stripe portal.",
       "open_portal": "Open portal",
       "plans": {
-        "free_label": "Ferry (free)",
+        "free_label": "Free",
         "pro_label": "Drifting Pro",
         "studio_label": "Studio",
-        "free_name": "Ferry",
+        "free_name": "Free",
         "free_feature_1": "1 project · 50,000 words",
         "free_feature_2": "Basic task automation · 50/month",
         "free_feature_4": "No BYOK",
@@ -636,9 +636,9 @@
       "notConnected": "Not connected",
       "keyPlaceholder": "Paste key...",
       "testing": "Testing…",
-      "available": "✓ Available",
+      "available": "Available",
       "editKey": "Edit key",
-      "currentByok": "✓ Current BYOK",
+      "currentByok": "Current BYOK",
       "setCurrent": "Set current",
       "invalidKey": "Invalid key",
       "requestFailed": "Request failed (provider unavailable or network issue)"
@@ -670,8 +670,8 @@
       "hostedSignedOut": "Signed out",
       "hostedReadyDesc": "Signed in to Drifting; hosted Agent quota is available.",
       "hostedSignedOutDesc": "Hosted Agent requires signing in to a Drifting account in Account.",
-      "hostedAvailable": "● Available",
-      "hostedUnavailable": "○ Not ready",
+      "hostedAvailable": "Available",
+      "hostedUnavailable": "Not ready",
       "pasteApiKey": "Paste the selected provider API key:",
       "filled": "Filled",
       "notFilled": "Not filled",
@@ -1185,7 +1185,7 @@
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
   },
   "relationPicker": {
-    "addRelation": "+ Link",
+    "addRelation": "Link",
     "collapse": "Collapse",
     "searchPlaceholder": "Search chapters / elements / storylines…",
     "jumpTo": "Jump to {{label}}",
@@ -1265,7 +1265,7 @@
     "templateValuePlaceholder": "Default / hint · value",
     "empty": "- No KV fields yet -",
     "templateEmpty": "- No template fields defined yet. New child items will not auto-fill any KV rows -",
-    "addField": "+ Add field",
+    "addField": "Add field",
     "removeRow": "Remove row"
   },
   "patchCreateModal": {
@@ -1750,7 +1750,7 @@
       "generating": "Generating preview…",
       "open": "Open",
       "expandFullscreenTitle": "Expand fullscreen (Stage 2)",
-      "fullscreen": "Fullscreen ↗",
+      "fullscreen": "Fullscreen",
       "closeEsc": "Close (Esc)",
       "noImage": "Cannot preview image",
       "noPdf": "Cannot preview PDF",
@@ -1793,7 +1793,7 @@
       "clearEntityFilter": "Clear relation filter",
       "entityFilterHint": "Choose an entity to show only linked memos / materials",
       "todoEmptyHint": "Click + to create a TODO, or promote one from an editor comment card",
-      "newMaterialButton": "+ New material",
+      "newMaterialButton": "New material",
       "noMaterials": "No materials in this project yet.",
       "noFilteredMaterials": "No materials match the current filters.",
       "collapseDrawer": "Collapse drawer",
@@ -1981,7 +1981,7 @@
       "createTitle": "Create",
       "createTitleEm": "a book",
       "nameLabel": "Title",
-      "namePlaceholder": "e.g. River Crossing",
+      "namePlaceholder": "e.g. The North Cape Light",
       "summaryLabel": "Summary",
       "summaryPlaceholder": "Describe the book in one or two sentences.",
       "createSubmit": "Create"
@@ -2664,7 +2664,7 @@
     "relationKind": {
       "placeholder": "Relation type…",
       "editTitle": "Edit relation type",
-      "empty": "+ Relation type"
+      "empty": "Relation type"
     },
     "deleted": {
       "element": "(deleted element)",
@@ -2685,10 +2685,10 @@
       "outgoing": "References"
     },
     "actions": {
-      "add": "+ Add",
+      "add": "Add",
       "remove": "Remove relation",
       "jump": "Jump to this entity",
-      "linkEntity": "+ Link entity"
+      "linkEntity": "Link entity"
     },
     "filters": {
       "all": "All"
@@ -2905,7 +2905,7 @@
     }
   },
   "patchesSection": {
-    "add": "+ New",
+    "add": "New",
     "empty": "- No patches yet. Select text in a chapter and choose \"New patch\" on the bar above it to anchor one to this element -"
   },
   "edgeKindManager": {
@@ -3011,7 +3011,7 @@
       "chapter": "Chapter"
     },
     "manualRelationTitle": "New manual relation",
-    "relationVerb": "↓ References",
+    "relationVerb": "References",
     "unnamedCategory": "Untitled category",
     "uncategorized": "Uncategorized",
     "startEdgeFromElement": "Create relation from this element",
@@ -3241,19 +3241,19 @@
     },
     "alias": {
       "remove": "Remove alias",
-      "addFirst": "+ Add alias",
-      "add": "+ Alias"
+      "addFirst": "Add alias",
+      "add": "Alias"
     },
     "group": {
       "title": "Group · {{category}}",
       "placeholder": "Search or create a group… (blank = no group)",
       "noGroup": "(No group)",
       "empty": "This category has no groups yet.",
-      "create": "+ Create group \"{{name}}\""
+      "create": "Create group \"{{name}}\""
     },
     "category": {
       "change": "Change Category",
-      "newOption": "+ New Category",
+      "newOption": "New category…",
       "newTitle": "New Category",
       "namePlaceholder": "Category name…",
       "create": "Create"

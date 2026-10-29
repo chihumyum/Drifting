@@ -30,6 +30,7 @@ import { useBookNode } from '../../usecase/useBookNode';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
+import { BrushIcon } from '../ui/BrushIcon';
 
 const log = loglevel.getLogger('ChapterPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -456,7 +457,7 @@ export function ChapterPanel({
                   onClick={() => void handleCreateNode(null)}
                   aria-label={t('leftSidebar.actions.newChapter')}
                 >
-                  <span aria-hidden="true">＋</span>
+                  <BrushIcon name="plus" size={12} inline />
                   {t('leftSidebar.actions.newChapter')}
                 </button>
               </div>

@@ -111,7 +111,7 @@ export function TodoCard({
             padding: '0 2px',
           }}
         >
-          ×
+          <BrushIcon name="close" size={10} inline />
         </button>
       </div>
 
@@ -169,7 +169,7 @@ export function TodoCard({
               cursor: 'pointer',
             }}
           >
-            ＋ {t('memoMaterial.menu.relation')}
+            <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.menu.relation')}
           </button>
           {statusToggle}
         </div>
