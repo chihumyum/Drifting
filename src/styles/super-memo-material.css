@@ -1,0 +1,369 @@
+/* ============================================================
+   TODO 与素材库 (DesktopSuperMemoMaterialView), desktop only.
+
+   One plane: the TODO rail and the library sit on the same paper, split
+   by one hairline; the drawer of unsorted materials and resolved TODOs
+   docks underneath as a strip of the desk colour, like the Bottom Panel,
+   and its top edge bleeds glass while it opens, closes or is dragged
+   (lib/glass-flow.ts). Both column heads are one panel header high, so
+   the rail and the library start on one line; their labels are index
+   type, never upper-cased or spaced out. Space separates the groups in
+   the library's head — no divider bars, no rules under the groups.
+
+   Every class here is set only by the desktop branch of the view; the
+   paused mobile shell keeps its inline look and the hooks it has in
+   mobile-workspace.css.
+   ============================================================ */
+
+/* ── Index type: labels, group heads and their counts ─────────────── */
+.smm-index {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.smm-index-count {
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Header: the search is a single-line field of glass ───────────── */
+.smm-search {
+  width: 220px;
+}
+
+/* ── Column heads ─────────────────────────────────────────────────── */
+.smm-column-head {
+  /* The panel header's height (ui-controls.css .workspace-panel-header-row:
+     the base control plus 4px, a quarter roomier), 40px at the standard
+     size. Rail and library share it so their heads end on one line. */
+  --smm-head-height: calc((var(--ui-control-height, 28px) + 4px) * 1.25);
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  height: var(--smm-head-height);
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.smm-column-head__action {
+  margin-left: auto;
+}
+
+.smm-column-head__spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.smm-library-toolbar__kinds {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline: 10px;
+}
+
+.smm-library-toolbar__create {
+  flex: none;
+}
+
+/* The entity filter: a word toggle that stays on while it holds an entity
+   (the floating fill and the still selected glass, like an open one). */
+.smm-entity-toggle {
+  max-width: 220px;
+}
+
+.smm-entity-toggle.is-on {
+  background: var(--glass-fill);
+  color: hsl(var(--ink-1));
+}
+
+.smm-entity-toggle > .kind-mark {
+  margin-inline: -2px -1px;
+}
+
+.smm-entity-toggle__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smm-entity-clear {
+  margin-left: -6px;
+}
+
+/* ── TODO rail ────────────────────────────────────────────────────── */
+.smm-rail {
+  display: flex;
+  flex: 0 0 280px;
+  flex-direction: column;
+  width: 280px;
+  min-height: 0;
+  border-right: 0.5px solid var(--workspace-local-border);
+}
+
+.smm-rail__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 8px 10px 12px;
+  overflow-y: auto;
+}
+
+/* ── Library ──────────────────────────────────────────────────────── */
+.smm-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.smm-main__scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 16px 18px;
+  overflow-y: auto;
+}
+
+.smm-kind-group {
+  margin-bottom: 18px;
+}
+
+.smm-kind-group__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.smm-kind-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+/* ── Drawer: a desk-coloured strip docked under the plane ─────────── */
+.smm-drawer {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  box-sizing: border-box;
+  border-top: 1px solid var(--workspace-local-border);
+  background: var(--workspace-ui-bg);
+  transition: height var(--motion-structural) var(--motion-structural-ease);
+}
+
+.smm-drawer.is-dragging {
+  transition: none;
+}
+
+/* Over the top line: glass while the drawer moves, nothing at rest. */
+.smm-drawer__flow {
+  top: -1px;
+}
+
+.smm-drawer__resize {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  height: 5px;
+  user-select: none;
+}
+
+.smm-drawer__resize.is-active {
+  cursor: ns-resize;
+}
+
+.smm-drawer__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  /* The collapsed drawer is 28px with its 1px top line. */
+  height: 27px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.12s ease-out;
+}
+
+.smm-drawer__bar:hover,
+.smm-drawer__bar:focus-visible {
+  color: hsl(var(--ink-1));
+  outline: none;
+}
+
+.smm-drawer__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Down while open (push it down to close), up while closed; it turns with
+   the drawer's own structural movement. */
+.smm-drawer__chevron {
+  transition: transform var(--motion-structural) var(--motion-structural-ease);
+}
+
+.smm-drawer__chevron.is-collapsed {
+  transform: rotate(180deg);
+}
+
+.smm-drawer__cols {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.smm-drawer__col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.smm-drawer__col + .smm-drawer__col {
+  border-left: 0.5px solid var(--workspace-local-border);
+}
+
+.smm-drawer__subhead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+}
+
+.smm-drawer__orphans {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+  align-content: start;
+  min-height: 0;
+  padding: 8px 12px 12px;
+  overflow-y: auto;
+}
+
+.smm-drawer__empty {
+  grid-column: 1 / -1;
+}
+
+.smm-drawer__resolved {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 4px 12px 12px;
+  overflow-y: auto;
+}
+
+/* A resolved TODO: the whole row faded, no wash; the done toggle is the
+   TODO card's glass check, 「重开」 a text button, delete the flat basket. */
+.smm-resolved-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 4px;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: 1.3;
+  opacity: 0.6;
+  transition: opacity 0.12s ease-out;
+}
+
+.smm-resolved-row:hover,
+.smm-resolved-row:focus-within {
+  opacity: 0.9;
+}
+
+.smm-resolved-row__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-decoration: line-through;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Entity filter menu (portalled to body) ───────────────────────── */
+.entity-filter-popover--menu {
+  z-index: var(--z-popover);
+  padding-bottom: 6px;
+}
+
+.entity-filter-popover__search {
+  padding: 8px 10px 6px;
+}
+
+.entity-filter-popover__item {
+  gap: 8px;
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+.entity-filter-popover__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-filter-popover__count {
+  flex: none;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.entity-filter-popover__check {
+  flex: none;
+  color: hsl(var(--ink-2));
+}
+
+.entity-filter-popover__section {
+  padding: 8px 14px 2px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+  line-height: 1.3;
+}
+
+.entity-filter-popover__empty {
+  padding: 10px 14px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smm-drawer,
+  .smm-drawer__chevron {
+    transition: none;
+  }
+}

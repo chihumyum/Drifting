@@ -43,7 +43,7 @@ export async function runStoryGraphUnplacedScenarios() {
       state.commitWorkspaceProjection(projectId, epoch, fixture); localStorage.setItem('graph-view-mode', 'narrative');
       const navigator = { projectId, open() {}, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} };
       const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
-      const chips = () => [...document.querySelectorAll<HTMLElement>('.graph-head__unplaced-chip')];
+      const chips = () => [...document.querySelectorAll<HTMLElement>('.graph-head__unplaced-chip, .graph-head__unplaced-row')];
       const popover = () => document.querySelector<HTMLElement>('.graph-head__unplaced-popover');
       try {
         resetWork();
@@ -54,7 +54,7 @@ export async function runStoryGraphUnplacedScenarios() {
         </WorkspaceNavigationProvider></MemoryRouter>));
         await pause(700); const initialWork = work();
         const tile = host.querySelector<HTMLElement>('.graph-tile')!;
-        const toggle = host.querySelector<HTMLButtonElement>('.graph-head__unplaced-btn')!;
+        const toggle = host.querySelector<HTMLButtonElement>('.graph-head__unplaced > button')!;
         if (!tile || !toggle || popover()) throw new Error('Unplaced chapter fixture did not mount.');
         const popupCycles = () => {
           let opened = 0;

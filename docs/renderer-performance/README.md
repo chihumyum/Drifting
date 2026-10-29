@@ -17,6 +17,12 @@ for each bound image and PDF: on the heavy seed a keystroke's save transaction
 drops from 211 to 36 statements. Typing CPU is dominated by the Markdown
 projection, not by these reads.
 
+The 2026-10-29 [Markdown projection](markdown-projection-idle-incremental.md)
+change waits for the author to pause (2 s, at most 30 s) and keeps hydrated
+prose per Yjs revision while a project is open, so a capture reads only changed
+documents. On the heavy seed continuous typing triggers no projection and native
+CPU drops from 67–89% to about 20%.
+
 The 2026-10-17 [IME text lookup](ime-text-lookup.md) fix ends each desktop editor
 surface with a zero-width caret candidate. Before the fix, the macOS input
 method's text lookups near a chapter's end walked one character at a time through

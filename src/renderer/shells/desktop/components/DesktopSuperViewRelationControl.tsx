@@ -14,6 +14,7 @@ import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
 import { RelationKindMenu } from '../../../components/ui/RelationKindMenu';
 import { defaultRelationTypeColor } from '../../../components/ui/relation-type-color';
+import { getPlatformRuntime } from '../../../platform/runtime';
 
 export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewRelationCanvas }) {
   const { t } = useTranslation();
@@ -29,6 +30,9 @@ export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewR
   const relationTypeUsecases = useEntityRelationTypes({ projectId: projectId ?? '' });
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  // Desktop draws the relation types as chips and 全部 as a word toggle;
+  // the paused mobile shell keeps the paper chips and the bordered trigger.
+  const mobileShell = getPlatformRuntime().isMobileShell;
 
   const driftNodeIds = useMemo(
     () => new Set(bookNodes.filter(isDrift).map((node) => node.id)),
@@ -71,16 +75,13 @@ export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewR
           return (
             <FilterChip
               key={relationTypeId}
+              look="glass"
               size="sm"
               activeStyle="solid"
               active={active}
               markerColor={resolveRelationTypeColor(relationTypeId)}
-              dimmed={!active}
-              className={
-                driftPanelOpen && model.driftDerivedRelationTypeIds.has(relationTypeId)
-                  ? 'filter-chip--drift-edge'
-                  : ''
-              }
+              dimmed={mobileShell && !active}
+              drift={driftPanelOpen && model.driftDerivedRelationTypeIds.has(relationTypeId)}
               onClick={() => toggleRelationTypeId(relationTypeId)}
               title={
                 active
@@ -100,14 +101,20 @@ export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewR
         <button
           ref={buttonRef}
           type="button"
-          className={`relation-kind-menu-trigger${open ? ' is-open' : ''}`}
+          className={
+            mobileShell
+              ? `relation-kind-menu-trigger${open ? ' is-open' : ''}`
+              : 'ui-word-toggle glass glass--rest glass--small'
+          }
           onClick={() => setOpen((current) => !current)}
           title={t('edgeKindManager.openAllTitle')}
           aria-haspopup="menu"
           aria-expanded={open}
         >
           <span>{t('edgeKindManager.all')}</span>
-          <span className="relation-kind-menu-trigger__count">{entityRelationTypes.length}</span>
+          <span className={mobileShell ? 'relation-kind-menu-trigger__count' : 'ui-word-toggle__count'}>
+            {entityRelationTypes.length}
+          </span>
         </button>
         <RelationKindMenu
           open={open}

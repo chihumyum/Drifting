@@ -181,7 +181,7 @@ try {
       gates.story = 'hold'; await evaluate('document.querySelector("[role=alert] button").click()');
       for (let n = 0; n < 200 && !held.length; n++) await delay(25);
       assert(held.length); const storyRetry = requests.filter(r => r.kind === 'story' && r.url.includes('graph-attempt=')).length === 2;
-      await evaluate('window.__GRAPHS_UI__.edit(); document.querySelector(".super-view-head__switcher-option").click()');
+      await evaluate('window.__GRAPHS_UI__.edit(); document.querySelector(".super-view-head__switcher-option, .super-view-head__views button").click()');
       await until('window.__GRAPHS_UI__.observations.active === "element" && Boolean(document.querySelector("[role=alert]"))');
       const switchWhileLoading = !await evaluate('Boolean(document.querySelector(".graph-overlay"))');
       writeFileSync(path.join(root, `.local-data/renderer-performance/f7c-${mobile ? 'mobile' : 'desktop'}-error.png`), Buffer.from((await client.Page.captureScreenshot({ format: 'png' })).data, 'base64'));
@@ -204,7 +204,7 @@ try {
       await until('performance.getEntriesByType("resource").some(e => e.name.includes("story-graph-") && e.transferSize > 0)');
       const lateResultIgnored = await evaluate('window.__GRAPHS_UI__.observations.active === "element" && !document.querySelector(".graph-overlay")');
       await evaluate('window.__statusMounts = 0; window.__observer = new MutationObserver(records => { for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1 && (n.matches("[role=status]") || n.querySelector("[role=status]"))) window.__statusMounts++; }); window.__observer.observe(document.getElementById("root"), { childList: true, subtree: true });');
-      await evaluate('document.querySelectorAll(".super-view-head__switcher-option")[1].click()');
+      await evaluate('document.querySelectorAll(".super-view-head__switcher-option, .super-view-head__views button")[1].click()');
       await until('Boolean(document.querySelector(".graph-overlay .graph-tile"))', 'actual story graph');
       const graphRendered = await evaluate('document.querySelectorAll(".graph-tile").length === 11');
       const projectIsolated = await evaluate('document.querySelector(".graph-overlay").textContent.includes("synthetic-b chapter") && !document.querySelector(".graph-overlay").textContent.includes("synthetic-a chapter")');

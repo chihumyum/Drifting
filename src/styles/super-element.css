@@ -1,0 +1,325 @@
+/* Super Element (要素全景) on the desktop: 砂笔 + 素玻璃
+ * (docs/design-system/components.md, materials.md).
+ *
+ * Every class here is rendered only by the desktop presentation
+ * (DesktopSuperElementView passes `desktop` to the band and the boxes); the
+ * paused mobile shell renders the same components with its own inline look.
+ *
+ * - The chapter band is a small Bottom Timeline: a desk-coloured name rail,
+ *   page-white lanes with a hairline of desk between them, and each chapter
+ *   a glass slab on the page colour with its storyline's rim.
+ * - A category is a dry sand frame of its colour (nine-sliced, as in the
+ *   element panel's compact index), its corner mark and name set into the
+ *   top edge.
+ * - An element is a sand cell: mark and name, no border, no fill. Under the
+ *   pointer a flowing ring of the category's colour; a neighbour of the
+ *   focused card holds a still ring; the source of a new relation holds the
+ *   pressed ring; the card whose popover is open is drawn round (SandFrame).
+ */
+
+/* ── Chapter band ─────────────────────────────────────────────────── */
+.se-band {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--page));
+}
+
+.se-band--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 12px/1.4 var(--font-sans);
+}
+
+.se-band__lane {
+  position: absolute;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* A sub-pixel desk-tone rule between adjacent page-white lanes, as on the
+   timeline (bottom-timeline.css `.btl-row + .btl-row .btl-track::before`). */
+.se-band__lane + .se-band__lane::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0.5px;
+  background: var(--workspace-ui-bg);
+}
+
+.se-band__transits {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.se-band__rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  background: var(--workspace-ui-bg);
+}
+
+/* A storyline's name is a sidebar cell inset in the rail: its sand dash,
+   structure type, a ring of its colour under the pointer. */
+html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
+  position: absolute;
+  box-sizing: border-box;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  min-width: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font: 400 13px/1 var(--font-structure);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.se-band__name > .kind-mark {
+  margin-left: -2px;
+}
+
+.se-band__name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-band__name:focus-visible {
+  outline: none;
+}
+
+.se-band__name:focus-visible > .cell-ring {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+/* A chapter: glass on the page colour, its rim in the storyline's colour
+   (`--glass-cc`, inline). Resting line at rest, flowing under the pointer,
+   the held (pressed-strength) rim while it is a new relation's source. */
+.se-band__pill.glass {
+  --glass-edge: 40%;
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: hsl(var(--page));
+  cursor: inherit;
+}
+
+.se-band__pill.is-title-only {
+  justify-content: center;
+}
+
+.se-band__pill.glass.is-held {
+  --glass-g: 1.7;
+  --glass-sp: 1.3;
+}
+
+.se-band__pill.glass.is-held::before {
+  opacity: 1;
+  animation-play-state: paused;
+}
+
+.se-band__pill-title {
+  flex-shrink: 0;
+  overflow: hidden;
+  color: hsl(var(--ink-1));
+  font: 400 12px/1.2 var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.se-band__pill-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: hsl(var(--ink-3));
+  font: 400 10px/1.3 var(--font-sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ── Category box ─────────────────────────────────────────────────── */
+.se-category {
+  position: absolute;
+}
+
+/* The frame is nine-sliced so the dry stroke keeps one weight at any size. */
+.se-category::before {
+  content: '';
+  position: absolute;
+  inset: -4px -5px;
+  background: color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))), #ffffff var(--pigment-lift));
+  -webkit-mask-box-image: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mask-border: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: var(--pigment);
+  pointer-events: none;
+}
+
+/* The name plate cuts the frame's top edge where it sits. */
+.se-category__legend {
+  position: absolute;
+  box-sizing: border-box;
+  top: -11px;
+  left: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  height: 18px;
+  padding: 0 7px;
+  border: 0;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+  font: 400 13px/1 var(--font-structure);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.se-category__legend > .kind-mark {
+  margin-left: -2px;
+}
+
+.se-category__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-category__count {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 12px/1 var(--font-mono);
+}
+
+/* A group inside a category: index type, then a hairline to the edge. */
+.se-category__group {
+  position: absolute;
+  right: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1 var(--font-mono);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.se-category__group > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-category__group::after {
+  content: '';
+  flex: 1;
+  height: 0.5px;
+  background: var(--workspace-local-border);
+}
+
+.se-category__empty {
+  position: absolute;
+  inset: 14px 6px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 12px/1 var(--font-sans);
+  pointer-events: none;
+}
+
+/* ── Element card (sand cell) ─────────────────────────────────────── */
+.se-card.sand-cell {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 7px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.se-card__title {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: hsl(var(--ink-1));
+  font: 400 12px/1.15 var(--font-sans);
+  white-space: nowrap;
+}
+
+.se-card__title > .kind-mark {
+  margin-left: -2px;
+}
+
+.se-card__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-card__summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: hsl(var(--ink-3));
+  font: 400 10px/1.3 var(--font-sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* A neighbour of the focused card: the selected ring, still. */
+.se-card.sand-cell.is-on > .cell-ring {
+  opacity: 1;
+  animation-play-state: paused;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cell-line) 95%, transparent),
+    inset 0 0 6px 1px color-mix(in srgb, var(--cell-line) 40%, transparent);
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-settle) ease-out;
+}
+
+/* The source of a new relation: the pressed ring, denser and still. */
+.se-card.sand-cell.is-held > .cell-ring {
+  opacity: 1;
+  animation-play-state: paused;
+  box-shadow:
+    inset 0 0 0 1.5px var(--cell-line),
+    inset 0 0 10px 2px color-mix(in srgb, var(--cell-line) 55%, transparent);
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-press) ease-out;
+}
+
+/* ── Nothing to show ──────────────────────────────────────────────── */
+.se-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}

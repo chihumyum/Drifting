@@ -437,6 +437,38 @@ describe('automatic read-only Markdown projection', () => {
     await expect(buildReadableMarkdownProjection(corrupt, new Date(NOW), { hydrate: hydrateInline })).rejects.toThrow();
   });
 
+  it('reuses prose hydrated at an unchanged Yjs version and rehydrates only what changed', async () => {
+    const { hydrateInline } = await import('../../lib/agent/prose-hydrate-client');
+    const { buildReadableMarkdownProjection } = await import('./readable-markdown-projection');
+    const { ProseJsonCache } = await import('./relational-markdown.prose');
+    const snapshotDoc = proseDocId('node', SNAPSHOT_NODE_ID);
+    const updateDoc = proseDocId('node', UPDATE_NODE_ID);
+    const options = { hydrate: hydrateInline, proseCache: new ProseJsonCache() };
+    const full = await sourceFixture();
+    full.proseVersions = new Map([[snapshotDoc, '1:a'], [updateDoc, '1:a']]);
+    expect(await buildReadableMarkdownProjection(full, new Date(NOW), options))
+      .toEqual(await buildRelationalMarkdownEntries(await sourceFixture(), true, new Date(NOW)));
+    expect(options.proseCache.versions()).toEqual(full.proseVersions);
+
+    // The update-log chapter changed; the snapshot chapter's bytes are not captured again.
+    const edited = await createYjsProseSeedState(proseJson('Edited Yjs truth'));
+    const incremental = await sourceFixture();
+    incremental.proseByDocId = new Map([[updateDoc, { snapshot: null, updates: [edited] }]]);
+    incremental.proseVersions = new Map([[snapshotDoc, '1:a'], [updateDoc, '2:b']]);
+    const complete = await sourceFixture();
+    complete.proseByDocId.set(updateDoc, { snapshot: null, updates: [edited] });
+    const reused = await buildReadableMarkdownProjection(incremental, new Date(NOW), options);
+    expect(reused).toEqual(await buildRelationalMarkdownEntries(complete, true, new Date(NOW)));
+    expect(projectedDocument(reused, 'node', UPDATE_NODE_ID).text).toMatch(/^Edited Yjs truth$/mu);
+    expect(options.proseCache.versions()).toEqual(incremental.proseVersions);
+
+    // A version the cache does not hold is never replaced by fallback or older prose.
+    const stale = await sourceFixture();
+    stale.proseByDocId = new Map();
+    stale.proseVersions = new Map([[snapshotDoc, '3:c'], [updateDoc, '2:b']]);
+    await expect(buildReadableMarkdownProjection(stale, new Date(NOW), options)).rejects.toThrow('was not captured');
+  });
+
   it('merges readable documents and keeps canonical source versions in the manifest mapping', async () => {
     const source = await sourceFixture();
     const before = await buildRelationalMarkdownEntries(source, true);

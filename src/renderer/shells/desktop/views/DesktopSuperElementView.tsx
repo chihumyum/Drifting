@@ -1,10 +1,11 @@
 import { SuperElementDriftCards, type SuperElementDriftCardsProps } from '../../../features/graph/SuperElementDriftCards';
 import {
-  CELL_W, CELL_H, BAND_PILL_PX, BAND_SLOT_PX,
-  GROUP_HEADER_PX, CATEGORY_INNER_PAD_Y_TOP, CATEGORY_INNER_PAD_Y_BOTTOM, CATEGORY_GAP_X,
+  CELL_W, CELL_H, BAND_PILL_PX, BAND_SLOT_PX, BAND_RAIL_PX,
+  GROUP_HEADER_PX, CATEGORY_INNER_PAD_Y_TOP, DESKTOP_CATEGORY_INNER_PAD_Y_TOP,
+  CATEGORY_INNER_PAD_Y_BOTTOM, CATEGORY_GAP_X,
   cardColStep, ZOOM_MIN, ZOOM_MAX, BAND_PAD_CELLS,
   BAND_PAD_PX, BAND_OUTER_PAD_PX, BAND_OUTER_RESERVE_CELLS, STICKY_PAD_CELLS_X,
-  STICKY_PAD_CELLS_Y, EDGE_SELECTED_WIDTH, EDGE_DEFAULT_WIDTH, EDGE_HIT_WIDTH,
+  STICKY_PAD_CELLS_Y, EDGE_HIT_WIDTH, SUPER_ELEMENT_EDGE_WIDTHS,
 } from '../../../features/graph/super-element-metrics';
 import { SuperElementChapterBand, type ChapterBandProps } from '../../../features/graph/SuperElementChapterBand';
 import { SuperElementCategoryBox, type CategoryBoxProps } from '../../../features/graph/SuperElementCategoryBox';
@@ -48,7 +49,8 @@ import {
 } from '../../../domain/entity-relation-type';
 import { RelationTypeEditor } from '../../../components/ui/RelationKindMenu';
 import { defaultRelationTypeColor } from '../../../components/ui/relation-type-color';
-import { ModalActions, ModalCard, ModalHeader, ModalRoot } from '../../../components/ui/Modal';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../../components/ui/Modal';
+import { GhostIconButton } from '../../../components/ui/GhostIconButton';
 import {
   buildSuperElementCategoryModel,
   type SuperElementCategoryModel as CategoryRenderModel,
@@ -63,6 +65,9 @@ import {
 } from '../../../features/graph/super-view-canvas-gesture';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { KindMark } from '../../../components/ui/KindMark';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import '../../../../styles/super-element.css';
 
 // localStorage key for the viewport (pan + zoom) per project. Restoring on
 // re-entry preserves the user's mental map — they don't have to re-pan to
@@ -76,11 +81,12 @@ function buildCategoryRenderModel(
   categoryId: string,
   category: BookElementCategory | null,
   elements: BookElement[],
+  paddingTop: number,
 ): CategoryRenderModel {
   return buildSuperElementCategoryModel(categoryId, category, elements, {
     cellHeight: CELL_H,
     groupHeaderHeight: GROUP_HEADER_PX,
-    paddingTop: CATEGORY_INNER_PAD_Y_TOP,
+    paddingTop,
     paddingBottom: CATEGORY_INNER_PAD_Y_BOTTOM,
   });
 }
@@ -347,12 +353,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     return m;
   }, [bookElements, bookElementCategories]);
 
+  // Desktop sets a taller name plate into the frame's top edge.
+  const categoryPadTop = mobileShell ? CATEGORY_INNER_PAD_Y_TOP : DESKTOP_CATEGORY_INNER_PAD_Y_TOP;
   const categoryModels = useMemo<CategoryRenderModel[]>(() => {
     const known = new Set(bookElementCategories.map((c) => c.id));
     const models: CategoryRenderModel[] = [];
     for (const cat of bookElementCategories) {
       const items = elementsByCategory.get(cat.id) ?? [];
-      models.push(buildCategoryRenderModel(cat.id, cat, items));
+      models.push(buildCategoryRenderModel(cat.id, cat, items, categoryPadTop));
     }
     // Two flavors of "no category":
     //   * `categoryId === null` → the new "未分类" bucket (post-trash refactor)
@@ -367,10 +375,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       orphanBuckets.set(key, list);
     }
     orphanBuckets.forEach((items, cid) => {
-      models.push(buildCategoryRenderModel(cid, null, items));
+      models.push(buildCategoryRenderModel(cid, null, items, categoryPadTop));
     });
     return models;
-  }, [bookElementCategories, bookElements, elementsByCategory]);
+  }, [bookElementCategories, bookElements, elementsByCategory, categoryPadTop]);
 
   // ---- Layout ----
   // Band height in cells: one row per storyline plus BAND_PAD_CELLS of
@@ -389,7 +397,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   // The band's leftmost edge in WORLD pixels. We center the band on world
   // x=0 so the category solver's anchorX=0 corresponds to the band's visual
   // center, giving the iceberg shape the right balance point.
-  const bandPxWidth = bandWidthCells * BAND_SLOT_PX;
+  // Desktop opens the band with the storyline name rail (BAND_RAIL_PX).
+  const bandRailPx = mobileShell ? 0 : BAND_RAIL_PX;
+  const bandPxWidth = bandRailPx + bandWidthCells * BAND_SLOT_PX;
   const bandWorldLeft = -bandPxWidth / 2;
   // Band's visible top in world coords — offset down by BAND_OUTER_PAD_PX
   // so categories above land a half-cell-equivalent above the band's visible
@@ -468,14 +478,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     sortedPlacedNodesAll.forEach((n, idx) => {
       const rowIdx = rowIndex.get(primaryStorylineByNode[n.id] ?? '');
       if (rowIdx === undefined) return;
-      const x = bandWorldLeft + idx * BAND_SLOT_PX + BAND_PILL_PX / 2;
+      const x = bandWorldLeft + bandRailPx + idx * BAND_SLOT_PX + BAND_PILL_PX / 2;
       // Band top in world coords sits at bandTopWorldY (outer pad). Inside
       // the band, storyline rows are offset by BAND_PAD_PX (inner pad).
       const y = bandTopWorldY + BAND_PAD_PX + rowIdx * CELL_H + CELL_H / 2;
       m.set(n.id, { x, y });
     });
     return m;
-  }, [sortedPlacedNodesAll, storylines, bandWorldLeft, bandTopWorldY, primaryStorylineByNode]);
+  }, [sortedPlacedNodesAll, storylines, bandWorldLeft, bandRailPx, bandTopWorldY, primaryStorylineByNode]);
 
   // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
   // Drifts BOUND to a timeline marker OR an act are excluded: they've
@@ -1139,6 +1149,11 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     openEntity({ entityType: 'category', id });
     close();
   }, [openEntity, close]);
+  const handleStorylineClick = useCallback<NonNullable<ChapterBandProps['onStorylineClick']>>(id => {
+    hoverDismiss();
+    openEntity({ entityType: 'storyline', id });
+    close();
+  }, [openEntity, close, hoverDismiss]);
   const handleElementPreviewEnter = useCallback<NonNullable<CategoryBoxProps['onElementPreviewEnter']>>((element, anchor) => {
     if (isPanningRef.current || pinchRef.current) return;
     hoverEnter({ kind: 'element', id: element.id }, anchor);
@@ -1256,6 +1271,31 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const viewportConfig = useMemo(() => ({ bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY,
     cellWidth: CELL_W, cellHeight: CELL_H }), [bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY]);
   const viewportRevision = useMemo(() => ({ pan, zoom }), [pan, zoom]);
+  const edgeWidths = mobileShell ? SUPER_ELEMENT_EDGE_WIDTHS.mobile : SUPER_ELEMENT_EDGE_WIDTHS.desktop;
+
+  // Desktop names an entity by its sand mark + name (the link-mode hint, the
+  // new-relation dialog, the relation popover): an element's square in its
+  // category's colour, a chapter's seal in its storyline's, a drift's eddy.
+  const storylineColorOfNode = useCallback(
+    (id: string) => {
+      const storylineId = primaryStorylineByNode[id];
+      return (storylineId ? findById(storylines, storylineId)?.color : undefined) || undefined;
+    },
+    [primaryStorylineByNode, storylines],
+  );
+  const entityMark = useCallback(
+    (kind: string, id: string): React.ReactNode => {
+      if (kind === 'element') {
+        const categoryId = findById(bookElements, id)?.categoryId;
+        const color = categoryId ? findById(bookElementCategories, categoryId)?.color : undefined;
+        return <KindMark kind="element" color={color} />;
+      }
+      if (kind !== 'node') return undefined;
+      if (driftIds.has(id)) return <KindMark kind="drift" />;
+      return <KindMark kind="chapter" seed={id} color={storylineColorOfNode(id)} />;
+    },
+    [bookElements, bookElementCategories, driftIds, storylineColorOfNode],
+  );
 
   return (
     <SuperViewShell className="super-element-overlay">
@@ -1284,8 +1324,19 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               </button>
             )}
             {/* Linking hint — surfaces when a shift-click is mid-flight, so
-                users know they need to click a second target. */}
-            {linkSource && (
+                users know they need to click a second target. Desktop: one
+                unframed sentence; the source is its sand mark and name. */}
+            {!mobileShell && linkSource && (
+              <span className="super-view-head__hint" role="status">
+                <span>{t('superElement.linkHintFrom')}</span>
+                <span className="super-view-head__hint-source">
+                  {entityMark(linkSource.kind, linkSource.id)}
+                  <span>{relationEndpointLabel(linkSource.kind, linkSource.id)}</span>
+                </span>
+                <span>{t('superElement.linkHintTo')}</span>
+              </span>
+            )}
+            {mobileShell && linkSource && (
               <div
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -1303,37 +1354,73 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               </div>
             )}
 
-            <button
-              className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
-              onClick={() => setEdgesViewportOnly((v) => !v)}
-              title={
-                edgesViewportOnly ? t('superElement.focusOffTitle') : t('superElement.focusOnTitle')
-              }
-              aria-pressed={edgesViewportOnly}
-            >
-              {t('superElement.focusToggle', {
-                state: edgesViewportOnly ? t('superElement.stateOn') : t('superElement.stateOff'),
-              })}
-            </button>
-            <button
-              className={`super-element-toggle${bandSticky ? ' is-on' : ''}`}
-              onClick={() => setBandSticky((v) => !v)}
-              title={
-                bandSticky ? t('superElement.stickyOffTitle') : t('superElement.stickyOnTitle')
-              }
-              aria-pressed={bandSticky}
-            >
-              {t('superElement.stickyToggle', {
-                state: bandSticky ? t('superElement.stateOn') : t('superElement.stateOff'),
-              })}
-            </button>
-            <button
-              className="super-element-reset"
-              onClick={resetView}
-              title={t('superElement.resetTitle')}
-            >
-              {t('superElement.reset')}
-            </button>
+            {mobileShell ? (
+              <>
+                <button
+                  className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
+                  onClick={() => setEdgesViewportOnly((v) => !v)}
+                  title={
+                    edgesViewportOnly ? t('superElement.focusOffTitle') : t('superElement.focusOnTitle')
+                  }
+                  aria-pressed={edgesViewportOnly}
+                >
+                  {t('superElement.focusToggle', {
+                    state: edgesViewportOnly ? t('superElement.stateOn') : t('superElement.stateOff'),
+                  })}
+                </button>
+                <button
+                  className={`super-element-toggle${bandSticky ? ' is-on' : ''}`}
+                  onClick={() => setBandSticky((v) => !v)}
+                  title={
+                    bandSticky ? t('superElement.stickyOffTitle') : t('superElement.stickyOnTitle')
+                  }
+                  aria-pressed={bandSticky}
+                >
+                  {t('superElement.stickyToggle', {
+                    state: bandSticky ? t('superElement.stateOn') : t('superElement.stateOff'),
+                  })}
+                </button>
+                <button
+                  className="super-element-reset"
+                  onClick={resetView}
+                  title={t('superElement.resetTitle')}
+                >
+                  {t('superElement.reset')}
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Two-state words that never change: on or off is the glass. */}
+                <button
+                  type="button"
+                  className="ui-word-toggle glass glass--rest glass--small"
+                  data-super-element-toggle="focus"
+                  onClick={() => setEdgesViewportOnly((v) => !v)}
+                  title={
+                    edgesViewportOnly ? t('superElement.focusOffTitle') : t('superElement.focusOnTitle')
+                  }
+                  aria-pressed={edgesViewportOnly}
+                >
+                  {t('superElement.focus')}
+                </button>
+                <button
+                  type="button"
+                  className="ui-word-toggle glass glass--rest glass--small"
+                  data-super-element-toggle="sticky"
+                  onClick={() => setBandSticky((v) => !v)}
+                  title={
+                    bandSticky ? t('superElement.stickyOffTitle') : t('superElement.stickyOnTitle')
+                  }
+                  aria-pressed={bandSticky}
+                >
+                  {t('superElement.sticky')}
+                </button>
+                <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
+                  <BrushIcon name="rotate" size={13} />
+                  {t('superElement.reset')}
+                </Button>
+              </>
+            )}
           </>
         }
       />
@@ -1398,6 +1485,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 bandHeightCells={bandHeightCells}
                 onNodeClick={handleNodeClick}
                 linkSourceNodeId={linkSource?.kind === 'node' ? linkSource.id : null}
+                desktop={!mobileShell}
+                onStorylineClick={handleStorylineClick}
               />
             </div>
           )}
@@ -1420,6 +1509,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 onElementPreviewEnter={handleElementPreviewEnter}
                 onCategoryPreviewEnter={handleCategoryPreviewEnter}
                 onPreviewLeave={hoverLeave}
+                desktop={!mobileShell}
               />
             );
           })}
@@ -1492,7 +1582,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                     <path
                       d={d}
                       stroke={edge.color}
-                      strokeWidth={selected ? EDGE_SELECTED_WIDTH : EDGE_DEFAULT_WIDTH}
+                      strokeWidth={selected ? edgeWidths.selected : edgeWidths.normal}
                       fill="none"
                       opacity={selected ? 1 : 0.78}
                       markerEnd={edge.directed ? `url(#${markerId})` : undefined}
@@ -1550,12 +1640,19 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               bandHeightCells={bandHeightCells}
               onNodeClick={handleNodeClick}
               linkSourceNodeId={linkSource?.kind === 'node' ? linkSource.id : null}
+              desktop={!mobileShell}
+              onStorylineClick={handleStorylineClick}
             />
           </div>
         )}
 
         {/* Empty-state hint when there's literally nothing to show */}
-        {categoryModels.length === 0 && (
+        {categoryModels.length === 0 && !mobileShell && (
+          <div className="se-canvas-empty">
+            <EmptyState mark="category" message={t('superElement.empty.noCategories')} />
+          </div>
+        )}
+        {categoryModels.length === 0 && mobileShell && (
           <div
             style={{
               position: 'absolute',
@@ -1604,6 +1701,115 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       {/* Pending link modal — confirms a typed, direction-aware relation for
           a shift-click pairing. */}
       {pendingLink &&
+        !mobileShell &&
+        (() => {
+          const from = pendingLinkReversed ? pendingLink.target : pendingLink.source;
+          const to = pendingLinkReversed ? pendingLink.source : pendingLink.target;
+          const end = (endpoint: { kind: 'element' | 'node'; id: string }) => (
+            <span className="relation-pair__end">
+              {entityMark(endpoint.kind, endpoint.id)}
+              <span>{relationEndpointLabel(endpoint.kind, endpoint.id)}</span>
+            </span>
+          );
+          return (
+            <ModalRoot onClose={closePendingLink} ariaLabel={t('storyGraph.edge.newTitle')}>
+              <ModalCard
+                width={pendingLinkCreatingType ? 560 : 420}
+                className="relation-type-create-modal"
+              >
+                <ModalHeader
+                  title={t('superElement.manualRelationTitle')}
+                  onClose={closePendingLink}
+                  closeLabel={t('common.close')}
+                />
+                <ModalBody className="relation-pair-body">
+                  <div className="relation-pair">
+                    {end(from)}
+                    <GhostIconButton
+                      className="relation-pair__swap"
+                      icon={<BrushIcon name="swap" size={15} />}
+                      title={t('relationTypes.swap')}
+                      aria-label={t('relationTypes.swap')}
+                      onClick={() => {
+                        setPendingLinkReversed((value) => !value);
+                        setPendingLinkTypeId(null);
+                        setPendingLinkCreatingType(false);
+                      }}
+                    />
+                    {end(to)}
+                  </div>
+                  <div className="relation-pair__label">
+                    <span>{t('storyGraph.edge.kindLabel')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="relation-pair__create"
+                      onClick={() => setPendingLinkCreatingType((value) => !value)}
+                    >
+                      {pendingLinkCreatingType ? (
+                        t('relationTypes.chooseExisting')
+                      ) : (
+                        <>
+                          <BrushIcon name="plus" size={11} inline /> {t('relationTypes.createInline')}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {pendingLinkCreatingType ? (
+                    <RelationTypeEditor
+                      key={`${from.kind}:${to.kind}:${pendingLinkReversed ? 'reversed' : 'forward'}`}
+                      initialSourceKinds={[from.kind]}
+                      initialTargetKinds={[to.kind]}
+                      onCancel={() => setPendingLinkCreatingType(false)}
+                      onSave={async (definition) => {
+                        const checked = validateRelationTypeDefinitionAgainstRelation(definition, {
+                          fromKind: from.kind,
+                          fromId: from.id,
+                          toKind: to.kind,
+                          toId: to.id,
+                        });
+                        if (!checked.ok) throw new Error(checked.message);
+                        const created = await relationTypeUsecases.createRelationType(definition);
+                        setPendingLinkTypeId(created.id);
+                        setPendingLinkCreatingType(false);
+                      }}
+                    />
+                  ) : (
+                    <RelationTypeField
+                      autoFocus
+                      value={pendingLinkTypeId}
+                      onChange={setPendingLinkTypeId}
+                      options={pendingLinkTypeOptions}
+                      resolveOptionColor={resolveRelationTypeColor}
+                      placeholder={t('storyGraph.edge.kindPlaceholder')}
+                      ariaLabel={t('storyGraph.edge.kindLabel')}
+                      buttonClassName="relation-type-field__button relation-type-field__button--select ui-field glass glass--rest glass--small"
+                    />
+                  )}
+                </ModalBody>
+                {!pendingLinkCreatingType && (
+                  <ModalActions>
+                    <Button variant="ghost" size="sm" onClick={closePendingLink}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={!pendingLinkTypeId}
+                      onClick={() => {
+                        void confirmPendingLink();
+                      }}
+                    >
+                      {t('storyGraph.edge.create')}
+                    </Button>
+                  </ModalActions>
+                )}
+              </ModalCard>
+            </ModalRoot>
+          );
+        })()}
+      {pendingLink &&
+        mobileShell &&
         (() => {
           const { source, target } = pendingLink;
           const sourceName =
@@ -1806,6 +2012,16 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
             selectedEdgeRelation.toId,
           )}
           color={resolveRelationTypeColor(selectedEdgeRelation.relationTypeId)}
+          sourceMark={
+            mobileShell
+              ? undefined
+              : entityMark(selectedEdgeRelation.fromKind, selectedEdgeRelation.fromId)
+          }
+          targetMark={
+            mobileShell
+              ? undefined
+              : entityMark(selectedEdgeRelation.toKind, selectedEdgeRelation.toId)
+          }
           onDelete={() => {
             void deleteSelectedEdge();
           }}
@@ -1825,6 +2041,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               node={node}
               projectId={projectId}
               userId={userId}
+              markColor={mobileShell ? undefined : storylineColorOfNode(node.id)}
               anchorRect={activeDriftPopover.anchor}
               onClose={() => setActiveDriftPopover(null)}
               onOpenInEditor={(id) => {

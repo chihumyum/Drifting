@@ -9,11 +9,21 @@ import { onAuthoredChangeCommitted } from '../sync/journal/authored-transaction'
 import { flushPendingAssetPersistence } from './asset-store.service';
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
-import { renderMarkdownProjection } from './export/markdown-projection-client';
+import { createMarkdownProjectionRenderer } from './export/markdown-projection-client';
 
 const workers = new Map<string, ReturnType<typeof createProjectionWorker>>();
 
-/** Coalesce commits without starving a continuous writer. One capture at a time. */
+/** An automatic capture waits for the author to pause this long. */
+export const PROJECTION_QUIET_MS = 2000;
+/** An author who never pauses still sees the projection refreshed this often. */
+export const PROJECTION_MAX_WAIT_MS = 30_000;
+/** How soon a capture deferred for an IME composition checks again. */
+const PROJECTION_DEFER_MS = 1000;
+
+/**
+ * Coalesce commits until the author pauses, bounded by a maximum wait, so
+ * continuous typing does not keep re-exporting the project. One capture at a time.
+ */
 export function createProjectionWorker(
   refresh: (forced: boolean) => Promise<void>,
   failed: (error: unknown) => void,
@@ -24,13 +34,20 @@ export function createProjectionWorker(
   let suspended = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> | undefined;
+  // When the oldest change not yet captured arrived.
+  let pendingSince: number | undefined;
+  const schedule = (delay: number) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { timer = undefined; void flush(false); }, Math.max(0, delay));
+  };
   const flush = async (forced = true): Promise<void> => {
     if (timer) clearTimeout(timer);
     timer = undefined;
     if (running) { await running; if (dirty && !disposed && !suspended) await flush(forced); return; }
     if (!dirty || disposed || suspended) return;
-    if (!forced && shouldDefer()) { request(); return; }
+    if (!forced && shouldDefer()) { schedule(PROJECTION_DEFER_MS); return; }
     dirty = false;
+    pendingSince = undefined;
     const endActivity = beginDevActivity('markdown-projection', { forced });
     running = refresh(forced).catch(error => { failed(error); }).finally(() => { running = undefined; endActivity(); });
     await running;
@@ -39,9 +56,10 @@ export function createProjectionWorker(
   const request = () => {
     if (disposed) return;
     dirty = true;
+    const now = Date.now();
+    pendingSince ??= now;
     if (suspended) return;
-    // Keep the first deadline instead of resetting it on every keystroke.
-    timer ??= setTimeout(() => { timer = undefined; void flush(false); }, 1000);
+    schedule(Math.min(now + PROJECTION_QUIET_MS, pendingSince + PROJECTION_MAX_WAIT_MS) - now);
   };
   return {
     request, flush,
@@ -59,6 +77,9 @@ export function createProjectionWorker(
 export function installMarkdownProjection(projectId: string): () => void {
   let disposed = false;
   const controller = new AbortController();
+  // Holds the prose it hydrated until the project closes, so a capture only
+  // reads the Yjs state of documents that changed since the last one.
+  const renderer = createMarkdownProjectionRenderer();
   const stage = async <T>(name: string, operation: () => Promise<T>): Promise<T> => {
     const end = beginDevActivity(`markdown-projection:${name}`);
     try { return await operation(); } finally { end(); }
@@ -84,12 +105,12 @@ export function installMarkdownProjection(projectId: string): () => void {
     await stage('flush-assets', flushPendingAssetPersistence);
     if (!active()) return;
     if (yieldToComposition()) return;
-    const source = await stage('capture', () => readLocalRelationalMarkdownSource(projectId));
+    const source = await stage('capture', () => readLocalRelationalMarkdownSource(projectId, { knownProseVersions: renderer.knownProseVersions() }));
     if (!active()) return;
     if (yieldToComposition()) return;
     if (source.books.length !== 1) throw new Error('Projection project no longer exists');
     const capturedAt = new Date();
-    const { entries, assets, documents } = await stage('render-worker', () => renderMarkdownProjection(source, capturedAt, controller.signal));
+    const { entries, assets, documents } = await stage('render-worker', () => renderer.render(source, capturedAt, controller.signal));
     if (!active()) return;
     if (yieldToComposition()) return;
     const result = await stage('publish', () => platform.markdownProjection.write(projectId, capturedAt.toISOString(), entries, assets, documents));
@@ -110,6 +131,7 @@ export function installMarkdownProjection(projectId: string): () => void {
   return () => {
     disposed = true;
     controller.abort();
+    renderer.dispose();
     unsubscribe();
     unregisterFlush();
     events.off('sync:project-changed', changed);

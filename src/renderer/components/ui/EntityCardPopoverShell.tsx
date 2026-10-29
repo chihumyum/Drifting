@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { shouldDismissEntityCardPopoverOnKeyDown } from './entity-card-popover-dismissal';
 
 export interface EntityCardAnchorRect {
@@ -118,15 +119,21 @@ export function EntityCardPopoverShell({
 
   if (typeof document === 'undefined') return null;
   const position = computeEntityCardPosition(positionOptions);
+  // Desktop: a floating layer on the menu shell, over the desk's mist when
+  // expanded; the paused mobile shell keeps the bordered card and dark scrim.
+  const float = !getPlatformRuntime().isMobileShell;
   return createPortal(
     <>
-      {positionOptions.mode === 'upgrade' && <div className="entity-card-backdrop" />}
+      {positionOptions.mode === 'upgrade' && (
+        <div className={`entity-card-backdrop${float ? ' entity-card-backdrop--mist' : ''}`} />
+      )}
       <div
         ref={containerRef}
         role="dialog"
         aria-label={ariaLabel}
         className={[
           'entity-card-popover',
+          float ? 'entity-card-popover--float' : '',
           positionOptions.mode === 'upgrade' ? 'is-upgrade' : '',
           className,
         ]

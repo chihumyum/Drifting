@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { useDataStoreFields } from '../../../store/use-data-store-fields';
@@ -11,7 +19,12 @@ import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { ContextMenuSurface } from '../../../components/ui/ContextMenuSurface';
+import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
+import { Button } from '../../../components/ui/Button';
+import { EmptyState } from '../../../components/ui/EmptyState';
 import { GhostIconButton } from '../../../components/ui/GhostIconButton';
+import { KindMark } from '../../../components/ui/KindMark';
+import type { KindMarkKind } from '../../../components/ui/kind-mark';
 import { LabelMono } from '../../../components/ui/LabelMono';
 import { useComment } from '../../../usecase/useComment';
 import { useLibraryItem } from '../../../usecase/useLibraryItem';
@@ -24,15 +37,18 @@ import {
   type FocusedEntity,
 } from '../../../components/rightBars/MemoMaterialPanel';
 import { EntityRelationPicker } from '../../../components/rightBars/EntityRelationPicker';
+import { TodoStatusToggle } from '../../../features/comments/TodoStatusToggle';
 import { libraryItemMatchesQuery } from '../../../features/library/library-item-search';
 import { createPlainCommentDoc, extractTextFromCommentBody } from '../../../domain/comment';
 import { genericAssociationRelationTypeId } from '../../../domain/entity-relation-type';
 import type { Comment } from '../../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
+import { stepGlassFlow, trackGlassFlow } from '../../../lib/glass-flow';
 import { openLibraryItemInSystem as openInSystemApp } from '../../../features/library/open-library-item';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
+import '../../../../styles/super-memo-material.css';
 
 const KIND_ORDER: LibraryItemKind[] = ['text', 'image', 'pdf'];
 
@@ -43,21 +59,39 @@ const DRAWER_DEFAULT_HEIGHT = 260;
 const TODO_RAIL_WIDTH = 280;
 
 /**
+ * The desktop draws a piece with its class from super-memo-material.css; the
+ * paused mobile shell keeps the inline look it had (and the class hooks its
+ * own stylesheet targets), so nothing desktop reaches it.
+ */
+function look(
+  mobileShell: boolean,
+  desktopClass: string,
+  legacyStyle?: CSSProperties,
+  sharedClass?: string,
+): { className?: string; style?: CSSProperties } {
+  if (mobileShell) return { className: sharedClass, style: legacyStyle };
+  return { className: sharedClass ? `${sharedClass} ${desktopClass}` : desktopClass };
+}
+
+/**
  * Global TODO & Library workbench — the project-wide counterpart to the
  * per-entity MemoMaterialPanel in the right sidebar.
  *
  * Layout (full-screen above BottomStatusBar, same shell as StoryGraphView /
  * SuperElementView):
- *  ┌── toolbar (search · kind chips · entity filter · +) ─┐
+ *  ┌── header (back · Super tabs · stats · search) ─────────┐
  *  ├──────────┬────────────────────────────────────────────┤
- *  │ TODO 板  │  LibraryItem 网格 (按 kind 分组)              │
- *  │ + 笔记   │                                            │
+ *  │ TODO     │  素材 · kind chips · entity filter · 新建   │
+ *  │          │  LibraryItem 网格 (按 kind 分组)              │
  *  ├──────────┴────────────────────────────────────────────┤
- *  │  ▾ 待整理 (orphan) · 已解决 (archive)                  │
+ *  │  待整理 (orphan) · 已解决 (archive)                ▾   │
  *  └────────────────────────────────────────────────────────┘
  *
- * Bottom drawer is collapsible (drag the top edge to resize when open).
- * All cards reuse the right-sidebar primitives so actions stay in sync.
+ * On the desktop it is one plane: the rail and the library share the paper,
+ * split by one hairline, and the drawer docks underneath as a strip of the
+ * desk colour like the Bottom Panel (drag its top edge to resize when open;
+ * the edge bleeds glass while it moves). All cards reuse the right-sidebar
+ * primitives so actions stay in sync.
  */
 export function DesktopSuperMemoMaterialView() {
   const { t } = useTranslation();
@@ -65,6 +99,7 @@ export function DesktopSuperMemoMaterialView() {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const closeView = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
+  const mobileShell = getPlatformRuntime().isMobileShell;
 
   const comments = useDataStore((s) => s.comments);
   const libraryItems = useDataStore((s) => s.libraryItems);
@@ -120,6 +155,30 @@ export function DesktopSuperMemoMaterialView() {
     });
     return map;
   }, [genericRelations]);
+
+  const todoCount = useMemo(() => comments.filter((c) => c.kind === 'todo').length, [comments]);
+
+  // How many TODOs and materials each entity gathers: the entity filter shows
+  // it beside each candidate and beside the chosen one.
+  const targetCounts = useMemo(() => {
+    const todoIds = new Set(comments.filter((c) => c.kind === 'todo').map((c) => c.id));
+    const itemIds = new Set(libraryItems.map((m) => m.id));
+    const sources = new Map<string, Set<string>>();
+    genericRelations.forEach((r) => {
+      const counted =
+        r.fromKind === 'comment'
+          ? todoIds.has(r.fromId)
+          : r.fromKind === 'library_item' && itemIds.has(r.fromId);
+      if (!counted) return;
+      const key = `${r.toKind}:${r.toId}`;
+      const from = sources.get(key) ?? new Set<string>();
+      from.add(`${r.fromKind}:${r.fromId}`);
+      sources.set(key, from);
+    });
+    const counts = new Map<string, number>();
+    sources.forEach((from, key) => counts.set(key, from.size));
+    return counts;
+  }, [comments, libraryItems, genericRelations]);
 
   const isRelatedToEntity = useCallback(
     (fromKind: EntityKind, fromId: string) => {
@@ -244,27 +303,39 @@ export function DesktopSuperMemoMaterialView() {
           on cross-cutting controls. */}
       <DesktopSuperViewHeader
         meta={t('memoMaterial.super.meta', {
-          todos: comments.filter((c) => c.kind === 'todo').length,
+          todos: todoCount,
           materials: libraryItems.length,
         })}
         onBack={closeView}
         rightSlot={
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('memoMaterial.super.searchPlaceholder')}
-            style={{
-              width: 220,
-              fontFamily: 'var(--font-sans)',
-              fontSize: 12.5,
-              padding: '5px 9px',
-              border: '1px solid hsl(var(--rule))',
-              borderRadius: 3,
-              background: 'hsl(var(--paper))',
-              color: 'hsl(var(--ink-1))',
-              outline: 'none',
-            }}
-          />
+          mobileShell ? (
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('memoMaterial.super.searchPlaceholder')}
+              style={{
+                width: 220,
+                fontFamily: 'var(--font-sans)',
+                fontSize: 12.5,
+                padding: '5px 9px',
+                border: '1px solid hsl(var(--rule))',
+                borderRadius: 3,
+                background: 'hsl(var(--paper))',
+                color: 'hsl(var(--ink-1))',
+                outline: 'none',
+              }}
+            />
+          ) : (
+            <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small smm-search">
+              <BrushIcon name="search" size={14} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('memoMaterial.super.searchPlaceholder')}
+                aria-label={t('memoMaterial.super.searchPlaceholder')}
+              />
+            </label>
+          )
         }
       />
 
@@ -293,6 +364,8 @@ export function DesktopSuperMemoMaterialView() {
             }
             entityFilter={entityFilter}
             onEntityFilterChange={setEntityFilter}
+            targetCounts={targetCounts}
+            totalItems={todoCount + libraryItems.length}
             refsByFrom={refsByFrom}
             editingId={editingId}
             setEditingId={setEditingId}
@@ -371,7 +444,8 @@ export function DesktopSuperMemoMaterialView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // LibraryItem filter primitives — KindChip + EntityFilterButton, both used in
 // the LibraryItemMain section header (previously lived in a top toolbar). The
-// thin vertical divider used between filter groups is shared too.
+// paused mobile shell still separates the filter groups with a thin vertical
+// divider; the desktop separates them with space.
 
 function ToolbarDivider() {
   return (
@@ -395,6 +469,7 @@ const kickerStyle: CSSProperties = {
   color: 'hsl(var(--ink-4))',
 };
 
+/** A material kind: a Chip on the desktop (FilterChip keeps the paper chip on mobile). */
 function KindChip({
   active,
   count,
@@ -409,6 +484,7 @@ function KindChip({
   const { t } = useTranslation();
   return (
     <FilterChip
+      look="glass"
       size="sm"
       active={active}
       count={count}
@@ -422,10 +498,291 @@ function KindChip({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entity-target filter — popover with EntityRelationPicker constrained to a
-// single-select.
+// Entity-target filter. The desktop opens a searchable menu straight from a
+// word toggle (one click to the entities); the paused mobile shell keeps the
+// popover with EntityRelationPicker constrained to a single-select.
 
-function EntityFilterButton({
+interface EntityFilterProps {
+  entityFilter: FocusedEntity;
+  onChange: (next: FocusedEntity) => void;
+  /** TODOs + materials related to each `${kind}:${id}`. */
+  targetCounts: Map<string, number>;
+  /** Every TODO and material in the project (the 全部 row). */
+  totalItems: number;
+}
+
+function EntityFilterButton(props: EntityFilterProps) {
+  return getPlatformRuntime().isMobileShell ? (
+    <LegacyEntityFilterButton entityFilter={props.entityFilter} onChange={props.onChange} />
+  ) : (
+    <EntityFilterMenu {...props} />
+  );
+}
+
+interface EntityChoice {
+  kind: 'node' | 'element' | 'storyline' | 'category';
+  id: string;
+  label: string;
+  mark: KindMarkKind;
+  color?: string;
+}
+
+/**
+ * The desktop entity filter: a word toggle — 「关联 · 全部」, or the chosen
+ * entity's sand mark, name and count while the filter holds (then it stays
+ * on, with a flat × beside it) — that opens a menu surface portalled to body:
+ * a search field on top, 全部, then every chapter, drift, element, storyline
+ * and category as a menu row with its mark and how many TODOs and materials
+ * it gathers.
+ */
+function EntityFilterMenu({ entityFilter, onChange, targetCounts, totalItems }: EntityFilterProps) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState<string | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
+    useDataStoreFields(
+      'bookNodes',
+      'bookElements',
+      'storylines',
+      'bookElementCategories',
+      'primaryStorylineByNode',
+    );
+
+  const describeNode = useCallback(
+    (node: (typeof bookNodes)[number]): EntityChoice => {
+      const chapter = isChapter(node);
+      const storylineId = primaryStorylineByNode[node.id] ?? null;
+      return {
+        kind: 'node',
+        id: node.id,
+        label:
+          node.title ||
+          t(chapter ? 'relationPicker.untitledChapter' : 'relationPicker.untitledDrift'),
+        mark: chapter ? 'chapter' : 'drift',
+        color: storylineId
+          ? (storylines.find((s) => s.id === storylineId)?.color ?? undefined)
+          : undefined,
+      };
+    },
+    [primaryStorylineByNode, storylines, t],
+  );
+
+  const describeElement = useCallback(
+    (element: (typeof bookElements)[number]): EntityChoice => ({
+      kind: 'element',
+      id: element.id,
+      label: element.name || t('relationPicker.untitledElement'),
+      mark: 'element',
+      color: bookElementCategories.find((c) => c.id === element.categoryId)?.color ?? undefined,
+    }),
+    [bookElementCategories, t],
+  );
+
+  const picked = useMemo<EntityChoice | null>(() => {
+    const { kind, id } = entityFilter;
+    if (!kind || !id) return null;
+    if (kind === 'node') {
+      const node = bookNodes.find((x) => x.id === id);
+      return node
+        ? describeNode(node)
+        : { kind, id, label: t('relationPicker.untitledChapter'), mark: 'chapter' };
+    }
+    if (kind === 'element') {
+      const element = bookElements.find((x) => x.id === id);
+      return element ? describeElement(element) : { kind, id, label: id, mark: 'element' };
+    }
+    if (kind === 'storyline') {
+      const storyline = storylines.find((x) => x.id === id);
+      return {
+        kind,
+        id,
+        label: storyline?.name || t('relationPicker.untitledStoryline'),
+        mark: 'storyline',
+        color: storyline?.color ?? undefined,
+      };
+    }
+    if (kind === 'category') {
+      const category = bookElementCategories.find((x) => x.id === id);
+      return {
+        kind,
+        id,
+        label: category?.name || id,
+        mark: 'category',
+        color: category?.color ?? undefined,
+      };
+    }
+    return null;
+  }, [entityFilter, bookNodes, bookElements, storylines, bookElementCategories, describeNode, describeElement, t]);
+
+  // Candidates are only built while the menu is open.
+  const groups = useMemo(() => {
+    if (!open) return [];
+    const needle = query.trim().toLowerCase();
+    const matches = (choice: EntityChoice) => !needle || choice.label.toLowerCase().includes(needle);
+    const chapters: EntityChoice[] = [];
+    const drifts: EntityChoice[] = [];
+    bookNodes.forEach((node) => {
+      const choice = describeNode(node);
+      if (!matches(choice)) return;
+      if (choice.mark === 'chapter') chapters.push(choice);
+      else drifts.push(choice);
+    });
+    const elements = bookElements.map(describeElement).filter(matches);
+    const storylineChoices = storylines
+      .map<EntityChoice>((s) => ({
+        kind: 'storyline',
+        id: s.id,
+        label: s.name || t('relationPicker.untitledStoryline'),
+        mark: 'storyline',
+        color: s.color ?? undefined,
+      }))
+      .filter(matches);
+    const categories = bookElementCategories
+      .map<EntityChoice>((c) => ({
+        kind: 'category',
+        id: c.id,
+        label: c.name || c.id,
+        mark: 'category',
+        color: c.color ?? undefined,
+      }))
+      .filter(matches);
+    return [
+      { key: 'chapters', label: t('relationPicker.groups.chapters'), items: chapters },
+      { key: 'drifts', label: t('relationPicker.groups.drifts'), items: drifts },
+      { key: 'elements', label: t('relationPicker.groups.elements'), items: elements },
+      { key: 'storylines', label: t('relationPicker.groups.storylines'), items: storylineChoices },
+      { key: 'categories', label: t('relationPicker.groups.categories'), items: categories },
+    ].filter((group) => group.items.length > 0);
+  }, [open, query, bookNodes, bookElements, storylines, bookElementCategories, describeNode, describeElement, t]);
+
+  const choose = (next: FocusedEntity) => {
+    setOpen(false);
+    onChange(next);
+  };
+
+  const row = (
+    key: string,
+    selected: boolean,
+    onPick: () => void,
+    name: string,
+    count: number,
+    mark?: React.ReactNode,
+  ) => (
+    <button
+      key={key}
+      type="button"
+      role="option"
+      aria-selected={selected}
+      className={`menu-surface__item entity-filter-popover__item${active === key ? ' is-current' : ''}`}
+      onFocus={() => setActive(key)}
+      onBlur={() => setActive((was) => (was === key ? null : was))}
+      onClick={onPick}
+    >
+      {mark}
+      <span className="entity-filter-popover__name">{name}</span>
+      {count > 0 && <span className="entity-filter-popover__count">{count}</span>}
+      {selected && <BrushIcon name="check" size={13} className="entity-filter-popover__check" />}
+    </button>
+  );
+
+  const pickedKey = picked ? `${picked.kind}:${picked.id}` : null;
+  const searching = query.trim().length > 0;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`ui-word-toggle glass glass--rest glass--small smm-entity-toggle${picked ? ' is-on' : ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={
+          picked
+            ? t('memoMaterial.super.entityFilterActiveTitle', { label: picked.label })
+            : t('memoMaterial.super.entityFilterTitle')
+        }
+        onClick={() => {
+          if (!open) setQuery('');
+          setOpen(!open);
+        }}
+      >
+        {picked ? (
+          <>
+            <KindMark kind={picked.mark} seed={picked.id} color={picked.color} />
+            <span className="smm-entity-toggle__label">{picked.label}</span>
+            <span className="ui-word-toggle__count">{targetCounts.get(pickedKey ?? '') ?? 0}</span>
+          </>
+        ) : (
+          <span>{t('memoMaterial.super.entityFilterAll')}</span>
+        )}
+      </button>
+      {picked && (
+        <GhostIconButton
+          size="sm"
+          className="smm-entity-clear"
+          icon={<BrushIcon name="close" size={11} />}
+          aria-label={t('memoMaterial.super.clearEntityFilter')}
+          title={t('memoMaterial.super.clearEntityFilter')}
+          onClick={() => choose({ kind: null, id: null })}
+        />
+      )}
+      <AnchoredPopover
+        anchorRef={buttonRef}
+        open={open}
+        onClose={() => setOpen(false)}
+        placement="bottom-start"
+        role="listbox"
+        ariaLabel={t('memoMaterial.super.entityFilterTitle')}
+        maxHeight={440}
+        className="menu-surface menu-surface--rich menu-surface--panel entity-filter-popover entity-filter-popover--menu"
+      >
+        <div className="entity-filter-popover__search">
+          <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small">
+            <BrushIcon name="search" size={14} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('relationPicker.searchPlaceholder')}
+              aria-label={t('relationPicker.searchPlaceholder')}
+              onKeyDown={(event) => {
+                // The popover leaves Escape to a focused field; here it closes
+                // the menu instead of reaching the Super View's Escape stack.
+                if (event.key !== 'Escape') return;
+                event.preventDefault();
+                setOpen(false);
+              }}
+            />
+          </label>
+        </div>
+        {!searching &&
+          row('all', !picked, () => choose({ kind: null, id: null }), t('memoMaterial.super.all'), totalItems)}
+        {groups.map((group) => (
+          <div key={group.key} role="group" aria-label={group.label}>
+            <div className="entity-filter-popover__section">{group.label}</div>
+            {group.items.map((choice) => {
+              const key = `${choice.kind}:${choice.id}`;
+              return row(
+                key,
+                key === pickedKey,
+                () => choose({ kind: choice.kind, id: choice.id }),
+                choice.label,
+                targetCounts.get(key) ?? 0,
+                <KindMark kind={choice.mark} seed={choice.id} color={choice.color} />,
+              );
+            })}
+          </div>
+        ))}
+        {searching && groups.length === 0 && (
+          <div className="entity-filter-popover__empty">{t('globalSearch.noResults')}</div>
+        )}
+      </AnchoredPopover>
+    </>
+  );
+}
+
+function LegacyEntityFilterButton({
   entityFilter,
   onChange,
 }: {
@@ -555,6 +912,26 @@ function EntityFilterButton({
 // ─────────────────────────────────────────────────────────────────────────────
 // TodoRail — left column. TODOs on top (action surface), pure notes below.
 
+const LEGACY_RAIL_STYLE: CSSProperties = {
+  width: TODO_RAIL_WIDTH,
+  flexShrink: 0,
+  borderRight: '1px solid hsl(var(--rule))',
+  background: 'hsl(var(--paper-deep) / 0.35)',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+};
+
+const LEGACY_RAIL_LIST_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '6px 10px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+};
+
 function TodoRail({
   openTodos,
   commentUsecases,
@@ -575,6 +952,7 @@ function TodoRail({
   onCompose: () => void;
 }) {
   const { t } = useTranslation();
+  const mobileShell = getPlatformRuntime().isMobileShell;
   const renderTodo = (todo: Comment) => {
     const relations = entityRelations
       .filter((r) => r.fromKind === 'comment' && r.fromId === todo.id)
@@ -607,45 +985,42 @@ function TodoRail({
   };
 
   return (
-    <div
-      className="smm-library-main"
-      style={{
-        width: TODO_RAIL_WIDTH,
-        flexShrink: 0,
-        borderRight: '1px solid hsl(var(--rule))',
-        background: 'hsl(var(--paper-deep) / 0.35)',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-      }}
-    >
-      <SectionHeader
-        kicker="TODO"
-        count={openTodos.length}
-        accent={openTodos.length > 0 ? 'hsl(var(--story-2))' : undefined}
-        action={
-          <button
+    <div {...look(mobileShell, 'smm-rail', LEGACY_RAIL_STYLE, 'smm-library-main')}>
+      {mobileShell ? (
+        <SectionHeader
+          kicker="TODO"
+          count={openTodos.length}
+          accent={openTodos.length > 0 ? 'hsl(var(--story-2))' : undefined}
+          action={
+            <button
+              onClick={onCompose}
+              style={ghostBtnStyle}
+              title={t('memoMaterial.dialog.newTodo')}
+            >
+              <BrushIcon name="plus" size={11} inline />
+            </button>
+          }
+        />
+      ) : (
+        <div className="smm-column-head">
+          <span className="smm-index">TODO</span>
+          <span className="smm-index-count">{openTodos.length}</span>
+          <GhostIconButton
+            className="panel-header-new smm-column-head__action"
+            icon={<BrushIcon name="plus" size={13} />}
             onClick={onCompose}
-            style={ghostBtnStyle}
             title={t('memoMaterial.dialog.newTodo')}
-          >
-            <BrushIcon name="plus" size={11} inline />
-          </button>
-        }
-      />
-      <div
-        className="smm-scroll"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          padding: '6px 10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-        }}
-      >
-        {openTodos.length === 0 && <RailEmpty hint={t('memoMaterial.super.todoEmptyHint')} />}
+            aria-label={t('memoMaterial.dialog.newTodo')}
+          />
+        </div>
+      )}
+      <div {...look(mobileShell, 'smm-rail__list', LEGACY_RAIL_LIST_STYLE, 'smm-scroll')}>
+        {openTodos.length === 0 &&
+          (mobileShell ? (
+            <RailEmpty hint={t('memoMaterial.super.todoEmptyHint')} />
+          ) : (
+            <EmptyState density="compact" message={t('memoMaterial.super.todoEmptyHint')} />
+          ))}
         {openTodos.map(renderTodo)}
       </div>
     </div>
@@ -731,6 +1106,21 @@ function RailEmpty({ hint }: { hint: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // LibraryItemMain — center column, grid grouped by kind.
 
+const LEGACY_MAIN_STYLE: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+};
+
+const LEGACY_MAIN_SCROLL_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '10px 16px 18px',
+};
+
 function LibraryItemMain({
   libraryItemsByKind,
   totalVisible,
@@ -740,6 +1130,8 @@ function LibraryItemMain({
   kindCounts,
   entityFilter,
   onEntityFilterChange,
+  targetCounts,
+  totalItems,
   refsByFrom,
   editingId,
   setEditingId,
@@ -764,6 +1156,8 @@ function LibraryItemMain({
    *  proximity to the KIND chips, even though the rail also reacts. */
   entityFilter: FocusedEntity;
   onEntityFilterChange: (next: FocusedEntity) => void;
+  targetCounts: Map<string, number>;
+  totalItems: number;
   refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
   editingId: string | null;
   setEditingId: (id: string | null) => void;
@@ -775,142 +1169,173 @@ function LibraryItemMain({
   onCompose: () => void;
 }) {
   const { t } = useTranslation();
-  return (
-    <div
-      style={{
-        flex: 1,
-        minWidth: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-      }}
+  const mobileShell = getPlatformRuntime().isMobileShell;
+  const kindChips = KIND_ORDER.map((k) => (
+    <KindChip
+      key={k}
+      active={!hiddenKinds.has(k)}
+      count={kindCounts[k] ?? 0}
+      onClick={() => onToggleKind(k)}
     >
+      {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
+    </KindChip>
+  ));
+  const entityFilterButton = (
+    <EntityFilterButton
+      entityFilter={entityFilter}
+      onChange={onEntityFilterChange}
+      targetCounts={targetCounts}
+      totalItems={totalItems}
+    />
+  );
+  return (
+    <div {...look(mobileShell, 'smm-main', LEGACY_MAIN_STYLE)}>
       {/* LibraryItem section header: kicker + count on the left, then KIND
           chips and entity filter (moved down from the global header), then
-          the new-material action on the right. Taller than the default
-          SectionHeader because it needs to host the filter group inline. */}
-      <div
-        className="smm-library-toolbar"
-        style={{
-          minHeight: 38,
-          flexShrink: 0,
-          padding: '0 14px 0 12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          borderBottom: '1px solid hsl(var(--rule))',
-          background: 'hsl(var(--paper))',
-        }}
-      >
-        <LabelMono tone="ink-4">{t('memoMaterial.super.material')}</LabelMono>
-        <span
+          the new-material action on the right. On the desktop it is exactly
+          as tall as the rail's head, so both columns start on one line. */}
+      {mobileShell ? (
+        <div
+          className="smm-library-toolbar"
           style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            color: 'hsl(var(--ink-4))',
+            minHeight: 38,
+            flexShrink: 0,
+            padding: '0 14px 0 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            borderBottom: '1px solid hsl(var(--rule))',
+            background: 'hsl(var(--paper))',
           }}
         >
-          {totalVisible}
-        </span>
-
-        <ToolbarDivider />
-
-        <LabelMono tone="ink-4">{t('memoMaterial.super.kind')}</LabelMono>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {KIND_ORDER.map((k) => (
-            <KindChip
-              key={k}
-              active={!hiddenKinds.has(k)}
-              count={kindCounts[k] ?? 0}
-              onClick={() => onToggleKind(k)}
-            >
-              {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
-            </KindChip>
-          ))}
-        </div>
-
-        <ToolbarDivider />
-
-        <EntityFilterButton entityFilter={entityFilter} onChange={onEntityFilterChange} />
-
-        <div style={{ flex: 1 }} />
-
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            color: 'hsl(var(--ink-4))',
-            letterSpacing: '0.06em',
-          }}
-        >
-          {totalVisible} / {totalLibraryItems}
-        </span>
-        <button
-          className="smm-library-toolbar__create"
-          onClick={onCompose}
-          title={t('memoMaterial.dialog.newMaterial')}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            padding: '3px 10px',
-            border: '1px solid hsl(var(--ink-1))',
-            borderRadius: 3,
-            background: 'hsl(var(--ink-1))',
-            color: 'hsl(var(--paper))',
-            cursor: 'pointer',
-            letterSpacing: '0.08em',
-          }}
-        >
-          <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
-        </button>
-      </div>
-
-      <div
-        className="smm-scroll"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          padding: '10px 16px 18px',
-        }}
-      >
-        {totalVisible === 0 && (
-          <div
+          <LabelMono tone="ink-4">{t('memoMaterial.super.material')}</LabelMono>
+          <span
             style={{
-              padding: '60px 20px',
-              textAlign: 'center',
-              fontFamily: 'var(--font-sans)',
-              fontStyle: 'italic',
-              fontSize: 13,
-              color: 'hsl(var(--ink-3))',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'hsl(var(--ink-4))',
             }}
           >
-            {totalLibraryItems === 0 ? (
-              <>
-                <div>{t('memoMaterial.super.noMaterials')}</div>
-                <button
-                  onClick={onCompose}
-                  style={{
-                    marginTop: 12,
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    padding: '5px 14px',
-                    border: '1px solid hsl(var(--ink-1))',
-                    borderRadius: 3,
-                    background: 'hsl(var(--ink-1))',
-                    color: 'hsl(var(--paper))',
-                    cursor: 'pointer',
-                    letterSpacing: '0.08em',
-                  }}
-                >
-                  <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
-                </button>
-              </>
-            ) : (
-              t('memoMaterial.super.noFilteredMaterials')
-            )}
-          </div>
-        )}
+            {totalVisible}
+          </span>
+
+          <ToolbarDivider />
+
+          <LabelMono tone="ink-4">{t('memoMaterial.super.kind')}</LabelMono>
+          <div style={{ display: 'flex', gap: 4 }}>{kindChips}</div>
+
+          <ToolbarDivider />
+
+          {entityFilterButton}
+
+          <div style={{ flex: 1 }} />
+
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              color: 'hsl(var(--ink-4))',
+              letterSpacing: '0.06em',
+            }}
+          >
+            {totalVisible} / {totalLibraryItems}
+          </span>
+          <button
+            className="smm-library-toolbar__create"
+            onClick={onCompose}
+            title={t('memoMaterial.dialog.newMaterial')}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              padding: '3px 10px',
+              border: '1px solid hsl(var(--ink-1))',
+              borderRadius: 3,
+              background: 'hsl(var(--ink-1))',
+              color: 'hsl(var(--paper))',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+            }}
+          >
+            <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
+          </button>
+        </div>
+      ) : (
+        <div className="smm-library-toolbar smm-column-head">
+          <span className="smm-index">{t('memoMaterial.super.material')}</span>
+          <span className="smm-index-count">{totalVisible}</span>
+          <div className="smm-library-toolbar__kinds">{kindChips}</div>
+          {entityFilterButton}
+          <span className="smm-column-head__spacer" />
+          <span className="smm-index-count">
+            {totalVisible} / {totalLibraryItems}
+          </span>
+          <Button
+            variant="primary"
+            size="sm"
+            className="smm-library-toolbar__create"
+            onClick={onCompose}
+          >
+            <BrushIcon name="plus" size={11} />
+            {t('memoMaterial.super.newMaterialButton')}
+          </Button>
+        </div>
+      )}
+
+      <div {...look(mobileShell, 'smm-main__scroll', LEGACY_MAIN_SCROLL_STYLE, 'smm-scroll')}>
+        {totalVisible === 0 &&
+          (mobileShell ? (
+            <div
+              style={{
+                padding: '60px 20px',
+                textAlign: 'center',
+                fontFamily: 'var(--font-sans)',
+                fontStyle: 'italic',
+                fontSize: 13,
+                color: 'hsl(var(--ink-3))',
+              }}
+            >
+              {totalLibraryItems === 0 ? (
+                <>
+                  <div>{t('memoMaterial.super.noMaterials')}</div>
+                  <button
+                    onClick={onCompose}
+                    style={{
+                      marginTop: 12,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      padding: '5px 14px',
+                      border: '1px solid hsl(var(--ink-1))',
+                      borderRadius: 3,
+                      background: 'hsl(var(--ink-1))',
+                      color: 'hsl(var(--paper))',
+                      cursor: 'pointer',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
+                  </button>
+                </>
+              ) : (
+                t('memoMaterial.super.noFilteredMaterials')
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              mark="material"
+              message={
+                totalLibraryItems === 0
+                  ? t('memoMaterial.super.noMaterials')
+                  : t('memoMaterial.super.noFilteredMaterials')
+              }
+              action={
+                totalLibraryItems === 0 ? (
+                  <Button variant="ghost" size="sm" onClick={onCompose}>
+                    {t('memoMaterial.super.newMaterialButton')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ))}
 
         {KIND_ORDER.map((kind) => {
           const items = libraryItemsByKind.get(kind) ?? [];
@@ -936,6 +1361,23 @@ function LibraryItemMain({
     </div>
   );
 }
+
+const LEGACY_GROUP_HEAD_STYLE: CSSProperties = {
+  ...kickerStyle,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  marginBottom: 8,
+  paddingBottom: 4,
+  borderBottom: '1px dashed hsl(var(--rule))',
+};
+
+const LEGACY_GROUP_GRID_STYLE: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+  gap: 10,
+  alignItems: 'start',
+};
 
 function KindGroup({
   kind,
@@ -963,29 +1405,14 @@ function KindGroup({
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;
   return (
-    <section style={{ marginBottom: 18 }}>
-      <div
-        style={{
-          ...kickerStyle,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          marginBottom: 8,
-          paddingBottom: 4,
-          borderBottom: '1px dashed hsl(var(--rule))',
-        }}
-      >
+    <section {...look(mobileShell, 'smm-kind-group', { marginBottom: 18 })}>
+      <div {...look(mobileShell, 'smm-kind-group__head smm-index', LEGACY_GROUP_HEAD_STYLE)}>
         <span>{t(`memoMaterial.kind.${kind}`, { defaultValue: kind })}</span>
-        <span style={{ color: 'hsl(var(--ink-4))' }}>{items.length}</span>
+        <span {...look(mobileShell, 'smm-index-count', { color: 'hsl(var(--ink-4))' })}>
+          {items.length}
+        </span>
       </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: 10,
-          alignItems: 'start',
-        }}
-      >
+      <div {...look(mobileShell, 'smm-kind-group__grid', LEGACY_GROUP_GRID_STYLE)}>
         {items.map((mat) => (
           <LibraryItemCard
             key={mat.id}
@@ -1013,6 +1440,77 @@ function KindGroup({
 // ─────────────────────────────────────────────────────────────────────────────
 // BottomDrawer — collapsed header strip + draggable resize when expanded.
 // Body is a 2-column split: orphan libraryItems | resolved memos.
+
+const LEGACY_DRAWER_HANDLE_STYLE: CSSProperties = {
+  height: 4,
+  marginTop: -2,
+  userSelect: 'none',
+};
+
+const LEGACY_DRAWER_BAR_STYLE: CSSProperties = {
+  all: 'unset',
+  boxSizing: 'border-box',
+  height: DRAWER_HEADER_HEIGHT - 4,
+  padding: '0 16px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  cursor: 'pointer',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'hsl(var(--ink-3))',
+  flexShrink: 0,
+};
+
+const LEGACY_DRAWER_COLS_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 1,
+  background: 'hsl(var(--rule))',
+};
+
+const LEGACY_DRAWER_COL_STYLE: CSSProperties = {
+  minWidth: 0,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  background: 'hsl(var(--paper))',
+};
+
+const LEGACY_DRAWER_ORPHANS_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '8px 12px 12px',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+  gap: 8,
+  alignContent: 'start',
+};
+
+const LEGACY_DRAWER_RESOLVED_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '6px 12px 12px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
+
+const LEGACY_DRAWER_EMPTY_STYLE: CSSProperties = {
+  padding: '20px 8px',
+  fontFamily: 'var(--font-sans)',
+  fontStyle: 'italic',
+  fontSize: 12,
+  color: 'hsl(var(--ink-4))',
+  textAlign: 'center',
+};
 
 function BottomDrawer({
   expanded,
@@ -1046,13 +1544,33 @@ function BottomDrawer({
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const heightRef = useRef(DRAWER_DEFAULT_HEIGHT);
+  const expandedRef = useRef(expanded);
 
-  const handleDragMove = useCallback((e: PointerEvent) => {
-    const state = dragRef.current;
-    if (!state) return;
-    const delta = state.startY - e.clientY;
-    setHeight(Math.max(DRAWER_MIN_HEIGHT, state.startHeight + delta));
-  }, []);
+  // Desktop: the drawer's top edge bleeds glass while it opens or closes
+  // (a structural movement, followed frame by frame)…
+  useLayoutEffect(() => {
+    if (expandedRef.current === expanded) return;
+    expandedRef.current = expanded;
+    const el = drawerRef.current;
+    if (el && !mobileShell) trackGlassFlow(el, () => el.getBoundingClientRect().height);
+  }, [expanded, mobileShell]);
+
+  const handleDragMove = useCallback(
+    (e: PointerEvent) => {
+      const state = dragRef.current;
+      if (!state) return;
+      const delta = state.startY - e.clientY;
+      const next = Math.max(DRAWER_MIN_HEIGHT, state.startHeight + delta);
+      // …and while its height is dragged, by the distance it moved.
+      const el = drawerRef.current;
+      if (el && !mobileShell) stepGlassFlow(el, Math.abs(next - heightRef.current));
+      heightRef.current = next;
+      setHeight(next);
+    },
+    [mobileShell],
+  );
 
   const handleDragEnd = useCallback(() => {
     dragRef.current = null;
@@ -1085,122 +1603,105 @@ function BottomDrawer({
 
   return (
     <div
-      style={{
-        height: drawerHeight,
-        flexShrink: 0,
-        borderTop: '1px solid hsl(var(--rule))',
-        background: 'hsl(var(--paper-deep) / 0.5)',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: dragging ? 'none' : 'height 0.18s ease',
-      }}
+      ref={drawerRef}
+      className={mobileShell ? undefined : `smm-drawer${dragging ? ' is-dragging' : ''}`}
+      style={
+        mobileShell
+          ? {
+              height: drawerHeight,
+              flexShrink: 0,
+              borderTop: '1px solid hsl(var(--rule))',
+              background: 'hsl(var(--paper-deep) / 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              transition: dragging ? 'none' : 'height 0.18s ease',
+            }
+          : { height: drawerHeight }
+      }
     >
+      {!mobileShell && (
+        <span className="flow-line flow-line--h smm-drawer__flow" aria-hidden="true" />
+      )}
       <div
         onPointerDown={handleDragStart}
-        style={{
-          height: 4,
-          marginTop: -2,
-          cursor: expanded ? 'ns-resize' : 'default',
-          userSelect: 'none',
-        }}
+        {...look(
+          mobileShell,
+          `smm-drawer__resize${expanded ? ' is-active' : ''}`,
+          { ...LEGACY_DRAWER_HANDLE_STYLE, cursor: expanded ? 'ns-resize' : 'default' },
+        )}
         aria-hidden
       />
       <button
         type="button"
         onClick={() => onExpandedChange(!expanded)}
-        style={{
-          all: 'unset',
-          boxSizing: 'border-box',
-          height: DRAWER_HEADER_HEIGHT - 4,
-          padding: '0 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          cursor: 'pointer',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: 'hsl(var(--ink-3))',
-          flexShrink: 0,
-        }}
+        {...look(mobileShell, 'smm-drawer__bar smm-index', LEGACY_DRAWER_BAR_STYLE)}
         aria-expanded={expanded}
         title={
           expanded ? t('memoMaterial.super.collapseDrawer') : t('memoMaterial.super.expandDrawer')
         }
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span>
-            {t('memoMaterial.super.orphans')}{' '}
-            <span style={{ color: 'hsl(var(--ink-4))' }}>{orphans.length}</span>
-          </span>
-          <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-          <span>
-            {t('memoMaterial.super.resolved')}{' '}
-            <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedTodos.length}</span>
-          </span>
-        </span>
-        <BrushIcon
-          name="chevron-up"
-          size={12}
-          style={{
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.18s ease',
-          }}
-        />
+        {mobileShell ? (
+          <>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span>
+                {t('memoMaterial.super.orphans')}{' '}
+                <span style={{ color: 'hsl(var(--ink-4))' }}>{orphans.length}</span>
+              </span>
+              <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
+              <span>
+                {t('memoMaterial.super.resolved')}{' '}
+                <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedTodos.length}</span>
+              </span>
+            </span>
+            <BrushIcon
+              name="chevron-up"
+              size={12}
+              style={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.18s ease',
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <span className="smm-drawer__summary">
+              <span>
+                {t('memoMaterial.super.orphans')}{' '}
+                <span className="smm-index-count">{orphans.length}</span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                {t('memoMaterial.super.resolved')}{' '}
+                <span className="smm-index-count">{resolvedTodos.length}</span>
+              </span>
+            </span>
+            <BrushIcon
+              name="chevron-down"
+              size={11}
+              className={`smm-drawer__chevron${expanded ? '' : ' is-collapsed'}`}
+            />
+          </>
+        )}
       </button>
 
       {expanded && (
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 1,
-            background: 'hsl(var(--rule))',
-          }}
-        >
+        <div {...look(mobileShell, 'smm-drawer__cols', LEGACY_DRAWER_COLS_STYLE)}>
           {/* Orphan libraryItems */}
-          <div
-            style={{
-              minWidth: 0,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              background: 'hsl(var(--paper))',
-            }}
-          >
+          <div {...look(mobileShell, 'smm-drawer__col', LEGACY_DRAWER_COL_STYLE)}>
             <SubHeader kicker={t('memoMaterial.super.orphanHeader')} count={orphans.length} />
-            <div
-              className="smm-scroll"
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                padding: '8px 12px 12px',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                gap: 8,
-                alignContent: 'start',
-              }}
-            >
-              {orphans.length === 0 && (
-                <div
-                  style={{
-                    gridColumn: '1 / -1',
-                    padding: '20px 8px',
-                    fontFamily: 'var(--font-sans)',
-                    fontStyle: 'italic',
-                    fontSize: 12,
-                    color: 'hsl(var(--ink-4))',
-                    textAlign: 'center',
-                  }}
-                >
-                  {t('memoMaterial.super.noOrphans')}
-                </div>
-              )}
+            <div {...look(mobileShell, 'smm-drawer__orphans', LEGACY_DRAWER_ORPHANS_STYLE, 'smm-scroll')}>
+              {orphans.length === 0 &&
+                (mobileShell ? (
+                  <div style={{ ...LEGACY_DRAWER_EMPTY_STYLE, gridColumn: '1 / -1' }}>
+                    {t('memoMaterial.super.noOrphans')}
+                  </div>
+                ) : (
+                  <EmptyState
+                    density="compact"
+                    className="smm-drawer__empty"
+                    message={t('memoMaterial.super.noOrphans')}
+                  />
+                ))}
               {orphans.map((mat) => (
                 <LibraryItemCard
                   key={mat.id}
@@ -1224,45 +1725,20 @@ function BottomDrawer({
           </div>
 
           {/* Resolved memos */}
-          <div
-            style={{
-              minWidth: 0,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              background: 'hsl(var(--paper))',
-            }}
-          >
+          <div {...look(mobileShell, 'smm-drawer__col', LEGACY_DRAWER_COL_STYLE)}>
             <SubHeader
               kicker={t('memoMaterial.super.resolvedHeader')}
               count={resolvedTodos.length}
             />
-            <div
-              className="smm-scroll"
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                padding: '6px 12px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-              }}
-            >
-              {resolvedTodos.length === 0 && (
-                <div
-                  style={{
-                    padding: '20px 8px',
-                    fontFamily: 'var(--font-sans)',
-                    fontStyle: 'italic',
-                    fontSize: 12,
-                    color: 'hsl(var(--ink-4))',
-                    textAlign: 'center',
-                  }}
-                >
-                  {t('memoMaterial.super.noResolvedTodos')}
-                </div>
-              )}
+            <div {...look(mobileShell, 'smm-drawer__resolved', LEGACY_DRAWER_RESOLVED_STYLE, 'smm-scroll')}>
+              {resolvedTodos.length === 0 &&
+                (mobileShell ? (
+                  <div style={LEGACY_DRAWER_EMPTY_STYLE}>
+                    {t('memoMaterial.super.noResolvedTodos')}
+                  </div>
+                ) : (
+                  <EmptyState density="compact" message={t('memoMaterial.super.noResolvedTodos')} />
+                ))}
               {resolvedTodos.map((c) => (
                 <ResolvedTodoRow
                   key={c.id}
@@ -1280,6 +1756,14 @@ function BottomDrawer({
 }
 
 function SubHeader({ kicker, count }: { kicker: string; count: number }) {
+  if (!getPlatformRuntime().isMobileShell) {
+    return (
+      <div className="smm-drawer__subhead smm-index">
+        <span>{kicker}</span>
+        <span className="smm-index-count">{count}</span>
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -1307,6 +1791,11 @@ function SubHeader({ kicker, count }: { kicker: string; count: number }) {
   );
 }
 
+/**
+ * A resolved TODO in the archive. Desktop: the whole row faded, no wash, the
+ * done toggle the TODO card's glass check (pressing it reopens), 「重开」 a
+ * text button and delete the flat waste-basket.
+ */
 function ResolvedTodoRow({
   todo,
   onReopen,
@@ -1318,6 +1807,26 @@ function ResolvedTodoRow({
 }) {
   const { t } = useTranslation();
   const text = extractTextFromCommentBody(todo.bodyJson);
+  if (!getPlatformRuntime().isMobileShell) {
+    return (
+      <div className="smm-resolved-row">
+        <TodoStatusToggle resolved onToggle={onReopen} />
+        <span className="smm-resolved-row__text" title={text}>
+          {text || t('memoMaterial.todo.empty')}
+        </span>
+        <Button variant="ghost" size="sm" onClick={onReopen} title={t('memoMaterial.archive.reopen')}>
+          {t('memoMaterial.super.reopenShort')}
+        </Button>
+        <GhostIconButton
+          size="sm"
+          icon={<BrushIcon name="trash" size={12} />}
+          onClick={onDelete}
+          title={t('common.delete')}
+          aria-label={t('common.delete')}
+        />
+      </div>
+    );
+  }
   return (
     <div
       style={{

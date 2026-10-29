@@ -55,7 +55,7 @@ export async function runSuperElementCardScenarios() {
         const cards = [...host.querySelectorAll<HTMLElement>('[data-super-card="element"]')];
         const nodes = [...host.querySelectorAll<HTMLElement>('[data-super-card="node"]')];
         if (cards.length !== elements || nodes.length !== 20) throw new Error('Full graph fixture did not mount every card.');
-        const focus = host.querySelector<HTMLButtonElement>('.super-element-toggle')!;
+        const focus = host.querySelector<HTMLButtonElement>('.super-element-toggle, [data-super-element-toggle="focus"]')!;
         resetWork(); const started = performance.now();
         for (let index = 0; index < 20; index++) flushSync(() => focus.click());
         const focusMs = performance.now() - started; const focusWork = { ...superElementCardWork };
@@ -71,9 +71,9 @@ export async function runSuperElementCardScenarios() {
         };
         const first = host.querySelector<HTMLElement>('[data-element-id="synthetic-element-0"]')!;
         flushSync(() => first.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
-        checks.shiftSelectsSource = first.style.outline.includes('dashed');
+        checks.shiftSelectsSource = first.style.outline.includes('dashed') || first.classList.contains('is-held');
         flushSync(() => first.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
-        checks.shiftClearsSource = first.style.outline === 'none';
+        checks.shiftClearsSource = first.style.outline === 'none' || (first.classList.contains('sand-cell') && !first.classList.contains('is-held'));
         const target = host.querySelector<HTMLElement>(`[data-element-id="${fixture.bookElements[elements - 1].id}"]`)!;
         for (const [source, sourceName, check] of [
           [first, fixture.bookElements[0].name, 'elementPairUsesLatestSource'],
