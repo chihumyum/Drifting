@@ -6,6 +6,7 @@ import { noteTaskItems } from '../../lib/note-tasks';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import type { WorkspaceTarget } from '../workspace/navigation/workspace-target';
+import { kindMarkOfTarget } from '../../components/ui/kind-mark';
 import {
   DetailValue,
   formatDateTime,
@@ -14,6 +15,7 @@ import {
   MetaV,
   ProgressBar,
   SnapshotEntryButton,
+  StatsLinkList,
   StatsLinkRow,
   StatsRow,
   StatsSection,
@@ -144,26 +146,31 @@ export function MaterialStats({ libraryItemId }: { libraryItemId: string }) {
 
       {shape.embeds.length > 0 && (
         <StatsSection title={t('rightSidebar.stats.embeddedMaterials')} topBorder>
-          {shape.embeds.map((id, index) => {
-            const embedded = libraryItems.find((candidate) => candidate.id === id);
-            if (!embedded) return null;
-            return (
-              <StatsLinkRow
-                key={`${id}:${index}`}
-                name={embedded.title || t('common.untitled')}
-                meta={t(`memoMaterial.kind.${embedded.kind}`, { defaultValue: embedded.kind })}
-                onOpen={() => open({ entityType: 'library_item', id })}
-              />
-            );
-          })}
+          <StatsLinkList>
+            {shape.embeds.map((id, index) => {
+              const embedded = libraryItems.find((candidate) => candidate.id === id);
+              if (!embedded) return null;
+              return (
+                <StatsLinkRow
+                  key={`${id}:${index}`}
+                  name={embedded.title || t('common.untitled')}
+                  mark="material"
+                  meta={t(`memoMaterial.kind.${embedded.kind}`, { defaultValue: embedded.kind })}
+                  onOpen={() => open({ entityType: 'library_item', id })}
+                />
+              );
+            })}
+          </StatsLinkList>
         </StatsSection>
       )}
 
       {related.length > 0 && (
         <StatsSection title={t('rightSidebar.stats.materialRelations')} topBorder>
-          {related.map((row) => (
-            <StatsLinkRow key={row.key} name={row.name} onOpen={() => open(row.target)} />
-          ))}
+          <StatsLinkList>
+            {related.map((row) => (
+              <StatsLinkRow key={row.key} name={row.name} mark={kindMarkOfTarget(row.target.entityType)} onOpen={() => open(row.target)} />
+            ))}
+          </StatsLinkList>
         </StatsSection>
       )}
 

@@ -1173,11 +1173,9 @@
     "defaultTitle": "新章节",
     "firstChapter": "新建第一章"
   },
-  "storylineAllChapter": {
-    "empty": "这条故事线还没有章节"
-  },
   "virtualChapterRow": {
-    "chapter": "章节"
+    "chapter": "章节",
+    "chapterNumber": "第 {{n}} 章"
   },
   "editorOutline": {
     "aria": "大纲",
@@ -1759,6 +1757,7 @@
       "openPdfFailed": "无法打开 PDF",
       "renderPdfFailed": "无法渲染 PDF",
       "loadingPdf": "加载 PDF…",
+      "pages": "翻页",
       "previousPage": "上一页",
       "nextPage": "下一页",
       "loading": "加载中…"
@@ -2517,7 +2516,8 @@
       "unaffiliated": "未归属"
     },
     "storyline": {
-      "openTitle": "点击打开「{{name}}」"
+      "openTitle": "点击打开「{{name}}」",
+      "chapterCount": "{{count}} 章"
     },
     "menu": {
       "moveToUnaffiliated": "转移至未归属",
@@ -3051,6 +3051,7 @@
     "deleteConfirm": "删除节点「{{name}}」？",
     "folio": {
       "chapter": "章节",
+      "chapterNumber": "第 {{n}} 章",
       "drift": "构想"
     },
     "empty": {
@@ -3267,12 +3268,13 @@
     "untitledChapter": "无标题章节",
     "menuHeader": "操作：{{title}}",
     "currentAt": "在 {{title}}",
+    "actOrdinal": "第{{n}}幕",
     "empty": {
       "noChapters": "本项目尚无章节。",
       "noChaptersShort": "— 尚无章节 —"
     },
     "actions": {
-      "backHome": "回到首页"
+      "backHome": "回到作品主页"
     }
   },
   "mobileWorkspace": {
@@ -3435,6 +3437,7 @@
     "zoomIn": "放大",
     "zoomOut": "缩小",
     "zoomReset": "适配窗口",
+    "toolbar": "素材工具",
     "provenance": {
       "generated": "AI 生成 · {{model}} · {{date}}",
       "prompt": "画面描述",
@@ -3479,6 +3482,9 @@
       "placeholder": "写下对这一处的批注…（⌘↩ 保存）",
       "asTodo": "作为待办",
       "save": "保存",
+      "kindLabel": "批注类型",
+      "kindNote": "批注",
+      "kindTodo": "TODO",
       "listLabel": "这条素材的批注",
       "empty": "在画面或页面上拖出区域，写下第一条批注。",
       "page": "第 {{page}} 页",

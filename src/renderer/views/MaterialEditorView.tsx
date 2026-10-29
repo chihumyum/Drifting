@@ -45,6 +45,7 @@ import { openLibraryItemInSystem } from '../features/library/open-library-item';
 import { LibraryItemFullscreenPreview } from '../features/library/LibraryItemPreview';
 import { MaterialNotePage } from './MaterialNotePage';
 import { BrushIcon } from '../components/ui/BrushIcon';
+import { getPlatformRuntime } from '../platform/runtime';
 
 const log = loglevel.getLogger('MaterialEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -303,18 +304,26 @@ function MaterialProvenanceLine({ item }: { item: LibraryItem }) {
     return state.bookElements.find((element) => element.id === provenance.elementId)?.name ?? null;
   });
   const [open, setOpen] = useState(false);
+  const glass = !getPlatformRuntime().isMobileShell;
   if (provenance?.origin === 'generated') {
     const generation = provenance.generation;
     return (
       <div className="material-editor__provenance">
-        <button type="button" className="material-editor__provenance-toggle" onClick={() => setOpen((value) => !value)}>
+        <button
+          type="button"
+          className="material-editor__provenance-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
           {t('materialEditor.provenance.generated', {
             model: generation.model,
             date: new Date(generation.generatedAt).toLocaleDateString(),
           })}
+          {glass && <BrushIcon name="chevron-right" size={9} inline />}
         </button>
         {open && (
-          <dl className="material-editor__generation">
+          // On the desktop the prompt is a read-only card: the resting line of glass.
+          <dl className={`material-editor__generation${glass ? ' glass glass--rest glass--still' : ''}`}>
             <dt>{t('materialEditor.provenance.prompt')}</dt>
             <dd>{generation.subjectPrompt ?? generation.prompt}</dd>
             {generation.styleText && (
@@ -352,7 +361,7 @@ function MaterialDescription({ item, onUpdate }: { item: LibraryItem; onUpdate: 
   const stored = extractTextFromCommentBody(item.notesJson);
   const [draft, setDraft] = useState<string | null>(null);
   const value = draft ?? stored;
-  return (
+  const field = (
     <textarea
       className="material-editor__description"
       rows={Math.min(6, Math.max(1, value.split('\n').length))}
@@ -367,6 +376,10 @@ function MaterialDescription({ item, onUpdate }: { item: LibraryItem; onUpdate: 
       }}
     />
   );
+  // Desktop: a field with no line at rest; the pointer brings the glass and
+  // the caret holds it still.
+  if (getPlatformRuntime().isMobileShell) return field;
+  return <span className="material-editor__description-field glass glass--field">{field}</span>;
 }
 
 function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPageProps) {
@@ -376,7 +389,10 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
   const [drawing, setDrawing] = useState(false);
   const [pending, setPending] = useState<{ rect: Pick<MaterialRegion, 'x' | 'y' | 'w' | 'h'>; page: number | null; screen: { x: number; y: number } } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The region or comment under the pointer, lit on both sides.
+  const [linkedId, setLinkedId] = useState<string | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
+  const glass = !getPlatformRuntime().isMobileShell;
   const zoomPan = useZoomPanSurface(surface, true);
   const isImage = item.kind === 'image';
   const imageSource = useStoredLibraryItemVariant(item, 'display', isImage);
@@ -441,8 +457,11 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
       box={box}
       marks={marks}
       selectedId={selectedId}
+      linkedId={linkedId}
       drawing={drawing}
+      sand={glass}
       onSelect={selectComment}
+      onLink={setLinkedId}
       onDrawn={(rect, screen) => setPending({ rect, page: box.page, screen })}
     />
   );
@@ -497,6 +516,38 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
           {...zoomPan.pointerHandlers}
         >
           {stage}
+          {glass ? (
+            <div className="material-stage__toolbar" onPointerDown={(event) => event.stopPropagation()}>
+              <div className="editor-bar glass glass--rest" role="toolbar" aria-label={t('materialEditor.toolbar')}>
+                <button
+                  type="button"
+                  className={`editor-bar__icon glass glass--round${drawing ? ' editor-bar__icon--active' : ''}`}
+                  aria-pressed={drawing}
+                  title={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
+                  aria-label={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
+                  onClick={() => {
+                    setDrawing((value) => !value);
+                    setPending(null);
+                  }}
+                >
+                  <BrushIcon name="comment-plus" size={15} />
+                </button>
+                <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomOut')} aria-label={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
+                  <BrushIcon name="minus" size={14} />
+                </button>
+                <button type="button" className="material-stage__zoom glass" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
+                  {Math.round(zoomPan.viewport.scale * 100)}%
+                </button>
+                <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomIn')} aria-label={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
+                  <BrushIcon name="plus" size={14} />
+                </button>
+                <button type="button" className="editor-bar__icon glass glass--round" title={t('memoMaterial.preview.fullscreen')} aria-label={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
+                  <BrushIcon name="fullscreen" size={14} />
+                </button>
+              </div>
+              {drawing && <div className="material-stage__caption">{t('materialEditor.regions.drawHint')}</div>}
+            </div>
+          ) : (
           <div className="material-stage__tools" onPointerDown={(event) => event.stopPropagation()}>
             <button
               type="button"
@@ -523,10 +574,14 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
               <BrushIcon name="fullscreen" size={13} />
             </button>
           </div>
-          {drawing && <div className="material-stage__hint">{t('materialEditor.regions.drawHint')}</div>}
+          )}
+          {drawing && !glass && <div className="material-stage__hint">{t('materialEditor.regions.drawHint')}</div>}
         </div>
         {(comments.length > 0 || drawing) && (
-          <aside className="material-comments" aria-label={t('materialEditor.regions.listLabel')}>
+          <aside
+            className={`material-comments${glass ? ' material-comments--flat' : ''}`}
+            aria-label={t('materialEditor.regions.listLabel')}
+          >
             {comments.length === 0 ? (
               <div className="material-comments__empty">{t('materialEditor.regions.empty')}</div>
             ) : (
@@ -534,11 +589,25 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
                 <div
                   key={comment.id}
                   id={`material-comment-${comment.id}`}
-                  className={`material-comments__item${comment.id === selectedId ? ' material-comments__item--selected' : ''}`}
+                  className={[
+                    'material-comments__item',
+                    comment.id === selectedId ? 'material-comments__item--selected' : '',
+                    comment.id === linkedId ? 'material-comments__item--linked' : '',
+                  ].filter(Boolean).join(' ')}
                   onClickCapture={() => selectComment(comment.id)}
+                  onPointerEnter={region ? () => setLinkedId(comment.id) : undefined}
+                  onPointerLeave={region ? () => setLinkedId((current) => (current === comment.id ? null : current)) : undefined}
                 >
                   <div className="material-comments__meta">
-                    <span className="material-comments__index">{index + 1}</span>
+                    <span
+                      className={
+                        glass
+                          ? `material-seal${comment.kind === 'todo' ? ' material-seal--todo' : ''}${comment.status === 'resolved' ? ' material-seal--resolved' : ''}`
+                          : 'material-comments__index'
+                      }
+                    >
+                      {index + 1}
+                    </span>
                     {region?.page ? t('materialEditor.regions.page', { page: region.page }) : !region ? t('materialEditor.regions.whole') : null}
                   </div>
                   <ReviewItemCard comment={comment} projectId={projectId} presentation="panel" />

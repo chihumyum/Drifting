@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/ui/Button';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 export function CommentBodyEditor({
   text,
@@ -18,6 +19,19 @@ export function CommentBodyEditor({
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const savingRef = useRef(false);
+  // Desktop: the text sits on a page-coloured slip (the Agent composer's
+  // field glass) and save is the primary glass; mobile keeps its old save.
+  const glass = !getPlatformRuntime().isMobileShell;
+  const field = (
+    <textarea
+      autoFocus
+      aria-label={t('common.edit')}
+      value={draft}
+      rows={4}
+      disabled={saving}
+      onChange={(event) => setDraft(event.target.value)}
+    />
+  );
 
   const save = async () => {
     const body = draft.trim();
@@ -59,20 +73,13 @@ export function CommentBodyEditor({
         }
       }}
     >
-      <textarea
-        autoFocus
-        aria-label={t('common.edit')}
-        value={draft}
-        rows={4}
-        disabled={saving}
-        onChange={(event) => setDraft(event.target.value)}
-      />
+      {glass ? <div className="review-card__slip glass glass--rest glass--field">{field}</div> : field}
       {failed && <div role="alert">{t('common.saveFailed')}</div>}
       <div className="review-card__editor-actions">
         <Button size="sm" variant="ghost" disabled={saving} onClick={onClose}>
           {t('common.cancel')}
         </Button>
-        <Button size="sm" disabled={!draft.trim() || busy || saving} onClick={() => void save()}>
+        <Button size="sm" variant={glass ? 'primary' : 'default'} disabled={!draft.trim() || busy || saving} onClick={() => void save()}>
           {t(saving ? 'common.saving' : 'common.save')}
         </Button>
       </div>

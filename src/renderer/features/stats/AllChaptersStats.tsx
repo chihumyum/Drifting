@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -10,6 +10,7 @@ import {
 import { deriveActSegments, type BookAct } from '../../domain/book-act';
 import { useDataStore } from '../../store/data-store';
 import { useWritingStatsStore } from '../../store/writing-stats-store';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import {
@@ -18,6 +19,9 @@ import {
   MetaV,
   Notes,
   ProgressBar,
+  StackedBar,
+  StatsCaption,
+  StatsLinkList,
   StatsLinkRow,
   StatsRow,
   StatsSection,
@@ -83,6 +87,8 @@ function ChapterRhythmChart({
   const [hovered, setHovered] = useState<number | null>(null);
   const active = hovered != null ? chapters[hovered] : null;
   const untitled = t('common.untitled');
+  // Desktop: one short dry stroke per chapter (materials.css .sand-stroke).
+  const sand = !getPlatformRuntime().isMobileShell;
 
   return (
     <>
@@ -101,21 +107,28 @@ function ChapterRhythmChart({
               // Contiguous full-width rows (no gaps) keep the whole column a
               // single easy hover/click strip; the visible bar stays thin.
               style={{
-                padding: '1px 0',
+                padding: sand ? '1.5px 0' : '1px 0',
                 cursor: 'pointer',
                 opacity: hovered == null ? 0.85 : isHovered ? 1 : 0.3,
                 transition: 'opacity 0.12s ease',
               }}
             >
-              <div
-                style={{
-                  width: `${w}%`,
-                  minWidth: 2,
-                  height: 3,
-                  background: colorByChapter.get(n.id) || 'hsl(var(--ink-4))',
-                  borderRadius: 1,
-                }}
-              />
+              {sand ? (
+                <span
+                  className="sand-stroke stats-rhythm__stroke"
+                  style={{ width: `${w}%`, '--sand-c': colorByChapter.get(n.id) || 'hsl(var(--ink-4))' } as CSSProperties}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: `${w}%`,
+                    minWidth: 2,
+                    height: 3,
+                    background: colorByChapter.get(n.id) || 'hsl(var(--ink-4))',
+                    borderRadius: 1,
+                  }}
+                />
+              )}
             </div>
           );
         })}
@@ -123,7 +136,8 @@ function ChapterRhythmChart({
       <div
         // Reserve two lines so the readout swapping in on hover doesn't shift
         // the layout.
-        style={{
+        className={sand ? 'stats-caption stats-rhythm__readout' : undefined}
+        style={sand ? undefined : {
           marginTop: 8,
           minHeight: 34,
           fontFamily: 'var(--font-mono)',
@@ -173,6 +187,13 @@ const STATUS_BUCKET_OPACITY: Record<(typeof STATUS_BUCKET_ORDER)[number], number
   done: 1,
   draft: 0.5,
   todo: 0.18,
+};
+/** On the desktop completion is how much sand a stroke holds: done is a
+ *  loaded stroke, a draft a dry one, what is still to write loose grains. */
+const STATUS_BUCKET_DENSITY: Record<(typeof STATUS_BUCKET_ORDER)[number], 'dry' | 'loose' | undefined> = {
+  done: undefined,
+  draft: 'dry',
+  todo: 'loose',
 };
 
 export function AllChaptersStats({
@@ -297,36 +318,28 @@ export function AllChaptersStats({
 
       {actRows.length > 0 && (
         <StatsSection title={t('rightSidebar.stats.actRhythm')} topBorder>
-          <div
-            style={{
-              display: 'flex',
-              height: 5,
-              borderRadius: 2,
-              overflow: 'hidden',
-              background: 'hsl(var(--rule))',
-              marginBottom: 10,
-            }}
-          >
-            {actRows.map((r) =>
-              r.pct > 0 ? (
-                <div
-                  key={r.act.id}
-                  title={t('rightSidebar.stats.actTooltip', {
-                    name: r.act.name,
-                    chapters: r.cnt,
-                    words: r.words.toLocaleString(),
-                  })}
-                  style={{ width: `${r.pct}%`, background: r.color }}
-                />
-              ) : null,
-            )}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <StackedBar
+            marginBottom={10}
+            segments={actRows.filter((r) => r.pct > 0).map((r) => ({
+              key: r.act.id,
+              pct: r.pct,
+              color: r.color,
+              title: t('rightSidebar.stats.actTooltip', {
+                name: r.act.name,
+                chapters: r.cnt,
+                words: r.words.toLocaleString(),
+              }),
+            }))}
+          />
+          <StatsLinkList>
             {actRows.map((r) => (
               <StatsLinkRow
                 key={r.act.id}
                 name={r.act.name}
                 color={r.color}
+                // An act has no mark of its own; it presses a round seal.
+                mark="chapter"
+                seed={r.act.id}
                 meta={t('rightSidebar.stats.actMeta', {
                   chapters: r.cnt,
                   wordsK: (r.words / 1000).toFixed(1),
@@ -336,7 +349,7 @@ export function AllChaptersStats({
                 onOpen={() => scrollReadingViewTo(`[data-act-id="${CSS.escape(r.act.id)}"]`)}
               />
             ))}
-          </div>
+          </StatsLinkList>
         </StatsSection>
       )}
 
@@ -345,41 +358,21 @@ export function AllChaptersStats({
           <Notes>{t('rightSidebar.stats.noActiveProgress')}</Notes>
         ) : (
           <>
-            <div
-              style={{
-                display: 'flex',
-                height: 5,
-                borderRadius: 2,
-                overflow: 'hidden',
-                background: 'hsl(var(--rule))',
-                marginBottom: 8,
-              }}
-            >
-              {STATUS_BUCKET_ORDER.map((s) =>
-                statusCounts[s] > 0 ? (
-                  <div
-                    key={s}
-                    title={t('rightSidebar.stats.statusCount', {
-                      status: t(STATUS_BUCKET_LABEL_KEY[s]),
-                      count: statusCounts[s],
-                    })}
-                    style={{
-                      width: `${(statusCounts[s] / activeTotal) * 100}%`,
-                      background: 'hsl(var(--accent))',
-                      opacity: STATUS_BUCKET_OPACITY[s],
-                    }}
-                  />
-                ) : null,
-              )}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'hsl(var(--ink-3))',
-                lineHeight: 1.7,
-              }}
-            >
+            <StackedBar
+              segments={STATUS_BUCKET_ORDER.filter((s) => statusCounts[s] > 0).map((s) => ({
+                key: s,
+                pct: (statusCounts[s] / activeTotal) * 100,
+                color: 'hsl(var(--accent))',
+                sandColor: 'hsl(var(--ink-2))',
+                opacity: STATUS_BUCKET_OPACITY[s],
+                density: STATUS_BUCKET_DENSITY[s],
+                title: t('rightSidebar.stats.statusCount', {
+                  status: t(STATUS_BUCKET_LABEL_KEY[s]),
+                  count: statusCounts[s],
+                }),
+              }))}
+            />
+            <StatsCaption>
               {STATUS_BUCKET_ORDER.filter((s) => statusCounts[s] > 0)
                 .map((s) =>
                   t('rightSidebar.stats.statusCount', {
@@ -390,7 +383,7 @@ export function AllChaptersStats({
                 .join(' · ') || '—'}
               {statusCounts.discarded > 0 &&
                 t('rightSidebar.stats.discardedParen', { count: statusCounts.discarded })}
-            </div>
+            </StatsCaption>
             <StatsRow k={t('rightSidebar.status.done')} v={`${donePct}%`} />
           </>
         )}

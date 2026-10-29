@@ -21,10 +21,6 @@
      extra scrollbar. The cards beyond the bounds are off-screen anyway. */
   overflow: hidden;
 }
-.editor__margin .mnote,
-.editor__margin .comment-chip {
-  pointer-events: auto;
-}
 @keyframes editor-margin-fade-in {
   from {
     opacity: 0;
@@ -36,301 +32,6 @@
   }
 }
 
-.mnote {
-  background: hsl(var(--surface));
-  background-image: linear-gradient(hsl(var(--accent) / 0.04), hsl(var(--accent) / 0.04));
-  border: 1px solid hsl(var(--rule));
-  border-radius: 4px;
-  padding: 9px 11px 10px;
-  position: absolute;
-  /* Fallback so a card never paints at top:auto before CommentRail writes its
-     real `top` imperatively. The JS write (inline style) overrides this. */
-  top: 28px;
-  left: 0;
-  right: 0;
-  cursor: default;
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  color: hsl(var(--ink-2));
-  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.06);
-  transition:
-    box-shadow 0.15s,
-    border-color 0.15s;
-  z-index: 1;
-}
-.mnote:hover {
-  border-color: hsl(var(--rule-strong));
-  box-shadow: 0 10px 22px -12px hsl(var(--ink-1) / 0.28);
-  z-index: 5;
-}
-.mnote--resolved {
-  background-image: none;
-  opacity: 0.72;
-}
-/* Card has been promoted to a TODO (comment.kind = 'todo'). Keeps the
-   block anchor + body intact; the rail visually nudges to checklist-style
-   so the author can tell which annotations are tasks vs. plain notes.
-   Story-4 (ochre) reads as "pending task" against the cooler default
-   accent — strong enough to register against the surface, light enough
-   not to fight with the body text.
-
-   The tint is layered as a background-image so the underlying surface
-   stays opaque. Using the `background:` shorthand here would reset
-   background-color (inherited from .mnote = hsl(var(--surface))) and the
-   card would render semi-transparent against whatever sits behind the
-   editor rail. */
-.mnote--todo {
-  border-color: hsl(var(--rule)); /* ochre tint + glyph carry the TODO identity */
-  background-color: hsl(var(--surface));
-  background-image: linear-gradient(hsl(var(--story-4) / 0.12), hsl(var(--story-4) / 0.12));
-}
-.mnote--todo:hover {
-  background-image: linear-gradient(hsl(var(--story-4) / 0.18), hsl(var(--story-4) / 0.18));
-}
-.mnote--todo .mnote__head-glyph,
-.mnote--todo .mnote__head-l > span:last-child {
-  color: hsl(var(--story-4));
-}
-/* Plain notes carry a 胭脂 (rouge/pink) identity — distinct from the app-wide
-   blue accent (which now reads as "agent-changed" on the overview ruler) and
-   from the ochre of TODOs. The accent bar is dropped (no left stripe); the
-   pink lives in the § glyph and the primary action instead, so the card reads
-   quieter. Resolved notes keep their dimmed gray bar cue. */
-.mnote--manual:not(.mnote--todo):not(.mnote--resolved) {
-  border-left: 1px solid hsl(var(--rule));
-}
-.mnote--manual:not(.mnote--todo) .mnote__head-glyph {
-  color: hsl(var(--comment));
-}
-.mnote--manual:not(.mnote--todo) .mnote__head-r .mnote__icon-btn:hover {
-  color: hsl(var(--comment));
-}
-.mnote--manual:not(.mnote--todo) .mnote__btn--primary {
-  background: hsl(var(--comment));
-  border-color: hsl(var(--comment));
-  color: hsl(var(--accent-foreground));
-}
-.mnote--manual:not(.mnote--todo) .mnote__btn--primary:hover {
-  background: hsl(var(--comment) / 0.85);
-  border-color: hsl(var(--comment) / 0.85);
-}
-/* Copilot suggestions carry a solid 群青 (abyss blue) identity — the accept
-   button + glyph are blue; a faint blue tint backs the card. */
-.mnote--copilot {
-  border-left: 1px solid hsl(var(--rule));
-  background-color: hsl(var(--surface));
-  background-image: linear-gradient(hsl(var(--story-2) / 0.1), hsl(var(--story-2) / 0.1));
-}
-.mnote--copilot:hover {
-  background-image: linear-gradient(hsl(var(--story-2) / 0.16), hsl(var(--story-2) / 0.16));
-}
-.mnote--copilot .mnote__head-glyph,
-.mnote--copilot .mnote__head-l > span:last-child {
-  color: hsl(var(--story-2));
-}
-.mnote--copilot .mnote__btn--primary {
-  background: hsl(var(--story-2));
-  border-color: hsl(var(--story-2));
-  color: hsl(var(--accent-foreground));
-}
-.mnote--copilot .mnote__btn--primary:hover {
-  background: hsl(var(--story-2) / 0.85);
-  border-color: hsl(var(--story-2) / 0.85);
-}
-
-/* Copilot capability subtitle (between title and evidence quote). */
-.mnote__subtitle {
-  font-size: 10.5px;
-  color: hsl(var(--ink-3));
-  margin: 1px 0 3px;
-}
-
-/* Copilot suggestion body preview — the element's initial summary (element
-   candidate) or the patch body. A soft background wash (no left bar) so the
-   author sees what they're accepting without expanding anything. */
-.mnote__evidence {
-  font-size: 12px;
-  line-height: 1.5;
-  color: hsl(var(--ink-2));
-  margin: 4px 0 2px;
-  padding: 6px 8px;
-  background: hsl(var(--ink-1) / 0.04);
-  border-radius: 5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* New-comment composer matches the note identity so creating → created reads as
-   one color, not blue→pink. */
-.mnote--composer {
-  border-left-color: hsl(var(--comment));
-  z-index: 8;
-}
-.mnote--composer .mnote__btn--primary {
-  background: hsl(var(--comment));
-  border-color: hsl(var(--comment));
-  color: hsl(var(--accent-foreground));
-}
-.mnote--composer .mnote__btn--primary:hover {
-  background: hsl(var(--comment) / 0.85);
-  border-color: hsl(var(--comment) / 0.85);
-}
-.mnote--composer .mnote__textarea:focus {
-  border-color: hsl(var(--comment));
-}
-.mnote__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-  margin-bottom: 4px;
-}
-.mnote__head-l {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.mnote__head-r {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.mnote__head-r .mnote__icon-btn {
-  width: 16px;
-  height: 16px;
-  border: none;
-  color: hsl(var(--ink-4));
-}
-.mnote__head-r .mnote__icon-btn:hover {
-  color: hsl(var(--accent));
-  border: none;
-}
-.mnote__head-glyph {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 11px;
-  color: hsl(var(--accent));
-}
-.mnote__head-conf {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: hsl(var(--ink-4));
-}
-.mnote__title {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: hsl(var(--ink));
-  line-height: 1.42;
-  word-break: break-word;
-}
-.mnote__quote {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 11.5px;
-  color: hsl(var(--ink-3));
-  padding: 5px 7px;
-  border-radius: var(--radius-xs);
-  background: hsl(var(--ink-1) / 0.03);
-  margin-top: 6px;
-  line-height: 1.4;
-  word-break: break-word;
-}
-.mnote__actions {
-  display: flex;
-  gap: 4px;
-  margin-top: 7px;
-  flex-wrap: wrap;
-}
-.mnote__btn,
-.mnote__icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-radius: 2px;
-  border: 1px solid hsl(var(--rule-strong));
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  background: transparent;
-}
-.mnote__btn {
-  padding: 3px 6px;
-}
-.mnote__icon-btn {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-}
-.mnote__btn:hover,
-.mnote__icon-btn:hover {
-  color: hsl(var(--ink));
-  border-color: hsl(var(--ink-4));
-}
-.mnote__btn:disabled,
-.mnote__icon-btn:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-.mnote__btn--primary {
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-  border-color: hsl(var(--accent));
-}
-/* Compact variant for the "revert to note" affordance — same shape as
-   .mnote__icon-btn but inline with the actions row instead of the head
-   chrome. Used by the TODO downgrade button (icon only, no label). */
-.mnote__btn--ghost {
-  padding: 3px 6px;
-  border-color: hsl(var(--rule));
-  color: hsl(var(--ink-4));
-}
-.mnote__btn--ghost:hover {
-  color: hsl(var(--ink-2));
-  border-color: hsl(var(--ink-4));
-}
-.mnote__btn--primary:hover {
-  background: hsl(var(--story-1));
-  color: hsl(var(--accent-foreground));
-  border-color: hsl(var(--story-1));
-}
-.mnote__textarea {
-  width: 100%;
-  resize: vertical;
-  min-height: 74px;
-  margin-top: 8px;
-  padding: 7px 8px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  background: hsl(var(--page));
-  color: hsl(var(--ink));
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.5;
-  outline: none;
-}
-.mnote__textarea:focus {
-  border-color: hsl(var(--accent));
-}
-.mnote__leader {
-  position: absolute;
-  right: 100%;
-  width: 14px;
-  height: 1px;
-  background: hsl(var(--rule-strong));
-  top: 14px;
-}
-.mnote:hover .mnote__leader {
-  background: hsl(var(--accent));
-}
 /* Comment anchors — painted via the CSS Custom Highlight API (see
    lib/comment-highlight.ts), NOT a CSS class: ProseMirror strips externally-
    added classes from its nodes, and a highlight can wash an arbitrary DOM Range
@@ -366,197 +67,6 @@
 ::highlight(book-find-current) {
   background-color: var(--search-find-match-cur-bg, hsl(28 85% 52% / 0.55));
   color: hsl(var(--ink-1));
-}
-
-/* ============================================================
-   Per-comment chip (collapsed card)
-   ============================================================ */
-/* When the user minimizes a card it renders as this compact control in place
-   of the full card, at the same y position. Click to expand back. Lives
-   on the right edge of the rail so multiple chips line up neatly without
-   competing for horizontal space with expanded cards. */
-.comment-chip {
-  position: absolute;
-  top: 28px; /* fallback; CommentRail writes the real top imperatively */
-  right: 8px;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius: 2px;
-  border: 1px solid hsl(var(--rule-strong));
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  z-index: 2;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.comment-chip:hover {
-  background: hsl(var(--accent) / 0.1);
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent));
-  z-index: 6;
-}
-/* Collapsed-chip identity matches the card family (icon + ring colour). */
-.comment-chip--manual {
-  border-color: hsl(var(--comment));
-  color: hsl(var(--comment));
-}
-.comment-chip--copilot {
-  border-color: hsl(var(--story-2));
-  color: hsl(var(--story-2));
-}
-.comment-chip--todo {
-  border-color: hsl(var(--story-4));
-  color: hsl(var(--story-4));
-}
-.comment-chip--resolved,
-.comment-chip--orphan {
-  opacity: 0.55;
-}
-.comment-chip--active {
-  animation: comment-chip-pulse 1.4s ease-in-out infinite;
-}
-@keyframes comment-chip-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 2px hsl(var(--accent) / 0.4),
-      0 0 8px hsl(var(--accent) / 0.45);
-  }
-  50% {
-    box-shadow:
-      0 0 0 3px hsl(var(--accent) / 0.65),
-      0 0 18px hsl(var(--accent) / 0.7);
-  }
-}
-
-/* ============================================================
-   Block-less comment / TODO stack
-   ============================================================ */
-/* Entity-level notes (no prose block to anchor to) live at the bottom of the
-   rail. Collapsed to a single chip (like a normal comment's collapsed state);
-   click to lay the cards out directly in a floating column — no wrapper box, no
-   header. Anchored at the bottom so the expanded column grows UPWARD. */
-/* left/right: 0 so loose cards span the same width as block-anchored cards
-   (.mnote, also left/right:0) — otherwise the stack's inset made them narrower. */
-.mnote-stack {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 12px;
-  pointer-events: auto;
-  z-index: 7;
-  display: flex;
-  flex-direction: column;
-}
-
-/* --- collapsed: a single chip, sized + placed to match .comment-chip --- */
-.mnote-stack__ball {
-  position: relative;
-  align-self: flex-end;
-  margin-right: 8px; /* matches .comment-chip { right: 8px } */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 2px;
-  border: 1px solid hsl(var(--rule-strong));
-  background: hsl(var(--surface));
-  color: hsl(var(--story-4));
-  cursor: pointer;
-  box-shadow: none;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.mnote-stack__ball:hover {
-  background: hsl(var(--story-4) / 0.1);
-  border-color: hsl(var(--story-4));
-  box-shadow: none;
-}
-.mnote-stack__ball-count {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 1px;
-  background: hsl(var(--story-4));
-  color: hsl(var(--ink-1) / 0.85);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  box-shadow: none;
-  pointer-events: none;
-}
-
-/* --- expanded: floating column of full cards, no wrapper/header --- */
-.mnote-stack--open {
-  max-height: 64%;
-}
-/* Expanded-stack header bar: [+ new entity comment] [collapse], right-aligned
-   to match the collapsed ball's column. */
-.mnote-stack__bar {
-  align-self: flex-end;
-  margin-right: 8px;
-  margin-bottom: 6px;
-  flex-shrink: 0;
-  display: flex;
-  gap: 6px;
-}
-.mnote-stack__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 2px;
-  border: 1px solid hsl(var(--rule-strong));
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  box-shadow: none;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-.mnote-stack__btn:hover {
-  background: hsl(var(--accent) / 0.1);
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent));
-}
-/* Inline entity-comment composer sits flat in the stack list. */
-.mnote--entity-composer {
-  cursor: default;
-}
-.mnote-stack__list {
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* Loose cards flow in the stack instead of floating to a block position. */
-.mnote-stack .mnote--loose {
-  position: static;
-  top: auto;
-  left: auto;
-  right: auto;
 }
 
 /* ============================================================
@@ -1015,90 +525,6 @@
 }
 
 /* ============================================================
-   Copilot active / stale states
-   ============================================================ */
-/* Going stale (past the 5s Tab-accept window) does NOT restyle the card — only
-   the accept button's pulse stops (the glow class is gated on the active state).
-   Only resolved/open changes a card's overall look. */
-
-/* Active accept button — pulses to telegraph "Tab will hit me". The pulse
-   fades on its own when the parent removes the class at the end of the
-   active window. */
-.mnote__btn--glow {
-  animation: mnote-btn-glow 1.4s ease-in-out infinite;
-}
-@keyframes mnote-btn-glow {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 2px hsl(var(--accent) / 0.4),
-      0 0 10px hsl(var(--accent) / 0.45);
-  }
-  50% {
-    box-shadow:
-      0 0 0 3px hsl(var(--accent) / 0.7),
-      0 0 22px hsl(var(--accent) / 0.75);
-  }
-}
-
-/* ============================================================
-   Block snapshot quote + orphan handling
-   ============================================================ */
-/* Selected fragment inside the quoted snapshot — bold + accent tint, so the
-   reader's eye lands on the part that was actually commented on, even with
-   ±60 chars of surrounding context. */
-.mnote__quote-hit {
-  font-weight: 700;
-  background: hsl(var(--accent) / 0.18);
-  color: hsl(var(--ink));
-  padding: 0 2px;
-  border-radius: 2px;
-}
-
-/* Small pill replacing the quote when the source block was deleted. Clicks
-   open the snapshot modal so the user can recover context. */
-.mnote__tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-top: 6px;
-  padding: 2px 6px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  background: transparent;
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  align-self: flex-start;
-}
-.mnote__tag:hover:not(:disabled) {
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent));
-}
-.mnote__tag:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-/* Same pill, flagged when the source block is gone (orphan). */
-.mnote__tag--orphan {
-  border-color: hsl(var(--ink-5));
-  color: hsl(var(--ink-4));
-}
-
-/* Orphan card — slightly muted, no left-border accent, no leader line.
-   Bottom-stacked positioning is set inline by CommentRail. */
-.mnote--orphan {
-  border-left-color: hsl(var(--ink-5));
-  background: hsl(var(--ink-5) / 0.04);
-}
-.mnote--orphan .mnote__title {
-  color: hsl(var(--ink-2));
-}
-
-/* ============================================================
    Snapshot inspection modal
    ============================================================ */
 .snapshot-modal__overlay {
@@ -1136,6 +562,29 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: hsl(var(--ink-4));
+}
+/* Close: a plain icon button with its brush cross; the paused mobile shell
+   keeps the outlined square it had. */
+.snapshot-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+}
+.snapshot-modal__close:hover {
+  color: hsl(var(--ink));
+  border-color: hsl(var(--ink-4));
+}
+html[data-shell-mode='desktop'] .snapshot-modal__close,
+html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
+  border-color: transparent;
 }
 .snapshot-modal__body {
   font-family: var(--font-sans);
@@ -2738,12 +2187,230 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
   gap: 6px;
 }
 
-/* Review cards in the panel borrow the glass rim: it flows under the pointer
-   and never thickens when pressed (materials.css `.glass--surface`). The
-   card's plate does not change under the pointer. */
+/* The paused mobile shell: Review cards in the panel keep a plate and only
+   borrow the glass rim, which flows under the pointer and never thickens
+   when pressed (materials.css `.glass--surface`). */
 .review-card--panel.glass,
 .review-card--panel.glass:hover,
 .review-card--panel.glass:focus-within {
   --glass-edge: 34%;
   background: color-mix(in srgb, hsl(var(--ink-1)) 3.5%, var(--workspace-ui-bg));
+}
+
+/* ============================================================
+   Desktop: sand and glass (docs/design-system/components.md, Review 卡)
+   ============================================================ */
+/* A Review card lays no plate: only the resting line of clear glass, which
+   drifts under the pointer and never thickens when pressed (glass
+   glass--rest glass--surface). Dense texture patches, as in the Agent
+   transcript, so no card draws the sparse one. */
+.review-card.review-card--glass,
+.review-card.review-card--glass:hover,
+.review-card.review-card--glass:focus-within {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+}
+.review-card--glass.glass:nth-of-type(2n + 1) { --glass-gx: -96px; --glass-gy: -132px; }
+.review-card--glass.glass:nth-of-type(2n) { --glass-gx: -168px; --glass-gy: -18px; }
+
+/* On the manuscript's edge a sticky note floats over the prose: the page at
+   80% under a faint blur, so the lines beneath show through faintly. */
+.review-card--sticky.review-card--glass,
+.review-card--sticky.review-card--glass:hover,
+.review-card--sticky.review-card--glass:focus-within {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+}
+
+/* A suggestion's subtitle, its evidence and a quoted selection: flat, in the
+   secondary ink; quotes are indented rather than boxed. */
+.review-card--glass :is(.review-card__meta, .review-card__evidence, .review-card__quote) {
+  margin: 2px 0 6px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.review-card--glass :is(.review-card__evidence, .review-card__quote) {
+  padding-left: 10px;
+}
+
+/* Handing a TODO to the Agent is a text button: no plate, no tail; the
+   loader turns beside it while the Agent works. */
+.review-card--glass .review-card__agent-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 2px;
+  padding: 2px 4px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  transition: opacity 120ms ease, color 120ms ease;
+}
+.review-card--glass .review-card__agent-hint::after {
+  content: none;
+}
+.review-card--glass .review-card__agent-hint:hover:not(:disabled),
+.review-card--glass .review-card__agent-hint:focus-visible {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+
+/* Done is a round glass button; resolved it is the selected glass, and the
+   brush tick is drawn into it (the author's mark, 0.38s like a sand frame). */
+.todo-status-toggle.todo-status-toggle--glass {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  color: hsl(var(--ink-2));
+}
+.todo-status-toggle--glass:hover:not(:disabled) {
+  background: transparent;
+}
+.todo-status-toggle--glass:focus-visible {
+  outline: none;
+}
+.todo-status-toggle__tick {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.38s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.todo-status-toggle--glass[aria-pressed='true'] .todo-status-toggle__tick {
+  clip-path: inset(0 0 0 0);
+}
+
+/* Editing a card's text: a page-coloured slip like the Agent composer
+   (glass glass--rest glass--field); cancel is the text button and save the
+   primary glass (`Button` ghost / primary). */
+.review-card__slip.glass {
+  --glass-gx: -168px;
+  --glass-gy: -18px;
+  border-radius: 16px;
+  background: hsl(var(--page));
+}
+.review-card__editor .review-card__slip textarea,
+.sticky-note-composer .review-card__slip textarea {
+  display: block;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  outline: none;
+  resize: none;
+}
+
+/* Group headers are text buttons: the mark takes its thing's colour, the
+   pointer only deepens the words. */
+.review-group--glass .review-group__title {
+  transition: color 120ms ease;
+}
+.review-group--glass .review-group__title:hover:not(:disabled),
+.review-group--glass .review-group__toggle:hover {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+
+/* The resolved fold opens on the brush chevron, not the native triangle. */
+.review-panel__resolved--glass > summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  transition: color 120ms ease;
+}
+.review-panel__resolved--glass > summary::-webkit-details-marker {
+  display: none;
+}
+.review-panel__resolved--glass > summary:hover {
+  color: hsl(var(--ink-1));
+}
+.review-panel__resolved-chevron {
+  transition: transform 120ms ease;
+}
+.review-panel__resolved--glass[open] .review-panel__resolved-chevron {
+  transform: rotate(90deg);
+}
+
+/* The source card names each source by its sand mark. */
+.comment-source-hover__entity--mark {
+  align-items: center;
+  gap: 6px;
+}
+.comment-source-hover__entity--mark > strong {
+  font-weight: 500;
+}
+
+/* The sticky-note rail's toolbar: its count in the index type and two round
+   glass buttons that float over whatever lies under the rail. */
+.sticky-note-rail--glass .sticky-note-rail__toolbar {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-caption, 10px)/1.2 var(--font-mono);
+}
+.sticky-note-rail--glass .sticky-note-rail__toolbar .ghost-icon-button--glass,
+.sticky-note-rail--glass .sticky-note-rail__toolbar .ghost-icon-button--glass:hover:not(:disabled) {
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+}
+
+/* Stacked notes: the ones beneath are only their resting glass lines,
+   offset down and right; the top one carries the floating plate. */
+.sticky-note-stack.sticky-note-stack--glass {
+  width: calc(100% - 8px);
+  margin: 3px 8px 8px 0;
+  padding: 10px 11px;
+  border: 0;
+  background: transparent;
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+.sticky-note-stack--glass .sticky-note-stack__layers {
+  z-index: -3;
+}
+.sticky-note-stack--glass .sticky-note-stack__layers::before,
+.sticky-note-stack--glass .sticky-note-stack__layers::after {
+  content: none;
+}
+.sticky-note-stack__layers > i.glass {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+  --glass-gx: -168px;
+  --glass-gy: -18px;
+}
+.sticky-note-stack__layers > i.glass:first-child {
+  transform: translate(4px, 4px);
+}
+.sticky-note-stack__layers > i.glass:last-child {
+  transform: translate(8px, 8px);
+  --glass-gx: -58px;
+  --glass-gy: -186px;
+}
+.sticky-note-stack__plate {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+  pointer-events: none;
+}
+.sticky-note-stack--glass :is(.sticky-note-stack__kind, .sticky-note-stack__count) {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: var(--ui-font-caption, 10px)/1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.sticky-note-stack--glass .sticky-note-stack__body {
+  font: var(--ui-font-secondary, 12px)/1.4 var(--font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo-status-toggle__tick,
+  .review-panel__resolved-chevron {
+    transition: none;
+  }
 }

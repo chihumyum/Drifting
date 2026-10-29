@@ -2,12 +2,14 @@
 
 The PNGs in `src/assets/design/` are procedurally generated alpha masks:
 white with an alpha channel, tinted in CSS through `mask-image`. They carry no
-colour of their own, so one mask serves every theme and accent.
+colour of their own, so one mask serves every theme and accent (the two
+tinted highlight swashes below are the one exception).
 
 | Output | Script | Notes |
 | --- | --- | --- |
 | `glass-thick.png` | `glassgen.py` | Tileable thickness of uneven glass; masks the glass rim and flowing hairlines. |
 | `sand/hl.png`, `sand/ul.png` | `gen.py` | Dry highlight swash and dry underline. |
+| `sand/hl-mark.png`, `sand/hl-mark-dark.png` | `markgen.py` | The highlight swash tinted for highlighted text in notes (light and dark theme). The one exception to colourless masks: a highlight runs over several lines, and only a background image is drawn once per line fragment, so it cannot be a mask tinted in CSS. Run after `gen.py`; it reads the committed `hl.png`. |
 | `sand/blob-0..5.png` | `protogen.py` | Round seals. The frame round a selected cell is not an asset: `src/renderer/lib/sand-frame.ts` draws it for each cell's size. |
 | `sand/frame-box.png` | `glyphgen.py` `frame_box()` | Nine-sliced frame for element categories. |
 | `sand/mark-*.png` | `glyphgen.py` | Kind marks: dash, square, corner, spiral, wave, slip, star. |

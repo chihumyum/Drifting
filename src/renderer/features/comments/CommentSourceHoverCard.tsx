@@ -4,8 +4,12 @@ import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../domain/comment';
 import { computeEntityHoverCardPosition, type EntityHoverCardPosition } from '../../components/ui/entity-hover-card-position';
 import { HoverCardActions, type HoverActionGroup, type HoverCardPointerProps } from '../../components/ui/HoverCard';
+import { KindMark } from '../../components/ui/KindMark';
+import { kindMarkOfTarget } from '../../components/ui/kind-mark';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
 import { buildCommentSourcePreview, type CommentSourceRelation } from './comment-source-preview';
+import { reviewTargetColor } from './review-groups';
 
 /**
  * Where a review item or TODO comes from, beside its card. With `pointer` and
@@ -25,7 +29,9 @@ export function CommentSourceHoverCard({ comment, relations, anchor, id, pointer
   autoFocus?: boolean;
 }) {
   const { t } = useTranslation();
-  const state = useDataStoreFields('bookNodes', 'bookElements', 'bookElementCategories', 'storylines');
+  const state = useDataStoreFields('bookNodes', 'bookElements', 'bookElementCategories', 'storylines', 'primaryStorylineByNode');
+  // Desktop names each source by its sand mark; the paused mobile shell keeps the kind's word.
+  const marks = !getPlatformRuntime().isMobileShell;
   const source = useMemo(() => buildCommentSourcePreview(comment, relations, state, t), [comment, relations, state, t]);
   const groups = (actions ?? []).filter((group) => group.actions.length > 0);
   const interactive = Boolean(pointer);
@@ -95,8 +101,12 @@ export function CommentSourceHoverCard({ comment, relations, anchor, id, pointer
       <div ref={contentRef} className="comment-source-hover__content hover-card__body hover-preview-content">
         <div className="comment-source-hover__label">{t('reviewPanel.sourceInfo')}</div>
         {source.entities.length ? source.entities.map((entity) => (
-          <div key={entity.key} className="comment-source-hover__entity">
-            <span>{entity.kind}</span><strong>{entity.name}</strong>
+          <div key={entity.key} className={`comment-source-hover__entity${marks ? ' comment-source-hover__entity--mark' : ''}`}>
+            {marks && entity.targetKind !== 'patch'
+              ? <KindMark kind={kindMarkOfTarget(entity.targetKind, entity.isDrift)} seed={entity.targetId}
+                  color={reviewTargetColor(state, state.primaryStorylineByNode, entity.targetKind, entity.targetId)} title={entity.kind} />
+              : <span>{entity.kind}</span>}
+            <strong>{entity.name}</strong>
           </div>
         )) : <div className="comment-source-hover__empty">{t('reviewPanel.sourceFloating')}</div>}
         {source.hasTextAnchor && <>

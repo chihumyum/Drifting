@@ -61,6 +61,8 @@ import {
   buildEntityLinkColorSignature,
   resolveEntityLinkTargetColor,
 } from '../lib/entity-link-appearance';
+import { BrushIcon } from '../components/ui/BrushIcon';
+import '../../styles/all-chapters.css';
 
 const log = loglevel.getLogger('AllChaptersEditorView');
 log.setLevel(loglevel.levels.WARN);
@@ -83,6 +85,15 @@ function toRoman(n: number): string {
     }
   }
   return out;
+}
+
+const CHINESE_DIGITS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+function toChineseNumeral(n: number): string {
+  if (n <= 0 || n >= 100) return String(n);
+  if (n < 10) return CHINESE_DIGITS[n];
+  const tens = Math.floor(n / 10);
+  const ones = n % 10;
+  return `${tens === 1 ? '' : CHINESE_DIGITS[tens]}十${ones ? CHINESE_DIGITS[ones] : ''}`;
 }
 
 function anchorId(nodeId: string): string {
@@ -112,7 +123,7 @@ const readPositionByProject = new Map<string, MobileAllChaptersReadPosition>();
 // detect `view === 'all-chapters-editor'` and update nodeUi.selectedId in
 // place. This view watches that selection and scrolls to the matching row.
 export function AllChaptersEditorView() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isCommandActive, isPreparing } = useEditorSurfaceLifecycle();
   const [readyContentNodeIds, setReadyContentNodeIds] = useState<Set<string>>(
     () => new Set(),
@@ -752,7 +763,11 @@ export function AllChaptersEditorView() {
     },
     [updateNode],
   );
-  const canInsertChapters = !getPlatformRuntime().isMobileShell;
+  // The desktop wears the design system: no rule between chapters (the closing
+  // ⁂ and the space after it divide them), an act's title over one dry stroke,
+  // and glass buttons. The paused touch shell keeps its rules and Roman numerals.
+  const desktopChrome = !getPlatformRuntime().isMobileShell;
+  const canInsertChapters = desktopChrome;
   const renderChapterEnd = useCallback(
     (node: BookNode) =>
       isChapter(node) ? (
@@ -863,49 +878,27 @@ export function AllChaptersEditorView() {
     return (
       <div className="editor-shell" style={{ position: 'relative' }}>
         <EditorTopBar editorType="node" />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            color: 'hsl(var(--ink-4))',
-            fontSize: 14,
-          }}
-        >
-          {t('allChapters.empty.noChapters')}
-          {canInsertChapters && (
+        <div className={`all-chap-empty${desktopChrome ? ' all-chap-empty--glass' : ''}`}>
+          <span>{t('allChapters.empty.noChapters')}</span>
+          <span className="all-chap-empty__actions">
+            {canInsertChapters && (
+              <button
+                type="button"
+                className={`all-chap-empty__btn${desktopChrome ? ' glass glass--primary' : ''}`}
+                onClick={() => void handleInsertAfter(null)}
+              >
+                {t('chapterEnd.firstChapter')}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => void handleInsertAfter(null)}
-              style={{
-                marginLeft: 12,
-                background: 'transparent',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 4,
-                padding: '4px 10px',
-                cursor: 'pointer',
-                color: 'hsl(var(--ink-2))',
-              }}
+              className={`all-chap-empty__btn${desktopChrome ? ' glass glass--rest' : ''}`}
+              onClick={() => navigateToHome()}
             >
-              {t('chapterEnd.firstChapter')}
+              {desktopChrome && <BrushIcon name="torii" size={15} />}
+              {t('allChapters.actions.backHome')}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => navigateToHome()}
-            style={{
-              marginLeft: 12,
-              background: 'transparent',
-              border: '1px solid hsl(var(--rule))',
-              borderRadius: 4,
-              padding: '4px 10px',
-              cursor: 'pointer',
-              color: 'hsl(var(--ink-2))',
-            }}
-          >
-            {t('allChapters.actions.backHome')}
-          </button>
+          </span>
         </div>
       </div>
     );
@@ -947,10 +940,24 @@ export function AllChaptersEditorView() {
                 <div
                   key={`act-${row.act.id}`}
                   data-act-id={row.act.id}
-                  className="act-break"
+                  className={`act-break${desktopChrome ? ' act-break--sand' : ''}`}
                 >
-                  <div className="act-break__num">{toRoman(row.seq)}</div>
+                  <div className="act-break__num">
+                    {desktopChrome
+                      ? t('allChapters.actOrdinal', {
+                          n: i18n.language.startsWith('zh')
+                            ? toChineseNumeral(row.seq)
+                            : toRoman(row.seq),
+                        })
+                      : toRoman(row.seq)}
+                  </div>
                   <div className="act-break__label">{row.act.name}</div>
+                  {desktopChrome && (
+                    <i
+                      aria-hidden="true"
+                      className="sand sand--ul sand--arrive act-break__stroke"
+                    />
+                  )}
                   <div className="act-break__meta">
                     {t('storylineEditor.meta.chapters', { count: row.count })}
                     <span className="d">·</span>
@@ -970,8 +977,9 @@ export function AllChaptersEditorView() {
                 id={anchorId(node.id)}
                 style={{
                   scrollMarginTop: 24,
+                  // On the desktop the closing ⁂ and the space after it divide chapters.
                   borderBottom:
-                    idx < orderedNodes.length - 1
+                    !desktopChrome && idx < orderedNodes.length - 1
                       ? '1px solid hsl(var(--rule))'
                       : 'none',
                 }}
@@ -995,6 +1003,7 @@ export function AllChaptersEditorView() {
                   storylineColor={storyline?.color || undefined}
                   storylineName={storyline?.name || undefined}
                   chapterRoman={toRoman(idx + 1)}
+                  sandFolio={desktopChrome}
                   resolveEntityLinkColor={resolveEntityLinkColor}
                 />
               </section>

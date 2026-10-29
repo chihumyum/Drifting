@@ -220,6 +220,13 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
   }, [nodeId]);
 
   const curNode = useDataStore((state) => state.bookNodes.find(node => node.id === nodeId) ?? null);
+  // The chapter's place in reading order, for the folio's 「第 N 章」 (the same
+  // numbering as the whole-book read-through).
+  const chapterNumber = useDataStore((state) =>
+    curNode && isChapter(curNode)
+      ? state.bookNodes.filter((node) => isChapter(node) && node.bookOrder < curNode.bookOrder).length + 1
+      : null,
+  );
 
   const storylineById = useMemo(() => {
     return new Map(storylines.map((storyline) => [storyline.id, storyline]));
@@ -667,7 +674,52 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
                 <article className="page page--entity">
-                  {!isDriftNode && (
+                  {/* Desktop folio: 「第 N 章」, the storyline's dash beside its
+                      name in ink, the word count; a drift says its group the
+                      same way. The paused mobile shell keeps the coloured names. */}
+                  {!isDriftNode && !getPlatformRuntime().isMobileShell && (
+                    <div className="page__folio" aria-hidden="true">
+                      <span className="page__folio-line">
+                        {chapterNumber == null
+                          ? t('nodeEditor.folio.chapter')
+                          : t('nodeEditor.folio.chapterNumber', { n: chapterNumber })}
+                      </span>
+                      {mainStoryline && (
+                        <span className="page__folio-line page__folio-storyline">
+                          <KindMark kind="storyline" color={storylineColor} />
+                          {mainStoryline.name}
+                        </span>
+                      )}
+                      <span className="page__folio-line">
+                        {canonicalWordCount(curNode) == null
+                          ? t('common.counting')
+                          : t('nodeEditor.meta.words', {
+                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                            })}
+                      </span>
+                    </div>
+                  )}
+
+                  {isDriftNode && !getPlatformRuntime().isMobileShell && (
+                    <div className="page__folio" aria-hidden="true">
+                      <span className="page__folio-line">{t('nodeEditor.folio.drift')}</span>
+                      {driftGroupChain.length > 0 && (
+                        <span className="page__folio-line page__folio-storyline">
+                          <KindMark kind="drift-group" />
+                          {driftGroupChain.map((g) => g.name).join(' - ')}
+                        </span>
+                      )}
+                      <span className="page__folio-line">
+                        {canonicalWordCount(curNode) == null
+                          ? t('common.counting')
+                          : t('nodeEditor.meta.words', {
+                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                            })}
+                      </span>
+                    </div>
+                  )}
+
+                  {!isDriftNode && getPlatformRuntime().isMobileShell && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">{t('nodeEditor.folio.chapter')}</span>
                       {mainStoryline && (
@@ -685,7 +737,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                     </div>
                   )}
 
-                  {isDriftNode && (
+                  {isDriftNode && getPlatformRuntime().isMobileShell && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">{t('nodeEditor.folio.drift')}</span>
                       {driftGroupChain.length > 0 && (

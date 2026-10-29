@@ -1204,4 +1204,61 @@ describe('workspace surface language acceptance', () => {
     expect(docs).toContain('没有归属的玻璃一律用 `--glass-clear`（浅灰）');
     expect(docs).toContain('| 推波 | 一个刚到的步骤被推进来 | `1.125s`');
   });
+
+  it('dresses Review cards, sticky notes and the stats panel in sand and glass on the desktop', () => {
+    const review = source('src/styles/comments-review.css');
+    const stats = source('src/styles/stats-panel.css');
+    const materials = source('src/styles/materials.css');
+    const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
+    const sourceCard = source('src/renderer/features/comments/CommentSourceHoverCard.tsx');
+    const rail = source('src/renderer/components/editor/StickyNoteRail.tsx');
+    const primitives = source('src/renderer/features/stats/StatsPrimitives.tsx');
+    const desktopReview = review.slice(review.indexOf('Desktop: sand and glass'));
+
+    // Every material change is desktop-only; the paused mobile shell keeps its look.
+    for (const file of [card, sourceCard, rail, primitives]) expect(file).toContain('getPlatformRuntime().isMobileShell');
+
+    // A Review card lays no plate: the resting glass line, drifting under the pointer.
+    expect(card).toContain("' review-card--glass glass glass--rest glass--surface'");
+    const plate = block(desktopReview, '.review-card.review-card--glass,', '}');
+    expect(plate).toContain('background: transparent;');
+    expect(plate).toContain('box-shadow: none;');
+    // A sticky note floats over the prose: the page at 80% and a faint blur.
+    const sticky = block(desktopReview, '.review-card--sticky.review-card--glass,', '}');
+    expect(sticky).toContain('background: var(--glass-fill);');
+    expect(sticky).toContain('backdrop-filter: blur(1.6px);');
+    // Quotes and evidence are flat; the Agent hint is a text button with no tail.
+    expect(block(desktopReview, '.review-card--glass :is(.review-card__meta', '}')).toContain('background: transparent;');
+    expect(block(desktopReview, '.review-card--glass .review-card__agent-hint::after {', '}')).toContain('content: none;');
+    // Done draws the brush tick into its selected round glass.
+    expect(block(desktopReview, '.todo-status-toggle__tick {', '}')).toContain('transition: clip-path 0.38s');
+    expect(desktopReview).toContain(".todo-status-toggle--glass[aria-pressed='true'] .todo-status-toggle__tick {");
+    // The source card names its sources by their sand marks.
+    expect(sourceCard).toContain('<KindMark kind={kindMarkOfTarget(entity.targetKind, entity.isDrift)}');
+    // The rail's stacking switch keeps one word; stacked is its selected glass.
+    expect(rail).toContain('aria-pressed={stacked}');
+    expect(rail).toContain('glass="round"');
+    // The retired margin notes and chips left no styles behind.
+    expect(review).not.toContain('.mnote');
+    expect(review).not.toContain('.comment-chip');
+
+    // The stats panel: flat type and space, rows with the cell ring, sand readouts.
+    expect(primitives).toContain('className="stats-link sand-cell"');
+    expect(primitives).toContain('<i className="cell-ring" aria-hidden="true" />');
+    expect(primitives).toContain('<KindMark kind={kind}');
+    expect(primitives).toContain('className="sand-stroke"');
+    expect(block(stats, '.stats-section {', '}')).not.toContain('border');
+    expect(stats).not.toMatch(/background: (?!transparent)/);
+    const stroke = block(materials, '.sand-stroke {', '}');
+    expect(stroke).toContain("url('../assets/design/sand/ul.png')");
+    expect(stroke).toContain('max(100%, calc(var(--sand-stroke-h, 7px) * 27.7)) 100%');
+    expect(stroke).toContain('mix-blend-mode: var(--pigment-blend);');
+    expect(materials).toContain('.sand-stroke { animation: none; transition: none; }');
+
+    const docs = designSystemDocs();
+    expect(docs).toContain('## Review 卡');
+    expect(docs).toContain('## 批注便笺');
+    expect(docs).toContain('## 统计面板');
+    expect(docs).toContain('- **砂笔读数**（`.sand-stroke`）');
+  });
 });

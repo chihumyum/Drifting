@@ -1,0 +1,105 @@
+/* 通览全书 — the whole-book read-through (docs/design-system/components.md).
+ *
+ * The editor is one plane of page white, so on the desktop no rule runs
+ * between chapters: a chapter's closing ⁂ and the space after it divide them.
+ * An act's title sits in that space with one dry sand stroke under its name,
+ * the structure the author drew. The paused touch shell keeps the shared
+ * fallback in index.css (rules between chapters, the large Roman numeral). */
+
+/* ── Act title ─────────────────────────────────────────────────────── */
+.act-break--sand {
+  padding: 120px 0 112px;
+}
+
+.act-break--sand .act-break__num {
+  font-family: var(--font-structure);
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em; /* optical: offset the drift from tracking */
+  color: hsl(var(--ink-4));
+}
+
+.act-break--sand .act-break__label {
+  font-family: var(--font-content);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.25;
+  letter-spacing: 0.12em;
+  padding-left: 0.12em;
+}
+
+/* One stroke of the dry brush (the sand underline's trace) under the name. */
+.act-break__stroke {
+  width: 180px;
+  height: 10px;
+  margin: 16px auto 0;
+  --sand-c: hsl(var(--ink-3));
+}
+
+.act-break--sand .act-break__meta {
+  margin-top: 16px;
+}
+
+/* ── No chapters yet ───────────────────────────────────────────────── */
+.all-chap-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  color: hsl(var(--ink-4));
+  font-size: 14px;
+}
+
+.all-chap-empty__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The touch shell's plain outlined buttons. */
+.all-chap-empty__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  cursor: pointer;
+}
+
+/* The desktop: one primary (the accent's glass) and a secondary resting line,
+   stacked under the sentence. */
+.all-chap-empty--glass {
+  flex-direction: column;
+  gap: 14px;
+}
+
+.all-chap-empty--glass .all-chap-empty__actions {
+  gap: 8px;
+}
+
+.all-chap-empty__btn.glass {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 2px;
+  font-size: var(--ui-font-secondary, 13px);
+  font-weight: 500;
+  white-space: nowrap;
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+}
+
+.all-chap-empty__btn.glass--rest:hover {
+  color: hsl(var(--ink-1));
+}
+
+.all-chap-empty__btn.glass--primary,
+.all-chap-empty__btn.glass--primary:hover {
+  color: hsl(var(--accent));
+}

@@ -1,17 +1,24 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { events } from '../../lib/events';
 import type { SnapshotEntityKind } from '../../lib/yjs-doc-id';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+import { KindMark } from '../../components/ui/KindMark';
+import type { KindMarkKind } from '../../components/ui/kind-mark';
+import '../../../styles/stats-panel.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small shared bits
+//
+// On the desktop the panel is flat type and space, its readouts are sand and
+// a row that opens what it names takes the sidebar cell's glass ring
+// (stats-panel.css, docs/design-system/components.md 统计面板). The paused
+// mobile shell keeps the inline fallback each primitive carries.
 
-// Draggable separator between the content / agent columns in dual-column mode.
-// Visually just a 1px hairline (same weight as a normal column border, no
-// filled bar / backdrop). The element is wider for a comfortable grab target
-// but transparent, with negative margins so it nets ~1px of layout width —
-// the columns sit flush against the hairline.
+/** Whether the panel wears sand and glass: everywhere but the mobile shell. */
+const sandPanel = () => !getPlatformRuntime().isMobileShell;
+
 export function StatsSection({
   title,
   topBorder,
@@ -21,6 +28,15 @@ export function StatsSection({
   topBorder?: boolean;
   children: ReactNode;
 }) {
+  if (sandPanel()) {
+    // Sections are told apart by space alone.
+    return (
+      <section className={`stats-section${topBorder ? ' stats-section--after' : ''}`}>
+        <div className="stats-section__title">{title}</div>
+        {children}
+      </section>
+    );
+  }
   return (
     <section
       style={{
@@ -60,6 +76,15 @@ export function StatsRow({
   children?: ReactNode;
   placeholder?: boolean;
 }) {
+  if (sandPanel()) {
+    return (
+      <div className="stats-row">
+        <span className="stats-row__key">{k}</span>
+        <span className={`stats-row__value${placeholder ? ' is-placeholder' : ''}`}>{v}</span>
+        {children && <div className="stats-row__extra">{children}</div>}
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -97,21 +122,62 @@ export function StatsRow({
   );
 }
 
+/** A column of link rows. */
+export function StatsLinkList({ children }: { children: ReactNode }) {
+  if (sandPanel()) return <div className="stats-links">{children}</div>;
+  return <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>;
+}
+
+/**
+ * The colour beside a name. On the desktop it is the thing's sand mark
+ * (storyline = short dash, element = square seal, category = corner…);
+ * an act has no mark of its own and presses a round seal.
+ */
+export function StatsMark({ kind, color, seed }: { kind?: KindMarkKind; color?: string; seed?: string }) {
+  if (sandPanel()) {
+    return kind ? <KindMark kind={kind} color={color ?? 'hsl(var(--ink-4))'} seed={seed} /> : null;
+  }
+  return <Dot color={color} />;
+}
+
 /** Navigable row shared by act, element, and storyline statistics. */
 export function StatsLinkRow({
   name,
   color,
+  mark,
+  seed,
   meta,
   onOpen,
   title,
 }: {
   name: string;
   color?: string;
+  /** The kind of thing the row opens, for its sand mark on the desktop. */
+  mark?: KindMarkKind;
+  seed?: string;
   meta?: string;
   onOpen: () => void;
   title?: string;
 }) {
   const { t } = useTranslation();
+  if (sandPanel()) {
+    // The sidebar cell's grammar: under the pointer a ring of flowing
+    // hairline glass in the thing's colour; no wash.
+    return (
+      <button
+        type="button"
+        className="stats-link sand-cell"
+        onClick={onOpen}
+        title={title ?? t('rightSidebar.stats.openEntity', { name })}
+        style={color ? ({ '--cell-c': color } as CSSProperties) : undefined}
+      >
+        <i className="cell-ring" aria-hidden="true" />
+        <StatsMark kind={mark} color={color} seed={seed} />
+        <span className="stats-link__name">{name}</span>
+        {meta && <span className="stats-link__meta">{meta}</span>}
+      </button>
+    );
+  }
   return (
     <div
       role="button"
@@ -170,7 +236,66 @@ export function StatsLinkRow({
   );
 }
 
+/** A row in a link list that opens nothing (chapters with no storyline). */
+export function StatsStaticRow({ name, meta, mark }: { name: string; meta: string; mark?: KindMarkKind }) {
+  if (sandPanel()) {
+    return (
+      <div className="stats-link is-static">
+        <StatsMark kind={mark} />
+        <span className="stats-link__name">{name}</span>
+        <span className="stats-link__meta">{meta}</span>
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 2px',
+        borderBottom: '1px dotted hsl(var(--rule))',
+        fontSize: 12,
+      }}
+    >
+      <Dot color="hsl(var(--ink-4))" />
+      <span
+        style={{
+          fontFamily: 'var(--font-sans)',
+          fontSize: 13,
+          color: 'hsl(var(--ink-3))',
+          flex: 1,
+        }}
+      >
+        {name}
+      </span>
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'hsl(var(--ink-3))',
+        }}
+      >
+        {meta}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * One value read against its whole. On the desktop it is a dry sand stroke
+ * as long as the value over scattered grains for what is left
+ * (materials.css `.sand-stroke`, `.sand-track`).
+ */
 export function ProgressBar({ pct, color }: { pct: number; color?: string }) {
+  const width = `${Math.max(0, Math.min(100, pct))}%`;
+  if (sandPanel()) {
+    return (
+      <div className="sand-track">
+        <span className="sand-stroke" style={{ width, '--sand-c': color } as CSSProperties} />
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -182,7 +307,7 @@ export function ProgressBar({ pct, color }: { pct: number; color?: string }) {
     >
       <div
         style={{
-          width: `${Math.max(0, Math.min(100, pct))}%`,
+          width,
           height: '100%',
           background: color || 'hsl(var(--accent))',
           transition: 'width 0.25s ease',
@@ -192,7 +317,81 @@ export function ProgressBar({ pct, color }: { pct: number; color?: string }) {
   );
 }
 
+export interface StackedSegment {
+  key: string;
+  /** Share of the bar, 0–100. */
+  pct: number;
+  color: string;
+  /** The stroke's colour on the desktop when it differs (completion is ink). */
+  sandColor?: string;
+  /** How much sand the stroke holds on the desktop: a draft is dry, what is
+   *  still to write loose grains. */
+  density?: 'dry' | 'loose';
+  /** Mobile fallback: the segment's strength. */
+  opacity?: number;
+  title?: string;
+}
+
+/** Parts of a whole side by side: acts, or chapters by writing status. */
+export function StackedBar({ segments, marginBottom = 8 }: { segments: StackedSegment[]; marginBottom?: number }) {
+  if (sandPanel()) {
+    // One stroke per part, laid one after another.
+    return (
+      <div className="stats-strokes" style={{ marginBottom }}>
+        {segments.map((segment) => (
+          <span
+            key={segment.key}
+            title={segment.title}
+            className={`sand-stroke${segment.density ? ` sand-stroke--${segment.density}` : ''}`}
+            style={{ width: `${segment.pct}%`, '--sand-c': segment.sandColor ?? segment.color } as CSSProperties}
+          />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        display: 'flex',
+        height: 5,
+        borderRadius: 2,
+        overflow: 'hidden',
+        background: 'hsl(var(--rule))',
+        marginBottom,
+      }}
+    >
+      {segments.map((segment) => (
+        <div
+          key={segment.key}
+          title={segment.title}
+          style={{ width: `${segment.pct}%`, background: segment.color, opacity: segment.opacity }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** A line of small index type under a readout, or the "and N more" after a list. */
+export function StatsCaption({ children, more = false }: { children: ReactNode; more?: boolean }) {
+  if (sandPanel()) {
+    return <div className={`stats-caption${more ? ' stats-caption--more' : ''}`}>{children}</div>;
+  }
+  return (
+    <div
+      style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10,
+        color: more ? 'hsl(var(--ink-4))' : 'hsl(var(--ink-3))',
+        ...(more ? { padding: '6px 2px 0' } : { lineHeight: 1.7 }),
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function MetaGrid({ children }: { children: ReactNode }) {
+  if (sandPanel()) return <div className="stats-meta">{children}</div>;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '78px 1fr', gap: '6px 12px' }}>
       {children}
@@ -201,6 +400,7 @@ export function MetaGrid({ children }: { children: ReactNode }) {
 }
 
 export function MetaK({ children }: { children: ReactNode }) {
+  if (sandPanel()) return <div className="stats-meta__key">{children}</div>;
   return (
     <div
       style={{
@@ -218,6 +418,7 @@ export function MetaK({ children }: { children: ReactNode }) {
 }
 
 export function MetaV({ children }: { children: ReactNode }) {
+  if (sandPanel()) return <div className="stats-meta__value">{children}</div>;
   return (
     <div
       style={{
@@ -234,6 +435,7 @@ export function MetaV({ children }: { children: ReactNode }) {
 }
 
 export function DetailValue({ children }: { children: ReactNode }) {
+  if (sandPanel()) return <span className="stats-detail">{children}</span>;
   return (
     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontStyle: 'italic' }}>
       {children}
@@ -256,6 +458,7 @@ export function Dot({ color }: { color?: string }) {
 }
 
 export function Notes({ children }: { children: ReactNode }) {
+  if (sandPanel()) return <div className="stats-note">{children}</div>;
   return (
     <div
       style={{
@@ -289,7 +492,8 @@ export function formatDateTime(input: string | number | Date): string {
 /**
  * The stats panel's entry into the entity time machine — opens the globally
  * mounted EntitySnapshotHistoryModal. This is the ONLY entry point (the
- * editor / cell context menus deliberately don't carry it).
+ * editor / cell context menus deliberately don't carry it). On the desktop
+ * it is a secondary button: the resting glass line, drifting under the pointer.
  */
 export function SnapshotEntryButton({
   entityKind,
@@ -299,10 +503,24 @@ export function SnapshotEntryButton({
   entityId: string;
 }) {
   const { t } = useTranslation();
+  const open = () => events.emit('snapshot-history:open', { entityKind, entityId });
+  if (sandPanel()) {
+    return (
+      <button
+        type="button"
+        className="stats-snapshot glass glass--rest"
+        onClick={open}
+        title={t('rightSidebar.stats.snapshotTitle')}
+      >
+        <BrushIcon name="rotate" size={12} />
+        {t('rightSidebar.stats.snapshotButton')}
+      </button>
+    );
+  }
   return (
     <button
       type="button"
-      onClick={() => events.emit('snapshot-history:open', { entityKind, entityId })}
+      onClick={open}
       title={t('rightSidebar.stats.snapshotTitle')}
       style={{
         width: '100%',

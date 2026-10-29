@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, type CSSProperties } from 'react';
 import type { TimelineMarker } from '../../domain/timeline-marker';
 import type { TimelineDragPreview } from '../../features/graph/timeline-drag-preview';
 
@@ -18,13 +18,15 @@ export function TimelineMarkerLines({ preview, markers, orderToPosition, classNa
   return markers.map((marker) => {
     const dragX = markerXs[marker.id];
     if (onlyDragging && dragX === undefined) return null;
+    // --flow: a dragged line's glass runs with the distance it has moved.
     return <div key={marker.id} className={`${className}${dragX !== undefined ? ' is-dragging' : ''}`}
-      style={{ left: xOffset + (dragX ?? orderToPosition(marker.narrativeOrder)), height }} aria-hidden={ariaHidden} />;
+      style={{ left: xOffset + (dragX ?? orderToPosition(marker.narrativeOrder)), height,
+        ...(dragX !== undefined ? { '--flow': dragX } : {}) } as CSSProperties} aria-hidden={ariaHidden} />;
   });
 }
 
 export function TimelineActDragLine({ preview, className, xOffset = 0, height, ariaHidden }: GuideProps) {
   const { actX } = useSyncExternalStore(preview.subscribe, preview.getSnapshot, preview.getSnapshot);
   return actX === null ? null : <div className={`${className} is-dragging`}
-    style={{ left: xOffset + actX, height }} aria-hidden={ariaHidden} />;
+    style={{ left: xOffset + actX, height, '--flow': actX } as CSSProperties} aria-hidden={ariaHidden} />;
 }

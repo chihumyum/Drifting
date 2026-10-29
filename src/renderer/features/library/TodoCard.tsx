@@ -11,6 +11,8 @@ import { TodoStatusToggle } from '../comments/TodoStatusToggle';
 import { CommentSourceHoverCard } from '../comments/CommentSourceHoverCard';
 import { useCommentSourceHover } from '../comments/use-comment-source-hover';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+import { GhostIconButton } from '../../components/ui/GhostIconButton';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 export function TodoCard({
   todo,
@@ -52,6 +54,84 @@ export function TodoCard({
     open({ entityType: todo.targetKind, id: todo.targetId });
     if (todo.targetBlockId) scrollToBlockWhenReady(todo.targetId, todo.targetBlockId);
   }, [open, todo.targetKind, todo.targetId, todo.targetBlockId]);
+
+  const picker = (onPicked: boolean) => (
+    <EntityRelationPicker
+      selected={selectedSet}
+      onAdd={(t) => {
+        onAddRelation(t);
+        if (onPicked) setPickerOpen(false);
+      }}
+      onRemove={(t) => onRemoveRelation(t)}
+      open={pickerOpen}
+      onOpenChange={setPickerOpen}
+      trailingAction={statusToggle}
+    />
+  );
+
+  // Desktop: a card with no fill and the resting line of glass that flows
+  // under the pointer. The paused mobile shell keeps the older card below.
+  if (!getPlatformRuntime().isMobileShell) {
+    const resolved = todo.status === 'resolved';
+    return (
+      <div
+        className={`todo-card todo-card--glass glass glass--rest glass--surface${resolved ? ' todo-card--resolved' : ''}`}
+        aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
+        onPointerDownCapture={sourceHover.dismiss}
+        onKeyDownCapture={sourceHover.dismiss}
+        onContextMenuCapture={sourceHover.dismiss}
+        onMouseEnter={(event) => { setHover(true); sourceHover.onEnter(event.currentTarget); }}
+        onMouseLeave={() => { setHover(false); sourceHover.onLeave(); }}
+      >
+        <div className="todo-card__header">
+          <span className="todo-card__kind">TODO</span>
+          {canJump && (
+            <GhostIconButton
+              size="sm"
+              icon={<BrushIcon name="arrow-back" size={10} />}
+              onClick={jumpToAnchor}
+              title={t('reviewPanel.jumpToText')}
+              aria-label={t('reviewPanel.jumpToText')}
+            />
+          )}
+          <span style={{ flex: 1 }} />
+          <GhostIconButton
+            size="sm"
+            className="todo-card__delete"
+            icon={<BrushIcon name="trash" size={11} />}
+            onClick={onDelete}
+            title={t('common.delete')}
+            aria-label={t('common.delete')}
+          />
+        </div>
+        {editing ? (
+          <CommentBodyEditor text={text} onSave={onSave} onClose={() => setEditing(false)} />
+        ) : (
+          <div
+            className="todo-card__body"
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              sourceHover.dismiss();
+              setEditing(true);
+            }}
+          >
+            {text || <em style={{ color: 'hsl(var(--ink-4))' }}>{t('memoMaterial.todo.empty')}</em>}
+          </div>
+        )}
+        {showPicker ? (
+          <div style={{ marginTop: 2 }}>{picker(true)}</div>
+        ) : (
+          <div className="todo-card__footer">
+            <button type="button" className="todo-card__relate" onClick={() => setPickerOpen(true)}>
+              <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.menu.relation')}
+            </button>
+            {statusToggle}
+          </div>
+        )}
+        {sourceHover.anchor && <CommentSourceHoverCard comment={todo} relations={relations} anchor={sourceHover.anchor} id={sourceHover.id} />}
+      </div>
+    );
+  }
 
   return (
     <div

@@ -1173,11 +1173,9 @@
     "defaultTitle": "New chapter",
     "firstChapter": "Write the first chapter"
   },
-  "storylineAllChapter": {
-    "empty": "No chapters in this storyline"
-  },
   "virtualChapterRow": {
-    "chapter": "Chapter"
+    "chapter": "Chapter",
+    "chapterNumber": "Chapter {{n}}"
   },
   "editorOutline": {
     "aria": "Outline",
@@ -1759,6 +1757,7 @@
       "openPdfFailed": "Cannot open PDF",
       "renderPdfFailed": "Cannot render PDF",
       "loadingPdf": "Loading PDF…",
+      "pages": "Pages",
       "previousPage": "Previous",
       "nextPage": "Next",
       "loading": "Loading…"
@@ -2517,7 +2516,8 @@
       "unaffiliated": "Unaffiliated"
     },
     "storyline": {
-      "openTitle": "Open \"{{name}}\""
+      "openTitle": "Open \"{{name}}\"",
+      "chapterCount": "{{count}} ch"
     },
     "menu": {
       "moveToUnaffiliated": "Move to unaffiliated",
@@ -3051,6 +3051,7 @@
     "deleteConfirm": "Delete node \"{{name}}\"?",
     "folio": {
       "chapter": "Chapter",
+      "chapterNumber": "Chapter {{n}}",
       "drift": "Idea"
     },
     "empty": {
@@ -3267,12 +3268,13 @@
     "untitledChapter": "Untitled chapter",
     "menuHeader": "Actions: {{title}}",
     "currentAt": "At {{title}}",
+    "actOrdinal": "Act {{n}}",
     "empty": {
       "noChapters": "This project has no chapters yet.",
       "noChaptersShort": "No chapters yet"
     },
     "actions": {
-      "backHome": "Back home"
+      "backHome": "Back to Project Home"
     }
   },
   "mobileWorkspace": {
@@ -3435,6 +3437,7 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "zoomReset": "Fit to view",
+    "toolbar": "Material tools",
     "provenance": {
       "generated": "AI generated · {{model}} · {{date}}",
       "prompt": "Description",
@@ -3479,6 +3482,9 @@
       "placeholder": "What about this part? (⌘↩ to save)",
       "asTodo": "As a TODO",
       "save": "Save",
+      "kindLabel": "Comment type",
+      "kindNote": "Comment",
+      "kindTodo": "TODO",
       "listLabel": "Comments on this material",
       "empty": "Drag over the image or page to add the first comment.",
       "page": "Page {{page}}",
