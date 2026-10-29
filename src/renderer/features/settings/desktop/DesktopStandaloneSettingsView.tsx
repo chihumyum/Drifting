@@ -88,7 +88,7 @@ export function DesktopStandaloneSettingsView() {
         <div className="set-head__left">
           <button
             type="button"
-            className="set-head__back"
+            className="set-head__back glass glass--rest glass--round"
             onClick={handleBack}
             title={t('navigation.back')}
             aria-label={t('navigation.back')}
@@ -109,7 +109,7 @@ export function DesktopStandaloneSettingsView() {
                   key={item.id}
                   type="button"
                   className={`set-rail__item${
-                    active === item.id ? ' set-rail__item--active' : ''
+                    active === item.id ? ' set-rail__item--active is-current' : ''
                   }`}
                   aria-current={active === item.id ? 'page' : undefined}
                   onClick={() =>

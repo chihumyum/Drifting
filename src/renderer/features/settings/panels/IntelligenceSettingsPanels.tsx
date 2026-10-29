@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { byokKeychain, type BYOKProvider } from '../../../lib/byok-keychain';
 import {
@@ -19,13 +19,150 @@ import {
   type CopilotTaskId,
 } from '../../../store/settings-store';
 import {
+  SettingsButton,
+  SettingsField,
+  SettingsNote,
   SettingsPanelHeader,
+  SettingsRange,
   SettingsRow,
   SettingsSectionHeader,
+  SettingsSelect,
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
+import { settingsOnDesktop } from '../settings-on-desktop';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { GlassSelect } from '../../../components/ui/GlassSelect';
+
+/**
+ * One way to reach a model or a transcriber. On the desktop it is a flat row
+ * (components.md, provider connection row): a seal, solid while connected and
+ * hollow while not, the name, where the credential comes from in index type,
+ * the description, and the actions on a line below. The paused mobile shell
+ * keeps the bordered card with its brand tile and status dot.
+ */
+function ProviderShell({
+  name,
+  desc,
+  logoClass,
+  logoText,
+  live,
+  chip,
+  source,
+  body,
+  detail,
+  actions,
+}: {
+  name: string;
+  desc: string;
+  logoClass: string;
+  logoText: string;
+  live: boolean;
+  /** Mobile: the chip after the name. */
+  chip: string;
+  /** Desktop: where the credential comes from (Keychain, .ENV (DEV), not connected). */
+  source: string;
+  /** Mobile: the credential line under the head. */
+  body?: { label: string; value: ReactNode } | null;
+  /** Desktop: a line between the description and the actions (a device code). */
+  detail?: ReactNode;
+  actions: ReactNode;
+}) {
+  if (settingsOnDesktop()) {
+    return (
+      <div className="set-provider-line">
+        {/* The chapter's round seal; hollow like a chapter not yet begun. */}
+        <span
+          className={`set-provider-line__seal kind-mark kind-mark--chapter${live ? '' : ' kind-mark--hollow'}`}
+          style={{ '--sand-c': 'hsl(var(--ink-2))' } as CSSProperties}
+          aria-hidden="true"
+        >
+          <i className="sand sand--blob-2" />
+        </span>
+        <span className="set-provider-line__name">{name}</span>
+        <span className="set-provider-line__source">{source}</span>
+        <div className="set-provider-line__desc">{desc}</div>
+        {detail && <div className="set-provider-line__row">{detail}</div>}
+        {actions && <div className="set-provider-line__row">{actions}</div>}
+      </div>
+    );
+  }
+  return (
+    <div className={'set-provider' + (live ? ' set-provider--connected' : ' set-provider--disconnected')}>
+      <div className="set-provider__head">
+        <div className={`set-provider__logo ${logoClass}`}>{logoText}</div>
+        <div className="set-provider__main">
+          <div className="set-provider__name">
+            <b>{name}</b>
+            <em className={live ? 'is-byok' : ''}>{chip}</em>
+          </div>
+          <div className="set-provider__desc">{desc}</div>
+        </div>
+        <div className={'set-provider__status ' + (live ? 'set-provider__status--live' : 'set-provider__status--off')}>
+          <span className="set-provider__status-dot" />
+          {live ? 'CONNECTED' : 'OFFLINE'}
+        </div>
+      </div>
+      {body && (
+        <div className="set-provider__body">
+          <div className="set-provider__body-inner">
+            <span className="set-provider__k">{body.label}</span>
+            <span className="set-provider__v">{body.value}</span>
+          </div>
+        </div>
+      )}
+      <div className="set-provider__actions">{actions}</div>
+    </div>
+  );
+}
+
+/** A connection test's answer, or a sign-in failure. */
+function ProviderResult({ tone, children }: { tone: 'ok' | 'error' | 'muted'; children: ReactNode }) {
+  if (settingsOnDesktop()) {
+    return (
+      <span className={`set-provider-result${tone === 'error' ? ' set-provider-result--error' : ''}`}>
+        {tone !== 'muted' && <BrushIcon name={tone === 'ok' ? 'check' : 'status-stopped'} size={13} />}
+        {children}
+      </span>
+    );
+  }
+  const color = tone === 'ok' ? '#2e7d52' : tone === 'error' ? '#c0392b' : 'hsl(var(--ink-4))';
+  return (
+    <span className="set-mono" style={{ color }}>
+      {tone !== 'muted' && <BrushIcon name={tone === 'ok' ? 'check' : 'status-stopped'} size={11} inline />}{' '}
+      {children}
+    </span>
+  );
+}
+
+/** The mobile card's key line: the mask and where the key lives. */
+function maskedKey(source: string) {
+  return (
+    <>
+      <code>••••••••••••</code>
+      <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+        {source}
+      </span>
+    </>
+  );
+}
+
+function KeyField({ name, value, onChange }: { name: string; value: string; onChange: (next: string) => void }) {
+  const { t } = useTranslation();
+  const desktop = settingsOnDesktop();
+  return (
+    <SettingsField
+      mono
+      small={desktop}
+      style={desktop ? { width: 250 } : { minWidth: 320 }}
+      placeholder={t('settings.byokProvider.keyPlaceholder')}
+      aria-label={`${name} API Key`}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      autoFocus
+    />
+  );
+}
 
 function ProviderRow({
   credentialsActive,
@@ -53,6 +190,7 @@ function ProviderRow({
   const [loading, setLoading] = useState(true);
   const selectedCopilotProvider = useSettingsStore((state) => state.copilotByokProvider);
   const selectedCopilotModel = useSettingsStore((state) => state.copilotByokModel);
+  const desktop = settingsOnDesktop();
 
   // Settings needs existence only. On macOS this is an attribute-only native
   // query, so merely scrolling this panel into view never asks to decrypt keys.
@@ -124,125 +262,72 @@ function ProviderRow({
     events.emit('byok:keys-changed');
   };
 
+  const startEditing = () => {
+    setDraft('');
+    setEditing(true);
+  };
+  const keyField = <KeyField name={name} value={draft} onChange={setDraft} />;
+
   return (
-    <div
-      className={
-        'set-provider' + (live ? ' set-provider--connected' : ' set-provider--disconnected')
+    <ProviderShell
+      name={name}
+      desc={desc}
+      logoClass={logoClass}
+      logoText={logoText}
+      live={live}
+      chip={live ? t('settings.byokProvider.ownKey') : t('settings.byokProvider.notConnected')}
+      source={live ? (connected ? 'Keychain' : '.ENV (DEV)') : t('settings.byokProvider.notConnected')}
+      body={
+        editing
+          ? { label: 'API Key', value: keyField }
+          : live
+            ? { label: 'API Key', value: maskedKey(connected ? '· KEYCHAIN' : '· .ENV (DEV)') }
+            : null
       }
-    >
-      <div className="set-provider__head">
-        <div className={`set-provider__logo ${logoClass}`}>{logoText}</div>
-        <div className="set-provider__main">
-          <div className="set-provider__name">
-            <b>{name}</b>
-            <em className={live ? 'is-byok' : ''}>
-              {live
-                ? t('settings.byokProvider.ownKey')
-                : t('settings.byokProvider.notConnected')}
-            </em>
-          </div>
-          <div className="set-provider__desc">{desc}</div>
-        </div>
-        <div
-          className={
-            'set-provider__status ' +
-            (live ? 'set-provider__status--live' : 'set-provider__status--off')
-          }
-        >
-          <span className="set-provider__status-dot" />
-          {live ? 'CONNECTED' : 'OFFLINE'}
-        </div>
-      </div>
-
-      {(live || editing) && (
-        <div className="set-provider__body">
-          <div className="set-provider__body-inner">
-            <span className="set-provider__k">API Key</span>
-            <span className="set-provider__v">
-              {editing ? (
-                <input
-                  className="set-input set-input--mono"
-                  style={{ minWidth: 320 }}
-                  placeholder={t('settings.byokProvider.keyPlaceholder')}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  autoFocus
-                />
-              ) : (
-                <code>••••••••••••</code>
-              )}
-              {!editing && (
-                <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-                  {connected ? '· KEYCHAIN' : '· .ENV (DEV)'}
-                </span>
-              )}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div className="set-provider__actions">
-        {loading ? null : editing ? (
+      actions={
+        loading ? null : editing ? (
           <>
-            <button className="set-btn set-btn--primary" onClick={save}>
+            {desktop && keyField}
+            <SettingsButton variant="primary" onClick={save}>
               {t('settings.common.save')}
-            </button>
-            <button
-              className="set-btn"
+            </SettingsButton>
+            <SettingsButton
+              variant={desktop ? 'ghost' : 'default'}
               onClick={() => {
                 setDraft('');
                 setEditing(false);
               }}
             >
               {t('settings.common.cancel')}
-            </button>
+            </SettingsButton>
           </>
         ) : live ? (
           <>
-            <button className="set-btn" onClick={testConnection} disabled={testState === 'testing'}>
+            <SettingsButton size="sm" onClick={testConnection} disabled={testState === 'testing'}>
               {testState === 'testing'
                 ? t('settings.byokProvider.testing')
                 : t('settings.common.test_connection')}
-            </button>
-            {testState === 'ok' && (
-              <span className="set-mono" style={{ color: '#2e7d52' }}>
-                <BrushIcon name="check" size={11} inline /> {t('settings.byokProvider.available')}
-              </span>
-            )}
-            {testState === 'fail' && (
-              <span className="set-mono" style={{ color: '#c0392b' }}>
-                <BrushIcon name="status-stopped" size={11} inline /> {testMsg}
-              </span>
-            )}
-            <button
-              className="set-btn"
-              onClick={() => {
-                setDraft('');
-                setEditing(true);
-              }}
-            >
+            </SettingsButton>
+            <SettingsButton variant={desktop ? 'ghost' : 'default'} size="sm" onClick={startEditing}>
               {t('settings.byokProvider.editKey')}
-            </button>
+            </SettingsButton>
+            {testState === 'ok' && <ProviderResult tone="ok">{t('settings.byokProvider.available')}</ProviderResult>}
+            {testState === 'fail' && <ProviderResult tone="error">{testMsg}</ProviderResult>}
             <span style={{ flex: 1 }} />
+            {/* An .env key is the dev server's: there is nothing here to disconnect. */}
             {connected && (
-              <button className="set-btn set-btn--danger" onClick={disconnect}>
+              <SettingsButton variant="danger" size="sm" onClick={disconnect}>
                 {t('settings.common.disconnect')}
-              </button>
+              </SettingsButton>
             )}
           </>
         ) : (
-          <button
-            className="set-btn set-btn--primary"
-            onClick={() => {
-              setDraft('');
-              setEditing(true);
-            }}
-          >
+          <SettingsButton variant="primary" size="sm" onClick={startEditing}>
             {t('settings.common.connect')}
-          </button>
-        )}
-      </div>
-    </div>
+          </SettingsButton>
+        )
+      }
+    />
   );
 }
 
@@ -259,6 +344,7 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const desktop = settingsOnDesktop();
 
   useEffect(() => {
     if (!credentialsActive) return;
@@ -333,111 +419,88 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
   const login = status?.login ?? null;
   const account = status?.account ?? null;
   const failureKey = login?.phase === 'failed' ? login.failure ?? 'provider_rejected' : null;
+  const accountWord = signedIn
+    ? account?.email ?? t('settings.codexSubscription.signedInAs')
+    : t('settings.codexSubscription.notSignedIn');
+  const codeHint =
+    login?.phase === 'exchanging'
+      ? t('settings.codexSubscription.exchanging')
+      : t('settings.codexSubscription.codeHint');
 
   return (
-    <div
-      className={
-        'set-provider' + (signedIn ? ' set-provider--connected' : ' set-provider--disconnected')
+    <ProviderShell
+      name={t('settings.codexSubscription.name')}
+      desc={t('settings.models.providers.openaiCodex')}
+      logoClass="set-provider__logo--openai"
+      logoText="C"
+      live={signedIn}
+      chip={accountWord}
+      source={signedIn && account?.plan ? `${accountWord} · ${account.plan}` : accountWord}
+      body={
+        loginActive && login
+          ? {
+              label: t('settings.codexSubscription.codeLabel'),
+              value: maskedCode(login.userCode, ` · ${codeHint}`),
+            }
+          : signedIn
+            ? { label: t('settings.codexSubscription.plan'), value: maskedCode(account?.plan ?? '—', '· KEYCHAIN') }
+            : null
       }
-    >
-      <div className="set-provider__head">
-        <div className="set-provider__logo set-provider__logo--openai">C</div>
-        <div className="set-provider__main">
-          <div className="set-provider__name">
-            <b>{t('settings.codexSubscription.name')}</b>
-            <em className={signedIn ? 'is-byok' : ''}>
-              {signedIn
-                ? account?.email ?? t('settings.codexSubscription.signedInAs')
-                : t('settings.codexSubscription.notSignedIn')}
-            </em>
-          </div>
-          <div className="set-provider__desc">{t('settings.models.providers.openaiCodex')}</div>
-        </div>
-        <div
-          className={
-            'set-provider__status ' +
-            (signedIn ? 'set-provider__status--live' : 'set-provider__status--off')
-          }
-        >
-          <span className="set-provider__status-dot" />
-          {signedIn ? 'CONNECTED' : 'OFFLINE'}
-        </div>
-      </div>
-
-      {(signedIn || loginActive) && (
-        <div className="set-provider__body">
-          <div className="set-provider__body-inner">
-            {loginActive && login ? (
-              <>
-                <span className="set-provider__k">{t('settings.codexSubscription.codeLabel')}</span>
-                <span className="set-provider__v">
-                  <code>{login.userCode}</code>
-                  <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-                    {login.phase === 'exchanging'
-                      ? ` · ${t('settings.codexSubscription.exchanging')}`
-                      : ` · ${t('settings.codexSubscription.codeHint')}`}
-                  </span>
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="set-provider__k">{t('settings.codexSubscription.plan')}</span>
-                <span className="set-provider__v">
-                  <code>{account?.plan ?? '—'}</code>
-                  <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-                    · KEYCHAIN
-                  </span>
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="set-provider__actions">
-        {loading ? null : loginActive && login ? (
+      detail={
+        loginActive && login ? (
           <>
-            <button
-              className="set-btn set-btn--primary"
-              onClick={() => codexSubscription.openVerification(login)}
-            >
+            <span className="set-provider-line__k">{t('settings.codexSubscription.codeLabel')}</span>
+            <span className="set-provider-line__code">{login.userCode}</span>
+            <BrushIcon name="loader" size={13} className="ui-spin" />
+            <span className="set-provider-line__k">{codeHint}</span>
+          </>
+        ) : null
+      }
+      actions={
+        loading ? null : loginActive && login ? (
+          <>
+            <SettingsButton variant="primary" size="sm" onClick={() => codexSubscription.openVerification(login)}>
               {t('settings.codexSubscription.openVerification')}
-            </button>
-            <button className="set-btn" onClick={cancel}>
+            </SettingsButton>
+            <SettingsButton variant={desktop ? 'ghost' : 'default'} size="sm" onClick={cancel}>
               {t('settings.common.cancel')}
-            </button>
+            </SettingsButton>
           </>
         ) : signedIn ? (
           <>
             <span style={{ flex: 1 }} />
-            <button className="set-btn set-btn--danger" onClick={signOut} disabled={busy}>
+            <SettingsButton variant="danger" size="sm" onClick={signOut} disabled={busy}>
               {t('settings.codexSubscription.signOut')}
-            </button>
+            </SettingsButton>
           </>
         ) : (
           <>
-            <button className="set-btn set-btn--primary" onClick={signIn} disabled={busy}>
+            <SettingsButton variant="primary" size="sm" onClick={signIn} disabled={busy}>
               {t('settings.codexSubscription.signIn')}
-            </button>
-            {startError && (
-              <span className="set-mono" style={{ color: '#c0392b' }}>
-                <BrushIcon name="status-stopped" size={11} inline /> {startError}
-              </span>
-            )}
+            </SettingsButton>
+            {startError && <ProviderResult tone="error">{startError}</ProviderResult>}
             {failureKey && (
-              <span className="set-mono" style={{ color: '#c0392b' }}>
-                <BrushIcon name="status-stopped" size={11} inline /> {t(`settings.codexSubscription.failure.${failureKey}`)}
-              </span>
+              <ProviderResult tone="error">{t(`settings.codexSubscription.failure.${failureKey}`)}</ProviderResult>
             )}
             {login?.phase === 'cancelled' && (
-              <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-                {t('settings.codexSubscription.cancelled')}
-              </span>
+              <ProviderResult tone="muted">{t('settings.codexSubscription.cancelled')}</ProviderResult>
             )}
           </>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
+  );
+}
+
+/** The mobile card's code or plan line. */
+function maskedCode(code: string, note: string) {
+  return (
+    <>
+      <code>{code}</code>
+      <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+        {note}
+      </span>
+    </>
   );
 }
 
@@ -452,6 +515,7 @@ function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean
   const [draft, setDraft] = useState('');
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
+  const desktop = settingsOnDesktop();
 
   useEffect(() => {
     if (!credentialsActive) return;
@@ -492,108 +556,62 @@ function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean
     events.emit('byok:keys-changed');
   };
 
+  const startEditing = () => {
+    setDraft('');
+    setEditing(true);
+  };
+  const keyField = <KeyField name="阿里云百炼" value={draft} onChange={setDraft} />;
+
   return (
-    <div
-      className={
-        'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')
+    <ProviderShell
+      name="阿里云百炼"
+      desc={t('settings.models.providers.dashscope')}
+      logoClass="set-provider__logo--dashscope"
+      logoText="百"
+      live={connected}
+      chip={connected ? t('settings.byokProvider.ownKey') : t('settings.byokProvider.notConnected')}
+      source={connected ? 'Keychain' : t('settings.byokProvider.notConnected')}
+      body={
+        editing
+          ? { label: 'API Key', value: keyField }
+          : connected
+            ? { label: 'API Key', value: maskedKey('· KEYCHAIN') }
+            : null
       }
-    >
-      <div className="set-provider__head">
-        <div className="set-provider__logo set-provider__logo--dashscope">百</div>
-        <div className="set-provider__main">
-          <div className="set-provider__name">
-            <b>阿里云百炼</b>
-            <em className={connected ? 'is-byok' : ''}>
-              {connected
-                ? t('settings.byokProvider.ownKey')
-                : t('settings.byokProvider.notConnected')}
-            </em>
-          </div>
-          <div className="set-provider__desc">{t('settings.models.providers.dashscope')}</div>
-        </div>
-        <div
-          className={
-            'set-provider__status ' +
-            (connected ? 'set-provider__status--live' : 'set-provider__status--off')
-          }
-        >
-          <span className="set-provider__status-dot" />
-          {connected ? 'CONNECTED' : 'OFFLINE'}
-        </div>
-      </div>
-
-      {(connected || editing) && (
-        <div className="set-provider__body">
-          <div className="set-provider__body-inner">
-            <span className="set-provider__k">API Key</span>
-            <span className="set-provider__v">
-              {editing ? (
-                <input
-                  className="set-input set-input--mono"
-                  style={{ minWidth: 320 }}
-                  placeholder={t('settings.byokProvider.keyPlaceholder')}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  autoFocus
-                />
-              ) : (
-                <code>••••••••••••</code>
-              )}
-              {!editing && (
-                <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-                  · KEYCHAIN
-                </span>
-              )}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div className="set-provider__actions">
-        {loading ? null : editing ? (
+      actions={
+        loading ? null : editing ? (
           <>
-            <button className="set-btn set-btn--primary" onClick={save}>
+            {desktop && keyField}
+            <SettingsButton variant="primary" onClick={save}>
               {t('settings.common.save')}
-            </button>
-            <button
-              className="set-btn"
+            </SettingsButton>
+            <SettingsButton
+              variant={desktop ? 'ghost' : 'default'}
               onClick={() => {
                 setDraft('');
                 setEditing(false);
               }}
             >
               {t('settings.common.cancel')}
-            </button>
+            </SettingsButton>
           </>
         ) : connected ? (
           <>
-            <button
-              className="set-btn"
-              onClick={() => {
-                setDraft('');
-                setEditing(true);
-              }}
-            >
+            <SettingsButton variant={desktop ? 'ghost' : 'default'} size="sm" onClick={startEditing}>
               {t('settings.byokProvider.editKey')}
-            </button>
+            </SettingsButton>
             <span style={{ flex: 1 }} />
-            <button className="set-btn set-btn--danger" onClick={disconnect}>
+            <SettingsButton variant="danger" size="sm" onClick={disconnect}>
               {t('settings.common.disconnect')}
-            </button>
+            </SettingsButton>
           </>
         ) : (
-          <button
-            className="set-btn set-btn--primary"
-            onClick={() => {
-              setDraft('');
-              setEditing(true);
-            }}
-          >
+          <SettingsButton variant="primary" size="sm" onClick={startEditing}>
             {t('settings.common.connect')}
-          </button>
-        )}
-      </div>
-    </div>
+          </SettingsButton>
+        )
+      }
+    />
   );
 }
 
@@ -694,91 +712,49 @@ function CopilotTaskRow({
   const effectiveSec = Math.round(effectiveMs / 1000);
   const isOverride = cfg?.debounceMs !== undefined;
 
+  const setDebounceSec = (sec: number) => setDebounceMs(taskId, clampDebounceSec(sec) * 1000);
+
   return (
-    <div
-      style={{
-        padding: '14px 0',
-        borderTop: '1px solid hsl(var(--rule) / 0.5)',
-      }}
-    >
-      <div
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <strong style={{ fontSize: 14 }}>{label}</strong>
-            {!wired && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'hsl(var(--ink-3))',
-                  padding: '1px 6px',
-                  borderRadius: 4,
-                  background: 'hsl(var(--rule) / 0.3)',
-                }}
-              >
-                {t('settings.copilot.notLive')}
-              </span>
-            )}
+    <div className="set-copilot-task">
+      <div className="set-copilot-task__head">
+        <div className="set-copilot-task__main">
+          <div className="set-copilot-task__title">
+            <strong>{label}</strong>
+            {!wired && <span className="set-copilot-task__badge">{t('settings.copilot.notLive')}</span>}
           </div>
-          <div style={{ fontSize: 12, color: 'hsl(var(--ink-2))', marginTop: 4 }}>{desc}</div>
+          <div className="set-copilot-task__desc">{desc}</div>
         </div>
-        <SettingsToggle on={enabled} onChange={(on) => setEnabled(taskId, on)} />
+        <SettingsToggle on={enabled} onChange={(on) => setEnabled(taskId, on)} aria-label={label} />
       </div>
 
       {wired && enabled && (
-        <div style={{ marginTop: 12, paddingLeft: 4 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              justifyContent: 'space-between',
-              fontSize: 12,
-              color: 'hsl(var(--ink-3))',
-              marginBottom: 4,
-            }}
-          >
+        <div className="set-copilot-task__rhythm">
+          <div className="set-copilot-task__rhythm-head">
             <span>{t('settings.copilot.triggerRhythm')}</span>
             <span>
               {t('settings.copilot.afterStopPrefix')}
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  margin: '0 4px',
-                  color: 'hsl(var(--ink-1))',
-                }}
-              >
-                {effectiveSec}s
-              </span>
+              <span className="set-copilot-task__value">{effectiveSec}s</span>
               {t('settings.copilot.afterStopSuffix')}
               {isOverride && (
-                <button
+                <SettingsButton
+                  variant="ghost"
+                  size="sm"
+                  className="set-copilot-task__reset"
                   onClick={() => setDebounceMs(taskId, undefined)}
-                  style={{
-                    marginLeft: 8,
-                    fontSize: 11,
-                    color: 'hsl(var(--accent))',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
                   title={t('settings.copilot.resetTaskDefaultTitle')}
                 >
                   {t('settings.copilot.resetDefault')}
-                </button>
+                </SettingsButton>
               )}
             </span>
           </div>
-          <input
-            type="range"
+          <SettingsRange
+            wide
             min={COPILOT_DEBOUNCE_MIN_SEC}
             max={COPILOT_DEBOUNCE_MAX_SEC}
-            step={1}
             value={effectiveSec}
-            onChange={(e) =>
-              setDebounceMs(taskId, clampDebounceSec(parseInt(e.target.value, 10)) * 1000)
-            }
+            ariaLabel={`${label} · ${t('settings.copilot.triggerRhythm')}`}
+            onChange={setDebounceSec}
             style={{ width: '100%', accentColor: 'hsl(var(--accent))' }}
           />
         </div>
@@ -863,35 +839,52 @@ function CopilotByokModelPicker() {
   const inKnown = model === '' || known.some((m) => m.value === model);
   const [customOpen, setCustomOpen] = useState(false);
   const showCustom = customOpen || (model !== '' && !inKnown);
+  const choose = (next: string) => {
+    if (next === BYOK_MODEL_CUSTOM) {
+      setCustomOpen(true);
+    } else {
+      setCustomOpen(false);
+      setModel(next);
+    }
+  };
+  const options = [
+    { value: '', label: t('settings.copilot.providerDefault') },
+    ...known,
+    { value: BYOK_MODEL_CUSTOM, label: t('settings.copilot.customModel') },
+  ];
+  const desktop = settingsOnDesktop();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 240 }}>
-      <select
-        className="set-input"
-        style={{ minWidth: 240 }}
-        value={showCustom ? BYOK_MODEL_CUSTOM : model}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === BYOK_MODEL_CUSTOM) {
-            setCustomOpen(true);
-          } else {
-            setCustomOpen(false);
-            setModel(v);
-          }
-        }}
-      >
-        <option value="">{t('settings.copilot.providerDefault')}</option>
-        {known.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-        <option value={BYOK_MODEL_CUSTOM}>{t('settings.copilot.customModel')}</option>
-      </select>
-      {showCustom && (
-        <input
-          className="set-input set-input--mono"
+    <div className="set-model-picker">
+      {desktop ? (
+        <span className="set-select-slot" style={{ width: 240 }}>
+          <GlassSelect
+            value={showCustom ? BYOK_MODEL_CUSTOM : model}
+            options={options}
+            onChange={choose}
+            ariaLabel={t('settings.copilot.byokModel')}
+          />
+        </span>
+      ) : (
+        <select
+          className="set-input"
           style={{ minWidth: 240 }}
+          value={showCustom ? BYOK_MODEL_CUSTOM : model}
+          onChange={(e) => choose(e.target.value)}
+        >
+          {options.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      )}
+      {showCustom && (
+        <SettingsField
+          mono
+          small={desktop}
+          style={desktop ? { width: 240 } : { minWidth: 240 }}
           placeholder={t('settings.copilot.modelIdPlaceholder')}
+          aria-label={t('settings.copilot.modelIdPlaceholder')}
           value={model}
           onChange={(e) => setModel(e.target.value)}
         />
@@ -908,6 +901,23 @@ function CopilotByokWarning({ credentialsActive }: { credentialsActive: boolean 
   if (connected !== false) return null;
   const jumpToModels = () =>
     document.getElementById('models')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const message = (
+    <>
+      {t('settings.copilot.byokWarningPrefix', { provider: BYOK_PROVIDER_LABEL[provider] })}
+      <b>{t('settings.copilot.byokWarningStrong')}</b>
+      {t('settings.copilot.byokWarningSuffix')}
+    </>
+  );
+  if (settingsOnDesktop()) {
+    return (
+      <SettingsNote className="set-copilot-warning">
+        {message}
+        <SettingsButton variant="ghost" size="sm" onClick={jumpToModels}>
+          {t('settings.common.manageKeys')}
+        </SettingsButton>
+      </SettingsNote>
+    );
+  }
   return (
     <div
       style={{
@@ -921,9 +931,7 @@ function CopilotByokWarning({ credentialsActive }: { credentialsActive: boolean 
         color: 'hsl(var(--ink-2))',
       }}
     >
-      {t('settings.copilot.byokWarningPrefix', { provider: BYOK_PROVIDER_LABEL[provider] })}
-      <b>{t('settings.copilot.byokWarningStrong')}</b>
-      {t('settings.copilot.byokWarningSuffix')}
+      {message}
       <button className="set-btn" style={{ marginLeft: 10 }} onClick={jumpToModels}>
         {t('settings.common.manageKeys')}
       </button>
@@ -971,18 +979,17 @@ export function CopilotPanel({
           label={t('settings.common.provider')}
           desc={t('settings.copilot.providerDesc')}
           control={
-            <select
-              className="set-input"
-              style={{ minWidth: 240 }}
+            <SettingsSelect<BYOKProvider>
+              few
               value={copilotByokProvider}
-              onChange={(e) => setCopilotByokProvider(e.target.value as BYOKProvider)}
-            >
-              {(Object.keys(BYOK_PROVIDER_LABEL) as BYOKProvider[]).map((provider) => (
-                <option key={provider} value={provider}>
-                  {BYOK_PROVIDER_LABEL[provider]}
-                </option>
-              ))}
-            </select>
+              onChange={setCopilotByokProvider}
+              ariaLabel={t('settings.common.provider')}
+              width={240}
+              options={(Object.keys(BYOK_PROVIDER_LABEL) as BYOKProvider[]).map((provider) => ({
+                value: provider,
+                label: BYOK_PROVIDER_LABEL[provider],
+              }))}
+            />
           }
         />
         <SettingsRow
@@ -997,12 +1004,20 @@ export function CopilotPanel({
         <SettingsRow
           label={t('settings.copilot.autoTrigger')}
           desc={t('settings.copilot.autoTriggerDesc')}
-          control={<SettingsToggle on={autoTrigger} onChange={setAutoTrigger} />}
+          control={
+            <SettingsToggle on={autoTrigger} onChange={setAutoTrigger} aria-label={t('settings.copilot.autoTrigger')} />
+          }
         />
         <SettingsRow
           label={t('settings.copilot.enableInDrift')}
           desc={t('settings.copilot.enableInDriftDesc')}
-          control={<SettingsToggle on={copilotInDrift} onChange={setCopilotInDrift} />}
+          control={
+            <SettingsToggle
+              on={copilotInDrift}
+              onChange={setCopilotInDrift}
+              aria-label={t('settings.copilot.enableInDrift')}
+            />
+          }
         />
       </div>
 
@@ -1011,7 +1026,13 @@ export function CopilotPanel({
         <SettingsRow
           label={t('settings.copilot.generateSummaries')}
           desc={t('settings.copilot.generateSummariesDesc')}
-          control={<SettingsToggle on={generateSummaries} onChange={setGenerateSummaries} />}
+          control={
+            <SettingsToggle
+              on={generateSummaries}
+              onChange={setGenerateSummaries}
+              aria-label={t('settings.copilot.generateSummaries')}
+            />
+          }
         />
         {generateSummaries && (
           <SettingsRow
@@ -1019,33 +1040,17 @@ export function CopilotPanel({
             desc={t('settings.copilot.summaryThresholdDesc', { count: sectionSize })}
             stack
             control={
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  width: '100%',
-                  minWidth: 220,
-                }}
-              >
-                <input
-                  type="range"
+              <div className="set-copilot-threshold">
+                <SettingsRange
+                  wide
                   min={COPILOT_SECTION_SIZE_MIN}
                   max={COPILOT_SECTION_SIZE_MAX}
-                  step={1}
                   value={sectionSize}
-                  onChange={(e) => setSectionSize(parseInt(e.target.value, 10))}
+                  ariaLabel={t('settings.copilot.summaryThreshold')}
+                  onChange={setSectionSize}
                   style={{ flex: 1, accentColor: 'hsl(var(--accent))' }}
                 />
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 12,
-                    minWidth: 32,
-                    textAlign: 'right',
-                    color: 'hsl(var(--ink-2))',
-                  }}
-                >
+                <span className="set-copilot-threshold__value">
                   {t('settings.copilot.blocks', { count: sectionSize })}
                 </span>
               </div>
@@ -1056,9 +1061,7 @@ export function CopilotPanel({
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.copilot.tasksTitle')} hint="TASKS" />
-        <p className="set-row__desc" style={{ margin: '-4px 0 0' }}>
-          {t('settings.copilot.tasksDesc')}
-        </p>
+        <p className="set-row__desc set-copilot-tasks-desc">{t('settings.copilot.tasksDesc')}</p>
         {COPILOT_TASKS.map((task) => (
           <CopilotTaskRow
             key={task.id}

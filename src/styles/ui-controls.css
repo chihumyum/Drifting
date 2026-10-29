@@ -2881,3 +2881,255 @@ svg.super-viewport-edges[data-panning='1'] {
     transition: none;
   }
 }
+
+/* ── Single-line field, monospaced ──────────────────────────────────
+   For what is read character by character: a key, a command, a model id,
+   a path, a colour value. Index type: monospaced, no capitals, no spacing. */
+.ui-field--mono > input,
+.ui-field--mono > textarea {
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-secondary, 12.5px);
+  letter-spacing: 0.01em;
+}
+
+/* ── Configuration field: several lines of NAME=value ───────────────
+   The single-line field grown to several lines, square-cornered (2px) and
+   monospaced like a terminal, not the 16px slip the author writes prose in. */
+.ui-field--config {
+  align-items: stretch;
+  padding: 7px 10px;
+}
+
+.ui-field--config > textarea {
+  min-height: calc(var(--ui-line-body, 20px) * 3);
+  resize: vertical;
+}
+
+/* ── Number slider ───────────────────────────────────────────────────
+   GlassRange. A 1px hairline track and a 2px ink line for the part already
+   travelled (the progress hairline, in ink rather than the accent). The knob
+   is the Switch's clean thumb; under the pointer a round glass halo comes up
+   round it and drifts, held down it thickens like any glass. The real range
+   input lies on top, unseen, so the pointer, the arrow keys and assistive
+   technology all work the system's way; its thumb is the knob's size so the
+   two always meet. */
+.ui-range {
+  --range-knob: 14px;
+  --range-halo: 24px;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 150px;
+  height: 22px;
+}
+
+.ui-range--wide {
+  flex: 1;
+  width: auto;
+  min-width: 120px;
+}
+
+.ui-range__track,
+.ui-range__fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  pointer-events: none;
+}
+
+.ui-range__track {
+  right: 0;
+  height: 1px;
+  margin-top: -0.5px;
+  background: hsl(var(--rule-strong));
+}
+
+.ui-range__fill {
+  width: calc(var(--range-knob) / 2 + (100% - var(--range-knob)) * var(--range-p, 0));
+  height: 2px;
+  margin-top: -1px;
+  background: hsl(var(--ink-3));
+}
+
+.ui-range__knob,
+.ui-range__halo {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--range-knob) / 2 + (100% - var(--range-knob)) * var(--range-p, 0));
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.ui-range__knob {
+  z-index: 2;
+  width: var(--range-knob);
+  height: var(--range-knob);
+  margin: calc(var(--range-knob) / -2) 0 0 calc(var(--range-knob) / -2);
+  background: hsl(var(--page));
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.18),
+    0 0 0 0.5px hsl(var(--ink-1) / 0.06);
+}
+
+.dark .ui-range__knob {
+  background: hsl(var(--ink-2));
+}
+
+.ui-range__halo {
+  z-index: 1;
+  width: var(--range-halo);
+  height: var(--range-halo);
+  margin: calc(var(--range-halo) / -2) 0 0 calc(var(--range-halo) / -2);
+}
+
+.ui-range:hover .ui-range__halo,
+.ui-range:has(> input:focus-visible) .ui-range__halo {
+  --glass-g: 1;
+  --glass-sp: 1;
+}
+
+.ui-range:hover .ui-range__halo::before,
+.ui-range:has(> input:focus-visible) .ui-range__halo::before {
+  opacity: 1;
+  animation-play-state: running;
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-bleed) ease-out;
+}
+
+.ui-range:active .ui-range__halo {
+  --glass-g: 1.7;
+  --glass-sp: 1.3;
+}
+
+.ui-range:active .ui-range__halo::before {
+  opacity: 1;
+  animation-play-state: paused;
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-press) ease-out;
+}
+
+.ui-range > input {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ui-range > input::-webkit-slider-thumb {
+  width: var(--range-knob);
+  height: var(--range-knob);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ui-range.is-disabled {
+  opacity: 0.45;
+}
+
+.ui-range.is-disabled > input {
+  cursor: not-allowed;
+}
+
+.ui-range.is-disabled .ui-range__halo::before {
+  opacity: 0;
+}
+
+/* The number beside it: a small monospaced field, the unit read at its end
+   and two flat strokes to step it. */
+.ui-number {
+  width: 96px;
+  padding: 0 4px 0 8px;
+  gap: 4px;
+}
+
+.ui-number > input {
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+
+.ui-number > input::-webkit-inner-spin-button,
+.ui-number > input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.ui-number__steps {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  margin-left: 2px;
+}
+
+.ui-number__step {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 11px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.ui-number__step:hover:not(:disabled) {
+  color: hsl(var(--ink-1));
+}
+
+.ui-number__step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── Colour swatch ───────────────────────────────────────────────────
+   Any colour the author picks (the accent, the caret, a kind's highlight):
+   a round glass button holding one seal of that colour. A kind's colour is
+   shown in that kind's own sand mark instead. The system colour picker lies
+   on top, unseen; the value is written beside in index type. */
+.ui-swatch {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.ui-swatch > .sand,
+.ui-swatch > .kind-mark {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-swatch > input[type='color'] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ui-swatch__value {
+  min-width: 58px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-range__halo::before {
+    animation: none;
+  }
+}

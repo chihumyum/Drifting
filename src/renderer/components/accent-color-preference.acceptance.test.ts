@@ -34,9 +34,12 @@ describe('user accent color preference acceptance', () => {
     const effects = source('src/renderer/app/effects/AppEffects.tsx');
     const theme = source('src/renderer/lib/theme.ts');
 
+    const swatch = source('src/renderer/features/settings/SettingsPrimitives.tsx');
+
     expect(panel).toContain("t('settings.appearance.accent_color')");
-    expect(panel).toContain('type="color"');
-    expect(panel).toContain('setAccentColor(event.target.value)');
+    // The colour swatch (components.md, Settings) owns the system colour input.
+    expect(panel).toContain('<SettingsColor\n              value={displayedAccentColor}\n              onChange={setAccentColor}');
+    expect(swatch).toContain('<input type="color" value={value} aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} />');
     expect(panel).toContain('setAccentColor(null)');
     expect(effects).toContain('applyAccentColor(accentColor);');
     expect(theme).toContain("root.style.setProperty('--accent', accent);");
@@ -48,7 +51,7 @@ describe('user accent color preference acceptance', () => {
     const panel = source('src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx');
     const editorPreferences = source('src/renderer/lib/editor-preferences.ts');
 
-    expect(panel).toContain('setCaretColor(event.target.value)');
+    expect(panel).toContain('<SettingsColor\n              value={caretColor}\n              onChange={setCaretColor}');
     expect(editorPreferences).toContain(
       "root.style.setProperty('--editor-caret-color', prefs.caretColor);",
     );

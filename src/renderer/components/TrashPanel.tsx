@@ -8,6 +8,18 @@ import { useStoryline } from '../usecase/useStoryline';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useCanUseFeature } from '../lib/feature-access';
 import { requestConfirmation } from '../store/confirmation-store';
+import { getPlatformRuntime } from '../platform/runtime';
+import { BrushIcon } from './ui/BrushIcon';
+import { Button } from './ui/Button';
+import { EmptyState } from './ui/EmptyState';
+import { KindMark } from './ui/KindMark';
+import { LoadingStatus } from './ui/LoadingStatus';
+
+/** The settings' trash on the desktop is a list of cells (components.md):
+ * each deleted thing with its sand mark, the ring under the pointer, and
+ * restore / delete only on the row being pointed at. The paused mobile shell
+ * keeps the table. */
+const onDesktop = () => !getPlatformRuntime().isMobileShell;
 
 // Minimal trash UI. Lists soft-deleted entities across the core domains.
 // Each row remains local until it is restored or permanently deleted here.
@@ -25,12 +37,14 @@ export function TrashPanel() {
   const canTrash = useCanUseFeature('trash');
 
   if (!userId || !projectId) {
+    if (onDesktop()) return <EmptyState icon="trash" message={t('trashPanel.noProject')} />;
     return (
       <div style={{ padding: 24, color: 'hsl(var(--ink-4))' }}>{t('trashPanel.noProject')}</div>
     );
   }
 
   if (!canTrash) {
+    if (onDesktop()) return <EmptyState icon="trash" message={t('trashPanel.proDesc')} />;
     return (
       <div style={{ padding: 24, color: 'hsl(var(--ink-4))', maxWidth: 480 }}>
         <h3 style={{ marginBottom: 8 }}>{t('trashPanel.proTitle')}</h3>
@@ -151,6 +165,54 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     }
     await reload();
   };
+
+  if (onDesktop()) {
+    return (
+      <div className="set-trash">
+        <div className="set-trash__head">
+          <span className="set-trash__retention">
+            {t('trashPanel.retention')}
+            {items.length > 0 && ` · ${items.length}`}
+          </span>
+          <Button variant="danger" size="sm" disabled={busy || items.length === 0} onClick={() => void purgeAll()}>
+            <BrushIcon name="trash" size={12} />
+            {t('trashPanel.clear')}
+          </Button>
+        </div>
+        {busy && items.length === 0 ? (
+          <LoadingStatus label={t('referencesPanel.loading')} />
+        ) : items.length === 0 ? (
+          <EmptyState icon="trash" message={t('trashPanel.empty')} />
+        ) : (
+          <div className="set-trash__list">
+            {items.map((it) => (
+              <div key={`${it.kind}:${it.id}`} className="set-trash__row menu-surface__item">
+                <KindMark kind={it.kind} seed={it.id} title={t(`trashPanel.kind.${it.kind}`)} />
+                <span className="set-trash__label">{it.label}</span>
+                <span className="set-trash__when">{new Date(it.deletedAt).toLocaleString()}</span>
+                <span className="set-trash__actions">
+                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => void restore(it)}>
+                    <BrushIcon name="rotate" size={12} />
+                    {t('trashPanel.restore')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="set-trash__purge"
+                    disabled={busy}
+                    onClick={() => void purge(it)}
+                  >
+                    <BrushIcon name="trash" size={12} />
+                    {t('trashPanel.purgeNow')}
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 24, maxWidth: 720 }}>

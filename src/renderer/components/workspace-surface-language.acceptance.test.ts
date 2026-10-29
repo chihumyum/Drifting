@@ -1038,7 +1038,7 @@ describe('workspace surface language acceptance', () => {
     const subHeader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     expect(subHeader).toContain('icon = <BrushIcon name="new-storyline" size={12} />;');
     expect(subHeader).toContain('icon = <BrushIcon name="new-category" size={12} />;');
-    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={11} />');
+    expect(source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx')).toContain('<BrushIcon name="search" size={13} />');
     expect(source('src/renderer/features/agent/AgentComposerConfig.tsx')).toContain('<BrushIcon name="dharma-wheel" size={16} />');
     expect(source('src/renderer/components/leftBars/AgentChangeIndicator.tsx')).toContain('<BrushIcon name="check" size={10} />');
   });

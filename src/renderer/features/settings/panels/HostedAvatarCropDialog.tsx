@@ -8,6 +8,7 @@ import {
 } from '../../../lib/hosted-account';
 import { Button } from '../../../components/ui/Button';
 import { ModalActions, ModalBody, ModalHeader } from '../../../components/ui/Modal';
+import { SettingsRange } from '../SettingsPrimitives';
 import { HostedAccountDialog } from './HostedAccountDialog';
 
 export function HostedAvatarCropDialog({
@@ -121,14 +122,15 @@ export function HostedAvatarCropDialog({
         </div>
         <label className="set-avatar-zoom" htmlFor="hosted-avatar-zoom">
           <span>{t('settings.hosted.crop_zoom')}</span>
-          <input
+          <SettingsRange
             id="hosted-avatar-zoom"
-            type="range"
+            wide
             min={1}
             max={4}
             step={0.01}
             value={crop.zoom}
-            onChange={(event) => adjust({ ...crop, zoom: Number(event.target.value) })}
+            ariaLabel={t('settings.hosted.crop_zoom')}
+            onChange={(zoom) => adjust({ ...crop, zoom })}
           />
         </label>
         {error && (

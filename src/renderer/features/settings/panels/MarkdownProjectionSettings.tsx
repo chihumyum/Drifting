@@ -4,7 +4,7 @@ import { platform } from '../../../platform';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { useProjectStore } from '../../../store/project-store';
 import { getMarkdownProjectionStatus, subscribeMarkdownProjectionStatus } from '../../../services/markdown-projection-status';
-import { SettingsRow } from '../SettingsPrimitives';
+import { SettingsButton, SettingsRow } from '../SettingsPrimitives';
 
 export function MarkdownProjectionSettings({ projectRuntimeMounted }: { projectRuntimeMounted: boolean }) {
   const { t } = useTranslation();
@@ -57,22 +57,22 @@ function ProjectProjectionSettings({ projectId, projectName }: { projectId: stri
         {projection?.generatedAt ? ` · ${new Date(projection.generatedAt).toLocaleString()}` : ''}
         {projection?.error ? ` · ${projection.error}` : ''}
       </p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-        <button className="set-btn" disabled={busy || !projection} onClick={() => void run(async () => {
+      <div className="set-actions set-actions--below">
+        <SettingsButton disabled={busy || !projection} onClick={() => void run(async () => {
           const root = await platform.markdownProjection.pickOutputRoot(t('settings.sync.projection.choose'));
           if (root !== null && mounted.current) await changeRoot(root);
-        })}>{t('settings.sync.projection.choose')}</button>
-        <button className="set-btn" disabled={busy || (!projection?.customRoot && projection?.state !== 'error')} onClick={() => void run(() => changeRoot(null))}>
+        })}>{t('settings.sync.projection.choose')}</SettingsButton>
+        <SettingsButton disabled={busy || (!projection?.customRoot && projection?.state !== 'error')} onClick={() => void run(() => changeRoot(null))}>
           {t('settings.sync.projection.reset')}
-        </button>
-        <button className="set-btn" disabled={busy || !projection?.directory} onClick={() => void run(async () => {
+        </SettingsButton>
+        <SettingsButton disabled={busy || !projection?.directory} onClick={() => void run(async () => {
           await navigator.clipboard.writeText(projection!.directory!);
           if (mounted.current) setMessage(t('settings.sync.projection.copied'));
-        })}>{t('settings.sync.projection.copy')}</button>
-        <button className="set-btn" disabled={busy || !projection} onClick={() => void run(async () => {
+        })}>{t('settings.sync.projection.copy')}</SettingsButton>
+        <SettingsButton disabled={busy || !projection} onClick={() => void run(async () => {
           const { refreshMarkdownProjection } = await import('../../../services/markdown-projection.service');
           await refreshMarkdownProjection(projectId);
-        })}>{t('settings.sync.projection.refresh')}</button>
+        })}>{t('settings.sync.projection.refresh')}</SettingsButton>
       </div>
       {message && <p role={failed ? 'alert' : 'status'} className="set-row__desc" style={{ marginTop: 8 }}>{message}</p>}
     </div>

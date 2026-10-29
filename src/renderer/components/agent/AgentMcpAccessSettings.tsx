@@ -4,7 +4,14 @@ import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import type { McpClient, McpServerConnection } from '../../platform/mcp-server-contract';
 import { useProjectStore } from '../../store/project-store';
-import { SettingsSectionHeader } from '../../features/settings/SettingsPrimitives';
+import { BrushIcon } from '../ui/BrushIcon';
+import {
+  SettingsButton,
+  SettingsConfigField,
+  SettingsField,
+  SettingsSectionHeader,
+  SettingsSelect,
+} from '../../features/settings/SettingsPrimitives';
 import {
   mcpAccessGrant,
   mcpAccessPermission,
@@ -22,6 +29,7 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
   const supported = getPlatformRuntime().isMacDesktop;
   const reload = useCallback(async () => setConnections(await platform.mcpServer.list()), []);
   useEffect(() => {
@@ -83,23 +91,25 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       null,
       2,
     );
+  // Three short grants: one choice out of three, like every other few-option setting.
   const permissionSelect = (label: string, permission: McpAccessPermission, onChange: (value: McpAccessPermission) => void) => (
-    <select
-      className="set-input"
-      aria-label={label}
+    <SettingsSelect<McpAccessPermission>
+      few
+      ariaLabel={label}
       disabled={busy}
       value={permission}
-      onChange={(event) => onChange(event.target.value as McpAccessPermission)}
-    >
-      <option value="read">{t('settings.agent.mcpAccess.read')}</option>
-      <option value="write">{t('settings.agent.mcpAccess.write')}</option>
-      <option value="full">{t('settings.agent.mcpAccess.full')}</option>
-    </select>
+      onChange={onChange}
+      options={[
+        { value: 'read', label: t('settings.agent.mcpAccess.read') },
+        { value: 'write', label: t('settings.agent.mcpAccess.write') },
+        { value: 'full', label: t('settings.agent.mcpAccess.full') },
+      ]}
+    />
   );
   const renderConnection = (connection: McpServerConnection) => (
-    <div key={connection.grant.id} style={{ marginTop: 14 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-        <span style={{ flex: 1 }}>{connection.grant.name}</span>
+    <div key={connection.grant.id} className="set-mcp-access__item">
+      <div className="set-mcp-access__row">
+        <span className="set-mcp-access__name">{connection.grant.name}</span>
         {permissionSelect(
           t('settings.agent.mcpAccess.connectionPermission', { name: connection.grant.name }),
           mcpAccessPermission(connection),
@@ -115,24 +125,26 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
           },
         )}
         {connection.grant.installation && (
-          <button
-            className="set-btn"
+          <SettingsButton
+            variant="ghost"
+            size="sm"
             disabled={busy}
             onClick={() => connect(connection.grant.installation!.client, connection)}
           >
             {t('settings.agent.mcpAccess.reinstall')}
-          </button>
+          </SettingsButton>
         )}
-        <button
-          className="set-btn"
-          onClick={() =>
-            setSelected(selected === connection.grant.id ? null : connection.grant.id)
-          }
+        <SettingsButton
+          variant="ghost"
+          size="sm"
+          aria-expanded={selected === connection.grant.id}
+          onClick={() => setSelected(selected === connection.grant.id ? null : connection.grant.id)}
         >
           {t('settings.agent.mcpAccess.config')}
-        </button>
-        <button
-          className="set-btn"
+        </SettingsButton>
+        <SettingsButton
+          variant="danger"
+          size="sm"
           disabled={busy}
           onClick={() =>
             void run(async () => {
@@ -150,20 +162,18 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
           }
         >
           {t('settings.agent.mcpAccess.revoke')}
-        </button>
+        </SettingsButton>
       </div>
       {selected === connection.grant.id && (
-        <div style={{ marginTop: 8 }}>
-          <textarea
-            className="set-input"
+        <div className="set-mcp-access__config">
+          <SettingsConfigField
             readOnly
             rows={9}
-            style={{ width: '100%', fontFamily: 'monospace', fontSize: 11 }}
             aria-label={t('settings.agent.mcpAccess.config')}
             value={config(connection)}
           />
-          <button
-            className="set-btn"
+          <SettingsButton
+            size="sm"
             onClick={() =>
               void navigator.clipboard
                 .writeText(config(connection))
@@ -172,7 +182,7 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
             }
           >
             {t('settings.agent.mcpAccess.copy')}
-          </button>
+          </SettingsButton>
         </div>
       )}
     </div>
@@ -183,67 +193,79 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       <p className="set-row__desc">
         {t('settings.agent.mcpAccess.desc', { project: project.name })}
       </p>
-      <p className="set-row__desc" style={{ marginTop: 12 }}>
+      <p className="set-row__desc set-mcp-access__note">
         {t('settings.agent.mcpAccess.projectionDescription')}
       </p>
       {rows.clients.map(({ client, name: clientName, connection }) => connection
         ? renderConnection(connection)
         : (
-          <div key={client} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 14 }}>
-            <span style={{ flex: 1 }}>{clientName}</span>
+          <div key={client} className="set-mcp-access__item set-mcp-access__row">
+            <span className="set-mcp-access__name">{clientName}</span>
             {permissionSelect(
               t('settings.agent.mcpAccess.connectionPermission', { name: clientName }),
               draftPermission(client),
               permission => setDraftPermission(client, permission),
             )}
-            <button
-              type="button"
-              className="set-btn set-btn--primary"
+            <SettingsButton
+              variant="primary"
+              size="sm"
               disabled={busy}
               aria-label={t('settings.agent.mcpAccess.connect', { client: clientName })}
               onClick={() => connect(client)}
             >
               {t('settings.agent.mcpAccess.connectAction')}
-            </button>
+            </SettingsButton>
           </div>
         ))}
-      <p className="set-row__desc" style={{ marginTop: 12 }}>{t('settings.agent.mcpAccess.automatic')}</p>
-      <details style={{ marginTop: 12 }}>
-        <summary style={{ cursor: 'pointer' }}>{t('settings.agent.mcpAccess.manual')}</summary>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '12px 0' }}>
-          <input
-            className="set-input"
-            aria-label={t('settings.agent.mcpAccess.name')}
-            placeholder={t('settings.agent.mcpAccess.name')}
-            maxLength={60}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-          {permissionSelect(t('settings.agent.mcpAccess.permission'), draftPermission('manual'),
-            permission => setDraftPermission('manual', permission))}
-          <button
-            type="button"
-            className="set-btn"
-            disabled={busy || !name.trim()}
-            onClick={() => void run(async () => {
-              const connection = await platform.mcpServer.create({
-                name: name.trim(),
-                projectId: project.id,
-                ...mcpAccessGrant(draftPermission('manual')),
-              });
-              setSelected(connection.grant.id);
-              setName('');
-              setDraftPermission('manual', 'read');
-            })}
-          >
-            {t('settings.agent.mcpAccess.create')}
-          </button>
-        </div>
-        {rows.manual.map(renderConnection)}
-      </details>
-      <p className="set-row__desc" style={{ marginTop: 12 }}>{t('settings.agent.mcpAccess.local')}</p>
+      <p className="set-row__desc set-mcp-access__note">{t('settings.agent.mcpAccess.automatic')}</p>
+      <div className="set-mcp-access__note">
+        <SettingsButton
+          variant="ghost"
+          size="sm"
+          className="set-disclosure"
+          aria-expanded={manualOpen}
+          onClick={() => setManualOpen((was) => !was)}
+        >
+          <BrushIcon name={manualOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+          {t('settings.agent.mcpAccess.manual')}
+        </SettingsButton>
+      </div>
+      {manualOpen && (
+        <>
+          <div className="set-mcp-access__row set-mcp-access__manual">
+            <SettingsField
+              small
+              aria-label={t('settings.agent.mcpAccess.name')}
+              placeholder={t('settings.agent.mcpAccess.name')}
+              maxLength={60}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            {permissionSelect(t('settings.agent.mcpAccess.permission'), draftPermission('manual'),
+              permission => setDraftPermission('manual', permission))}
+            <SettingsButton
+              size="sm"
+              disabled={busy || !name.trim()}
+              onClick={() => void run(async () => {
+                const connection = await platform.mcpServer.create({
+                  name: name.trim(),
+                  projectId: project.id,
+                  ...mcpAccessGrant(draftPermission('manual')),
+                });
+                setSelected(connection.grant.id);
+                setName('');
+                setDraftPermission('manual', 'read');
+              })}
+            >
+              {t('settings.agent.mcpAccess.create')}
+            </SettingsButton>
+          </div>
+          {rows.manual.map(renderConnection)}
+        </>
+      )}
+      <p className="set-row__desc set-mcp-access__note">{t('settings.agent.mcpAccess.local')}</p>
       {message && (
-        <p role="status" className="set-row__desc" style={{ marginTop: 12 }}>
+        <p role="status" className="set-row__desc set-mcp-access__note">
           {message}
         </p>
       )}
