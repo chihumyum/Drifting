@@ -88,7 +88,7 @@ export async function applyToStoredYjsDocument(
       Y.applyUpdate(doc, row.updateBlob);
       lastUpdateId = row.id;
     }
-    stored = sameBytes(rows!.at(-1)?.updateBlob, update);
+    stored = sameBytes(rows![rows!.length - 1]?.updateBlob, update);
     if (!stored) Y.applyUpdate(doc, update);
   } catch (error) {
     doc.destroy();
