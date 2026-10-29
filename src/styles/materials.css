@@ -356,6 +356,87 @@
 @keyframes sand-arrive { from { opacity: 0; transform: scale(0.8); filter: blur(1.6px); } }
 .sand--arrive { animation: sand-arrive 0.34s ease-out backwards; }
 
+/* ── Sand readouts ──────────────────────────────────────────────────
+ * A value drawn as one dry stroke (the stats panel's bars): the dry
+ * underline at its own proportions (720 × 26), so every stroke starts
+ * loaded; a short value is cut from the stroke's start, a long one stretches
+ * the whole stroke, and the last 12px always thin out. Squeezing the stroke
+ * into a short value instead would thin its grain until it read as a smear.
+ * `--dry` keeps one grain in three (a draft), `--loose` only scattered
+ * grains (what is still to write). `.sand-track` lays loose grains under a
+ * value's whole length, for what is left. Strokes fade in; a changed value
+ * slides to its length. */
+.sand-stroke {
+  --sand-stroke-mask: url('../assets/design/sand/ul.png');
+  --sand-stroke-size: max(100%, calc(var(--sand-stroke-h, 7px) * 27.7)) 100%;
+  display: block;
+  flex: none;
+  height: var(--sand-stroke-h, 7px);
+  background: color-mix(in srgb, var(--sand-c, hsl(var(--ink-2))), #ffffff var(--pigment-lift));
+  opacity: var(--pigment);
+  mix-blend-mode: var(--pigment-blend);
+  -webkit-mask-image: var(--sand-stroke-mask), linear-gradient(to left, transparent, #000 12px);
+  mask-image: var(--sand-stroke-mask), linear-gradient(to left, transparent, #000 12px);
+  -webkit-mask-size: var(--sand-stroke-size), 100% 100%;
+  mask-size: var(--sand-stroke-size), 100% 100%;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  transition: width 0.25s ease;
+  animation: sand-stroke-arrive 0.24s ease-out backwards;
+}
+
+.sand-stroke--dry,
+.sand-stroke--loose {
+  -webkit-mask-image:
+    var(--sand-stroke-mask),
+    linear-gradient(to left, transparent, #000 12px),
+    radial-gradient(circle, #000 0.8px, transparent 1.25px);
+  mask-image:
+    var(--sand-stroke-mask),
+    linear-gradient(to left, transparent, #000 12px),
+    radial-gradient(circle, #000 0.8px, transparent 1.25px);
+  -webkit-mask-size: var(--sand-stroke-size), 100% 100%, 3px 3px;
+  mask-size: var(--sand-stroke-size), 100% 100%, 3px 3px;
+  -webkit-mask-repeat: no-repeat, no-repeat, repeat;
+  mask-repeat: no-repeat, no-repeat, repeat;
+}
+
+.sand-stroke--loose {
+  -webkit-mask-size: var(--sand-stroke-size), 100% 100%, 5px 4px;
+  mask-size: var(--sand-stroke-size), 100% 100%, 5px 4px;
+  opacity: calc(var(--pigment) * 0.8);
+}
+
+.sand-track {
+  position: relative;
+  height: var(--sand-stroke-h, 7px);
+}
+
+.sand-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, hsl(var(--ink-3)), #ffffff var(--pigment-lift));
+  opacity: calc(var(--pigment) * 0.4);
+  mix-blend-mode: var(--pigment-blend);
+  -webkit-mask-image: url('../assets/design/sand/ul.png'), radial-gradient(circle, #000 0.8px, transparent 1.25px);
+  mask-image: url('../assets/design/sand/ul.png'), radial-gradient(circle, #000 0.8px, transparent 1.25px);
+  -webkit-mask-size: 100% 100%, 6px 5px;
+  mask-size: 100% 100%, 6px 5px;
+  -webkit-mask-repeat: no-repeat, repeat;
+  mask-repeat: no-repeat, repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.sand-track > .sand-stroke { position: relative; }
+
+@keyframes sand-stroke-arrive { from { opacity: 0; } }
+
 /* ── Kind marks ─────────────────────────────────────────────────────
  * Every thing that can open as a tab carries the mark of its kind, in the
  * same place in every list and in the tab dots:
@@ -602,4 +683,5 @@
   .sand-cell > .cell-ring { animation: none; }
   .glass-sweep::after { animation: none; opacity: 0; }
   .sand--arrive { animation: none; }
+  .sand-stroke { animation: none; transition: none; }
 }

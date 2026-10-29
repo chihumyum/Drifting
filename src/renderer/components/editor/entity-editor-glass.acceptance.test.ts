@@ -181,6 +181,22 @@ describe('entity editors in sand and glass', () => {
     expect(css).not.toContain('.mgr-toolbar__btn');
   });
 
+  it('writes every desktop folio as the mark beside its name in ink', () => {
+    const node = source('src/renderer/views/NodeEditorView.tsx');
+    expect(node).toContain("t('nodeEditor.folio.chapterNumber', { n: chapterNumber })");
+    expect(node).toMatch(/page__folio-storyline">\s*<KindMark kind="storyline" color=\{storylineColor\} \/>/);
+    expect(node).toMatch(/page__folio-storyline">\s*<KindMark kind="drift-group" \/>/);
+    for (const [path, kind] of [
+      ['src/renderer/views/ElementEditorView.tsx', 'category'],
+      ['src/renderer/views/StorylineEditorView.tsx', 'storyline'],
+      ['src/renderer/views/CategoryEditorView.tsx', 'category'],
+    ] as const) {
+      expect(source(path), path).toMatch(
+        new RegExp(`page__folio-storyline">\\s*<KindMark kind="${kind}"`),
+      );
+    }
+  });
+
   it('documents the entity editors in the component catalogue', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('## 实体编辑器');

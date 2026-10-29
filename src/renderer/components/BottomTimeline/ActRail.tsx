@@ -78,6 +78,9 @@ interface ActRailProps {
   railLabel?: string;
   /** Extra root class — StoryGraphView passes its sticky-top modifier. */
   className?: string;
+  /** Desktop Bottom Timeline: chips, boundaries and the drop line are glass
+      (act-rail.css `.actrail--glass`). Off, the rail keeps its paper chips. */
+  glass?: boolean;
 }
 
 // What an act chip's hover card acts on: the act, and the spot on the axis
@@ -108,6 +111,7 @@ export function ActRail({
   onOpenDrift,
   railLabel,
   className,
+  glass = false,
 }: ActRailProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -428,8 +432,8 @@ export function ActRail({
   return (
     <div
       className={`actrail${segments.length === 0 ? ' actrail--empty' : ''}${
-        className ? ` ${className}` : ''
-      }`}
+        glass ? ' actrail--glass' : ''
+      }${className ? ` ${className}` : ''}`}
       style={{ height }}
     >
       {railHead}
@@ -476,25 +480,31 @@ export function ActRail({
               }
             >
               {isEditing ? (
-                <input
-                  ref={editInputRef}
-                  className="actrail__edit"
-                  defaultValue={seg.act.name}
-                  onClick={(e) => e.stopPropagation()}
-                  onBlur={(e) => commitRename(seg.act.id, e.currentTarget.value, seg.act.name)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                    else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      (e.currentTarget as HTMLInputElement).value = seg.act.name;
-                      (e.currentTarget as HTMLInputElement).blur();
-                    }
-                  }}
-                />
+                // A glass input carries its rim on a wrapper: an <input> has
+                // no ::before of its own. Focused, it is the still selected glass.
+                <span className={glass ? 'actrail__edit-field glass glass--field' : 'actrail__edit-field'}>
+                  <input
+                    ref={editInputRef}
+                    className="actrail__edit"
+                    defaultValue={seg.act.name}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitRename(seg.act.id, e.currentTarget.value, seg.act.name)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                      else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        (e.currentTarget as HTMLInputElement).value = seg.act.name;
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                </span>
               ) : (
                 <span
-                  className={`actrail__label${draggable ? ' is-draggable' : ''}`}
+                  className={`actrail__label${draggable ? ' is-draggable' : ''}${
+                    glass ? ' glass glass--rest' : ''
+                  }`}
                   role="button"
                   tabIndex={0}
                   aria-label={chipTitle}
@@ -608,7 +618,13 @@ export function ActRail({
           );
         })}
 
-        {dragGhostX !== null && <div className="actrail__ghost" style={{ left: dragGhostX }} />}
+        {/* --flow: the glass drop line's texture runs with the distance moved. */}
+        {dragGhostX !== null && (
+          <div
+            className="actrail__ghost"
+            style={{ left: dragGhostX, ['--flow' as string]: dragGhostX } as React.CSSProperties}
+          />
+        )}
       </div>
 
       {actCard && cardAct && (

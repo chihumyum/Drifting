@@ -369,9 +369,16 @@ export function StorylineEditorView({
           >
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">{t('storylineEditor.folio')}</span>
-              <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
-                {currentStoryline.name}
-              </span>
+              {glass ? (
+                <span className="page__folio-line page__folio-storyline">
+                  <KindMark kind="storyline" color={storylineColor} />
+                  {currentStoryline.name}
+                </span>
+              ) : (
+                <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
+                  {currentStoryline.name}
+                </span>
+              )}
               <span className="page__folio-line">{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
               <span className="page__folio-line">
                 {metricsReady

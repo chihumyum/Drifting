@@ -13,6 +13,7 @@ import {
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { getActiveEditor } from '../../lib/active-editor';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { clearActiveCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
 import {
   getCopilotCapabilityForMetadataKind,
@@ -89,6 +90,9 @@ export function ReviewItemCard({
   onOpenAgentTask,
 }: ReviewItemCardProps) {
   const { t } = useTranslation();
+  // The desktop card wears the resting glass line; the paused mobile shell
+  // keeps its plate (docs/design-system/components.md, Review 卡).
+  const glass = !getPlatformRuntime().isMobileShell;
   const userId = useAuthStore((state) => state.user?.id) ?? 'local';
   const commentActions = useDataStore((state) => state.commentActions);
   const taskConversationId = agentTaskConversationId(commentActions, comment.id);
@@ -295,7 +299,8 @@ export function ReviewItemCard({
   ];
 
   // Hover-only text beside the resolve ring; clicking it hands the TODO to
-  // the Agent (or reopens that conversation). No icon, no persistent row.
+  // the Agent (or reopens that conversation). No persistent row; on the
+  // desktop it is a text button that turns the loader while the Agent works.
   const agentHint = isTodo && !isConverted && (!isResolved || taskChatId) ? (
     <button
       type="button"
@@ -303,6 +308,7 @@ export function ReviewItemCard({
       disabled={busy}
       onClick={() => void handleTodoTask()}
     >
+      {glass && (busy || taskRunning) && <BrushIcon name="loader" size={11} className="control-spinner" />}
       {busy
         ? t('reviewPanel.agentTaskStarting')
         : taskChatId
@@ -330,7 +336,9 @@ export function ReviewItemCard({
     <>
       <article
         ref={articleRef}
-        className={`review-card review-card--${presentation} review-card--${color}${presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''}${isResolved || isConverted ? ' review-card--resolved' : ''}`}
+        className={`review-card review-card--${presentation} review-card--${color}${
+          glass ? ' review-card--glass glass glass--rest glass--surface' : presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''
+        }${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
         aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
         onMouseEnter={(event) => {
