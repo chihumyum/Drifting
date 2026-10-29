@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
@@ -58,6 +58,8 @@ import {
 } from '../components/ui/Modal';
 import { HostedQuotaExceededError } from '../sync/hosted/quota';
 import { BrushIcon } from '../components/ui/BrushIcon';
+import { KindMark } from '../components/ui/KindMark';
+import { getPlatformRuntime } from '../platform/runtime';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -608,6 +610,59 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   // Element's summary buffer is local + only re-seeds on id change, so sync it
   // explicitly when a summary review resolves (accept → new, reject → old).
   const summaryReviewChange = fieldReview.summaryChange;
+  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
+  const glass = !getPlatformRuntime().isMobileShell;
+  const aliasInputProps = {
+    type: 'text',
+    value: aliasDraft,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setAliasDraft(e.target.value),
+    onBlur: () => void addAlias(),
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void addAlias();
+      }
+      if (e.key === 'Escape') {
+        setAliasDraft('');
+        e.currentTarget.blur();
+      }
+    },
+    placeholder:
+      curElement.aliases.length === 0
+        ? t('elementEditor.alias.addFirst')
+        : t('elementEditor.alias.add'),
+  };
+  const groupInputProps = {
+    type: 'text',
+    value: groupNameInput,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setGroupNameInput(e.target.value),
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveGroup();
+      }
+      if (e.key === 'Escape') setShowGroupModal(false);
+    },
+    placeholder: t('elementEditor.group.placeholder'),
+    autoFocus: true,
+  };
+  const closeNewCategory = () => {
+    setShowNewCategoryModal(false);
+    setNewCategoryName('');
+    setEditingCategory(false);
+  };
+  const newCategoryInputProps = {
+    type: 'text',
+    value: newCategoryName,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setNewCategoryName(e.target.value),
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') handleCreateNewCategory();
+      if (e.key === 'Escape') closeNewCategory();
+    },
+    placeholder: t('elementEditor.category.namePlaceholder'),
+    autoFocus: true,
+  };
+  const choiceTick = <BrushIcon name="check" size={11} className="entity-choice__tick" />;
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -690,10 +745,33 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                       placeholder={t('elementEditor.untitled')}
                     />
 
-                    {/* Aliases chip-list. Inline-styled for now; promote to
-                      a proper class in styles/index.css once the visual
-                      treatment stabilizes. The styling is intentionally
-                      muted — aliases are metadata, not titles. */}
+                    {/* Aliases. Desktop: plain words set apart by a dot, the
+                      one under the pointer ringed like a sidebar cell. The
+                      paused mobile shell keeps its inline-styled chips —
+                      muted, since aliases are metadata, not titles. */}
+                    {glass ? (
+                      <div className="entity-aliases">
+                        {curElement.aliases.map((alias, idx) => (
+                          <Fragment key={`${alias}-${idx}`}>
+                            {idx > 0 && <span className="entity-alias__sep" aria-hidden="true">·</span>}
+                            <span className="entity-alias sand-cell">
+                              {alias}
+                              <button
+                                type="button"
+                                className="entity-alias__remove"
+                                onClick={() => void removeAlias(idx)}
+                                title={t('elementEditor.alias.remove')}
+                                aria-label={t('elementEditor.alias.remove')}
+                              >
+                                <BrushIcon name="close" size={9} />
+                              </button>
+                              <i className="cell-ring" aria-hidden="true" />
+                            </span>
+                          </Fragment>
+                        ))}
+                        <input {...aliasInputProps} className="entity-aliases__input" />
+                      </div>
+                    ) : (
                     <div
                       style={{
                         display: 'flex',
@@ -741,25 +819,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                         </span>
                       ))}
                       <input
-                        type="text"
-                        value={aliasDraft}
-                        onChange={(e) => setAliasDraft(e.target.value)}
-                        onBlur={() => void addAlias()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            void addAlias();
-                          }
-                          if (e.key === 'Escape') {
-                            setAliasDraft('');
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        placeholder={
-                          curElement.aliases.length === 0
-                            ? t('elementEditor.alias.addFirst')
-                            : t('elementEditor.alias.add')
-                        }
+                        {...aliasInputProps}
                         style={{
                           background: 'transparent',
                           border: 0,
@@ -773,6 +833,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                         }}
                       />
                     </div>
+                    )}
 
                     {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)
                       Needs schema migration to add typed fields per category, plus
@@ -896,6 +957,41 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               closeLabel={t('common.close')}
             />
             <ModalBody>
+            {glass ? (
+              <div className="entity-choice" role="listbox" aria-label={t('elementEditor.category.change')}>
+                {bookElementCategories.map((cat) => {
+                  const current = cat.id === curElement.categoryId;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      role="option"
+                      aria-selected={current}
+                      className={`menu-surface__item entity-choice__row${current ? ' entity-choice__row--current' : ''}`}
+                      onClick={() => {
+                        void updateElement(elementId, { categoryId: cat.id });
+                        setEditingCategory(false);
+                      }}
+                    >
+                      <KindMark kind="category" color={cat.color ?? undefined} />
+                      <span>{cat.name}</span>
+                      {current && choiceTick}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="menu-surface__item entity-choice__row entity-choice__row--create"
+                  onClick={() => {
+                    setEditingCategory(false);
+                    setShowNewCategoryModal(true);
+                  }}
+                >
+                  <BrushIcon name="plus" size={11} />
+                  <span>{t('elementEditor.category.newOption')}</span>
+                </button>
+              </div>
+            ) : (
             <select
               value={curElement.categoryId ?? ''}
               onChange={(e) => {
@@ -927,6 +1023,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               ))}
               <option value="__new__">{t('elementEditor.category.newOption')}</option>
             </select>
+            )}
             </ModalBody>
           </ModalCard>
         </ModalRoot>
@@ -948,19 +1045,59 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               closeLabel={t('common.close')}
             />
             <ModalBody>
+            {glass ? (
+              <>
+                <label className="entity-field glass glass--rest glass--field">
+                  <input {...groupInputProps} />
+                </label>
+                <div className="entity-choice" role="listbox" aria-label={t('elementEditor.group.title', {
+                  category: currentCategory?.name ?? t('storyGraph.edge.uncategorized'),
+                })}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={curElement.groupName == null}
+                    className={`menu-surface__item entity-choice__row entity-choice__row--none${curElement.groupName == null ? ' entity-choice__row--current' : ''}`}
+                    onClick={() => void applyGroup(null)}
+                  >
+                    <span>{t('elementEditor.group.noGroup')}</span>
+                    {curElement.groupName == null && choiceTick}
+                  </button>
+                  {filteredGroups.length === 0 && groupQuery === '' && (
+                    <div className="entity-choice__empty">{t('elementEditor.group.empty')}</div>
+                  )}
+                  {filteredGroups.map((name) => {
+                    const current = name === curElement.groupName;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        role="option"
+                        aria-selected={current}
+                        className={`menu-surface__item entity-choice__row${current ? ' entity-choice__row--current' : ''}`}
+                        onClick={() => void applyGroup(name)}
+                      >
+                        <span>{name}</span>
+                        {current && choiceTick}
+                      </button>
+                    );
+                  })}
+                  {groupQuery !== '' && !groupQueryIsExisting && (
+                    <button
+                      type="button"
+                      className="menu-surface__item entity-choice__row entity-choice__row--create"
+                      onClick={() => void applyGroup(groupQuery)}
+                    >
+                      <BrushIcon name="plus" size={11} />
+                      <span>{t('elementEditor.group.create', { name: groupQuery })}</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+            <>
             <input
-              type="text"
-              value={groupNameInput}
-              onChange={(e) => setGroupNameInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSaveGroup();
-                }
-                if (e.key === 'Escape') setShowGroupModal(false);
-              }}
-              placeholder={t('elementEditor.group.placeholder')}
-              autoFocus
+              {...groupInputProps}
               style={{
                 width: '100%',
                 fontSize: 14,
@@ -1050,6 +1187,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 </button>
               )}
             </div>
+            </>
+            )}
             </ModalBody>
             <ModalActions>
               <Button variant="default" onClick={() => setShowGroupModal(false)}>
@@ -1062,38 +1201,23 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
       {showNewCategoryModal && (
         <ModalRoot
-          onClose={() => {
-            setShowNewCategoryModal(false);
-            setNewCategoryName('');
-            setEditingCategory(false);
-          }}
+          onClose={closeNewCategory}
           ariaLabel={t('elementEditor.category.newTitle')}
         >
           <ModalCard width={360}>
             <ModalHeader
               title={t('elementEditor.category.newTitle')}
-              onClose={() => {
-                setShowNewCategoryModal(false);
-                setNewCategoryName('');
-                setEditingCategory(false);
-              }}
+              onClose={closeNewCategory}
               closeLabel={t('common.close')}
             />
             <ModalBody>
+            {glass ? (
+              <label className="entity-field glass glass--rest glass--field">
+                <input {...newCategoryInputProps} />
+              </label>
+            ) : (
             <input
-              type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateNewCategory();
-                if (e.key === 'Escape') {
-                  setShowNewCategoryModal(false);
-                  setNewCategoryName('');
-                  setEditingCategory(false);
-                }
-              }}
-              placeholder={t('elementEditor.category.namePlaceholder')}
-              autoFocus
+              {...newCategoryInputProps}
               style={{
                 width: '100%',
                 fontSize: 14,
@@ -1104,15 +1228,12 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 background: 'hsl(var(--surface))',
               }}
             />
+            )}
             </ModalBody>
             <ModalActions>
               <Button
                 variant="default"
-                onClick={() => {
-                  setShowNewCategoryModal(false);
-                  setNewCategoryName('');
-                  setEditingCategory(false);
-                }}
+                onClick={closeNewCategory}
               >
                 {t('common.cancel')}
               </Button>

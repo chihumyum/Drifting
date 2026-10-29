@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
+import { GlassSlider } from '../components/ui/GlassSlider';
+import { KindMark } from '../components/ui/KindMark';
+import { getPlatformRuntime } from '../platform/runtime';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { useParams } from 'react-router-dom';
 import { EditorContent } from '@tiptap/react';
@@ -301,6 +304,35 @@ export function StorylineEditorView({
   }
 
   const storylineColor = currentStoryline.color || 'hsl(var(--accent))';
+  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
+  const glass = !getPlatformRuntime().isMobileShell;
+  const chapterFilters = [
+    ['all', t('storylineEditor.filters.all'), sNodes.length],
+    ['written', t('storylineEditor.filters.written'), writtenCount],
+    ['unwritten', t('storylineEditor.filters.unwritten'), unwrittenCount],
+  ] as const;
+  const nameField = (
+    <EntityTitleField
+      className="elem-hero__name"
+      value={displayedName}
+      onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}
+      onChange={(e) => setNameDraft(e.target.value)}
+      onCompositionStart={() => setIsComposingName(true)}
+      onCompositionEnd={(e) => { setIsComposingName(false); setNameDraft(e.currentTarget.value); }}
+      onBlur={() => { setIsEditingName(false); if (!isComposingName) void commitName(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+        if (e.key === 'Escape') {
+          setNameDraft(currentName);
+          e.currentTarget.blur();
+        }
+      }}
+      placeholder={t('storylineEditor.untitled')}
+    />
+  );
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -351,33 +383,21 @@ export function StorylineEditorView({
             {/* 一 · 概述 */}
             <section id="sl-overview">
               <div className="elem-hero">
-                <div
-                  className="elem-portrait elem-portrait--storyline"
-                  style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}
-                >
-                  <span className="elem-portrait__hint">{currentStoryline.name}</span>
-                </div>
+                {!glass && (
+                  <div
+                    className="elem-portrait elem-portrait--storyline"
+                    style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}
+                  >
+                    <span className="elem-portrait__hint">{currentStoryline.name}</span>
+                  </div>
+                )}
                 <div className="elem-hero__main">
-                  <EntityTitleField
-                    className="elem-hero__name"
-                    value={displayedName}
-                    onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    onCompositionStart={() => setIsComposingName(true)}
-                    onCompositionEnd={(e) => { setIsComposingName(false); setNameDraft(e.currentTarget.value); }}
-                    onBlur={() => { setIsEditingName(false); if (!isComposingName) void commitName(); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }
-                      if (e.key === 'Escape') {
-                        setNameDraft(currentName);
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder={t('storylineEditor.untitled')}
-                  />
+                  {glass ? (
+                    <div className="entity-hero__name-row">
+                      <KindMark kind="storyline" color={storylineColor} className="entity-hero__mark" />
+                      {nameField}
+                    </div>
+                  ) : nameField}
 
                   {fieldReview.summaryChange ? (
                     <FieldReview
@@ -408,8 +428,20 @@ export function StorylineEditorView({
                   <div className="elem-hero__facts">
                     <div className="elem-hero__fact-k">{t('storylineEditor.labels.color')}</div>
                     <div className="elem-hero__fact-v">
-                      <div className="col-pick">
-                        {STORY_COLORS.map((c) => (
+                      <div className={`col-pick${glass ? ' col-pick--glass' : ''}`}>
+                        {STORY_COLORS.map((c, index) => glass ? (
+                          <button
+                            key={c}
+                            type="button"
+                            className="col-pick__dot glass glass--round"
+                            aria-pressed={c === currentStoryline.color}
+                            aria-label={`${t('storylineEditor.labels.color')} ${index + 1}`}
+                            style={{ '--glass-cc': c } as React.CSSProperties}
+                            onClick={() => void commitColor(c)}
+                          >
+                            <i className="sand sand--blob-2" style={{ '--sand-c': c } as React.CSSProperties} />
+                          </button>
+                        ) : (
                           <div
                             key={c}
                             className={`col-pick__sw${c === currentStoryline.color ? ' col-pick__sw--active' : ''}`}
@@ -490,29 +522,38 @@ export function StorylineEditorView({
                   </span>
                 </h2>
 
-                <div className="mgr-toolbar">
-                  <div className="mgr-toolbar__chips">
-                    {([
-                      ['all',        t('storylineEditor.filters.all'),    sNodes.length],
-                      ['written',    t('storylineEditor.filters.written'),    writtenCount],
-                      ['unwritten',  t('storylineEditor.filters.unwritten'),    unwrittenCount],
-                    ] as const).map(([k, label, n]) => (
-                      <FilterChip
-                        key={k}
-                        shape="square"
-                        active={chapterFilter === k}
-                        count={`· ${n ?? t('common.counting')}`}
-                        disabled={!metricsReady && k !== 'all'}
-                        onClick={() => setChapterFilter(k)}
-                      >
-                        {label}
-                      </FilterChip>
-                    ))}
-                  </div>
+                <div className={`mgr-toolbar${glass ? ' mgr-toolbar--glass' : ''}`}>
+                  {glass ? (
+                    <GlassSlider
+                      className="entity-slider"
+                      ariaLabel={t('storylineEditor.sections.chapters')}
+                      value={chapterFilter}
+                      onChange={setChapterFilter}
+                      options={chapterFilters.map(([k, label, n]) => ({
+                        value: k,
+                        label: <>{label}<span className="entity-slider__count">{n ?? t('common.counting')}</span></>,
+                      }))}
+                    />
+                  ) : (
+                    <div className="mgr-toolbar__chips">
+                      {chapterFilters.map(([k, label, n]) => (
+                        <FilterChip
+                          key={k}
+                          shape="square"
+                          active={chapterFilter === k}
+                          count={`· ${n ?? t('common.counting')}`}
+                          disabled={!metricsReady && k !== 'all'}
+                          onClick={() => setChapterFilter(k)}
+                        >
+                          {label}
+                        </FilterChip>
+                      ))}
+                    </div>
+                  )}
                   {/* DEFERRED: search / reorder / batch actions */}
                 </div>
 
-                <div className="mgr-list">
+                <div className={`mgr-list${glass ? ' mgr-list--glass' : ''}`}>
                   {filteredNodes.map((n, idx) => {
                     const exactWords = canonicalWordCount(n);
                     const hasContent = (exactWords ?? 0) > 0;
@@ -523,11 +564,21 @@ export function StorylineEditorView({
                     return (
                       <div
                         key={n.id}
-                        className="mgr-row"
-                        style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}
+                        className={`mgr-row${glass ? ' mgr-row--glass sand-cell' : ''}`}
+                        style={{ '--s-color': storylineColor, '--cell-c': storylineColor } as React.CSSProperties}
                         onClick={() => navigateToNode(n.id)}
                       >
-                        <div className={`mgr-row__status${statusMod}`} />
+                        {glass ? (
+                          <KindMark
+                            kind="chapter"
+                            seed={n.id}
+                            hollow={exactWords != null && !hasContent}
+                            color={storylineColor}
+                            className="mgr-row__mark"
+                          />
+                        ) : (
+                          <div className={`mgr-row__status${statusMod}`} />
+                        )}
                         <div className="mgr-row__num">§{String(idx + 1).padStart(2, '0')}</div>
                         <div className="mgr-row__body">
                           <div className="mgr-row__title">
@@ -568,6 +619,7 @@ export function StorylineEditorView({
                           )}
                         </div>
                         <div className="mgr-row__open" title={t('storylineEditor.actions.openChapter')}><BrushIcon name="arrow-forward" size={14} /></div>
+                        {glass && <i className="cell-ring" aria-hidden="true" />}
                       </div>
                     );
                   })}
