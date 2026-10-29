@@ -105,6 +105,33 @@ export function groupReviewItems(items: readonly Comment[], data: ReviewGroupDat
   return result;
 }
 
+/** Muted ink for a mark whose thing has no colour of its own. */
+export const UNCOLOURED_MARK = 'hsl(var(--ink-4))';
+
+/**
+ * The pigment of a target's sand mark, as the left sidebar paints it: a
+ * chapter or drift takes its primary storyline's colour, an element its
+ * category's, a storyline or category its own; anything else muted ink.
+ */
+export function reviewTargetColor(
+  data: Pick<ReviewGroupData, 'bookElements' | 'storylines' | 'bookElementCategories'>,
+  primaryStorylineByNode: Readonly<Record<string, string | null>>,
+  kind: CommentTargetKind,
+  id: string,
+): string {
+  const storylineColor = (storylineId: string | null | undefined) =>
+    data.storylines.find((storyline) => storyline.id === storylineId)?.color;
+  const categoryColor = (categoryId: string | null | undefined) =>
+    data.bookElementCategories.find((category) => category.id === categoryId)?.color;
+  switch (kind) {
+    case 'node': return storylineColor(primaryStorylineByNode[id]) ?? UNCOLOURED_MARK;
+    case 'element': return categoryColor(data.bookElements.find((element) => element.id === id)?.categoryId) ?? UNCOLOURED_MARK;
+    case 'storyline': return storylineColor(id) ?? UNCOLOURED_MARK;
+    case 'category': return categoryColor(id) ?? UNCOLOURED_MARK;
+    default: return UNCOLOURED_MARK;
+  }
+}
+
 /** The current name of a group's target; null when it no longer exists. */
 export function reviewGroupTitle(
   data: ReviewGroupData,

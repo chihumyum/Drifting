@@ -19,7 +19,6 @@ import { AllChaptersStats } from './AllChaptersStats';
 import { MaterialStats } from './MaterialStats';
 import {
   DetailValue,
-  Dot,
   formatDateTime,
   MetaGrid,
   MetaK,
@@ -27,9 +26,14 @@ import {
   Notes,
   ProgressBar,
   SnapshotEntryButton,
+  StackedBar,
+  StatsCaption,
+  StatsLinkList,
   StatsLinkRow,
+  StatsMark,
   StatsRow,
   StatsSection,
+  StatsStaticRow,
 } from './StatsPrimitives';
 
 interface StatsViewProps {
@@ -335,7 +339,7 @@ function ChapterStats({
             <>
               <MetaK>{t('rightSidebar.stats.storyline')}</MetaK>
               <MetaV>
-                <Dot color={storyline.color} />
+                <StatsMark kind="storyline" color={storyline.color} />
                 <DetailValue>{storyline.name}</DetailValue>
               </MetaV>
             </>
@@ -399,7 +403,7 @@ function ChapterStats({
         topBorder
       >
         {elements && elements.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <StatsLinkList>
             {elements.map(({ elementId, mentionCount }) => {
               const el = bookElements.find((e) => e.id === elementId);
               if (!el) return null;
@@ -409,12 +413,13 @@ function ChapterStats({
                   key={elementId}
                   name={el.name || t('common.untitled')}
                   color={cat?.color}
+                  mark="element"
                   meta={`×${mentionCount}`}
                   onOpen={() => openEntity({ entityType: 'element', id: elementId })}
                 />
               );
             })}
-          </div>
+          </StatsLinkList>
         ) : (
           <Notes>
             {elements
@@ -434,6 +439,11 @@ const STORYLINE_STATUS_ORDER = ['finished', 'draft'] as const;
 const STORYLINE_STATUS_OPACITY: Record<(typeof STORYLINE_STATUS_ORDER)[number], number> = {
   finished: 1,
   draft: 0.18,
+};
+/** Desktop sand: a finished chapter is a loaded stroke, a draft a dry one. */
+const STORYLINE_STATUS_DENSITY: Record<(typeof STORYLINE_STATUS_ORDER)[number], 'dry' | undefined> = {
+  finished: undefined,
+  draft: 'dry',
 };
 
 function StorylineStats({
@@ -477,7 +487,7 @@ function StorylineStats({
         <MetaGrid>
           <MetaK>{t('rightSidebar.stats.storyline')}</MetaK>
           <MetaV>
-            <Dot color={storyline.color} />
+            <StatsMark kind="storyline" color={storyline.color} />
             <DetailValue>{storyline.name}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.chapterCount')}</MetaK>
@@ -494,43 +504,23 @@ function StorylineStats({
           <Notes>{t('rightSidebar.stats.storylineNoChapters')}</Notes>
         ) : (
           <>
-            <div
-              style={{
-                display: 'flex',
-                height: 5,
-                borderRadius: 2,
-                overflow: 'hidden',
-                background: 'hsl(var(--rule))',
-                marginBottom: 8,
-              }}
-            >
-              {STORYLINE_STATUS_ORDER.map((s) => {
+            <StackedBar
+              segments={STORYLINE_STATUS_ORDER.filter((s) => (statusCounts.get(s) ?? 0) > 0).map((s) => {
                 const n = statusCounts.get(s) ?? 0;
-                if (n === 0) return null;
-                return (
-                  <div
-                    key={s}
-                    title={t('rightSidebar.stats.statusCount', {
-                      status: getWritingStatusLabel(s, t),
-                      count: n,
-                    })}
-                    style={{
-                      width: `${(n / activeTotal) * 100}%`,
-                      background: storyline.color,
-                      opacity: STORYLINE_STATUS_OPACITY[s],
-                    }}
-                  />
-                );
+                return {
+                  key: s,
+                  pct: (n / activeTotal) * 100,
+                  color: storyline.color,
+                  opacity: STORYLINE_STATUS_OPACITY[s],
+                  density: STORYLINE_STATUS_DENSITY[s],
+                  title: t('rightSidebar.stats.statusCount', {
+                    status: getWritingStatusLabel(s, t),
+                    count: n,
+                  }),
+                };
               })}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'hsl(var(--ink-3))',
-                lineHeight: 1.7,
-              }}
-            >
+            />
+            <StatsCaption>
               {STORYLINE_STATUS_ORDER.filter((s) => (statusCounts.get(s) ?? 0) > 0)
                 .map((s) =>
                   t('rightSidebar.stats.statusCount', {
@@ -540,7 +530,7 @@ function StorylineStats({
                 )
                 .join(' · ') || '—'}
               {discarded > 0 && t('rightSidebar.stats.discardedParen', { count: discarded })}
-            </div>
+            </StatsCaption>
             <StatsRow
               k={t('rightSidebar.stats.averageWords')}
               v={
@@ -561,7 +551,7 @@ function StorylineStats({
         ) : coreElements.length === 0 ? (
           <Notes>{t('rightSidebar.stats.storylineNoMentionedElements')}</Notes>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <StatsLinkList>
             {coreElements.slice(0, 8).map(({ elementId, mentionCount }) => {
               const el = bookElements.find((e) => e.id === elementId);
               if (!el) return null;
@@ -571,26 +561,20 @@ function StorylineStats({
                   key={elementId}
                   name={el.name || t('common.untitled')}
                   color={cat?.color}
+                  mark="element"
                   meta={`×${mentionCount}`}
                   onOpen={() => openEntity({ entityType: 'element', id: elementId })}
                 />
               );
             })}
             {coreElements.length > 8 && (
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  color: 'hsl(var(--ink-4))',
-                  padding: '6px 2px 0',
-                }}
-              >
+              <StatsCaption more>
                 {t('rightSidebar.stats.moreLowAppearanceElements', {
                   count: coreElements.length - 8,
                 })}
-              </div>
+              </StatsCaption>
             )}
-          </div>
+          </StatsLinkList>
         )}
       </StatsSection>
 
@@ -613,7 +597,7 @@ function ElementStats({
         <MetaGrid>
           <MetaK>{t('rightSidebar.stats.category')}</MetaK>
           <MetaV>
-            {category && <Dot color={category.color} />}
+            {category && <StatsMark kind="category" color={category.color} />}
             <DetailValue>{category?.name ?? '—'}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.name')}</MetaK>
@@ -688,7 +672,7 @@ function CategoryStats({
         <MetaGrid>
           <MetaK>{t('rightSidebar.stats.category')}</MetaK>
           <MetaV>
-            <Dot color={category.color} />
+            <StatsMark kind="category" color={category.color} />
             <DetailValue>{category.name}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.elementCount')}</MetaK>
@@ -726,82 +710,51 @@ function CategoryStats({
           {unappeared.length === 0 ? (
             <Notes>{t('rightSidebar.stats.allElementsAppeared')}</Notes>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <StatsLinkList>
               {unappeared.slice(0, 20).map((el) => (
                 <StatsLinkRow
                   key={el.id}
                   name={el.name || t('common.untitled')}
                   color={category.color}
+                  mark="element"
                   onOpen={() => openEntity({ entityType: 'element', id: el.id })}
                 />
               ))}
               {unappeared.length > 20 && (
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    color: 'hsl(var(--ink-4))',
-                    padding: '6px 2px 0',
-                  }}
-                >
+                <StatsCaption more>
                   {t('rightSidebar.stats.moreUnappearedElements', {
                     count: unappeared.length - 20,
                   })}
-                </div>
+                </StatsCaption>
               )}
-            </div>
+            </StatsLinkList>
           )}
         </StatsSection>
       )}
 
       {storylineRows.length > 0 && (
         <StatsSection title={t('rightSidebar.stats.storylineDistribution')} topBorder>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <StatsLinkList>
             {storylineRows.map(({ slId, count, storyline }) =>
               storyline ? (
                 <StatsLinkRow
                   key={slId}
                   name={storyline.name}
                   color={storyline.color}
+                  mark="storyline"
                   meta={t('rightSidebar.stats.elementsValue', { count })}
                   onOpen={() => openEntity({ entityType: 'storyline', id: slId })}
                 />
               ) : (
-                <div
+                <StatsStaticRow
                   key="unaffiliated"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '5px 2px',
-                    borderBottom: '1px dotted hsl(var(--rule))',
-                    fontSize: 12,
-                  }}
-                >
-                  <Dot color="hsl(var(--ink-4))" />
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: 13,
-                      color: 'hsl(var(--ink-3))',
-                      flex: 1,
-                    }}
-                  >
-                    {t('rightSidebar.stats.floatingStoryline')}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      color: 'hsl(var(--ink-3))',
-                    }}
-                  >
-                    {t('rightSidebar.stats.elementsValue', { count })}
-                  </span>
-                </div>
+                  name={t('rightSidebar.stats.floatingStoryline')}
+                  meta={t('rightSidebar.stats.elementsValue', { count })}
+                  mark="storyline"
+                />
               ),
             )}
-          </div>
+          </StatsLinkList>
         </StatsSection>
       )}
 

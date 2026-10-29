@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { Button } from '../ui/Button';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { BrushIcon } from '../ui/BrushIcon';
@@ -25,10 +26,12 @@ interface StickyNoteRailProps {
 
 function StickyNoteComposer({
   request,
+  glass,
   onCancel,
   onCreate,
 }: {
   request: EditorCommentRequest;
+  glass: boolean;
   onCancel: () => void;
   onCreate: (body: string) => Promise<void>;
 }) {
@@ -54,8 +57,25 @@ function StickyNoteComposer({
     }
   };
 
+  const field = (
+    <textarea
+      ref={textareaRef}
+      value={draft}
+      rows={4}
+      placeholder={t('commentRail.composer.placeholder')}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onCancel();
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          void submit();
+        }
+      }}
+    />
+  );
+
   return (
-    <div className="review-card review-card--sticky review-card--manual sticky-note-composer">
+    <div className={`review-card review-card--sticky review-card--manual${glass ? ' review-card--glass glass glass--rest' : ''} sticky-note-composer`}>
       <header className="review-card__header">
         <span className="review-card__kind">
           <BrushIcon name="comment-plus" size={12} />
@@ -70,27 +90,34 @@ function StickyNoteComposer({
         />
       </header>
       <div className="review-card__quote">{request.selectedText}</div>
-      <textarea
-        ref={textareaRef}
-        value={draft}
-        rows={4}
-        placeholder={t('commentRail.composer.placeholder')}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel();
-          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            void submit();
-          }
-        }}
-      />
+      {/* Desktop: the Agent composer's page-coloured slip, a text button to
+          cancel and the primary glass to add; mobile keeps its old buttons. */}
+      {glass ? <div className="review-card__slip glass glass--rest glass--field">{field}</div> : field}
       <div className="review-card__editor-actions">
-        <Button size="sm" variant="ghost" onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>
-        <Button size="sm" disabled={!draft.trim() || creating} onClick={() => void submit()}>
-          {t('commentRail.actions.add')}
-        </Button>
+        {glass ? (
+          <>
+            <button type="button" className="review-card__action" onClick={onCancel}>
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              className="review-card__action glass glass--primary"
+              disabled={!draft.trim() || creating}
+              onClick={() => void submit()}
+            >
+              {t('commentRail.actions.add')}
+            </button>
+          </>
+        ) : (
+          <>
+            <Button size="sm" variant="ghost" onClick={onCancel}>
+              {t('common.cancel')}
+            </Button>
+            <Button size="sm" disabled={!draft.trim() || creating} onClick={() => void submit()}>
+              {t('commentRail.actions.add')}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -115,6 +142,10 @@ export function StickyNoteRail({
   const commentUsecases = useComment({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
   const rail = useEntityStickyNoteRail(targetKind, targetId);
+  // Desktop notes are floating glass and the toolbar round glass buttons;
+  // the paused mobile shell keeps its white cards (components.md, 便笺).
+  const glass = !getPlatformRuntime().isMobileShell;
+  const stacked = rail.layout === 'stacked';
 
   const items = useMemo(() => {
     const byId = new Map(
@@ -175,28 +206,38 @@ export function StickyNoteRail({
   const first = items[0];
   return (
     <aside
-      className={`editor__margin sticky-note-rail sticky-note-rail--${rail.layout}`}
+      className={`editor__margin sticky-note-rail sticky-note-rail--${rail.layout}${glass ? ' sticky-note-rail--glass' : ''}`}
       aria-label={t('reviewPanel.stickyRail')}
     >
       <div className="sticky-note-rail__toolbar">
         <span>{t('reviewPanel.stickyCount', { count: items.length })}</span>
-        {items.length > 0 && (
+        {items.length > 0 && (glass ? (
+          // Stacking is a switch with one word; stacked is its selected glass.
           <GhostIconButton
-            size="sm"
-            icon={rail.layout === 'stacked' ? <BrushIcon name="layers" size={13} /> : <BrushIcon name="chevron-down" size={13} />}
-            onClick={() => rail.setLayout(rail.layout === 'stacked' ? 'expanded' : 'stacked')}
-            aria-expanded={rail.layout === 'expanded'}
-            title={
-              rail.layout === 'stacked'
-                ? t('reviewPanel.expandSticky')
-                : t('reviewPanel.stackSticky')
-            }
+            size="lg"
+            glass="round"
+            className="glass--rest"
+            icon={<BrushIcon name="layers" size={15} />}
+            onClick={() => rail.setLayout(stacked ? 'expanded' : 'stacked')}
+            aria-pressed={stacked}
+            title={t('reviewPanel.stackSticky')}
+            aria-label={t('reviewPanel.stackSticky')}
           />
-        )}
-        {items.length > 0 && (
+        ) : (
           <GhostIconButton
             size="sm"
-            icon={<BrushIcon name="close" size={12} />}
+            icon={stacked ? <BrushIcon name="layers" size={13} /> : <BrushIcon name="chevron-down" size={13} />}
+            onClick={() => rail.setLayout(stacked ? 'expanded' : 'stacked')}
+            aria-expanded={!stacked}
+            title={stacked ? t('reviewPanel.expandSticky') : t('reviewPanel.stackSticky')}
+          />
+        ))}
+        {items.length > 0 && (
+          <GhostIconButton
+            size={glass ? 'lg' : 'sm'}
+            glass={glass ? 'round' : undefined}
+            className={glass ? 'glass--rest' : undefined}
+            icon={<BrushIcon name="close" size={glass ? 13 : 12} />}
             onClick={rail.clear}
             title={t('reviewPanel.clearSticky')}
             aria-label={t('reviewPanel.clearSticky')}
@@ -208,20 +249,26 @@ export function StickyNoteRail({
         <StickyNoteComposer
           key={`${relevantPending.sourceId}:${relevantPending.targetBlockIds.join(':')}`}
           request={relevantPending}
+          glass={glass}
           onCancel={() => onPendingRequestChange(null)}
           onCreate={createComment}
         />
       )}
 
-      {rail.layout === 'stacked' && first ? (
+      {stacked && first ? (
         <button
           type="button"
-          className="sticky-note-stack"
+          className={`sticky-note-stack${glass ? ' sticky-note-stack--glass glass glass--rest glass--surface' : ''}`}
           onClick={() => rail.setLayout('expanded')}
           aria-expanded={false}
           aria-label={t('reviewPanel.expandSticky')}
         >
-          <span className="sticky-note-stack__layers" aria-hidden="true" />
+          {/* Desktop: the notes beneath are only their resting glass lines,
+              offset; the top note carries the floating plate. */}
+          <span className="sticky-note-stack__layers" aria-hidden="true">
+            {glass && <><i className="glass glass--rest" /><i className="glass glass--rest" /></>}
+          </span>
+          {glass && <span className="sticky-note-stack__plate" aria-hidden="true" />}
           <span className="sticky-note-stack__kind">
             {first.kind === 'todo' ? 'TODO' : t('reviewPanel.comment')}
           </span>

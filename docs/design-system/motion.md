@@ -13,7 +13,7 @@
 | 玻璃流动 | 玻璃在手下或在移动 | 悬停：内晕 `0.24s` 晕开，纹理 `15s` 一圈缓慢流动；随距离：纹理按移动距离走（横线 ×1.2、竖线 ×1.6），强度随速度，停下后 `0.32s` 淡出 | 悬停中的玻璃控件、侧栏 Tab Header 外框；移动中的面板边线、Panel Tab 方块、筛选滑块；等你处理的卡片与它的主按钮反过来，平时流动、悬停停 | `materials.css`（`glass-flow`）、`lib/glass-flow.ts`、`desktop-shell.css`（`panel-tab-edge-drift`） |
 | 推波 | 一个刚到的步骤被推进来 | `1.125s`，`cubic-bezier(0.4, 0.1, 0.35, 1)`；一道玻璃从左往右推过，纹理随之走 `66px`；静止细线在前 40% 不出现，随后淡出 | Agent 工作时新出现的工具步骤（从历史载入的不推） | `materials.css`（`.glass-sweep`、`glass-sweep`、`glass-sweep-line`） |
 | 按压 | 手按下去 | `40ms` 加深，松开 `0.28s` 退回；选中态的边与内晕变化 `0.28s` | 所有 `.glass` 控件（Panel Tab 与筛选项是文字，不按压） | `materials.css` |
-| 砂笔画出 | 作者的操作留下痕迹 | 画框沿路径 `0.38s`；Dock 小点长成药丸 `0.34s`（`cubic-bezier(0.3, 0.7, 0.2, 1)`），药丸内容 `0.36s` 浮出；锁与 `+` `0.3s` 展开；章末 ⁂ 展开 `150ms`、收回 `110ms` | 侧栏 cell 选中、Dock 展开、章末菜单 | `lib/sand-frame.ts`、`desktop-shell.css`、`chapter-end-menu.css` |
+| 砂笔画出 | 作者的操作留下痕迹 | 画框沿路径 `0.38s`；Dock 小点长成药丸 `0.34s`（`cubic-bezier(0.3, 0.7, 0.2, 1)`），药丸内容 `0.36s` 浮出；锁与 `+` `0.3s` 展开；章末 ⁂ 展开 `150ms`、收回 `110ms`；TODO 完成的一勾从左往右 `0.38s` 画出（`cubic-bezier(0.3, 0.7, 0.2, 1)`）；统计读数淡入 `0.24s`，值改变时 `0.25s` 滑到新长度 | 侧栏 cell 选中、Dock 展开、章末菜单、TODO 完成、统计读数 | `lib/sand-frame.ts`、`desktop-shell.css`、`chapter-end-menu.css`、`comments-review.css`（`.todo-status-toggle__tick`）、`materials.css`（`.sand-stroke`） |
 
 ## 停留与宽限
 

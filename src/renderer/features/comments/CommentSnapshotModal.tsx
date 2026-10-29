@@ -36,7 +36,7 @@ export function CommentSnapshotModal({
           <span>{t('commentRail.snapshot.title', { count: snapshots.length })}</span>
           <button
             type="button"
-            className="mnote__icon-btn"
+            className="snapshot-modal__close"
             onClick={onClose}
             aria-label={t('commentRail.actions.close')}
           >

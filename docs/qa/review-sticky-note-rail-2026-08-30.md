@@ -96,9 +96,12 @@ TODO data model.
 ## Visual contract
 
 - Review is an ordinary workspace sidebar, not a separate card product. Its
-  header reuses the compact `workspace-panel-header-row`; its scroll surface and
-  rows reuse `workspace-list` and `workspace-list-row` with the same padding and
-  spacing as Library.
+  header reuses the compact `workspace-panel-header-row` and its scroll surface
+  `workspace-list`. Since 2026-10-29 desktop rows are design-system cards (no
+  plate, a resting glass line that drifts under the pointer:
+  `review-card--glass glass glass--rest glass--surface`; see
+  `docs/design-system/components.md`, Review 卡); the paused mobile shell keeps
+  the `workspace-list-row` plate.
 - The Current/Project scope control is a self-contained compact text toggle. It
   must keep the panel-header type scale and hit area regardless of stylesheet
   import order; it does not inherit the editor or surrounding panel font size.
@@ -116,9 +119,12 @@ TODO data model.
   block anchor. Floating cards, missing target IDs, and unsupported patch targets
   show no arrow. Filtering, ordering, and relation behavior are unchanged.
 - Sticky notes are a distinct editor overlay presentation, but still obey the
-  global `1px / 2px / 3px` radius ladder. Expanded notes and the stacked deck use
-  `--radius-sm`, a hairline border, and no elevation shadow. The deck's offset
-  layers are real bordered surfaces rather than a large soft shadow.
+  global `1px / 2px / 3px` radius ladder and cast no elevation shadow. On the
+  desktop a note is floating glass (the page at 80% under a 1.6px blur, with the
+  resting glass line) and the stacked deck's offset layers are only resting
+  glass lines; the paused mobile shell keeps `--radius-sm` white notes with a
+  hairline border and bordered offset layers (`docs/design-system/components.md`,
+  批注便笺).
 - Mobile increases interactive hit targets without changing those surface and
   radius rules.
 

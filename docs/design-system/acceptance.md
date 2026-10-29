@@ -10,7 +10,7 @@ pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.
 pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/accent-color-preference.acceptance.test.ts
 pnpm test:renderer-architecture
 pnpm exec vitest run src/renderer/lib/sidebar-tabs.test.ts src/renderer/lib/sidebar-pane-events.test.ts src/renderer/store/ui-store.sidebar-tabs.test.ts src/renderer/lib/layout-geometry.test.ts src/renderer/shells/desktop/desktop-sidebar-tabs.acceptance.test.ts src/renderer/store/agent-chat-preparation.integration.test.ts
-pnpm exec vitest run src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts
+pnpm exec vitest run src/renderer/lib/sand-frame.test.ts src/renderer/components/ui/sand-glass-materials.test.ts src/renderer/lib/glass-wave.test.ts src/renderer/hooks/useGlassWave.test.ts src/renderer/components/ui/glass-slider-scope-toggle.test.ts src/renderer/features/graph/chapter-lane-drag.pointer.test.ts src/renderer/features/agent/agent-glass.render.test.ts src/renderer/features/comments/review-stats-sand-glass.render.test.ts
 node scripts/run-tab-reorder-acceptance.mjs --check
 ```
 
@@ -26,6 +26,7 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 - **多选一与开关**：`glass-slider-scope-toggle.test.ts` 覆盖滑块没有轨道、方角、取稠密纹理并随移动流动，开关的同一个词与锁一样的玻璃状态。
 - **Dock**：`desktop-universal-create.acceptance.test.ts` 覆盖锁与 `+` 在药丸滚动区之外、展开后滚到当前药丸；`node scripts/run-tab-reorder-acceptance.mjs` 在无头浏览器里按正常与减少动效两套跑药丸拖拽：邻居先让位、落位、取消、Escape、拖出药丸行收拢原位、拖回再让位、WebKit 松手前的假“离开窗口”不收拢、外部放下保留分屏数据，`--check` 校验证据与源码一致。
 - **Agent 面板**：`features/agent/agent-glass.render.test.ts` 渲染真实的消息组件：Agent 工作时新出现的工具步骤带推波、从历史载入的不带，只读的步骤与任务清单悬停不变、能展开的步骤悬停流动，作者发出的话是对话框同款的圆角片，出错不垫底，请求授权的卡片与它的主按钮是等你处理的玻璃、主按钮排在最后，没有 `AgentGlassContext` 的移动端不带玻璃；`workspace-surface-language.acceptance.test.ts` 守着对话框的玻璃片、左下托盘、右下圆形按钮与「上提／弯杆上提」，以及 `materials.css` 里五种修饰的关键规则和 Dock 无色药丸取浅灰。
+- **Review、便笺与统计**：`features/comments/review-stats-sand-glass.render.test.ts` 渲染真实的 Review 卡、完成按钮、改字框、来源卡、便笺栏与统计原语：桌面的卡片不垫底、是静止细线的玻璃，完成是圆形玻璃并画出一勾，改字是稿纸片加主按钮，来源写成砂笔记号，便笺是浮起的玻璃、叠放是开关，统计的读数是砂笔、名字旁是记号、跳转行带 cell 的环；移动端保留原来的样子。`workspace-surface-language.acceptance.test.ts` 守着 `comments-review.css`、`stats-panel.css` 与 `materials.css` 里对应的规则（不垫底、没有尾巴、浮起的底、砂笔读数按原比例取笔）。
 - **悬停卡**：`menu-surface-style.acceptance.test.ts` 覆盖没有右键菜单、所有对象的操作在悬停卡里、滚动列表时卡片收起而不是跟着走、滚动中滑到指针下的行不弹卡。
 - **时间线**：`chapter-lane-drag.pointer.test.ts` 覆盖时间线玻璃块在越过下一泳道中线前不换道、越过后吸附并落在所在泳道、以及弹簧跟随。
 - **砂笔框**：`lib/sand-frame.test.ts` 覆盖同一种子画出同一笔、不同种子不同、笔迹从左侧中段起笔并最后画到顶边、笔触粗细不随格子高度变化，以及同一种子拖宽时左半边逐像素不变、右边一段随边缘平移；`sand-glass-materials.test.ts` 覆盖选中的 cell 带画布画框、未选中不带，以及画框不再依赖固定贴图。
