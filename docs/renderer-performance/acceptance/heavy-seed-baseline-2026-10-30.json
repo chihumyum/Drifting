@@ -1,0 +1,3318 @@
+{
+ "schemaVersion": 1,
+ "description": "pnpm perf:stress heavy-seed baseline: two Debug and two release-performance passes, window frontmost, database restored to the post-seed snapshot before each pass",
+ "runs": [
+  {
+   "schemaVersion": 1,
+   "label": "baseline-debug-1",
+   "build": "debug (Rust debug, Vite development renderer, React Strict Mode)",
+   "recordedAt": "2026-10-29T16:09:29.525Z",
+   "foreground": true,
+   "database": "restored",
+   "seed": "stress",
+   "source": {
+    "commit": "a1c2bac4388d0c86d452815fe5a643f9078a4a4b",
+    "dirty": true,
+    "rendererFingerprint": "55599b1224b4b75c90634773945d8aeb10459ff14f66c43fc3b5e04e0732cbaa"
+   },
+   "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryGB": 36,
+    "darwin": "27.0.0"
+   },
+   "webContentCandidates": 1,
+   "quitSeconds": 0.94,
+   "journeys": [
+    {
+     "name": "enter-local-mode",
+     "journey": "enterLocalMode",
+     "seconds": 0.6,
+     "native": {
+      "cpuSeconds": 0.04,
+      "cpuPercent": 6.6,
+      "rssMB": 157
+     },
+     "web": {
+      "cpuSeconds": 0.34,
+      "cpuPercent": 55.8,
+      "rssMB": 292
+     },
+     "result": {
+      "onboarding": true
+     }
+    },
+    {
+     "name": "open-project",
+     "journey": "openProject",
+     "seconds": 4.7,
+     "native": {
+      "cpuSeconds": 4.53,
+      "cpuPercent": 96.9,
+      "rssMB": 262
+     },
+     "web": {
+      "cpuSeconds": 3.95,
+      "cpuPercent": 84.5,
+      "rssMB": 947
+     },
+     "result": {
+      "readyMs": 267,
+      "visibleMs": 420,
+      "frames": {
+       "n": 291,
+       "p50": 14,
+       "p95": 22,
+       "max": 159,
+       "over50": 3,
+       "over100": 2
+      },
+      "focused": true,
+      "dom": 1241,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-project-home",
+     "journey": "idle",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 3.05,
+      "cpuPercent": 73.4,
+      "rssMB": 263
+     },
+     "web": {
+      "cpuSeconds": 3.31,
+      "cpuPercent": 79.6,
+      "rssMB": 992
+     },
+     "result": {
+      "frames": {
+       "n": 287,
+       "p50": 14,
+       "p95": 19,
+       "max": 24,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1262,
+      "editors": 0,
+      "animations": 109,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "open-long-chapter",
+     "journey": "openChapter",
+     "seconds": 3.1,
+     "native": {
+      "cpuSeconds": 2.46,
+      "cpuPercent": 78.5,
+      "rssMB": 263
+     },
+     "web": {
+      "cpuSeconds": 1.95,
+      "cpuPercent": 62.2,
+      "rssMB": 1006
+     },
+     "result": {
+      "readyMs": 234,
+      "visibleMs": 293,
+      "frames": {
+       "n": 188,
+       "p50": 14,
+       "p95": 15,
+       "max": 92,
+       "over50": 3,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1471,
+      "editors": 1
+     }
+    },
+    {
+     "name": "idle-editor",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 1.91,
+      "cpuPercent": 46,
+      "rssMB": 264
+     },
+     "web": {
+      "cpuSeconds": 1.43,
+      "cpuPercent": 34.5,
+      "rssMB": 1006
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 15,
+       "max": 15,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1471,
+      "editors": 1,
+      "animations": 118,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "type-end",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 3.82,
+      "cpuPercent": 67.3,
+      "rssMB": 300
+     },
+     "web": {
+      "cpuSeconds": 3.49,
+      "cpuPercent": 61.5,
+      "rssMB": 1213
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 19,
+       "p95": 24,
+       "max": 28,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 360,
+       "p50": 14,
+       "p95": 21,
+       "max": 70,
+       "over50": 1,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "type-middle",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 4.59,
+      "cpuPercent": 81,
+      "rssMB": 420
+     },
+     "web": {
+      "cpuSeconds": 2.36,
+      "cpuPercent": 41.6,
+      "rssMB": 1274
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 20,
+       "p95": 26,
+       "max": 39,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 365,
+       "p50": 14,
+       "p95": 21,
+       "max": 35,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "scroll-chapter",
+     "journey": "scroll",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 3.11,
+      "cpuPercent": 75,
+      "rssMB": 499
+     },
+     "web": {
+      "cpuSeconds": 2.03,
+      "cpuPercent": 49,
+      "rssMB": 1300
+     },
+     "result": {
+      "scrolled": 8480,
+      "frames": {
+       "n": 239,
+       "p50": 14,
+       "p95": 21,
+       "max": 39,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "open-sidebars",
+     "journey": "sidebars",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 0.57,
+      "cpuPercent": 13.7,
+      "rssMB": 523
+     },
+     "web": {
+      "cpuSeconds": 1.44,
+      "cpuPercent": 34.7,
+      "rssMB": 1417
+     },
+     "result": {
+      "展开左侧栏": {
+       "readyMs": 186,
+       "visibleMs": 315,
+       "frames": {
+        "n": 98,
+        "p50": 14,
+        "p95": 41,
+        "max": 184,
+        "over50": 3,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3612,
+       "editors": 1
+      },
+      "展开右侧栏": {
+       "readyMs": 182,
+       "visibleMs": 273,
+       "frames": {
+        "n": 109,
+        "p50": 14,
+        "p95": 18,
+        "max": 181,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3834,
+       "editors": 1
+      }
+     }
+    },
+    {
+     "name": "type-end-sidebars",
+     "journey": "typing",
+     "seconds": 5.6,
+     "native": {
+      "cpuSeconds": 2.82,
+      "cpuPercent": 49.9,
+      "rssMB": 481
+     },
+     "web": {
+      "cpuSeconds": 2.78,
+      "cpuPercent": 49.2,
+      "rssMB": 1549
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 20,
+       "p95": 31,
+       "max": 33,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 368,
+       "p50": 14,
+       "p95": 19,
+       "max": 32,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "sidebar-panels",
+     "journey": "sidebarPanels",
+     "seconds": 3.6,
+     "native": {
+      "cpuSeconds": 0.93,
+      "cpuPercent": 25.6,
+      "rssMB": 499
+     },
+     "web": {
+      "cpuSeconds": 1.3,
+      "cpuPercent": 35.8,
+      "rssMB": 1583
+     },
+     "result": {
+      "要素": {
+       "readyMs": 20,
+       "visibleMs": 155,
+       "frames": {
+        "n": 95,
+        "p50": 14,
+        "p95": 49,
+        "max": 71,
+        "over50": 5,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1738,
+       "editors": 1
+      },
+      "构想": {
+       "missing": true
+      },
+      "章节": {
+       "missing": true
+      },
+      "素材库": {
+       "readyMs": 7,
+       "visibleMs": 58,
+       "frames": {
+        "n": 106,
+        "p50": 14,
+        "p95": 18,
+        "max": 73,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1516,
+       "editors": 1
+      },
+      "统计": {
+       "missing": true
+      },
+      "Review": {
+       "missing": true
+      }
+     }
+    },
+    {
+     "name": "open-12-tabs",
+     "journey": "openTabs",
+     "seconds": 14.9,
+     "native": {
+      "cpuSeconds": 1.08,
+      "cpuPercent": 7.2,
+      "rssMB": 379
+     },
+     "web": {
+      "cpuSeconds": 8.2,
+      "cpuPercent": 54.9,
+      "rssMB": 1648
+     },
+     "result": {
+      "first": [
+       262,
+       135,
+       113
+      ],
+      "last": [
+       97,
+       101,
+       149
+      ],
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 132,
+       "p95": 149,
+       "max": 262,
+       "over50": 12,
+       "over100": 11
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 92,
+       "p95": 108,
+       "max": 202,
+       "over50": 12,
+       "over100": 4
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4947,
+      "editors": 13
+     }
+    },
+    {
+     "name": "switch-tabs-sidebars",
+     "journey": "switchTabs",
+     "seconds": 5.3,
+     "native": {
+      "cpuSeconds": 0.33,
+      "cpuPercent": 6.3,
+      "rssMB": 371
+     },
+     "web": {
+      "cpuSeconds": 3.88,
+      "cpuPercent": 73.5,
+      "rssMB": 1551
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 105,
+       "p95": 132,
+       "max": 134,
+       "over50": 12,
+       "over100": 7
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 91,
+       "p95": 120,
+       "max": 125,
+       "over50": 12,
+       "over100": 5
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4947,
+      "editors": 13
+     }
+    },
+    {
+     "name": "close-sidebars",
+     "journey": "sidebars",
+     "seconds": 2.1,
+     "native": {
+      "cpuSeconds": 0.08,
+      "cpuPercent": 3.8,
+      "rssMB": 338
+     },
+     "web": {
+      "cpuSeconds": 0.95,
+      "cpuPercent": 45,
+      "rssMB": 1406
+     },
+     "result": {
+      "收起左侧栏": {
+       "readyMs": 40,
+       "visibleMs": 125,
+       "frames": {
+        "n": 88,
+        "p50": 14,
+        "p95": 40,
+        "max": 59,
+        "over50": 3,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 3997,
+       "editors": 13
+      },
+      "收起右侧栏": {
+       "skipped": true
+      }
+     }
+    },
+    {
+     "name": "switch-tabs",
+     "journey": "switchTabs",
+     "seconds": 5.2,
+     "native": {
+      "cpuSeconds": 0.28,
+      "cpuPercent": 5.4,
+      "rssMB": 322
+     },
+     "web": {
+      "cpuSeconds": 2.57,
+      "cpuPercent": 49.5,
+      "rssMB": 1212
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 70,
+       "p95": 109,
+       "max": 118,
+       "over50": 12,
+       "over100": 3
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 60,
+       "p95": 85,
+       "max": 99,
+       "over50": 12,
+       "over100": 0
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 3997,
+      "editors": 13
+     }
+    },
+    {
+     "name": "global-search",
+     "journey": "search",
+     "seconds": 7.2,
+     "native": {
+      "cpuSeconds": 1.13,
+      "cpuPercent": 15.7,
+      "rssMB": 350
+     },
+     "web": {
+      "cpuSeconds": 1.32,
+      "cpuPercent": 18.3,
+      "rssMB": 1311
+     },
+     "result": {
+      "open": {
+       "readyMs": 143,
+       "visibleMs": 153,
+       "frames": {
+        "n": 60,
+        "p50": 14,
+        "p95": 15,
+        "max": 138,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 4007,
+       "editors": 13
+      },
+      "typing": {
+       "n": 3,
+       "visibleMs": {
+        "n": 3,
+        "p50": 28,
+        "p95": 28,
+        "max": 29,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 3,
+        "p50": 45,
+        "p95": 45,
+        "max": 127,
+        "over50": 1,
+        "over100": 1
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4131,
+       "editors": 13
+      },
+      "moving": {
+       "n": 10,
+       "visibleMs": {
+        "n": 10,
+        "p50": 28,
+        "p95": 29,
+        "max": 36,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 10,
+        "p50": 15,
+        "p95": 15,
+        "max": 22,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4131,
+       "editors": 13
+      }
+     }
+    },
+    {
+     "name": "whole-book",
+     "journey": "wholeBook",
+     "seconds": 12.4,
+     "native": {
+      "cpuSeconds": 0.98,
+      "cpuPercent": 7.9,
+      "rssMB": 249
+     },
+     "web": {
+      "cpuSeconds": 5.67,
+      "cpuPercent": 45.8,
+      "rssMB": 1402
+     },
+     "result": {
+      "open": {
+       "readyMs": 133,
+       "visibleMs": 156,
+       "frames": {
+        "n": 215,
+        "p50": 14,
+        "p95": 15,
+        "max": 131,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8064,
+       "editors": 14
+      },
+      "scrollHeight": 2205262,
+      "slow": {
+       "scrolled": 11240,
+       "frames": {
+        "n": 308,
+        "p50": 14,
+        "p95": 15,
+        "max": 59,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true
+      },
+      "fast": {
+       "scrolled": 30000,
+       "frames": {
+        "n": 228,
+        "p50": 14,
+        "p95": 20,
+        "max": 44,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true
+      }
+     }
+    },
+    {
+     "name": "super-views",
+     "journey": "superViews",
+     "seconds": 8.4,
+     "native": {
+      "cpuSeconds": 0.45,
+      "cpuPercent": 5.4,
+      "rssMB": 249
+     },
+     "web": {
+      "cpuSeconds": 1.71,
+      "cpuPercent": 20.4,
+      "rssMB": 1433
+     },
+     "result": {
+      "storyGraph": {
+       "readyMs": 302,
+       "visibleMs": 340,
+       "frames": {
+        "n": 195,
+        "p50": 14,
+        "p95": 15,
+        "max": 104,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8947,
+       "editors": 19
+      },
+      "elementPanorama": {
+       "readyMs": 98,
+       "visibleMs": 125,
+       "frames": {
+        "n": 169,
+        "p50": 14,
+        "p95": 15,
+        "max": 180,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 13369,
+       "editors": 19
+      },
+      "materialWorkbench": {
+       "readyMs": 106,
+       "visibleMs": 125,
+       "frames": {
+        "n": 171,
+        "p50": 14,
+        "p95": 15,
+        "max": 119,
+        "over50": 3,
+        "over100": 2
+       },
+       "focused": true,
+       "dom": 11358,
+       "editors": 19
+      }
+     }
+    },
+    {
+     "name": "close-tabs",
+     "journey": "closeTabs",
+     "seconds": 9.9,
+     "native": {
+      "cpuSeconds": 0.59,
+      "cpuPercent": 6,
+      "rssMB": 151
+     },
+     "web": {
+      "cpuSeconds": 6.49,
+      "cpuPercent": 65.9,
+      "rssMB": 1108
+     },
+     "result": {
+      "lastMs": 405,
+      "n": 14,
+      "visibleMs": {
+       "n": 14,
+       "p50": 123,
+       "p95": 200,
+       "max": 405,
+       "over50": 14,
+       "over100": 14
+      },
+      "frameMax": {
+       "n": 14,
+       "p50": 86,
+       "p95": 126,
+       "max": 289,
+       "over50": 14,
+       "over100": 3
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 5145,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-after-close",
+     "journey": "idle",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 0.13,
+      "cpuPercent": 3.1,
+      "rssMB": 151
+     },
+     "web": {
+      "cpuSeconds": 0.18,
+      "cpuPercent": 4.3,
+      "rssMB": 1093
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 15,
+       "max": 17,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 5145,
+      "editors": 0,
+      "animations": 525,
+      "runningAnimations": 0
+     }
+    }
+   ]
+  },
+  {
+   "schemaVersion": 1,
+   "label": "baseline-release-1",
+   "build": "release (Rust release, production renderer)",
+   "recordedAt": "2026-10-29T16:13:12.634Z",
+   "foreground": true,
+   "database": "restored",
+   "seed": "stress",
+   "source": {
+    "commit": "a1c2bac4388d0c86d452815fe5a643f9078a4a4b",
+    "dirty": true,
+    "rendererFingerprint": "55599b1224b4b75c90634773945d8aeb10459ff14f66c43fc3b5e04e0732cbaa"
+   },
+   "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryGB": 36,
+    "darwin": "27.0.0"
+   },
+   "webContentCandidates": 1,
+   "quitSeconds": 0.65,
+   "journeys": [
+    {
+     "name": "enter-local-mode",
+     "journey": "enterLocalMode",
+     "seconds": 0.6,
+     "native": {
+      "cpuSeconds": 0.02,
+      "cpuPercent": 3.3,
+      "rssMB": 146
+     },
+     "web": {
+      "cpuSeconds": 0.14,
+      "cpuPercent": 23.1,
+      "rssMB": 169
+     },
+     "result": {
+      "onboarding": true
+     }
+    },
+    {
+     "name": "open-project",
+     "journey": "openProject",
+     "seconds": 4.7,
+     "native": {
+      "cpuSeconds": 2.6,
+      "cpuPercent": 55.8,
+      "rssMB": 248
+     },
+     "web": {
+      "cpuSeconds": 5.69,
+      "cpuPercent": 122.2,
+      "rssMB": 797
+     },
+     "result": {
+      "readyMs": 160,
+      "visibleMs": 292,
+      "frames": {
+       "n": 291,
+       "p50": 14,
+       "p95": 18,
+       "max": 120,
+       "over50": 2,
+       "over100": 1
+      },
+      "focused": true,
+      "dom": 1278,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-project-home",
+     "journey": "idle",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 1.48,
+      "cpuPercent": 35.5,
+      "rssMB": 248
+     },
+     "web": {
+      "cpuSeconds": 1.46,
+      "cpuPercent": 35,
+      "rssMB": 797
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 15,
+       "max": 15,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1278,
+      "editors": 0,
+      "animations": 109,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "open-long-chapter",
+     "journey": "openChapter",
+     "seconds": 3.1,
+     "native": {
+      "cpuSeconds": 0.13,
+      "cpuPercent": 4.1,
+      "rssMB": 248
+     },
+     "web": {
+      "cpuSeconds": 0.41,
+      "cpuPercent": 13.1,
+      "rssMB": 808
+     },
+     "result": {
+      "readyMs": 157,
+      "visibleMs": 210,
+      "frames": {
+       "n": 186,
+       "p50": 14,
+       "p95": 15,
+       "max": 71,
+       "over50": 1,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1487,
+      "editors": 1
+     }
+    },
+    {
+     "name": "idle-editor",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.19,
+      "cpuPercent": 4.6,
+      "rssMB": 248
+     },
+     "web": {
+      "cpuSeconds": 0.25,
+      "cpuPercent": 6,
+      "rssMB": 808
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 15,
+       "max": 15,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1487,
+      "editors": 1,
+      "animations": 118,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "type-end",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 1.75,
+      "cpuPercent": 30.8,
+      "rssMB": 349
+     },
+     "web": {
+      "cpuSeconds": 4.16,
+      "cpuPercent": 73.2,
+      "rssMB": 1029
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 18,
+       "p95": 32,
+       "max": 36,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 365,
+       "p50": 14,
+       "p95": 21,
+       "max": 63,
+       "over50": 1,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "type-middle",
+     "journey": "typing",
+     "seconds": 5.6,
+     "native": {
+      "cpuSeconds": 0.76,
+      "cpuPercent": 13.5,
+      "rssMB": 350
+     },
+     "web": {
+      "cpuSeconds": 2.27,
+      "cpuPercent": 40.2,
+      "rssMB": 1172
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 24,
+       "p95": 28,
+       "max": 36,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 366,
+       "p50": 14,
+       "p95": 17,
+       "max": 26,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "scroll-chapter",
+     "journey": "scroll",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.27,
+      "cpuPercent": 6.5,
+      "rssMB": 326
+     },
+     "web": {
+      "cpuSeconds": 1.02,
+      "cpuPercent": 24.7,
+      "rssMB": 1216
+     },
+     "result": {
+      "scrolled": 8480,
+      "frames": {
+       "n": 239,
+       "p50": 14,
+       "p95": 17,
+       "max": 34,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "open-sidebars",
+     "journey": "sidebars",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.23,
+      "cpuPercent": 5.5,
+      "rssMB": 329
+     },
+     "web": {
+      "cpuSeconds": 1.33,
+      "cpuPercent": 32.1,
+      "rssMB": 1323
+     },
+     "result": {
+      "展开左侧栏": {
+       "readyMs": 164,
+       "visibleMs": 284,
+       "frames": {
+        "n": 97,
+        "p50": 14,
+        "p95": 41,
+        "max": 161,
+        "over50": 3,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3628,
+       "editors": 1
+      },
+      "展开右侧栏": {
+       "readyMs": 183,
+       "visibleMs": 280,
+       "frames": {
+        "n": 107,
+        "p50": 14,
+        "p95": 20,
+        "max": 183,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3850,
+       "editors": 1
+      }
+     }
+    },
+    {
+     "name": "type-end-sidebars",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 0.95,
+      "cpuPercent": 16.7,
+      "rssMB": 302
+     },
+     "web": {
+      "cpuSeconds": 2.58,
+      "cpuPercent": 45.4,
+      "rssMB": 1341
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 26,
+       "p95": 29,
+       "max": 39,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 368,
+       "p50": 14,
+       "p95": 21,
+       "max": 33,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "sidebar-panels",
+     "journey": "sidebarPanels",
+     "seconds": 3.6,
+     "native": {
+      "cpuSeconds": 0.3,
+      "cpuPercent": 8.2,
+      "rssMB": 320
+     },
+     "web": {
+      "cpuSeconds": 1.3,
+      "cpuPercent": 35.7,
+      "rssMB": 1361
+     },
+     "result": {
+      "要素": {
+       "readyMs": 19,
+       "visibleMs": 155,
+       "frames": {
+        "n": 94,
+        "p50": 14,
+        "p95": 51,
+        "max": 70,
+        "over50": 6,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1754,
+       "editors": 1
+      },
+      "构想": {
+       "missing": true
+      },
+      "章节": {
+       "missing": true
+      },
+      "素材库": {
+       "readyMs": 6,
+       "visibleMs": 52,
+       "frames": {
+        "n": 110,
+        "p50": 14,
+        "p95": 16,
+        "max": 28,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1532,
+       "editors": 1
+      },
+      "统计": {
+       "missing": true
+      },
+      "Review": {
+       "missing": true
+      }
+     }
+    },
+    {
+     "name": "open-12-tabs",
+     "journey": "openTabs",
+     "seconds": 14.8,
+     "native": {
+      "cpuSeconds": 0.56,
+      "cpuPercent": 3.8,
+      "rssMB": 234
+     },
+     "web": {
+      "cpuSeconds": 7.15,
+      "cpuPercent": 48.4,
+      "rssMB": 1405
+     },
+     "result": {
+      "first": [
+       227,
+       101,
+       100
+      ],
+      "last": [
+       138,
+       135,
+       147
+      ],
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 110,
+       "p95": 147,
+       "max": 227,
+       "over50": 12,
+       "over100": 10
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 88,
+       "p95": 93,
+       "max": 166,
+       "over50": 12,
+       "over100": 1
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4963,
+      "editors": 13
+     }
+    },
+    {
+     "name": "switch-tabs-sidebars",
+     "journey": "switchTabs",
+     "seconds": 5.3,
+     "native": {
+      "cpuSeconds": 0.25,
+      "cpuPercent": 4.7,
+      "rssMB": 234
+     },
+     "web": {
+      "cpuSeconds": 3.11,
+      "cpuPercent": 59.1,
+      "rssMB": 1429
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 74,
+       "p95": 117,
+       "max": 120,
+       "over50": 12,
+       "over100": 3
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 64,
+       "p95": 94,
+       "max": 108,
+       "over50": 12,
+       "over100": 1
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4963,
+      "editors": 13
+     }
+    },
+    {
+     "name": "close-sidebars",
+     "journey": "sidebars",
+     "seconds": 2.1,
+     "native": {
+      "cpuSeconds": 0.05,
+      "cpuPercent": 2.4,
+      "rssMB": 234
+     },
+     "web": {
+      "cpuSeconds": 0.91,
+      "cpuPercent": 43.1,
+      "rssMB": 1429
+     },
+     "result": {
+      "收起左侧栏": {
+       "readyMs": 38,
+       "visibleMs": 97,
+       "frames": {
+        "n": 86,
+        "p50": 14,
+        "p95": 38,
+        "max": 58,
+        "over50": 3,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 4013,
+       "editors": 13
+      },
+      "收起右侧栏": {
+       "skipped": true
+      }
+     }
+    },
+    {
+     "name": "switch-tabs",
+     "journey": "switchTabs",
+     "seconds": 5.2,
+     "native": {
+      "cpuSeconds": 0.2,
+      "cpuPercent": 3.9,
+      "rssMB": 234
+     },
+     "web": {
+      "cpuSeconds": 2.27,
+      "cpuPercent": 43.9,
+      "rssMB": 1430
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 70,
+       "p95": 113,
+       "max": 124,
+       "over50": 12,
+       "over100": 3
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 59,
+       "p95": 86,
+       "max": 89,
+       "over50": 9,
+       "over100": 0
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4013,
+      "editors": 13
+     }
+    },
+    {
+     "name": "global-search",
+     "journey": "search",
+     "seconds": 7.2,
+     "native": {
+      "cpuSeconds": 0.36,
+      "cpuPercent": 5,
+      "rssMB": 267
+     },
+     "web": {
+      "cpuSeconds": 1.25,
+      "cpuPercent": 17.4,
+      "rssMB": 1435
+     },
+     "result": {
+      "open": {
+       "readyMs": 142,
+       "visibleMs": 153,
+       "frames": {
+        "n": 60,
+        "p50": 14,
+        "p95": 16,
+        "max": 136,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 4023,
+       "editors": 13
+      },
+      "typing": {
+       "n": 3,
+       "visibleMs": {
+        "n": 3,
+        "p50": 28,
+        "p95": 28,
+        "max": 28,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 3,
+        "p50": 32,
+        "p95": 32,
+        "max": 39,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4147,
+       "editors": 13
+      },
+      "moving": {
+       "n": 10,
+       "visibleMs": {
+        "n": 10,
+        "p50": 28,
+        "p95": 29,
+        "max": 45,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 10,
+        "p50": 16,
+        "p95": 16,
+        "max": 31,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4147,
+       "editors": 13
+      }
+     }
+    },
+    {
+     "name": "whole-book",
+     "journey": "wholeBook",
+     "seconds": 12.4,
+     "native": {
+      "cpuSeconds": 0.6,
+      "cpuPercent": 4.9,
+      "rssMB": 238
+     },
+     "web": {
+      "cpuSeconds": 5.24,
+      "cpuPercent": 42.4,
+      "rssMB": 1467
+     },
+     "result": {
+      "open": {
+       "readyMs": 110,
+       "visibleMs": 133,
+       "frames": {
+        "n": 216,
+        "p50": 14,
+        "p95": 16,
+        "max": 108,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8080,
+       "editors": 14
+      },
+      "scrollHeight": 2205262,
+      "slow": {
+       "scrolled": 11320,
+       "frames": {
+        "n": 310,
+        "p50": 14,
+        "p95": 16,
+        "max": 58,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true
+      },
+      "fast": {
+       "scrolled": 30750,
+       "frames": {
+        "n": 232,
+        "p50": 14,
+        "p95": 18,
+        "max": 46,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true
+      }
+     }
+    },
+    {
+     "name": "super-views",
+     "journey": "superViews",
+     "seconds": 8.8,
+     "native": {
+      "cpuSeconds": 0.36,
+      "cpuPercent": 4.1,
+      "rssMB": 238
+     },
+     "web": {
+      "cpuSeconds": 1.4,
+      "cpuPercent": 15.9,
+      "rssMB": 1511
+     },
+     "result": {
+      "storyGraph": {
+       "readyMs": 129,
+       "visibleMs": 179,
+       "frames": {
+        "n": 182,
+        "p50": 14,
+        "p95": 16,
+        "max": 129,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8963,
+       "editors": 19
+      },
+      "elementPanorama": {
+       "readyMs": 204,
+       "visibleMs": 251,
+       "frames": {
+        "n": 183,
+        "p50": 14,
+        "p95": 16,
+        "max": 202,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 13384,
+       "editors": 19
+      },
+      "materialWorkbench": {
+       "readyMs": 177,
+       "visibleMs": 253,
+       "frames": {
+        "n": 183,
+        "p50": 14,
+        "p95": 16,
+        "max": 175,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 11234,
+       "editors": 19
+      }
+     }
+    },
+    {
+     "name": "close-tabs",
+     "journey": "closeTabs",
+     "seconds": 8.7,
+     "native": {
+      "cpuSeconds": 0.47,
+      "cpuPercent": 5.4,
+      "rssMB": 238
+     },
+     "web": {
+      "cpuSeconds": 4.98,
+      "cpuPercent": 57.1,
+      "rssMB": 1547
+     },
+     "result": {
+      "lastMs": 306,
+      "n": 14,
+      "visibleMs": {
+       "n": 14,
+       "p50": 86,
+       "p95": 135,
+       "max": 306,
+       "over50": 14,
+       "over100": 4
+      },
+      "frameMax": {
+       "n": 14,
+       "p50": 54,
+       "p95": 107,
+       "max": 226,
+       "over50": 10,
+       "over100": 2
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 5021,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-after-close",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.17,
+      "cpuPercent": 4.1,
+      "rssMB": 238
+     },
+     "web": {
+      "cpuSeconds": 0.28,
+      "cpuPercent": 6.8,
+      "rssMB": 1546
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 16,
+       "max": 19,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 5021,
+      "editors": 0,
+      "animations": 525,
+      "runningAnimations": 0
+     }
+    }
+   ]
+  },
+  {
+   "schemaVersion": 1,
+   "label": "baseline-debug-2",
+   "build": "debug (Rust debug, Vite development renderer, React Strict Mode)",
+   "recordedAt": "2026-10-29T16:15:50.666Z",
+   "foreground": true,
+   "database": "restored",
+   "seed": "stress",
+   "source": {
+    "commit": "a1c2bac4388d0c86d452815fe5a643f9078a4a4b",
+    "dirty": true,
+    "rendererFingerprint": "55599b1224b4b75c90634773945d8aeb10459ff14f66c43fc3b5e04e0732cbaa"
+   },
+   "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryGB": 36,
+    "darwin": "27.0.0"
+   },
+   "webContentCandidates": 1,
+   "quitSeconds": 0.62,
+   "journeys": [
+    {
+     "name": "enter-local-mode",
+     "journey": "enterLocalMode",
+     "seconds": 0.6,
+     "native": {
+      "cpuSeconds": 0.03,
+      "cpuPercent": 5.1,
+      "rssMB": 157
+     },
+     "web": {
+      "cpuSeconds": 0.31,
+      "cpuPercent": 52.4,
+      "rssMB": 292
+     },
+     "result": {
+      "onboarding": true
+     }
+    },
+    {
+     "name": "open-project",
+     "journey": "openProject",
+     "seconds": 4.7,
+     "native": {
+      "cpuSeconds": 4.19,
+      "cpuPercent": 90.1,
+      "rssMB": 265
+     },
+     "web": {
+      "cpuSeconds": 4.16,
+      "cpuPercent": 89.5,
+      "rssMB": 938
+     },
+     "result": {
+      "readyMs": 233,
+      "visibleMs": 369,
+      "frames": {
+       "n": 290,
+       "p50": 14,
+       "p95": 20,
+       "max": 138,
+       "over50": 4,
+       "over100": 2
+      },
+      "focused": true,
+      "dom": 1241,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-project-home",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 3.08,
+      "cpuPercent": 74.5,
+      "rssMB": 267
+     },
+     "web": {
+      "cpuSeconds": 2.97,
+      "cpuPercent": 71.9,
+      "rssMB": 1099
+     },
+     "result": {
+      "frames": {
+       "n": 287,
+       "p50": 14,
+       "p95": 18,
+       "max": 22,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1262,
+      "editors": 0,
+      "animations": 109,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "open-long-chapter",
+     "journey": "openChapter",
+     "seconds": 3.1,
+     "native": {
+      "cpuSeconds": 2.49,
+      "cpuPercent": 79.8,
+      "rssMB": 267
+     },
+     "web": {
+      "cpuSeconds": 2.05,
+      "cpuPercent": 65.7,
+      "rssMB": 1120
+     },
+     "result": {
+      "readyMs": 231,
+      "visibleMs": 279,
+      "frames": {
+       "n": 190,
+       "p50": 14,
+       "p95": 15,
+       "max": 77,
+       "over50": 2,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1471,
+      "editors": 1
+     }
+    },
+    {
+     "name": "idle-editor",
+     "journey": "idle",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 0.22,
+      "cpuPercent": 5.3,
+      "rssMB": 267
+     },
+     "web": {
+      "cpuSeconds": 0.26,
+      "cpuPercent": 6.3,
+      "rssMB": 1121
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 16,
+       "max": 16,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1471,
+      "editors": 1,
+      "animations": 118,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "type-end",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 3.88,
+      "cpuPercent": 68.5,
+      "rssMB": 321
+     },
+     "web": {
+      "cpuSeconds": 3.21,
+      "cpuPercent": 56.6,
+      "rssMB": 1439
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 19,
+       "p95": 32,
+       "max": 80,
+       "over50": 1,
+       "over100": 0
+      },
+      "frames": {
+       "n": 362,
+       "p50": 14,
+       "p95": 18,
+       "max": 69,
+       "over50": 1,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "type-middle",
+     "journey": "typing",
+     "seconds": 5.6,
+     "native": {
+      "cpuSeconds": 4.58,
+      "cpuPercent": 81.1,
+      "rssMB": 441
+     },
+     "web": {
+      "cpuSeconds": 2.31,
+      "cpuPercent": 40.9,
+      "rssMB": 1565
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 20,
+       "p95": 29,
+       "max": 39,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 369,
+       "p50": 14,
+       "p95": 20,
+       "max": 33,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "scroll-chapter",
+     "journey": "scroll",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 2.28,
+      "cpuPercent": 55.1,
+      "rssMB": 503
+     },
+     "web": {
+      "cpuSeconds": 1.67,
+      "cpuPercent": 40.4,
+      "rssMB": 1602
+     },
+     "result": {
+      "scrolled": 8680,
+      "frames": {
+       "n": 244,
+       "p50": 14,
+       "p95": 20,
+       "max": 29,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "open-sidebars",
+     "journey": "sidebars",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 1.11,
+      "cpuPercent": 26.7,
+      "rssMB": 524
+     },
+     "web": {
+      "cpuSeconds": 1.52,
+      "cpuPercent": 36.6,
+      "rssMB": 1740
+     },
+     "result": {
+      "展开左侧栏": {
+       "readyMs": 187,
+       "visibleMs": 304,
+       "frames": {
+        "n": 97,
+        "p50": 14,
+        "p95": 39,
+        "max": 184,
+        "over50": 3,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3612,
+       "editors": 1
+      },
+      "展开右侧栏": {
+       "readyMs": 189,
+       "visibleMs": 286,
+       "frames": {
+        "n": 104,
+        "p50": 14,
+        "p95": 18,
+        "max": 188,
+        "over50": 3,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3834,
+       "editors": 1
+      }
+     }
+    },
+    {
+     "name": "type-end-sidebars",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 2.9,
+      "cpuPercent": 51.2,
+      "rssMB": 491
+     },
+     "web": {
+      "cpuSeconds": 2.93,
+      "cpuPercent": 51.7,
+      "rssMB": 1750
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 20,
+       "p95": 32,
+       "max": 32,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 368,
+       "p50": 14,
+       "p95": 21,
+       "max": 36,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "sidebar-panels",
+     "journey": "sidebarPanels",
+     "seconds": 3.6,
+     "native": {
+      "cpuSeconds": 0.22,
+      "cpuPercent": 6.1,
+      "rssMB": 513
+     },
+     "web": {
+      "cpuSeconds": 1.02,
+      "cpuPercent": 28.1,
+      "rssMB": 1765
+     },
+     "result": {
+      "要素": {
+       "readyMs": 23,
+       "visibleMs": 165,
+       "frames": {
+        "n": 97,
+        "p50": 14,
+        "p95": 48,
+        "max": 75,
+        "over50": 2,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1738,
+       "editors": 1
+      },
+      "构想": {
+       "missing": true
+      },
+      "章节": {
+       "missing": true
+      },
+      "素材库": {
+       "readyMs": 7,
+       "visibleMs": 53,
+       "frames": {
+        "n": 111,
+        "p50": 14,
+        "p95": 16,
+        "max": 25,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1516,
+       "editors": 1
+      },
+      "统计": {
+       "missing": true
+      },
+      "Review": {
+       "missing": true
+      }
+     }
+    },
+    {
+     "name": "open-12-tabs",
+     "journey": "openTabs",
+     "seconds": 14.9,
+     "native": {
+      "cpuSeconds": 1.58,
+      "cpuPercent": 10.6,
+      "rssMB": 455
+     },
+     "web": {
+      "cpuSeconds": 8,
+      "cpuPercent": 53.5,
+      "rssMB": 1856
+     },
+     "result": {
+      "first": [
+       259,
+       134,
+       104
+      ],
+      "last": [
+       155,
+       151,
+       175
+      ],
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 147,
+       "p95": 175,
+       "max": 259,
+       "over50": 12,
+       "over100": 12
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 101,
+       "p95": 121,
+       "max": 198,
+       "over50": 12,
+       "over100": 7
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4947,
+      "editors": 13
+     }
+    },
+    {
+     "name": "switch-tabs-sidebars",
+     "journey": "switchTabs",
+     "seconds": 5.3,
+     "native": {
+      "cpuSeconds": 0.28,
+      "cpuPercent": 5.3,
+      "rssMB": 455
+     },
+     "web": {
+      "cpuSeconds": 3.49,
+      "cpuPercent": 66,
+      "rssMB": 1865
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 96,
+       "p95": 136,
+       "max": 149,
+       "over50": 12,
+       "over100": 6
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 90,
+       "p95": 105,
+       "max": 141,
+       "over50": 12,
+       "over100": 4
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4947,
+      "editors": 13
+     }
+    },
+    {
+     "name": "close-sidebars",
+     "journey": "sidebars",
+     "seconds": 2.2,
+     "native": {
+      "cpuSeconds": 0.09,
+      "cpuPercent": 4.1,
+      "rssMB": 455
+     },
+     "web": {
+      "cpuSeconds": 1.06,
+      "cpuPercent": 48.8,
+      "rssMB": 1867
+     },
+     "result": {
+      "收起左侧栏": {
+       "readyMs": 39,
+       "visibleMs": 92,
+       "frames": {
+        "n": 92,
+        "p50": 14,
+        "p95": 37,
+        "max": 46,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 3997,
+       "editors": 13
+      },
+      "收起右侧栏": {
+       "skipped": true
+      }
+     }
+    },
+    {
+     "name": "switch-tabs",
+     "journey": "switchTabs",
+     "seconds": 4.7,
+     "native": {
+      "cpuSeconds": 0.23,
+      "cpuPercent": 4.9,
+      "rssMB": 455
+     },
+     "web": {
+      "cpuSeconds": 2.27,
+      "cpuPercent": 48.7,
+      "rssMB": 1868
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 57,
+       "p95": 97,
+       "max": 125,
+       "over50": 12,
+       "over100": 1
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 51,
+       "p95": 79,
+       "max": 91,
+       "over50": 8,
+       "over100": 0
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 3997,
+      "editors": 13
+     }
+    },
+    {
+     "name": "global-search",
+     "journey": "search",
+     "seconds": 7.2,
+     "native": {
+      "cpuSeconds": 1.09,
+      "cpuPercent": 15.2,
+      "rssMB": 484
+     },
+     "web": {
+      "cpuSeconds": 1.1,
+      "cpuPercent": 15.3,
+      "rssMB": 1869
+     },
+     "result": {
+      "open": {
+       "readyMs": 100,
+       "visibleMs": 113,
+       "frames": {
+        "n": 60,
+        "p50": 14,
+        "p95": 16,
+        "max": 96,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 4007,
+       "editors": 13
+      },
+      "typing": {
+       "n": 3,
+       "visibleMs": {
+        "n": 3,
+        "p50": 28,
+        "p95": 28,
+        "max": 28,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 3,
+        "p50": 30,
+        "p95": 30,
+        "max": 43,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4131,
+       "editors": 13
+      },
+      "moving": {
+       "n": 10,
+       "visibleMs": {
+        "n": 10,
+        "p50": 28,
+        "p95": 29,
+        "max": 35,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 10,
+        "p50": 16,
+        "p95": 16,
+        "max": 22,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4131,
+       "editors": 13
+      }
+     }
+    },
+    {
+     "name": "whole-book",
+     "journey": "wholeBook",
+     "seconds": 12.3,
+     "native": {
+      "cpuSeconds": 0.91,
+      "cpuPercent": 7.4,
+      "rssMB": 484
+     },
+     "web": {
+      "cpuSeconds": 6.02,
+      "cpuPercent": 48.8,
+      "rssMB": 1929
+     },
+     "result": {
+      "open": {
+       "readyMs": 127,
+       "visibleMs": 193,
+       "frames": {
+        "n": 217,
+        "p50": 14,
+        "p95": 16,
+        "max": 125,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8064,
+       "editors": 14
+      },
+      "scrollHeight": 2205262,
+      "slow": {
+       "scrolled": 11120,
+       "frames": {
+        "n": 306,
+        "p50": 14,
+        "p95": 16,
+        "max": 64,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true
+      },
+      "fast": {
+       "scrolled": 30300,
+       "frames": {
+        "n": 230,
+        "p50": 14,
+        "p95": 22,
+        "max": 50,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true
+      }
+     }
+    },
+    {
+     "name": "super-views",
+     "journey": "superViews",
+     "seconds": 8.4,
+     "native": {
+      "cpuSeconds": 0.45,
+      "cpuPercent": 5.4,
+      "rssMB": 484
+     },
+     "web": {
+      "cpuSeconds": 1.57,
+      "cpuPercent": 18.7,
+      "rssMB": 1956
+     },
+     "result": {
+      "storyGraph": {
+       "readyMs": 300,
+       "visibleMs": 340,
+       "frames": {
+        "n": 194,
+        "p50": 14,
+        "p95": 16,
+        "max": 104,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8947,
+       "editors": 19
+      },
+      "elementPanorama": {
+       "readyMs": 94,
+       "visibleMs": 107,
+       "frames": {
+        "n": 168,
+        "p50": 14,
+        "p95": 16,
+        "max": 177,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 13369,
+       "editors": 19
+      },
+      "materialWorkbench": {
+       "readyMs": 105,
+       "visibleMs": 122,
+       "frames": {
+        "n": 171,
+        "p50": 14,
+        "p95": 16,
+        "max": 108,
+        "over50": 3,
+        "over100": 2
+       },
+       "focused": true,
+       "dom": 11358,
+       "editors": 19
+      }
+     }
+    },
+    {
+     "name": "close-tabs",
+     "journey": "closeTabs",
+     "seconds": 9.3,
+     "native": {
+      "cpuSeconds": 0.48,
+      "cpuPercent": 5.1,
+      "rssMB": 484
+     },
+     "web": {
+      "cpuSeconds": 5.23,
+      "cpuPercent": 56,
+      "rssMB": 1973
+     },
+     "result": {
+      "lastMs": 334,
+      "n": 14,
+      "visibleMs": {
+       "n": 14,
+       "p50": 106,
+       "p95": 143,
+       "max": 334,
+       "over50": 14,
+       "over100": 8
+      },
+      "frameMax": {
+       "n": 14,
+       "p50": 72,
+       "p95": 115,
+       "max": 241,
+       "over50": 14,
+       "over100": 2
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 5145,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-after-close",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.18,
+      "cpuPercent": 4.4,
+      "rssMB": 484
+     },
+     "web": {
+      "cpuSeconds": 0.23,
+      "cpuPercent": 5.6,
+      "rssMB": 1973
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 16,
+       "max": 17,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 5145,
+      "editors": 0,
+      "animations": 525,
+      "runningAnimations": 0
+     }
+    }
+   ]
+  },
+  {
+   "schemaVersion": 1,
+   "label": "baseline-release-2",
+   "build": "release (Rust release, production renderer)",
+   "recordedAt": "2026-10-29T16:19:07.832Z",
+   "foreground": true,
+   "database": "restored",
+   "seed": "stress",
+   "source": {
+    "commit": "a1c2bac4388d0c86d452815fe5a643f9078a4a4b",
+    "dirty": true,
+    "rendererFingerprint": "55599b1224b4b75c90634773945d8aeb10459ff14f66c43fc3b5e04e0732cbaa"
+   },
+   "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryGB": 36,
+    "darwin": "27.0.0"
+   },
+   "webContentCandidates": 1,
+   "quitSeconds": 0.62,
+   "journeys": [
+    {
+     "name": "enter-local-mode",
+     "journey": "enterLocalMode",
+     "seconds": 0.6,
+     "native": {
+      "cpuSeconds": 0.02,
+      "cpuPercent": 3.4,
+      "rssMB": 146
+     },
+     "web": {
+      "cpuSeconds": 0.14,
+      "cpuPercent": 23.6,
+      "rssMB": 170
+     },
+     "result": {
+      "onboarding": true
+     }
+    },
+    {
+     "name": "open-project",
+     "journey": "openProject",
+     "seconds": 4.6,
+     "native": {
+      "cpuSeconds": 2.59,
+      "cpuPercent": 55.9,
+      "rssMB": 252
+     },
+     "web": {
+      "cpuSeconds": 5.64,
+      "cpuPercent": 121.6,
+      "rssMB": 767
+     },
+     "result": {
+      "readyMs": 168,
+      "visibleMs": 296,
+      "frames": {
+       "n": 289,
+       "p50": 14,
+       "p95": 18,
+       "max": 128,
+       "over50": 3,
+       "over100": 1
+      },
+      "focused": true,
+      "dom": 1278,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-project-home",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 1.3,
+      "cpuPercent": 31.4,
+      "rssMB": 252
+     },
+     "web": {
+      "cpuSeconds": 1.28,
+      "cpuPercent": 30.9,
+      "rssMB": 769
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 16,
+       "max": 16,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1278,
+      "editors": 0,
+      "animations": 109,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "open-long-chapter",
+     "journey": "openChapter",
+     "seconds": 3.1,
+     "native": {
+      "cpuSeconds": 0.09,
+      "cpuPercent": 2.9,
+      "rssMB": 252
+     },
+     "web": {
+      "cpuSeconds": 0.35,
+      "cpuPercent": 11.2,
+      "rssMB": 784
+     },
+     "result": {
+      "readyMs": 146,
+      "visibleMs": 198,
+      "frames": {
+       "n": 184,
+       "p50": 14,
+       "p95": 16,
+       "max": 74,
+       "over50": 2,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1487,
+      "editors": 1
+     }
+    },
+    {
+     "name": "idle-editor",
+     "journey": "idle",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.13,
+      "cpuPercent": 3.1,
+      "rssMB": 251
+     },
+     "web": {
+      "cpuSeconds": 0.18,
+      "cpuPercent": 4.3,
+      "rssMB": 784
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 16,
+       "max": 16,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 1487,
+      "editors": 1,
+      "animations": 118,
+      "runningAnimations": 0
+     }
+    },
+    {
+     "name": "type-end",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 1.74,
+      "cpuPercent": 30.6,
+      "rssMB": 350
+     },
+     "web": {
+      "cpuSeconds": 4.17,
+      "cpuPercent": 73.4,
+      "rssMB": 1016
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 19,
+       "p95": 29,
+       "max": 30,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 368,
+       "p50": 14,
+       "p95": 22,
+       "max": 70,
+       "over50": 1,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "type-middle",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 0.76,
+      "cpuPercent": 13.4,
+      "rssMB": 351
+     },
+     "web": {
+      "cpuSeconds": 2.25,
+      "cpuPercent": 39.8,
+      "rssMB": 1162
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 24,
+       "p95": 34,
+       "max": 42,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 367,
+       "p50": 14,
+       "p95": 19,
+       "max": 31,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "scroll-chapter",
+     "journey": "scroll",
+     "seconds": 4.1,
+     "native": {
+      "cpuSeconds": 0.28,
+      "cpuPercent": 6.8,
+      "rssMB": 331
+     },
+     "web": {
+      "cpuSeconds": 1.11,
+      "cpuPercent": 26.8,
+      "rssMB": 1204
+     },
+     "result": {
+      "scrolled": 8480,
+      "frames": {
+       "n": 239,
+       "p50": 14,
+       "p95": 18,
+       "max": 27,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "open-sidebars",
+     "journey": "sidebars",
+     "seconds": 3.7,
+     "native": {
+      "cpuSeconds": 0.22,
+      "cpuPercent": 6,
+      "rssMB": 335
+     },
+     "web": {
+      "cpuSeconds": 1.26,
+      "cpuPercent": 34.1,
+      "rssMB": 1307
+     },
+     "result": {
+      "展开左侧栏": {
+       "readyMs": 165,
+       "visibleMs": 280,
+       "frames": {
+        "n": 97,
+        "p50": 14,
+        "p95": 43,
+        "max": 162,
+        "over50": 3,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3628,
+       "editors": 1
+      },
+      "展开右侧栏": {
+       "readyMs": 171,
+       "visibleMs": 264,
+       "frames": {
+        "n": 107,
+        "p50": 14,
+        "p95": 19,
+        "max": 170,
+        "over50": 2,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 3850,
+       "editors": 1
+      }
+     }
+    },
+    {
+     "name": "type-end-sidebars",
+     "journey": "typing",
+     "seconds": 5.7,
+     "native": {
+      "cpuSeconds": 0.92,
+      "cpuPercent": 16.3,
+      "rssMB": 318
+     },
+     "web": {
+      "cpuSeconds": 2.55,
+      "cpuPercent": 45.1,
+      "rssMB": 1336
+     },
+     "result": {
+      "inputPath": "execCommand",
+      "inserted": 30,
+      "keyToSecondFrame": {
+       "n": 30,
+       "p50": 25,
+       "p95": 28,
+       "max": 31,
+       "over50": 0,
+       "over100": 0
+      },
+      "frames": {
+       "n": 368,
+       "p50": 14,
+       "p95": 21,
+       "max": 29,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true
+     }
+    },
+    {
+     "name": "sidebar-panels",
+     "journey": "sidebarPanels",
+     "seconds": 3.6,
+     "native": {
+      "cpuSeconds": 0.3,
+      "cpuPercent": 8.2,
+      "rssMB": 335
+     },
+     "web": {
+      "cpuSeconds": 1.23,
+      "cpuPercent": 33.8,
+      "rssMB": 1352
+     },
+     "result": {
+      "要素": {
+       "readyMs": 24,
+       "visibleMs": 167,
+       "frames": {
+        "n": 97,
+        "p50": 14,
+        "p95": 50,
+        "max": 77,
+        "over50": 5,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1754,
+       "editors": 1
+      },
+      "构想": {
+       "missing": true
+      },
+      "章节": {
+       "missing": true
+      },
+      "素材库": {
+       "readyMs": 7,
+       "visibleMs": 54,
+       "frames": {
+        "n": 108,
+        "p50": 14,
+        "p95": 16,
+        "max": 31,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 1532,
+       "editors": 1
+      },
+      "统计": {
+       "missing": true
+      },
+      "Review": {
+       "missing": true
+      }
+     }
+    },
+    {
+     "name": "open-12-tabs",
+     "journey": "openTabs",
+     "seconds": 14.6,
+     "native": {
+      "cpuSeconds": 0.55,
+      "cpuPercent": 3.8,
+      "rssMB": 239
+     },
+     "web": {
+      "cpuSeconds": 7.11,
+      "cpuPercent": 48.5,
+      "rssMB": 1394
+     },
+     "result": {
+      "first": [
+       242,
+       85,
+       101
+      ],
+      "last": [
+       138,
+       165,
+       153
+      ],
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 108,
+       "p95": 165,
+       "max": 242,
+       "over50": 12,
+       "over100": 8
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 84,
+       "p95": 100,
+       "max": 172,
+       "over50": 12,
+       "over100": 1
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4963,
+      "editors": 13
+     }
+    },
+    {
+     "name": "switch-tabs-sidebars",
+     "journey": "switchTabs",
+     "seconds": 5.3,
+     "native": {
+      "cpuSeconds": 0.25,
+      "cpuPercent": 4.7,
+      "rssMB": 239
+     },
+     "web": {
+      "cpuSeconds": 3.3,
+      "cpuPercent": 62.4,
+      "rssMB": 1410
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 81,
+       "p95": 122,
+       "max": 131,
+       "over50": 12,
+       "over100": 5
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 71,
+       "p95": 99,
+       "max": 111,
+       "over50": 12,
+       "over100": 1
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4963,
+      "editors": 13
+     }
+    },
+    {
+     "name": "close-sidebars",
+     "journey": "sidebars",
+     "seconds": 2.1,
+     "native": {
+      "cpuSeconds": 0.07,
+      "cpuPercent": 3.3,
+      "rssMB": 239
+     },
+     "web": {
+      "cpuSeconds": 1.06,
+      "cpuPercent": 49.6,
+      "rssMB": 1410
+     },
+     "result": {
+      "收起左侧栏": {
+       "readyMs": 38,
+       "visibleMs": 75,
+       "frames": {
+        "n": 90,
+        "p50": 14,
+        "p95": 38,
+        "max": 52,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 4013,
+       "editors": 13
+      },
+      "收起右侧栏": {
+       "skipped": true
+      }
+     }
+    },
+    {
+     "name": "switch-tabs",
+     "journey": "switchTabs",
+     "seconds": 4.7,
+     "native": {
+      "cpuSeconds": 0.19,
+      "cpuPercent": 4.1,
+      "rssMB": 239
+     },
+     "web": {
+      "cpuSeconds": 2.25,
+      "cpuPercent": 48.1,
+      "rssMB": 1410
+     },
+     "result": {
+      "n": 12,
+      "visibleMs": {
+       "n": 12,
+       "p50": 57,
+       "p95": 95,
+       "max": 125,
+       "over50": 12,
+       "over100": 1
+      },
+      "frameMax": {
+       "n": 12,
+       "p50": 49,
+       "p95": 79,
+       "max": 86,
+       "over50": 5,
+       "over100": 0
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 4013,
+      "editors": 13
+     }
+    },
+    {
+     "name": "global-search",
+     "journey": "search",
+     "seconds": 7.2,
+     "native": {
+      "cpuSeconds": 0.34,
+      "cpuPercent": 4.7,
+      "rssMB": 271
+     },
+     "web": {
+      "cpuSeconds": 1.18,
+      "cpuPercent": 16.4,
+      "rssMB": 1415
+     },
+     "result": {
+      "open": {
+       "readyMs": 101,
+       "visibleMs": 110,
+       "frames": {
+        "n": 60,
+        "p50": 14,
+        "p95": 16,
+        "max": 97,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true,
+       "dom": 4023,
+       "editors": 13
+      },
+      "typing": {
+       "n": 3,
+       "visibleMs": {
+        "n": 3,
+        "p50": 27,
+        "p95": 27,
+        "max": 28,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 3,
+        "p50": 37,
+        "p95": 37,
+        "max": 37,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4147,
+       "editors": 13
+      },
+      "moving": {
+       "n": 10,
+       "visibleMs": {
+        "n": 10,
+        "p50": 28,
+        "p95": 30,
+        "max": 44,
+        "over50": 0,
+        "over100": 0
+       },
+       "frameMax": {
+        "n": 10,
+        "p50": 16,
+        "p95": 16,
+        "max": 28,
+        "over50": 0,
+        "over100": 0
+       },
+       "timeouts": 0,
+       "focused": true,
+       "dom": 4147,
+       "editors": 13
+      }
+     }
+    },
+    {
+     "name": "whole-book",
+     "journey": "wholeBook",
+     "seconds": 12.3,
+     "native": {
+      "cpuSeconds": 0.57,
+      "cpuPercent": 4.6,
+      "rssMB": 271
+     },
+     "web": {
+      "cpuSeconds": 5.21,
+      "cpuPercent": 42.4,
+      "rssMB": 1479
+     },
+     "result": {
+      "open": {
+       "readyMs": 107,
+       "visibleMs": 167,
+       "frames": {
+        "n": 218,
+        "p50": 14,
+        "p95": 16,
+        "max": 105,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8080,
+       "editors": 14
+      },
+      "scrollHeight": 2205262,
+      "slow": {
+       "scrolled": 11240,
+       "frames": {
+        "n": 308,
+        "p50": 14,
+        "p95": 16,
+        "max": 61,
+        "over50": 1,
+        "over100": 0
+       },
+       "focused": true
+      },
+      "fast": {
+       "scrolled": 30750,
+       "frames": {
+        "n": 232,
+        "p50": 14,
+        "p95": 18,
+        "max": 48,
+        "over50": 0,
+        "over100": 0
+       },
+       "focused": true
+      }
+     }
+    },
+    {
+     "name": "super-views",
+     "journey": "superViews",
+     "seconds": 8.7,
+     "native": {
+      "cpuSeconds": 0.32,
+      "cpuPercent": 3.7,
+      "rssMB": 271
+     },
+     "web": {
+      "cpuSeconds": 1.54,
+      "cpuPercent": 17.7,
+      "rssMB": 1520
+     },
+     "result": {
+      "storyGraph": {
+       "readyMs": 133,
+       "visibleMs": 180,
+       "frames": {
+        "n": 183,
+        "p50": 14,
+        "p95": 16,
+        "max": 132,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 8963,
+       "editors": 19
+      },
+      "elementPanorama": {
+       "readyMs": 215,
+       "visibleMs": 269,
+       "frames": {
+        "n": 183,
+        "p50": 14,
+        "p95": 16,
+        "max": 212,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 13384,
+       "editors": 19
+      },
+      "materialWorkbench": {
+       "readyMs": 187,
+       "visibleMs": 263,
+       "frames": {
+        "n": 184,
+        "p50": 14,
+        "p95": 16,
+        "max": 185,
+        "over50": 1,
+        "over100": 1
+       },
+       "focused": true,
+       "dom": 11234,
+       "editors": 19
+      }
+     }
+    },
+    {
+     "name": "close-tabs",
+     "journey": "closeTabs",
+     "seconds": 8.7,
+     "native": {
+      "cpuSeconds": 0.45,
+      "cpuPercent": 5.1,
+      "rssMB": 271
+     },
+     "web": {
+      "cpuSeconds": 4.84,
+      "cpuPercent": 55.4,
+      "rssMB": 1540
+     },
+     "result": {
+      "lastMs": 311,
+      "n": 14,
+      "visibleMs": {
+       "n": 14,
+       "p50": 85,
+       "p95": 137,
+       "max": 311,
+       "over50": 14,
+       "over100": 2
+      },
+      "frameMax": {
+       "n": 14,
+       "p50": 57,
+       "p95": 110,
+       "max": 235,
+       "over50": 9,
+       "over100": 2
+      },
+      "timeouts": 0,
+      "focused": true,
+      "dom": 5021,
+      "editors": 0
+     }
+    },
+    {
+     "name": "idle-after-close",
+     "journey": "idle",
+     "seconds": 4.2,
+     "native": {
+      "cpuSeconds": 0.15,
+      "cpuPercent": 3.6,
+      "rssMB": 271
+     },
+     "web": {
+      "cpuSeconds": 0.24,
+      "cpuPercent": 5.8,
+      "rssMB": 1540
+     },
+     "result": {
+      "frames": {
+       "n": 288,
+       "p50": 14,
+       "p95": 16,
+       "max": 17,
+       "over50": 0,
+       "over100": 0
+      },
+      "focused": true,
+      "dom": 5021,
+      "editors": 0,
+      "animations": 525,
+      "runningAnimations": 0
+     }
+    }
+   ]
+  }
+ ]
+}

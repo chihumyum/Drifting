@@ -117,7 +117,8 @@ export function ProjectRuntimeProvider({
   const projectUsecases = useProject({ userId });
 
   useEffect(() => {
-    if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
+    if (!(import.meta.env.DEV || import.meta.env.VITE_DRIFTING_PERF_BUILD === '1')
+      || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
       return undefined;
     }
     let dispose: (() => void) | undefined;

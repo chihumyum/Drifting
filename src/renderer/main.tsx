@@ -35,9 +35,11 @@ registerCopilotCapability(elementPatchCapability);
 installAIDevConsole();
 installCrashReporting();
 
-// Kept behind both Vite's compile-time DEV branch and an explicit opt-in. The
-// dynamic module and its global debug registry are absent from release builds.
-if (import.meta.env.DEV && import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG === '1') {
+// Kept behind both a compile-time branch (DEV, or a local release-performance
+// measurement bundle) and an explicit opt-in. The dynamic module and its global
+// debug registry are absent from release builds.
+if ((import.meta.env.DEV || import.meta.env.VITE_DRIFTING_PERF_BUILD === '1')
+  && import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG === '1') {
   void import('./lib/frontend-debug/bridge').then(({ installFrontendDebugBridge }) => {
     installFrontendDebugBridge();
   });

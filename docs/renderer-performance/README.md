@@ -6,6 +6,12 @@ Yjs snapshot reuse and retained-view rendering containment. The final native run
 still records a close-tab stall; the strict performance gate remains failed.
 Future phases are explicitly unimplemented.
 
+The 2026-10-30 [heavy-seed baseline](heavy-seed-baseline.md) adds `pnpm perf:stress`,
+a repeatable Debug/release interaction run over the stress seed. In release, tab
+switching, sidebars and Super Views still freeze single frames for 60–300 ms, and
+typing keeps WebContent near 73% CPU. Background CPU and the native save path
+mostly were Debug-build costs.
+
 The 2026-10-29 [heavy-seed native audit](stress-seed-native-findings-2026-10-29.md)
 records a watchdog-confirmed stall during a long-document/whole-book transition,
 material-card rendering, search, 25 open tabs and canonical persistence checks.

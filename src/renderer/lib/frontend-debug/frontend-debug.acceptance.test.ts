@@ -6,12 +6,16 @@ const root = path.resolve(import.meta.dirname, '../../../..');
 const source = (relative: string) => readFileSync(path.join(root, relative), 'utf8');
 
 describe('frontend debug build and business boundaries', () => {
-  it('loads the renderer bridge only behind DEV and explicit opt-in', () => {
+  it('loads the renderer bridge only behind DEV or a measurement build, and explicit opt-in', () => {
+    const gate = "(import.meta.env.DEV || import.meta.env.VITE_DRIFTING_PERF_BUILD === '1')";
     const main = source('src/renderer/main.tsx');
-    expect(main).toContain(
-      "import.meta.env.DEV && import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG === '1'",
-    );
+    expect(main).toContain(`${gate}\n  && import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG === '1'`);
     expect(main).toContain("import('./lib/frontend-debug/bridge')");
+    expect(source('src/renderer/lib/frontend-debug/bridge.ts')).toContain(`!${gate}`);
+    // Only a --release-perf build turns the compile-time constant on.
+    const config = source('vite.renderer.config.ts');
+    expect(config).toContain("const perfBuild = isBuild && process.env.DRIFTING_PERF_BUILD === '1';");
+    expect(config).toContain("'import.meta.env.VITE_DRIFTING_PERF_BUILD': JSON.stringify(perfBuild ? '1' : '')");
   });
 
   it('keeps frontend debug outside SQLite, Yjs, and product use cases', () => {

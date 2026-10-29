@@ -29,6 +29,8 @@ interface ImportMetaEnv {
   readonly VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS?: string;
   /** Explicit switch for the simulator-only frontend debug renderer bridge. */
   readonly VITE_DRIFTING_FRONTEND_DEBUG?: '1';
+  /** Defined at build time: '1' only in a local release-performance measurement bundle. */
+  readonly VITE_DRIFTING_PERF_BUILD?: '1' | '';
   /** Lets a development build send crash reports, for acceptance against a local service. */
   readonly VITE_DRIFTING_CRASH_REPORTS_IN_DEV?: '1';
   /** Loopback daemon URL for frontend debug commands. */
