@@ -1758,6 +1758,7 @@
       "openPdfFailed": "无法打开 PDF",
       "renderPdfFailed": "无法渲染 PDF",
       "loadingPdf": "加载 PDF…",
+      "pages": "翻页",
       "previousPage": "上一页",
       "nextPage": "下一页",
       "loading": "加载中…"
@@ -3434,6 +3435,7 @@
     "zoomIn": "放大",
     "zoomOut": "缩小",
     "zoomReset": "适配窗口",
+    "toolbar": "素材工具",
     "provenance": {
       "generated": "AI 生成 · {{model}} · {{date}}",
       "prompt": "画面描述",
@@ -3478,6 +3480,9 @@
       "placeholder": "写下对这一处的批注…（⌘↩ 保存）",
       "asTodo": "作为待办",
       "save": "保存",
+      "kindLabel": "批注类型",
+      "kindNote": "批注",
+      "kindTodo": "TODO",
       "listLabel": "这条素材的批注",
       "empty": "在画面或页面上拖出区域，写下第一条批注。",
       "page": "第 {{page}} 页",

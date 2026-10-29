@@ -815,7 +815,7 @@
 .region-composer__spacer {
   flex: 1;
 }
-.region-composer__actions button {
+.region-composer:not(.region-composer--float) .region-composer__actions button {
   padding: 3px 9px;
   border: 1px solid hsl(var(--rule));
   border-radius: 4px;
@@ -824,12 +824,12 @@
   font-size: 12px;
   cursor: pointer;
 }
-.region-composer__save {
+.region-composer:not(.region-composer--float) .region-composer__save {
   border-color: hsl(var(--accent)) !important;
   background: hsl(var(--accent)) !important;
   color: hsl(var(--paper)) !important;
 }
-.region-composer__save:disabled {
+.region-composer:not(.region-composer--float) .region-composer__save:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -1237,7 +1237,7 @@
   border-top: 0.5px solid var(--workspace-subtle-border, hsl(var(--rule)));
 }
 
-.material-folder-picker__new input {
+.material-folder-picker__new:not(.material-folder-picker__new--glass) input {
   flex: 1;
   min-width: 0;
   padding: 5px 8px;
@@ -1249,7 +1249,7 @@
   font-size: 13px;
 }
 
-.material-folder-picker__new button {
+.material-folder-picker__new:not(.material-folder-picker__new--glass) button {
   padding: 5px 10px;
   border: 1px solid hsl(var(--rule));
   border-radius: 4px;
@@ -1259,7 +1259,7 @@
   cursor: pointer;
 }
 
-.material-folder-picker__new button:disabled {
+.material-folder-picker__new:not(.material-folder-picker__new--glass) button:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -1268,4 +1268,920 @@
   margin-top: 6px;
   color: hsl(var(--danger, 0 60% 45%));
   font-size: 12px;
+}
+
+/* ══ Desktop: sand and glass ═════════════════════════════════════════
+   docs/design-system/components.md (素材). Everything above stays the
+   paused mobile shell's look: on the desktop the components add glass and
+   sand classes of their own, and the washes the shared classes carry are
+   taken off here. What the author pressed is glass; what the author left
+   on a material (a region comment, a highlight) is sand. */
+
+:root {
+  --material-comment-c: hsl(var(--comment));
+  --material-todo-c: color-mix(in srgb, hsl(var(--story-4)) 82%, hsl(var(--ink-1)));
+}
+
+/* ── Image / PDF tab: the header is written on the desk; the image or PDF
+   page is the one sheet lifted off it. ── */
+
+:root:not([data-shell-mode='mobile']) .material-editor__header {
+  padding: 20px 28px 6px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+:root:not([data-shell-mode='mobile']) .material-editor__generation {
+  max-width: 560px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.material-editor__provenance-toggle .brush-icon {
+  display: inline-block;
+  margin-left: 4px;
+  vertical-align: -1px;
+  transition: transform 120ms ease;
+}
+
+.material-editor__provenance-toggle[aria-expanded='true'] .brush-icon {
+  transform: rotate(90deg);
+}
+
+/* The description is a field with no line at rest: the pointer brings the
+   glass, the caret holds it still. */
+.material-editor__description-field {
+  display: block;
+  max-width: 720px;
+  margin: 8px 0 0 -8px;
+  border-radius: 2px;
+}
+
+.material-editor__description-field > .material-editor__description,
+.material-editor__description-field > .material-editor__description:hover,
+.material-editor__description-field > .material-editor__description:focus {
+  margin-top: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+:root:not([data-shell-mode='mobile']) .material-stage__media {
+  border-radius: 2px;
+  box-shadow: var(--page-elevation);
+}
+
+:root:not([data-shell-mode='mobile']) .material-stage__media--pdf {
+  background: hsl(var(--page));
+}
+
+/* Zoom, region drawing and fullscreen: one glass pill of round glass
+   buttons at the stage's upper right, like the manuscript's toolbar. */
+.material-stage__toolbar {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.material-stage__zoom {
+  min-width: 46px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: 10.5px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.material-stage__caption {
+  padding-right: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: 12px;
+  pointer-events: none;
+}
+
+/* PDF paging: its own pill at the bottom of the stage. */
+.material-stage__pager-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 1;
+  transform: translateX(-50%);
+}
+
+.material-stage__page {
+  min-width: 44px;
+  color: hsl(var(--ink-2));
+  font: 10.5px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Fullscreen: the desk comes up over the workspace; the image is the one
+   lifted sheet, a round glass button closes it. */
+.material-lightbox--desk {
+  background: color-mix(in srgb, hsl(var(--paper-deep)) 96%, transparent);
+}
+
+.material-lightbox__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+}
+
+/* ── Region comments: a dry frame drawn round the region (canvas, see
+   MaterialRegionLayer), numbered with a round sand seal. Pointing at a
+   region deepens its sand and lets its card in the column flow; selected,
+   the frame is drawn again. ── */
+
+.material-region.material-region--sand {
+  --region-c: var(--material-comment-c);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.material-region--sand.material-region--todo {
+  --region-c: var(--material-todo-c);
+}
+
+.material-region--sand.material-region--resolved {
+  opacity: 1;
+}
+
+.material-region--sand:focus-visible {
+  outline: 1px solid hsl(var(--accent) / 0.5);
+  outline-offset: 4px;
+}
+
+.material-region__frame {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  pointer-events: none;
+  color: color-mix(in srgb, var(--region-c), #ffffff var(--pigment-lift));
+  mix-blend-mode: var(--pigment-blend);
+  opacity: 0.5;
+  transition: opacity 0.3s ease-out;
+}
+
+.material-region--sand:hover > .material-region__frame,
+.material-region--sand.material-region--linked > .material-region__frame {
+  opacity: 0.8;
+}
+
+.material-region--sand.material-region--selected > .material-region__frame {
+  opacity: 0.95;
+}
+
+.material-region--sand.material-region--resolved > .material-region__frame {
+  opacity: 0.28;
+}
+
+.material-region--sand.material-region--resolved:hover > .material-region__frame,
+.material-region--sand.material-region--resolved.material-region--linked > .material-region__frame {
+  opacity: 0.5;
+}
+
+/* The rectangle being drawn: faint sand until the pointer lets go. */
+.material-region--sand.material-region--draft::before {
+  content: '';
+  position: absolute;
+  inset: -4px -5px;
+  background: color-mix(in srgb, var(--region-c), #ffffff var(--pigment-lift));
+  -webkit-mask-box-image: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mask-border: url('../assets/design/sand/frame-box.png') 24 / 12px round;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: 0.32;
+}
+
+.material-region__badge.material-region__badge--seal,
+.material-seal {
+  isolation: isolate;
+  background: transparent;
+  color: hsl(var(--page));
+  font-weight: 600;
+}
+
+.material-region__badge--seal::before,
+.material-seal::before {
+  content: '';
+  position: absolute;
+  inset: -2px -1px;
+  z-index: -1;
+  background: color-mix(in srgb, var(--region-c), #ffffff var(--pigment-lift));
+  -webkit-mask: url('../assets/design/sand/blob-2.png') center / 100% 100% no-repeat;
+  mask: url('../assets/design/sand/blob-2.png') center / 100% 100% no-repeat;
+  opacity: 0.9;
+}
+
+.material-region--resolved .material-region__badge--seal,
+.material-seal--resolved {
+  opacity: 0.5;
+}
+
+.material-seal {
+  --region-c: var(--material-comment-c);
+  position: relative;
+  display: inline-grid;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  place-items: center;
+  font: 600 10px/16px var(--font-mono);
+}
+
+.material-seal--todo {
+  --region-c: var(--material-todo-c);
+}
+
+/* The column of region comments lies flat on the desk. */
+.material-comments.material-comments--flat {
+  border-left: 0;
+  background: transparent;
+  box-shadow: inset 0.5px 0 0 var(--workspace-local-border);
+}
+
+.material-comments--flat .material-comments__item--selected {
+  background: transparent;
+  box-shadow: none;
+}
+
+.material-comments--flat .material-comments__item--selected .review-card.glass,
+.material-comments--flat .material-comments__item--linked .review-card.glass {
+  --glass-g: 1;
+  --glass-sp: 1;
+}
+
+.material-comments--flat .material-comments__item--selected .review-card.glass::before {
+  opacity: 1;
+  animation-play-state: paused;
+}
+
+.material-comments--flat .material-comments__item--linked:not(.material-comments__item--selected) .review-card.glass::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+/* The composer for a just-drawn region is a floating layer: the desk lifted
+   out, square, a hairline and the floating shadow. */
+.region-composer.region-composer--float {
+  padding: 8px;
+  border: 0;
+  border-radius: var(--menu-surface-radius, 0);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+}
+
+.region-composer__field {
+  display: block;
+  border-radius: 2px;
+  background: hsl(var(--page));
+}
+
+.region-composer--float .region-composer__field > textarea {
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.region-composer--float .region-composer__actions {
+  margin-top: 8px;
+}
+
+/* ── Note page: no second layer of colour on the sheet. ── */
+
+:root:not([data-shell-mode='mobile']) .note-prose blockquote {
+  padding-left: 1.4em;
+  border-radius: 0;
+  background: transparent;
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose code {
+  padding: 0 0.1em;
+  background: transparent;
+  color: hsl(var(--ink-2));
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose pre code {
+  padding: 0;
+}
+
+/* Callouts and code blocks are read-only cards: no fill, the resting line
+   of clear glass, which stays still under the pointer. */
+:root:not([data-shell-mode='mobile']) .note-prose pre,
+:root:not([data-shell-mode='mobile']) .note-prose .note-callout {
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose pre::before,
+:root:not([data-shell-mode='mobile']) .note-prose .note-callout::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 50%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: -96px -132px;
+  mask-position: -96px -132px;
+}
+
+/* A highlight is a dry swash of the highlighter, drawn again on every line
+   it runs over (sand/hl-mark.png, tinted: a background is the only thing
+   drawn once per line fragment). */
+:root:not([data-shell-mode='mobile']) .note-prose mark,
+:root:not([data-shell-mode='mobile']) .note-excerpt mark {
+  padding: 0 0.14em;
+  border-radius: 0;
+  background: url('../assets/design/sand/hl-mark.png') center / 100% 100% no-repeat;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+:root.dark:not([data-shell-mode='mobile']) .note-prose mark,
+:root.dark:not([data-shell-mode='mobile']) .note-excerpt mark {
+  background-image: url('../assets/design/sand/hl-mark-dark.png');
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose th {
+  background: transparent;
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose th,
+:root:not([data-shell-mode='mobile']) .note-prose td {
+  border-color: hsl(var(--ink-1) / 0.14);
+}
+
+/* Selected cells take the text selection's blue, not a state wash. */
+:root:not([data-shell-mode='mobile']) .note-prose .selectedCell {
+  background: rgba(56, 132, 255, 0.16);
+}
+
+/* A checklist box is drawn in sand like the Agent's task list: an empty
+   box, a tick in the box once done. */
+:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label {
+  margin-top: 0.3em;
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 0;
+  background: hsl(var(--ink-3));
+  -webkit-mask: url('../assets/design/icons/task-todo.png') center / contain no-repeat;
+  mask: url('../assets/design/icons/task-todo.png') center / contain no-repeat;
+  transition: background-color 0.12s ease-out;
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input:hover {
+  background: hsl(var(--ink-1));
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input:checked {
+  -webkit-mask-image: url('../assets/design/icons/task-done.png');
+  mask-image: url('../assets/design/icons/task-done.png');
+}
+
+:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input:focus-visible {
+  outline: 1px solid hsl(var(--accent) / 0.5);
+  outline-offset: 2px;
+}
+
+/* A line linked to a TODO: the word in the TODO colour, no chip. */
+:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li[data-todo-id] > div > p:first-child::after {
+  margin-left: 7px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--material-todo-c);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* Checklist and table actions: a floating layer like the menus, only the
+   action under the pointer flows out in glass (menu-surface__item). */
+.note-floating-bar.note-floating-bar--float {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--menu-surface-radius, 0);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+}
+
+.note-floating-bar--float button,
+.note-floating-bar--float button:hover:not(:disabled) {
+  width: auto;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.note-floating-bar--float .note-floating-bar__status {
+  padding: 0 4px 0 11px;
+}
+
+.note-floating-bar--float .note-floating-bar__divider {
+  width: 8px;
+  height: auto;
+  margin: 0;
+  background: transparent;
+}
+
+/* Materials embedded in a note: an image stands on its own and takes
+   glass only under the pointer or when selected; a PDF is a card with the
+   resting line of glass. */
+.note-embed.note-embed--glass {
+  padding: 4px;
+  border-radius: 2px;
+}
+
+.note-embed--glass.note-embed--selected {
+  outline: 0;
+}
+
+.note-embed__card.note-embed__card--glass,
+.note-embed__card.note-embed__card--glass:hover {
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.note-embed__card--glass img {
+  border-radius: 1px;
+  background: transparent;
+  box-shadow: 0 0 0 0.5px var(--workspace-local-border);
+}
+
+.note-embed__card--glass .note-embed__glyph {
+  background: transparent;
+}
+
+.note-embed__missing.note-embed__missing--quiet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+}
+
+.note-embed-picker__tile.note-embed-picker__tile--glass,
+.note-embed-picker__tile.note-embed-picker__tile--glass:hover {
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.note-embed-picker__tile--glass img,
+.note-embed-picker__tile--glass > span:first-child {
+  border-radius: 1px;
+  background: transparent;
+}
+
+/* ── Library cards (TODO and materials view): a material is a sand cell,
+   a TODO a card with the resting line of glass; neither has a fill. ── */
+
+.library-item-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 2px;
+}
+
+.library-item-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.library-item-card__thumb {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  cursor: pointer;
+}
+
+.library-item-card__thumb--pdf {
+  width: 36px;
+  height: 46px;
+  box-shadow: 0 0 0 0.5px var(--workspace-local-border);
+}
+
+.library-item-card__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.library-item-card__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.library-item-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.library-item-card__title-row > .kind-mark {
+  margin-right: 4px;
+}
+
+.library-item-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: hsl(var(--ink-1));
+  font: 500 13px/1.35 var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.library-item-card__title--untitled {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-style: italic;
+  font-weight: 400;
+}
+
+.library-item-card__title-field {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: hsl(var(--page));
+}
+
+.library-item-card__title-field > input {
+  display: block;
+  width: 100%;
+  padding: 1px 6px;
+  border: 0;
+  outline: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font: 500 13px/1.5 var(--font-sans);
+}
+
+.library-item-card__meta {
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 18px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 10px/1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hover-only actions: plain brush icons, no frame. */
+.library-item-card__actions {
+  display: flex;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.library-item-card:hover .library-item-card__actions,
+.library-item-card:focus-within .library-item-card__actions {
+  opacity: 1;
+}
+
+.library-item-card__actions .ghost-icon-button:hover:not(:disabled) {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+
+.library-item-card__chevron--open {
+  transform: rotate(90deg);
+}
+
+.library-item-card__image {
+  display: grid;
+  width: 100%;
+  max-height: 220px;
+  margin-top: 8px;
+  padding: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.library-item-card__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.library-item-card__excerpt {
+  margin-top: 6px;
+  padding-left: 18px;
+}
+
+.library-item-card__extra {
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.todo-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: 2px;
+}
+
+.todo-card--glass .todo-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 9px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.todo-card__kind {
+  color: var(--material-todo-c);
+  font-weight: 600;
+}
+
+.todo-card--glass .todo-card__header .ghost-icon-button:hover:not(:disabled) {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+
+.todo-card__delete {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.todo-card:hover .todo-card__delete,
+.todo-card:focus-within .todo-card__delete {
+  opacity: 1;
+}
+
+.todo-card--glass .todo-card__body {
+  color: hsl(var(--ink-1));
+  font: 13px/1.4 var(--font-sans);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.todo-card--resolved .todo-card__body {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-4) / 0.6);
+}
+
+.todo-card--glass .todo-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Text button: no glass, the ink deepens under the pointer. */
+.todo-card__relate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 11.5px var(--font-sans);
+  cursor: pointer;
+}
+
+.todo-card__relate:hover {
+  color: hsl(var(--ink-1));
+}
+
+/* ── Sidebar material tree: folders are cells too. The pointer brings a
+   ring of flowing glass; a ⌘-selection holds it still; a drag over a folder
+   (or the list, for the root) makes it flow. ── */
+
+.material-tree--desktop .material-tree__row:hover,
+.material-tree--desktop .material-tree__row--current,
+.material-tree--desktop .material-tree__row--active,
+.material-tree--desktop .material-tree__row--selected,
+.material-tree--desktop .material-tree__row--drop,
+.material-tree--desktop .material-tree__rows--drop {
+  background: transparent;
+}
+
+.material-tree--desktop .material-tree__row--selected,
+.material-tree--desktop .material-tree__row--drop {
+  color: hsl(var(--ink-1));
+}
+
+.material-tree--desktop .material-tree__row--selected:not(.is-selected) > .cell-ring,
+.material-tree--desktop .material-tree__row--drop > .cell-ring {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cell-line) 95%, transparent),
+    inset 0 0 8px 1px color-mix(in srgb, var(--cell-line) 42%, transparent);
+}
+
+.material-tree--desktop .material-tree__row--selected:not(.is-selected) > .cell-ring {
+  animation-play-state: paused;
+}
+
+.material-tree--desktop .material-tree__row--drop > .cell-ring {
+  animation-play-state: running;
+}
+
+.material-tree__rows {
+  position: relative;
+}
+
+.material-tree__drop-ring {
+  --cell-line: color-mix(in srgb, hsl(var(--ink-3)) 50%, var(--glass-clear));
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cell-line) 95%, transparent),
+    inset 0 0 8px 1px color-mix(in srgb, var(--cell-line) 42%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  opacity: 0;
+  animation: glass-flow 15s linear infinite paused;
+  transition: opacity 0.24s ease-out;
+}
+
+.material-tree__rows--drop > .material-tree__drop-ring {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .material-tree__drop-ring {
+    animation: none;
+  }
+}
+
+.material-tree--desktop .material-tree__thumb {
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.material-tree--desktop .material-tree__thumb--pdf {
+  width: 26px;
+  height: 34px;
+  margin: 0 3px;
+  box-shadow: 0 0 0 0.5px var(--workspace-local-border);
+}
+
+.material-tree--desktop .material-tree__preview-toggle:hover {
+  background: transparent;
+  color: hsl(var(--ink-1));
+}
+
+.material-tree--desktop .material-tree__image {
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.material-tree__rename-field {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: hsl(var(--page));
+}
+
+.material-tree__rename-field > .material-tree__rename {
+  width: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+/* ── Pickers and dialogs: fields are paper-coloured slips with the resting
+   line of glass; rows have no fill, the current one holds still glass. ── */
+
+.material-folder-picker--glass .material-folder-picker__row:hover:not(:disabled),
+.material-folder-picker--glass .material-folder-picker__row--current {
+  background: transparent;
+}
+
+.material-folder-picker--glass .material-folder-picker__row--current {
+  color: hsl(var(--ink-1));
+  font-weight: 600;
+}
+
+.material-folder-picker--glass .material-folder-picker__row:disabled::before {
+  opacity: 0;
+}
+
+.material-folder-picker__new--glass {
+  border-top: 0;
+}
+
+.material-field {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: hsl(var(--page));
+}
+
+.material-field > input,
+.material-field > textarea {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  outline: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font: 13px/1.5 var(--font-sans);
+  resize: vertical;
+}
+
+.material-field > input::placeholder,
+.material-field > textarea::placeholder {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.material-field + .material-field {
+  margin-top: 8px;
+}
+
+/* Feedback while importing, and errors: ink and a brush icon, no fill. */
+.material-import-feedback.material-import-feedback--quiet {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+}
+
+.material-import-feedback--quiet.material-import-feedback--error {
+  align-items: center;
+  gap: 6px;
 }

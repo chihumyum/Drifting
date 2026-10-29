@@ -334,8 +334,11 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         aria-expanded={disclosure ? open : undefined}
         aria-selected={isSelected}
         tabIndex={0}
-        className={`material-tree__row material-tree__row--folder${dropKey === folder.id ? ' material-tree__row--drop' : ''}${isSelected ? ' material-tree__row--selected' : ''}`}
-        style={{ paddingLeft: 6 + depth * 14 }}
+        className={`material-tree__row material-tree__row--folder${desktop ? ' sand-cell' : ''}${dropKey === folder.id ? ' material-tree__row--drop' : ''}${isSelected ? ' material-tree__row--selected' : ''}`}
+        style={{
+          paddingLeft: 6 + depth * 14,
+          ...(desktop ? { '--cell-c': 'hsl(var(--ink-3))' } : {}),
+        } as CSSProperties}
         draggable={desktop && renamingKey !== entry.key}
         onDragStart={(event) => startDrag(event, entry)}
         {...dropZone(folder.id, folder.id)}
@@ -360,6 +363,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         {open && disclosure ? <BrushIcon name="folder-open" size={13} /> : <BrushIcon name="folder" size={13} />}
         {renamingKey === entry.key ? (
           <NameInput
+            glass={desktop}
             initial={folder.name}
             onDone={(name) => {
               setRenamingKey(null);
@@ -371,6 +375,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         )}
         <span className="material-tree__count">{totals.get(folder.id) ?? 0}</span>
         {!desktop && <MoreButton label={t('common.more')} onOpen={(event) => openMobileMenu(event, entry)} />}
+        {desktop && <i className="cell-ring" aria-hidden="true" />}
       </div>
     );
   };
@@ -413,6 +418,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         </span>
         <MaterialCell
           item={item}
+          glass={desktop}
           renaming={renamingKey === entry.key}
           onRenamed={(title) => {
             setRenamingKey(null);
@@ -561,7 +567,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
   const rows: ReactNode[] = entries.map((entry) => (entry.kind === 'folder' ? folderRow(entry) : itemRow(entry)));
 
   return (
-    <div className="material-tree">
+    <div className={`material-tree${desktop ? ' material-tree--desktop' : ''}`}>
       {!desktop && (
         <nav className="material-tree__breadcrumb" aria-label={t('materialFolders.breadcrumb')}>
           <button type="button" onClick={() => onCurrentFolderChange(null)}>
@@ -604,6 +610,8 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         ) : (
           rows
         )}
+        {/* A drag over the list (to the root) makes its edge flow. */}
+        {desktop && <i className="material-tree__drop-ring" aria-hidden="true" />}
       </div>
       {rowHover && hoveredEntry && (
         <HoverCardShell
@@ -659,6 +667,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
  */
 function MaterialCell({
   item,
+  glass = false,
   renaming,
   onRenamed,
   previewOpen,
@@ -671,6 +680,8 @@ function MaterialCell({
   onOpen,
 }: {
   item: LibraryItem;
+  /** Desktop: the rename field is glass. */
+  glass?: boolean;
   renaming: boolean;
   onRenamed: (title: string | null) => void;
   previewOpen: boolean;
@@ -703,7 +714,7 @@ function MaterialCell({
         </span>
         <span className="material-tree__cell-text">
           {renaming ? (
-            <NameInput initial={item.title} onDone={onRenamed} />
+            <NameInput glass={glass} initial={item.title} onDone={onRenamed} />
           ) : (
             <span className="material-tree__title">
               {item.title || <span className="material-tree__untitled">{t('common.untitled')}</span>}
@@ -780,7 +791,16 @@ function MoreButton({ label, onOpen }: { label: string; onOpen: (event: MouseEve
   );
 }
 
-function NameInput({ initial, onDone }: { initial: string; onDone: (name: string | null) => void }) {
+function NameInput({
+  initial,
+  glass = false,
+  onDone,
+}: {
+  initial: string;
+  /** Desktop: a paper field with the resting line of glass, still while it holds the caret. */
+  glass?: boolean;
+  onDone: (name: string | null) => void;
+}) {
   const [value, setValue] = useState(initial);
   const [composing, setComposing] = useState(false);
   // Enter commits and unmounts the input; the blur that follows must not commit again.
@@ -790,7 +810,7 @@ function NameInput({ initial, onDone }: { initial: string; onDone: (name: string
     done.current = true;
     onDone(name);
   };
-  return (
+  const input = (
     <input
       className="material-tree__rename"
       autoFocus
@@ -809,4 +829,5 @@ function NameInput({ initial, onDone }: { initial: string; onDone: (name: string
       onBlur={() => finish(value)}
     />
   );
+  return glass ? <span className="material-tree__rename-field glass glass--rest glass--field">{input}</span> : input;
 }

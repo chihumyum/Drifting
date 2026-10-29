@@ -203,6 +203,11 @@ Coordinates are normalized to the image or PDF page (`page` only for PDFs).
 - The comment column beside the stage lists the material's comments in
   reading order with the ordinary review card; selecting one highlights its
   region and turns the PDF to its page.
+- On the desktop a region is drawn as a dry sand frame for its own size, with
+  a sand seal for its number (comment or TODO colour); pointing at a region
+  or at its card lights the other, and selecting one draws its frame again.
+  The tab's tools and the PDF pager are glass pills. The look is specified in
+  [the design system](design-system/components.md#区域批注).
 - With a material tab active, the Review panel's current scope is that
   material, and composing a note or TODO there targets it directly (a
   material cannot be a relation target).
