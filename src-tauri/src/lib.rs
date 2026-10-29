@@ -19,6 +19,8 @@ mod installation_identity;
 mod library_backup;
 #[cfg(target_os = "macos")]
 mod local_lab_session;
+#[cfg(target_os = "macos")]
+mod macos_quit;
 mod markdown_projection;
 mod mcp_http;
 mod mcp_server;
@@ -397,6 +399,8 @@ pub fn run() {
                 webview_media::enable_media_devices(&window)?;
                 window.show()?;
             }
+            #[cfg(target_os = "macos")]
+            macos_quit::route_terminate_through_flush(app.handle());
             Ok(())
         })
         .on_window_event(|_window, _event| {
