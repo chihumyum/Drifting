@@ -455,12 +455,14 @@ export function ChapterPanel({
     const agentBusy = `node:${node.id}` in agentActive;
     const agentAdded = !agentBusy && `node:${node.id}` in agentAdditions;
     const primaryId = primaryStorylineByNode[node.id] ?? null;
+    const storyline = primaryId ? storylineById.get(primaryId) : undefined;
+    const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;
     return (
       <ChapterRow
         key={node.id}
         node={node}
         selected={node.id === selectedNodeId}
-        stripeColor={(primaryId ? storylineById.get(primaryId)?.color : undefined) ?? UNAFFILIATED_STRIPE_COLOR}
+        stripeColor={stripeColor}
         agentBusy={agentBusy}
         agentAdded={agentAdded}
         agentChanged={!agentBusy && !agentAdded && `node:${node.id}` in agentTouched}
