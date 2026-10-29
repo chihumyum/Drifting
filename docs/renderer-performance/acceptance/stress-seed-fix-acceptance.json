@@ -1,20 +1,20 @@
 {
   "kind": "stress_seed_fix_acceptance",
-  "generatedAt": "2026-10-29T09:31:16.588Z",
+  "generatedAt": "2026-10-29T09:44:58.043Z",
   "status": "passed-scoped-fix-checks",
   "source": {
-    "head": "a0200af5cd39ae8cf9fc474f2ed501bbba1f6e34",
+    "head": "21806135831b4cd232713f8faef72ced4fe387cb",
     "dirty": true,
-    "fingerprint": "b169acfc8cedbc12b07886f8eaa2da0bdbafc3ba5a0a57b8142d24888723d634",
-    "files": 2661,
-    "recordedAt": "2026-10-29T09:10:50.729Z"
+    "fingerprint": "69e1380acc9aa5c3b750f7dfe707442a78a7ff8b9b5fe63f752c9e9449a498c0",
+    "files": 2665,
+    "recordedAt": "2026-10-29T09:35:00.049Z"
   },
   "evidenceSha256": {
-    "native": "2dbd4eabec0ea1cb35b7424be5cd269aa4c72cc744866426b26a940d34ceab68",
-    "persistence": "ff6710886205970b14780fd926e7b4737a18e5660a16b518029ce6fd2631cd69",
-    "browser": "5656950a3444c99584285b8dd757bccd076ce176936073b1b4ec4571586364b6",
-    "node": "9b8beae37f8ad989ea630ee30b3f1e3879c4c2459c5f531e45cda5289af53900",
-    "tests": "0b297dacf8440bb706ad98b57b47b2494cef9f80013501b33dd3cdbbf09a0ef9"
+    "native": "2c96ae725350b067b30dbe0468bb30b5e26427706e027a0d728de8ffaef042ea",
+    "persistence": "529358e95fe1b5360456c7526cc17c88d55f2b573fd828af7b7c10a487ab223b",
+    "browser": "72aba00dbb433135805793a06ef01d4fa6f35f31a9ba7cb93433391c7ea96713",
+    "node": "8e5facd3ec1a90be7711093e8c09a6178393bad6ee3934117b81a98d62f06d09",
+    "tests": "1d0b0dad195ea0b757e8841ed8a03f4b7f517197a2b2a9421ab44ac62e67d2d0"
   },
   "checks": {
     "sourceMatched": true,
@@ -27,16 +27,16 @@
     "offlineHistoryAndBoundedEntry": true
   },
   "tests": {
-    "passed": 3895,
+    "passed": 3909,
     "skipped": 5,
     "failed": 0
   },
   "phases": [
     {
       "marker": "fixes-material",
-      "comparableSamples": 46,
-      "maxFrameGapMs": 154,
-      "maxReactRenderMs": 48,
+      "comparableSamples": 43,
+      "maxFrameGapMs": 138,
+      "maxReactRenderMs": 42,
       "dom": {
         "first": {
           "elements": 1232,
@@ -45,52 +45,46 @@
           "svg": 1
         },
         "last": {
-          "elements": 1329,
+          "elements": 1232,
           "editors": 0,
           "canvases": 0,
           "svg": 1
         },
         "minElements": 1232,
         "minEditors": 0,
-        "maxElements": 3617,
+        "maxElements": 3867,
         "maxEditors": 0
       },
       "components": [
         {
           "name": "LibraryItemCard",
-          "renders": 72,
-          "selfMs": 32,
+          "renders": 61,
+          "selfMs": 27,
           "maxSelfMs": 1
         },
         {
           "name": "NoteExcerpt",
-          "renders": 25,
-          "selfMs": 31,
+          "renders": 21,
+          "selfMs": 25,
           "maxSelfMs": 5
         },
         {
           "name": "TodoCard",
-          "renders": 36,
-          "selfMs": 21,
+          "renders": 33,
+          "selfMs": 14,
           "maxSelfMs": 3
         },
         {
-          "name": "DesktopSuperMemoMaterialView",
-          "renders": 9,
-          "selfMs": 8,
-          "maxSelfMs": 5
-        },
-        {
-          "name": "LibraryItemThumbnail",
-          "renders": 7,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
           "name": "TodoStatusToggle",
-          "renders": 5,
-          "selfMs": 5,
+          "renders": 10,
+          "selfMs": 9,
           "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopSuperMemoMaterialView",
+          "renders": 10,
+          "selfMs": 6,
+          "maxSelfMs": 4
         },
         {
           "name": "ProjectDashboard2",
@@ -99,44 +93,44 @@
           "maxSelfMs": 4
         },
         {
-          "name": "BrushIcon",
-          "renders": 2,
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 13,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "LibraryItemMain",
+          "renders": 10,
           "selfMs": 2,
           "maxSelfMs": 1
         },
         {
           "name": "DesktopAppShell",
-          "renders": 12,
+          "renders": 14,
           "selfMs": 1,
           "maxSelfMs": 1
         },
         {
-          "name": "ProjectRuntimeProvider",
-          "renders": 12,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SuperViewShell",
-          "renders": 10,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "BottomDrawer",
+          "name": "PendingSuperView",
           "renders": 1,
           "selfMs": 1,
           "maxSelfMs": 1
         },
         {
-          "name": "TodoRail",
+          "name": "SuperViewHeader",
           "renders": 2,
           "selfMs": 1,
           "maxSelfMs": 1
         },
         {
-          "name": "EntityFilterButton",
-          "renders": 1,
+          "name": "KindGroup",
+          "renders": 15,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "LibraryItemThumbnail",
+          "renders": 2,
           "selfMs": 1,
           "maxSelfMs": 1
         },
@@ -147,32 +141,38 @@
           "maxSelfMs": 1
         },
         {
-          "name": "Chip",
+          "name": "TodoRail",
           "renders": 1,
           "selfMs": 1,
           "maxSelfMs": 1
         },
         {
-          "name": "HoverCardShell",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SectionHeader",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "RailEmpty",
+          "name": "BrushIcon",
           "renders": 1,
           "selfMs": 1,
           "maxSelfMs": 1
         },
         {
           "name": "QueryClientProvider",
-          "renders": 12,
+          "renders": 14,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "HashRouter",
+          "renders": 14,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Router",
+          "renders": 14,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "App",
+          "renders": 14,
           "selfMs": 0,
           "maxSelfMs": 0
         }
@@ -181,207 +181,31 @@
     {
       "marker": "fixes-search",
       "comparableSamples": 27,
-      "maxFrameGapMs": 66,
+      "maxFrameGapMs": 485,
       "maxReactRenderMs": 2,
       "dom": {
         "first": {
-          "elements": 1232,
+          "elements": 2353,
           "editors": 0,
           "canvases": 0,
           "svg": 1
         },
         "last": {
-          "elements": 1254,
+          "elements": 1232,
           "editors": 0,
           "canvases": 0,
           "svg": 1
         },
         "minElements": 1232,
         "minEditors": 0,
-        "maxElements": 1378,
+        "maxElements": 2353,
         "maxEditors": 0
       },
       "components": [
         {
           "name": "GlobalSearchSession",
-          "renders": 77,
-          "selfMs": 61,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "BrushIcon",
-          "renders": 2,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "KindMark",
-          "renders": 3,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "DesktopAppShell",
-          "renders": 77,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "QueryClientProvider",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "HashRouter",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "Router",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "App",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "RootErrorBoundary",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "AppContents",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "AppRoutes",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "Routes",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "RenderedRoute",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "ProtectedRoute",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "DeferredProjectRoute",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "Workspace",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "ProjectRuntimeProvider",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "SuperViewRelationUiProvider",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "DesktopWorkspaceNavigationBoundary",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        },
-        {
-          "name": "WorkspaceNavigationProvider",
-          "renders": 77,
-          "selfMs": 0,
-          "maxSelfMs": 0
-        }
-      ]
-    },
-    {
-      "marker": "fixes-agent-history",
-      "comparableSamples": 101,
-      "maxFrameGapMs": 89,
-      "maxReactRenderMs": 31,
-      "dom": {
-        "first": {
-          "elements": 1329,
-          "editors": 0,
-          "canvases": 0,
-          "svg": 1
-        },
-        "last": {
-          "elements": 1232,
-          "editors": 0,
-          "canvases": 0,
-          "svg": 1
-        },
-        "minElements": 1232,
-        "minEditors": 0,
-        "maxElements": 2351,
-        "maxEditors": 0
-      },
-      "components": [
-        {
-          "name": "UserBubble2",
-          "renders": 17,
-          "selfMs": 19,
-          "maxSelfMs": 5
-        },
-        {
-          "name": "AssistantBubble2",
-          "renders": 20,
-          "selfMs": 18,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "DesktopAgentPanelContent",
-          "renders": 9,
-          "selfMs": 17,
-          "maxSelfMs": 5
-        },
-        {
-          "name": "DesktopAgentTranscript2",
-          "renders": 5,
-          "selfMs": 7,
-          "maxSelfMs": 3
-        },
-        {
-          "name": "DesktopBottomTimeline",
-          "renders": 2,
-          "selfMs": 6,
-          "maxSelfMs": 3
-        },
-        {
-          "name": "UsageRow",
-          "renders": 5,
-          "selfMs": 5,
+          "renders": 83,
+          "selfMs": 65,
           "maxSelfMs": 1
         },
         {
@@ -391,9 +215,173 @@
           "maxSelfMs": 1
         },
         {
+          "name": "ProjectRuntimeProvider",
+          "renders": 89,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopAppShell",
+          "renders": 89,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 3,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "BrushIcon",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DriftBindModal",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "QueryClientProvider",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "HashRouter",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Router",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "App",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "RootErrorBoundary",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "AppContents",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "AppRoutes",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Routes",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "RenderedRoute",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "ProtectedRoute",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "DeferredProjectRoute",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Workspace",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "SuperViewRelationUiProvider",
+          "renders": 89,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        }
+      ]
+    },
+    {
+      "marker": "fixes-agent-history",
+      "comparableSamples": 23,
+      "maxFrameGapMs": 71,
+      "maxReactRenderMs": 24,
+      "dom": {
+        "first": {
+          "elements": 1232,
+          "editors": 0,
+          "canvases": 0,
+          "svg": 1
+        },
+        "last": {
+          "elements": 2353,
+          "editors": 0,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 1232,
+        "minEditors": 0,
+        "maxElements": 2353,
+        "maxEditors": 0
+      },
+      "components": [
+        {
+          "name": "DesktopAgentPanelContent",
+          "renders": 7,
+          "selfMs": 17,
+          "maxSelfMs": 4
+        },
+        {
+          "name": "AssistantBubble2",
+          "renders": 19,
+          "selfMs": 17,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "UserBubble2",
+          "renders": 12,
+          "selfMs": 12,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopAgentTranscript2",
+          "renders": 5,
+          "selfMs": 5,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "UsageRow",
+          "renders": 5,
+          "selfMs": 5,
+          "maxSelfMs": 1
+        },
+        {
           "name": "AgentComposerConfig",
-          "renders": 4,
-          "selfMs": 4,
+          "renders": 3,
+          "selfMs": 3,
           "maxSelfMs": 1
         },
         {
@@ -409,20 +397,488 @@
           "maxSelfMs": 1
         },
         {
-          "name": "DesktopRightSidebar",
-          "renders": 12,
+          "name": "TopTimeline",
+          "renders": 2,
           "selfMs": 2,
           "maxSelfMs": 1
         },
         {
           "name": "RightSidebarHeader",
-          "renders": 1,
+          "renders": 2,
           "selfMs": 2,
           "maxSelfMs": 2
         },
         {
+          "name": "ToolRow",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopSidebarLayout",
+          "renders": 11,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Toolbar",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "PanelTabRowEdges",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "SidebarPaneSlides",
+          "renders": 11,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "VoiceDictationButton",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ThinkingRow",
+          "renders": 2,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "QueryClientProvider",
+          "renders": 13,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "HashRouter",
+          "renders": 13,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        },
+        {
+          "name": "Router",
+          "renders": 13,
+          "selfMs": 0,
+          "maxSelfMs": 0
+        }
+      ]
+    },
+    {
+      "marker": "fixes-write-50k",
+      "comparableSamples": 30,
+      "maxFrameGapMs": 492,
+      "maxReactRenderMs": 27,
+      "dom": {
+        "first": {
+          "elements": 1232,
+          "editors": 0,
+          "canvases": 0,
+          "svg": 1
+        },
+        "last": {
+          "elements": 4939,
+          "editors": 2,
+          "canvases": 0,
+          "svg": 1
+        },
+        "minElements": 1232,
+        "minEditors": 0,
+        "maxElements": 4939,
+        "maxEditors": 2
+      },
+      "components": [
+        {
+          "name": "ChapterEditor",
+          "renders": 11,
+          "selfMs": 23,
+          "maxSelfMs": 15
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 8,
+          "selfMs": 7,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "VirtualChapterRowImpl",
+          "renders": 22,
+          "selfMs": 7,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "NodeEditorSession2",
+          "renders": 19,
+          "selfMs": 6,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "ChapterEndMenu",
+          "renders": 11,
+          "selfMs": 6,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 2,
+          "selfMs": 4,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 4,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "AllChaptersEditorView",
+          "renders": 6,
+          "selfMs": 4,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "EditorTopBar",
+          "renders": 5,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorBarMenu",
+          "renders": 3,
+          "selfMs": 3,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ChapterEndActions",
+          "renders": 13,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "BrushIcon",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopOverlayHost2",
+          "renders": 4,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Routes",
+          "renders": 28,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DeferredProjectRoute",
+          "renders": 28,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 28,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "GlobalSearchSession",
+          "renders": 2,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EntitySnapshotHistoryModal",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "PureEditorContent",
+          "renders": 1,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        }
+      ]
+    },
+    {
+      "marker": "fixes-switch-25-tabs",
+      "comparableSamples": 8,
+      "maxFrameGapMs": 150,
+      "maxReactRenderMs": 9,
+      "dom": {
+        "first": {
+          "elements": 10027,
+          "editors": 25,
+          "canvases": 1,
+          "svg": 1
+        },
+        "last": {
+          "elements": 10027,
+          "editors": 25,
+          "canvases": 1,
+          "svg": 1
+        },
+        "minElements": 10027,
+        "minEditors": 25,
+        "maxElements": 10033,
+        "maxEditors": 25
+      },
+      "components": [
+        {
+          "name": "ChapterPanel",
+          "renders": 75,
+          "selfMs": 68,
+          "maxSelfMs": 3
+        },
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 43,
+          "selfMs": 35,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "SandCell2",
+          "renders": 93,
+          "selfMs": 30,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 31,
+          "selfMs": 23,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ChapterEditor",
+          "renders": 32,
+          "selfMs": 21,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "NodeEditorSession2",
+          "renders": 86,
+          "selfMs": 17,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 15,
+          "selfMs": 12,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "WorkspaceAccountCell",
+          "renders": 17,
+          "selfMs": 10,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 12,
+          "selfMs": 9,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorBarMenu",
+          "renders": 9,
+          "selfMs": 9,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "LeftSidebarSubHeader",
+          "renders": 11,
+          "selfMs": 9,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "SandFrame",
+          "renders": 12,
+          "selfMs": 9,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "UserMenu",
+          "renders": 8,
+          "selfMs": 8,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Routes",
+          "renders": 126,
+          "selfMs": 8,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorTopBar",
+          "renders": 23,
+          "selfMs": 7,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "EditorMainArea",
+          "renders": 20,
+          "selfMs": 6,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "PatchCreateModal",
+          "renders": 5,
+          "selfMs": 5,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 92,
+          "selfMs": 5,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "PanelTab",
+          "renders": 6,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ChapterEndMenu",
+          "renders": 4,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        }
+      ]
+    },
+    {
+      "marker": "fixes-sidebar-timeline",
+      "comparableSamples": 6,
+      "maxFrameGapMs": 336,
+      "maxReactRenderMs": 9,
+      "dom": {
+        "first": {
+          "elements": 10027,
+          "editors": 25,
+          "canvases": 1,
+          "svg": 1
+        },
+        "last": {
+          "elements": 10027,
+          "editors": 25,
+          "canvases": 1,
+          "svg": 1
+        },
+        "minElements": 10027,
+        "minEditors": 25,
+        "maxElements": 10027,
+        "maxEditors": 25
+      },
+      "components": [
+        {
+          "name": "ChapterPanel",
+          "renders": 10,
+          "selfMs": 13,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "DesktopBottomTimeline",
+          "renders": 10,
+          "selfMs": 12,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "VisibleEditorOutlineRail",
+          "renders": 8,
+          "selfMs": 8,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "UserMenu",
+          "renders": 6,
+          "selfMs": 6,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "KindMark",
+          "renders": 5,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "LeftSidebarSubHeader",
+          "renders": 4,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "SandCell2",
+          "renders": 10,
+          "selfMs": 4,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "Sidebar",
+          "renders": 9,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
           "name": "ProjectRuntimeProvider",
-          "renders": 21,
+          "renders": 18,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopLeftSidebar",
+          "renders": 10,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "GroupHeaderCell",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "WorkspaceTabDock",
+          "renders": 3,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "TopTimeline",
+          "renders": 2,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "DesktopSidebarLayout",
+          "renders": 7,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "WorkspaceAccountCell",
+          "renders": 6,
+          "selfMs": 1,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "NotificationPill",
+          "renders": 1,
           "selfMs": 1,
           "maxSelfMs": 1
         },
@@ -433,476 +889,20 @@
           "maxSelfMs": 1
         },
         {
-          "name": "Sidebar",
-          "renders": 13,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "DesktopSidebarLayout",
-          "renders": 12,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "LibraryPanel",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "GhostIconButton2",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SidebarSplitButton",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "DesktopAgentPanel",
-          "renders": 11,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        }
-      ]
-    },
-    {
-      "marker": "fixes-write-50k",
-      "comparableSamples": 46,
-      "maxFrameGapMs": 303,
-      "maxReactRenderMs": 34,
-      "dom": {
-        "first": {
-          "elements": 1254,
-          "editors": 0,
-          "canvases": 0,
-          "svg": 1
-        },
-        "last": {
-          "elements": 4934,
-          "editors": 2,
-          "canvases": 0,
-          "svg": 1
-        },
-        "minElements": 1254,
-        "minEditors": 0,
-        "maxElements": 4934,
-        "maxEditors": 2
-      },
-      "components": [
-        {
-          "name": "ChapterEditor",
-          "renders": 13,
-          "selfMs": 25,
-          "maxSelfMs": 16
-        },
-        {
-          "name": "ChapterEndMenu",
-          "renders": 15,
-          "selfMs": 10,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "NodeEditorSession2",
-          "renders": 23,
-          "selfMs": 9,
-          "maxSelfMs": 3
-        },
-        {
-          "name": "DesktopBottomTimeline",
-          "renders": 6,
-          "selfMs": 9,
-          "maxSelfMs": 3
-        },
-        {
-          "name": "VisibleEditorOutlineRail",
-          "renders": 13,
-          "selfMs": 9,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ProjectDashboard2",
-          "renders": 2,
-          "selfMs": 9,
-          "maxSelfMs": 5
-        },
-        {
-          "name": "TopTimeline",
+          "name": "LeftSidebarHeader",
           "renders": 3,
-          "selfMs": 8,
-          "maxSelfMs": 4
-        },
-        {
-          "name": "AllChaptersEditorView",
-          "renders": 12,
-          "selfMs": 8,
-          "maxSelfMs": 3
-        },
-        {
-          "name": "VirtualChapterRowImpl",
-          "renders": 28,
-          "selfMs": 7,
-          "maxSelfMs": 2
-        },
-        {
-          "name": "EditorTopBar",
-          "renders": 10,
-          "selfMs": 4,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "EditorBarMenu",
-          "renders": 3,
-          "selfMs": 3,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "PatchCreateModal",
-          "renders": 2,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ChapterEndActions",
-          "renders": 17,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ProjectRuntimeProvider",
-          "renders": 31,
           "selfMs": 1,
           "maxSelfMs": 1
         },
         {
-          "name": "NodeEditorView",
-          "renders": 9,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "CommentAnchorHighlights",
+          "name": "TimelineToggle",
           "renders": 1,
           "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "AnchoredPopover",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "LocationDeepLinkEffects",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "Anonymous",
-          "renders": 4,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "Portals",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        }
-      ]
-    },
-    {
-      "marker": "fixes-switch-25-tabs",
-      "comparableSamples": 11,
-      "maxFrameGapMs": 100,
-      "maxReactRenderMs": 7,
-      "dom": {
-        "first": {
-          "elements": 9989,
-          "editors": 25,
-          "canvases": 1,
-          "svg": 1
-        },
-        "last": {
-          "elements": 9989,
-          "editors": 25,
-          "canvases": 1,
-          "svg": 1
-        },
-        "minElements": 9989,
-        "minEditors": 25,
-        "maxElements": 9995,
-        "maxEditors": 25
-      },
-      "components": [
-        {
-          "name": "ChapterPanel",
-          "renders": 74,
-          "selfMs": 59,
-          "maxSelfMs": 2
-        },
-        {
-          "name": "DesktopBottomTimeline",
-          "renders": 47,
-          "selfMs": 32,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SandCell2",
-          "renders": 81,
-          "selfMs": 25,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "KindMark",
-          "renders": 27,
-          "selfMs": 22,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ChapterEditor",
-          "renders": 24,
-          "selfMs": 21,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "NodeEditorSession2",
-          "renders": 99,
-          "selfMs": 19,
           "maxSelfMs": 1
         },
         {
           "name": "SandFrame",
-          "renders": 17,
-          "selfMs": 14,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "VisibleEditorOutlineRail",
-          "renders": 15,
-          "selfMs": 13,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "EditorBarMenu",
-          "renders": 14,
-          "selfMs": 12,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "UserMenu",
-          "renders": 10,
-          "selfMs": 10,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "DesktopWorkspaceNavigationBoundary",
-          "renders": 131,
-          "selfMs": 8,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "EditorTopBar",
-          "renders": 29,
-          "selfMs": 8,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ChapterEndMenu",
-          "renders": 10,
-          "selfMs": 8,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "WorkspaceAccountCell",
-          "renders": 20,
-          "selfMs": 7,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "LeftSidebarHeader",
-          "renders": 8,
-          "selfMs": 7,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "Routes",
-          "renders": 131,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "LeftSidebarSubHeader",
-          "renders": 8,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ProjectRuntimeProvider",
-          "renders": 91,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "GroupHeaderCell",
-          "renders": 8,
-          "selfMs": 5,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "TimelineToggle",
-          "renders": 7,
-          "selfMs": 4,
-          "maxSelfMs": 1
-        }
-      ]
-    },
-    {
-      "marker": "fixes-sidebar-timeline",
-      "comparableSamples": 18,
-      "maxFrameGapMs": 297,
-      "maxReactRenderMs": 10,
-      "dom": {
-        "first": {
-          "elements": 9989,
-          "editors": 25,
-          "canvases": 1,
-          "svg": 1
-        },
-        "last": {
-          "elements": 9989,
-          "editors": 25,
-          "canvases": 1,
-          "svg": 1
-        },
-        "minElements": 9989,
-        "minEditors": 25,
-        "maxElements": 9989,
-        "maxEditors": 25
-      },
-      "components": [
-        {
-          "name": "VisibleEditorOutlineRail",
-          "renders": 11,
-          "selfMs": 11,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ChapterPanel",
-          "renders": 10,
-          "selfMs": 10,
-          "maxSelfMs": 2
-        },
-        {
-          "name": "DesktopBottomTimeline",
-          "renders": 10,
-          "selfMs": 8,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SandCell2",
-          "renders": 15,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "LeftSidebarHeader",
-          "renders": 5,
-          "selfMs": 3,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ProjectRuntimeProvider",
-          "renders": 21,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "UserMenu",
-          "renders": 2,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "TimelineToggle",
-          "renders": 2,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "LeftSidebarSubHeader",
-          "renders": 2,
-          "selfMs": 2,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "EditorMainArea",
           "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "TopTimeline",
-          "renders": 3,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "TabDot",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SidebarSplitButton",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "GroupHeaderCell",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "PanelTab",
-          "renders": 2,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "GhostIconButton2",
-          "renders": 1,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "DesktopAppShell",
-          "renders": 21,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "Sidebar",
-          "renders": 5,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "WorkspaceAccountCell",
-          "renders": 2,
-          "selfMs": 1,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "SidebarPaneSlides",
-          "renders": 5,
           "selfMs": 1,
           "maxSelfMs": 1
         }
@@ -910,14 +910,14 @@
     },
     {
       "marker": "fixes-close-tabs",
-      "comparableSamples": 118,
-      "maxFrameGapMs": 246,
-      "maxReactRenderMs": 7,
+      "comparableSamples": 19,
+      "maxFrameGapMs": 260,
+      "maxReactRenderMs": 15,
       "dom": {
         "first": {
-          "elements": 9989,
+          "elements": 9077,
           "editors": 25,
-          "canvases": 1,
+          "canvases": 0,
           "svg": 1
         },
         "last": {
@@ -928,45 +928,39 @@
         },
         "minElements": 1232,
         "minEditors": 0,
-        "maxElements": 9989,
+        "maxElements": 9077,
         "maxEditors": 25
       },
       "components": [
         {
-          "name": "TopTimeline",
-          "renders": 51,
-          "selfMs": 59,
-          "maxSelfMs": 3
-        },
-        {
           "name": "DesktopBottomTimeline",
           "renders": 50,
-          "selfMs": 54,
+          "selfMs": 55,
           "maxSelfMs": 2
         },
         {
-          "name": "LeafTabSlot",
-          "renders": 33,
-          "selfMs": 24,
+          "name": "TopTimeline",
+          "renders": 29,
+          "selfMs": 40,
+          "maxSelfMs": 6
+        },
+        {
+          "name": "EditorBarMenu",
+          "renders": 18,
+          "selfMs": 18,
           "maxSelfMs": 1
         },
         {
           "name": "ChapterEditor",
-          "renders": 28,
-          "selfMs": 23,
+          "renders": 19,
+          "selfMs": 17,
           "maxSelfMs": 1
         },
         {
           "name": "NodeEditorSession2",
-          "renders": 61,
-          "selfMs": 15,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "EditorBarMenu",
-          "renders": 12,
-          "selfMs": 10,
-          "maxSelfMs": 1
+          "renders": 66,
+          "selfMs": 16,
+          "maxSelfMs": 2
         },
         {
           "name": "VisibleEditorOutlineRail",
@@ -975,38 +969,20 @@
           "maxSelfMs": 1
         },
         {
-          "name": "DesktopWorkspaceNavigationBoundary",
-          "renders": 95,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "EditorMainArea",
-          "renders": 46,
-          "selfMs": 6,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "KindMark",
-          "renders": 5,
-          "selfMs": 5,
-          "maxSelfMs": 1
-        },
-        {
           "name": "EditorTopBar",
-          "renders": 8,
-          "selfMs": 5,
+          "renders": 22,
+          "selfMs": 8,
           "maxSelfMs": 1
         },
         {
           "name": "Routes",
-          "renders": 111,
-          "selfMs": 4,
+          "renders": 97,
+          "selfMs": 7,
           "maxSelfMs": 1
         },
         {
-          "name": "ActRail",
-          "renders": 4,
+          "name": "EditorMainArea",
+          "renders": 50,
           "selfMs": 4,
           "maxSelfMs": 1
         },
@@ -1017,38 +993,62 @@
           "maxSelfMs": 1
         },
         {
-          "name": "HashRouter",
-          "renders": 112,
+          "name": "AllChaptersEditorView",
+          "renders": 3,
+          "selfMs": 4,
+          "maxSelfMs": 2
+        },
+        {
+          "name": "DesktopWorkspaceNavigationBoundary",
+          "renders": 97,
           "selfMs": 3,
           "maxSelfMs": 1
         },
         {
           "name": "DesktopAppShell",
-          "renders": 111,
+          "renders": 97,
           "selfMs": 3,
           "maxSelfMs": 1
         },
         {
-          "name": "PatchCreateModal",
-          "renders": 3,
-          "selfMs": 3,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "AllChaptersEditorView",
-          "renders": 3,
-          "selfMs": 3,
-          "maxSelfMs": 1
-        },
-        {
-          "name": "ProjectRuntimeProvider",
-          "renders": 111,
+          "name": "AnchoredPopover",
+          "renders": 2,
           "selfMs": 2,
           "maxSelfMs": 1
         },
         {
-          "name": "WorkspaceTabDock",
-          "renders": 28,
+          "name": "TimelineToggle",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ImportDialog",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "HashRouter",
+          "renders": 97,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ProjectRuntimeProvider",
+          "renders": 97,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "OutlineRailToggle",
+          "renders": 2,
+          "selfMs": 2,
+          "maxSelfMs": 1
+        },
+        {
+          "name": "ActRail",
+          "renders": 2,
           "selfMs": 2,
           "maxSelfMs": 1
         }

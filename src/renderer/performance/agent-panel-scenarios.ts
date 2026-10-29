@@ -117,7 +117,7 @@ export async function runAgentPanelScenarios() {
     emit({ type: 'permission_requested', request: { requestId: 'synthetic-permission', sessionId, turnId: 'synthetic-panel-turn', callId: 'synthetic-write', toolName: 'write_node', access: 'write', arguments: {}, argumentsHash: `sha256:${'b'.repeat(64)}`, revision: null, allowedScopes: ['once'] } });
     check('permission boundary displays pending card and full tail immediately', Boolean(host.querySelector('.agt-control-card')) && log().textContent?.includes('Permission tail'));
     emit({ type: 'cancellation_requested', reason: 'synthetic-author' });
-    check('cancellation control disables steering without erasing the draft', Array.from(host.querySelectorAll<HTMLButtonElement>('.agt-send')).some(button => button.disabled) && composer.value === 'Synthetic draft stays in the composer');
+    check('cancellation control disables steering without erasing the draft', host.querySelector<HTMLButtonElement>('[aria-label="agentPanel.composer.steer"]')?.disabled === true && composer.value === 'Synthetic draft stays in the composer');
     emit({ type: 'model_iteration_completed', iteration: 1, stopReason: 'end_turn' }); await frame();
     render(false); emit({ type: 'text_delta', iteration: 2, text: 'Stream survived panel closure.' }); render(); await frame();
     check('panel remount reads current canonical stream and retains draft', log().textContent?.includes('Stream survived panel closure.') && host.querySelector('textarea')?.value === 'Synthetic draft stays in the composer');
@@ -156,7 +156,7 @@ export async function runAgentPanelScenarios() {
     });
     try {
       events.emit('agent:auth-changed', undefined); await frame();
-      check('offline panel retains history and draft while disabling send', Boolean(host.querySelector('[title="agentPanel.toolbar.historyTitle"]')) && host.querySelector('textarea')?.value === 'Synthetic draft stays in the composer' && Array.from(host.querySelectorAll<HTMLButtonElement>('.agt-send')).every(button => button.disabled));
+      check('offline panel retains history and draft while disabling send', Boolean(host.querySelector('[title="agentPanel.toolbar.historyTitle"]')) && host.querySelector('textarea')?.value === 'Synthetic draft stays in the composer' && host.querySelector<HTMLButtonElement>('[aria-label="agentPanel.composer.send"]')?.disabled === true);
     } finally { offlineRestore(); }
     render(false);
     const remainingAuthListeners = (events.all.get('agent:auth-changed')?.length ?? 0) - initialAuthListeners;

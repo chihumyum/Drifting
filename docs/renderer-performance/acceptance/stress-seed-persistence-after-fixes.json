@@ -1,6 +1,6 @@
 {
   "kind": "native_stress_seed_persistence",
-  "generatedAt": "2026-10-29T09:31:16.141Z",
+  "generatedAt": "2026-10-29T09:44:57.605Z",
   "status": "passed-read-only-reopen-checks",
   "scriptSha256": "c325d32c93bfaf2254eec97ed00eeb2a799cb96904d2c639a5840cab99410d3f",
   "checks": {
@@ -31,8 +31,8 @@
     },
     {
       "key": "idea-50k",
-      "words": 50074,
-      "canonicalSha256": "13bcefb6daaf4d94cca7e55be739188e8fb7dd6eb6386f4c69c64e3d7cd55581"
+      "words": 50075,
+      "canonicalSha256": "c404762dd634ab596e35f0f2d4699ce80360bb736fc7566b05fc2f754bdb46af"
     },
     {
       "key": "element-10k",
@@ -48,12 +48,12 @@
   "projection": {
     "files": 755,
     "documents": 918,
-    "manifestSha256": "65b18b21789a014bd7e16e09a6bc90cc288577d1b174b00b42013a9f31b8d02f",
-    "generatedAt": "2026-10-29T09:30:49.596Z"
+    "manifestSha256": "e372b54db0bd1ca249257476b393e2a1956cc3a5a3e2893edb9931f91978d0ed",
+    "generatedAt": "2026-10-29T09:44:30.329Z"
   },
   "watchdog": {
-    "since": "2026-10-29T09:10:50.729Z",
-    "logSha256": "0045f7fa01c61e8a62c64c78d85b9b67fdd48f23d4650670c2cab53701b89180",
+    "since": "2026-10-29T09:35:00.049Z",
+    "logSha256": "3964ac015516f86cb354ac1f4dfe41ffb372c7d7b08e94b724ddd50d4ef0cb50",
     "stalls": [],
     "samples": []
   },

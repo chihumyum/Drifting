@@ -1,0 +1,64 @@
+{
+  "kind": "native_stress_seed_persistence",
+  "generatedAt": "2026-10-29T09:31:16.141Z",
+  "status": "passed-read-only-reopen-checks",
+  "scriptSha256": "c325d32c93bfaf2254eec97ed00eeb2a799cb96904d2c639a5840cab99410d3f",
+  "checks": {
+    "chapter-20k-canonical-marker": true,
+    "chapter-20k-word-cache": true,
+    "idea-50k-canonical-marker": true,
+    "postFixCanonicalWrite": true,
+    "idea-50k-word-cache": true,
+    "element-10k-canonical-marker": true,
+    "material-note-canonical-marker": true,
+    "reviewMarkers": true,
+    "commentNodeAndElementRelations": true,
+    "graphRelation": true,
+    "elementRelation": true,
+    "materialTitle": true,
+    "agentWorkingMemory": true,
+    "sqliteIntegrity": true,
+    "foreignKeys": true,
+    "chapterCountExcludesIdeas": true,
+    "workerProjectionHashes": true,
+    "workerProjectionPostFixWrite": true
+  },
+  "bodies": [
+    {
+      "key": "chapter-20k",
+      "words": 20041,
+      "canonicalSha256": "1b67f52efde5f736b7d7e86038e4f0ebb4e23a94b303fed9a43a9a7f23dbe817"
+    },
+    {
+      "key": "idea-50k",
+      "words": 50074,
+      "canonicalSha256": "13bcefb6daaf4d94cca7e55be739188e8fb7dd6eb6386f4c69c64e3d7cd55581"
+    },
+    {
+      "key": "element-10k",
+      "words": 10020,
+      "canonicalSha256": "33dbb714a3b0f0f3306d382c1821304b8a37b8ec42c2c230989f4facb582744f"
+    },
+    {
+      "key": "material-note",
+      "words": 10018,
+      "canonicalSha256": "f8b3286baa939affbfb1aee153b5f61e29abff9a9b3988c644ef3ebd48c9f105"
+    }
+  ],
+  "projection": {
+    "files": 755,
+    "documents": 918,
+    "manifestSha256": "65b18b21789a014bd7e16e09a6bc90cc288577d1b174b00b42013a9f31b8d02f",
+    "generatedAt": "2026-10-29T09:30:49.596Z"
+  },
+  "watchdog": {
+    "since": "2026-10-29T09:10:50.729Z",
+    "logSha256": "0045f7fa01c61e8a62c64c78d85b9b67fdd48f23d4650670c2cab53701b89180",
+    "stalls": [],
+    "samples": []
+  },
+  "limits": [
+    "Checks existing synthetic UI writes only; does not author or repair prose.",
+    "RSS and native stack samples are not JavaScript heap snapshots or proof of a leak."
+  ]
+}
