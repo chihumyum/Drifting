@@ -2190,8 +2190,8 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
 }
 
 /* Editing a card's text: a page-coloured slip like the Agent composer
-   (glass glass--rest glass--field); cancel is a text button, save the
-   primary glass. */
+   (glass glass--rest glass--field); cancel is the text button and save the
+   primary glass (`Button` ghost / primary). */
 .review-card__slip.glass {
   --glass-gx: -168px;
   --glass-gy: -18px;
@@ -2207,39 +2207,6 @@ html[data-shell-mode='mobile'] .comment-source-hover .hover-card__action {
   background: transparent;
   outline: none;
   resize: none;
-}
-.review-card__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 26px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: hsl(var(--ink-3));
-  font: 500 var(--ui-font-secondary, 12px)/1 var(--font-sans);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 120ms ease;
-}
-.review-card__action:hover:not(:disabled) {
-  color: hsl(var(--ink-1));
-}
-.review-card__action:disabled {
-  cursor: default;
-}
-.review-card__action.glass--primary {
-  --glass-gx: -96px;
-  --glass-gy: -132px;
-  padding: 0 11px;
-}
-.review-card__action.glass--primary,
-.review-card__action.glass--primary:hover:not(:disabled) {
-  color: hsl(var(--accent));
-}
-.review-card__action.glass--primary:disabled {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
 /* Group headers are text buttons: the mark takes its thing's colour, the

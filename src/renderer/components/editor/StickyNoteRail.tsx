@@ -90,34 +90,16 @@ function StickyNoteComposer({
         />
       </header>
       <div className="review-card__quote">{request.selectedText}</div>
-      {/* Desktop: the Agent composer's page-coloured slip, a text button to
-          cancel and the primary glass to add; mobile keeps its old buttons. */}
+      {/* Desktop: the Agent composer's page-coloured slip and the primary
+          glass to add; mobile keeps its old add button. */}
       {glass ? <div className="review-card__slip glass glass--rest glass--field">{field}</div> : field}
       <div className="review-card__editor-actions">
-        {glass ? (
-          <>
-            <button type="button" className="review-card__action" onClick={onCancel}>
-              {t('common.cancel')}
-            </button>
-            <button
-              type="button"
-              className="review-card__action glass glass--primary"
-              disabled={!draft.trim() || creating}
-              onClick={() => void submit()}
-            >
-              {t('commentRail.actions.add')}
-            </button>
-          </>
-        ) : (
-          <>
-            <Button size="sm" variant="ghost" onClick={onCancel}>
-              {t('common.cancel')}
-            </Button>
-            <Button size="sm" disabled={!draft.trim() || creating} onClick={() => void submit()}>
-              {t('commentRail.actions.add')}
-            </Button>
-          </>
-        )}
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          {t('common.cancel')}
+        </Button>
+        <Button size="sm" variant={glass ? 'primary' : 'default'} disabled={!draft.trim() || creating} onClick={() => void submit()}>
+          {t('commentRail.actions.add')}
+        </Button>
       </div>
     </div>
   );

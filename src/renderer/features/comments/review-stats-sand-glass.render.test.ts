@@ -109,13 +109,12 @@ describe('Review cards in sand and glass', () => {
   it('edits on the composer\'s slip with a text button to cancel and the primary glass to save', () => {
     const editor = renderToStaticMarkup(createElement(CommentBodyEditor, { text: '原文', onSave: async () => {}, onClose: () => {} }));
     expect(editor).toContain('class="review-card__slip glass glass--rest glass--field"');
-    expect(editor).toContain('class="review-card__action"');
-    expect(editor).toContain('class="review-card__action glass glass--primary"');
-    expect(editor).not.toContain('ui-button');
+    expect(editor).toContain('ui-button--ghost ui-button--sm ui-button--glass');
+    expect(editor).toContain('ui-button--primary ui-button--sm ui-button--glass glass glass--primary');
 
     const mobile = onMobile(() => renderToStaticMarkup(createElement(CommentBodyEditor, { text: '原文', onSave: async () => {}, onClose: () => {} })));
-    expect(mobile).toContain('ui-button');
-    expect(mobile).not.toContain('review-card__slip');
+    expect(mobile).toContain('ui-button--default ui-button--sm');
+    expect(mobile).not.toContain('glass');
   });
 
   it('paints a group or source mark in its thing\'s own colour', () => {

@@ -20,7 +20,7 @@ export function CommentBodyEditor({
   const [failed, setFailed] = useState(false);
   const savingRef = useRef(false);
   // Desktop: the text sits on a page-coloured slip (the Agent composer's
-  // field glass), cancel is a text button and save the primary glass.
+  // field glass) and save is the primary glass; mobile keeps its old save.
   const glass = !getPlatformRuntime().isMobileShell;
   const field = (
     <textarea
@@ -76,30 +76,12 @@ export function CommentBodyEditor({
       {glass ? <div className="review-card__slip glass glass--rest glass--field">{field}</div> : field}
       {failed && <div role="alert">{t('common.saveFailed')}</div>}
       <div className="review-card__editor-actions">
-        {glass ? (
-          <>
-            <button type="button" className="review-card__action" disabled={saving} onClick={onClose}>
-              {t('common.cancel')}
-            </button>
-            <button
-              type="button"
-              className="review-card__action glass glass--primary"
-              disabled={!draft.trim() || busy || saving}
-              onClick={() => void save()}
-            >
-              {t(saving ? 'common.saving' : 'common.save')}
-            </button>
-          </>
-        ) : (
-          <>
-            <Button size="sm" variant="ghost" disabled={saving} onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button size="sm" disabled={!draft.trim() || busy || saving} onClick={() => void save()}>
-              {t(saving ? 'common.saving' : 'common.save')}
-            </Button>
-          </>
-        )}
+        <Button size="sm" variant="ghost" disabled={saving} onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <Button size="sm" variant={glass ? 'primary' : 'default'} disabled={!draft.trim() || busy || saving} onClick={() => void save()}>
+          {t(saving ? 'common.saving' : 'common.save')}
+        </Button>
       </div>
     </div>
   );
