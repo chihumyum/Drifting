@@ -1,11 +1,14 @@
-// In-prose comment anchors, via the CSS Custom Highlight API
-// (CSS.highlights + ::highlight()). Chosen over a CSS class on the block —
-// ProseMirror strips externally-added `class` from the nodes it manages — and
-// over inline decorations, which split text nodes under IME composition. A
-// custom highlight paints an arbitrary DOM Range without mutating the DOM at
-// all, so it (a) survives PM reconciliation and (b) supports fine-grained
-// text-level anchoring (a comment pinned to a phrase highlights just that
-// phrase; a whole-block anchor highlights the block).
+// In-prose comment anchors. This module resolves a comment's anchor to live
+// DOM Ranges and keeps which comment is pointed at or selected; two painters
+// draw the result. On the desktop, lib/comment-sand.ts draws each anchor as
+// sand on a layer under the prose. The paused mobile shell keeps the painter
+// below, via the CSS Custom Highlight API (CSS.highlights + ::highlight()).
+// Both were chosen over a CSS class on the block — ProseMirror strips
+// externally-added `class` from the nodes it manages — and over inline
+// decorations, which split text nodes under IME composition. Neither mutates
+// the prose DOM, so painting (a) survives PM reconciliation and (b) supports
+// fine-grained text-level anchoring (a comment pinned to a phrase highlights
+// just that phrase; a whole-block anchor highlights the block).
 //
 // Unresolved notes and TODOs keep a resting wash; Copilot proposals stay
 // quiet. The comment whose Review or sticky card is hovered gets a stronger
@@ -62,18 +65,29 @@ function getApi(): { Ctor: HighlightCtor; registry: HighlightRegistryLike } | nu
   return { Ctor, registry };
 }
 
-type BlockLookup = (id: string) => HTMLElement | null;
+export type BlockLookup = (id: string) => HTMLElement | null;
 
-function blockLookup(scrollEl: HTMLElement, comments: readonly Comment[]): BlockLookup {
+// The whole-book reader keeps a chapter's static copy, hidden from assistive
+// technology, stacked under its live editor (and the other way round while
+// the editor loads): the copy that is shown wins.
+const hiddenCopy = (el: HTMLElement) => el.closest('[aria-hidden="true"]') !== null;
+
+export function blockLookup(scrollEl: HTMLElement, comments: readonly Comment[]): BlockLookup {
   if (comments.length > DIRECT_BLOCK_LOOKUP_LIMIT) {
     const blocks = new Map<string, HTMLElement>();
     scrollEl.querySelectorAll<HTMLElement>('[data-block-id]').forEach((el) => {
       const id = el.getAttribute('data-block-id');
-      if (id && !blocks.has(id)) blocks.set(id, el);
+      if (!id) return;
+      const known = blocks.get(id);
+      if (!known || (hiddenCopy(known) && !hiddenCopy(el))) blocks.set(id, el);
     });
     return (id) => blocks.get(id) ?? null;
   }
-  return (id) => scrollEl.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
+  return (id) => {
+    const copies = scrollEl.querySelectorAll<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
+    if (copies.length < 2) return copies[0] ?? null;
+    return [...copies].find((el) => !hiddenCopy(el)) ?? copies[0];
+  };
 }
 
 // Map a plain-text char offset within `el` to a concrete DOM (text node, offset)
@@ -208,7 +222,7 @@ function rangeForWholeBlock(el: HTMLElement): Range {
  * A comment's anchored region in the prose — a precise text span when the
  * comment carries a text anchor that still matches, else its whole block range.
  */
-function commentRanges(blockEl: BlockLookup, comment: Comment): Range[] {
+export function commentRanges(blockEl: BlockLookup, comment: Comment): Range[] {
   const textAnchor = getTextAnchorFromAnchor(comment.anchorJson);
   if (textAnchor) {
     const range = rangeForTextAnchor(
@@ -369,4 +383,37 @@ export function getActiveCommentHighlight(): string | null {
 export function subscribeActiveCommentHighlight(listener: () => void): () => void {
   activeCommentListeners.add(listener);
   return () => activeCommentListeners.delete(listener);
+}
+
+// The comment the author just went to: from its card or scroll tick, or by
+// writing it. Its anchor is drawn again (desktop) and stays strong until the
+// author clicks or types in the prose, or selects another. Each selection
+// carries a new nonce, so selecting the same comment again draws it again.
+export interface SelectedCommentHighlight {
+  id: string;
+  nonce: number;
+}
+let selectedComment: SelectedCommentHighlight | null = null;
+let selectionNonce = 0;
+const selectedCommentListeners = new Set<() => void>();
+
+export function selectCommentHighlight(id: string): void {
+  selectionNonce += 1;
+  selectedComment = { id, nonce: selectionNonce };
+  selectedCommentListeners.forEach((listener) => listener());
+}
+
+export function clearSelectedCommentHighlight(): void {
+  if (!selectedComment) return;
+  selectedComment = null;
+  selectedCommentListeners.forEach((listener) => listener());
+}
+
+export function getSelectedCommentHighlight(): SelectedCommentHighlight | null {
+  return selectedComment;
+}
+
+export function subscribeSelectedCommentHighlight(listener: () => void): () => void {
+  selectedCommentListeners.add(listener);
+  return () => selectedCommentListeners.delete(listener);
 }

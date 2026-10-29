@@ -27,6 +27,8 @@ describe('motion vocabulary', () => {
     expect(ms(cssValue('motion-glass-drift'))).toBe(15000);
     expect(ms(cssValue('motion-flow-fade'))).toBe(320);
     expect(ms(cssValue('motion-loading-delay'))).toBe(240);
+    expect(ms(cssValue('motion-sand-fade'))).toBe(motion.SAND_FADE_MS);
+    expect(ms(cssValue('motion-sand-shift'))).toBe(motion.SAND_SHIFT_MS);
   });
 
   it('keeps the values the design system names', () => {
@@ -34,6 +36,11 @@ describe('motion vocabulary', () => {
       .toEqual([420, 265, 340, 150, 520]);
     expect([motion.WAVE_BASE_MS, motion.WAVE_PER_ITEM_MS, motion.WAVE_MAX_ITEMS, motion.WAVE_SETTLE_MS])
       .toEqual([230, 70, 4, 300]);
+    expect([motion.SAND_DRAW_MS, motion.SAND_DRAW_PER_LINE_MS, motion.SAND_FADE_MS, motion.SAND_SHIFT_MS])
+      .toEqual([380, 120, 300, 240]);
+    expect(motion.sandDrawTimeAt(0)).toBe(0);
+    expect(motion.sandDrawTimeAt(1)).toBe(1);
+    expect(motion.sandDrawTimeAt(0.5)).toBeLessThan(0.5);
     expect([
       motion.HOVER_PREVIEW_DELAY_MS, motion.HOVER_CARD_GRACE_MS, motion.SCROLL_REST_MS,
       motion.SELECTION_BAR_SETTLE_MS, motion.FORMATS_CLOSE_MS, motion.DOCK_COLLAPSE_DELAY_MS,

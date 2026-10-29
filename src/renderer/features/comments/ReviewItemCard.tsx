@@ -14,7 +14,7 @@ import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { getActiveEditor } from '../../lib/active-editor';
 import { getPlatformRuntime } from '../../platform/runtime';
-import { clearActiveCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
+import { clearActiveCommentHighlight, selectCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
 import {
   getCopilotCapabilityForMetadataKind,
   type CopilotServices,
@@ -153,7 +153,10 @@ export function ReviewItemCard({
       return;
     }
     navigator.open({ entityType: comment.targetKind, id: comment.targetId });
-    if (comment.targetBlockId) scrollToBlockWhenReady(comment.targetId, comment.targetBlockId);
+    // The desktop draws the anchor again in sand rather than flashing its block.
+    const sand = !getPlatformRuntime().isMobileShell;
+    if (sand) selectCommentHighlight(comment.id);
+    if (comment.targetBlockId) scrollToBlockWhenReady(comment.targetId, comment.targetBlockId, { flash: !sand });
   };
 
   const handleTodoTask = async () => {

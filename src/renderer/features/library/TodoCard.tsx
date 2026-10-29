@@ -4,6 +4,7 @@ import type { Comment } from '../../domain/comment';
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
+import { selectCommentHighlight } from '../../lib/comment-highlight';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { CommentBodyEditor } from '../comments/CommentBodyEditor';
@@ -52,8 +53,11 @@ export function TodoCard({
   const jumpToAnchor = useCallback(() => {
     if (!todo.targetKind || todo.targetKind === 'patch' || !todo.targetId) return;
     open({ entityType: todo.targetKind, id: todo.targetId });
-    if (todo.targetBlockId) scrollToBlockWhenReady(todo.targetId, todo.targetBlockId);
-  }, [open, todo.targetKind, todo.targetId, todo.targetBlockId]);
+    // The desktop draws the anchor again in sand rather than flashing its block.
+    const sand = !getPlatformRuntime().isMobileShell;
+    if (sand) selectCommentHighlight(todo.id);
+    if (todo.targetBlockId) scrollToBlockWhenReady(todo.targetId, todo.targetBlockId, { flash: !sand });
+  }, [open, todo.id, todo.targetKind, todo.targetId, todo.targetBlockId]);
 
   const picker = (onPicked: boolean) => (
     <EntityRelationPicker

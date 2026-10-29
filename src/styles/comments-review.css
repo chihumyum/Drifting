@@ -32,14 +32,15 @@
   }
 }
 
-/* Comment anchors — painted via the CSS Custom Highlight API (see
-   lib/comment-highlight.ts), NOT a CSS class: ProseMirror strips externally-
-   added classes from its nodes, and a highlight can wash an arbitrary DOM Range
-   (a sub-text phrase OR whole blocks). Coloured per family. Unresolved notes and
-   TODOs keep a light resting wash; Copilot proposals have none. The `-active`
-   overlay marks the hovered card's anchor and stacks on the resting wash.
-   Background only — no left bar (user preference). Only
-   `background-color`/`color`/text-decoration are honoured inside ::highlight(). */
+/* Comment anchors in the paused mobile shell — painted via the CSS Custom
+   Highlight API (see lib/comment-highlight.ts), NOT a CSS class: ProseMirror
+   strips externally-added classes from its nodes, and a highlight can wash an
+   arbitrary DOM Range (a sub-text phrase OR whole blocks). Coloured per family.
+   Unresolved notes and TODOs keep a light resting wash; Copilot proposals have
+   none. The `-active` overlay marks the hovered card's anchor and stacks on the
+   resting wash. Background only — no left bar (user preference). Only
+   `background-color`/`color`/text-decoration are honoured inside ::highlight().
+   The desktop draws the same anchors in sand (below). */
 ::highlight(comment-hl-manual) {
   background-color: hsl(var(--comment) / 0.16);
 }
@@ -54,6 +55,78 @@
 }
 ::highlight(comment-hl-todo-active) {
   background-color: hsl(var(--story-4) / 0.32);
+}
+
+/* Desktop: comment anchors drawn in sand (lib/comment-sand.ts). Each anchor is
+   the dry highlighter swash laid along every line it runs over, on a layer of
+   its own after the page inside .editor__spread. The layer lies over the words
+   and blends with them like pigment (--prose-sand-layer-blend: multiply in
+   light themes, screen in dark), so every word keeps its colour and a link's
+   own sand shows through; it must not form a stacking context (no z-index,
+   containment or opacity), or the blend would see nothing beneath. Notes in the comment colour, TODOs in the TODO
+   yellow; a Copilot proposal has no resting stroke and shows in its blue only
+   while its card is pointed at. Pointing at a card deepens the whole stroke;
+   selecting a comment draws its stroke again along the lines (the painter
+   animates each line's clip); a comment that goes fades out. */
+.comment-sand-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.comment-sand {
+  --comment-sand-c: hsl(var(--comment));
+  --comment-sand-rest: 0.46;
+  --comment-sand-hot: 0.84;
+  opacity: calc(var(--comment-sand-rest) * var(--prose-sand-strength));
+  mix-blend-mode: var(--prose-sand-layer-blend);
+  transition: opacity var(--motion-sand-shift) ease-out;
+  animation: comment-sand-arrive var(--motion-sand-fade) ease-out backwards;
+}
+.comment-sand--todo {
+  --comment-sand-c: color-mix(in srgb, hsl(var(--story-4)), #000000 var(--prose-sand-deepen));
+  --comment-sand-rest: 0.5;
+  --comment-sand-hot: 0.9;
+}
+.comment-sand--copilot {
+  --comment-sand-c: color-mix(in srgb, hsl(var(--story-2)), #000000 var(--prose-sand-deepen));
+  --comment-sand-rest: 0;
+}
+.comment-sand[data-state='hot'] {
+  opacity: calc(var(--comment-sand-hot) * var(--prose-sand-strength));
+}
+.comment-sand[data-state='gone'] {
+  opacity: 0;
+  transition-duration: var(--motion-sand-fade);
+}
+@keyframes comment-sand-arrive { from { opacity: 0; } }
+/* One line of the swash. The painter places it and picks how the stroke fits:
+   cut from its start (--comment-sand-size the natural width, --comment-sand-x
+   a seeded offset, --comment-sand-tail 12px thinning out) or stretched. */
+.comment-sand__line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: color-mix(in srgb, var(--comment-sand-c), #ffffff var(--pigment-lift));
+  -webkit-mask-image: url('../assets/design/sand/hl.png'),
+    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
+  mask-image: url('../assets/design/sand/hl.png'),
+    linear-gradient(to left, transparent, #000 var(--comment-sand-tail, 0px));
+  -webkit-mask-size: var(--comment-sand-size, 100%) 100%, 100% 100%;
+  mask-size: var(--comment-sand-size, 100%) 100%, 100% 100%;
+  -webkit-mask-position: var(--comment-sand-x, 0px) 0, 0 0;
+  mask-position: var(--comment-sand-x, 0px) 0, 0 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+@media (prefers-reduced-motion: reduce) {
+  .comment-sand {
+    transition: none;
+    animation: none;
+  }
 }
 
 /* Whole-book Cmd+F find highlights (通览全书) — painted across live + static +
@@ -391,6 +464,84 @@
   padding: 0 4px;
   margin: 2px 0;
   opacity: 0.85;
+}
+
+/* Desktop: the Agent's changes are sand not yet pressed down (materials.css,
+   "Sand in prose"). Inserted and changed text keeps its ink over loose grains
+   of the highlighter, green for new and blue for changed; deleted text dims
+   and is struck through with one dry stroke. The same marks serve the
+   typewriter reveal (`agent-reveal__*`, which then fades out as a whole) and
+   the in-place review decorations (`agent-diff-*`). The faint wash on a whole
+   changed block is gone: the reveal and the scroll tick already say where the
+   Agent wrote. */
+:root:not([data-shell-mode='mobile']) .agent-reveal__ins,
+:root:not([data-shell-mode='mobile']) .agent-diff-ins,
+:root:not([data-shell-mode='mobile']) .agent-diff-changed {
+  --prose-sand-c: color-mix(in srgb, hsl(var(--story-3)), #000000 var(--prose-sand-deepen));
+  --prose-sand-a: 0.95;
+  --prose-sand-band: color-mix(in srgb, var(--prose-sand-c)
+    calc(var(--prose-sand-a) * var(--prose-sand-strength) * 100%), transparent);
+  color: inherit;
+  border-radius: 0;
+  /* The band stops a pixel inside the cover, so no edge of it shows. */
+  background-image:
+    linear-gradient(hsl(var(--page)), hsl(var(--page))),
+    var(--prose-sand-hl-loose),
+    linear-gradient(var(--prose-sand-band), var(--prose-sand-band));
+  background-size: 100% 100%, auto calc(100% + 3px), calc(100% - 2px) calc(100% - 2px);
+  background-position: 0 0, left -1px, center;
+  background-repeat: no-repeat, repeat-x, no-repeat;
+  background-blend-mode: var(--prose-sand-cover-blend), normal, normal;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  mix-blend-mode: var(--prose-sand-blend);
+}
+:root:not([data-shell-mode='mobile']) .agent-diff-changed {
+  --prose-sand-c: color-mix(in srgb, hsl(var(--story-2)), #000000 var(--prose-sand-deepen));
+}
+/* The review decorations fade in with their change. */
+:root:not([data-shell-mode='mobile']) .agent-diff-ins,
+:root:not([data-shell-mode='mobile']) .agent-diff-changed {
+  animation: prose-sand-arrive var(--motion-sand-fade) ease-out backwards;
+}
+:root:not([data-shell-mode='mobile']) .agent-reveal__del,
+:root:not([data-shell-mode='mobile']) .agent-diff-del {
+  --prose-sand-c: color-mix(in srgb, hsl(var(--story-1)), #000000 var(--prose-sand-deepen));
+  --prose-sand-a: 0.85;
+  --prose-sand-band: color-mix(in srgb, var(--prose-sand-c)
+    calc(var(--prose-sand-a) * var(--prose-sand-strength) * 100%), transparent);
+  color: hsl(var(--ink-3));
+  text-decoration: none;
+  border-radius: 0;
+  /* The dry underline at its own proportions (6px tall, 166px natural width),
+     through the middle of the line. */
+  background-image:
+    linear-gradient(to left, hsl(var(--page)), transparent 12px),
+    linear-gradient(hsl(var(--page)), hsl(var(--page))),
+    var(--prose-sand-ul),
+    linear-gradient(var(--prose-sand-band), var(--prose-sand-band));
+  background-size: 12px 100%, 100% 6px, max(100%, 166px) 6px, 100% 4px;
+  background-position: right, left 54%, left 54%, left 54%;
+  background-repeat: no-repeat;
+  background-blend-mode: normal, var(--prose-sand-cover-blend), normal, normal;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  mix-blend-mode: var(--prose-sand-blend);
+}
+:root:not([data-shell-mode='mobile']) .agent-diff-del {
+  animation: agent-sand-ghost-arrive var(--motion-sand-fade) ease-out backwards;
+}
+:root:not([data-shell-mode='mobile']) .agent-change-block,
+:root:not([data-shell-mode='mobile']) .agent-change-block--seen {
+  background-color: transparent;
+}
+@keyframes agent-sand-ghost-arrive { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-shell-mode='mobile']) .agent-diff-ins,
+  :root:not([data-shell-mode='mobile']) .agent-diff-changed,
+  :root:not([data-shell-mode='mobile']) .agent-diff-del {
+    animation: none;
+  }
 }
 
 /* ============================================================

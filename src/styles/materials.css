@@ -27,6 +27,9 @@
   --motion-glass-press: 40ms;
   --motion-glass-drift: 15s;
   --motion-flow-fade: 0.32s;
+  /* Sand that comes or goes as a whole fades; a change of its strength shifts. */
+  --motion-sand-fade: 0.3s;
+  --motion-sand-shift: 0.24s;
   /* How long a wait runs before its loading mark shows. */
   --motion-loading-delay: 240ms;
 
@@ -41,6 +44,21 @@
   --pigment-blend: multiply;
   --pigment-lift: 0%;
   --glass-bleed-lift: 0%;
+  /* Sand in the prose (see "Sand in prose" below): light themes deepen the
+     story colours so they hold on the paper; dark themes lay sand on lifted
+     and a little thinner. A span's cover turns to the page colour through
+     --prose-sand-cover-blend, and the span blends with what lies under it
+     through --prose-sand-blend. */
+  --prose-sand-strength: 1;
+  --prose-sand-deepen: 16%;
+  --prose-sand-blend: darken;
+  --prose-sand-cover-blend: multiply;
+  /* A comment's sand lies over the words like pigment: multiply in light
+     themes, screen in dark, so every word keeps its own colour on it. */
+  --prose-sand-layer-blend: multiply;
+  --prose-sand-ul: url('../assets/design/sand/ul-cover.png');
+  --prose-sand-ul-loose: url('../assets/design/sand/ul-loose-cover.png');
+  --prose-sand-hl-loose: url('../assets/design/sand/hl-loose-cover.png');
 }
 
 /* On the dark a tinted bleed at the ring's own strength reads as mud (a
@@ -51,6 +69,14 @@
   --pigment-blend: normal;
   --pigment-lift: 14%;
   --glass-bleed-lift: 45%;
+  --prose-sand-strength: 0.72;
+  --prose-sand-deepen: 0%;
+  --prose-sand-blend: lighten;
+  --prose-sand-cover-blend: screen;
+  --prose-sand-layer-blend: screen;
+  --prose-sand-ul: url('../assets/design/sand/ul-cover-dark.png');
+  --prose-sand-ul-loose: url('../assets/design/sand/ul-loose-cover-dark.png');
+  --prose-sand-hl-loose: url('../assets/design/sand/hl-loose-cover-dark.png');
 }
 
 /* ── Glass ──────────────────────────────────────────────────────────
@@ -473,6 +499,32 @@
 .sand-track > .sand-stroke { position: relative; }
 
 @keyframes sand-stroke-arrive { from { opacity: 0; } }
+
+/* ── Sand in prose ──────────────────────────────────────────────────
+ * Sand under the words. A comment anchor is not an element, so its swash
+ * lies on a layer of its own that blends with the words (lib/comment-sand.ts,
+ * comments-review.css).
+ * An entity link or an Agent change is a span, drawn once per line fragment
+ * through its background (`box-decoration-break: clone`). Its layers, top
+ * down: the page colour (blended with --prose-sand-cover-blend: multiply over
+ * the white cover in light themes, screen over the black one in dark), the
+ * cover (--prose-sand-ul and the loose covers: opaque except at the grains),
+ * and a band of the span's colour at strength --prose-sand-a. Together they
+ * are the page colour everywhere but the grains, where the band shows; the
+ * span then blends with the page (--prose-sand-blend), and where it sits in
+ * an isolated group they simply match the page. A comment's sand, laid over
+ * it with the same blend, still shows through. A stroke is cut
+ * from its start on a short fragment, its last 12px thinning into the page,
+ * and stretched on a long one; loose grains tile at their natural size.
+ * --prose-sand-a is registered so a change of strength eases, and sand that
+ * arrives fades in as a whole. Desktop only: the paused mobile shell keeps its
+ * flat washes. */
+@property --prose-sand-a {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@keyframes prose-sand-arrive { from { --prose-sand-a: 0; } }
 
 /* ── Kind marks ─────────────────────────────────────────────────────
  * Every thing that can open as a tab carries the mark of its kind, in the
