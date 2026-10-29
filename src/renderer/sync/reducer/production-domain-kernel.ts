@@ -370,7 +370,7 @@ function conflict(
   };
 }
 
-const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, readonly ReducerEffect[]>>();
+const effectsByEntity = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, ReadonlyMap<string, readonly ReducerEffect[]>>>();
 type SetMemberEffect = Extract<ReducerEffect, { type: 'set.member' }>;
 const setMembersByKey = new WeakMap<readonly ReducerEffect[], ReadonlyMap<string, SetMemberEffect>>();
 
@@ -397,17 +397,18 @@ function setMemberEffect(effects: readonly ReducerEffect[], setKind: string, set
 function effectsForEntity(effects: readonly ReducerEffect[], kind: string, id: string): readonly ReducerEffect[] {
   let index = effectsByEntity.get(effects);
   if (!index) {
-    const buckets = new Map<string, ReducerEffect[]>();
+    const kinds = new Map<string, Map<string, ReducerEffect[]>>();
     for (const effect of effects) {
-      const key = JSON.stringify([effect.target.kind, effect.target.id]);
-      const bucket = buckets.get(key);
+      let ids = kinds.get(effect.target.kind);
+      if (!ids) kinds.set(effect.target.kind, (ids = new Map()));
+      const bucket = ids.get(effect.target.id);
       if (bucket) bucket.push(effect);
-      else buckets.set(key, [effect]);
+      else ids.set(effect.target.id, [effect]);
     }
-    index = buckets;
+    index = kinds;
     effectsByEntity.set(effects, index);
   }
-  return index.get(JSON.stringify([kind, id])) ?? [];
+  return index.get(kind)?.get(id) ?? [];
 }
 
 function entityConflict(
@@ -482,6 +483,27 @@ function proseOwnerKind(kind: DocKind): string {
     case 'category': return 'element-category';
     case 'library-item': return 'library-item';
   }
+}
+
+/**
+ * Field, tuple, order, set and lifecycle checks read nothing but their own
+ * effect, and the reducer reuses the effect of every unchanged register
+ * (reducer.ts `projectedEffect`). Each is therefore checked once rather than
+ * on every keystroke, which re-parsed every JSON body in the project.
+ */
+const ownEffectIssues = new WeakMap<ReducerEffect, readonly SemanticConflictDraft[]>();
+
+function ownIssues(effect: ReducerEffect, check: () => readonly SemanticConflictDraft[]): readonly SemanticConflictDraft[] {
+  let issues = ownEffectIssues.get(effect);
+  if (!issues) {
+    issues = check();
+    ownEffectIssues.set(effect, issues);
+  }
+  return issues;
+}
+
+function single(issue: SemanticConflictDraft | null): readonly SemanticConflictDraft[] {
+  return issue ? [issue] : [];
 }
 
 function validateFieldEffect(effect: FieldEffect): SemanticConflictDraft | null {
@@ -1576,14 +1598,13 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
   for (const effect of context.effects) {
     if (!effect.materialize && effect.type !== 'entity.lifecycle') continue;
     if (effect.type === 'field.set') {
-      const issue = validateFieldEffect(effect);
-      if (issue) issues.push(issue);
+      const own = ownIssues(effect, () => single(validateFieldEffect(effect)));
+      if (own.length) issues.push(...own);
       // Most effects are ordinary fields. Awaiting the async invariant for
       // each of them costs more than the whole field check.
       else if (isPrimaryStorylineAssignment(effect)) issues.push(...await validatePrimaryStorylineInvariant(context, effect));
     } else if (effect.type === 'tuple.set') {
-      const issue = validateTupleEffect(effect);
-      if (issue) issues.push(issue);
+      issues.push(...ownIssues(effect, () => single(validateTupleEffect(effect))));
     } else if (effect.type === 'order.position') {
       // Retired pre-release chapter order registers can remain in an older
       // reducer history until the next checkpoint. They are inert history,
@@ -1591,17 +1612,16 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
       // a newly authored order effect so new chapter fractional-order writes
       // still fail closed without poisoning unrelated current field writes.
       if (effect.source?.changeSetId === context.changeSet.changeSetId) {
-        const issue = validateOrderEffect(effect);
-        if (issue) issues.push(issue);
+        issues.push(...ownIssues(effect, () => single(validateOrderEffect(effect))));
       }
     } else if (effect.type === 'set.member') {
-      const issue = validateSetEffect(effect);
-      if (issue) issues.push(issue);
+      const own = ownIssues(effect, () => single(validateSetEffect(effect)));
+      if (own.length) issues.push(...own);
       else if (effect.target.kind === STORYLINE_MEMBERSHIP_SET_KIND && effect.present) {
         issues.push(...await validateStorylineMembershipInvariant(context, effect));
       }
     } else if (effect.type === 'entity.lifecycle') {
-      issues.push(...validateLifecycleEffect(effect));
+      issues.push(...ownIssues(effect, () => validateLifecycleEffect(effect)));
     } else {
       issues.push(...await validateExternalEffect(context, effect, assetFacts));
     }

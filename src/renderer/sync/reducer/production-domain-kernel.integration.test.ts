@@ -555,6 +555,33 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     ]);
   });
 
+  it('reports an invalid effect on every validation that still carries it', async () => {
+    const db = await createDatabase();
+    const remote = await changeSet(1, [{
+      action: 'field.set',
+      kind: 'node',
+      id: NODE_ID,
+      payload: { field: 'futureField', value: 'must not leak' },
+    }]);
+    const effect: ReducerEffect = {
+      effectId: 'synthetic-unclassified-field',
+      type: 'field.set',
+      materialize: true,
+      target: remote.mutations[0]!.target,
+      field: 'futureField',
+      value: 'must not leak',
+      order: { hlc: remote.hlc, writerId: remote.writerId, writerEpoch: remote.writerEpoch,
+        deviceSeq: remote.deviceSeq, mutationIndex: 0 },
+      source: { changeSetId: remote.changeSetId, mutationIndex: 0 },
+    };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const issues = await db.transaction((tx) => productionSyncDomainMaterializationKernel.validate({
+        tx, origin: 'remote', changeSet: remote, effects: [effect],
+      }));
+      expect(issues).toEqual([expect.objectContaining({ blockedEffectIds: [effect.effectId] })]);
+    }
+  });
+
   it('validates relation invariants before a lifecycle seed reaches SQLite', async () => {
     const db = await createDatabase();
     const remote = await changeSet(1, [{

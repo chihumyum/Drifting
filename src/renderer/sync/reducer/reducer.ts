@@ -894,8 +894,49 @@ function winningRemoval(member: OrSetMemberState): LwwValue<true> | null {
   return winner;
 }
 
+/** A code unit at or above the first surrogate. */
+const SURROGATE_OR_ABOVE = /[\uD800-\uFFFF]/;
+
+/**
+ * Sort by `key` in UTF-8 byte order. Plain code-unit order agrees with it
+ * unless a key holds a surrogate or a code unit above one, which reducer keys
+ * (kinds, field names, ids, CJK text) almost never do. The exact comparator
+ * re-checks both strings on every comparison, and whole-state projection on
+ * each keystroke spent most of its time there, so it runs only for a batch
+ * that needs it.
+ */
+function sortByUtf8<T>(items: T[], key: (item: T) => string): T[] {
+  if (items.some((item) => SURROGATE_OR_ABOVE.test(key(item)))) {
+    return items.sort((left, right) => utf8Sort(key(left), key(right)));
+  }
+  return items.sort((left, right) => {
+    const a = key(left);
+    const b = key(right);
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+}
+
 function sortedMapValues<T>(map: ReadonlyMap<string, T>): readonly T[] {
-  return [...map.entries()].sort(([left], [right]) => utf8Sort(left, right)).map(([, value]) => value);
+  return sortByUtf8([...map.entries()], ([key]) => key).map(([, value]) => value);
+}
+
+/**
+ * The effect of one register depends only on that register object and on
+ * whether its target can materialize. Reductions copy a register or lifecycle
+ * before changing it and never change one in place afterwards, so an unchanged
+ * one keeps its identity and its effect is reused instead of rebuilt. Every
+ * keystroke projects the whole state, and re-cloning the lifecycle seeds alone
+ * (megabytes of prose state in a large project) cost most of that.
+ */
+const projectedEffects = new WeakMap<object, ReducerEffect>();
+
+/** `materialize` is null when the source alone decides it (a lifecycle). */
+function projectedEffect(source: object, materialize: boolean | null, build: () => ReducerEffect): ReducerEffect {
+  const cached = projectedEffects.get(source);
+  if (cached && (materialize === null || cached.materialize === materialize)) return cached;
+  const effect = cached ? { ...cached, materialize: materialize! } : build();
+  projectedEffects.set(source, effect);
+  return effect;
 }
 
 export function materializationEffects(state: CanonicalReducerState): readonly ReducerEffect[] {
@@ -912,92 +953,101 @@ export function materializationEffects(state: CanonicalReducerState): readonly R
     });
   }
   for (const register of sortedMapValues(state.fields)) {
-    effects.push({
+    const materialize = canMaterializeTarget(state, register.target);
+    effects.push(projectedEffect(register, materialize, () => ({
       effectId: effectId('field', register.target.kind, register.target.id, register.target.incarnation, register.field),
       type: 'field.set',
-      materialize: canMaterializeTarget(state, register.target),
+      materialize,
       target: cloneTarget(register.target),
       field: register.field,
       value: cloneCbor(register.value),
       order: register.order,
       source: register.source,
-    });
+    })));
   }
   for (const register of sortedMapValues(state.tuples)) {
-    effects.push({
+    const materialize = canMaterializeTarget(state, register.target);
+    effects.push(projectedEffect(register, materialize, () => ({
       effectId: effectId('tuple', register.target.kind, register.target.id, register.target.incarnation, register.tuple),
       type: 'tuple.set',
-      materialize: canMaterializeTarget(state, register.target),
+      materialize,
       target: cloneTarget(register.target),
       tuple: register.tuple,
       value: cloneCbor(register.value),
       order: register.order,
       source: register.source,
-    });
+    })));
   }
   for (const set of sortedMapValues(state.sets)) {
     for (const member of sortedMapValues(set.members)) {
       const visible = visibleAdds(member);
-      const winner = visible[visible.length - 1] ?? null;
-      const removal = winningRemoval(member);
       const present = visible.length > 0;
-      effects.push({
-        effectId: effectId('set', set.target.kind, set.target.id, set.target.incarnation, member.memberId),
-        type: 'set.member',
-        materialize: canMaterializeSetMember(state, set.target, member.memberId, present),
-        target: cloneTarget(set.target),
-        memberId: member.memberId,
-        present,
-        visibleAddTags: visible.map(({ tag }) => tag).sort(utf8Sort),
-        value: winner ? cloneCbor(winner.value) : null,
-        order: winner?.order ?? removal?.order ?? null,
-        source: winner?.source ?? removal?.source ?? null,
-      });
+      const materialize = canMaterializeSetMember(state, set.target, member.memberId, present);
+      effects.push(projectedEffect(member, materialize, () => {
+        const winner = visible[visible.length - 1] ?? null;
+        const removal = winningRemoval(member);
+        return {
+          effectId: effectId('set', set.target.kind, set.target.id, set.target.incarnation, member.memberId),
+          type: 'set.member',
+          materialize,
+          target: cloneTarget(set.target),
+          memberId: member.memberId,
+          present,
+          visibleAddTags: visible.map(({ tag }) => tag).sort(utf8Sort),
+          value: winner ? cloneCbor(winner.value) : null,
+          order: winner?.order ?? removal?.order ?? null,
+          source: winner?.source ?? removal?.source ?? null,
+        };
+      }));
     }
   }
   for (const register of sortedMapValues(state.orders)) {
-    effects.push({
+    const materialize = canMaterializeTarget(state, register.target);
+    effects.push(projectedEffect(register, materialize, () => ({
       effectId: effectId('order', register.target.kind, register.target.incarnation, register.scope, register.entityId),
       type: 'order.position',
-      materialize: canMaterializeTarget(state, register.target),
+      materialize,
       target: cloneTarget(register.target),
       scope: register.scope,
       entityId: register.entityId,
       positionKey: register.value,
       order: register.order,
       source: register.source,
-    });
+    })));
   }
   for (const register of sortedMapValues(state.assetBindings)) {
-    effects.push({
+    const materialize = canMaterializeAssetBinding(state, register);
+    effects.push(projectedEffect(register, materialize, () => ({
       effectId: effectId('asset-binding', register.target.kind, register.target.id, register.target.incarnation),
       type: register.value.action,
-      materialize: canMaterializeAssetBinding(state, register),
+      materialize,
       target: cloneTarget(register.target),
       payload: cloneCbor(register.value.payload),
       order: register.order,
       source: register.source,
-    });
+    }) as ReducerEffect));
   }
   for (const lifecycle of sortedMapValues(state.lifecycles)) {
-    const resolved = resolvedLifecycle(lifecycle);
-    effects.push({
-      effectId: effectId('lifecycle', lifecycle.kind, lifecycle.entityId),
-      type: 'entity.lifecycle',
-      materialize: resolved.status !== 'unresolved',
-      target: {
-        family: 'entity',
-        kind: lifecycle.kind,
-        id: lifecycle.entityId,
-        incarnation: resolved.incarnation,
-      },
-      status: resolved.status,
-      seed: resolved.seed ? cloneRecord(resolved.seed.value) : null,
-      order: resolved.order,
-      source: resolved.source,
-    });
+    effects.push(projectedEffect(lifecycle, null, () => {
+      const resolved = resolvedLifecycle(lifecycle);
+      return {
+        effectId: effectId('lifecycle', lifecycle.kind, lifecycle.entityId),
+        type: 'entity.lifecycle',
+        materialize: resolved.status !== 'unresolved',
+        target: {
+          family: 'entity',
+          kind: lifecycle.kind,
+          id: lifecycle.entityId,
+          incarnation: resolved.incarnation,
+        },
+        status: resolved.status,
+        seed: resolved.seed ? cloneRecord(resolved.seed.value) : null,
+        order: resolved.order,
+        source: resolved.source,
+      };
+    }));
   }
-  return effects.sort((left, right) => utf8Sort(left.effectId, right.effectId));
+  return sortByUtf8(effects, (effect) => effect.effectId);
 }
 
 function conflictFromDraft(draft: SemanticConflictDraft): ReducerConflict {
@@ -1177,8 +1227,7 @@ function finishReduction(
   const externalEffects = prepared
     .map((entry) => externalEffect(next, entry))
     .filter((effect): effect is ReducerEffect => effect !== null);
-  let candidateEffects = [...materializationEffects(next), ...externalEffects]
-    .sort((left, right) => utf8Sort(left.effectId, right.effectId));
+  let candidateEffects = sortByUtf8([...materializationEffects(next), ...externalEffects], (effect) => effect.effectId);
   if (next.generationPurge) {
     candidateEffects = candidateEffects.map((effect): ReducerEffect => ({
       ...effect,
@@ -1212,8 +1261,7 @@ export function projectCanonicalReducerState(
   profile: ReducerProfile,
   options: { readonly materializePurge: boolean },
 ): { readonly state: CanonicalReducerState; readonly effects: readonly ReducerEffect[]; readonly conflicts: readonly ReducerConflict[] } {
-  const candidateEffects = [...materializationEffects(state)]
-    .sort((left, right) => utf8Sort(left.effectId, right.effectId))
+  const candidateEffects = sortByUtf8([...materializationEffects(state)], (effect) => effect.effectId)
     .map((effect): ReducerEffect =>
       effect.type === 'sync-generation.purge' ? { ...effect, materialize: options.materializePurge } : effect,
     );

@@ -452,6 +452,19 @@ describe('canonical SyncEngine reducer', () => {
     ]);
   });
 
+  it('orders effects by UTF-8 bytes when an id holds a character above the surrogates', () => {
+    const state = applyAll([changeSet({
+      writer: 'writer-a', seq: 1, wallMs: 1,
+      mutations: [
+        { action: 'entity.create', kind: 'node', id: '\u{1F600}', payload: { seed: { title: 'emoji' } } },
+        { action: 'entity.create', kind: 'node', id: '\u{E000}', payload: { seed: { title: 'private use' } } },
+        { action: 'entity.create', kind: 'node', id: 'z', payload: { seed: { title: 'ascii' } } },
+      ],
+    })]);
+    // UTF-16 code units would put the emoji's high surrogate before U+E000.
+    expect(materializationEffects(state).map((candidate) => candidate.target.id)).toEqual(['z', '\u{E000}', '\u{1F600}']);
+  });
+
   it('treats scope as register value so one entity cannot remain in two order lists', () => {
     const oldParent = changeSet({
       writer: 'writer-a', seq: 1, wallMs: 1,
@@ -687,6 +700,39 @@ describe('linear replay and structural sharing', () => {
     }
     expect(seedsWithConflicts).toBeGreaterThan(10);
     expect(seedsWithPurge).toBeGreaterThan(2);
+  });
+
+  it('reuses the effect of every register a change-set left alone', () => {
+    const prior = applyAll([changeSet({
+      writer: 'writer-a', seq: 1, wallMs: 1,
+      mutations: [
+        { action: 'entity.create', kind: 'node', id: 'n1', payload: { seed: { title: 'one' } } },
+        { action: 'entity.create', kind: 'node', id: 'n2', payload: { seed: { title: 'two' } } },
+        { action: 'field.set', kind: 'node', id: 'n1', payload: { field: 'title', value: 'one' } },
+        { action: 'field.set', kind: 'node', id: 'n2', payload: { field: 'title', value: 'two' } },
+      ],
+    })]);
+    const renamed = reduceSyncChangeSet(prior, changeSet({
+      writer: 'writer-a', seq: 2, wallMs: 2,
+      mutations: [{ action: 'field.set', kind: 'node', id: 'n2', payload: { field: 'title', value: 'renamed' } }],
+    }), PROFILE).state;
+    const byId = (state: CanonicalReducerState) => new Map(materializationEffects(state).map((candidate) => [candidate.effectId, candidate]));
+    const before = byId(prior);
+    const after = byId(renamed);
+    const n1Title = JSON.stringify(['field', 'node', 'n1', 0, 'title']);
+    const n2Title = JSON.stringify(['field', 'node', 'n2', 0, 'title']);
+    for (const [effectId, candidate] of after) {
+      if (effectId !== n2Title) expect(candidate).toBe(before.get(effectId));
+    }
+    expect(after.get(n2Title)).toMatchObject({ value: 'renamed', materialize: true });
+
+    // Trashing n1 changes whether its unchanged title materializes.
+    const trashed = reduceSyncChangeSet(renamed, changeSet({
+      writer: 'writer-a', seq: 3, wallMs: 3,
+      mutations: [{ action: 'entity.trash', kind: 'node', id: 'n1', payload: {} }],
+    }), PROFILE).state;
+    expect(byId(trashed).get(n1Title)).toMatchObject({ value: 'one', materialize: false });
+    expect(byId(renamed).get(n1Title)).toMatchObject({ value: 'one', materialize: true });
   });
 
   it('never mutates the predecessor state while deriving the next one', () => {
