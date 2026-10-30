@@ -52,6 +52,7 @@ generic authored-object shape must fail.
 | Acts                 | `幕「<名称>」`                     |
 | Reading order        | `章节「<名称>」的阅读位置`         |
 | Narrative timeline   | `叙事时间线位置`、`时间刻度「<名称>」` |
+| Plot grids           | `章节「<名称>」的情节表`           |
 
 Creation returns a canonical semantic result containing the created handle when
 the domain needs one. Subsequent domain operations pass that handle directly.
@@ -237,8 +238,8 @@ document in creation order.
 
 ## 10. Workbench scopes
 
-The author's working structure around the prose — the material library and
-the book structure — is written through workbench
+The author's working structure around the prose — the material library, the
+book structure and each chapter's plot grid — is written through workbench
 commands (`drifting-workbench-types.ts`). They are direct domain writes: the
 public tool and the certified command share one name, so receipts need no new
 provenance trigger.
@@ -247,7 +248,8 @@ A command plans the complete next image of one small scope from author-domain
 names, and that image is everything at once:
 
 - **freshness** — the scope's revision is the hash of its image; the runtime
-  cites a fresh read of the scope (`list_materials`, `read_book_structure`) and the guarded mutation compares the image again inside
+  cites a fresh read of the scope (`list_materials`, `read_book_structure`,
+  `read_plot_grid`) and the guarded mutation compares the image again inside
   its transaction;
 - **receipt** — pre- and postimage are stored as one `authoring_scope`
   snapshot;
@@ -265,6 +267,7 @@ planned with the forward write; everything else is restored exactly.
 | ------------------ | --------------------- | -------- |
 | `material_library` | `list_materials`      | `create_material_note`, `update_material`, `create/update/delete_material_folder` |
 | `book_structure`   | `read_book_structure` | `create/update/delete_act`, `move_chapter`, `set_timeline_position`, `create/update/delete_timeline_marker` |
+| `plot_grid`        | `read_plot_grid`      | `write_plot_grid` |
 
 The Agent names chapters, acts, markers and folders; the runtime picks
 coordinates. Acts are boundaries on the reading axis (`bookOrder`): a new act
@@ -274,6 +277,18 @@ act. The narrative timeline (`narrativeOrder`) holds chapters, ideas and
 markers; `set_timeline_position` places one relative to another and never
 changes reading order. When two neighbors leave no representable midpoint the
 write fails and asks the author to spread the timeline.
+
+A plot grid stays the author's free-form scratchpad and never enters Agent
+context by itself; `read_book_structure` lists which chapters have one. The
+Agent reads and writes the whole grid as one Markdown table (column labels in
+the header after an empty corner, row labels in the first column). Its image
+has no axis ids: applying an image — forward or inverse — lays the table over
+the stored grid so an unchanged label keeps its row or column, leftovers are
+reused by position and the rest are new. Rejecting removed rows therefore
+recreates them under fresh ids and still matches exactly, and rejecting the
+first write of a grid leaves the same shape with every label and cell
+cleared, since a plot grid document cannot be deleted. An open planner
+remounts on the new grid (`plot-grid:changed`).
 
 Material note bodies are not a workbench scope: `revise_material_note` and
 `replace_material_note_body` are Yjs prose commands on `library-item:<id>`

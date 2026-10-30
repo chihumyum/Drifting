@@ -15,6 +15,8 @@ import { createLibraryItemSqliteRepository } from '../../../sqlite-repo/library-
 import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
 import { createTimelineMarkerRepository } from '../../../sqlite-repo/timeline-marker-repo';
 import { createMaterialFolderRepository } from '../../../sqlite-repo/material-folder-repo';
+import { createPlotGridRepository } from '../../../sqlite-repo/plot-grid-repo';
+import { readPlotGridProjection } from '../../../domain/plot-grid';
 import { invalidateSqliteReducerStateCache } from '../../../sync/reducer/sqlite-materializer';
 import { libraryMutationPayload } from '../../../usecase/library-item-payload';
 import { withAtomicSyncTransaction } from '../../../usecase/sync-helpers';
@@ -341,6 +343,62 @@ describe('Agent book structure writes', () => {
   });
 });
 
+describe('Agent plot grid writes', () => {
+  let fixture: WorkbenchFixture;
+
+  beforeEach(async () => {
+    secureStorage.clear();
+    fixture = await WorkbenchFixture.create();
+  });
+
+  afterEach(async () => {
+    useDataStore.setState(initialDataState, true);
+    useProjectStore.setState(initialProjectState, true);
+    await fixture.close();
+  });
+
+  const FIRST = ['|  | 林默 | 苏青 |', '| --- | --- | --- |', '| 开场 | 到达灯塔 | 码头等船 |', '| 转折 | 发现日记 |  |'].join('\n');
+
+  it('creates, rewrites and rejects a plot grid as one Markdown table', async () => {
+    expect(JSON.stringify(await fixture.read('grid-0', 'read_plot_grid', { chapter: '第一章' }))).toContain('"empty":true');
+    expect(await fixture.write('grid-1', 'write_plot_grid', { chapter: '第一章', table: FIRST })).toMatchObject({ ok: true });
+    expect(plotTable(await fixture.read('grid-read-1', 'read_plot_grid', { chapter: '第一章' }))).toBe(FIRST);
+    expect(JSON.stringify(await fixture.read('structure-grid', 'read_book_structure', {}))).toContain('"withPlotGrid":["第一章"]');
+    const before = await fixture.grid('chapter-one');
+
+    const second = ['|  | 林默 |', '| --- | --- |', '| 开场 | 到达灯塔<br>夜里 |', '| 结尾 | 离开 |'].join('\n');
+    expect(await fixture.write('grid-2', 'write_plot_grid', { chapter: '第一章', table: second })).toMatchObject({ ok: true });
+    const after = await fixture.grid('chapter-one');
+    // Same labels keep their axis; 转折 is reused for 结尾 by position; 苏青 is gone.
+    expect(after!.rows.map((row) => row.id)).toEqual(before!.rows.map((row) => row.id));
+    expect(after!.cols.map((column) => column.id)).toEqual([before!.cols[0]!.id]);
+    expect(plotTable(await fixture.read('grid-read-2', 'read_plot_grid', { chapter: '第一章' }))).toBe(second);
+
+    await fixture.revert('grid-2');
+    expect(plotTable(await fixture.read('grid-read-3', 'read_plot_grid', { chapter: '第一章' }))).toBe(FIRST);
+    await fixture.revert('grid-1');
+    const cleared = await fixture.grid('chapter-one');
+    expect(cleared!.cells).toEqual({});
+    expect([...cleared!.rows, ...cleared!.cols].every((axis) => axis.label === '')).toBe(true);
+  });
+
+  it('reports an unchanged table as a no-op and rejects malformed tables', async () => {
+    await fixture.write('grid-3', 'write_plot_grid', { chapter: '第二章', table: FIRST });
+    expect(await fixture.write('grid-4', 'write_plot_grid', { chapter: '第二章', table: FIRST })).toMatchObject({
+      ok: true,
+      data: { noop: true },
+    });
+    expect(await fixture.write('grid-5', 'write_plot_grid', { chapter: '第二章', table: '不是表格' })).toMatchObject({
+      ok: false,
+    });
+  });
+});
+
+function plotTable(result: AgentToolExecutionResult): string {
+  const match = /"table":"((?:[^"\\]|\\.)*)"/u.exec(JSON.stringify(result));
+  return match ? (JSON.parse(`"${match[1]}"`) as string) : '';
+}
+
 function materialBody(result: AgentToolExecutionResult): string {
   const text = JSON.stringify(result);
   const match = /"body":"((?:[^"\\]|\\.)*)"/u.exec(text);
@@ -438,6 +496,10 @@ class WorkbenchFixture {
     });
     if (!strategy) throw new Error(`Missing strategy for ${effect.toolName}`);
     await strategy.applyInverse(effect, this.context, new AbortController().signal);
+  }
+
+  async grid(nodeId: string) {
+    return readPlotGridProjection(await createPlotGridRepository(this.database).materializeProjection(nodeId));
   }
 
   acts() {

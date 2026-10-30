@@ -58,6 +58,13 @@ vi.mock('../../../sqlite-repo/content-repo', () => ({
   }),
 }));
 
+vi.mock('../../../sqlite-repo/plot-grid-repo', () => ({
+  createPlotGridRepository: () => ({
+    findNodeIdsWithDocument: async () => [],
+    materializeProjection: async () => null,
+  }),
+}));
+
 vi.mock('../../../sqlite-repo/inline-mention-repo', () => ({
   createInlineMentionRepository: () => ({
     listMentionsFromSource: async () => [
@@ -179,6 +186,7 @@ const validArguments: Record<string, Record<string, unknown>> = {
   list_materials: {},
   read_material: { material: '气氛样稿' },
   read_book_structure: {},
+  read_plot_grid: { chapter: '第一章' },
 };
 
 function request(

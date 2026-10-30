@@ -169,6 +169,7 @@ const VALID_ARGUMENTS_BY_TOOL: Record<string, Record<string, unknown>> = {
   list_materials: {},
   read_material: { material: '世界观素材' },
   read_book_structure: {},
+  read_plot_grid: { chapter: '第一章' },
 };
 
 const EMPTY_ARGUMENT_TOOLS = new Set([

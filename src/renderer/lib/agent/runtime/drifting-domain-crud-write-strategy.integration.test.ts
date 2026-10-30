@@ -172,8 +172,8 @@ describe('workspace domain CRUD transactions', () => {
     const writer = mcpSession('writer', 'write');
     const list = async (session: ExternalToolSession) => session.handle({ jsonrpc: '2.0', id: 0,
       method: 'tools/list' }, new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
-    expect((await list(reader)).tools).toHaveLength(25);
-    expect((await list(writer)).tools).toHaveLength(86);
+    expect((await list(reader)).tools).toHaveLength(26);
+    expect((await list(writer)).tools).toHaveLength(88);
     expect((await list(writer)).tools.map((t) => t.name)).not.toContain('ask_user');
     expect(await mcpCall(reader, 'get_project_overview', {})).toMatchObject({ isError: false });
     // A cleared projection error must not leave an undefined field that the
@@ -296,10 +296,10 @@ describe('workspace domain CRUD transactions', () => {
     });
     const list = (target = session) => target.handle({ jsonrpc: '2.0', id: 0, method: 'tools/list' },
       new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
-    expect((await list()).tools).toHaveLength(25);
+    expect((await list()).tools).toHaveLength(26);
     update('write');
-    expect((await list()).tools).toHaveLength(86);
-    expect((await list(other)).tools).toHaveLength(25);
+    expect((await list()).tools).toHaveLength(88);
+    expect((await list(other)).tools).toHaveLength(26);
     expect(await mcpCall(session, 'create_chapter', { title: 'Permission fixture', body: 'Synthetic.' })).toMatchObject({ isError: false });
     await mcpCall(session, 'read_chapter', { chapter: 'Permission fixture' });
     expect(await mcpCall(session, 'delete_chapter', { chapter: 'Permission fixture' })).toMatchObject({ isError: true });
@@ -309,7 +309,7 @@ describe('workspace domain CRUD transactions', () => {
     await mcpCall(session, 'read_chapter', { chapter: 'Chapter One' });
     expect(await mcpCall(session, 'delete_chapter', { chapter: 'Chapter One' })).toMatchObject({ isError: true });
     update('read');
-    expect((await list()).tools).toHaveLength(25);
+    expect((await list()).tools).toHaveLength(26);
     expect(await mcpCall(session, 'create_chapter', { title: 'Must not exist' })).toMatchObject({ isError: true });
     expect(fixture.scalar("SELECT count(*) FROM book_node WHERE title = 'Must not exist'")).toBe(0);
     expect(() => session.updateGrant({ id: 'changing', projectId: 'other', name: 'Other', access: 'write', allowDangerous: true })).toThrow('scope');

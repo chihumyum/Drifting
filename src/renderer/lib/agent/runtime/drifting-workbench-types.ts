@@ -16,6 +16,8 @@ import type { SyncChangeBuilder } from '../../../sync/journal';
  */
 export interface WorkbenchApplyInput<S> {
   projectId: string;
+  /** The scope instance: the project id, or the chapter a plot grid belongs to. */
+  scopeId: string;
   from: S;
   to: S;
   direction: 'forward' | 'inverse';

@@ -398,6 +398,14 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
     resultBudgetChars: 24_000,
   },
   {
+    name: 'read_plot_grid',
+    description:
+      '读取一章（或一个构想）的情节表：作者自由定义行列含义的规划表，以一张 Markdown 表格返回（表头第一格空，其后是列名；每行第一格是行名）。情节表不会自动进入上下文，规划这一章前可以先读。',
+    parametersSchema: Type.Object({ chapter: str('章节或构想名') }, { additionalProperties: false }),
+    aliases: ['plot grid', '情节表', '规划表'],
+    resultBudgetChars: 24_000,
+  },
+  {
     name: 'read_material',
     description:
       '按标题读取一个素材。笔记返回 Markdown 全文（表格、清单、代码、> [!note] 提示块、==高亮==、［素材：标题］嵌入、drifting: 位置链接），改笔记前先读；图片与 PDF 返回元数据和作者说明。',
@@ -1703,6 +1711,15 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
     '删除一个时间刻度；不影响任何章节。默认请求作者确认。',
     Type.Object({ marker: str('刻度文字') }, { additionalProperties: false }),
     { risk: 'high', effect: 'graph', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'write_plot_grid',
+    '用一张 Markdown 表格写入一章（或一个构想）的情节表：表头第一格留空，其后是列名；每行第一格是行名，其余是格子内容，格内换行写 <br>。名称不变的行列保持原样，被删掉的行列连同格子一起移除。先用 read_plot_grid 读当前表格。',
+    Type.Object(
+      { chapter: str('章节或构想名'), table: str('完整的 Markdown 表格') },
+      { additionalProperties: false },
+    ),
+    { effect: 'canon', concurrency: 'exclusive_entity' },
   ),
   domainRuntimeWriteSpec(
     'create_project_memory',

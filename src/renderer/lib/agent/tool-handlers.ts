@@ -1,5 +1,9 @@
 import { flattenMaterialFolders, materialFolderPath } from '../../domain/material-folder';
 import { actForOrder, deriveActSegments } from '../../domain/book-act';
+import { readPlotGridProjection } from '../../domain/plot-grid';
+import { createPlotGridRepository } from '../../sqlite-repo/plot-grid-repo';
+import { plotGridToMarkdown } from './plot-grid-markdown';
+import { resolvePlotGridNode } from './runtime/workbench-plot-grid';
 import { readMaterialNoteMarkdown } from './runtime/drifting-material-note-write-strategy';
 import { searchExactProse } from './exact-prose-search';
 /**
@@ -722,7 +726,7 @@ function searchProject(ctx: AgentToolContext, query: string) {
  * runs of chapters in reading order, and the narrative timeline (story time)
  * with its markers. Positions are ranks; equal ranks are simultaneous.
  */
-function readBookStructure(ctx: AgentToolContext) {
+async function readBookStructure(ctx: AgentToolContext) {
   const s = useDataStore.getState();
   const nodes = s.bookNodes.filter((node) => node.projectId === ctx.projectId);
   const chapters = nodes
@@ -749,6 +753,9 @@ function readBookStructure(ctx: AgentToolContext) {
     })),
   ].sort((left, right) => left.order - right.order);
   const ranks = [...new Set(axis.map((entry) => entry.order))];
+  const withGrid = new Set(
+    await createPlotGridRepository().findNodeIdsWithDocument(nodes.map((node) => node.id)),
+  );
   return {
     readingOrder: {
       ...(segments.length > 0 && chapters.some((chapter) => !inActs.has(chapter.id))
@@ -771,6 +778,22 @@ function readBookStructure(ctx: AgentToolContext) {
         .filter((node) => node.kind === 'drift' && node.narrativeOrder == null)
         .map((node) => node.title),
     },
+    withPlotGrid: nodes.filter((node) => withGrid.has(node.id)).map((node) => node.title),
+  };
+}
+
+/** read_plot_grid — one chapter's (or idea's) plot grid as a Markdown table. */
+async function readPlotGrid(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const node = resolvePlotGridNode(ctx.projectId, args.chapter);
+  const grid = readPlotGridProjection(await createPlotGridRepository().materializeProjection(node.id));
+  if (!grid) {
+    return { chapter: node.title, empty: true, note: '这一章还没有情节表；可以用 write_plot_grid 新建' };
+  }
+  return {
+    chapter: node.title,
+    rows: grid.rows.length,
+    columns: grid.cols.length,
+    table: plotGridToMarkdown(grid),
   };
 }
 
@@ -2303,6 +2326,8 @@ export async function runAgentTool(
       return readMaterial(ctx, args);
     case 'read_book_structure':
       return readBookStructure(ctx);
+    case 'read_plot_grid':
+      return readPlotGrid(ctx, args);
     // writes
     case 'update_element':
       return updateElement(ctx, args);

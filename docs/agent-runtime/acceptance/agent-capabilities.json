@@ -21,9 +21,9 @@
     }
   },
   "installedModelTools": {
-    "total": 94,
-    "read": 28,
-    "write": 66,
+    "total": 96,
+    "read": 29,
+    "write": 67,
     "entries": [
       {
         "name": "add_chapter_to_storyline",
@@ -609,6 +609,17 @@
         "revertStrategy": "not_applicable"
       },
       {
+        "name": "read_plot_grid",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "domain-tools",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
         "name": "read_storyline",
         "access": "read",
         "owner": "workspace-runtime",
@@ -1058,6 +1069,17 @@
         "effect": "graph",
         "approval": "automatic",
         "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "write_plot_grid",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
       }
     ]
   },
@@ -1131,6 +1153,7 @@
       "list_materials",
       "read_material",
       "read_book_structure",
+      "read_plot_grid",
       "search_prose",
       "search_project",
       "create_chapter",
@@ -1193,7 +1216,8 @@
       "set_timeline_position",
       "create_timeline_marker",
       "update_timeline_marker",
-      "delete_timeline_marker"
+      "delete_timeline_marker",
+      "write_plot_grid"
     ],
     "hiddenDomainOperations": [
       "edit_prose_file",
@@ -1248,8 +1272,8 @@
     "promptCaching": "fixed-tools-directory-and-dispatch-schemas-results-append-to-context"
   },
   "domainCrud": {
-    "totalDomains": 16,
-    "closedLifecycleOperations": 75,
+    "totalDomains": 17,
+    "closedLifecycleOperations": 80,
     "entries": [
       {
         "domain": "node",
@@ -2151,6 +2175,58 @@
             ],
             "hiddenCommands": [],
             "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "plot_grid",
+        "authoredTargets": [
+          "章节「<名称>」的情节表"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "write_plot_grid"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "read_plot_grid",
+              "read_book_structure"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "write_plot_grid"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "write_plot_grid"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
             "authority": "sqlite"
           },
           "revert": {

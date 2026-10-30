@@ -19,6 +19,7 @@ import { WORKBENCH_COMMAND_NAMES, type WorkbenchCommandName } from './drifting-w
 import type { WorkbenchCommand, WorkbenchResolution, WorkbenchScope } from './drifting-workbench-types';
 import { MATERIAL_LIBRARY_COMMANDS } from './workbench-material-library';
 import { BOOK_STRUCTURE_COMMANDS } from './workbench-book-structure';
+import { PLOT_GRID_COMMANDS } from './workbench-plot-grid';
 
 /** Receipt and snapshot kind shared by every workbench scope. */
 export const WORKBENCH_SNAPSHOT_KIND = 'authoring_scope' as const;
@@ -27,7 +28,7 @@ type AnyCommand = WorkbenchCommand<unknown>;
 type AnyScope = WorkbenchScope<unknown>;
 
 const COMMANDS: ReadonlyMap<string, AnyCommand> = new Map(
-  ([...MATERIAL_LIBRARY_COMMANDS, ...BOOK_STRUCTURE_COMMANDS] as unknown as AnyCommand[]).map((command) => [
+  ([...MATERIAL_LIBRARY_COMMANDS, ...BOOK_STRUCTURE_COMMANDS, ...PLOT_GRID_COMMANDS] as unknown as AnyCommand[]).map((command) => [
     command.name,
     command,
   ]),
@@ -254,6 +255,7 @@ export function createDriftingWorkbenchWriteStrategy(
           const changes = journal.createChangeSet();
           await scope.apply(tx, {
             projectId: payload.projectId,
+            scopeId: payload.scopeId,
             from: current,
             to: payload.next,
             direction: 'forward',
@@ -346,6 +348,7 @@ export function createDriftingWorkbenchWriteStrategy(
           const changes = journal.createChangeSet();
           await scope.apply(tx, {
             projectId: payload.projectId,
+            scopeId: payload.scopeId,
             from: current,
             to: target,
             direction: 'inverse',

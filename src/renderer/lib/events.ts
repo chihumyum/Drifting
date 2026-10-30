@@ -11,6 +11,8 @@ export type AppEvents = {
   'graph:node-deleted': { nodeId: string };
 
   'editor:saved': { nodeId: string; content: string };
+  /** A plot grid changed outside its open planner (the Agent wrote it). */
+  'plot-grid:changed': { projectId: string; nodeId: string };
   'editor:block-updated': { blockId: string; content: string };
   'editor:mention-detected': { blockId: string; mentions: string[] };
 

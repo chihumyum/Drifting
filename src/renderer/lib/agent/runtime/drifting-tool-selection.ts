@@ -88,6 +88,7 @@ const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | unde
     create_timeline_marker: Object.freeze(['read_book_structure']),
     update_timeline_marker: Object.freeze(['read_book_structure']),
     delete_timeline_marker: Object.freeze(['read_book_structure']),
+    write_plot_grid: Object.freeze(['read_plot_grid']),
   });
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<

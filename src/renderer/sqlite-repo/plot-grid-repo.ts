@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import {
   DEFAULT_CELL_H,
@@ -51,6 +51,8 @@ export interface PlotGridAuthority {
 
 export interface PlotGridRepository {
   findAuthorityByNodeId(nodeId: string): Promise<PlotGridAuthority | null>;
+  /** The subset of `nodeIds` that has a plot grid document. */
+  findNodeIdsWithDocument(nodeIds: readonly string[]): Promise<string[]>;
   ensureDocument(nodeId: string): Promise<PlotGridDocumentRecord>;
   setSize(nodeId: string, cellW: number, cellH: number): Promise<PlotGridDocumentRecord>;
   addRow(
@@ -293,6 +295,15 @@ export function createPlotGridRepository(dbOverride?: DbExecutor): PlotGridRepos
   return {
     findAuthorityByNodeId,
     ensureDocument,
+
+    async findNodeIdsWithDocument(nodeIds) {
+      if (nodeIds.length === 0) return [];
+      const rows = await db()
+        .select({ nodeId: PlotGridDocumentTable.nodeId })
+        .from(PlotGridDocumentTable)
+        .where(inArray(PlotGridDocumentTable.nodeId, [...nodeIds]));
+      return rows.map((row) => row.nodeId);
+    },
 
     async setSize(nodeId, cellW, cellH) {
       assertSize(cellW, cellH);

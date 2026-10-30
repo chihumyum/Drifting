@@ -27,6 +27,7 @@ export const DRIFTING_DOMAIN_READ_TOOLS = [
   'list_materials',
   'read_material',
   'read_book_structure',
+  'read_plot_grid',
   'search_prose',
   'search_project',
 ] as const;
@@ -93,6 +94,7 @@ export const DRIFTING_DOMAIN_WRITE_TOOLS = [
   'create_timeline_marker',
   'update_timeline_marker',
   'delete_timeline_marker',
+  'write_plot_grid',
 ] as const;
 
 /**
@@ -114,6 +116,7 @@ export const WORKBENCH_COMMAND_NAMES = [
   'create_timeline_marker',
   'update_timeline_marker',
   'delete_timeline_marker',
+  'write_plot_grid',
 ] as const;
 
 /** Direct writes to a material note's own Yjs document. */
@@ -260,7 +263,8 @@ export interface DriftingDomainCrudContract {
     | 'material_folder'
     | 'act'
     | 'book_order'
-    | 'timeline';
+    | 'timeline'
+    | 'plot_grid';
   authoredTargets: readonly string[];
   operations: Readonly<
     Record<DriftingDomainCrudOperation, DriftingDomainCrudOperationContract>
@@ -577,6 +581,17 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       read: closedRead(['read_book_structure']),
       update: closedWrite(['update_timeline_marker', 'set_timeline_position'], [], 'automatic'),
       delete: closedWrite(['delete_timeline_marker', 'set_timeline_position'], [], 'confirm_before'),
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'plot_grid',
+    authoredTargets: ['章节「<名称>」的情节表'],
+    operations: {
+      create: closedWrite(['write_plot_grid'], [], 'automatic'),
+      read: closedRead(['read_plot_grid', 'read_book_structure']),
+      update: closedWrite(['write_plot_grid'], [], 'automatic'),
+      delete: closedWrite(['write_plot_grid'], [], 'automatic'),
       revert: exactRevert([]),
     },
   },
