@@ -116,6 +116,7 @@ export function DriftPanel({
   const agentTouched = useAgentUnreadMarks();
   // Persisted pending agent edits — keeps "M" visible after a reload.
   const agentAdditions = useAgentEditStore((s) => s.additions);
+  const agentPending = useAgentEditStore((s) => s.pending);
 
   const { createNode } = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
   const { createGroup, renameGroup, moveGroup, deleteGroup, moveDriftToGroup } = useDriftGroup({
@@ -266,6 +267,8 @@ export function DriftPanel({
       !agentBusy &&
       !agentAdded &&
       (`node:${node.id}` in agentTouched);
+    // The unread change came from an edit in another editor: blue.
+    const agentExternal = agentChanged && agentPending[`node:${node.id}`]?.lastSource === 'file';
     // Merged display: resting drifts aren't bucketed into a separate drawer
     // anymore — they sit inline, distinguished only by a muted cell style.
     const muted = node.writingStatus === 'resting';
@@ -315,12 +318,13 @@ export function DriftPanel({
         {agentAdded || agentChanged ? (
           <AgentChangeIndicator
             onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
-            title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+            title={t(agentExternal ? 'agentActivity.externalChangedHere' : agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+            external={agentExternal}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
               fontWeight: 600,
-              color: 'hsl(var(--ink-2))',
+              color: agentExternal ? 'hsl(var(--external-ink))' : 'hsl(var(--ink-2))',
               flexShrink: 0,
               lineHeight: 1,
               width: 14,

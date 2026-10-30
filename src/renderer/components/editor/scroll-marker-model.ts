@@ -74,7 +74,7 @@ export function createAgentMarkerSelector() {
       if (c.field) continue;
       const anchor = c.op === 'deleted' ? c.afterPrevId : c.blockId;
       next.push({ key: `a:${c.op}:${c.blockId}`, blockIds: anchor ? [anchor] : [],
-        cls: `editor__scrollmap-tick--agent-${c.op}`,
+        cls: `editor__scrollmap-tick--agent-${c.op}${c.source === 'file' ? ' editor__scrollmap-tick--external' : ''}`,
         laneCls: `editor__scrollmap-tick--lane${c.op === 'new' ? 0 : c.op === 'deleted' ? 2 : 1}`,
         titleKey: 'editorScrollMarkers.jumpToChange' });
     }

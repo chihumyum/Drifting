@@ -64,6 +64,11 @@ export interface AgentBlockChange {
    * set; the field-review surface renders only these. See {@link AgentFieldRef}.
    */
   field?: AgentFieldRef;
+  /**
+   * `file`: merged from an edit made in another editor through the project
+   * Markdown folder (docs/markdown-mirror.md), shown in blue. Absent: the Agent.
+   */
+  source?: 'file';
 }
 
 /**

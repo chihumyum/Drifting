@@ -64,6 +64,15 @@ describe('scoped scrollbar marker projections', () => {
     expect(select(undefined)).toEqual([]);
   });
 
+  it('marks every lane of an edit made in another editor with the external colour', () => {
+    const select = createAgentMarkerSelector();
+    expect(select([change({ source: 'file' }), change({ blockId: 'new', op: 'new', source: 'file' }), change({ blockId: 'own' })]).map(c => c.cls)).toEqual([
+      'editor__scrollmap-tick--agent-changed editor__scrollmap-tick--external',
+      'editor__scrollmap-tick--agent-new editor__scrollmap-tick--external',
+      'editor__scrollmap-tick--agent-changed',
+    ]);
+  });
+
   it('removes field changes even when their old op/id/predecessor signature is unchanged', () => {
     const select = createAgentMarkerSelector();
     expect(select([change({ op: 'deleted' })])).toHaveLength(1);

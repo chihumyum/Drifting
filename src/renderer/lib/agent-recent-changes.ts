@@ -1,5 +1,6 @@
 // What the Agent just wrote into the prose, kept coloured on the desktop until
 // the author's pointer rests on it: added words green, rewritten words purple.
+// What an edit in another editor brought in (docs/markdown-mirror.md) is blue.
 // The marks live in memory for this run of the app: they survive switching
 // tabs and show in the whole-book reader too, and a mark goes when the author
 // points at it, when the words it marks are edited away, or when the Agent
@@ -18,7 +19,7 @@ export interface AgentRecentMark {
   start: number;
   end: number;
   text: string;
-  kind: 'new' | 'chg';
+  kind: 'new' | 'chg' | 'ext';
   /** 0 while it shows; 1 and 2 while its colour eases back to ink. */
   fade: 0 | 1 | 2;
 }
@@ -77,7 +78,7 @@ export function recordAgentRecentChange(entityType: ActivityEntityType, id: stri
       id: `${entity}:${change.blockId}:${serial}`,
       entity, entityType, blockId: change.blockId,
       start: span.start, end: span.end, text: change.newText.slice(span.start, span.end),
-      kind: span.kind, fade: 0 as const,
+      kind: change.source === 'file' ? 'ext' as const : span.kind, fade: 0 as const,
     };
   });
   if (added.length === 0 && kept.length === marks.length) return;

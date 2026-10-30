@@ -27,6 +27,7 @@ import {
   createAgentEditSeenTracker,
 } from './agent-edit-animation';
 import { recordAgentRecentChange } from '../../lib/agent-recent-changes';
+import { noteExternalRevealed } from '../../lib/external-edit-presentation';
 import { getPlatformRuntime } from '../../platform/runtime';
 
 /** Displays committed Agent edits until viewed or acknowledged in the sidebar.
@@ -370,7 +371,7 @@ function RevealOverlay({
     <div
       ref={setNode}
       aria-hidden="true"
-      className={`agent-reveal agent-reveal--${change.op}${fading ? ' agent-reveal--fade' : ''}`}
+      className={`agent-reveal agent-reveal--${change.op}${change.source === 'file' ? ' agent-reveal--external' : ''}${fading ? ' agent-reveal--fade' : ''}`}
       style={pos}
     >
       <AgentRevealText segments={segs} progress={progress} showCaret={!fading} mode={mode} />
@@ -477,6 +478,7 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
       if (!id) return;
       const store = useAgentEditStore.getState();
       store.resolveBlocks(entityType, id, [c.blockId]);
+      if (c.source === 'file') noteExternalRevealed(entityType, id, c);
       // The desktop keeps what the Agent wrote coloured until the author's
       // pointer rests on it (AgentRecentChangeHighlights).
       if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, c);

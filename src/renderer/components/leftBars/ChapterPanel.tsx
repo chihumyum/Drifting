@@ -81,6 +81,7 @@ const ChapterRow = memo(function ChapterRow({
   agentBusy,
   agentAdded,
   agentChanged,
+  agentExternal,
   meta,
   presentation,
   actions,
@@ -91,6 +92,8 @@ const ChapterRow = memo(function ChapterRow({
   agentBusy: boolean;
   agentAdded: boolean;
   agentChanged: boolean;
+  /** The unread change came from an edit in another editor. */
+  agentExternal: boolean;
   meta: string;
   presentation: 'desktop' | 'mobile';
   actions: ChapterRowActions;
@@ -129,7 +132,8 @@ const ChapterRow = memo(function ChapterRow({
       {agentAdded || agentChanged ? (
         <AgentChangeIndicator
           onClick={() => useAgentActivityStore.getState().markSeen([entityKey('node', node.id)])}
-          title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+          title={t(agentExternal ? 'agentActivity.externalChangedHere' : agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
+          external={agentExternal}
           style={{
             width: 14,
             flexShrink: 0,
@@ -138,7 +142,7 @@ const ChapterRow = memo(function ChapterRow({
             fontSize: 'var(--ui-font-caption, 10px)',
             fontWeight: 600,
             lineHeight: 1,
-            color: 'hsl(var(--ink-2))',
+            color: agentExternal ? 'hsl(var(--external-ink))' : 'hsl(var(--ink-2))',
           }}
         >
           {agentAdded ? 'A' : 'M'}
@@ -241,6 +245,7 @@ export function ChapterPanel({
   // Persisted pending agent edits (approve/auto review) — survives reload, so a
   // chapter with unreviewed edits still shows "M" after a refresh.
   const agentAdditions = useAgentEditStore((s) => s.additions);
+  const agentPending = useAgentEditStore((s) => s.pending);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -466,6 +471,7 @@ export function ChapterPanel({
         agentBusy={agentBusy}
         agentAdded={agentAdded}
         agentChanged={!agentBusy && !agentAdded && `node:${node.id}` in agentTouched}
+        agentExternal={!agentBusy && !agentAdded && agentPending[`node:${node.id}`]?.lastSource === 'file'}
         meta={showMeta ? cellMeta : 'none'}
         presentation={presentation}
         actions={rowActions}

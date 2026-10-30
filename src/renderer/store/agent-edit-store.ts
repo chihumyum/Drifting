@@ -28,6 +28,8 @@ export interface PendingEntityEdits {
   id: string;
   /** Outstanding unread changes, including readable historical mode metadata. */
   changes: AgentBlockChange[];
+  /** Who changed the entity most recently; absent means the Agent. */
+  lastSource?: 'agent' | 'file';
 }
 /**
  * A prose entity created by General Agent but not yet opened by the author.
@@ -126,6 +128,12 @@ interface AgentEditState {
     mode: AgentEditMode,
   ) => void;
   /**
+   * Record what an edit made in another editor changed (docs/markdown-mirror.md).
+   * A block with a pending Agent review keeps that review: the external change
+   * is dropped for it rather than taking over its provenance.
+   */
+  recordExternal: (entityType: ActivityEntityType, id: string, changes: AgentBlockChange[]) => void;
+  /**
    * Record one deterministic durable Agent review exactly once. Returns false
    * for a replay of the same reviewId.
    */
@@ -219,7 +227,29 @@ export const useAgentEditStore = create<AgentEditState>()(
             delete next[key];
             return { pending: next };
           }
-          return { pending: { ...s.pending, [key]: { entityType, id, changes: merged } } };
+          return { pending: { ...s.pending, [key]: { entityType, id, changes: merged, lastSource: 'agent' } } };
+        });
+      },
+
+      recordExternal: (entityType, id, changes) => {
+        const key = entityKey(entityType, id);
+        const reviewed = new Set(
+          (get().pending[key]?.changes ?? []).filter((change) => change.reviewId).map((change) => change.blockId),
+        );
+        const stamped = changes
+          .filter((change) => !change.field && !reviewed.has(change.blockId))
+          .map((change) => ({ ...change, mode: 'auto' as const, source: 'file' as const }));
+        if (stamped.length === 0) return;
+        set((s) => {
+          const prev = s.pending[key];
+          const merged = prev ? mergeBlockChanges(prev.changes, stamped) : stamped;
+          if (merged.length === 0) {
+            if (!prev) return s;
+            const next = { ...s.pending };
+            delete next[key];
+            return { pending: next };
+          }
+          return { pending: { ...s.pending, [key]: { entityType, id, changes: merged, lastSource: 'file' } } };
         });
       },
 

@@ -4,11 +4,14 @@ import { BrushIcon } from '../ui/BrushIcon';
 
 /** Acknowledges only its scope; never opens, expands or drags the parent row. */
 export function AgentChangeIndicator({
-  onClick, className = '', title, disabled, children, style, ...props
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  onClick, className = '', title, disabled, children, style, external = false, ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** The unread change came from an edit in another editor (blue). */
+  external?: boolean;
+}) {
   const { t } = useTranslation();
   if (disabled) return <span aria-hidden className={className} title={title} style={style}>{children}</span>;
-  const label = `${title ? `${title} · ` : ''}${t('agentActivity.markSeen')}`;
+  const label = `${title ? `${title} · ` : ''}${t(external ? 'agentActivity.markExternalSeen' : 'agentActivity.markSeen')}`;
   return (
     <button
       {...props}
