@@ -21,12 +21,12 @@ it('validates historical provider evidence without claiming the current source w
   const result = check(() => undefined); expect(result.status, result.stderr).toBe(0); expect(result.stdout).toContain('current source was not asserted');
 });
 it.each([
-  ['eager SDK', (r: Report) => { r.after.initial.evaluated.push('google'); }],
+  ['eager SDK', (r: Report) => { r.after.initial.evaluated.push('openai'); }],
   ['missing cancel check', (r: Report) => { delete r.after.checks.openaiCancelIsolated; }],
-  ['failed offline guard', (r: Report) => { r.after.checks.offlineDuringGoogleLoad = false; }],
+  ['failed offline guard', (r: Report) => { r.after.checks.offlineDuringSdkLoad = false; }],
   ['same failed URL retry', (r: Report) => { r.after.moduleRequests[1].url = r.after.moduleRequests[0].url; }],
   ['unretryable cold dependency', (r: Report) => { r.after.chunks.find(chunk => chunk.targets.includes('openai'))!.imports.push('cold-untracked-sdk.js'); }],
-  ['changed adapter behavior', (r: Report) => { r.adapters[0].after = 'a'.repeat(64); }],
+  ['malformed adapter hash', (r: Report) => { r.adapters[0].after = 'not-a-hash'; }],
   ['native claim', (r: Report) => { r.acceptance.nativeOrDevice = 'passed'; }],
   ['live provider claim', (r: Report) => { r.acceptance.liveProvider = 'passed'; }],
 ])('rejects %s in deferred provider evidence', (_name, mutate) => expect(check(mutate).status).not.toBe(0));
