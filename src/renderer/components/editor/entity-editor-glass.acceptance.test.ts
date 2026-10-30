@@ -197,9 +197,111 @@ describe('entity editors in sand and glass', () => {
     }
   });
 
+  it('shows only the caret in a field written on the paper or in glass', () => {
+    const base = source('src/styles/index.css');
+    // The form controls' accent ring stays for boxed controls everywhere else.
+    expect(base).toMatch(
+      /html input:focus-visible,\s*html textarea:focus-visible,\s*html select:focus-visible \{[^}]*box-shadow: 0 0 0 3px hsl\(var\(--accent\) \/ 0\.22\);/,
+    );
+    const carveOut = rules(base, ['.glass--field']);
+    expect(carveOut).toHaveLength(1);
+    const [selector, body] = carveOut[0];
+    expect(selector).toContain("html:not([data-shell-mode='mobile'])");
+    expect(selector).toContain(':is(.editor-shell, .glass--field)');
+    expect(selector).toContain(':is(textarea, input:not(');
+    for (const boxed of ['checkbox', 'radio', 'range']) expect(selector).toContain(`[type='${boxed}']`);
+    expect(selector).not.toContain('select');
+    expect(selector).toMatch(/:focus-visible$/);
+    expect(body.trim()).toBe('box-shadow: none;');
+
+    // Every structured editor is an editor shell, so its titles, summaries,
+    // field rows, aliases, patch titles and material descriptions are covered.
+    for (const path of [
+      'src/renderer/views/ElementEditorView.tsx',
+      'src/renderer/views/CategoryEditorView.tsx',
+      'src/renderer/views/StorylineEditorView.tsx',
+      'src/renderer/views/NodeEditorView.tsx',
+      'src/renderer/views/MaterialEditorView.tsx',
+      'src/renderer/views/AllChaptersEditorView.tsx',
+    ]) {
+      expect(source(path), path).toMatch(/className="editor-shell[" ]/);
+    }
+
+    // No desktop editor rule puts an accent wash or ring back under the caret.
+    const editors = source('src/styles/entity-editors.css');
+    for (const [focusSelector, focusBody] of rules(editors, ['.kv-editor--glass'])) {
+      if (!/:focus/.test(focusSelector)) continue;
+      expect(focusBody, focusSelector).not.toMatch(/accent/);
+    }
+  });
+
+  it('sets editor section headers in the Panel Tabs’ upright structure serif', () => {
+    const fonts = source('src/styles/interface-fonts.css');
+    const structure = [...fonts.matchAll(/html\[data-shell-mode='desktop'\] :is\(([^)]*)\) \{([^}]*)\}/g)].find(
+      ([, list]) => list.includes('.workspace-panel-tab-row .app-panel-tab'),
+    );
+    expect(structure).toBeDefined();
+    const [, list, body] = structure!;
+    expect(list).toContain('.page__scene-title');
+    expect(list).toContain('.refs-section__title');
+    expect(body).toContain('font-family: var(--font-structure);');
+    expect(body).toContain('font-style: normal;');
+    expect(body).toContain('font-weight: 400;');
+
+    for (const path of [
+      'src/renderer/views/ElementEditorView.tsx',
+      'src/renderer/views/CategoryEditorView.tsx',
+      'src/renderer/views/StorylineEditorView.tsx',
+    ]) {
+      expect(source(path), path).toContain('<span className="page__scene-title">');
+    }
+    for (const path of ['src/renderer/components/editor/ReferencesPanel.tsx', 'src/renderer/components/editor/PatchesSection.tsx']) {
+      expect(source(path), path).toContain('<span className="refs-section__title">');
+    }
+  });
+
+  it('says an empty section in one centred line of small mono', () => {
+    shell.mobile = false;
+    const empty = renderToStaticMarkup(createElement(KvEditor, { valueJson: '[]', onPersist: () => {}, emptyHint: 'none yet' }));
+    expect(empty).toContain('class="kv-editor__empty ui-section-empty"');
+
+    const notes = [
+      ['src/renderer/components/editor/KvEditor.tsx', 'kv-editor__empty', 1],
+      ['src/renderer/components/editor/PatchesSection.tsx', 'refs-empty', 1],
+      ['src/renderer/components/editor/ReferencesPanel.tsx', 'refs-empty', 2],
+      ['src/renderer/components/editor/ReferencesPanel.tsx', 'refs-picker__empty', 1],
+      ['src/renderer/views/StorylineEditorView.tsx', 'mgr-empty', 1],
+      ['src/renderer/views/CategoryEditorView.tsx', 'mgr-empty', 1],
+      ['src/renderer/views/MaterialEditorView.tsx', 'material-comments__empty', 1],
+    ] as const;
+    for (const [path, name, count] of notes) {
+      const view = source(path);
+      expect(view.split(`className="${name} ui-section-empty"`).length - 1, `${path} ${name}`).toBe(count);
+      expect(view, `${path} ${name}`).not.toContain(`className="${name}"`);
+    }
+
+    const controls = source('src/styles/ui-controls.css');
+    const [note] = rules(controls, ['.ui-section-empty']);
+    expect(note[0]).toBe("html:not([data-shell-mode='mobile']) .ui-section-empty");
+    expect(note[1]).toContain('font-size: var(--ui-font-caption, 11px);');
+    expect(note[1]).toContain('font-style: normal;');
+    expect(note[1]).toContain('text-align: center;');
+    expect(note[1]).not.toMatch(/font-family|background|border/);
+
+    const fonts = source('src/styles/interface-fonts.css');
+    const index = [...fonts.matchAll(/html\[data-shell-mode='desktop'\] :is\(([^)]*)\) \{([^}]*)\}/g)].find(
+      ([, list]) => list.includes('.workspace-panel-header-row'),
+    );
+    expect(index?.[1]).toContain('.ui-section-empty');
+    expect(index?.[2]).toContain('font-family: var(--font-mono);');
+  });
+
   it('documents the entity editors in the component catalogue', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('## 实体编辑器');
     expect(docs).toContain('`entity-editor-glass.acceptance.test.ts`');
+    expect(docs).toContain('只有光标');
+    expect(docs).toContain('`.ui-section-empty`');
+    expect(docs).toContain('`.page__scene-title`');
   });
 });
