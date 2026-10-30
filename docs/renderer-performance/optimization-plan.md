@@ -57,7 +57,6 @@
 - 工作区不能混用两个项目、两个 generation 或半批新旧关系数据；旧异步结果不能发布到新项目。
 - 不修改已发布迁移，不重置作者数据库。若 F6 确需新增持久进度结构，另加迁移并履行安全快照与兼容性验收。
 - 不改变 provider-neutral Agent 的 `local`/`sidecar`/`remote` 接缝，也不恢复已退役产品。
-- [Copilot 重设计](../copilot/redesign-plan.md)仍按独立计划推进；本计划只可提供订阅/调度基础，不能据此宣称其功能完成。
 - 保留 drift 节点任一端点决定特殊边的规则，以及 act/chapter/scene/beat/note 五层语义。
 
 ## 3. 阶段与依赖
