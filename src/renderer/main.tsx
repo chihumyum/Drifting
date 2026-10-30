@@ -17,6 +17,8 @@ import '../styles/settings.css';
 import '../styles/agent-activity.css';
 import '../styles/desktop-typography.css';
 import '../styles/interface-fonts.css';
+// After the app's own sheets, where Tiptap used to append its own.
+import '../styles/tiptap-base.css';
 import './lib/i18n';
 import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';
@@ -25,6 +27,7 @@ import { elementPatchCapability } from './lib/copilot/capabilities/element-patch
 import { hydratePlatformRuntime } from './platform/runtime';
 import { applyInitialThemeBeforeRender } from './lib/initial-theme';
 import { installCrashReporting } from './services/diagnostics/crash-reporter';
+import { installGlassAwake } from './lib/glass-awake';
 import App from './App';
 
 // Register Copilot capabilities once at app boot. Order doesn't matter —
@@ -34,6 +37,7 @@ registerCopilotCapability(elementPatchCapability);
 
 installAIDevConsole();
 installCrashReporting();
+installGlassAwake(document);
 
 // Kept behind both a compile-time branch (DEV, or a local release-performance
 // measurement bundle) and an explicit opt-in. The dynamic module and its global

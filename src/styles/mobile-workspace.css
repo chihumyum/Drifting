@@ -3455,7 +3455,7 @@ html[data-shell-mode='mobile'] .m-super-view-host .super-view-overlay {
 .m-vtl__gline { position: absolute; left: 0; width: var(--m-vtl-gutter); height: 1px; background: hsl(var(--rule-strong)); z-index: 3; pointer-events: none; }
 .m-vtl__gline--mk { background: hsl(var(--ink-3)); }
 .m-vtl__handle { position: absolute; left: 0; top: -14px; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; pointer-events: auto; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
-.m-vtl__handle::before { content: ''; position: absolute; left: 2px; top: 9px; width: 9px; height: 9px; border-radius: 2px; background: hsl(var(--page)); border: 1px solid hsl(var(--ink-3)); }
+.m-vtl__handle::before { content: ''; position: absolute; left: 2px; top: 9px; box-sizing: border-box; width: 9px; height: 9px; border-radius: 2px; background: hsl(var(--page)); border: 1px solid hsl(var(--ink-3)); }
 .m-vtl__handle--mk::before { left: 3px; top: 10px; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--ink-3)); border-color: hsl(var(--ink-3)); }
 .m-vtl__guide { position: absolute; left: 0; right: 12px; height: 1.5px; background: hsl(var(--accent)); z-index: 3; pointer-events: none; }
 .m-vtl__guide::before { content: ''; position: absolute; left: 4px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--accent)); }

@@ -756,6 +756,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       content: initialContent,
       autofocus: autoFocus ? 'end' : false,
       editable,
+      // Its base styles load once with the app (styles/tiptap-base.css).
+      injectCSS: false,
       editorProps: {
         attributes: {
           class: editorClass ?? 'prose max-w-none focus:outline-none',

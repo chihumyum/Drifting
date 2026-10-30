@@ -12,6 +12,14 @@ switching, sidebars and Super Views still freeze single frames for 60–300 ms, 
 typing keeps WebContent near 73% CPU. Background CPU and the native save path
 mostly were Debug-build costs.
 
+The 2026-10-30 [style invalidation taxes](style-invalidation-taxes.md) remove
+three costs that every animation frame or large mount paid: hundreds of paused
+glass-rim animations, Tiptap adding and removing its stylesheet with the first
+and last editor, and Tailwind's universal `::before`/`::after` reset
+([details](preflight-pseudo-elements.md)). Closing the last tab drops from about
+320 ms to 70 ms, and opening a long chapter, the project, a sidebar or a Super
+View gets 20–45% faster; tab switching frames are unchanged.
+
 The 2026-10-30 [keystroke write path](keystroke-write-path.md) work stops each
 keystroke from rebuilding the chapter's Yjs document and re-sorting, re-cloning
 and re-validating the whole reducer projection. `pnpm perf:keystroke` replays
