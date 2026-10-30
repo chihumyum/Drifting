@@ -19,6 +19,24 @@
     "saved": "已保存 Markdown",
     "failed": "操作未完成，请重试，或选中文字后复制。"
   },
+  "shareLink": {
+    "dialogTitle": "分享",
+    "title": "分享链接",
+    "signIn": "登录",
+    "create": "创建分享链接",
+    "creating": "正在创建…",
+    "url": "分享链接",
+    "copy": "复制链接",
+    "copied": "链接已复制",
+    "allowComments": "允许评论",
+    "revision": "第 {{revision}} 版",
+    "stop": "停止分享",
+    "confirmStop": "确认停止？链接会失效",
+    "stopping": "正在停止…",
+    "failed": "操作没有完成，请检查网络后重试。",
+    "reauth": "登录已过期，请重新登录后再试。",
+    "readerBadge": "读者"
+  },
   "sidebarLayout": {
     "split": "恢复双栏"
   },

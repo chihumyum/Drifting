@@ -7,6 +7,9 @@ import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../u
 import '../../../styles/markdown-share.css';
 import { BrushIcon } from '../ui/BrushIcon';
 import { LoadingStatus } from '../ui/LoadingStatus';
+import { APP_CONFIG } from '../../lib/config';
+import { ShareLinkSection } from '../../features/share-links/ShareLinkSection';
+import '../../../styles/share-links.css';
 
 export function MarkdownShareDialog({ target, onClose }: {
   target: MarkdownShareTarget;
@@ -70,6 +73,12 @@ export function MarkdownShareDialog({ target, onClose }: {
     }
   };
 
+  // A link shares one entity's body; the whole book stays a Markdown export.
+  const linkTarget = target.kind !== 'book' && !APP_CONFIG.LOCAL_ONLY_MODE
+    ? { projectId: target.projectId, entityKind: target.kind, entityId: target.id }
+    : null;
+  const title = t(linkTarget ? 'shareLink.dialogTitle' : 'markdownShare.title');
+
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // Keep workspace/editor shortcuts outside the read-only Markdown surface.
     event.stopPropagation();
@@ -79,7 +88,7 @@ export function MarkdownShareDialog({ target, onClose }: {
       textRef.current.select();
     }
     if (event.key !== 'Tab') return;
-    const controls = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), textarea') ?? []);
+    const controls = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea') ?? []);
     const first = controls[0];
     const last = controls[controls.length - 1];
     const active = window.document.activeElement;
@@ -91,12 +100,13 @@ export function MarkdownShareDialog({ target, onClose }: {
   };
 
   return (
-    <ModalRoot onClose={onClose} ariaLabel={t('markdownShare.title')} className="markdown-share-root">
+    <ModalRoot onClose={onClose} ariaLabel={title} className="markdown-share-root">
       <ModalCard width={800}>
         <div ref={rootRef} tabIndex={-1} className="markdown-share" onKeyDown={handleKeyDown}>
-          <ModalHeader title={t('markdownShare.title')} onClose={onClose} closeLabel={t('common.close')}
+          <ModalHeader title={title} onClose={onClose} closeLabel={t('common.close')}
             subtitle={target.kind === 'book' ? t('markdownShare.wholeBook') : t('markdownShare.currentBody')} />
           <ModalBody className="markdown-share__body">
+            {linkTarget && <ShareLinkSection target={linkTarget} />}
             <div className="markdown-share__meta">
               <BrushIcon name="file-text" size={15} />
               <strong>{document?.filename ?? `${target.title}.md`}</strong>

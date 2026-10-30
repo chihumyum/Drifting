@@ -125,6 +125,8 @@ export function ReviewItemCard({
   const isTodo = comment.kind === 'todo';
   const isResolved = comment.status === 'resolved';
   const isConverted = comment.status === 'converted';
+  // A reader's comment from a share link (features/share-links) names its reader.
+  const readerName = comment.authorKind === 'external' ? comment.authorName?.trim() || null : null;
   const metadata = comment.source === 'copilot' ? decodeCopilotMetadata(comment.metadataJson) : null;
   const capability = metadata ? getCopilotCapabilityForMetadataKind(metadata.kind) : null;
   const summary = capability && metadata ? capability.renderSummary?.(metadata) : null;
@@ -364,7 +366,9 @@ export function ReviewItemCard({
             ? capability.displayName
             : isTodo
               ? 'TODO'
-              : t('reviewPanel.comment')}
+              : readerName
+                ? `${t('shareLink.readerBadge')} · ${readerName}`
+                : t('reviewPanel.comment')}
         </span>
         {canJump && (
           <button

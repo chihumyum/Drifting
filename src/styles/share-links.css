@@ -1,0 +1,13 @@
+/* Share link part of the share dialog (features/share-links/ShareLinkSection).
+   Flat on the dialog like the Markdown sheet below it; the link is a resting
+   still line of glass, the controls are the shared glass buttons and switch. */
+.share-link { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; border-bottom: 0.5px solid hsl(var(--rule)); }
+.share-link__head { display: flex; }
+.share-link__head strong { font-size: var(--ui-font-primary, 13px); font-weight: 500; color: hsl(var(--ink-1)); }
+.share-link__row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.share-link__url { flex: 1; min-width: 0; height: var(--control-height-md, 28px); padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: hsl(var(--ink-2)); font-family: var(--font-mono); font-size: var(--ui-font-caption, 11px); outline: none; }
+.share-link__row--settings { flex-wrap: wrap; }
+.share-link__toggle { display: inline-flex; align-items: center; gap: 8px; font-size: var(--ui-font-secondary, 12px); color: hsl(var(--ink-2)); cursor: pointer; }
+.share-link__meta { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--ui-font-caption, 11px); color: var(--ui-text-muted, hsl(var(--ink-4))); }
+.share-link__feedback { margin: 0; font-size: var(--ui-font-secondary, 12px); color: var(--ui-text-muted, hsl(var(--ink-3))); }
+.share-link__feedback[role='alert'] { color: hsl(var(--destructive)); }
