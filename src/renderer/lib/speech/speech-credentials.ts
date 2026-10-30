@@ -1,7 +1,7 @@
 /**
  * Speech transcription credential — a keychain slot separate from the
  * `BYOKProvider` union on purpose: widening that union would silently add the
- * vendor to the Copilot provider picker and several exhaustive maps. The
+ * vendor to the Models & API provider rows and several exhaustive maps. The
  * transcription key is not an LLM credential; it only unlocks voice capture.
  *
  * Key naming follows the `byok.<provider>` keychain convention, so the Rust

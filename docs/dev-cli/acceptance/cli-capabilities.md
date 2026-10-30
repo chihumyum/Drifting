@@ -30,7 +30,7 @@
 | library_item | workspace | sqlite | workflow_only | workspace resource list<br>workspace resource get | Material lifecycle is owned by the renderer import workflow and local asset store. |
 | material_folder | workspace | sqlite | workflow_only | workspace resource list<br>workspace resource get | Material folders are inspectable; generic writes cannot bypass domain transactions. |
 | project_asset | workspace | sqlite | workflow_only | workspace resource list<br>workspace resource get | Local asset import owns writes; source bytes live in app-owned storage. |
-| block_section | ops | derived | derived_rebuild | ops inspect | Copilot-derived rolling summaries. |
+| block_section | ops | derived | derived_rebuild | ops inspect | Rolling summaries from the retired Copilot; no longer produced. |
 | agent_conversation | agent | sqlite | workflow_only | agent turn<br>agent review | Conversation lifecycle is owned by Agent transport. |
 | agent_runtime | agent | sqlite | inspect_reconcile | ops inspect | Sessions, turns, messages, events, tool calls, checkpoints, tasks and receipts are append-only runtime evidence. |
 | agent_memory | workspace | sqlite | full_lifecycle | workspace call | Project-scoped durable memories through certified domain commands. |

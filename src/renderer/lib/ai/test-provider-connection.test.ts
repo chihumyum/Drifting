@@ -26,7 +26,7 @@ function dependencies(
 }
 
 describe('direct BYOK provider connectivity check', () => {
-  it.each(['deepseek', 'anthropic', 'google'] as const)(
+  it.each(['deepseek', 'anthropic'] as const)(
     'uses the direct %s adapter with the exact key and model',
     async (provider) => {
       const requests: AICompletionRequest[] = [];
@@ -81,7 +81,7 @@ describe('direct BYOK provider connectivity check', () => {
     const deps = dependencies({ hasKey: vi.fn(async () => false) });
 
     await expect(
-      testByokProviderConnection('google', {}, deps),
+      testByokProviderConnection('anthropic', {}, deps),
     ).rejects.toMatchObject({ kind: 'auth' });
     expect(deps.getKey).not.toHaveBeenCalled();
     expect(deps.buildClient).not.toHaveBeenCalled();

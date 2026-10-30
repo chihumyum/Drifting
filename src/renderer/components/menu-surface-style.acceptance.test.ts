@@ -204,7 +204,7 @@ describe('shared menu surface style', () => {
     }
 
     expect(source('src/renderer/components/topBars/UserMenu.tsx')).toContain(
-      "'menu-surface--panel' : 'menu-surface--wide'",
+      'menu-surface menu-surface--rich menu-surface--wide user-menu',
     );
     expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).toContain(
       'menu-surface--panel agt-history-menu',

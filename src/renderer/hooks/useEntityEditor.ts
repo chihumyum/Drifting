@@ -42,13 +42,9 @@ import {
   createDefaultSlashMenu,
   type SlashMenuExtraItem,
 } from '../lib/slash-menu';
-import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
 import type { EditorView } from '@tiptap/pm/view';
-import type { Node as PMNode } from '@tiptap/pm/model';
-import { captureInlineSpanSource } from '../lib/copilot/inline-edit-apply';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
-import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-inline-store';
 import { useAuthStore } from '../store/auth';
 import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
@@ -109,196 +105,6 @@ function useLatestRef<T>(value: T) {
   return ref;
 }
 
-
-/** How many blocks before/after the invocation region to pull in as context when
- *  the chapter is too large to send whole (see FULL_CHAPTER_CHAR_BUDGET). */
-const INLINE_CONTEXT_WINDOW = 5;
-
-/**
- * Resolve the inline-Copilot invocation context from the current editor
- * selection. With a non-empty selection the target IS the selection; with a
- * bare caret it's the enclosing block (so ⇧⌘I works mid-typing).
- *
- * Context is gathered around the WHOLE invocation region, not just its first
- * block, and split by side: `contextBefore` = up to INLINE_CONTEXT_WINDOW
- * blocks before the first covered block (上文), `contextAfter` = up to that
- * many after the last (下文). Keeping them apart lets the prompt place the
- * target between its 上文 and 下文 rather than in one flat blob.
- * `segmentSummaries` = the rolling segment
- * summaries overlapping that window. `blockContext` (enclosing paragraph) is
- * only set for a PARTIAL within-one-block selection, where the surrounding
- * sentence adds something the target span alone doesn't — for multi-block or
- * whole-block targets it's left empty (the target already spans full blocks).
- *
- * Returns null only if the caret isn't inside any id-bearing block.
- */
-function buildInlineCopilotCtx(
-  view: EditorView,
-  projectId: string,
-  nodeId: string,
-  coords: { clientX: number; clientY: number },
-): CopilotInlineCtx | null {
-  const { selection, doc } = view.state;
-
-  // All blocks in document order. `isText` distinguishes leaf textblocks
-  // (paragraph/heading — editable in place) from containers (blockquote).
-  const blocks: {
-    id: string;
-    kind: string;
-    level?: number;
-    text: string;
-    isText: boolean;
-    node: PMNode;
-  }[] = [];
-  doc.descendants((node) => {
-    if (!isBlockType(node.type.name)) return undefined;
-    const id = node.attrs?.id as string | null | undefined;
-    if (id) {
-      const level = node.attrs?.level;
-      blocks.push({
-        id,
-        kind: node.type.name,
-        level: typeof level === 'number' ? level : undefined,
-        text: node.textContent.replace(/\s+/g, ' ').trim(),
-        isText: node.isTextblock,
-        node,
-      });
-    }
-    return false;
-  });
-  if (blocks.length === 0) return null;
-  const indexById = new Map(blocks.map((b, i) => [b.id, i]));
-
-  // Selection block ids (Task 6) + covered text. Computed up front so the
-  // enclosing-block resolution below can fall back to the selection.
-  const selectionBlockIds: string[] = [];
-  if (!selection.empty) {
-    doc.nodesBetween(selection.from, selection.to, (node) => {
-      const bid = node.attrs?.id as string | null | undefined;
-      if (isBlockType(node.type.name) && bid) selectionBlockIds.push(bid);
-      return true;
-    });
-  }
-  const selText = selection.empty ? '' : doc.textBetween(selection.from, selection.to, '\n').trim();
-  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
-
-  // Enclosing block of the caret / selection start.
-  const resolved = doc.resolve(selection.from);
-  let encId: string | null = null;
-  let encText = '';
-  let blockStart = 0;
-  let blockEnd = 0;
-  for (let depth = resolved.depth; depth >= 0; depth--) {
-    const node = resolved.node(depth);
-    if (!isBlockType(node.type.name)) continue;
-    encId = (node.attrs?.id as string | null | undefined) ?? null;
-    encText = node.textContent.replace(/\s+/g, ' ').trim();
-    blockStart = resolved.before(depth) + 1;
-    blockEnd = blockStart + node.content.size;
-    break;
-  }
-  // Boundary fallback: Cmd+A makes an AllSelection whose `from` is 0 (the doc
-  // edge), which resolves to the doc node — not a block — so the loop above
-  // leaves encId null. If the selection still covers blocks, anchor on the
-  // first covered one so whole-doc runs build a ctx instead of bailing. A null
-  // ctx here would let ⇧⌘I fall through to TipTap's Mod-I italic alias.
-  if (!encId && selectionBlockIds.length > 0) {
-    encId = selectionBlockIds[0];
-    const idx = indexById.get(encId);
-    if (idx !== undefined) encText = blocks[idx]!.text;
-  }
-  if (!encId) return null;
-
-  const coveredIds =
-    mode === 'selection' && selectionBlockIds.length > 0 ? selectionBlockIds : [encId];
-  const coveredIdxs = coveredIds
-    .map((id) => indexById.get(id))
-    .filter((i): i is number => i !== undefined);
-  const firstIdx = coveredIdxs.length ? Math.min(...coveredIdxs) : (indexById.get(encId) ?? 0);
-  const lastIdx = coveredIdxs.length ? Math.max(...coveredIdxs) : firstIdx;
-
-  // Enclosing paragraph only when a partial selection lives inside one block.
-  const singleBlockPartial =
-    mode === 'selection' && firstIdx === lastIdx && selText !== blocks[firstIdx]?.text;
-  const blockContext = singleBlockPartial ? encText : '';
-
-  // Whole blocks covered by the target, in doc order — the unit the block-by-
-  // block edit pipeline revises and applies in place. Only leaf textblocks
-  // (paragraph/heading) are editable; containers (blockquote) are left as-is.
-  const targetBlocks = [...coveredIdxs]
-    .sort((a, b) => a - b)
-    .map((i) => blocks[i]!)
-    .filter((b) => b.isText)
-    .map((b) => ({
-      id: b.id,
-      kind: b.kind === 'heading' ? 'heading' : 'paragraph',
-      level: b.level,
-      text: b.text,
-      sourceJson: JSON.stringify(b.node.toJSON()),
-    }));
-
-  // Adaptive context scope. When the whole chapter is small enough, send ALL of
-  // it as 上文/下文 — faithful full-chapter context beats a lossy rolling summary
-  // (product direction: 内容不多就全 chapter). Only an oversized chapter falls
-  // back to a ±INLINE_CONTEXT_WINDOW window + the rolling segment summaries.
-  const chapterChars = blocks.reduce((n, b) => n + b.text.length, 0);
-  const wholeChapter = chapterChars <= FULL_CHAPTER_CHAR_BUDGET;
-
-  // Nearby context, split by side: a window of blocks strictly BEFORE the
-  // first covered block (上文) and strictly AFTER the last (下文). Iterating the
-  // two ranges separately both excludes the [firstIdx, lastIdx] target span and
-  // keeps each side in document order, so the prompt can show the target
-  // sitting between them rather than as one undifferentiated blob.
-  const windowStart = wholeChapter ? 0 : Math.max(0, firstIdx - INLINE_CONTEXT_WINDOW);
-  const windowEnd = wholeChapter
-    ? blocks.length - 1
-    : Math.min(blocks.length - 1, lastIdx + INLINE_CONTEXT_WINDOW);
-  const beforeParts: string[] = [];
-  const afterParts: string[] = [];
-  for (let i = windowStart; i < firstIdx; i++) {
-    const b = blocks[i]!;
-    if (b.text) beforeParts.push(b.text);
-  }
-  for (let i = lastIdx + 1; i <= windowEnd; i++) {
-    const b = blocks[i]!;
-    if (b.text) afterParts.push(b.text);
-  }
-
-  // Segment summaries overlapping the window — the local narrative arc. Skipped
-  // when we're already sending the whole chapter (the prose itself supersedes a
-  // rolling summary of it).
-  const windowIds = new Set<string>();
-  for (let i = windowStart; i <= windowEnd; i++) windowIds.add(blocks[i]!.id);
-  const segmentSummaries = wholeChapter
-    ? []
-    : useDataStore
-        .getState()
-        .blockSections.filter(
-          (s) => s.chapterId === nodeId && s.blockIds.some((b) => windowIds.has(b)),
-        )
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-        .map((s) => s.summary)
-        .filter((s) => s.trim().length > 0);
-
-  return {
-    nodeId,
-    projectId,
-    mode,
-    from: mode === 'selection' ? selection.from : blockStart,
-    to: mode === 'selection' ? selection.to : blockEnd,
-    selectedText: mode === 'selection' ? selText : (blocks[firstIdx]?.text ?? encText),
-    blockContext,
-    contextBefore: beforeParts.join('\n\n'),
-    contextAfter: afterParts.join('\n\n'),
-    segmentSummaries,
-    selectionBlockIds,
-    targetBlocks,
-    spanWithinBlock: singleBlockPartial,
-    spanSource: singleBlockPartial ? captureInlineSpanSource(doc, selection.from, selection.to) : null,
-    clientX: coords.clientX,
-    clientY: coords.clientY,
-  };
-}
 
 export interface UseEntityEditorConfig {
   // What this editor is editing — drives projection direction and self-exclusion.
@@ -366,11 +172,6 @@ export interface UseEntityEditorConfig {
   // from it. The hook only adds the menu item; the modal/UI lives above it.
   onAddPatchRequest?: (request: EditorCommentRequest) => void;
 
-  // Enable the Cmd+Shift+I inline-Copilot popover for this editor. Only chapter
-  // editors set this (Copilot is chapter-scoped); the popover itself is
-  // mounted by the caller (ChapterEditor) and keys off the same nodeId.
-  enableInlineCopilot?: boolean;
-
   // When false, the prose body is read-only (e.g. a locked chapter
   // review). Defaults to true. The caller keys the editor on this so toggling it
   // remounts + re-creates the editor with the new editable state.
@@ -412,7 +213,6 @@ interface SelectionBarRefs {
   source: { current: { projectId: string; sourceKind: string; sourceId: string } };
   onAddCommentRequest: { current: ((request: EditorCommentRequest) => void) | undefined };
   onAddPatchRequest: { current: ((request: EditorCommentRequest) => void) | undefined };
-  enableInlineCopilot: { current: boolean | undefined };
   translate: { current: (key: string) => string };
 }
 
@@ -420,7 +220,7 @@ interface SelectionBarRefs {
 function resolveSelectionBar(view: EditorView, rect: SelectionRect, refs: SelectionBarRefs): EditorSelectionBarOptions | null {
   // The「格式」entry is available in ANY editable editor, so the bar shows
   // for any non-empty selection — not only commentable ones. The comment /
-  // patch / Copilot entries layer on top when their handlers and a
+  // patch entries layer on top when their handlers and a
   // commentable source are present (resolved below).
   if (!view.editable) return null;
   const { selection } = view.state;
@@ -435,7 +235,6 @@ function resolveSelectionBar(view: EditorView, rect: SelectionRect, refs: Select
   // Any failure here just leaves these undefined (→「格式」-only menu);
   // it never aborts the menu.
   let onAddComment: (() => void) | undefined;
-  let onCopilot: (() => void) | undefined;
   let onAddPatch: (() => void) | undefined;
   const handler = refs.onAddCommentRequest.current;
   const source = refs.source.current;
@@ -539,18 +338,6 @@ function resolveSelectionBar(view: EditorView, rect: SelectionRect, refs: Select
         clientY: rect.bottom,
       };
       if (handler) onAddComment = () => handler(request);
-      // "Copilot 修改" — same entry as ⇧⌘I, run on the selection.
-      // Always manual (never gated by the auto switch). Chapter only.
-      onCopilot =
-        refs.enableInlineCopilot.current && source.sourceKind === 'node'
-          ? () => {
-              const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
-                clientX: rect.left,
-                clientY: rect.bottom,
-              });
-              if (ctx) useCopilotInlineStore.getState().open(ctx);
-            }
-          : undefined;
       // "新建补丁" — chapter editors only (a patch's source is a chapter).
       const patchHandler = refs.onAddPatchRequest.current;
       onAddPatch =
@@ -564,12 +351,10 @@ function resolveSelectionBar(view: EditorView, rect: SelectionRect, refs: Select
     rect,
     onAddComment,
     onAddPatch,
-    onCopilot,
     labels: {
       format: refs.translate.current('entityEditor.contextMenu.format'),
       addComment: refs.translate.current('entityEditor.contextMenu.addComment'),
       addPatch: refs.translate.current('entityEditor.contextMenu.addPatch'),
-      copilot: refs.translate.current('entityEditor.contextMenu.copilot'),
     },
   };
 }
@@ -598,7 +383,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     selectionKey,
     onAddCommentRequest,
     onAddPatchRequest,
-    enableInlineCopilot = false,
     editable = true,
     profile = 'prose',
     noteExtensions,
@@ -610,7 +394,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onEntityClickRef = useLatestRef(onEntityClick);
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
   const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
-  const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
   const { isCommandActive, isVisible, isPreparing } = useEditorSurfaceLifecycle();
   // The later DOM handler delegates to the current canonical editor's owner.
   const selectionBarRef = useRef<EditorSelectionBar | null>(null);
@@ -764,39 +547,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           style: minHeight ? `min-height: ${minHeight}` : '',
           spellcheck: 'false',
         },
-        handleKeyDown: (view, event) => {
-          // Cmd/Ctrl+Shift+I → inline Copilot popover. NB: TipTap's Italic
-          // binds BOTH Mod-i and Mod-I, so ⇧⌘I is also an italic alias —
-          // prosemirror-keymap retries shifted single-char keys without Shift
-          // and matches Mod-I. We win because editorProps.handleKeyDown runs
-          // before the Italic keymap and we swallow the chord below. Only for
-          // editors that opted in (chapter editors). Manual ⇧⌘I is always
-          // available — it is never gated by the auto-trigger switch. Works
-          // with or without a selection (no selection → current block).
-          if (event.key !== 'i' && event.key !== 'I') return false;
-          if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) {
-            return false;
-          }
-          if (!enableInlineCopilotRef.current) return false;
-          const source = sourceRef.current;
-          if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
-            return false;
-          }
-          // This is unambiguously the Copilot chord in a chapter editor, so
-          // swallow it unconditionally — otherwise a null ctx (e.g. empty doc)
-          // would let it fall through to TipTap's Mod-I italic alias, which is
-          // exactly what ⇧⌘I must never do here.
-          event.preventDefault();
-          const owner = selectionBarRef.current;
-          if (!owner?.isEnabled() || owner.editor.view !== view) return true;
-          const c = view.coordsAtPos(view.state.selection.from);
-          const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
-            clientX: c.left,
-            clientY: c.bottom,
-          });
-          if (ctx) useCopilotInlineStore.getState().open(ctx);
-          return true;
-        },
       },
     },
     [
@@ -836,7 +586,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       source: sourceRef,
       onAddCommentRequest: onAddCommentRequestRef,
       onAddPatchRequest: onAddPatchRequestRef,
-      enableInlineCopilot: enableInlineCopilotRef,
       translate: translateRef,
     }));
     selectionBarRef.current = owner;

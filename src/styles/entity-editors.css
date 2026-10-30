@@ -1802,13 +1802,6 @@ button.patch-card__invalid {
   white-space: nowrap;
 }
 
-/* Cmd+I inline-copilot popover spinner */
-@keyframes copilot-inline-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* Notification bell spinner — used by SourceIcon in the history dropdown rows. */
 @keyframes drift-spin {
   to {

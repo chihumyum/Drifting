@@ -20,22 +20,12 @@ import '../styles/interface-fonts.css';
 // After the app's own sheets, where Tiptap used to append its own.
 import '../styles/tiptap-base.css';
 import './lib/i18n';
-import { installAIDevConsole } from './lib/ai';
-import { registerCopilotCapability } from './lib/copilot/capability';
-import { elementCandidateCapability } from './lib/copilot/capabilities/element-candidate';
-import { elementPatchCapability } from './lib/copilot/capabilities/element-patch';
 import { hydratePlatformRuntime } from './platform/runtime';
 import { applyInitialThemeBeforeRender } from './lib/initial-theme';
 import { installCrashReporting } from './services/diagnostics/crash-reporter';
 import { installGlassAwake } from './lib/glass-awake';
 import App from './App';
 
-// Register Copilot capabilities once at app boot. Order doesn't matter —
-// the runner reads them via capabilitiesForTrigger(...) on each fire.
-registerCopilotCapability(elementCandidateCapability);
-registerCopilotCapability(elementPatchCapability);
-
-installAIDevConsole();
 installCrashReporting();
 installGlassAwake(document);
 

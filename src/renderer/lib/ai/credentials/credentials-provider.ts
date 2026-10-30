@@ -3,8 +3,8 @@
  *
  * Public local-only builds use BYOK from native secure storage via
  * byok-keychain.ts. A separately operated compatible service may implement a
- * hosted credential contract, but renderer-local Copilot never silently falls
- * back to it.
+ * hosted credential contract, but the renderer-local Agent never silently
+ * falls back to it.
  */
 import type { BYOKProvider } from '../../byok-keychain';
 
