@@ -733,3 +733,38 @@ describe('Anthropic Messages Agent driver', () => {
     ]);
   });
 });
+
+describe('Anthropic image input', () => {
+  it('sends one-shot images as base64 image blocks before the question', async () => {
+    let body: { messages?: Array<{ role: string; content: unknown }> } | undefined;
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: async (_input, init) => {
+        body = JSON.parse(String(init?.body));
+        return new Response(sse([
+          { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+          { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+          { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '灯塔。' } },
+          { type: 'content_block_stop', index: 0 },
+          { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+          { type: 'message_stop' },
+        ]));
+      },
+    });
+    await collect(driver, request({
+      lifecycle: 'single_request',
+      tools: [],
+      context: {
+        systemPrompt: 'Look.',
+        messages: [{
+          type: 'model_message',
+          sourceIds: ['vision/1'],
+          message: { role: 'user', content: '这是什么？', images: [{ mediaType: 'image/png', data: 'BBBB' }] },
+        }],
+      },
+    }));
+    const content = body?.messages?.[0]?.content as Array<Record<string, unknown>>;
+    expect(content[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'BBBB' } });
+    expect(content[1]).toMatchObject({ type: 'text', text: '这是什么？' });
+  });
+});

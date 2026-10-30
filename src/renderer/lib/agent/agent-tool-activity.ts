@@ -133,6 +133,7 @@ export function describeAgentToolActivity(
     delete_material_folder: [`删除素材文件夹${quoted}`, `Delete material folder${quoted}`],
     read_book_structure: ['查看分幕与时间线', 'Review acts and timeline'],
     read_plot_grid: [`查看情节表${quoted}`, `Review plot grid${quoted}`],
+    view_material: [`看素材画面${quoted}`, `Look at material${quoted}`],
     write_plot_grid: [`填写情节表${quoted}`, `Write plot grid${quoted}`],
     create_act: [`新建一幕${quoted}`, `Create act${quoted}`],
     update_act: [`调整幕${quoted}`, `Update act${quoted}`],

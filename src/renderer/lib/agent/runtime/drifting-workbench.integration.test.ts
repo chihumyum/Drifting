@@ -38,6 +38,7 @@ import type {
 } from './drifting-workspace-tool-contract';
 import type {
   AgentModelDriver,
+  AgentModelRequest,
   AgentRuntimeContext,
   AgentToolExecutionRequest,
   AgentToolExecutionResult,
@@ -83,6 +84,23 @@ vi.mock('../../../lib/config', async (importOriginal) => {
     ...actual,
     APP_CONFIG: { ...actual.APP_CONFIG, LOCAL_ONLY_MODE: false },
     canUseNetwork: () => false,
+  };
+});
+
+// Asset bytes and the PDF engine are renderer services; the vision path and
+// the text-layer budget are what this suite checks.
+const mediaCalls = vi.hoisted(() => ({ images: [] as unknown[] }));
+vi.mock('../material-media', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../material-media')>();
+  return {
+    ...actual,
+    pdfPageTexts: async () => ['潮汐表：三日高潮。', ''],
+    materialImages: async (_projectId: string, item: { kind: string }, range: unknown) => {
+      mediaCalls.images.push(range);
+      return item.kind === 'pdf'
+        ? { images: [{ mediaType: 'image/jpeg', data: 'UERG' }], pages: '2', pageCount: 2 }
+        : { images: [{ mediaType: 'image/jpeg', data: 'SU1H' }] };
+    },
   };
 });
 
@@ -394,6 +412,93 @@ describe('Agent plot grid writes', () => {
   });
 });
 
+describe('Agent reads of image and PDF materials', () => {
+  let fixture: WorkbenchFixture;
+  const asked: AgentModelRequest[] = [];
+  const vision: AgentModelDriver = {
+    id: 'workbench-vision',
+    async *stream(request) {
+      asked.push(request);
+      yield { type: 'text_delta', text: '一张手绘海图，右上角写着「北岬 1937」。' };
+      yield { type: 'finish', reason: 'end_turn' };
+    },
+  };
+
+  const asset = (id: string, title: string, kind: 'image' | 'pdf'): LibraryItem => ({
+    id,
+    projectId: PROJECT_ID,
+    kind,
+    title,
+    notesJson: null,
+    provenanceJson: null,
+    orderKey: 1,
+    folderId: null,
+    taskTodos: true,
+    assetId: `asset-${id}`,
+    externalUrl: null,
+    previewImageUrl: null,
+    bodyJson: null,
+    createdAt: AT,
+    updatedAt: AT,
+  });
+
+  async function open(provider: string) {
+    fixture = await WorkbenchFixture.create({ driver: vision, provider, model: 'claude-sonnet-5' });
+    useDataStore.setState({
+      libraryItems: [
+        ...useDataStore.getState().libraryItems,
+        asset('map', '海图', 'image'),
+        asset('tides', '潮汐记录', 'pdf'),
+      ],
+    });
+  }
+
+  beforeEach(() => {
+    asked.length = 0;
+    mediaCalls.images.length = 0;
+  });
+
+  afterEach(async () => {
+    useDataStore.setState(initialDataState, true);
+    useProjectStore.setState(initialProjectState, true);
+    await fixture.close();
+  });
+
+  it('reads a PDF text layer and points scanned pages to view_material', async () => {
+    await open('anthropic');
+    const read = JSON.stringify(await fixture.read('pdf-1', 'read_material', { material: '潮汐记录' }));
+    expect(read).toContain('潮汐表：三日高潮。');
+    expect(read).toContain('"pagesWithoutText":[2]');
+    expect(read).toContain('view_material');
+  });
+
+  it('looks at an image or PDF page with the session model and returns only text', async () => {
+    await open('anthropic');
+    const seen = await fixture.read('view-1', 'view_material', { material: '海图', question: '右上角写了什么？' });
+    expect(seen).toMatchObject({ ok: true, data: { material: '海图', answer: expect.stringContaining('北岬 1937') } });
+    expect(asked).toHaveLength(1);
+    const message = asked[0]!.context.messages[0];
+    expect(message?.type === 'model_message' && message.message).toMatchObject({
+      role: 'user',
+      images: [{ mediaType: 'image/jpeg', data: 'SU1H' }],
+    });
+    expect(asked[0]).toMatchObject({ provider: 'anthropic', lifecycle: 'single_request' });
+
+    const page = await fixture.read('view-2', 'view_material', { material: '潮汐记录', pages: '2' });
+    expect(page).toMatchObject({ ok: true, data: { pages: '2', pageCount: 2 } });
+    expect(mediaCalls.images[1]).toEqual({ from: 2, to: 2 });
+    expect(await fixture.read('view-3', 'view_material', { material: '灯塔笔记' })).toMatchObject({ ok: false });
+  });
+
+  it('says so instead of guessing when the session model cannot see images', async () => {
+    await open('deepseek');
+    const seen = await fixture.read('view-4', 'view_material', { material: '海图' });
+    expect(seen).toMatchObject({ ok: false });
+    expect(JSON.stringify(seen)).toContain('不能看图');
+    expect(asked).toEqual([]);
+  });
+});
+
 function plotTable(result: AgentToolExecutionResult): string {
   const match = /"table":"((?:[^"\\]|\\.)*)"/u.exec(JSON.stringify(result));
   return match ? (JSON.parse(`"${match[1]}"`) as string) : '';
@@ -416,17 +521,20 @@ class WorkbenchFixture {
     readonly directory: string,
     readonly gateway: ProductFileBackedSqliteGateway,
     readonly database: DbClient,
+    driver: AgentModelDriver,
   ) {
     this.context = { projectId: PROJECT_ID, write: {} as AgentToolContext['write'] };
     this.composition = createDriftingAgentProductComposition({
-      driver: unusedDriver,
+      driver,
       database,
       getContext: () => this.context,
       authoredJournal: this.authoredJournal,
     });
   }
 
-  static async create(): Promise<WorkbenchFixture> {
+  static async create(
+    options: { driver?: AgentModelDriver; provider?: string; model?: string } = {},
+  ): Promise<WorkbenchFixture> {
     invalidateSqliteReducerStateCache();
     const directory = await mkdtemp(path.join(tmpdir(), 'drifting-workbench-'));
     const gateway = new ProductFileBackedSqliteGateway(path.join(directory, 'drifting.db'));
@@ -436,7 +544,7 @@ class WorkbenchFixture {
       await gateway.open('drifting.db');
       await seed(database);
       await hydrateStores(database);
-      const fixture = new WorkbenchFixture(directory, gateway, database);
+      const fixture = new WorkbenchFixture(directory, gateway, database, options.driver ?? unusedDriver);
       await fixture.composition.repositories.runtime.createSession({
         id: SESSION_ID,
         projectId: PROJECT_ID,
@@ -444,8 +552,8 @@ class WorkbenchFixture {
         conversationId: CONVERSATION_ID,
         goalRunId: null,
         chapterId: null,
-        provider: 'test',
-        model: 'test',
+        provider: options.provider ?? 'test',
+        model: options.model ?? 'test',
         providerEpoch: 0,
         status: 'running',
         createdAt: AT,

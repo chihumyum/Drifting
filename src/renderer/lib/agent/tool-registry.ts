@@ -408,9 +408,12 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   {
     name: 'read_material',
     description:
-      '按标题读取一个素材。笔记返回 Markdown 全文（表格、清单、代码、> [!note] 提示块、==高亮==、［素材：标题］嵌入、drifting: 位置链接），改笔记前先读；图片与 PDF 返回元数据和作者说明。',
+      '按标题读取一个素材。笔记返回 Markdown 全文（表格、清单、代码、> [!note] 提示块、==高亮==、［素材：标题］嵌入、drifting: 位置链接），改笔记前先读；PDF 返回逐页文字层（pages 指定页码，长文档按 continueWith 续读）；图片返回元数据和作者说明，要看画面用 view_material。',
     parametersSchema: Type.Object(
-      { material: str('素材标题（来自 list_materials）') },
+      {
+        material: str('素材标题（来自 list_materials）'),
+        pages: optionalStr('PDF 页码，如 "3" 或 "2-5"；省略从第 1 页读起'),
+      },
       { additionalProperties: false },
     ),
     aliases: ['material detail', '读取素材'],
@@ -1351,6 +1354,19 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
     20_000,
   ),
   domainRuntimeReadSpec('list_project_memory', '列出 PROJECT_MEMORY.md 的全部条目及 memoryId。'),
+  domainRuntimeReadSpec(
+    'view_material',
+    '真正看一张图片素材或 PDF 的页面（最多 4 页），回答 question：描述画面、识别图中或扫描件上的文字、对比细节。用当前对话的模型看图（需要支持图片的模型），只把文字回答带回对话。',
+    Type.Object(
+      {
+        material: str('图片或 PDF 素材标题'),
+        question: optionalStr('想从画面里知道什么；省略则完整描述并转写其中文字'),
+        pages: optionalStr('PDF 页码，如 "3" 或 "2-4"；省略看第 1 页'),
+      },
+      { additionalProperties: false },
+    ),
+    12_000,
+  ),
 ];
 
 const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [

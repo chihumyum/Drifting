@@ -21,8 +21,8 @@
     }
   },
   "installedModelTools": {
-    "total": 96,
-    "read": 29,
+    "total": 97,
+    "read": 30,
     "write": 67,
     "entries": [
       {
@@ -1071,6 +1071,17 @@
         "revertStrategy": "exact_inverse"
       },
       {
+        "name": "view_material",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
         "name": "write_plot_grid",
         "access": "write",
         "owner": "drifting-runtime",
@@ -1154,6 +1165,7 @@
       "read_material",
       "read_book_structure",
       "read_plot_grid",
+      "view_material",
       "search_prose",
       "search_project",
       "create_chapter",
@@ -1947,7 +1959,8 @@
             "status": "closed",
             "providerTools": [
               "list_materials",
-              "read_material"
+              "read_material",
+              "view_material"
             ],
             "hiddenCommands": [],
             "approval": "automatic",

@@ -606,6 +606,16 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   delete_timeline_marker: {
     searchIntents: ['remove a timeline marker', '删除时间刻度'],
   },
+  view_material: {
+    searchIntents: [
+      'look at an image material',
+      'read text in a scanned pdf page',
+      'describe a reference photo',
+      '看一下这张图片',
+      '识别扫描件上的文字',
+      '看看这页 PDF',
+    ],
+  },
   read_plot_grid: {
     searchIntents: ['read a chapter plot grid', 'see the chapter planning table', '查看情节表', '读取这一章的规划表'],
   },

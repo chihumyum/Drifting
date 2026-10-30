@@ -1,3 +1,5 @@
+import { askMaterialVision } from '../material-vision';
+import { materialImages, parsePageRange } from '../material-media';
 import { and, eq } from 'drizzle-orm';
 
 import type { GeneralAgentAuthStatus } from '../protocol';
@@ -194,6 +196,9 @@ export function resolveDriftingBuiltInToolAccess(name: string): 'read' | 'write'
  * database. Omitting it preserves the renderer product behavior: repositories
  * resolve the initialized application database lazily when a turn starts.
  */
+/** A vision request shows at most this many PDF pages. */
+const MAX_VIEWED_PDF_PAGES = 4;
+
 export function createDriftingAgentProductComposition(
   options: CreateDriftingAgentProductCompositionOptions = {},
 ): DriftingAgentProductComposition {
@@ -282,6 +287,28 @@ export function createDriftingAgentProductComposition(
     readRuntime: readTools,
     getContext,
     persistence: repositories.runtime,
+    // The session's own provider and model look at the pictures; only their
+    // text answer returns to the conversation.
+    viewMaterial: async ({ request, projectId, item, question, pages }) => {
+      const session = await repositories.runtime.getSession(request.sessionId);
+      const seen = await materialImages(
+        projectId,
+        item,
+        item.kind === 'pdf' ? parsePageRange(pages, Number.POSITIVE_INFINITY) : null,
+        MAX_VIEWED_PDF_PAGES,
+      );
+      const where = seen.pages ? `PDF「${item.title}」第 ${seen.pages} 页（共 ${seen.pageCount} 页）` : `图片「${item.title}」`;
+      const answer = await askMaterialVision(driver, {
+        provider: session?.provider ?? null,
+        model: session?.model ?? null,
+        sessionId: request.sessionId,
+        question,
+        context: `作者素材库里的${where}。`,
+        images: seen.images,
+        signal: request.signal,
+      });
+      return { answer, ...(seen.pages ? { pages: seen.pages, pageCount: seen.pageCount } : {}) };
+    },
   });
   const tools = createDriftingWriteToolRuntime({
     repository: repositories.writeEffects,

@@ -28,6 +28,7 @@ export const DRIFTING_DOMAIN_READ_TOOLS = [
   'read_material',
   'read_book_structure',
   'read_plot_grid',
+  'view_material',
   'search_prose',
   'search_project',
 ] as const;
@@ -529,7 +530,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
     authoredTargets: ['素材「<标题>」', '笔记「<标题>」'],
     operations: {
       create: closedWrite(['create_material_note'], [], 'automatic'),
-      read: closedRead(['list_materials', 'read_material'], 'yjs_sqlite'),
+      read: closedRead(['list_materials', 'read_material', 'view_material'], 'yjs_sqlite'),
       update: closedWrite(
         ['update_material', 'revise_material_note', 'replace_material_note_body'],
         [],

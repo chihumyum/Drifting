@@ -256,8 +256,19 @@ direct domain tools listed in
   material's title, kind, folder and source. `read_material` returns a note as
   Markdown rendered from its current Yjs document: GFM tables, `- [ ]` task
   lists, code fences, `> [!note]` callouts, `==highlights==`, embeds as
-  `［素材：标题］` and mentions as drifting: location links. Images and PDFs
-  return their metadata and the author's description.
+  `［素材：标题］` and mentions as drifting: location links. A PDF returns its
+  text layer page by page (`pages`, about 16 000 characters per call with a
+  `continueWith` hint), read locally with pdf.js and cached per immutable
+  asset; pages without a text layer are listed. Images return their metadata
+  and the author's description.
+- `view_material` actually looks at an image (its display variant) or up to
+  four rendered PDF pages and answers a question about them — describing the
+  picture, transcribing handwriting, captions or a scanned page. It is one
+  `single_request` call to the session's own provider and model
+  (`lib/agent/material-vision.ts`); only the text answer returns to the
+  conversation, so pictures never enter durable context, receipts or
+  compaction. Providers without image input (DeepSeek) refuse before anything
+  is sent.
 - `create_material_note`, `revise_material_note` and
   `replace_material_note_body` write notes in that same dialect
   (`lib/note-markdown-parse.ts`). A revision finds its passage in the Markdown

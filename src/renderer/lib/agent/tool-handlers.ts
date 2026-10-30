@@ -5,6 +5,8 @@ import { createPlotGridRepository } from '../../sqlite-repo/plot-grid-repo';
 import { plotGridToMarkdown } from './plot-grid-markdown';
 import { resolvePlotGridNode } from './runtime/workbench-plot-grid';
 import { readMaterialNoteMarkdown } from './runtime/drifting-material-note-write-strategy';
+import { excerptPdfText, parsePageRange, pdfPageTexts } from './material-media';
+import type { LibraryAssetItem } from '../../domain/library-item';
 import { searchExactProse } from './exact-prose-search';
 /**
  * Renderer-side execution of the agent's entity tools.
@@ -883,6 +885,37 @@ async function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>
           sizeBytes: asset?.sourceSizeBytes,
         }),
     ...(notes ? { notes } : {}),
+    ...(item.kind === 'pdf' ? await readPdfMaterialText(ctx, item, args.pages) : {}),
+    ...(item.kind === 'image'
+      ? { howToSee: 'view_material 能看这张图并回答具体问题（包括图中文字）' }
+      : {}),
+  };
+}
+
+const PDF_TEXT_BUDGET = 16_000;
+
+/** A PDF's text layer for the requested pages; scans point to view_material. */
+async function readPdfMaterialText(
+  ctx: AgentToolContext,
+  item: LibraryAssetItem,
+  pages: unknown,
+): Promise<Record<string, unknown>> {
+  let texts: string[];
+  try {
+    texts = await pdfPageTexts(ctx.projectId, item);
+  } catch (error) {
+    return {
+      textUnavailable: error instanceof Error ? error.message : String(error),
+      howToSee: 'view_material 可以直接看页面',
+    };
+  }
+  const excerpt = excerptPdfText(texts, parsePageRange(pages, texts.length), PDF_TEXT_BUDGET);
+  return {
+    ...excerpt,
+    ...(excerpt.nextPage ? { continueWith: `read_material，pages="${excerpt.nextPage}-${texts.length}"` } : {}),
+    ...(excerpt.pagesWithoutText?.length
+      ? { howToSee: '没有文字层的页面（多为扫描件）用 view_material 看图识别' }
+      : {}),
   };
 }
 

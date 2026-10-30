@@ -58,6 +58,7 @@ import {
 import { resolveWorkbenchCommand } from './drifting-workbench-write-strategy';
 import { WorkbenchNoChangeError } from './drifting-workbench-types';
 import { MATERIAL_NOTE_OBSERVATION_KIND } from './drifting-material-note-write-strategy';
+import type { LibraryAssetItem } from '../../../domain/library-item';
 
 export {
   DRIFTING_DOMAIN_PROVIDER_TOOLS,
@@ -262,11 +263,21 @@ interface WorkspaceListItem {
   descendants?: WorkspaceEntry[];
 }
 
+/** Looks at an image or PDF material for view_material and answers in text. */
+export type MaterialVisionReader = (input: {
+  request: AgentToolExecutionRequest;
+  projectId: string;
+  item: LibraryAssetItem;
+  question: string;
+  pages: unknown;
+}) => Promise<{ answer: string; pages?: string; pageCount?: number }>;
+
 export interface DriftingWorkspaceToolRuntimeOptions {
   readRuntime: AgentToolRuntime;
   getContext?: () => AgentToolContext | null;
   persistence?: AgentRuntimePersistenceRepository;
   now?: () => string;
+  viewMaterial?: MaterialVisionReader;
 }
 
 /**
@@ -278,6 +289,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   private readonly readRuntime: AgentToolRuntime;
   private readonly getContext: () => AgentToolContext | null;
   private readonly persistence: AgentRuntimePersistenceRepository | undefined;
+  private readonly viewMaterial: MaterialVisionReader | undefined;
   private readonly now: () => string;
   private readonly readCoverage = new Map<string, WorkspaceReadCoverage>();
   /** Coverage keys read in this session, kept after a write invalidates them. */
@@ -287,6 +299,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     this.readRuntime = options.readRuntime;
     this.getContext = options.getContext ?? getActiveAgentToolContext;
     this.persistence = options.persistence;
+    this.viewMaterial = options.viewMaterial;
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
@@ -443,6 +456,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         case 'list_project_memory':
           data = await this.listFiles(projectId, '/memory', request);
           break;
+        case 'view_material':
+          return await this.viewMaterialRead(projectId, request);
         default:
           return this.readRuntime.execute(request);
       }
@@ -454,6 +469,46 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         error: publicDomainReadError(error),
       };
     }
+  }
+
+  private async viewMaterialRead(
+    projectId: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<AgentToolExecutionResult> {
+    if (!this.viewMaterial) throw new Error('这个环境不能查看图片');
+    const reference = requiredDomainName(request.arguments.material, 'material');
+    const items = useDataStore.getState().libraryItems.filter((item) => item.projectId === projectId);
+    const direct = items.find((item) => item.id === reference);
+    const matches = direct ? [direct] : items.filter((item) => authoredNamesEqual(item.title || '', reference));
+    if (matches.length !== 1) {
+      throw new Error(
+        matches.length === 0
+          ? `没有标题为「${reference}」的素材；用 list_materials 查看标题`
+          : `有 ${matches.length} 个素材都叫「${reference}」`,
+      );
+    }
+    const item = matches[0]!;
+    if (item.kind === 'text') throw new Error(`「${item.title}」是笔记，用 read_material 读它的文字`);
+    const seen = await this.viewMaterial({
+      request,
+      projectId,
+      item,
+      question:
+        optionalDomainText(request.arguments.question) ??
+        '完整描述画面，并逐字转写其中能看清的文字。',
+      pages: request.arguments.pages,
+    });
+    const where = seen.pages ? `（第 ${seen.pages} 页，共 ${seen.pageCount ?? '?'} 页）` : '';
+    return {
+      ok: true,
+      data: {
+        material: item.title,
+        kind: item.kind,
+        ...(seen.pages ? { pages: seen.pages, pageCount: seen.pageCount } : {}),
+        answer: seen.answer,
+      },
+      modelData: `素材「${item.title}」${where}看到的内容：\n${seen.answer}`,
+    };
   }
 
   /**
