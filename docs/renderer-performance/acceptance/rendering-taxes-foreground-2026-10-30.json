@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "command": "pnpm perf:stress --release --foreground --wait-idle 20",
+  "recordedAt": "2026-10-30",
+  "conditions": "Window frontmost, display kept awake with caffeinate -d -i, no input during runs.",
+  "before": "f733b918",
+  "after": "d5506c34",
+  "runs": [
+    {
+      "label": "gb1",
+      "commit": "f733b918",
+      "webContentCandidates": 1,
+      "openProject": {
+        "visibleMs": 315,
+        "worstFrameMs": 210
+      },
+      "openLongChapter": {
+        "visibleMs": 216,
+        "worstFrameMs": 74
+      },
+      "openSidebarsWorstFrame": {
+        "left": 173,
+        "right": 189
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": 81,
+        "right": 85
+      },
+      "switchTabsClosed": {
+        "p50": 58,
+        "p95": 98,
+        "worstFrameP50": 51
+      },
+      "switchTabsSidebarsOpenP50": 85,
+      "wholeBookOpenMs": 175,
+      "superViewsWorstFrame": {
+        "storyGraph": 133,
+        "elementPanorama": 278,
+        "materialWorkbench": 181
+      },
+      "closeTabs": {
+        "p50": 98,
+        "lastMs": 328
+      }
+    },
+    {
+      "label": "gn1",
+      "commit": "d5506c34",
+      "webContentCandidates": 1,
+      "openProject": {
+        "visibleMs": 277,
+        "worstFrameMs": 109
+      },
+      "openLongChapter": {
+        "visibleMs": 120,
+        "worstFrameMs": 55
+      },
+      "openSidebarsWorstFrame": {
+        "left": 123,
+        "right": 177
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": 61,
+        "right": 54
+      },
+      "switchTabsClosed": {
+        "p50": 60,
+        "p95": 114,
+        "worstFrameP50": 50
+      },
+      "switchTabsSidebarsOpenP50": 75,
+      "wholeBookOpenMs": 151,
+      "superViewsWorstFrame": {
+        "storyGraph": 111,
+        "elementPanorama": 155,
+        "materialWorkbench": 147
+      },
+      "closeTabs": {
+        "p50": 70,
+        "lastMs": 70
+      }
+    },
+    {
+      "label": "gb2",
+      "commit": "f733b918",
+      "webContentCandidates": 1,
+      "openProject": {
+        "visibleMs": 308,
+        "worstFrameMs": 137
+      },
+      "openLongChapter": {
+        "visibleMs": 208,
+        "worstFrameMs": 77
+      },
+      "openSidebarsWorstFrame": {
+        "left": 165,
+        "right": 191
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": 93,
+        "right": 53
+      },
+      "switchTabsClosed": {
+        "p50": 57,
+        "p95": 66,
+        "worstFrameP50": 50
+      },
+      "switchTabsSidebarsOpenP50": 82,
+      "wholeBookOpenMs": 165,
+      "superViewsWorstFrame": {
+        "storyGraph": 138,
+        "elementPanorama": 212,
+        "materialWorkbench": 184
+      },
+      "closeTabs": {
+        "p50": 85,
+        "lastMs": 312
+      }
+    },
+    {
+      "label": "gn2",
+      "commit": "d5506c34",
+      "webContentCandidates": 1,
+      "openProject": {
+        "visibleMs": 274,
+        "worstFrameMs": 107
+      },
+      "openLongChapter": {
+        "visibleMs": 118,
+        "worstFrameMs": 55
+      },
+      "openSidebarsWorstFrame": {
+        "left": 119,
+        "right": 176
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": 60,
+        "right": 86
+      },
+      "switchTabsClosed": {
+        "p50": 59,
+        "p95": 88,
+        "worstFrameP50": 54
+      },
+      "switchTabsSidebarsOpenP50": 80,
+      "wholeBookOpenMs": 146,
+      "superViewsWorstFrame": {
+        "storyGraph": 111,
+        "elementPanorama": 158,
+        "materialWorkbench": 145
+      },
+      "closeTabs": {
+        "p50": 69,
+        "lastMs": 70
+      }
+    }
+  ]
+}
