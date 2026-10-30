@@ -257,11 +257,14 @@
   z-index: 2;
 }
 
-/* Agent-edit op colours: new = 苔绿 moss green, changed = 群青 ink blue,
-   deleted = muted violet. Each fades once its block's reveal has played. */
+/* Agent-edit op colours: new = 苔绿 moss green, changed = the purple its
+   rewritten words take, deleted = muted violet. Blue belongs to edits made in
+   another editor (docs/markdown-mirror.md): one blue for every lane. Each
+   fades once its block's reveal has played. */
 .editor__scrollmap-tick--agent-new { --tick-c: hsl(var(--story-3)); }
-.editor__scrollmap-tick--agent-changed { --tick-c: hsl(var(--story-2)); }
+.editor__scrollmap-tick--agent-changed { --tick-c: hsl(var(--agent-chg-ink)); }
 .editor__scrollmap-tick--agent-deleted { --tick-c: hsl(var(--story-1)); }
+.editor__scrollmap-tick--external { --tick-c: hsl(var(--external-ink)); }
 
 /* Comment family colours. */
 .editor__scrollmap-tick--c-manual { --tick-c: hsl(var(--comment)); /* 胭脂 rouge */ }
@@ -508,13 +511,25 @@
 :root {
   --agent-new-ink: 148 42% 34%;
   --agent-chg-ink: 258 42% 52%;
+  /* Edits made in another editor: a deep 群青, darker than the story blue. */
+  --external-ink: 214 62% 40%;
 }
 .dark {
   --agent-new-ink: 148 40% 66%;
   --agent-chg-ink: 252 60% 78%;
+  --external-ink: 210 72% 74%;
 }
 .agent-reveal__new { color: hsl(var(--agent-new-ink)); }
 .agent-reveal__chg { color: hsl(var(--agent-chg-ink)); }
+.agent-reveal--external .agent-reveal__new,
+.agent-reveal--external .agent-reveal__chg { color: hsl(var(--external-ink)); }
+.agent-reveal--external .agent-reveal__ins {
+  color: hsl(var(--external-ink));
+  background: hsl(var(--external-ink) / 0.14);
+}
+::highlight(agent-recent-ext) { color: hsl(var(--external-ink)); }
+::highlight(agent-recent-ext-1) { color: color-mix(in srgb, hsl(var(--external-ink)) 62%, hsl(var(--ink-1))); }
+::highlight(agent-recent-ext-2) { color: color-mix(in srgb, hsl(var(--external-ink)) 28%, hsl(var(--ink-1))); }
 ::highlight(agent-recent-new) { color: hsl(var(--agent-new-ink)); }
 ::highlight(agent-recent-new-1) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 62%, hsl(var(--ink-1))); }
 ::highlight(agent-recent-new-2) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 28%, hsl(var(--ink-1))); }

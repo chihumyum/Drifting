@@ -288,8 +288,8 @@
       "accent_reset": "Restore default",
       "density": "Density",
       "animations": "Animations & transitions",
-      "agent_edit_reveal": "Agent edit reveal animation",
-      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields character by character. Turn off to show results immediately; unread change markers remain available.",
+      "agent_edit_reveal": "Change reveal animation",
+      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields, and chapters and ideas edited in another editor, character by character. Turn off to show results immediately; unread change markers remain available.",
       "animations_desc": "Interface transitions and activity feedback."
     },
     "editor": {
@@ -1053,6 +1053,8 @@
     "working": "Agent is working",
     "addedHere": "Agent added this; its full prose reveals on first open",
     "changedHere": "Agent just changed this",
+    "externalChangedHere": "Changed in another editor",
+    "markExternalSeen": "Mark as read",
     "groupBodyAdded": "Agent added this group; its full prose reveals on first open",
     "groupBodyChanged": "Agent just changed this group body",
     "childChanges": "Unviewed child Agent changes"

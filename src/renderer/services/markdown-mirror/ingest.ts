@@ -20,6 +20,7 @@ import {
   type BookNodeKind,
   type WritingStatus,
 } from '../../domain/book-node';
+import { computeBlockChanges, type AgentBlockChange } from '../../lib/agent/block-diff';
 import { relinkBlockMentions } from '../../lib/agent/chapter-prose';
 import { agentAuthoredJournal } from '../../lib/agent/runtime/agent-authored-journal';
 import { planWorkspaceProseFileBlocks } from '../../lib/agent/runtime/workspace-prose-file';
@@ -39,6 +40,8 @@ import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createMarkdownMirrorRepository, type MarkdownMirrorFileRow } from '../../sqlite-repo/markdown-mirror-repo';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { useDataStore } from '../../store/data-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
+import { externalRevealMask, planExternalEdits, presentExternalEdits } from '../../lib/external-edit-presentation';
 import { appendAuthoredDomainMutation } from '../../sync/journal/domain-mutation';
 import { appendYjsUpdateMutation } from '../../sync/journal/yjs-update';
 import { registerAuthoredYjsMaterialization } from '../../sync/journal/yjs-materialization';
@@ -78,6 +81,8 @@ export type MirrorIngestResult =
       overlapped: { blockId: string; text: string }[];
       /** Paragraphs the file edited after Drifting deleted them, restored. */
       restored: string[];
+      /** What the merge changed in Drifting's current prose, for the unread presentation. */
+      changes: AgentBlockChange[];
     }
   | { kind: 'deferred' }
   | {
@@ -236,6 +241,7 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
     let updateId = 0;
     const overlapped: { blockId: string; text: string }[] = [];
     const restored: string[] = [];
+    let blockChanges: AgentBlockChange[] = [];
     let projected: typeof BookNodeTable.$inferSelect | undefined;
     try {
       await getDb().transaction(async (tx) => {
@@ -285,6 +291,7 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
             });
 
             const parts: Uint8Array[] = seeded ? [row.baseState, forward] : [forward];
+            const beforeJson = JSON.stringify(yDocToProsemirrorJSON(current, 'default'));
             Y.applyUpdate(current, forward, FILE_ORIGIN);
             // Text the file added to a paragraph Drifting deleted meanwhile
             // would vanish with it: put the file's paragraph back.
@@ -333,6 +340,7 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
             registerAuthoredYjsMaterialization(tx, changes, mutationIndex, appended.token);
 
             const contentJson = JSON.stringify(yDocToProsemirrorJSON(current, 'default'));
+            blockChanges = computeBlockChanges(beforeJson, contentJson);
             const content = await createBookContentRepository(tx).updateByNodeId(nodeId, {
               contentJson,
               outlineJson: serializeOutline(extractOutline(contentJson)),
@@ -381,9 +389,20 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
       throw error;
     }
 
+    // The changed paragraphs show in blue, like an Agent edit. An open editor
+    // masks them before the merge lands, so the reveal never shows the end first.
+    const plan = planExternalEdits('node', nodeId, blockChanges);
     const live = getLiveYDoc(docId);
-    if (live && merged) {
-      Y.applyUpdate(live, merged, createPersistedYjsUpdateOrigin(updateId, `markdown-mirror:${docId}:${updateId}`));
+    const guard = `markdown-mirror:${docId}:${updateId}`;
+    const masked = live && merged ? externalRevealMask(plan) : [];
+    if (masked.length > 0) useAgentEditStore.getState().stageAutoRevealGuard('node', nodeId, guard, masked);
+    try {
+      if (live && merged) {
+        Y.applyUpdate(live, merged, createPersistedYjsUpdateOrigin(updateId, guard));
+      }
+      presentExternalEdits('node', nodeId, plan);
+    } finally {
+      if (masked.length > 0) useAgentEditStore.getState().clearAutoRevealGuard(guard);
     }
     if (projected) {
       const node = projected;
@@ -405,7 +424,7 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
         ) as typeof state.bookNodes,
       }));
     }
-    return { kind: 'merged', overlapped, restored };
+    return { kind: 'merged', overlapped, restored, changes: blockChanges };
   } finally {
     working.destroy();
   }

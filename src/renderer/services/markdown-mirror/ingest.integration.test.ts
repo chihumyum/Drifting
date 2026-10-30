@@ -25,6 +25,7 @@ import { createMarkdownMirrorRepository } from '../../sqlite-repo/markdown-mirro
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { renderAuthoredFile } from './authored-file';
 import { ingestAuthoredFile } from './ingest';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 
 const databaseSlot = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock('../../lib/db', async (importOriginal) => {
@@ -51,6 +52,7 @@ const gateways: ProductFileBackedSqliteGateway[] = [];
 
 afterEach(async () => {
   databaseSlot.current = null;
+  useAgentEditStore.getState().clearAll();
   for (const gateway of gateways.splice(0)) await gateway.close();
   for (const directory of directories.splice(0)) await rm(directory, { recursive: true, force: true });
 });
@@ -126,7 +128,14 @@ describe('merging an edited Markdown file into Drifting', () => {
     const result = await ingest(file('林岚推开门。雨下得很大。\n\n屋里很暗。', 'finished', '新的摘要'));
 
     // Different spots of one paragraph merge cleanly and need no attention.
-    expect(result).toEqual({ kind: 'merged', overlapped: [], restored: [] });
+    expect(result).toMatchObject({ kind: 'merged', overlapped: [], restored: [] });
+    // Drifting shows what the file changed in its current prose, in blue.
+    expect(result.kind === 'merged' && result.changes.map((change) => [change.blockId, change.op, change.newText])).toEqual([
+      ['p1', 'changed', '林岚缓缓推开门。雨下得很大。'],
+    ]);
+    const pending = useAgentEditStore.getState().pending[`node:${NODE_ID}`]!;
+    expect(pending.lastSource).toBe('file');
+    expect(pending.changes.map((change) => [change.blockId, change.source])).toEqual([['p1', 'file']]);
     expect(renderWorkspaceProseFile(await stored(db))).toBe('林岚缓缓推开门。雨下得很大。\n\n屋里很暗。');
     const [node] = await db.select().from(BookNodeTable).where(eq(BookNodeTable.id, NODE_ID));
     expect(node).toMatchObject({ writingStatus: 'finished', summary: '新的摘要', wordCountBasisKind: 'yjs' });
