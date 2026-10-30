@@ -17,7 +17,9 @@ keystroke from rebuilding the chapter's Yjs document and re-sorting, re-cloning
 and re-validating the whole reducer projection. `pnpm perf:keystroke` replays
 authored keystrokes on a copy of the stress seed: 50 ms per write before, 10 ms
 after, in Node (141 ms to 19 ms on a library whose chapter had been edited). In a
-release build, WebContent CPU while typing fell by about a third.
+release build, typing now keeps WebContent near 31% CPU instead of 73%, and the
+native process near 14% instead of 30%. Tab switching frames did not change; see
+the [tab switch notes](editor-tab-switch.md).
 
 The 2026-10-29 [heavy-seed native audit](stress-seed-native-findings-2026-10-29.md)
 records a watchdog-confirmed stall during a long-document/whole-book transition,

@@ -89,15 +89,21 @@ pnpm perf:keystroke --snapshot <目录> # 改用该目录里的库，便于在�
 
 ## 应用内结果
 
-`pnpm perf:stress --release` 修复前后各跑一遍。测量时屏幕处于锁定状态：窗口不画帧，定时器被节流到约每 2 秒一次，所以只有 CPU 秒数可比。三段打字共 90 个字：
+### 前台（2026-10-30 下午）
 
-| | 修复前 `df251d31` | 修复后 `2bbb9343` |
+`pnpm perf:stress --release --foreground`，修复前 `df251d31`、修复后 `af91ba0b` 交替各跑三遍。窗口始终在最前，没有失焦。三段打字共 90 个字：
+
+| | 修复前 | 修复后 |
 | --- | ---: | ---: |
-| WebContent CPU | 31.8 s | 21.7 s |
-| 原生进程 CPU | 8.2 s | 6.9 s |
+| 打字时 CPU：WebContent / 原生 | 73–75% / 30–32% | 31–33% / 14–15% |
+| 每个字的 WebContent CPU | 99–105 ms | 55–57 ms |
+| 按键到第二帧 p95 | 28–31 ms | 27 ms |
+| 峰值内存：原生 / WebContent | 355–364 MB / 1.57–1.61 GB | 272–277 MB / 1.44–1.51 GB |
+
+原始数据：[acceptance/optimization-foreground-2026-10-30.json](acceptance/optimization-foreground-2026-10-30.json)。
+
+### 锁屏时的后台对比
+
+更早一次在锁屏状态下运行：窗口不画帧，定时器被节流到约每 2 秒一次，只有 CPU 秒数可比。三段打字的 WebContent CPU 从 31.8 s 降到 21.7 s，原生 CPU 从 8.2 s 降到 6.9 s（修复后为 `2bbb9343`，已含全部写入路径改动）。
 
 原始数据：[acceptance/keystroke-release-cpu-2026-10-30.json](acceptance/keystroke-release-cpu-2026-10-30.json)。
-
-- `2bbb9343` 已包含上表全部写入路径改动，之后的提交只改了界面。
-- 锁屏状态下每个字的 CPU 远高于前台：两次按键之间的空闲时间也计入其中，还有切换章节后的后台工作。
-- 前台打字（每秒约 8 个字）的 CPU 占比，留待下一次 `--foreground` 运行补齐。
