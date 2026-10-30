@@ -390,6 +390,14 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
     resultBudgetChars: 20_000,
   },
   {
+    name: 'read_book_structure',
+    description:
+      '读取全书结构：幕与各幕包含的章节（阅读顺序）、叙事时间线（故事内时间顺序，含时间刻度，position 相同表示同时发生）、尚未放上时间线的章节与构想。调整幕、章节顺序或时间线前先读。',
+    parametersSchema: noArgs,
+    aliases: ['book structure', '全书结构', '分幕', '时间线'],
+    resultBudgetChars: 24_000,
+  },
+  {
     name: 'read_material',
     description:
       '按标题读取一个素材。笔记返回 Markdown 全文（表格、清单、代码、> [!note] 提示块、==高亮==、［素材：标题］嵌入、drifting: 位置链接），改笔记前先读；图片与 PDF 返回元数据和作者说明。',
@@ -1614,6 +1622,87 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
     '删除一个素材文件夹；其中的子文件夹和素材移到上一级，不删除任何素材。默认请求作者确认。',
     Type.Object({ folder: str('文件夹路径') }, { additionalProperties: false }),
     { risk: 'high', effect: 'annotation', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_act',
+    '新建一幕：从指定章节开始（之后的章节直到下一幕都归入这一幕）；不给 firstChapter 则在全书末尾新建一个空幕。',
+    Type.Object(
+      { name: optionalStr('幕名；省略时按位置命名，如「第二幕」'), firstChapter: optionalStr('这一幕的第一章') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_act',
+    '重命名一幕，或改为从另一章开始（移动分幕线）。',
+    Type.Object(
+      { act: str('当前幕名'), name: optionalStr('新幕名'), firstChapter: optionalStr('新的第一章') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_act',
+    '删除一条分幕线；章节和它们的顺序不变，原本属于这一幕的章节归入前一幕。默认请求作者确认。',
+    Type.Object({ act: str('幕名') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'graph', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'move_chapter',
+    '调整一章的阅读顺序：放到某章之后、某章之前，或某一幕的末尾（三者给一个）。after 和 before 都会留在参照章所在的幕里。',
+    Type.Object(
+      {
+        chapter: str('要移动的章节'),
+        after: optionalStr('放到这一章之后'),
+        before: optionalStr('放到这一章之前'),
+        act: optionalStr('放到这一幕末尾'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'set_timeline_position',
+    '把一章或一个构想放到叙事时间线（故事内时间）上某个已在时间线上的章节、构想或时间刻度之后/之前；remove=true 则从时间线上拿下。不改变阅读顺序。重名时写「章节:名」「构想:名」「刻度:名」。',
+    Type.Object(
+      {
+        item: str('章节或构想名'),
+        after: optionalStr('参照：章节、构想或时间刻度'),
+        before: optionalStr('参照：章节、构想或时间刻度'),
+        remove: Type.Optional(Type.Boolean({ description: 'true 表示从叙事时间线上拿下' })),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_timeline_marker',
+    '在叙事时间线上加一个时间刻度（如「1937 年冬」「卷二」），放在某个章节、构想或刻度之后/之前。',
+    Type.Object(
+      { label: str('刻度文字'), after: optionalStr('参照'), before: optionalStr('参照') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_timeline_marker',
+    '修改一个时间刻度的文字，或把它移到别处（after/before）。',
+    Type.Object(
+      {
+        marker: str('当前刻度文字'),
+        label: optionalStr('新文字'),
+        after: optionalStr('移到这个参照之后'),
+        before: optionalStr('移到这个参照之前'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_timeline_marker',
+    '删除一个时间刻度；不影响任何章节。默认请求作者确认。',
+    Type.Object({ marker: str('刻度文字') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'graph', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
   ),
   domainRuntimeWriteSpec(
     'create_project_memory',

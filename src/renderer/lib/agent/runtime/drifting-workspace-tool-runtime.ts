@@ -11,6 +11,7 @@ import { Value } from '@sinclair/typebox/value';
 
 import { allElementNames, type BookElement } from '../../../domain/book-element';
 import { canonicalWordCount, isChapter } from '../../../domain/book-node';
+import { actForOrder } from '../../../domain/book-act';
 import { extractTextFromCommentBody, type Comment } from '../../../domain/comment';
 import { parseKv, type KvEntry } from '../../../domain/kv';
 import { useDataStore, type EntityRelationLink } from '../../../store/data-store';
@@ -4039,8 +4040,16 @@ function describeWorkspaceDirectory(
   if (nodeTarget && (path.startsWith('/chapters/') || path.startsWith('/drifts/'))) {
     const node = currentNode(nodeTarget.nodeId, projectId);
     const summary = compactDescription(node.summary, 220);
+    const act =
+      node.kind === 'chapter' && node.bookOrder != null
+        ? actForOrder(
+            useDataStore.getState().bookActs.filter((candidate) => candidate.projectId === projectId),
+            node.bookOrder,
+          )
+        : null;
     return [
       node.kind === 'chapter' ? 'Chapter' : 'Idea',
+      act ? `幕「${act.name}」` : null,
       canonicalWordCount(node) == null
         ? 'word count pending'
         : `${canonicalWordCount(node)!.toLocaleString('en-US')} words`,
@@ -4886,6 +4895,10 @@ function workspaceDomainListItem(path: string): string {
 }
 
 function workspaceDomainListPreview(path: string, value: unknown): string | null {
+  if (path.startsWith('/chapters/') && typeof value === 'string') {
+    // The act a chapter falls in is the one directory fact worth a line.
+    return value.split(' · ').find((part) => part.startsWith('幕「')) ?? null;
+  }
   if (!path.startsWith('/comments/') && !path.startsWith('/relations/')) return null;
   if (typeof value !== 'string') return null;
   const authored = projectAuthoredTextForModel(value).text.replace(/\s+/gu, ' ').trim();

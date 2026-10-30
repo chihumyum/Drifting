@@ -47,6 +47,11 @@ generic authored-object shape must fail.
 | Entity relations     | `实体关系「<handle>」`             |
 | Project memory       | `项目记忆「<memoryId>」`           |
 | Project facts        | `项目事实`                         |
+| Materials and notes  | `素材「<标题>」`                   |
+| Material folders     | `素材文件夹「<路径>」`             |
+| Acts                 | `幕「<名称>」`                     |
+| Reading order        | `章节「<名称>」的阅读位置`         |
+| Narrative timeline   | `叙事时间线位置`、`时间刻度「<名称>」` |
 
 Creation returns a canonical semantic result containing the created handle when
 the domain needs one. Subsequent domain operations pass that handle directly.
@@ -230,7 +235,51 @@ document in creation order.
 `项目记忆` is the readable aggregate. Individual entries use
 `项目记忆「<memoryId>」`.
 
-## 10. Approval policy
+## 10. Workbench scopes
+
+The author's working structure around the prose — the material library and
+the book structure — is written through workbench
+commands (`drifting-workbench-types.ts`). They are direct domain writes: the
+public tool and the certified command share one name, so receipts need no new
+provenance trigger.
+
+A command plans the complete next image of one small scope from author-domain
+names, and that image is everything at once:
+
+- **freshness** — the scope's revision is the hash of its image; the runtime
+  cites a fresh read of the scope (`list_materials`, `read_book_structure`) and the guarded mutation compares the image again inside
+  its transaction;
+- **receipt** — pre- and postimage are stored as one `authoring_scope`
+  snapshot;
+- **inverse** — rejecting applies the same diff backwards after proving the
+  scope still matches the postimage.
+
+Scopes leave out what other writers change constantly, so ordinary work never
+makes a workbench write stale: the library image has no note bodies, the
+structure image has no titles or prose, a plot grid image is one chapter's
+grid. Sync never revives a purged id, so the inverse of a hard delete (a
+material folder, an act, a timeline marker) recreates the row under a new id
+planned with the forward write; everything else is restored exactly.
+
+| Scope              | Read                  | Commands |
+| ------------------ | --------------------- | -------- |
+| `material_library` | `list_materials`      | `create_material_note`, `update_material`, `create/update/delete_material_folder` |
+| `book_structure`   | `read_book_structure` | `create/update/delete_act`, `move_chapter`, `set_timeline_position`, `create/update/delete_timeline_marker` |
+
+The Agent names chapters, acts, markers and folders; the runtime picks
+coordinates. Acts are boundaries on the reading axis (`bookOrder`): a new act
+starts halfway between its first chapter and the one before it, and
+`move_chapter` with `after`/`before` keeps the chapter inside its neighbor's
+act. The narrative timeline (`narrativeOrder`) holds chapters, ideas and
+markers; `set_timeline_position` places one relative to another and never
+changes reading order. When two neighbors leave no representable midpoint the
+write fails and asks the author to spread the timeline.
+
+Material note bodies are not a workbench scope: `revise_material_note` and
+`replace_material_note_body` are Yjs prose commands on `library-item:<id>`
+with the note's Yjs revision as freshness (`docs/material-workbench.md`).
+
+## 11. Approval policy
 
 | Mutation                                                 | Policy         | User surface                                                         |
 | -------------------------------------------------------- | -------------- | -------------------------------------------------------------------- |
@@ -251,7 +300,7 @@ The model cannot forge approval. Authorization binds the exact normalized
 arguments hash to a permission request. A changed target or payload requires a
 new decision.
 
-## 11. Headless acceptance matrix
+## 12. Headless acceptance matrix
 
 Milestone D acceptance runs the real product composition against a temporary
 file-backed SQLite database created from the current local-first baseline, plus real Yjs for

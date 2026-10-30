@@ -178,6 +178,7 @@ const validArguments: Record<string, Record<string, unknown>> = {
   list_memory: {},
   list_materials: {},
   read_material: { material: '气氛样稿' },
+  read_book_structure: {},
 };
 
 function request(
@@ -717,6 +718,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
       'list_comments',
       'list_memory',
       'list_materials',
+      'read_book_structure',
       'get_relation_types',
     ]);
 

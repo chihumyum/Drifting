@@ -593,7 +593,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
           (await currentWorkbenchRevision(observation.entityKind, projectId, observation.entityId)) !==
           observation.revision
         ) {
-          throw new Error('The material library changed while it was being read; read it again before writing');
+          throw new Error(`The ${observation.entityKind.replace(/_/g, ' ')} changed while it was being read; read it again before writing`);
         }
         continue;
       }

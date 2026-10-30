@@ -26,6 +26,7 @@ export const DRIFTING_DOMAIN_READ_TOOLS = [
   'list_project_memory',
   'list_materials',
   'read_material',
+  'read_book_structure',
   'search_prose',
   'search_project',
 ] as const;
@@ -84,6 +85,14 @@ export const DRIFTING_DOMAIN_WRITE_TOOLS = [
   'create_material_folder',
   'update_material_folder',
   'delete_material_folder',
+  'create_act',
+  'update_act',
+  'delete_act',
+  'move_chapter',
+  'set_timeline_position',
+  'create_timeline_marker',
+  'update_timeline_marker',
+  'delete_timeline_marker',
 ] as const;
 
 /**
@@ -97,6 +106,14 @@ export const WORKBENCH_COMMAND_NAMES = [
   'create_material_folder',
   'update_material_folder',
   'delete_material_folder',
+  'create_act',
+  'update_act',
+  'delete_act',
+  'move_chapter',
+  'set_timeline_position',
+  'create_timeline_marker',
+  'update_timeline_marker',
+  'delete_timeline_marker',
 ] as const;
 
 /** Direct writes to a material note's own Yjs document. */
@@ -240,7 +257,10 @@ export interface DriftingDomainCrudContract {
     | 'agent_memory'
     | 'project_facts'
     | 'material'
-    | 'material_folder';
+    | 'material_folder'
+    | 'act'
+    | 'book_order'
+    | 'timeline';
   authoredTargets: readonly string[];
   operations: Readonly<
     Record<DriftingDomainCrudOperation, DriftingDomainCrudOperationContract>
@@ -524,6 +544,39 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       read: closedRead(['list_materials']),
       update: closedWrite(['update_material_folder'], [], 'automatic'),
       delete: closedWrite(['delete_material_folder'], [], 'confirm_before'),
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'act',
+    authoredTargets: ['幕「<名称>」'],
+    operations: {
+      create: closedWrite(['create_act'], [], 'automatic'),
+      read: closedRead(['read_book_structure', 'list_chapters']),
+      update: closedWrite(['update_act'], [], 'automatic'),
+      delete: closedWrite(['delete_act'], [], 'confirm_before'),
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'book_order',
+    authoredTargets: ['章节「<名称>」的阅读位置'],
+    operations: {
+      create: notApplicable,
+      read: closedRead(['read_book_structure', 'list_chapters']),
+      update: closedWrite(['move_chapter'], [], 'automatic'),
+      delete: notApplicable,
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'timeline',
+    authoredTargets: ['叙事时间线位置', '时间刻度「<名称>」'],
+    operations: {
+      create: closedWrite(['create_timeline_marker', 'set_timeline_position'], [], 'automatic'),
+      read: closedRead(['read_book_structure']),
+      update: closedWrite(['update_timeline_marker', 'set_timeline_position'], [], 'automatic'),
+      delete: closedWrite(['delete_timeline_marker', 'set_timeline_position'], [], 'confirm_before'),
       revert: exactRevert([]),
     },
   },

@@ -80,6 +80,14 @@ const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | unde
     update_material: Object.freeze(['list_materials']),
     update_material_folder: Object.freeze(['list_materials']),
     delete_material_folder: Object.freeze(['list_materials']),
+    create_act: Object.freeze(['read_book_structure']),
+    update_act: Object.freeze(['read_book_structure']),
+    delete_act: Object.freeze(['read_book_structure']),
+    move_chapter: Object.freeze(['read_book_structure']),
+    set_timeline_position: Object.freeze(['read_book_structure']),
+    create_timeline_marker: Object.freeze(['read_book_structure']),
+    update_timeline_marker: Object.freeze(['read_book_structure']),
+    delete_timeline_marker: Object.freeze(['read_book_structure']),
   });
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<

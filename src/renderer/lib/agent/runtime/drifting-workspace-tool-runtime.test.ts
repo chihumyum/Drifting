@@ -59,7 +59,7 @@ describe('DriftingWorkspaceToolRuntime domain surface', () => {
     expect(runtime.listDefinitions(runtimeContext).map((tool) => tool.name)).toEqual(
       DRIFTING_DOMAIN_READ_TOOLS,
     );
-    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(53);
+    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(61);
 
     const names = runtime.listDefinitions(runtimeContext).map((tool) => tool.name);
     expect(names).not.toContain('browse_project');

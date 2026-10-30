@@ -10,7 +10,10 @@ import { createDatabaseClient } from '../../../lib/db';
 import type { LibraryItem } from '../../../domain/library-item';
 import type { MaterialFolder } from '../../../domain/material-folder';
 import { AgentConversationTable, BookNodeTable, ProjectTable } from '../../../schema/drizzle';
+import { createBookActRepository } from '../../../sqlite-repo/book-act-repo';
 import { createLibraryItemSqliteRepository } from '../../../sqlite-repo/library-item-repo';
+import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
+import { createTimelineMarkerRepository } from '../../../sqlite-repo/timeline-marker-repo';
 import { createMaterialFolderRepository } from '../../../sqlite-repo/material-folder-repo';
 import { invalidateSqliteReducerStateCache } from '../../../sync/reducer/sqlite-materializer';
 import { libraryMutationPayload } from '../../../usecase/library-item-payload';
@@ -249,6 +252,95 @@ describe('Agent workbench writes', () => {
   });
 });
 
+describe('Agent book structure writes', () => {
+  let fixture: WorkbenchFixture;
+
+  beforeEach(async () => {
+    secureStorage.clear();
+    fixture = await WorkbenchFixture.create();
+  });
+
+  afterEach(async () => {
+    useDataStore.setState(initialDataState, true);
+    useProjectStore.setState(initialProjectState, true);
+    await fixture.close();
+  });
+
+  it('splits the book into acts, moves boundaries and rejects them exactly', async () => {
+    expect(await fixture.write('act-1', 'create_act', { firstChapter: '第二章' })).toMatchObject({ ok: true });
+    const [act] = await fixture.acts();
+    expect(act).toMatchObject({ name: '第一幕', startOrder: 2.5 });
+    const structure = JSON.stringify(await fixture.read('structure-1', 'read_book_structure', {}));
+    expect(structure).toContain('"beforeFirstAct":["第一章"]');
+    expect(structure).toContain('"chapters":["第二章","第三章"]');
+    expect(JSON.stringify(await fixture.read('chapters-1', 'list_chapters', {}))).toContain('第一幕');
+
+    expect(await fixture.write('act-2', 'update_act', { act: '第一幕', name: '起', firstChapter: '第三章' })).toMatchObject({
+      ok: true,
+    });
+    expect((await fixture.acts())[0]).toMatchObject({ name: '起', startOrder: 7.5 });
+    await fixture.revert('act-2');
+    expect((await fixture.acts())[0]).toMatchObject({ id: act!.id, name: '第一幕', startOrder: 2.5 });
+
+    expect(await fixture.write('act-3', 'delete_act', { act: '第一幕' }, 'author_approved')).toMatchObject({ ok: true });
+    expect(await fixture.acts()).toEqual([]);
+    await fixture.revert('act-3');
+    const [restored] = await fixture.acts();
+    expect(restored).toMatchObject({ name: '第一幕', startOrder: 2.5 });
+    expect(restored!.id).not.toBe(act!.id);
+  });
+
+  it('reorders chapters inside the act of their neighbor', async () => {
+    await fixture.write('act-4', 'create_act', { name: '下半', firstChapter: '第三章' });
+    expect(await fixture.write('move-1', 'move_chapter', { chapter: '第一章', after: '第二章' })).toMatchObject({ ok: true });
+    // After 第二章 but before the act boundary at 7.5, so it stays out of 下半.
+    expect(await fixture.order('chapter-one')).toBe(6.25);
+    expect(await fixture.write('move-2', 'move_chapter', { chapter: '第二章', act: '下半' })).toMatchObject({ ok: true });
+    expect(await fixture.order('chapter-two')).toBe(15);
+    expect(await fixture.write('move-3', 'move_chapter', { chapter: '第一章', before: '第三章' })).toMatchObject({ ok: true });
+    expect(await fixture.order('chapter-one')).toBe(8.75);
+    await fixture.revert('move-3');
+    expect(await fixture.order('chapter-one')).toBe(6.25);
+    const noop = await fixture.write('move-4', 'move_chapter', { chapter: '第一章', after: '第二章', before: '第三章' });
+    expect(noop).toMatchObject({ ok: false });
+  });
+
+  it('places chapters and markers on the narrative timeline', async () => {
+    expect(
+      await fixture.write('marker-1', 'create_timeline_marker', { label: '1937 年冬', before: '第二章' }),
+    ).toMatchObject({ ok: true });
+    expect((await fixture.markers())[0]).toMatchObject({ label: '1937 年冬', narrativeOrder: 5 });
+    expect(
+      await fixture.write('place-1', 'set_timeline_position', { item: '第三章', after: '刻度:1937 年冬' }),
+    ).toMatchObject({ ok: true });
+    expect(await fixture.narrative('chapter-three')).toBe(7.5);
+    expect(await fixture.write('place-2', 'set_timeline_position', { item: '第一章', after: '第二章' })).toMatchObject({
+      ok: true,
+    });
+    expect(await fixture.narrative('chapter-one')).toBe(15);
+    const timeline = JSON.stringify(await fixture.read('timeline-1', 'read_book_structure', {}));
+    expect(timeline.indexOf('1937 年冬')).toBeLessThan(timeline.indexOf('"name":"第三章","position"'));
+
+    expect(await fixture.write('place-3', 'set_timeline_position', { item: '第三章', remove: true })).toMatchObject({
+      ok: true,
+    });
+    expect(await fixture.narrative('chapter-three')).toBeNull();
+    await fixture.revert('place-3');
+    expect(await fixture.narrative('chapter-three')).toBe(7.5);
+
+    expect(
+      await fixture.write('marker-2', 'update_timeline_marker', { marker: '1937 年冬', label: '1938 年春', after: '第二章' }),
+    ).toMatchObject({ ok: true });
+    expect((await fixture.markers())[0]).toMatchObject({ label: '1938 年春', narrativeOrder: 12.5 });
+    expect(
+      await fixture.write('marker-3', 'delete_timeline_marker', { marker: '1938 年春' }, 'author_approved'),
+    ).toMatchObject({ ok: true });
+    expect(await fixture.markers()).toEqual([]);
+    await fixture.revert('marker-3');
+    expect((await fixture.markers())[0]).toMatchObject({ label: '1938 年春', narrativeOrder: 12.5 });
+  });
+});
+
 function materialBody(result: AgentToolExecutionResult): string {
   const text = JSON.stringify(result);
   const match = /"body":"((?:[^"\\]|\\.)*)"/u.exec(text);
@@ -348,6 +440,22 @@ class WorkbenchFixture {
     await strategy.applyInverse(effect, this.context, new AbortController().signal);
   }
 
+  acts() {
+    return createBookActRepository(PROJECT_ID, this.database).findAll();
+  }
+
+  markers() {
+    return createTimelineMarkerRepository(PROJECT_ID, this.database).findAll();
+  }
+
+  async order(nodeId: string): Promise<number | null> {
+    return (await createBookNodeSqliteRepository(PROJECT_ID, this.database).findById(nodeId))?.bookOrder ?? null;
+  }
+
+  async narrative(nodeId: string): Promise<number | null> {
+    return (await createBookNodeSqliteRepository(PROJECT_ID, this.database).findById(nodeId))?.narrativeOrder ?? null;
+  }
+
   folders(): Promise<MaterialFolder[]> {
     return createMaterialFolderRepository(PROJECT_ID, this.database).findAll();
   }
@@ -441,7 +549,7 @@ async function seed(database: DbClient): Promise<void> {
     createdAt: AT,
     updatedAt: AT,
   });
-  await database.insert(BookNodeTable).values([chapter('chapter-one', '第一章', 0), chapter('chapter-two', '第二章', 5)]);
+  await database.insert(BookNodeTable).values(CHAPTERS.map(([id, title, order, narrative]) => chapter(id, title, order, narrative)));
   await database.insert(AgentConversationTable).values({
     id: CONVERSATION_ID,
     projectId: PROJECT_ID,
@@ -494,14 +602,20 @@ async function seed(database: DbClient): Promise<void> {
   });
 }
 
-function chapter(id: string, title: string, bookOrder: number) {
+const CHAPTERS: ReadonlyArray<[string, string, number, number | null]> = [
+  ['chapter-one', '第一章', 0, null],
+  ['chapter-two', '第二章', 5, 10],
+  ['chapter-three', '第三章', 10, null],
+];
+
+function chapter(id: string, title: string, bookOrder: number, narrativeOrder: number | null = null) {
   return {
     id,
     projectId: PROJECT_ID,
     title,
     summary: '',
     bookOrder,
-    narrativeOrder: null,
+    narrativeOrder,
     wordCount: 0,
     writingStatus: 'draft' as const,
     kind: 'chapter' as const,
@@ -531,7 +645,7 @@ async function hydrateStores(database: DbClient): Promise<void> {
   });
   useDataStore.setState({
     ...initialDataState,
-    bookNodes: [chapter('chapter-one', '第一章', 0), chapter('chapter-two', '第二章', 5)].map(
+    bookNodes: CHAPTERS.map(([id, title, order, narrative]) => chapter(id, title, order, narrative)).map(
       ({ positionX, positionY, ...value }) => ({ ...value, position: { x: positionX, y: positionY } }),
     ),
     storylines: [],

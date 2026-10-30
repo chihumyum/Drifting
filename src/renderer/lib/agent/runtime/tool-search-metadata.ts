@@ -567,4 +567,43 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   delete_material_folder: {
     searchIntents: ['remove a material folder', '删除素材文件夹', '撤掉一个资料目录'],
   },
+  read_book_structure: {
+    searchIntents: [
+      'see acts and reading order',
+      'see the story timeline',
+      '查看分幕与章节顺序',
+      '查看叙事时间线',
+      '全书结构',
+    ],
+  },
+  create_act: {
+    searchIntents: ['split the book into acts', 'start a new act at a chapter', '新建一幕', '分幕', '划分幕'],
+  },
+  update_act: {
+    searchIntents: ['rename an act', 'move an act boundary', '重命名一幕', '调整分幕线'],
+  },
+  delete_act: {
+    searchIntents: ['remove an act boundary', '删除一幕', '取消分幕'],
+  },
+  move_chapter: {
+    searchIntents: ['reorder chapters', 'move a chapter after another', '调整章节顺序', '把这一章挪到', '移动章节到另一幕'],
+  },
+  set_timeline_position: {
+    searchIntents: [
+      'place a chapter on the story timeline',
+      'set when a scene happens',
+      '放到叙事时间线上',
+      '调整故事时间顺序',
+      '设置章节发生时间',
+    ],
+  },
+  create_timeline_marker: {
+    searchIntents: ['add a date marker to the timeline', '添加时间刻度', '在时间线上标注年份'],
+  },
+  update_timeline_marker: {
+    searchIntents: ['rename or move a timeline marker', '修改时间刻度', '移动时间刻度'],
+  },
+  delete_timeline_marker: {
+    searchIntents: ['remove a timeline marker', '删除时间刻度'],
+  },
 };

@@ -305,8 +305,9 @@ describe('Drifting Agent capability manifest', () => {
         }
       }
       // Project facts have no lifecycle; materials are filed, described and
-      // written by the Agent but only the author deletes them.
-      if (domain.domain !== 'project_facts' && domain.domain !== 'material') {
+      // written by the Agent but only the author deletes them; a reading
+      // position exists exactly as long as its chapter.
+      if (!['project_facts', 'material', 'book_order'].includes(domain.domain)) {
         expect(
           Object.values(domain.operations).every((operation) => operation.status === 'closed'),
         ).toBe(true);

@@ -103,10 +103,10 @@ function objectUnionBranches(schema: unknown): number {
 
 describe('canonical Agent tool catalog', () => {
   it('installs only explicit domain tools and removes every generic object/filesystem verb', () => {
-    expect(DRIFTING_DOMAIN_READ_TOOLS).toHaveLength(23);
-    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(53);
-    expect(DRIFTING_DOMAIN_PROVIDER_TOOLS).toHaveLength(76);
-    expect(new Set(DRIFTING_DOMAIN_PROVIDER_TOOLS).size).toBe(76);
+    expect(DRIFTING_DOMAIN_READ_TOOLS).toHaveLength(24);
+    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(61);
+    expect(DRIFTING_DOMAIN_PROVIDER_TOOLS).toHaveLength(85);
+    expect(new Set(DRIFTING_DOMAIN_PROVIDER_TOOLS).size).toBe(85);
 
     for (const name of DRIFTING_DOMAIN_PROVIDER_TOOLS) {
       expect(getRegisteredTool(name), name).toMatchObject({ name });

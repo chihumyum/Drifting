@@ -1,4 +1,5 @@
 import { flattenMaterialFolders, materialFolderPath } from '../../domain/material-folder';
+import { actForOrder, deriveActSegments } from '../../domain/book-act';
 import { readMaterialNoteMarkdown } from './runtime/drifting-material-note-write-strategy';
 import { searchExactProse } from './exact-prose-search';
 /**
@@ -282,6 +283,9 @@ function listChapters(ctx: AgentToolContext) {
     );
   const storylineName = (id: string | null) =>
     id ? (s.storylines.find((sl) => sl.id === id)?.name ?? undefined) : undefined;
+  const acts = s.bookActs.filter((act) => act.projectId === ctx.projectId);
+  const actName = (node: BookNode) =>
+    node.bookOrder == null ? undefined : (actForOrder(acts, node.bookOrder)?.name ?? undefined);
   return {
     storylines: s.storylines
       .filter((sl) => sl.projectId === ctx.projectId)
@@ -297,6 +301,7 @@ function listChapters(ctx: AgentToolContext) {
         status: n.writingStatus,
         ...(words == null ? { wordsPending: true } : { words }),
         storyline: storylineName(s.primaryStorylineByNode[n.id] ?? null),
+        act: actName(n),
       };
     }),
     drifts: drifts.map((n) => ({
@@ -708,6 +713,65 @@ function searchProject(ctx: AgentToolContext, query: string) {
     freshness: match.freshness,
   }));
   return { matches, ranking: 'drifting-evidence-v1' };
+}
+
+// ---- Book structure: acts, reading order, narrative timeline --------------
+
+/**
+ * read_book_structure — what the author arranges around the prose: acts as
+ * runs of chapters in reading order, and the narrative timeline (story time)
+ * with its markers. Positions are ranks; equal ranks are simultaneous.
+ */
+function readBookStructure(ctx: AgentToolContext) {
+  const s = useDataStore.getState();
+  const nodes = s.bookNodes.filter((node) => node.projectId === ctx.projectId);
+  const chapters = nodes
+    .filter(isChapter)
+    .slice()
+    .sort((left, right) => left.bookOrder - right.bookOrder || left.id.localeCompare(right.id, 'en'));
+  const acts = s.bookActs.filter((act) => act.projectId === ctx.projectId);
+  const segments = deriveActSegments(acts, chapters);
+  const inActs = new Set(segments.flatMap((segment) => segment.chapters.map((chapter) => chapter.id)));
+  const title = (id: string | null) => (id ? nodes.find((node) => node.id === id)?.title : undefined);
+  const markers = s.timelineMarkers.filter((marker) => marker.projectId === ctx.projectId);
+  const axis = [
+    ...nodes
+      .filter((node) => node.narrativeOrder != null)
+      .map((node) => ({
+        type: node.kind === 'chapter' ? 'chapter' : 'inspiration',
+        name: node.title,
+        order: node.narrativeOrder!,
+      })),
+    ...markers.map((marker) => ({
+      type: 'marker',
+      name: (marker.driftNodeId ? title(marker.driftNodeId) : undefined) ?? marker.label,
+      order: marker.narrativeOrder,
+    })),
+  ].sort((left, right) => left.order - right.order);
+  const ranks = [...new Set(axis.map((entry) => entry.order))];
+  return {
+    readingOrder: {
+      ...(segments.length > 0 && chapters.some((chapter) => !inActs.has(chapter.id))
+        ? { beforeFirstAct: chapters.filter((chapter) => !inActs.has(chapter.id)).map((chapter) => chapter.title) }
+        : {}),
+      ...(segments.length > 0
+        ? {
+            acts: segments.map((segment) => ({
+              name: segment.act.name,
+              chapters: segment.chapters.map((chapter) => chapter.title),
+              ...(segment.act.driftNodeId ? { notes: title(segment.act.driftNodeId) } : {}),
+            })),
+          }
+        : { chapters: chapters.map((chapter) => chapter.title) }),
+    },
+    narrativeTimeline: axis.map(({ order, ...entry }) => ({ ...entry, position: ranks.indexOf(order) + 1 })),
+    notOnTimeline: {
+      chapters: chapters.filter((node) => node.narrativeOrder == null).map((node) => node.title),
+      inspirations: nodes
+        .filter((node) => node.kind === 'drift' && node.narrativeOrder == null)
+        .map((node) => node.title),
+    },
+  };
 }
 
 // ---- Materials (素材库 library items) ---------------------------------------
@@ -2237,6 +2301,8 @@ export async function runAgentTool(
       return listMaterials(ctx);
     case 'read_material':
       return readMaterial(ctx, args);
+    case 'read_book_structure':
+      return readBookStructure(ctx);
     // writes
     case 'update_element':
       return updateElement(ctx, args);

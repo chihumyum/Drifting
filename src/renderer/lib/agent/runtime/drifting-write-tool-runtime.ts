@@ -1708,6 +1708,7 @@ function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): Re
 }
 
 type FreshnessReadToolName =
+  | 'read_book_structure'
   | 'list_materials'
   | 'read_material'
   | 'read_node'
@@ -1722,6 +1723,7 @@ type FreshnessReadToolName =
   | 'get_relation_types';
 
 type FreshnessEntityKind =
+  | 'book_structure'
   | 'material_library'
   | 'material_note_prose'
   | 'node'
