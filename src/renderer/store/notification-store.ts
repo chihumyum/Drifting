@@ -15,7 +15,7 @@ import { create } from 'zustand';
 import type { AiTaskEvent, AiTaskOutcome, AiTaskSource } from '../lib/events';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
-export type AppNotificationSource = AiTaskSource | 'hosted-sync';
+export type AppNotificationSource = AiTaskSource | 'hosted-sync' | 'agent-organize';
 
 export interface AppNotificationProgress {
   /** Null means the total is still being discovered. */
@@ -29,6 +29,8 @@ export interface AppNotificationProgress {
 export interface AppNotificationEvent extends Omit<AiTaskEvent, 'source'> {
   source: AppNotificationSource;
   progress?: AppNotificationProgress;
+  /** Clicking the row opens this project's Home. */
+  projectHomeId?: string;
 }
 
 export interface AppNotification {
@@ -38,6 +40,7 @@ export interface AppNotification {
   title: string;
   detail?: string;
   chapterId?: string;
+  projectHomeId?: string;
   outcome?: AiTaskOutcome;
   count?: number;
   error?: string;
@@ -88,6 +91,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           title: e.title || existing.title,
           detail: e.detail ?? existing.detail,
           chapterId: e.chapterId ?? existing.chapterId,
+          projectHomeId: e.projectHomeId ?? existing.projectHomeId,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
           error: e.error ?? existing.error,
@@ -106,6 +110,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         title: e.title,
         detail: e.detail,
         chapterId: e.chapterId,
+        projectHomeId: e.projectHomeId,
         outcome: e.outcome,
         count: e.count,
         error: e.error,

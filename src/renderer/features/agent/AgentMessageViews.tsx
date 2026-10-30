@@ -7,7 +7,7 @@ import { parseLocationHref } from '../../lib/location-link';
 import { openLocationHref } from '../workspace/navigation/open-location-link';
 import { useOptionalWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { useDataStore } from '../../store/data-store';
-import type { ActivityEntityType, ToolEntityRef } from '../../lib/agent/tool-entity-ref';
+import type { ToolEntityRef } from '../../lib/agent/tool-entity-ref';
 import type { AgentControlStatus, AgentPendingControl, AgentPermissionScope } from '../../lib/agent/protocol';
 import type { AgentChatMessage as ChatMsg } from '../../domain/agent-conversation';
 import {
@@ -17,7 +17,7 @@ import {
 } from '../../lib/agent/agent-tool-activity';
 import { BrushIcon, type BrushIconName } from '../../components/ui/BrushIcon';
 import { KindMark } from '../../components/ui/KindMark';
-import type { KindMarkKind } from '../../components/ui/kind-mark';
+import { ENTITY_MARK, entityRefName } from './entity-ref-name';
 import { useAgentGlass } from './agent-glass';
 
 export const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
@@ -314,32 +314,6 @@ const UserBubble = memo(function UserBubble({ msg }: { msg: Extract<ChatMsg, { k
     </div>
   );
 });
-
-const ENTITY_MARK: Record<ActivityEntityType, KindMarkKind> = {
-  node: 'chapter',
-  element: 'element',
-  storyline: 'storyline',
-  category: 'category',
-};
-
-function entityRefName(
-  s: ReturnType<typeof useDataStore.getState>,
-  ref: ToolEntityRef,
-  deletedLabel: string,
-): string {
-  switch (ref.entityType) {
-    case 'node':
-      return s.bookNodes.find((n) => n.id === ref.id)?.title || deletedLabel;
-    case 'element':
-      return s.bookElements.find((e) => e.id === ref.id)?.name || deletedLabel;
-    case 'storyline':
-      return s.storylines.find((sl) => sl.id === ref.id)?.name || deletedLabel;
-    case 'category':
-      return s.bookElementCategories.find((c) => c.id === ref.id)?.name || deletedLabel;
-    default:
-      return ref.id;
-  }
-}
 
 /** A clickable pill for an entity the agent created/edited — jumps to its tab. */
 export function EntityLinkChip({

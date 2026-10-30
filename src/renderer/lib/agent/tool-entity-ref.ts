@@ -509,7 +509,12 @@ export function toolEntityRef(
         spots: deriveSpots(name, 'create', resultText),
       };
     }
-    const id = createdIdFromResult(resultText, createKind);
+    // Prose results (「要素「阿岚」设定已创建…」) carry no id; the entity now
+    // exists under the name the Agent gave it.
+    const named = [domainArgs.name, domainArgs.title].find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0,
+    );
+    const id = createdIdFromResult(resultText, createKind) ?? (named ? resolveEntityId(createKind, named) : null);
     if (id) return { entityType: createKind, id, op: 'create', spots: deriveSpots(name, 'create', resultText) };
   }
   return null;

@@ -1394,6 +1394,9 @@
     "clear": "清空",
     "empty": "暂无通知",
     "remove": "移除",
+    "organize": {
+      "source": "Agent"
+    },
     "cloudSync": {
       "source": "云同步",
       "syncing": "正在同步…",
@@ -3504,7 +3507,27 @@
     "settings": {
       "projectTarget": "全书目标",
       "dailyGoal": "每日目标",
-      "checkin": "每日签到"
+      "checkin": "每日签到",
+      "organize": "自动整理"
+    }
+  },
+  "organize": {
+    "notify": {
+      "running": "正在整理上次写的内容",
+      "completed": "整理好了上次写的内容",
+      "failed": "整理没有完成",
+      "interrupted": "整理中断了"
+    },
+    "counts": {
+      "created_one": "新建 {{count}} 个要素",
+      "created_other": "新建 {{count}} 个要素",
+      "updated_one": "更新 {{count}} 个要素",
+      "updated_other": "更新 {{count}} 个要素",
+      "patches_one": "{{count}} 条变更",
+      "patches_other": "{{count}} 条变更",
+      "relations_one": "{{count}} 条关系",
+      "relations_other": "{{count}} 条关系",
+      "none": "没有需要整理的"
     }
   },
   "projectAgent": {

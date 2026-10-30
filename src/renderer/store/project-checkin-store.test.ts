@@ -18,6 +18,7 @@ function decide(
     changesSince?: (since: string) => boolean;
     previousOpenedAt?: string | null;
     force?: boolean;
+    afterOrganize?: boolean;
     enabled?: boolean;
     running?: boolean;
   } = {},
@@ -30,6 +31,7 @@ function decide(
       enabled: options.enabled ?? true,
       running: options.running ?? false,
       force: options.force ?? false,
+      afterOrganize: options.afterOrganize,
       record: { ...EMPTY_PROJECT_CHECKIN, ...record },
       previousOpenedAt: options.previousOpenedAt ?? null,
       hasChangesSince,
@@ -63,6 +65,8 @@ describe('project check-in decision', () => {
     expect(cooled.hasChangesSince).not.toHaveBeenCalled();
     const forced = decide(record, { changesSince: () => true, force: true });
     await expect(forced.decision).resolves.toMatchObject({ run: true });
+    const afterOrganize = decide(record, { changesSince: () => true, afterOrganize: true });
+    await expect(afterOrganize.decision).resolves.toMatchObject({ run: true });
   });
 
   it('offers a pick-up check-in after an absence when no card is waiting', async () => {

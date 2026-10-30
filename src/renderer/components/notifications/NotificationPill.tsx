@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
@@ -54,7 +55,9 @@ function sourceLabel(
   n: AppNotification,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
-  return n.source === 'hosted-sync' ? t('notifications.cloudSync.source') : 'Copilot';
+  if (n.source === 'hosted-sync') return t('notifications.cloudSync.source');
+  if (n.source === 'agent-organize') return t('notifications.organize.source');
+  return 'Copilot';
 }
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
@@ -245,10 +248,15 @@ function NotificationCenter({
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
-  const { navigateToNode } = useProjectNavigation();
+  const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
+  const navigate = useNavigate();
 
   const onRowClick = (n: AppNotification) => {
-    if (n.chapterId) {
+    if (n.projectHomeId) {
+      if (n.projectHomeId === projectId) navigateToHome();
+      else navigate(`/project/${n.projectHomeId}`);
+      setCenterOpen(false);
+    } else if (n.chapterId) {
       navigateToNode(n.chapterId);
       setCenterOpen(false);
     }
@@ -281,7 +289,7 @@ function NotificationCenter({
                 'menu-surface__item',
                 'notification-row',
                 n.read ? '' : 'is-unread',
-                n.chapterId ? '' : 'is-static',
+                n.chapterId || n.projectHomeId ? '' : 'is-static',
               ]
                 .filter(Boolean)
                 .join(' ')}
