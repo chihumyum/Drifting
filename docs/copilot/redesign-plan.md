@@ -13,10 +13,9 @@
 | 层次 | 负责的问题 | 交互和权限 |
 | --- | --- | --- |
 | Copilot | 当前句子、段落、场景，以及作者正在处理的局部问题 | 就地提问、准备修改、少量及时建议；正文和 Canon 变更由作者明确接受 |
-| Ambient Editor | 作者指定关注点下的持续阅读、跨章节影响和待复查事项 | 后台只读分析，维护有证据的 Concern；使用共享 Agent Runtime |
 | General Agent | 作者明确委托、需要持续执行的任务 | 持久对话、检索、工具执行和既有审阅权限 |
 
-Ambient 仍为 [未实现的目标设计](../ambient-editor/README.md)。本次 Copilot 改造不依赖完整 World Model，不实现 Ambient Concern 或 Review Debt，也不恢复 Shadow CI、Element Arc、Goal Evolve。全书观察仍归 Ambient；长任务执行仍归 General Agent。
+本次 Copilot 改造不恢复 Shadow CI、Element Arc、Goal Evolve；长任务执行仍归 General Agent。
 
 共享范围优先是原文读取、源版本、证据锚点、相关上下文和作者决定的查询接口。现有 Copilot 单次请求先复用其 renderer-local BYOK 路径；需要 Agent 工具时组合现有 renderer-owned Runtime 的受限能力，禁止再造 provider 执行循环。Copilot Provider 与 General Agent composer 的 Provider 分别保持作者选择，无隐式切换。
 
@@ -84,7 +83,7 @@ Ambient 仍为 [未实现的目标设计](../ambient-editor/README.md)。本次 
 | 数据 | 所有者与生命周期 |
 | --- | --- |
 | 正文、正文修改 | Live Yjs；自动化写入通过现有正文写入／live document 路径 |
-| 当前编辑轮次、定时器、临时候选、已处理版本缓存 | 本地会话状态，可丢弃重建，不同步，不冒充 Ambient Review Debt |
+| 当前编辑轮次、定时器、临时候选、已处理版本缓存 | 本地会话状态，可丢弃重建，不同步 |
 | 摘要与摘要有效性 | 可重建的派生数据；不能决定另一能力是否已经工作 |
 | 已呈现／待审阅建议、接受／拒绝决定 | 既有 SQLite Comment／CommentAction 与 SyncEngine 路径；需要扩展时使用明确版本化结构 |
 | 项目内长期辅助偏好 | 作者数据；P3 明确其持久化／同步归属，不能只藏在组件状态或模型提示里 |
@@ -142,7 +141,7 @@ Ambient 仍为 [未实现的目标设计](../ambient-editor/README.md)。本次 
 - `C07`：关闭再开保留同一会话讨论；不同项目不串内容，过期原文明确提示并重新准备修改。
 - `C08`：转交草稿可检查／取消，重复点击不重复建任务；实际发送沿用 General Agent Provider、权限和持久化，未发送不调用执行工具。
 
-交付范围：手动体验可独立上线，不等待 Ambient 或新的自动分析。
+交付范围：手动体验可独立上线，不等待新的自动分析。
 
 ### P3 — 建立编辑调度和建议生命周期
 
@@ -210,7 +209,7 @@ Ambient 仍为 [未实现的目标设计](../ambient-editor/README.md)。本次 
 
 顺序为 **P1 → P2 → P3 → P4 → P5**。每个阶段可拆成小变更，但下一阶段的作者可见行为依赖前一阶段验收。P1 和 P2 的成果优先独立交付，避免作者等待全部自动化完成。
 
-本轮不加入自动续写、自动全书文学批评、完整 Ambient World Model、新后台常驻进程或应用退出后继续运行。TODO 标记解析等确定性便利功能单独保留，不因它们被挂在 Copilot 下就改成模型判断；设置迁移时明确其自动开关归属，避免连带关闭／开启。
+本轮不加入自动续写、自动全书文学批评、新后台常驻进程或应用退出后继续运行。TODO 标记解析等确定性便利功能单独保留，不因它们被挂在 Copilot 下就改成模型判断；设置迁移时明确其自动开关归属，避免连带关闭／开启。
 
 实施前再次检查工作树与相关并行修改。每次仅修改当前阶段需要的文件，不覆盖无关工作，不把本计划中的建议文件名视为已有实现。任何新增持久域或工具必须补充真实 migration／sync／capability 证据；派生证据通过对应生成器更新，不能直接改生成产物来满足计划。
 

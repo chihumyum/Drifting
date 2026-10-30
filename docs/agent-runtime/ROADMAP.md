@@ -25,7 +25,6 @@ an open milestone.
 | Native interaction            | Desktop/iOS/Android visual, touch, IME, safe-area, background, and real-device behavior remain manual                                                                               | [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) and the native QA checklist |
 | Long-form quality rerun       | The post-`雾港纪事` deterministic P0 fixes have not been validated by another paid empty-project long-form campaign                                                                 | Dated run plus remediation report linked from current status                                   |
 | Editing follow-up             | Stable partial edit recovery, equivalent-create recovery, remaining error guidance, and live-provider compliance with the new Working Memory checkpoint remain tracked follow-up | Future deterministic/live evidence recorded in current status |
-| Ambient Editor                | Target design Phase 0 is frozen; source projection, Lens/debt/scheduler, read-only reconciliation, Concern domain/sync, handoff, whole-book reading, and hardening phases 1–7 are not implemented | [`../ambient-editor/delivery-and-acceptance.md`](../ambient-editor/delivery-and-acceptance.md) phase-specific evidence |
 | Voice-authored capture        | Source implementation exists but is unaccepted and has not been tested end to end by the maintainer: BYOK DashScope transcription, project-aware context, mobile voice surface/pill, composer mics, and the read-write Agent flow all remain product-validation work; semantic routing, durable capture across app kill, and background processing also remain open | [`../voice-authored-capture.md`](../voice-authored-capture.md) |
 | Subagents                     | Deferred; not part of the shipped single-product/multi-conversation runtime                                                                                                         | Generated capability inventory                                                                 |
 | Tool discovery | `auto`/`on` expose fixed `tool_search` and `call_tool`; the complete directory stays in the tool prefix and schemas arrive in tool results. Journals retain canonical operations. | Deterministic runtime/provider contracts; live provider cache-hit measurement remains separate |
@@ -53,8 +52,6 @@ does not invoke an internal model.
 - Aggregate commands: [`../../package.json`](../../package.json)
 - Canonical prose-metric contract and deterministic acceptance:
   [`../prose-metrics.md`](../prose-metrics.md)
-- Ambient target architecture and progressive gates:
-  [`../ambient-editor/README.md`](../ambient-editor/README.md)
 
 The former A-K sequence is closed or explicitly removed. It is retained as one
 historical index rather than seventeen current-looking phase reports.

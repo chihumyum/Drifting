@@ -61,26 +61,6 @@ pnpm agent:capabilities:check
   pending projections are shown as pending rather than exact. See
   [`../../prose-metrics.md`](../../prose-metrics.md).
 
-### Approved future Ambient design — not shipped
-
-- The target design for Shadow as an Ambient Editor is frozen in
-  [`../../ambient-editor/README.md`](../../ambient-editor/README.md). It is a
-  future subsystem composed on the shared Agent Runtime, not a restored
-  standalone Shadow CI/runtime.
-- The design defines read-only reconciliation over author-owned Editorial
-  Lenses, Canon, and a rebuildable evidence-backed World Model, producing
-  first-class editorial Concerns without pass/fail, gates, or manuscript
-  mutation.
-- No Ambient route, World Model, Review Debt queue, Concern Inbox, provider
-  capability, synced Ambient schema, or background scheduler is currently a
-  shipped Agent capability. The generated inventory remains authoritative.
-- The current retirement guard remains in force: implementation must not
-  restore `src/renderer/lib/shadow`, `shadow_job`, `project_rule`, old review
-  states, old Shadow panels, or old eval corpora.
-- The progressive implementation and evidence gates are defined in
-  [`../../ambient-editor/delivery-and-acceptance.md`](../../ambient-editor/delivery-and-acceptance.md).
-  Design acceptance proves documentation consistency only.
-
 ### Tool and authored-object surface
 
 - The installed built-in surface is the complete generated set of narrow,
@@ -120,7 +100,7 @@ pnpm agent:capabilities:check
   support is generated and machine checked.
 - During an author-requested write task, General Agent may leave a concise,
   evidence-backed incidental finding as an existing Comment/TODO on the
-  relevant authored object. This is opportunistic, not an Ambient scan: it
+  relevant authored object. This is opportunistic, not a background scan: it
   does not search for extra issues or turn the requested work into a TODO.
   `create_comment` still uses the normal anchored write and review boundary.
 - Hovering an open TODO in Review or the editor rail shows a plain
@@ -132,7 +112,7 @@ pnpm agent:capabilities:check
   Opening the linked chat exposes its progress and normal Agent controls.
   A project switch cancels pending startup and foreign running turns because
   the tool bridge remains bound to the viewed project. This is an explicit
-  user-launched session, not a persistent Ambient worker or a worktree.
+  user-launched session, not a persistent background worker or a worktree.
 - Project relations use synced first-class type definitions rather than new
   free-text labels. A type declares `directed` or `symmetric` orientation,
   endpoint roles, and allowed source/target entity kinds. Desktop relation
@@ -284,9 +264,6 @@ pnpm agent:capabilities:check
 
 ## Current open verification and follow-up
 
-- Ambient Editor implementation phases 1–7 are open. Phase 0 freezes the target
-  design but ships no behavior; see
-  [`../../ambient-editor/delivery-and-acceptance.md`](../../ambient-editor/delivery-and-acceptance.md).
 - Physical-device desktop/iOS/Android interaction remains open where listed in
   the mobile and native manual checklists.
 - The deterministic P0 fixes discovered by the 2026-08-06 empty-project novel

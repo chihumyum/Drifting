@@ -85,8 +85,10 @@ Guidance for coding agents working in this standalone Drifting client repository
 
 - Standalone Shadow CI, Element Arc, and Goal Evolve are retired. Do not restore
   their panels, routes, storage, or eval harnesses as separate products.
-- The frozen, unimplemented Ambient Editor target is indexed at
-  `docs/ambient-editor/README.md`. It must use the shared renderer-owned Agent Runtime.
+- The frozen Ambient Editor (Shadow) design was retired unimplemented on
+  2026-10-30. Proactive Agent work grows from the Project Home check-in
+  (`docs/agent-runtime/project-checkin.md`) on the shared renderer-owned
+  Agent Runtime.
 
 ## UI rules
 

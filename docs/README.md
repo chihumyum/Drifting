@@ -47,8 +47,6 @@ release contract remains paused. See [onboarding and Hosted readiness](client-on
 | How do agents inspect and operate a mobile WebView?        | [`frontend-debug.md`](frontend-debug.md)                                                                                                                             |
 | What is the current milestone policy and open work?        | [`agent-runtime/ROADMAP.md`](agent-runtime/ROADMAP.md)                                                                                                                |
 | How will Copilot triggers and usability change?            | [`copilot/redesign-plan.md`](copilot/redesign-plan.md) — implementation plan; redesign not yet implemented                                                           |
-| What is the frozen target design for Ambient Shadow?       | [`ambient-editor/README.md`](ambient-editor/README.md)                                                                                                                |
-| What should the final Ambient author experience feel like? | [`ambient-editor/product-vision.md`](ambient-editor/product-vision.md)                                                                                                |
 | What is the design system (sand and glass)?               | [`design-system/README.md`](design-system/README.md)                                                                                                                   |
 | What are the renderer dependency rules?                    | [`renderer-ui-architecture.md`](renderer-ui-architecture.md)                                                                                                          |
 | How will frontend architecture and performance improve?   | [`renderer-performance/optimization-plan.md`](renderer-performance/optimization-plan.md) and [execution evidence](renderer-performance/README.md)                                    |
@@ -100,10 +98,6 @@ release contract remains paused. See [onboarding and Hosted readiness](client-on
   child-process SIGKILL durability evidence.
 - [`sync-engine/phase6-product-controls.md`](sync-engine/phase6-product-controls.md)
   points to current Hosted controls and local recovery settings.
-- [`ambient-editor/technical-architecture.md`](ambient-editor/technical-architecture.md)
-  and [`ambient-editor/delivery-and-acceptance.md`](ambient-editor/delivery-and-acceptance.md)
-  define the approved future Ambient design and progressive gates. They are
-  design contracts, not evidence that Ambient behavior ships.
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md) defines explicit
   platform limitations.
 
