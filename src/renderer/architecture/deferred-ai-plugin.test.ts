@@ -15,12 +15,11 @@ function fixture() {
 it('keeps ordinary imports in SSR and leaves unrelated modules alone', () => {
   const f = fixture(); expect(f.transform(f.code, f.file, true)).toBeUndefined(); expect(f.transform(f.code, `${f.file}.unrelated`)).toBeUndefined();
 });
-it('rewrites both browser loaders to the same-build retry entries', () => {
+it('rewrites the browser loader to the same-build retry entry', () => {
   const f = fixture(); const transformed = f.transform(f.code, f.file)!.code;
-  expect(transformed).toContain("from 'virtual:openai-providers'"); expect(transformed).toContain("from 'virtual:google-provider'");
-  expect(transformed).toContain('shareCode(loadOpenAICode)'); expect(transformed).toContain('shareCode(loadGoogleCode)');
-  expect(transformed).not.toContain("import('./openai-compatible-runtime')"); expect(transformed).not.toContain("import('./google-runtime')");
+  expect(transformed).toContain("from 'virtual:openai-providers'"); expect(transformed).toContain('shareCode(loadOpenAICode)');
+  expect(transformed).not.toContain("import('./openai-compatible-runtime')");
 });
 it('fails the build if a required import changes instead of silently losing retry support', () => {
-  const f = fixture(); expect(() => f.transform(f.code.replace("import('./google-runtime')", "import('./missing-runtime')"), f.file)).toThrow('Missing deferred provider import: google-runtime');
+  const f = fixture(); expect(() => f.transform(f.code.replace("import('./openai-compatible-runtime')", "import('./missing-runtime')"), f.file)).toThrow('Missing deferred provider import: openai-compatible-runtime');
 });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,7 @@ function fingerprint(directory) {
   for (const file of ['scripts/renderer-deferred-ai.ts', 'scripts/renderer-deferred-ai-contract.mjs', 'scripts/run-renderer-deferred-ai.mjs']) digest.update(file).update(readFileSync(path.join(root, file)));
   return digest.digest('hex');
 }
-const target = id => id.endsWith('/openai/index.mjs') ? 'openai' : id.endsWith('/@google/genai/dist/web/index.mjs') ? 'google' : null;
+const target = id => id.endsWith('/openai/index.mjs') ? 'openai' : null;
 if (process.argv.includes('--check')) {
   const report = JSON.parse(readFileSync(output, 'utf8')); validateDeferredAI(report);
   if (!process.argv.includes('--historical')) assert.equal(report.after.source.fingerprint, fingerprint(root), 'AI provider evidence is stale.');
@@ -70,7 +70,7 @@ if (process.argv.includes('--check')) {
       await client.Page.navigate({ url: `http://127.0.0.1:${server.httpServer.address().port}/` });
       await until('Boolean(globalThis.__DEFERRED_AI__)');
       const initial = { requested: [...requested].sort(), parsed: [...parsed].sort(), evaluated: await sdkEvaluations() };
-      for (const provider of ['deepseek', 'openai', 'google']) await api('create', provider, `${provider}-stream`);
+      for (const provider of ['deepseek', 'openai']) await api('create', provider, `${provider}-stream`);
       const checks = {}; const moduleRequests = [];
       if (current) {
         assert.deepEqual(await sdkEvaluations(), []); checks.constructionIsDeferred = true;
@@ -85,7 +85,7 @@ if (process.argv.includes('--check')) {
           } catch (error) { interceptionErrors.push(String(error)); }
         });
         await client.Fetch.enable({ patterns: [{ urlPattern: '*provider-attempt=*', requestStage: 'Request' }] });
-        for (const [kind, provider] of [['openai', 'deepseek'], ['google', 'google']]) {
+        for (const [kind, provider] of [['openai', 'deepseek']]) {
           action = 'fail';
           await api('create', provider, `${kind}-failure`);
           const failed = await settled(await api('begin', `${kind}-failure`, provider)); assert.equal(failed.error, 'network'); checks[`${kind}FailureSurfaced`] = true;
@@ -95,11 +95,12 @@ if (process.argv.includes('--check')) {
           for (let i = 0; i < 300 && !paused && !interceptionErrors.length; i++) await delay(20);
           assert.deepEqual(interceptionErrors, []); assert(paused);
           await api('cancel', canceled); assert.equal((await settled(canceled)).error, 'aborted'); assert.equal((await api('job', active)).status, 'pending'); checks[`${kind}CancelIsolated`] = true;
-          if (kind === 'google') await api('online', false);
+          // Going offline while the SDK code is still loading must stop the request.
+          await api('online', false);
           await client.Fetch.continueRequest({ requestId: paused.requestId });
           const completed = await settled(active);
-          if (kind === 'google') { assert.equal(completed.error, 'network'); assert(!(await api('calls')).some(call => call.provider === 'google')); checks.offlineDuringGoogleLoad = true; await api('online', true); assert.equal((await settled(await api('begin', `${kind}-active`, provider))).status, 'passed'); }
-          else assert.equal(completed.status, 'passed');
+          assert.equal(completed.error, 'network'); assert(!(await api('calls')).some(call => call.provider === provider)); checks.offlineDuringSdkLoad = true;
+          await api('online', true); assert.equal((await settled(await api('begin', `${kind}-active`, provider))).status, 'passed');
           assert(!(await api('calls')).some(call => call.key.includes('canceled') || call.key.includes('mutated')));
           assert((await api('calls')).some(call => call.key === `synthetic-${kind}-active`)); checks[`${kind}SnapshotPreserved`] = true;
           const attempts = moduleRequests.filter(request => request.kind === kind); assert.equal(attempts.length, 2); assert.notEqual(attempts[0].url, attempts[1].url); checks[`${kind}RetryNewKey`] = true;
@@ -107,15 +108,15 @@ if (process.argv.includes('--check')) {
         await client.Fetch.disable(); assert.deepEqual(interceptionErrors, []);
       }
       const completions = []; const streams = [];
-      for (const provider of ['deepseek', 'openai', 'google']) {
+      for (const provider of ['deepseek', 'openai']) {
         completions.push(await api('factory', provider));
         streams.push(await settled(await api('begin', `${provider}-stream`, provider, true)));
       }
       if (current) {
         checks.factoryCompletion = completions.every(value => value.text === 'OK'); checks.allStreams = streams.every(value => value.status === 'passed' && value.result.map(chunk => chunk.delta).join('') === 'OK');
-        const evaluations = await sdkEvaluations(); assert.deepEqual([...evaluations].sort(), ['google', 'openai']); checks.oneSdkEvaluation = true;
-        for (const provider of ['deepseek', 'openai', 'google']) await api('factory', provider);
-        assert.deepEqual(await sdkEvaluations(), evaluations); assert.equal(moduleRequests.length, 4); checks.cachedReuse = true;
+        const evaluations = await sdkEvaluations(); assert.deepEqual([...evaluations], ['openai']); checks.oneSdkEvaluation = true;
+        for (const provider of ['deepseek', 'openai']) await api('factory', provider);
+        assert.deepEqual(await sdkEvaluations(), evaluations); assert.equal(moduleRequests.length, 2); checks.cachedReuse = true;
         assert.deepEqual(Object.keys(checks).sort(), [...aiBrowserChecks].sort());
       }
       return { browser: await client.Browser.getVersion(), source: { commit: current ? sourceCommit : base, fingerprint: fingerprint(directory) }, chunks, initial, initialJsBytes: chunks.filter(chunk => chunk.initial).reduce((sum, chunk) => sum + chunk.bytes, 0), checks, moduleRequests, completions, streams, calls: await api('calls') };
@@ -132,13 +133,15 @@ if (process.argv.includes('--check')) {
     const tests = testResult.testResults.flatMap(suite => suite.assertionResults.map(test => ({ name: test.fullName, status: test.status, durationMs: test.duration ?? 0 })));
     Object.assign(process.env, { VITE_LOCAL_ONLY_MODE: 'true', VITE_REQUIRE_AUTH: 'false', VITE_AI_TRANSPORT: 'direct', VITE_API_BASE_URL: 'http://localhost:3000', API_BASE_URL: 'http://localhost:3000' });
     git('worktree', 'add', '--detach', baseline, base); added = true;
-    cpSync(path.join(root, 'scripts/renderer-deferred-ai.ts'), path.join(baseline, 'scripts/renderer-deferred-ai.ts')); symlinkSync(path.join(root, 'node_modules'), path.join(baseline, 'node_modules'), 'dir');
+    cpSync(path.join(root, 'scripts/renderer-deferred-ai.ts'), path.join(baseline, 'scripts/renderer-deferred-ai.ts'));
+    // The baseline still ships SDKs the current tree dropped (the Google SDK), so it installs its own lockfile.
+    execFileSync('pnpm', ['install', '--frozen-lockfile', '--prefer-offline', '--ignore-scripts'], { cwd: baseline, stdio: 'pipe' });
     const before = await measure(baseline, 'before'); const after = await measure(root, 'after');
     assert.equal(fingerprint(root), sourceFingerprint, 'Source changed during acceptance.');
-    const adapters = ['deepseek', 'openai', 'google'].map(name => ({ name, before: hash(execFileSync('git', ['show', `${base}:src/renderer/lib/ai/client/providers/${name}.ts`])), after: hash(readFileSync(`src/renderer/lib/ai/client/providers/${name}-runtime.ts`)) }));
+    const adapters = ['deepseek', 'openai'].map(name => ({ name, before: hash(execFileSync('git', ['show', `${base}:src/renderer/lib/ai/client/providers/${name}.ts`])), after: hash(readFileSync(`src/renderer/lib/ai/client/providers/${name}-runtime.ts`)) }));
     const report = { kind: 'renderer_deferred_ai_providers', status: 'passed', generatedAt: new Date().toISOString(), environment: { platform: process.platform, node: process.version, browser: 'headless Chromium; isolated disposable profile' }, before, after, adapters, suites, tests,
       acceptance: { productionModuleLoading: 'passed', syntheticProviderTransport: 'passed', cancellationAndRetry: 'passed', nativeOrDevice: 'not-run', liveProvider: 'not-run', wholeAppStartup: 'not-measured' },
-      limitations: ['The actual production renderer entry/config is built with SDK evaluation counters and a synthetic provider invocation API. No native app window or author database is used. Full app readiness is not claimed.', 'Only model-code modules are shared; each provider facade snapshots its own configuration and constructs its own client after demand. The existing Agent runtime, events, credentials and native Responses routes keep their original startup ownership.', 'Real SDK complete/stream calls use intercepted synthetic HTTP/SSE responses and synthetic credentials. No live provider is contacted and no real account conformance is claimed.', 'Four real module fetches are observed: failure then a new same-build URL for each SDK. The graph contract requires every static dependency of each cold SDK entry to already be in the initial closure.', 'Initial JS bytes describe uncompressed static dependency closure for the instrumented production build. Module fetch/parse/evaluation are recorded separately; no p95, heap, native offline upgrade or full-app startup budget is claimed.'] };
+      limitations: ['The actual production renderer entry/config is built with SDK evaluation counters and a synthetic provider invocation API. No native app window or author database is used. Full app readiness is not claimed.', 'Adapter hashes are recorded against 8f17a6c5 without claiming byte identity: the F7f move was byte-identical, but the DeepSeek/OpenAI adapters have since gained tool choice \'none\'.', 'Only model-code modules are shared; each provider facade snapshots its own configuration and constructs its own client after demand. The existing Agent runtime, events, credentials and native Responses routes keep their original startup ownership.', 'Real SDK complete/stream calls use intercepted synthetic HTTP/SSE responses and synthetic credentials. No live provider is contacted and no real account conformance is claimed.', 'Two real module fetches are observed: failure then a new same-build URL for the OpenAI SDK. The graph contract requires every static dependency of each cold SDK entry to already be in the initial closure.', 'Initial JS bytes describe uncompressed static dependency closure for the instrumented production build. Module fetch/parse/evaluation are recorded separately; no p95, heap, native offline upgrade or full-app startup budget is claimed.'] };
     validateDeferredAI(report); writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
     console.log(JSON.stringify({ output, checks: Object.keys(after.checks).length, tests: tests.length, initialJsBytes: [before.initialJsBytes, after.initialJsBytes], source: after.source }));
   } finally { if (added) git('worktree', 'remove', '--force', baseline); rmSync(temporary, { recursive: true, force: true }); }
