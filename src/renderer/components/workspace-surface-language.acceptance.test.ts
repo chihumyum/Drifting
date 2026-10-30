@@ -132,6 +132,7 @@ describe('workspace surface language acceptance', () => {
     const shortcuts = source('src/renderer/store/shortcuts-store.ts');
     const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
+    const superViewOptions = source('src/renderer/shells/desktop/super-view-options.ts');
 
     expect(dock).toContain('expanded={hovered || focused || locked}');
     expect(dock).toContain('export function TimelineToggle({ stage = false }: { stage?: boolean })');
@@ -174,9 +175,9 @@ describe('workspace surface language acceptance', () => {
     expect(account).toContain("title={t('bottomStatusBar.projectHome')}");
     expect(account).toContain('navigateToHome();');
 
-    expect(superHeader).toContain("{ id: 'element', labelKey: 'superElement.title' }");
-    expect(superHeader).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
-    expect(superHeader).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
+    expect(superViewOptions).toContain("{ id: 'element', labelKey: 'superElement.title' }");
+    expect(superViewOptions).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
+    expect(superViewOptions).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
     expect(superHeader).toContain('className="super-view-head__switcher-option"');
     expect(superHeader).toContain('navigationSlot={');
     const superHeaderLeft = block(

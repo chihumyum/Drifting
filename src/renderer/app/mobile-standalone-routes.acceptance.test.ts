@@ -234,11 +234,13 @@ describe('mobile standalone routes', () => {
 
   it('keeps all three Super View destinations directly reachable in the mobile header', () => {
     const header = rendererSource('shells/desktop/components/DesktopSuperViewHeader.tsx');
+    const options = rendererSource('shells/desktop/super-view-options.ts');
     const memoMaterial = rendererSource('shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
     const css = fs.readFileSync(path.join(stylesRoot, 'mobile-workspace.css'), 'utf8');
-    expect(header).toContain("id: 'element'");
-    expect(header).toContain("id: 'graph'");
-    expect(header).toContain("id: 'memo-material'");
+    expect(header).toContain('SUPER_VIEW_OPTIONS.map(');
+    expect(options).toContain("id: 'element'");
+    expect(options).toContain("id: 'graph'");
+    expect(options).toContain("id: 'memo-material'");
     expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
     expect(css).toContain('flex: 1 1 calc(100% - 50px)');
     expect(css).toContain('.m-super-view-host .super-view-head__meta');

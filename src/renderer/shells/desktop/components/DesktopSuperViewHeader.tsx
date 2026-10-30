@@ -5,14 +5,7 @@ import { GlassSlider } from '../../../components/ui/GlassSlider';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { DesktopSuperViewRelationControl } from './DesktopSuperViewRelationControl';
-
-type SuperViewId = 'element' | 'graph' | 'memo-material';
-
-const SUPER_VIEW_OPTIONS: Array<{ id: SuperViewId; labelKey: string }> = [
-  { id: 'element', labelKey: 'superElement.title' },
-  { id: 'graph', labelKey: 'storyGraph.title' },
-  { id: 'memo-material', labelKey: 'memoMaterial.super.title' },
-];
+import { SUPER_VIEW_OPTIONS, type SuperViewId } from '../super-view-options';
 
 /** Desktop-owned Super View navigation; the shared header stays store-free. */
 export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'>) {

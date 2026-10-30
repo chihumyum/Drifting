@@ -42,13 +42,15 @@ describe('Mobile V2 M7 independent Super View acceptance wiring', () => {
   it('keeps all three views in one independent header without paper navigation', () => {
     const host = source('shells/mobile/workspace/MobileSuperViewHost.tsx');
     const header = source('shells/desktop/components/DesktopSuperViewHeader.tsx');
+    const options = source('shells/desktop/super-view-options.ts');
 
     expect(host).toContain("active === 'element' && <SuperElementView />");
     expect(host).toContain("active === 'graph' && <StoryGraphView />");
     expect(host).toContain("active === 'memo-material' && <SuperMemoMaterialView />");
-    expect(header).toContain("{ id: 'element'");
-    expect(header).toContain("{ id: 'graph'");
-    expect(header).toContain("{ id: 'memo-material'");
+    expect(header).toContain('SUPER_VIEW_OPTIONS.map(');
+    expect(options).toContain("{ id: 'element'");
+    expect(options).toContain("{ id: 'graph'");
+    expect(options).toContain("{ id: 'memo-material'");
     expect(host).not.toMatch(/MobilePaper|navigator\.open|navigate\(/);
   });
 
