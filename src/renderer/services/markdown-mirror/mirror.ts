@@ -29,6 +29,7 @@ import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import type { LocalRelationalMarkdownSource } from '../export/relational-markdown.local-source';
 import { renderAuthoredFile } from './authored-file';
 import { ingestAuthoredFile, parseBaseFields, type MirrorBaseFields, type MirrorIngestResult } from './ingest';
+import { flagOverlappingEdits } from './overlap-todo';
 
 /** A file younger than this may still be mid-save; the next scan reads it. */
 const SETTLE_MS = 400;
@@ -46,6 +47,8 @@ export interface AuthoredRender {
 export interface MirrorIssue {
   path: string;
   reason: string;
+  /** The prose document of the file, to name and open its chapter. */
+  docId: string;
 }
 
 export interface MirrorScanResult {
@@ -96,7 +99,7 @@ export function createMarkdownMirror(projectId: string): MarkdownMirror {
   // Last stat seen per path; an unchanged stat skips reading the file.
   const seen = new Map<string, { size: number; modifiedMs: number }>();
   // Unresolved problems by path, reported until that file merges.
-  const issues = new Map<string, string>();
+  const issues = new Map<string, { reason: string; docId: string }>();
   let queue: Promise<unknown> = Promise.resolve();
 
   // Summaries leave out the Yjs states: a scan reads them only for a file
@@ -134,7 +137,7 @@ export function createMarkdownMirror(projectId: string): MarkdownMirror {
   const scan: MarkdownMirror['scan'] = async (directory, options = {}) => {
     const rows = await rowsFor(directory);
     const result: MirrorScanResult = { merged: 0, issues: [] };
-    const report = () => ({ ...result, issues: [...issues].map(([path, reason]) => ({ path, reason })) });
+    const report = () => ({ ...result, issues: [...issues].map(([path, issue]) => ({ path, ...issue })) });
     if (rows.length === 0) return report();
     const paths = new Set<string>();
     for (const row of rows) {
@@ -165,7 +168,7 @@ export function createMarkdownMirror(projectId: string): MarkdownMirror {
       const file = byPath.get(row.path);
       if (!file?.exists || !file.changed) continue;
       if (file.error || file.text === null || file.sha256 === null) {
-        issues.set(row.path, file.error ?? 'unreadable');
+        issues.set(row.path, { reason: file.error ?? 'unreadable', docId: row.docId });
         if (file.error === 'encoding' || file.error === 'too-large') await ledger().release(projectId, row.docId);
         continue;
       }
@@ -182,13 +185,16 @@ export function createMarkdownMirror(projectId: string): MarkdownMirror {
       if (outcome.kind === 'deferred') continue;
       seen.set(row.path, { size: file.size, modifiedMs: file.modifiedMs });
       if (outcome.kind === 'skipped') {
-        issues.set(row.path, ISSUE_REASONS[outcome.reason]);
+        issues.set(row.path, { reason: ISSUE_REASONS[outcome.reason], docId: row.docId });
         // A malformed header waits for the author to fix it. Edits that can
         // never merge are kept aside, and the file is written afresh.
         if (RELEASED.has(outcome.reason)) await ledger().release(projectId, row.docId);
       }
       if (outcome.kind !== 'skipped') issues.delete(row.path);
-      if (outcome.kind === 'merged') result.merged += 1;
+      if (outcome.kind === 'merged') {
+        result.merged += 1;
+        await flagOverlappingEdits({ projectId, nodeId, path: row.path, overlapped: outcome.overlapped });
+      }
     }
     return report();
   };

@@ -4,7 +4,7 @@ export type MarkdownProjectionStatus = Partial<MarkdownProjectionInfo> & {
   state: 'pending' | 'ready' | 'error';
   error?: string;
   /** Authored files edited outside Drifting that could not be merged, and why. */
-  mirrorIssues?: { path: string; reason: string }[];
+  mirrorIssues?: { path: string; reason: string; docId?: string }[];
   /** Edited files kept under `.drifting/preserved` by the last write. */
   preserved?: string[];
 };

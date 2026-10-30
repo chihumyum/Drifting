@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-30T17:39:35.629Z",
-  "sourceSha256": "1fe93eb72c84698bf73f5404bafda705642228f45db715a562690757c322c427",
+  "generatedAt": "2026-10-30T18:22:16.993Z",
+  "sourceSha256": "94dd54d6eb2a1c4f656fed2901255fe4f6487def7912540e186b37f99ba93f7e",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -23,6 +23,30 @@
     },
     {
       "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership filters history, direct hydration and usage by source rather than title or credentials",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership does not rename or delete external audit records through chat management",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership ignores a saved MCP selection and rejects direct open and continuation",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership excludes MCP inserts, updates and completed tool turns from chat sync while retaining audit rows",
+      "status": "passed"
+    },
+    {
+      "name": "internal chat and external MCP conversation ownership does not project MCP branches received from older clients into chat history",
+      "status": "passed"
+    },
+    {
+      "name": "migrates old MCP identities and provider records without deleting history or audit data",
       "status": "passed"
     },
     {
@@ -75,30 +99,6 @@
     },
     {
       "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
-      "status": "passed"
-    },
-    {
-      "name": "internal chat and external MCP conversation ownership filters history, direct hydration and usage by source rather than title or credentials",
-      "status": "passed"
-    },
-    {
-      "name": "internal chat and external MCP conversation ownership does not rename or delete external audit records through chat management",
-      "status": "passed"
-    },
-    {
-      "name": "internal chat and external MCP conversation ownership ignores a saved MCP selection and rejects direct open and continuation",
-      "status": "passed"
-    },
-    {
-      "name": "internal chat and external MCP conversation ownership excludes MCP inserts, updates and completed tool turns from chat sync while retaining audit rows",
-      "status": "passed"
-    },
-    {
-      "name": "internal chat and external MCP conversation ownership does not project MCP branches received from older clients into chat history",
-      "status": "passed"
-    },
-    {
-      "name": "migrates old MCP identities and provider records without deleting history or audit data",
       "status": "passed"
     },
     {
@@ -574,7 +574,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "name": "OpenAI prompt cache key keeps chat session keys and bounds long internal ids to 64 characters",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses default fetch calls the global fetch on the window, as WebKit requires",
       "status": "passed"
     },
     {
@@ -590,11 +594,19 @@
       "status": "passed"
     },
     {
+      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "status": "passed"
+    },
+    {
       "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
       "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
       "status": "passed"
     },
     {
@@ -606,19 +618,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
@@ -650,14 +658,6 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
@@ -666,19 +666,15 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::an_abandoned_authored_file_with_unread_edits_is_preserved",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
+      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
       "status": "passed"
     },
     {
@@ -686,19 +682,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
       "status": "passed"
     },
     {
@@ -706,11 +694,23 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
       "status": "passed"
     },
     {
@@ -723,6 +723,14 @@
     },
     {
       "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
       "status": "passed"
     },
     {

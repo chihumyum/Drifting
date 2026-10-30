@@ -125,7 +125,8 @@ describe('merging an edited Markdown file into Drifting', () => {
 
     const result = await ingest(file('林岚推开门。雨下得很大。\n\n屋里很暗。', 'finished', '新的摘要'));
 
-    expect(result).toEqual({ kind: 'merged', overlapped: ['p1'], restored: [] });
+    // Different spots of one paragraph merge cleanly and need no attention.
+    expect(result).toEqual({ kind: 'merged', overlapped: [], restored: [] });
     expect(renderWorkspaceProseFile(await stored(db))).toBe('林岚缓缓推开门。雨下得很大。\n\n屋里很暗。');
     const [node] = await db.select().from(BookNodeTable).where(eq(BookNodeTable.id, NODE_ID));
     expect(node).toMatchObject({ writingStatus: 'finished', summary: '新的摘要', wordCountBasisKind: 'yjs' });
@@ -141,6 +142,19 @@ describe('merging an edited Markdown file into Drifting', () => {
     const base = new Y.Doc({ gc: false });
     Y.applyUpdate(base, row.baseState);
     expect(renderWorkspaceProseFile(snapshotYjsProseBlocks(base))).toBe('林岚推开门。雨下得很大。\n\n屋里很暗。');
+  });
+
+  it('reports a paragraph both sides changed at the same spot with its merged text', async () => {
+    const { db } = await setup([paragraph('p1', '他笑了。'), paragraph('p2', '屋里很暗。')]);
+    await driftingEdit(db, (doc) => {
+      const element = doc.getXmlFragment('default').get(0) as Y.XmlElement;
+      (element.get(0) as Y.XmlText).insert(1, '苦');
+    });
+    const result = await ingest(file('他哭了。\n\n屋里很暗。'));
+    expect(result.kind).toBe('merged');
+    const merged = renderWorkspaceProseFile(await stored(db)).split('\n\n')[0]!;
+    expect(['他苦哭了。', '他哭苦了。']).toContain(merged);
+    expect(result).toMatchObject({ overlapped: [{ blockId: 'p1', text: merged }] });
   });
 
   it('reads the same bytes twice without applying them twice', async () => {

@@ -13,8 +13,11 @@
 import { create } from 'zustand';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
-/** `share-comment`: readers commented on something the author shares (features/share-links). */
-export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize';
+/**
+ * `share-comment`: readers commented on something the author shares (features/share-links).
+ * `markdown-folder`: an edited file in the project Markdown folder could not merge (docs/markdown-mirror.md).
+ */
+export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize' | 'markdown-folder';
 
 /** What a notification opens: an entity in a project, wherever the author is. */
 export interface AppNotificationTarget {

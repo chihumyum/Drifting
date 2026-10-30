@@ -45,7 +45,7 @@ import { registerAuthoredYjsMaterialization } from '../../sync/journal/yjs-mater
 import { captureSnapshotHistory } from '../snapshot-history.service';
 import { flushOpenYjsDocument } from '../yjs-local-durability.service';
 import { parseAuthoredFile, type AuthoredFields } from './authored-file';
-import { reconcileProseBlocks } from './reconcile-yjs';
+import { diffText, reconcileProseBlocks } from './reconcile-yjs';
 
 const FILE_ORIGIN = 'markdown-mirror:file';
 const MERGE_ORIGIN = 'markdown-mirror:merge';
@@ -71,8 +71,11 @@ export type MirrorIngestResult =
   | { kind: 'unchanged' }
   | {
       kind: 'merged';
-      /** Blocks changed both here and in Drifting since the file was written. */
-      overlapped: string[];
+      /**
+       * Paragraphs where the file and Drifting changed the same spot since the
+       * file was written, with their merged text.
+       */
+      overlapped: { blockId: string; text: string }[];
       /** Paragraphs the file edited after Drifting deleted them, restored. */
       restored: string[];
     }
@@ -115,8 +118,32 @@ function descendsFrom(base: Uint8Array, current: Uint8Array): boolean {
   return true;
 }
 
-function blockKey(block: YjsProseBlock): string {
-  return JSON.stringify(block);
+function blockText(block: YjsProseBlock): string {
+  const visit = (nodes: YjsProseBlock['content']): string =>
+    (nodes ?? []).map((node) => (node.kind === 'text' ? node.text : `\n${visit(node.content)}`)).join('');
+  return visit(block.content);
+}
+
+/** Base-text spans each side changed; an insertion is an empty span at its spot. */
+function changedSpans(base: string, next: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  let at = 0;
+  for (const edit of diffText(base, next)) {
+    const length = Array.from(edit.text).length;
+    if (edit.kind === 'insert') spans.push([at, at]);
+    else {
+      if (edit.kind === 'delete') spans.push([at, at + length]);
+      at += length;
+    }
+  }
+  return spans;
+}
+
+/** Both sides changed the same or touching characters of one paragraph. */
+function editsCollide(base: string, mine: string, theirs: string): boolean {
+  const ours = changedSpans(base, mine);
+  return changedSpans(base, theirs).some(([start, end]) =>
+    ours.some(([otherStart, otherEnd]) => start <= otherEnd && otherStart <= end));
 }
 
 function validStatus(kind: BookNodeKind, status: WritingStatus | undefined): WritingStatus | undefined {
@@ -207,7 +234,7 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
     const committedAt = new Date().toISOString();
     let merged: Uint8Array | null = null;
     let updateId = 0;
-    const overlapped: string[] = [];
+    const overlapped: { blockId: string; text: string }[] = [];
     const restored: string[] = [];
     let projected: typeof BookNodeTable.$inferSelect | undefined;
     try {
@@ -247,11 +274,15 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
             if (Y.decodeStateVector(Y.encodeStateVector(current)).has(working.clientID)) {
               throw new RetryError();
             }
-            const currentBlocks = new Map(snapshotYjsProseBlocks(current).map((block) => [block.id, blockKey(block)]));
-            const baseById = new Map(baseBlocks.map((block) => [block.id, blockKey(block)]));
-            for (const id of touched) {
-              if (baseById.has(id) && currentBlocks.get(id) !== baseById.get(id)) overlapped.push(id);
-            }
+            const mine = new Map(snapshotYjsProseBlocks(current).map((block) => [block.id, blockText(block)]));
+            const baseById = new Map(baseBlocks.map((block) => [block.id, blockText(block)]));
+            const theirs = new Map(desired.map((block) => [block.id, blockText(block)]));
+            const collided = touched.filter((id) => {
+              const base = baseById.get(id);
+              const ours = mine.get(id);
+              const file = theirs.get(id);
+              return base !== undefined && ours !== undefined && file !== undefined && editsCollide(base, ours, file);
+            });
 
             const parts: Uint8Array[] = seeded ? [row.baseState, forward] : [forward];
             Y.applyUpdate(current, forward, FILE_ORIGIN);
@@ -283,6 +314,11 @@ export async function ingestAuthoredFile(input: MirrorIngestInput): Promise<Mirr
             }, MERGE_ORIGIN);
             current.off('update', repair);
             parts.push(...repairs);
+            const mergedText = new Map(snapshotYjsProseBlocks(current).map((block) => [block.id, blockText(block)]));
+            for (const id of collided) {
+              const text = mergedText.get(id);
+              if (text !== undefined) overlapped.push({ blockId: id, text });
+            }
             merged = parts.length === 1 ? parts[0]! : Y.mergeUpdates(parts);
 
             const mutationIndex = appendYjsUpdateMutation(changes, docId, merged);

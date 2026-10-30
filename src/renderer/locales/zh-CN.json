@@ -1324,6 +1324,22 @@
     "organize": {
       "source": "Agent"
     },
+    "markdownFolder": {
+      "source": "Markdown 文件夹",
+      "preserved_one": "{{count}} 个改过的文件另存到了 .drifting/preserved",
+      "preserved_other": "{{count}} 个改过的文件另存到了 .drifting/preserved",
+      "issue": {
+        "frontmatter": "开头的属性写法有误，修好之前不合并也不覆盖",
+        "identity": "drifting-id 指向别的章节，未合并，原文件已另存",
+        "empty": "正文被清空，未合并，原文件已另存",
+        "lineage": "这一章被恢复或重置过，无法自动合并，原文件已另存",
+        "missing": "这一章已在 Drifting 里删除",
+        "encoding": "不是 UTF-8 编码，未读取，原文件已另存",
+        "too-large": "文件太大，未读取，原文件已另存",
+        "unreadable": "无法读取"
+      },
+      "overlap": "这一段同时在 Drifting 和外部文件里改过。"
+    },
     "cloudSync": {
       "source": "云同步",
       "syncing": "正在同步…",

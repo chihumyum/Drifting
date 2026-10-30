@@ -1324,6 +1324,22 @@
     "organize": {
       "source": "Agent"
     },
+    "markdownFolder": {
+      "source": "Markdown folder",
+      "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
+      "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
+      "issue": {
+        "frontmatter": "The properties at the top are malformed; neither merged nor overwritten until fixed",
+        "identity": "drifting-id names another chapter; not merged, file kept",
+        "empty": "The text was emptied; not merged, file kept",
+        "lineage": "This chapter was restored or reset; cannot merge automatically, file kept",
+        "missing": "This chapter was deleted in Drifting",
+        "encoding": "Not UTF-8; not read, file kept",
+        "too-large": "Too large; not read, file kept",
+        "unreadable": "Could not be read"
+      },
+      "overlap": "This paragraph was changed both in Drifting and in the file."
+    },
     "cloudSync": {
       "source": "Cloud sync",
       "syncing": "Syncing…",
