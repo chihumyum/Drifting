@@ -3,10 +3,9 @@
 Status: shipped 2026-10-12 (Tauri client, desktop and mobile Project Home).
 
 Project Home carries a General Agent entry for project-level discussion and a
-small set of check-in cards prepared from recent changes. The check-in is a
-lighter answer to the ambient-awareness goal: it runs when the author arrives,
-not continuously, and it does not implement the frozen Shadow Ambient Editor
-(no World Model, Concerns or Review Debt; see `../ambient-editor/README.md`).
+small set of check-in cards prepared from recent changes. The check-in is the
+first step of proactive project awareness: it runs when the author arrives,
+not continuously.
 
 ## Agent entry
 

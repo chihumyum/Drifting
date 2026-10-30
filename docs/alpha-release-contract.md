@@ -15,8 +15,8 @@ migration rules in [`../AGENTS.md`](../AGENTS.md) still apply.
   to the provider selected by the author, use that provider's billing and data
   terms, and never fall back to a hosted Drifting model.
 
-Mobile, Intel Mac, Windows, Linux, hosted models, Ambient
-Editor, and non-core Agent products are outside this release.
+Mobile, Intel Mac, Windows, Linux, hosted models, and non-core Agent products
+are outside this release.
 
 ## Data contract
 

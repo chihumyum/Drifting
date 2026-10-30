@@ -335,7 +335,7 @@ export const DEV_CLI_MODEL_CAPABILITIES: readonly CliModelCapability[] = [
     authority: 'derived',
     coverage: 'excluded',
     commands: [],
-    note: 'Retired products and unshipped Ambient Editor are intentionally absent.',
+    note: 'Retired products are intentionally absent.',
   },
 ] as const;
 

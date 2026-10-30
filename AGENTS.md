@@ -91,8 +91,10 @@ Guidance for coding agents working in this standalone Drifting client repository
   BYOK route. Keep the `block_section` table, its sync domain and the stored
   `copilot` comment enum values; typed TODO markers still project into todos.
   The last commit with Copilot is tagged `copilot-retired-2026-10-30`.
-- The frozen, unimplemented Ambient Editor target is indexed at
-  `docs/ambient-editor/README.md`. It must use the shared renderer-owned Agent Runtime.
+- The frozen Ambient Editor (Shadow) design was retired unimplemented on
+  2026-10-30. Proactive Agent work grows from the Project Home check-in
+  (`docs/agent-runtime/project-checkin.md`) on the shared renderer-owned
+  Agent Runtime.
 
 ## UI rules
 

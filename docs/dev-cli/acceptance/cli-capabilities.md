@@ -44,7 +44,7 @@
 | workspace_projection_coverage | ops | derived | excluded | — | Local trigger-owned invalidation cursors are rebuildable projection metadata; no generic CRUD or sync authority. |
 | server_http_request | server | server | workflow_only | server request | Explicit developer diagnostics only; the App does not use this command as a sync transport. |
 | secure_credentials | agent | secret_store | excluded | — | BYOK and MCP secrets never enter stdout, JSON fixtures or SQLite CRUD. |
-| retired_shadow_arc_goal_evolve | agent | derived | excluded | — | Retired products and unshipped Ambient Editor are intentionally absent. |
+| retired_shadow_arc_goal_evolve | agent | derived | excluded | — | Retired products are intentionally absent. |
 
 ## Exact table accountability
 
