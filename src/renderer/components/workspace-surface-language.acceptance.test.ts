@@ -159,6 +159,7 @@ describe('workspace surface language acceptance', () => {
     const shortcuts = source('src/renderer/store/shortcuts-store.ts');
     const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
+    const superViewOptions = source('src/renderer/shells/desktop/super-view-options.ts');
 
     expect(dock).toContain('expanded={hovered || focused || locked}');
     expect(dock).toContain('export function TimelineToggle({ stage = false }: { stage?: boolean })');
@@ -201,9 +202,9 @@ describe('workspace surface language acceptance', () => {
     expect(account).toContain("title={t('bottomStatusBar.projectHome')}");
     expect(account).toContain('navigateToHome();');
 
-    expect(superHeader).toContain("{ id: 'element', labelKey: 'superElement.title' }");
-    expect(superHeader).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
-    expect(superHeader).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
+    expect(superViewOptions).toContain("{ id: 'element', labelKey: 'superElement.title' }");
+    expect(superViewOptions).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
+    expect(superViewOptions).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
     expect(superHeader).toContain('className="super-view-head__switcher-option"');
     expect(superHeader).toContain('navigationSlot={');
     const superHeaderLeft = block(
@@ -457,6 +458,30 @@ describe('workspace surface language acceptance', () => {
     expect(columnDivider).toContain(
       "width: 0.5, height: '100%', background: 'var(--workspace-local-border)'",
     );
+  });
+
+  it('bleeds glass along the cross of the seam and the tab lines while the seam is dragged', () => {
+    const layout = source('src/renderer/shells/desktop/DesktopSidebarLayout.tsx');
+    const shell = source('src/styles/desktop-shell.css');
+    const drag = block(layout, 'const onDividerMouseDown = ', 'const preventSelection');
+
+    // Run by the distance the seam actually moves (clamped), on the layout
+    // root: the inner pair, so the sidebar's outer edge and account line stay
+    // still and the shell's own moves still reach these lines.
+    expect(drag).toContain('const moved = Math.abs(clamped - seam) * (rect.width - SIDEBAR_DIVIDER_WIDTH);');
+    expect(drag).toContain('if (rootRef.current) stepInnerGlassFlow(rootRef.current, moved);');
+    expect(drag).not.toContain('stepGlassFlow(');
+    // The cross: the seam's own line, and the line under each column's tabs,
+    // both inside the layout (each pane renders its tab row).
+    expect(layout).toContain('<span className="flow-line flow-line--v sidebar-pane-divider__flow" aria-hidden="true" />');
+    expect(layout).toContain('{panel.header}');
+    for (const header of ['src/renderer/components/leftBars/LeftSidebarHeader.tsx', 'src/renderer/components/rightBars/RightSidebarHeader.tsx']) {
+      expect(source(header)).toContain('<span className="flow-line flow-line--h workspace-panel-tab-row__flow" aria-hidden="true" />');
+    }
+    expect(block(shell, '.workspace-panel-tab-row__flow {', '}')).toContain('bottom: 0;');
+    // No per-frame variables on the root element.
+    expect(layout).not.toContain('documentElement.style');
+    expect(designSystemDocs()).toContain('拖动双栏中缝时');
   });
 
   it('pushes the pane divider in and out with glass when a sidebar splits or merges', () => {
@@ -1041,7 +1066,7 @@ describe('workspace surface language acceptance', () => {
       'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
       'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
       'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'spread', 'locate', 'new-storyline',
-      'new-category',
+      'new-category', 'folding-fan',
       // A closed sidebar's crescent, cleared from the committed solid one.
       'moon-left-hollow', 'moon-right-hollow',
       // The Agent composer's send and steer, a weight heavier.

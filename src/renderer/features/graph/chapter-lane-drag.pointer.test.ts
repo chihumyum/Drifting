@@ -219,4 +219,77 @@ describe('chapter lane pointer lifecycle', () => {
     // The ghost follows on a spring: it has not jumped onto the pointer.
     expect(ghostStyle.transform).not.toBe('translate3d(130px, 105px, 0)');
   });
+
+  it('wears the colour of the lane it is over, once per lane, and leaves the source alone', () => {
+    const colors: Record<string, string> = { 'lane-a': '#aa3322', 'lane-b': '#2266aa', 'lane-c': '#669933' };
+    const worn = new Map<string, string>();
+    const ghostStyle = {
+      setProperty: vi.fn((name: string, value: string) => worn.set(name, value)),
+    } as unknown as CSSStyleDeclaration;
+    const ghost = {
+      style: ghostStyle,
+      removeAttribute: vi.fn(),
+      setAttribute: vi.fn(),
+      classList: { add: vi.fn() },
+      remove: () => {
+        ghostRemoved = true;
+      },
+    } as unknown as HTMLElement;
+    const sourceSet = vi.fn();
+    const source = {
+      style: {
+        visibility: '',
+        // The source's own inline colour: its lane's (lane-a).
+        getPropertyValue: (name: string) => (name === '--glass-cc' || name === '--clip-color' ? colors['lane-a'] : ''),
+        setProperty: sourceSet,
+      } as unknown as CSSStyleDeclaration,
+      cloneNode: () => ghost,
+      getBoundingClientRect: () => ({ left: 80, top: 80, width: 120, height: 40 }) as DOMRect,
+    } as unknown as HTMLElement;
+    const rows = [80, 120, 160].map((top) => ({ top, bottom: top + 40, height: 40 }) as DOMRect);
+    const lanes = ['lane-a', 'lane-b', 'lane-c'];
+    const laneColor = vi.fn((lane: string) => colors[lane]);
+    startChapterLanePointerDrag({
+      pointerId: 1,
+      pointerType: 'mouse',
+      startClientX: 100,
+      startClientY: 100,
+      sourceElement: source,
+      grabOffsetX: 20,
+      resolveTarget: (_x, y) => {
+        const lane = rows.findIndex((row) => y >= row.top && y < row.bottom);
+        return lane < 0 ? null : { storylineId: lanes[lane], order: 1 };
+      },
+      onDragStart: vi.fn(),
+      onDrop: vi.fn(async () => undefined),
+      onDragEnd: vi.fn(),
+      weighted: { rows: () => rows },
+      laneColor,
+    });
+    const move = (clientX: number, clientY: number) => {
+      pointer('pointermove', { pointerType: 'mouse', clientX, clientY });
+      frame?.(16);
+    };
+
+    // Still in its own lane: its own colour.
+    move(140, 135);
+    expect(worn.get('--glass-cc')).toBe(colors['lane-a']);
+    // Over the next lane (past its middle): that lane's colour, glass and clip alike.
+    move(150, 145);
+    expect(worn.get('--glass-cc')).toBe(colors['lane-b']);
+    expect(worn.get('--clip-color')).toBe(colors['lane-b']);
+    const writes = vi.mocked(ghostStyle.setProperty).mock.calls.length;
+    // Moving within that lane writes nothing more.
+    move(170, 150);
+    move(190, 152);
+    expect(vi.mocked(ghostStyle.setProperty).mock.calls.length).toBe(writes);
+    expect(laneColor).toHaveBeenCalledTimes(2);
+    // Carried clear of every lane: no drop, so its own colour again.
+    move(150, 30);
+    expect(worn.get('--glass-cc')).toBe(colors['lane-a']);
+    // Cancelled: the ghost goes and the source was never repainted.
+    pointer('pointercancel', { pointerType: 'mouse', clientX: 150, clientY: 30 });
+    expect(ghostRemoved).toBe(true);
+    expect(sourceSet).not.toHaveBeenCalled();
+  });
 });

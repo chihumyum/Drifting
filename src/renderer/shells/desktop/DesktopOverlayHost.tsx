@@ -5,8 +5,7 @@ import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapsh
 import { DriftBindModal } from '../../components/modals/DriftBindModal';
 import { EditChapterStorylineModal } from '../../components/modals/EditChapterStorylineModal';
 import { GlobalSearchModal } from '../../components/search/GlobalSearchModal';
-import { DeferredStoryGraphView as DesktopStoryGraphView, DeferredElementGraphView as DesktopSuperElementView } from './views/DeferredSuperViews';
-import { DeferredMemoMaterialView as DesktopSuperMemoMaterialView } from './views/DeferredSuperViews';
+import { DesktopSuperViewStage } from './DesktopSuperViewStage';
 
 type DesktopSuperView = 'none' | 'element' | 'graph' | 'memo-material';
 
@@ -37,9 +36,7 @@ export const DesktopOverlayHost = memo(function DesktopOverlayHost({
 }: DesktopOverlayHostProps) {
   return (
     <>
-      {activeSuperView === 'graph' && <DesktopStoryGraphView />}
-      {activeSuperView === 'element' && <DesktopSuperElementView />}
-      {activeSuperView === 'memo-material' && <DesktopSuperMemoMaterialView />}
+      <DesktopSuperViewStage active={activeSuperView} />
       <DesktopSettingsModal
         isOpen={isSettingsOpen}
         initialRailId={settingsTargetRail}

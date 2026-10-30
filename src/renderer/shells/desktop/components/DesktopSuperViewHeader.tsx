@@ -5,14 +5,7 @@ import { GlassSlider } from '../../../components/ui/GlassSlider';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { DesktopSuperViewRelationControl } from './DesktopSuperViewRelationControl';
-
-type SuperViewId = 'element' | 'graph' | 'memo-material';
-
-const SUPER_VIEW_OPTIONS: Array<{ id: SuperViewId; labelKey: string }> = [
-  { id: 'element', labelKey: 'superElement.title' },
-  { id: 'graph', labelKey: 'storyGraph.title' },
-  { id: 'memo-material', labelKey: 'memoMaterial.super.title' },
-];
+import { SUPER_VIEW_OPTIONS, type SuperViewId } from '../super-view-options';
 
 /** Desktop-owned Super View navigation; the shared header stays store-free. */
 export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'>) {
@@ -28,7 +21,9 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
     id === 'graph' ? graphIntent : id === 'element' ? elementIntent : memoIntent;
 
   // Desktop switches views with the glass slider (one of three); the paused
-  // mobile shell keeps its segmented switcher.
+  // mobile shell keeps its segmented switcher. Each view draws its own header,
+  // so switching replaces this slider: the handoff key lets the next view's
+  // slider pick the glass up under the view just left and slide it over.
   const navigation = getPlatformRuntime().isMobileShell ? (
     <nav
       className="super-view-head__switcher super-view-head__no-drag"
@@ -51,6 +46,7 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
     <nav className="super-view-head__views super-view-head__no-drag" data-tauri-drag-region="false">
       <GlassSlider
         ariaLabel={t('mobileWorkspace.superView.navigation')}
+        handoff="super-view-switch"
         value={activeSuperView ?? 'graph'}
         onChange={(view) => setActiveSuperView(view)}
         options={SUPER_VIEW_OPTIONS.map((option) => ({

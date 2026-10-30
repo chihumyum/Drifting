@@ -2218,7 +2218,7 @@
       "elementListTitle": "Name list · switch to compact index"
     },
     "actions": {
-      "collapseAll": "Collapse all",
+      "collapseAll": "Expand or collapse all",
       "sort": "Sort",
       "newChapter": "New chapter",
       "newStoryline": "New storyline",
