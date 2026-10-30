@@ -10,6 +10,7 @@ import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { BrushIcon } from '../ui/BrushIcon';
 import { TimelineToggle } from '../workspaceChrome/WorkspaceTabDock';
 import { useEditorCornerHostsTimelineToggle } from './editor-corner';
+import { useEditorRailPresentation } from './editor-rail-presentation';
 import { MarkdownShareDialog } from './MarkdownShareDialog';
 import type { MarkdownShareTarget } from '../../services/export/markdown-share';
 
@@ -210,7 +211,9 @@ export function EditorTopBar({
 function OutlineRailToggle({ translate }: { translate: Translate }) {
   const mode = useSettingsStore((state) => state.outlineRailMode);
   const setMode = useSettingsStore((state) => state.setOutlineRailMode);
-  const visible = mode === 'visible';
+  const presentation = useEditorRailPresentation();
+  const owned = presentation?.onOutlineToggle;
+  const visible = owned ? presentation.outlineVisible === true : mode === 'visible';
   const title = translate(
     visible ? 'editorTopBar.outlineRailMode.hidden' : 'editorTopBar.outlineRailMode.visible',
   );
@@ -222,7 +225,7 @@ function OutlineRailToggle({ translate }: { translate: Translate }) {
       title={title}
       aria-label={title}
       aria-pressed={visible}
-      onClick={() => setMode(visible ? 'hidden' : 'visible')}
+      onClick={owned ?? (() => setMode(visible ? 'hidden' : 'visible'))}
     >
       <BrushIcon name="toc-raked" />
     </button>

@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../../components/ui/Button';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { stepGlassFlow } from '../../../lib/glass-flow';
 import { STRUCTURAL_EASING, STRUCTURAL_MS } from '../../../lib/motion';
 import { TabPromotionSuppressedContext } from '../../../store/tab-promotion-context';
+import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import { ISLAND_WIDTH_MAX, ISLAND_WIDTH_MIN, clampIslandWidth, storeIslandWidth } from './super-element-island-width';
 
 /** Below this the sheet's header keeps only the name, 收成小卡 and close. */
@@ -46,6 +47,14 @@ export function SuperElementIsland({
   const [liveRatio, setLiveRatio] = useState<number | null>(null);
   const [stripOpen, setStripOpen] = useState(true);
   const [compact, setCompact] = useState(false);
+  // The editor's outline rail would sit on the narrow paper's folio and
+  // title, so the island opens with it folded; the paper toolbar's outline
+  // button unfolds it here only, leaving the workspace's setting alone.
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const railPresentation = useMemo(
+    () => ({ outlineVisible: outlineOpen, onOutlineToggle: () => setOutlineOpen((open) => !open) }),
+    [outlineOpen],
+  );
   const ratio = liveRatio ?? widthRatio;
 
   useEffect(() => {
@@ -162,7 +171,9 @@ export function SuperElementIsland({
           )}
           <div className="se-island__body">
             <TabPromotionSuppressedContext.Provider value>
-              {editor}
+              <EditorRailPresentationContext.Provider value={railPresentation}>
+                {editor}
+              </EditorRailPresentationContext.Provider>
             </TabPromotionSuppressedContext.Provider>
           </div>
         </>

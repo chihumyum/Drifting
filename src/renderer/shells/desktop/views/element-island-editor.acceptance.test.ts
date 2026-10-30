@@ -16,6 +16,7 @@ import { SuperElementIsland } from '../components/SuperElementIsland';
 import { ISLAND_WIDTH_DEFAULT, clampIslandWidth } from '../components/super-element-island-width';
 import { CategoryIsleDetail, CategoryIsleStrip } from '../components/ElementIsleDetail';
 import { TabPromotionSuppressedContext } from '../../../store/tab-promotion-context';
+import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import { usePromoteCurrentTab, useUiStore } from '../../../store/ui-store';
 import { designSystemDocs } from '../../../components/design-system-docs.test-support';
 
@@ -42,7 +43,12 @@ function island(mode: 'peek' | 'sheet', editor: ReactNode, widthRatio = 0.5) {
 }
 
 function SuppressionProbe() {
-  return createElement('span', { 'data-suppressed': String(useContext(TabPromotionSuppressedContext)) });
+  const rail = useContext(EditorRailPresentationContext);
+  return createElement('span', {
+    'data-suppressed': String(useContext(TabPromotionSuppressedContext)),
+    'data-outline': String(rail?.outlineVisible),
+    'data-outline-owned': String(typeof rail?.onOutlineToggle === 'function'),
+  });
 }
 
 const members = [
@@ -66,8 +72,9 @@ describe('the element overview’s floating island', () => {
     expect(html).toContain('style="width:50.00%"');
     expect(html).toMatch(/class="se-island__edge" role="separator" aria-orientation="vertical"[^>]*aria-valuemin="15" aria-valuemax="75" aria-valuenow="50"/);
     expect(html).toContain('class="flow-line flow-line--v se-island__edge-flow"');
-    // The editor edits without promoting whichever tab sits under the Super View.
-    expect(html).toContain('<div class="se-island__body"><span data-suppressed="true"></span></div>');
+    // The editor edits without promoting whichever tab sits under the Super
+    // View, and opens with its outline folded, the toolbar button the island's own.
+    expect(html).toContain('<div class="se-island__body"><span data-suppressed="true" data-outline="false" data-outline-owned="true"></span></div>');
     expect(html).toContain('<div class="se-island__strip"><div class="strip-probe"></div>');
     expect(html).toContain('superElement.isles.island.fold');
     expect(html).toContain('data-se-open-tab=""');
@@ -132,6 +139,9 @@ describe('the element overview’s floating island', () => {
     expect(view.indexOf('data-se-lines=""')).toBeLessThan(view.indexOf('rightSlot={'));
     const header = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
     expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} lead={relationMenuLead} />');
+    const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
+    expect(topBar).toContain("const visible = owned ? presentation.outlineVisible === true : mode === 'visible';");
+    expect(topBar).toContain("onClick={owned ?? (() => setMode(visible ? 'hidden' : 'visible'))}");
     expect(source('src/renderer/components/ui/RelationKindMenu.tsx')).toMatch(/\{lead\}\s*<section className="relation-kind-menu__section">/);
   });
 
@@ -149,6 +159,7 @@ describe('the element overview’s floating island', () => {
     expect(docs).toContain('**浮岛**');
     expect(docs).toContain('15% 到 75%');
     expect(docs).toContain('浮岛窄于 `360px` 时');
+    expect(docs).toContain('默认收起大纲');
     expect(docs).toContain('TabPromotionSuppressedContext');
     expect(docs).toContain('「自动连线」');
   });
