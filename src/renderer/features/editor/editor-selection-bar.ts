@@ -23,8 +23,7 @@ export interface EditorSelectionBarOptions {
   rect?: SelectionRect;
   onAddComment?: () => void;
   onAddPatch?: () => void;
-  onCopilot?: () => void;
-  labels: { format: string; addComment: string; addPatch: string; copilot: string };
+  labels: { format: string; addComment: string; addPatch: string };
 }
 
 /** The live DOM selection's box inside `editor`, falling back to ProseMirror coordinates. */
@@ -55,7 +54,7 @@ function place(bar: HTMLElement, rect: SelectionRect): 'above' | 'below' {
  * The editing actions for a text selection, as one glass long pill floating
  * over the selected text, each action a short pill: 「格式」 (whose block and
  * inline formats unfold as a second long pill of round glass buttons beside
- * the bar), add comment, new patch and Copilot. It floats in by itself once a
+ * the bar), add comment and new patch. It floats in by itself once a
  * selection settles; right-clicking is left to the system's own menu. The
  * formats pill is the bar's sibling, never its child, so pointing at or
  * pressing a format never stirs or thickens the bar. One canonical editor
@@ -233,7 +232,7 @@ export class EditorSelectionBar {
     formats.addEventListener('mouseenter', () => this.cancelHide()); formats.addEventListener('mouseleave', scheduleHide);
     bar.append(format);
     for (const [label, action] of [
-      [options.labels.addComment, options.onAddComment], [options.labels.addPatch, options.onAddPatch], [options.labels.copilot, options.onCopilot],
+      [options.labels.addComment, options.onAddComment], [options.labels.addPatch, options.onAddPatch],
     ] as const) {
       if (!action) continue;
       const element = button(label); element.addEventListener('click', () => invoke(action)); bar.appendChild(element);

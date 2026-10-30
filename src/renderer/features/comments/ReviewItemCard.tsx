@@ -10,21 +10,13 @@ import {
   isNoteTaskTodo,
   type Comment,
 } from '../../domain/comment';
-import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import type { EntityKind } from '../../lib/extensions/entity-link';
-import { getActiveEditor } from '../../lib/active-editor';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { clearActiveCommentHighlight, selectCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
-import {
-  getCopilotCapabilityForMetadataKind,
-  type CopilotServices,
-} from '../../lib/copilot/capability';
-import { copilotRuntime } from '../../lib/copilot/runtime';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { useAuthStore } from '../../store/auth';
 import { useAgentChatStore } from '../../store/agent-chat-store';
 import { useDataStore } from '../../store/data-store';
-import { useBookElement } from '../../usecase/useBookElement';
 import { useComment } from '../../usecase/useComment';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
@@ -102,8 +94,6 @@ export function ReviewItemCard({
   const taskRunning = useAgentChatStore((state) => Boolean(taskChatId && state.runningTurns[taskChatId]));
   const navigator = useWorkspaceNavigator();
   const commentUsecases = useComment({ projectId, userId });
-  const { createElement } = useBookElement({ projectId, userId });
-  const services = useMemo<CopilotServices>(() => ({ createElement }), [createElement]);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const ownedByNote = isNoteTaskTodo(comment);
@@ -127,9 +117,6 @@ export function ReviewItemCard({
   const isConverted = comment.status === 'converted';
   // A reader's comment from a share link (features/share-links) names its reader.
   const readerName = comment.authorKind === 'external' ? comment.authorName?.trim() || null : null;
-  const metadata = comment.source === 'copilot' ? decodeCopilotMetadata(comment.metadataJson) : null;
-  const capability = metadata ? getCopilotCapabilityForMetadataKind(metadata.kind) : null;
-  const summary = capability && metadata ? capability.renderSummary?.(metadata) : null;
   const canJump = Boolean(
     comment.targetKind &&
       comment.targetKind !== 'patch' &&
@@ -207,20 +194,6 @@ export function ReviewItemCard({
     }
   };
 
-  const acceptSuggestion = async () => {
-    if (!metadata || !capability) return;
-    const result = await capability.accept({
-      runtime: copilotRuntime,
-      services,
-      comment,
-      metadata,
-      projectId,
-      userId,
-      editor: getActiveEditor(),
-    });
-    await commentUsecases.acceptCopilotSuggestion(comment.id, result);
-  };
-
   const startEditing = () => {
     // A note's checklist line owns its text: edit it there.
     if (ownedByNote) jumpToAnchor();
@@ -248,25 +221,6 @@ export function ReviewItemCard({
           ? [{ key: 'source', label: t('reviewPanel.source'), onSelect: () => setSnapshotOpen(true) }]
           : []),
       ],
-    },
-    {
-      key: 'suggestion',
-      actions: comment.status === 'open' && comment.source === 'copilot' && !isTodo && capability
-        ? [
-            {
-              key: 'accept',
-              label: summary?.actionLabel ?? t('commentRail.actions.accept'),
-              disabled: busy,
-              onSelect: () => void run(acceptSuggestion),
-            },
-            {
-              key: 'reject',
-              label: t('commentRail.actions.reject'),
-              disabled: busy,
-              onSelect: () => void run(() => commentUsecases.rejectCopilotSuggestion(comment.id)),
-            },
-          ]
-        : [],
     },
     {
       key: 'status',
@@ -362,9 +316,7 @@ export function ReviewItemCard({
       <header className="review-card__header">
         <span className="review-card__kind">
           {itemIcon(comment)}
-          {comment.source === 'copilot' && capability
-            ? capability.displayName
-            : isTodo
+          {isTodo
               ? 'TODO'
               : readerName
                 ? `${t('shareLink.readerBadge')} · ${readerName}`
@@ -440,9 +392,6 @@ export function ReviewItemCard({
           {text || t('commentRail.card.emptyComment')}
         </div>
       )}
-
-      {summary?.subtitle && <div className="review-card__meta">{summary.subtitle}</div>}
-      {summary?.evidence && <div className="review-card__evidence">{summary.evidence}</div>}
 
       {taskError && (
         <div className="review-card__agent-task-error" role="alert">

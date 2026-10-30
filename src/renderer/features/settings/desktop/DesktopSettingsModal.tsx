@@ -36,7 +36,6 @@ type RailId =
   | 'editor'
   | 'language'
   | 'models'
-  | 'copilot'
   | 'agent'
   | 'keys'
   | 'sync'
@@ -92,12 +91,6 @@ const RAIL_BASE: RailBaseDef[] = [
     labelKey: 'settings.rail.models',
   },
   {
-    id: 'copilot',
-    groupKey: 'settings.groups.intelligence',
-    icon: 'jizo',
-    labelKey: 'settings.rail.copilot',
-  },
-  {
     id: 'agent',
     groupKey: 'settings.groups.intelligence',
     icon: 'shikigami',
@@ -132,7 +125,6 @@ const RAIL_IDS = new Set<RailId>([
   'editor',
   'language',
   'models',
-  'copilot',
   'agent',
   'keys',
   'sync',
@@ -326,7 +318,7 @@ function LoadedSettingsPanels({ panels, accountSettingsEnabled, active, isOpen, 
   registerPanel: (id: RailId, element: HTMLElement | null) => void;
 }) {
   const { AccountPanel, AppearancePanel, EditorPanel, LanguagePanel,
-    ModelsPanel, CopilotPanel, AgentPanel, KeysPanel, SyncPanel, UpdatePanel, PrivacyPanel, AboutPanel } = panels;
+    ModelsPanel, AgentPanel, KeysPanel, SyncPanel, UpdatePanel, PrivacyPanel, AboutPanel } = panels;
   return (
     <>
       {accountSettingsEnabled && (
@@ -341,10 +333,6 @@ function LoadedSettingsPanels({ panels, accountSettingsEnabled, active, isOpen, 
       <ModelsPanel
         credentialsActive={active === 'models'}
         registerRef={(el) => registerPanel('models', el)}
-      />
-      <CopilotPanel
-        credentialsActive={active === 'copilot'}
-        registerRef={(el) => registerPanel('copilot', el)}
       />
       <AgentPanel
         open={isOpen}

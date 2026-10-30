@@ -53,7 +53,7 @@ interface VirtualChapterRowProps {
   isNavigationTarget?: boolean;
 
   // True for the one chapter the user is actively editing. Only that row mounts
-  // the heavy ChapterEditor (TipTap + per-chapter Yjs sync + Copilot); everyone
+  // the heavy ChapterEditor (TipTap + per-chapter Yjs sync); everyone
   // else renders cheap static prose.
   isFocused: boolean;
   // Click on a static row → ask the parent to make this the focused editor,

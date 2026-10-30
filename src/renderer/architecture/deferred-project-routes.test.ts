@@ -22,5 +22,5 @@ it('leaves the project route table, runtime and editor readiness inside the exis
 
 it('does not preload settings dependencies from the shelf before the route code is ready', () => {
   const menu = readFileSync('src/renderer/components/topBars/UserMenu.tsx', 'utf8');
-  expect(menu).toContain("useSettingsPreloadIntent(scope === 'project' && open && activeSettingsPage === null)");
+  expect(menu).toContain("useSettingsPreloadIntent(scope === 'project' && open)");
 });

@@ -62,7 +62,7 @@ if (deterministic) {
   for (const key of ['behaviorChecks', 'reactSubscriptions', 'semanticSubscriptions', 'workspaceGeneration',
     'agentDecorations', 'decorationReadiness', 'entityLinkOwnership', 'entityTargetState', 'entityLinkPresentation', 'retroactiveEntityLinks', 'retroactiveLinkMatching', 'agentEventProcessing',
     'agentDisplay', 'agentPanel', 'agentHistory', 'agentTranscript', 'agentBackground', 'agentRecovery', 'agentJournal', 'mobileAgentPanel', 'graphProjection', 'superElementCards', 'storyGraphCards', 'storyGraphUnplaced', 'graphDriftCards', 'graphGeometry', 'graphOverlays', 'timeline',
-    'workspaceProjection', 'editorContextMenus', 'editorSuggestions', 'inlineCopilot', 'inlineEditApply', 'copilotRuns']) {
+    'workspaceProjection', 'editorContextMenus', 'editorSuggestions']) {
     assert(report[key] && (!Array.isArray(report[key]) || report[key].length > 0), `missing current contract ${key}`);
   }
   assert.deepEqual(report.scenarios.map(item => [item.fixture.characters, item.fixture.links]), [[5_000, 0], [20_000, 100], [50_000, 500]]);
@@ -193,30 +193,6 @@ if (report.retroactiveEntityLinks) {
   assert.equal(scenario.checks.length, 126); assert.equal(new Set(scenario.checks.map(check => check.id)).size, 126);
   for (const check of scenario.checks) assert.equal(check.passed, true, check.id);
   assert(scenario.limitations.length > 0);
-}
-if (report.inlineCopilot) {
-  assert.equal(report.inlineCopilot.cycles, 100);
-  assert(report.inlineCopilot.checks.length >= 25);
-  assert.deepEqual(report.inlineCopilot.services, { edits: report.inlineCopilot.conflictFeedback ? 3 : 2, asks: 2, summaries: 2 });
-  assert.equal(report.inlineCopilot.listeners.peak, 1);
-  assert.equal(report.inlineCopilot.listeners.remaining, 0);
-  assert.equal(report.inlineCopilot.listeners.additions, report.inlineCopilot.listeners.removals);
-}
-if (report.copilotRuns) {
-  assert.equal(report.copilotRuns.checks.length, 21);
-  assert.equal(report.copilotRuns.cycles, 100);
-  assert.equal(report.copilotRuns.detections, 11);
-  assert.equal(report.copilotRuns.writes, 2);
-  assert.equal(report.copilotRuns.summaries, 3);
-  assert.equal(report.copilotRuns.remainingManualListeners, 0);
-}
-if (report.inlineEditApply) {
-  assert.equal(report.inlineCopilot.conflictFeedback, true);
-  assert.equal(report.inlineEditApply.checks.length, 26);
-  assert.equal(report.inlineCopilot.spanTrackers.peak, 1);
-  assert.equal(report.inlineCopilot.spanTrackers.remaining, 0);
-  assert.equal(report.inlineCopilot.spanTrackers.additions, report.inlineCopilot.spanTrackers.removals);
-  assert.deepEqual(report.inlineEditApply.collaborativeHistory, { separateUndoItems: 3, exactOriginalRestored: true, mappedCollaborativeSpan: true, sameTextPeerReplacementRejected: true, yjsObservers: { additions: 2, removals: 2, remaining: 0 } });
 }
 if (report.editorSuggestions) {
   assert.equal(report.environment.documentFocused, true);

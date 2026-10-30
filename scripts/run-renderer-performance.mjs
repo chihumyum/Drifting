@@ -37,7 +37,7 @@ try {
   await build({
     root, configFile: false, envDir: false, logLevel: 'warn',
     plugins: [{
-      name: 'isolated-inline-copilot-services', enforce: 'pre',
+      name: 'isolated-performance-services', enforce: 'pre',
       transform(code, id) {
         if (id.endsWith('/lib/extensions/entity-link.ts')) {
           const anchors = [
@@ -174,23 +174,9 @@ try {
         if (id.endsWith('/hooks/useTodoAutoParse.ts')) {
           const source = "'../usecase/useComment'";
           if (code.split(source).length !== 2) throw new Error('Expected one TODO parser service import');
-          return { code: code.replace(source, "'../performance/copilot-run-services'"), map: null };
+          return { code: code.replace(source, "'../performance/todo-autoparse-services'"), map: null };
         }
-        if (id.endsWith('/hooks/useCopilot.ts')) {
-          for (const service of ['../usecase/useComment', '../lib/copilot/base-block-context', '../lib/copilot/produce-block-section-summary']) {
-            const source = `'${service}'`;
-            if (code.split(source).length !== 2) throw new Error(`Expected one Copilot run service import: ${service}`);
-            code = code.replace(source, "'../performance/copilot-run-services'");
-          }
-          return { code, map: null };
-        }
-        if (!id.endsWith('/components/copilot/CopilotInlinePopover.tsx')) return null;
-        for (const service of ['inline-edit', 'inline-ask', 'reverse-chapter-summary']) {
-          const source = `'../../lib/copilot/${service}'`;
-          if (code.split(source).length !== 2) throw new Error(`Expected one popover service import: ${service}`);
-          code = code.replace(source, "'../../performance/copilot-inline-services'");
-        }
-        return { code, map: null };
+        return null;
       },
     }, react(), ...[
       ['virtual:memo-material', 'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx', 'memo-material', 'loadMemoMaterial', 'view-attempt'],

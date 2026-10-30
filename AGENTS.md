@@ -85,6 +85,12 @@ Guidance for coding agents working in this standalone Drifting client repository
 
 - Standalone Shadow CI, Element Arc, and Goal Evolve are retired. Do not restore
   their panels, routes, storage, or eval harnesses as separate products.
+- Copilot (element extraction and patch suggestions, rolling block summaries,
+  ⇧⌘I inline edit and inline ask) was retired on 2026-10-30; proactive AI goes
+  through the Agent. Do not restore its UI, settings, runtime or the Google
+  BYOK route. Keep the `block_section` table, its sync domain and the stored
+  `copilot` comment enum values; typed TODO markers still project into todos.
+  The last commit with Copilot is tagged `copilot-retired-2026-10-30`.
 - The frozen, unimplemented Ambient Editor target is indexed at
   `docs/ambient-editor/README.md`. It must use the shared renderer-owned Agent Runtime.
 

@@ -304,7 +304,7 @@ visibility remains independent of command ownership.
 The menu reads current translations through a latest-value ref when invoked.
 A locale revision is not a Tiptap reconstruction input: changing menu/marker
 labels must preserve the editor and undo history. Format commands and
-comment/patch/Copilot request construction remain the shared product operations.
+comment/patch request construction remain the shared product operations.
 
 `BlockId`'s appended repairs inherit the originating edit's history policy,
 including when an intervening plugin appends a trailing block. The Yjs binding
@@ -334,43 +334,6 @@ Canceling insertion never deletes an element already created by the authored
 command. The guard adds no second prose state, global focus manager or durable
 queue.
 
-The capability runner's `CopilotInvocationOwner` belongs to one mounted
-layout-effect lifetime. It owns preparation and detection slots before the first
-await, and a separate summary slot after detection completes. Project/settings
-replacement, readonly and destruction invalidate the owner; a late finalizer can
-release only its original slot. Already-started durable writes may complete,
-while later result rows require current ownership. Announced manual tasks have
-unique IDs and one terminal event, including cancellation. These transient
-lifetimes do not replace the durable suggestion or renderer Agent protocols.
-
-Inline Copilot mounts only on a ready, editable, visible command surface and
-selects its exact project/node invocation. `useInlineCopilotInvocation` owns its
-transient request and context lifecycle: replacement, hiding, readonly and
-destruction invalidate actions and abort requests. Store cleanup compares the
-captured context identity so an old owner cannot close a new invocation; unmount
-store cleanup uses a microtask to allow immediate effect reacquisition. Closed
-component state releases the old preview/context. Async responses and finalizers
-publish only into their current invocation. An authored chapter-summary job may
-finish independently, without updating a newer popover. The panel and overlay
-portal to `body`; the keyboard entry checks the existing canonical command owner
-before capturing prose context.
-
-`inline-edit-apply.ts` owns optimistic application of an inline proposal to that
-live editor. Span sources retain the exact selected fragment and block identity;
-block sources retain exact target node JSON. These are transient proposal
-preconditions, not prose authority, and are omitted from model input. Validation
-covers the complete original target before any write; a changed/missing target
-rejects the proposal as a whole. Successful application uses literal text and a
-separate ProseMirror/Yjs undo item, preserving surrounding authored keystrokes.
-Conflict feedback requires a fresh selection instead of retrying a stale target.
-The invocation owns a span's transaction tracking. Unaffected ProseMirror ranges
-map through root/appended transactions; Yjs uses relative positions to identify
-the original characters across repeated-text peer updates. Target Y.Text
-observation detects identical interior replacements. Tracking releases its
-editor/Yjs observers on cleanup; weak keys and scalar document revisions avoid
-retaining old document trees. Captured proposals are transient object identities,
-not a serialized or durable write protocol.
-
 Each surface has a content revision key. A new entity, replaced preview slot,
 or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
@@ -382,7 +345,7 @@ retained as the outgoing visual cover until its successor commits, which also
 covers close transitions without a gray/empty frame.
 
 `EditorSurfaceLifecycle` separates pixel visibility from command ownership.
-Only the interactive committed surface can own Cmd+F/Cmd+S, Copilot, global
+Only the interactive committed surface can own Cmd+F/Cmd+S, global
 whole-book search, or a queued entity action. In a visible split, only its
 focused pane owns commands. Hidden surfaces can continue receiving canonical
 Yjs/store updates without consuming user-facing side effects. Tabs whose entity
@@ -692,8 +655,7 @@ The ready `ProjectRuntimeProvider` retains one reference queue per captured
 SQLite client/project. It is independent of child routes and editor tabs;
 explicit boot retry, project/user replacement and last release end the owner.
 `useEntityEditor` now persists prose/outline only. It no longer walks the live
-document into inline-mention rows, including on initial mount. Copilot's live
-document context remains separate and unchanged.
+document into inline-mention rows, including on initial mount.
 Patch cards also leave reference cleanup to the queue after the authored patch
 deletion; they cannot reacquire a different database for a late cleanup.
 
@@ -896,7 +858,6 @@ its own back/navigation behavior through the same view-level close actions.
 | `src/styles/settings.css`                 | full-screen Settings overlay                                                    |
 | `src/styles/agent-panel.css`              | Agent panel composer and conversation surface                                   |
 | `src/styles/agent-activity.css`           | Agent activity perception on entity glyphs                                      |
-| `src/styles/copilot-surface.css`          | Copilot inline popover and account-dropdown settings page                       |
 | `src/styles/auth.css`                     | account sign-in flow (desktop dialog, mobile page) and desktop first-run gate   |
 | `src/styles/project-picker.css`           | Bookshelf project picker                                                        |
 | `src/styles/mobile-*.css`                 | mobile standalone routes, workspace, safe-area, paper, and gesture presentation |

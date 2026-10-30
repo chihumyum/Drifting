@@ -217,7 +217,7 @@ export const DEV_CLI_MODEL_CAPABILITIES: readonly CliModelCapability[] = [
     coverage: 'derived_rebuild',
     commands: ['ops inspect'],
     table: 'block_section',
-    note: 'Copilot-derived rolling summaries.',
+    note: 'Rolling summaries from the retired Copilot; no longer produced.',
   },
   {
     name: 'agent_conversation',

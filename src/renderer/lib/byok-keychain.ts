@@ -10,15 +10,14 @@
 
 import { platform } from '../platform';
 
-export type BYOKProvider = 'anthropic' | 'openai' | 'google' | 'deepseek';
+export type BYOKProvider = 'anthropic' | 'openai' | 'deepseek';
 const LEGACY_AGENT_ANTHROPIC_KEY_ID = 'byok.agent.anthropic';
 
 function keyOf(provider: BYOKProvider): string {
   return `byok.${provider}`;
 }
 
-// Settings has several consumers for the active provider (provider row,
-// Copilot warnings), and React Strict Mode intentionally mounts
+// Settings and the Agent can read the same provider at once, and React Strict Mode intentionally mounts
 // effects twice in development. Coalesce only concurrent reads so one logical
 // lookup produces one OS prompt without retaining secrets beyond the caller's
 // own lifetime.

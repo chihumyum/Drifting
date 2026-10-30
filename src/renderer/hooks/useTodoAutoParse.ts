@@ -34,9 +34,10 @@
  * block still present" branch is inherently safe (it requires positively seeing
  * the block in the doc), so it needs no gate.
  *
- * Origin marker: authorKind 'copilot' + metadataJson {kind:'todo-autoparse'}.
- * source stays 'manual' so it renders as a normal anchored todo, NOT a
- * Copilot accept/reject Review card (ReviewItemCard keys that off source).
+ * Origin marker: metadataJson {kind:'todo-autoparse'}. The author typed the
+ * marker, so the todo carries the author's own authorKind and source 'manual'
+ * and renders as a normal anchored todo. Projections written by earlier builds
+ * kept authorKind 'copilot'; matching is by metadata only, so they still count.
  */
 import { useLayoutEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
@@ -45,9 +46,8 @@ import { isBlockType } from '../lib/extensions/block-id';
 import { createPlainCommentDoc, type Comment } from '../domain/comment';
 import { useComment } from '../usecase/useComment';
 import { useDataStore } from '../store/data-store';
-import { useSettingsStore } from '../store/settings-store';
 
-const log = loglevel.getLogger('copilot:todo-parse');
+const log = loglevel.getLogger('todo-parse');
 
 const DEBOUNCE_MS = 1200;
 // A block whose text starts with a TODO marker. Captures the trailing task
@@ -94,7 +94,6 @@ export function useTodoAutoParse({
   userId,
 }: UseTodoAutoParseInput): void {
   const { createComment, deleteComment } = useComment({ projectId, userId });
-  const enabled = useSettingsStore((s) => s.copilotAutoTrigger);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Latches true once a non-empty doc has been seen for this mount. Gates the
   // "block deleted" delete branch against the empty pre-hydration window.
@@ -104,13 +103,11 @@ export function useTodoAutoParse({
   const lastActiveRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
-    if (!enabled) return;
     loadedRef.current = false;
     lastActiveRef.current = null;
     let disposed = false;
     let running = false;
-    const isCurrent = () => !disposed && useSettingsStore.getState().copilotAutoTrigger
-      && !editor.isDestroyed && editor.isEditable;
+    const isCurrent = () => !disposed && !editor.isDestroyed && editor.isEditable;
 
     const del = async (id: string): Promise<void> => {
       try {
@@ -189,8 +186,6 @@ export function useTodoAutoParse({
             targetId: nodeId,
             targetBlockId: blockId,
             bodyJson: createPlainCommentDoc(raw),
-            authorKind: 'copilot',
-            authorName: 'Copilot',
             source: 'manual',
             metadataJson: JSON.stringify(meta),
           });
@@ -270,5 +265,5 @@ export function useTodoAutoParse({
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
     };
-  }, [editor, enabled, projectId, nodeId, createComment, deleteComment]);
+  }, [editor, projectId, nodeId, createComment, deleteComment]);
 }
