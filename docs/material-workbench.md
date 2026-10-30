@@ -262,7 +262,9 @@ direct domain tools listed in
   asset; pages without a text layer are listed. Images return their metadata
   and the author's description.
 - `view_material` actually looks at an image (its display variant) or up to
-  four rendered PDF pages and answers a question about them — describing the
+  four PDF pages — rendered with pdf.js's print intent, which needs no
+  animation frame and so still works while the window is hidden — and
+  answers a question about them — describing the
   picture, transcribing handwriting, captions or a scanned page. It is one
   `single_request` call to the session's own provider and model
   (`lib/agent/material-vision.ts`); only the text answer returns to the

@@ -149,7 +149,9 @@ export async function materialImages(
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(viewport.width);
       canvas.height = Math.floor(viewport.height);
-      await page.render({ canvas, viewport }).promise;
+      // The print intent renders without requestAnimationFrame, so a page
+      // still renders while the window is hidden and the Agent works on.
+      await page.render({ canvas, viewport, intent: 'print' }).promise;
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
       images.push({ mediaType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1) });
       page.cleanup();

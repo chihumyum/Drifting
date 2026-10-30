@@ -96,8 +96,13 @@ pnpm agent:capabilities:check
   provider surface. Paths, JSON documents, Yjs, SQLite, revisions, and storage
   identifiers remain runtime implementation details.
 - Chapter, inspiration, element, category, storyline, membership, relation type, relation,
-  comment/TODO, project fact, Project Memory, and element-patch lifecycle
-  support is generated and machine checked.
+  comment/TODO, project fact, Project Memory, element-patch, material and
+  material-folder, act, reading-order, narrative-timeline and plot-grid
+  lifecycle support is generated and machine checked. Materials, acts, the
+  timeline and plot grids are workbench scopes
+  ([domain CRUD protocol §10](../domain-crud-transaction-protocol.md)); PDFs
+  are read by text layer and images or scanned pages through `view_material`
+  ([material workbench](../../material-workbench.md)).
 - During an author-requested write task, General Agent may leave a concise,
   evidence-backed incidental finding as an existing Comment/TODO on the
   relevant authored object. This is opportunistic, not a background scan: it
