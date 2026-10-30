@@ -5,10 +5,6 @@ import {
   type Comment,
 } from '../../domain/comment';
 
-export const COPILOT_ACTIVE_MS = 5000;
-export const COPILOT_FRESH_MS = 8000;
-export const flashedCopilotIds = new Set<string>();
-
 export function commentBlockSelector(blockId: string): string {
   return `[data-block-id="${CSS.escape(blockId)}"]`;
 }

@@ -14,7 +14,7 @@
    export preserves readable project structure; a `.drifting` library backup is
    restorable and currently requires a stable local library without a cloud binding.
 5. Configure a model in **Models & API** if wanted. Writing does not require AI;
-   Copilot and General Agent use your own provider credentials and require review.
+   General Agent uses your own provider credentials and its edits go through review.
 6. **Settings → Account** manages Hosted connection, retry, pause/resume,
    disconnect and sign-out. Offline writing remains available. Wait for sync to
    finish before switching devices.

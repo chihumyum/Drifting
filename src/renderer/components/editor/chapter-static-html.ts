@@ -18,7 +18,7 @@ const log = loglevel.getLogger('chapter-static-html');
 log.setLevel(loglevel.levels.WARN);
 
 // Render a chapter's persisted ProseMirror JSON to the SAME HTML the live
-// editor produces, without spinning up a ProseMirror EditorView / Yjs / Copilot.
+// editor produces, without spinning up a ProseMirror EditorView / Yjs.
 // The all-chapters read-through uses this so every row carries real prose at its
 // real rendered height — the placeholder estimate is what made fast scrolls
 // jump. Height parity is structural: the caller drops this HTML into a

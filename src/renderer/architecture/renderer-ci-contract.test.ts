@@ -12,7 +12,6 @@ type Report = {
   graphProjection: { results: { samplesMs: number[]; medianMs: number }[] };
   agentEventProcessing: { implementation: string };
   agentDecorations: { checks: { passed: boolean }[] };
-  inlineCopilot: { listeners: { remaining: number } };
   agentTranscript: { ingress: { eventWork: { flatMaterializations: number } }[] };
   agentBackground: { displayProjection?: string; measurements: { ingressWork: { flatMaterializations: number }; timerWork: { flatMaterializations: number }; scheduled: { timers: number }; checks: { foregroundFlushesTail: boolean } }[] };
   agentRecovery: { measurements: { work: { groupedMessageVisits: number }[] }[] };
@@ -91,7 +90,6 @@ describe('ordinary CI renderer evidence', () => {
   it('rejects input-wide scans, obsolete implementations, owner leaks and failed behavior', () => {
     const scans = fixture(); scans.scenarios[0].counts.fullLinkQueries = 1;
     const legacy = fixture(); legacy.agentEventProcessing.implementation = 'record-copy';
-    const leak = fixture(); leak.inlineCopilot.listeners.remaining = 1;
     const failed = fixture(); failed.agentDecorations.checks[0].passed = false;
     const panel = fixture(); panel.agentPanel.streaming.composer = 20;
     const mobile = fixture(); mobile.mobileAgentPanel.measurements[0].lateNavigation = 1;
@@ -121,7 +119,7 @@ describe('ordinary CI renderer evidence', () => {
     const repeatedChapters = fixture(); repeatedChapters.storyGraphUnplaced.measurements[2].openWork.chips = 100000;
     const staleChapter = fixture(); staleChapter.storyGraphUnplaced.measurements[0].checks.currentTitleAndPrimary = false;
     const chapterDrag = fixture(); chapterDrag.storyGraphUnplaced.measurements[0].checks.cancelledDrag = false;
-    for (const report of [scans, legacy, leak, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard, storyGrouping, storyTiles, storyLane, hiddenDrifts, driftShell, driftCards, driftWrappers, driftLegacy, driftReverse, driftSlots, driftCleanup, inapplicableDrag, hiddenChapters, repeatedChapters, staleChapter, chapterDrag]) expect(validate(report).status).not.toBe(0);
+    for (const report of [scans, legacy, failed, panel, mobile, history, transcript, recovery, journal, background, timers, returning, cards, bands, staleCard, storyGrouping, storyTiles, storyLane, hiddenDrifts, driftShell, driftCards, driftWrappers, driftLegacy, driftReverse, driftSlots, driftCleanup, inapplicableDrag, hiddenChapters, repeatedChapters, staleChapter, chapterDrag]) expect(validate(report).status).not.toBe(0);
   });
   it('rejects missing generation coverage, broad target rebuilds and stale authority reuse', () => {
     const missing = fixture(); delete missing.workspaceGeneration;

@@ -13,9 +13,6 @@ import { runSuperElementCardScenarios } from './super-element-card-scenarios';
 import { runAgentRecoveryScenarios } from './agent-recovery-scenarios';
 import { runAgentJournalScenarios } from './agent-journal-scenarios';
 import { runEditorSuggestionScenarios } from './editor-suggestion-scenarios';
-import { runInlineCopilotScenarios } from './copilot-inline-scenarios';
-import { runInlineEditApplyScenarios } from './inline-edit-apply-scenarios';
-import { runCopilotRunScenarios } from './copilot-run-scenarios';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { EntityLink, entityLinkConfig } from '../lib/extensions/entity-link';
@@ -40,7 +37,7 @@ import { runWorkspaceProjectionScenarios } from './workspace-projection-scenario
 import { runEditorContextMenuScenarios } from './editor-selection-bar-scenarios';
 import { runEditorImeScenarios } from './editor-ime-scenarios';
 import { imeSelectionProbe } from './editor-ime-selection-scenarios';
-import { runCopilotTodoScenarios } from './copilot-todo-scenarios';
+import { runTodoAutoParseScenarios } from './todo-autoparse-scenarios';
 
 function summary(samples: number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
@@ -162,10 +159,7 @@ async function run() {
     workspaceProjection: await runWorkspaceProjectionScenarios(),
     editorContextMenus: await runEditorContextMenuScenarios(),
     editorSuggestions: await runEditorSuggestionScenarios(),
-    inlineCopilot: await runInlineCopilotScenarios(),
-    inlineEditApply: await runInlineEditApplyScenarios(),
-    copilotRuns: await runCopilotRunScenarios(),
-    copilotTodos: await runCopilotTodoScenarios(),
+    todoAutoParse: await runTodoAutoParseScenarios(),
     editorIme: await runEditorImeScenarios(),
     subscriptions: { operations: 100, allStoreNotifications, chapterSliceChanges },
     environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio },
@@ -182,7 +176,7 @@ Object.assign(window, { __DRIFTING_PERFORMANCE_HARNESS__: {
   async editorIme() {
     return { scenarios: [], editorIme: await runEditorImeScenarios(),
       agentDecorations: runAgentDecorationScenarios(), decorationReadiness: runDecorationReadinessScenario(),
-      inlineCopilot: await runInlineCopilotScenarios(), copilotRuns: await runCopilotRunScenarios(), copilotTodos: await runCopilotTodoScenarios(),
+      todoAutoParse: await runTodoAutoParseScenarios(),
       environment: { documentFocused: document.hasFocus(), userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight], devicePixelRatio } };
   },
   async editorFocus() {

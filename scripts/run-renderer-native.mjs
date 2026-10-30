@@ -14,8 +14,7 @@ const graphInteractions = process.argv.includes('--graph-interactions');
 const agentTranscript = graphInteractions || process.argv.includes('--agent-transcript');
 const agentHistory = agentTranscript || process.argv.includes('--agent-history');
 const mobileAgentPanel = agentHistory || process.argv.includes('--mobile-agent-panel');
-const inlineCopilot = mobileAgentPanel || process.argv.includes('--inline-copilot');
-const suggestions = inlineCopilot || process.argv.includes('--suggestions');
+const suggestions = mobileAgentPanel || process.argv.includes('--suggestions');
 const contextMenus = suggestions || process.argv.includes('--context-menus');
 const selectionMemory = contextMenus || process.argv.includes('--selection');
 const markers = selectionMemory || process.argv.includes('--markers');
@@ -29,7 +28,7 @@ const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceFiles = git('ls-files', '-z', '--', ...sourcePaths).split('\0').filter(Boolean).sort();
 const fingerprint = () => sha256([...new Set([...sourceFiles, ...harnessFiles])].sort().map(file => `${file}\0${sha256(readFileSync(path.join(root, file)))}`).join('\n'));
-const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${graphInteractions ? 'f5-graph-interactions-native' : agentTranscript ? 'f4-transcript-native' : agentHistory ? 'f4-history-native' : mobileAgentPanel ? 'f4-mobile-panel-native' : inlineCopilot ? 'f3-inline-copilot-native' : suggestions ? 'f3-suggestions-native' : contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
+const output = path.resolve(root, process.argv.find(arg => arg.startsWith('--report='))?.slice(9) ?? `docs/renderer-performance/acceptance/${graphInteractions ? 'f5-graph-interactions-native' : agentTranscript ? 'f4-transcript-native' : agentHistory ? 'f4-history-native' : mobileAgentPanel ? 'f4-mobile-panel-native' : suggestions ? 'f3-suggestions-native' : contextMenus ? 'f3-context-menus-native' : selectionMemory ? 'f3-selection-native' : markers ? 'f3-markers-native' : outline ? 'f3-outline-native' : typewriter ? 'f3-typewriter-native' : editorSessions ? 'f3-editor-sessions-native' : 'f8-native-composition'}.json`);
 function validate(report) {
   assert.equal(report.kind, 'renderer_native_composition'); assert.equal(report.status, 'passed');
   assert.equal(report.runs.length, 2);
@@ -72,10 +71,6 @@ function validate(report) {
     assert.match(report.runs[0].createdSuggestionElementId, /^[a-f0-9-]{36}$/);
     assert.equal(report.persistence.createdSuggestionElements, 1);
     assert(report.runs[0].suggestionObservations.length >= 40);
-  }
-  if (inlineCopilot) {
-    for (const name of ['inlineCopilotLifetime', 'inlineCopilotCommandGates', 'inlineCopilotUnrelatedCleanup', 'inlineCopilotSplitOwnership', 'inlineCopilotClosedOwnersReleased', 'inlineCopilotSpanConflict', 'inlineCopilotHistory', 'inlineCopilotBlockConflict']) assert.equal(report.runs[0].checks[name], true, name);
-    assert.equal(report.runs[1].checks.inlineCopilotTransientAfterRestart, true);
   }
   if (mobileAgentPanel) {
     assert.equal(report.runs[0].checks.mobileAgentPanel, true);
@@ -215,7 +210,7 @@ try {
 import { mergeConfig } from 'vite';
 import base from './vite.renderer.config';
 export default (env) => mergeConfig(base(env), {
-  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, graph: fixture.graph ?? null, memoLoading, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, inlineCopilot, mobileAgentPanel, agentHistory, agentTranscript }))} },
+  define: { __DRIFTING_NATIVE_ACCEPTANCE__: ${JSON.stringify(JSON.stringify({ endpoint, token, projects: fixture.projects, graph: fixture.graph ?? null, memoLoading, editorSessions, typewriter, outline, markers, selectionMemory, contextMenus, suggestions, mobileAgentPanel, agentHistory, agentTranscript }))} },
   plugins: [{ name: 'native-acceptance-only', enforce: 'pre', transform(code, id) {
     if (id.endsWith('/src/renderer/main.tsx')) return 'import "../../scripts/renderer-native-ui";\\n' + code;
     if (${mobileAgentPanel} && id.endsWith('/workspace/MobileAgentTranscript.tsx')) {

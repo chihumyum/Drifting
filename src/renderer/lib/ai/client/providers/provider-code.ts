@@ -10,4 +10,3 @@ function shareCode<T>(load: () => Promise<T>) {
 // Browser builds replace these imports with same-build URLs carrying retry keys.
 // Plain imports remain usable in headless SSR, fixtures and Node tests.
 export const loadOpenAIProviders = shareCode(() => import('./openai-compatible-runtime'));
-export const loadGoogleProvider = shareCode(() => import('./google-runtime'));

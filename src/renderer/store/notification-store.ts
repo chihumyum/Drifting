@@ -1,7 +1,6 @@
 /**
- * Global task notification feed. Copilot emits an `ai-task` event while the
- * sync feed projects sanitized Hosted runtime progress. Both are
- * ingested into a capped, newest-first history that backs two surfaces:
+ * Global task notification feed. The sync feed projects sanitized Hosted
+ * runtime progress into a capped, newest-first history that backs two surfaces:
  *   - the Dynamic-Island PILL in the topbar (shows the in-flight task, or the
  *     most-recent result for a few seconds, else an unread-count bell), and
  *   - the NOTIFICATION CENTER dropdown (the full recent history, reopenable).
@@ -12,10 +11,11 @@
  * mobile can project the same sanitized transfer lifecycle independently.
  */
 import { create } from 'zustand';
-import type { AiTaskEvent, AiTaskOutcome, AiTaskSource } from '../lib/events';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
-export type AppNotificationSource = AiTaskSource | 'hosted-sync';
+export type AppNotificationSource = 'hosted-sync';
+/** Tints the completed banner. */
+export type NotificationOutcome = 'clean' | 'issues' | 'ok' | 'error';
 
 export interface AppNotificationProgress {
   /** Null means the total is still being discovered. */
@@ -26,8 +26,19 @@ export interface AppNotificationProgress {
   totalObjects: number;
 }
 
-export interface AppNotificationEvent extends Omit<AiTaskEvent, 'source'> {
+/** One task lifecycle signal; `id` is stable across started → completed/failed. */
+export interface AppNotificationEvent {
+  id: string;
   source: AppNotificationSource;
+  state: 'started' | 'completed' | 'failed' | 'stopped';
+  title: string;
+  detail?: string;
+  /** For click-to-navigate, when applicable. */
+  chapterId?: string;
+  outcome?: NotificationOutcome;
+  count?: number;
+  error?: string;
+  at: number;
   progress?: AppNotificationProgress;
 }
 
@@ -38,7 +49,7 @@ export interface AppNotification {
   title: string;
   detail?: string;
   chapterId?: string;
-  outcome?: AiTaskOutcome;
+  outcome?: NotificationOutcome;
   count?: number;
   error?: string;
   progress?: AppNotificationProgress;

@@ -221,9 +221,10 @@ pnpm agent:capabilities:check
   acceptance remains unverified. The generated bundled model list is fallback
   evidence, not a live entitlement catalog. See [provider settings](../../ai-provider-settings.md).
 
-- Models & API is the single writable BYOK credential surface. Copilot and
-  General Agent choose their own provider/model routes but lazily read the same
-  native secure-storage entries.
+- Models & API is the single writable BYOK credential surface. General Agent
+  chooses its provider/model in the composer and lazily reads the same native
+  secure-storage entries. Copilot, the other consumer, was retired on
+  2026-10-30.
 - DeepSeek, Anthropic, and OpenAI deterministic wire conformance is certified.
   Exact supported models, thinking modes, and effort combinations come from the
   generated capability inventory.

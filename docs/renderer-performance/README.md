@@ -4059,6 +4059,10 @@ smoke path also passed. Native local-resource/offline-upgrade behavior, live
 provider conformance, first-request latency and whole-app startup/heap budgets
 remain open. F7 is still in progress.
 
+On 2026-10-30 the Google adapter and `@google/genai` were removed with the
+retired Copilot. `acceptance/f7-ai-providers.json` was regenerated for the single
+OpenAI-compatible entry; the figures above remain the F7f record.
+
 ## F4p — Tree snapshots through desktop and mobile display
 
 [Transcript display](tree-display.md) now publishes the immutable message tree

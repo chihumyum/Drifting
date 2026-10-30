@@ -734,17 +734,6 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
   background: hsl(var(--paper-deep));
 }
 
-.user-menu__subhead {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 38px;
-  padding: 4px 8px;
-  border-bottom: 1px solid hsl(var(--rule));
-  color: hsl(var(--ink-1));
-  font-weight: 500;
-}
-
 html:not([data-shell-mode='mobile']) .user-menu__head {
   padding: 14px 14px 8px;
   border-bottom: 0;
@@ -774,12 +763,6 @@ html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group {
 
 html:not([data-shell-mode='mobile']) .user-menu__group--last {
   padding-bottom: 4px;
-}
-
-html:not([data-shell-mode='mobile']) .user-menu__subhead {
-  padding: 8px 14px 4px 8px;
-  border-bottom: 0;
-  font-weight: 600;
 }
 
 .user-menu__slider {
