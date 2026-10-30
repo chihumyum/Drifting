@@ -112,7 +112,7 @@ describe('workspace surface language acceptance', () => {
     // the focused document and draw today's words against the daily goal.
     const tally = source('src/renderer/components/workspaceChrome/WorkspaceWordTally.tsx');
     const shell = source('src/styles/desktop-shell.css');
-    expect(account).toContain('className="sidebar-account-cell__account glass"');
+    expect(account).toContain('className="sidebar-account-cell__account glass glass--small"');
     expect(account.indexOf('<WorkspaceWordTally />')).toBeGreaterThan(account.indexOf('sidebar-account-cell__name'));
     expect(account.indexOf('<WorkspaceWordTally />')).toBeLessThan(account.indexOf('<GhostIconButton'));
     expect(tally).toContain('deriveStatusWordMetric({');
