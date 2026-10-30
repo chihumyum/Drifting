@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { memo, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sidebar } from '../../components/Sidebar';
 import { EditorMainArea } from '../../components/editor/EditorMainArea';
@@ -15,6 +15,7 @@ import { DesktopBottomTimeline } from './views/DesktopBottomTimeline';
 import { TimelineDrawer } from './TimelineDrawer';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
+import { useInertUnderSuperView } from './useInertUnderSuperView';
 
 interface DesktopWorkspaceProps {
   projectId: string;
@@ -33,7 +34,8 @@ interface DesktopWorkspaceProps {
  * the traffic-light line; the timeline toggle rests in the paper's
  * lower-right corner to the left of the editor's toolbar (whose first button
  * is the plot planner; the stage keeps a fallback for when no editor is
- * showing), so both ride above the dock when it is open.
+ * showing), so both ride above the dock when it is open. While a Super View
+ * covers the window, all of it is inert.
  */
 export const DesktopWorkspace = memo(function DesktopWorkspace({
   projectId,
@@ -52,8 +54,10 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
   // While the panel slides shut it keeps showing what it held.
   const [lastPane, setLastPane] = useState<BottomPanelPane>(dockPane ?? 'timeline');
   if (dockPane && dockPane !== lastPane) setLastPane(dockPane);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useInertUnderSuperView(rootRef);
   return (
-    <div className="app-root desktop-app-shell">
+    <div ref={rootRef} className="app-root desktop-app-shell">
       <div className="app-row desktop-workspace-row">
         <Sidebar sidebarType="left">
           <DesktopLeftSidebar />

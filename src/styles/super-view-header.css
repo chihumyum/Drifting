@@ -40,8 +40,9 @@
 
 /* ─── Flat full-screen workspace ────────────────────────────────────
    Header and body meet at one hairline with no inset, gap, radius or
-   elevation. The overlay stops above the center-column status strip so its
-   project navigation and Super View switches remain available.
+   elevation. On desktop the inset is 0: the overlay covers the whole window
+   and the workspace under it is inert (useInertUnderSuperView). The paused
+   mobile shell keeps its own inset.
    ──────────────────────────────────────────────────────────────── */
 .super-view-overlay {
   top: 0;
@@ -1104,4 +1105,47 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--ghos
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+}
+
+/* ─── Switching Super Views ─────────────────────────────────────────
+   DesktopSuperViewStage pushes the open view's block (everything under its
+   header) away like heavy ice and brings the next one in behind it, the way
+   a sidebar pane switches panels. While the strip moves the arriving overlay
+   is clear, so the block it pushes shows through beside its own; the one
+   leaving sits just under it with an empty header and takes no input. Its
+   new block is outlined on all four sides by lines that bleed glass,
+   fading out whole once it rests. Reduced motion skips straight there. */
+.super-view-slide {
+  display: contents;
+}
+
+.super-view-slide--in .super-view-overlay {
+  background: transparent;
+}
+
+.super-view-slide--out .super-view-overlay {
+  z-index: 249;
+  pointer-events: none;
+}
+
+.super-view-slide__outline {
+  position: fixed;
+  z-index: 251;
+  pointer-events: none;
+}
+
+.super-view-slide__outline-top { top: 0; }
+.super-view-slide__outline-bottom { bottom: 0; --flow-gx: -96px; --flow-gy: -60px; }
+.super-view-slide__outline-start { left: 0; --flow-gx: -40px; --flow-gy: -110px; }
+.super-view-slide__outline-end { right: 0; --flow-gx: -120px; --flow-gy: -24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .super-view-slide--out,
+  .super-view-slide__outline {
+    display: none;
+  }
+
+  .super-view-slide--in .super-view-overlay {
+    background: hsl(var(--paper-deep));
+  }
 }

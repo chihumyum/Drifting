@@ -297,6 +297,18 @@
     border-color: hsl(var(--accent) / 0.55);
   }
 
+  /* Desktop: a field the author writes in shows only its caret, with no ring
+     and no box in its place. Every text field on an editor's page (titles,
+     summaries, field names and values, aliases, patch titles, material
+     descriptions) is words on the paper, and a glass field's glass is already
+     its focus (the still selected glass). Boxed controls such as selects,
+     checkboxes and ranges keep the ring. */
+  html:not([data-shell-mode='mobile'])
+    :is(.editor-shell, .glass--field)
+    :is(textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'])):focus-visible {
+    box-shadow: none;
+  }
+
   .dark {
     --background: 220 6% 11%;
     --foreground: 220 8% 93%;

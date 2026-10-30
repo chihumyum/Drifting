@@ -17,7 +17,10 @@ html[data-shell-mode='desktop'] {
   --ui-row-height: calc(32px + var(--ui-text-increment));
   --ui-footer-height: calc(24px + var(--ui-text-increment));
   --ui-text-muted: color-mix(in srgb, hsl(var(--ink-2)) 40%, hsl(var(--ink-3)));
-  --super-view-bottom-inset: var(--ui-footer-height);
+  /* Nothing runs across the bottom of the desktop window any more (the
+     status strip went with the three full-height columns), so the Super Views
+     and their drift panel reach the bottom edge and cover the whole window. */
+  --super-view-bottom-inset: 0px;
 }
 
 /* Smaller restores each consumer's original font-size fallback. The old UI

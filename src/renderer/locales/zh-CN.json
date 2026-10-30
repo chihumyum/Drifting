@@ -1109,8 +1109,6 @@
     "childChanges": "未查看的子条目 Agent 改动"
   },
   "bottomStatusBar": {
-    "metricsPending": "正文统计中",
-    "todayPending": "今日字数统计中",
     "workspaceViews": "工作区视图",
     "projectHome": "项目主页",
     "allChapters": "通览全书",
@@ -1120,12 +1118,6 @@
     "timeline": "时间线",
     "expandTimeline": "展开 Storyline Timeline",
     "collapseTimeline": "收起 Storyline Timeline",
-    "statusLine": "编辑器状态",
-    "currentWords": "当前 {{formatted}} 字",
-    "selectedWords": "选中 {{formatted}} 字",
-    "storylineWords": "故事线 {{formatted}} 字",
-    "projectWords": "全书 {{formatted}} 字",
-    "todayWords": "今日 {{formatted}} 字",
     "storageLocal": "设备本地",
     "storage": {
       "local": "设备本地",
@@ -1137,6 +1129,18 @@
       "offline": "离线，Hosted 已暂停",
       "attention": "Hosted 需要处理"
     }
+  },
+  "workspaceWordTally": {
+    "selection": "选中",
+    "chapter": "本章",
+    "drift": "构想",
+    "storyline": "故事线",
+    "book": "全书",
+    "today": "今日",
+    "counting": "统计中",
+    "part": "{{label}} {{formatted}} 字",
+    "todayPart": "今日 +{{formatted}} 字",
+    "todayGoalPart": "今日 +{{formatted}} 字（目标 {{goal}}）"
   },
   "nodeHoverPreview": {
     "noSummary": "暂无摘要"
@@ -2209,7 +2213,7 @@
       "elementListTitle": "名称列表 · 点此切换到紧凑索引"
     },
     "actions": {
-      "collapseAll": "折叠全部",
+      "collapseAll": "展开／折叠全部",
       "sort": "排序",
       "newChapter": "新章节",
       "newStoryline": "新故事线",

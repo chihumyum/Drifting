@@ -22,7 +22,9 @@ vi.mock('../../../platform/runtime', () => ({
 }));
 
 import { FilterChip } from '../../../components/ui/FilterChip';
+import { leaveSliderGlass, takeSliderGlass } from '../../../components/ui/glass-slider-handoff';
 import { SuperViewHeader } from '../../../components/SuperViewHeader';
+import { coverWorkspace } from '../useInertUnderSuperView';
 import { StoryGraphLaneRow } from '../../../features/graph/StoryGraphLaneRow';
 import type { PositionedNode, StoryGraphLane } from '../../../features/graph/story-graph-layout';
 import { designSystemDocs } from '../../../components/design-system-docs.test-support';
@@ -134,6 +136,87 @@ describe('Super View sand and glass acceptance', () => {
     const css = source('src/styles/super-view-header.css');
     expect(css).toContain(".super-view-head__hint {");
     expect(css).toMatch(/html:not\(\[data-shell-mode='mobile'\]\) \.super-view-head__meta \{[^}]*text-transform: none;/);
+  });
+
+  it('slides the view switch glass across a Super View switch on the Review filter slider', async () => {
+    // One slider for both: the Super View switch is the Review panel's
+    // all/comment/TODO slider, not a copy, and draws no glass of its own.
+    const switcher = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
+    expect(switcher).toContain("import { GlassSlider } from '../../../components/ui/GlassSlider';");
+    expect(source('src/renderer/components/rightBars/ReviewPanel.tsx')).toContain("import { GlassSlider } from '../ui/GlassSlider';");
+    expect(source('src/styles/super-view-header.css')).not.toMatch(/glass-slider__thumb|super-view-head__views[^{]*::(before|after)/);
+
+    // Each view draws its own header, so a switch replaces the slider; the
+    // shared handoff key carries the glass from the old one to the new one.
+    expect(switcher).toContain('handoff="super-view-switch"');
+    const slider = source('src/renderer/components/ui/GlassSlider.tsx');
+    expect(slider).toContain('const shown = !placed && handedFrom ? handedFrom : thumb;');
+    expect(slider).toContain("'--slider-x': `${shown?.x ?? 0}px`,");
+    expect(slider).toContain('const handed = takeSliderGlass(handoff);');
+    // At rest the glass is handed over without a layout read.
+    expect(slider).toContain('if (performance.now() - setOff >= SPRING_MS) {\n        leaveSliderGlass(handoff, rect);');
+
+    // What a slider leaves is taken once, in the same commit, and never later.
+    const graph = { x: 72, y: 0, w: 85, h: 26 };
+    leaveSliderGlass('super-view-switch', graph);
+    expect(takeSliderGlass('super-view-switch')).toBe(graph);
+    expect(takeSliderGlass('super-view-switch')).toBeUndefined();
+    leaveSliderGlass('super-view-switch', graph);
+    await Promise.resolve();
+    expect(takeSliderGlass('super-view-switch')).toBeUndefined();
+  });
+
+  it('covers the whole desktop window and leaves the workspace under it inert', () => {
+    // No status strip runs across the desktop window any more, so nothing of
+    // the workspace (the account cell's Home) is left showing at the bottom.
+    const typography = source('src/styles/desktop-typography.css');
+    const desktopRoot = typography.slice(typography.indexOf("html[data-shell-mode='desktop'] {"), typography.indexOf('}'));
+    expect(desktopRoot).toContain('--super-view-bottom-inset: 0px;');
+    expect(desktopRoot).not.toContain('--super-view-bottom-inset: var(--ui-footer-height)');
+    for (const [selector, body] of rules(source('src/styles/super-view-header.css'), ['super-view-overlay'])) {
+      if (selector !== '.super-view-overlay') continue;
+      expect(body).toMatch(/top: 0;[\s\S]*left: 0;[\s\S]*right: 0;[\s\S]*bottom: var\(--super-view-bottom-inset\);/);
+    }
+
+    const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
+    expect(workspace).toContain('useInertUnderSuperView(rootRef);');
+    expect(workspace).toContain('<div ref={rootRef} className="app-root desktop-app-shell">');
+    // The Super Views mount beside the workspace root, never inside it.
+    const shell = source('src/renderer/shells/desktop/DesktopAppShell.tsx');
+    expect(shell.indexOf('<DesktopOverlayHost')).toBeGreaterThan(shell.indexOf('<DesktopWorkspace'));
+
+    const editor = { isConnected: true, focus: vi.fn() };
+    const body = {};
+    const doc = { activeElement: editor as unknown, body };
+    vi.stubGlobal('document', doc);
+    vi.useFakeTimers();
+    try {
+      const root = { inert: false, contains: (node: unknown) => node === editor };
+      const cover = coverWorkspace(root as unknown as HTMLElement);
+      cover.set(true);
+      expect(root.inert).toBe(true);
+      // The workspace blurs; once the Super View is gone, focus comes back.
+      doc.activeElement = body;
+      cover.set(false);
+      expect(root.inert).toBe(false);
+      vi.runAllTimers();
+      expect(editor.focus).toHaveBeenCalledWith({ preventScroll: true });
+
+      // Focus taken elsewhere meanwhile is left alone.
+      editor.focus.mockClear();
+      doc.activeElement = editor;
+      cover.set(true);
+      cover.set(false);
+      doc.activeElement = { other: true };
+      vi.runAllTimers();
+      expect(editor.focus).not.toHaveBeenCalled();
+      cover.set(true);
+      cover.dispose();
+      expect(root.inert).toBe(false);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('keeps the relation-type menu in two unruled parts, chips above and menu rows below', () => {

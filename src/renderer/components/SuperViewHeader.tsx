@@ -4,6 +4,7 @@ import { getPlatformRuntime } from '../platform/runtime';
 import { requestMobileWorkspaceBack } from '../shells/mobile/workspace/mobile-workspace-back';
 import '../../styles/super-view-header.css';
 import { BrushIcon } from './ui/BrushIcon';
+import { useSuperViewLeaving } from './super-view-leaving';
 
 export interface SuperViewHeaderProps {
   /** Optional inline caption (e.g. counts like "3 故事线 · 12 章"). */
@@ -30,8 +31,13 @@ export function SuperViewHeader({
   rightSlot,
 }: SuperViewHeaderProps) {
   const { t } = useTranslation();
+  const leaving = useSuperViewLeaving();
   const runtime = getPlatformRuntime();
   const resolvedBackLabel = backLabel ?? t('navigation.back');
+  // A view being pushed away keeps the header's box, so its block does not
+  // jump up, but none of its controls: its switch leaves in the same commit
+  // the arriving view's switch arrives in, under the arriving header.
+  if (leaving) return <div className="super-view-head" aria-hidden="true" />;
   return (
     <div
       className="super-view-head"

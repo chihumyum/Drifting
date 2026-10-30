@@ -365,16 +365,19 @@
   background: var(--workspace-ui-bg);
 }
 
+/* The account menu is a glass pill only as wide as the avatar and the name,
+   the avatar concentric with the pill's round end. The name always shows,
+   cut short only when very long; the word counts after it take what is left. */
 .sidebar-account-cell__account {
   display: flex;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   align-items: center;
   gap: 8px;
   height: 32px;
-  padding: 0 6px;
+  padding: 0 12px 0 4px;
   border: 0;
-  border-radius: 3px;
+  border-radius: 999px;
   background: transparent;
   color: hsl(var(--ink-2));
   cursor: pointer;
@@ -408,9 +411,79 @@
 
 .sidebar-account-cell__name {
   min-width: 0;
+  max-width: 6em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Word counts (WorkspaceWordTally), set like a sidebar cell's date: flat,
+   read rather than pressed, so no glass. A count that no longer fits wraps
+   onto a hidden second line and leaves whole instead of being cut in half,
+   today's first; the empty first item lets even the first count wrap away. */
+.sidebar-account-cell__tally {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  min-width: 0;
+  height: 32px;
+  margin-left: 4px;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 9.5px);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.sidebar-account-cell__tally::before {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 32px;
+}
+
+/* Another kind of count (chapter, selection, storyline …) fades in. */
+.sidebar-account-cell__count {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  animation: sidebar-account-count-in 0.16s ease-out backwards;
+}
+
+.sidebar-account-cell__count + .sidebar-account-cell__count {
+  margin-left: 10px;
+}
+
+.sidebar-account-cell__figure {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Today's words are the author's traces: one dry stroke under them, as long
+   as today against the daily goal (materials.css `.sand-stroke`). */
+.sand-stroke.sidebar-account-cell__goal {
+  --sand-stroke-h: 4px;
+  position: absolute;
+  bottom: 5px;
+  left: -1px;
+  max-width: calc(100% + 2px);
+  transition: width 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+@keyframes sidebar-account-count-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-account-cell__count,
+  .sand-stroke.sidebar-account-cell__goal {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* ─── Paper-edge dock: open documents, then the timeline toggle ───────── */
